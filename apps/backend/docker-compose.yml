@@ -1,0 +1,35 @@
+name: 'rabbithole'
+
+services:
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    ports:
+      - 443:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+  backend:
+    image: ghcr.io/dfinity/icp-dev-env-slim:latest
+    platform: linux/amd64
+    working_dir: /app
+    volumes:
+      - ./networks.json:/root/.config/dfx/networks.json
+      - ./:/app:rw
+      - ../../dist/apps/rabbithole/browser:/app/dist:ro
+    entrypoint: ['sh', '-c', 'scripts/install.sh']
+    healthcheck:
+      test: ['CMD', 'dfx', 'ping']
+      interval: 15s
+      timeout: 1m
+    tty: true
+    expose:
+      - 4943
+
+volumes:
+  caddy_data:
+  caddy_config:

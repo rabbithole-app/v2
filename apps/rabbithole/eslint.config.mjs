@@ -1,4 +1,5 @@
 import nx from '@nx/eslint-plugin';
+
 import baseConfig from '../../eslint.config.mjs';
 
 export default [
@@ -8,20 +9,20 @@ export default [
   {
     files: ['**/*.ts'],
     rules: {
-      '@angular-eslint/directive-selector': [
-        'error',
-        {
-          type: 'attribute',
-          prefix: 'app',
-          style: 'camelCase',
-        },
-      ],
       '@angular-eslint/component-selector': [
         'error',
         {
-          type: 'element',
           prefix: 'app',
           style: 'kebab-case',
+          type: 'element',
+        },
+      ],
+      '@angular-eslint/directive-selector': [
+        'error',
+        {
+          prefix: 'app',
+          style: 'camelCase',
+          type: 'attribute',
         },
       ],
     },

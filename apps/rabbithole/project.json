@@ -6,6 +6,9 @@
   "sourceRoot": "apps/rabbithole/src",
   "tags": [],
   "targets": {
+    "serve": {
+      "dependsOn": [{ "projects": ["backend"], "target": "serve" }]
+    },
     "extract-i18n": {
       "executor": "@angular-devkit/build-angular:extract-i18n",
       "options": {

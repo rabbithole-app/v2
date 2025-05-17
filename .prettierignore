@@ -4,3 +4,6 @@
 /.nx/cache
 /.nx/workspace-data
 .angular
+apps/tauri-app
+apps/backend/.dfx
+apps/backend/deps

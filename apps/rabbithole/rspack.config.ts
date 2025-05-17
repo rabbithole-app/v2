@@ -1,4 +1,15 @@
 import { createConfig } from '@nx/angular-rspack';
+import { rspack } from '@rspack/core';
+import { config } from 'dotenv';
+
+const { parsed } = config({ path: '../backend/.env' });
+
+function getEnvVars() {
+  return Object.entries(parsed ?? {}).reduce((acc, [key, value]) => {
+    if (/^(CANISTER_ID|DFX)_/.test(key)) acc[key] = value;
+    return acc;
+  }, {} as Record<string, unknown>);
+}
 
 export default createConfig(
   {
@@ -22,6 +33,16 @@ export default createConfig(
       scripts: [],
       devServer: {},
     },
+    rspackConfigOverrides: {
+      plugins: [
+        new rspack.DefinePlugin({
+          'import.meta.env': JSON.stringify({
+            ...getEnvVars(),
+            NODE_ENV: process.env['NODE_ENV'],
+          }),
+        }),
+      ],
+    },
   },
   {
     production: {
@@ -40,6 +61,12 @@ export default createConfig(
         ],
         outputHashing: 'all',
         devServer: {},
+        fileReplacements: [
+          {
+            replace: './src/environments/environment.ts',
+            with: './src/environments/environment.prod.ts',
+          },
+        ],
       },
     },
 

@@ -1,0 +1,16 @@
+{
+  "applinks": {
+      "details": [
+      {
+        "appIDs": [ "khalik.faradzhli.com.rabbithole.app" ],
+        "components": [
+          {
+            "/": "/internetIdentityCallback",
+            "?": { "delegationChain": "*" },
+            "comment": "Matches any URL whose path starts with /internetIdentityCallback?delegationChain="
+          }
+        ]
+      }
+    ]
+  }
+}

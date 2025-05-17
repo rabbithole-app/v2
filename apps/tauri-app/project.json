@@ -1,0 +1,34 @@
+{
+  "name": "tauri-app",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/tauri-app/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/tauri-app",
+        "commands": ["nx run rabbithole:build:development", "tauri build"],
+        "parallel": false
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "dependsOn": [{ "projects": ["rabbithole"], "target": "serve" }],
+      "options": {
+        "cwd": "apps/tauri-app",
+        "command": "tauri dev",
+        "parallel": false
+      },
+      "continuous": true
+    },
+    "tauri": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/tauri-app",
+        "command": "tauri",
+        "parallel": false
+      }
+    }
+  }
+}

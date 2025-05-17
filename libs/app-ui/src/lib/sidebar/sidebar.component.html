@@ -1,0 +1,32 @@
+@if (isMobile()) {
+<hlm-sheet
+  #sheetRef
+  [side]="side()"
+  [state]="sheetState()"
+  (stateChanged)="sidebarService.setSheetState($event)"
+>
+  <hlm-sheet-content
+    data-sidebar="sidebar"
+    data-mobile="true"
+    class="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+    [style]="styleWidthMobile"
+    *brnSheetContent="let ctx"
+  >
+    <div class="flex h-full w-full flex-col">
+      <ng-container [ngTemplateOutlet]="content" />
+    </div>
+  </hlm-sheet-content>
+</hlm-sheet>
+} @else {
+<rbth-sidebar-base
+  [collapsible]="collapsible()"
+  [variant]="variant()"
+  [side]="side()"
+>
+  <ng-container [ngTemplateOutlet]="content" />
+</rbth-sidebar-base>
+}
+
+<ng-template #content>
+  <ng-content />
+</ng-template>

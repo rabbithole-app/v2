@@ -1,0 +1,28 @@
+{
+  "canisters": {
+    "rabbithole-backend": {
+      "declarations": {
+        "node_compatibility": true
+      },
+      "main": "src/main.mo",
+      "type": "motoko"
+    },
+    "rabbithole-frontend": {
+      "dependencies": ["rabbithole-backend"],
+      "source": ["./dist"],
+      "type": "assets"
+    },
+    "internet-identity": {
+      "type": "pull",
+      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": "mops sources"
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

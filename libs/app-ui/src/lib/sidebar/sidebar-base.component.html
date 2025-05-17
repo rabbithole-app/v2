@@ -1,0 +1,14 @@
+@if (collapsible() !== 'none') {
+<div [class]="sidebarGapClass()"></div>
+<div [class]="sidebarContainerClass()">
+  <div data-sidebar="sidebar" [class]="sidebarInnerClass()">
+    <ng-container [ngTemplateOutlet]="content" />
+  </div>
+</div>
+} @else {
+<ng-container [ngTemplateOutlet]="content" />
+}
+
+<ng-template #content>
+  <ng-content />
+</ng-template>

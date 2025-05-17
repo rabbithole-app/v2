@@ -1,0 +1,6 @@
+localhost, *.localhost {
+    tls internal {
+        on_demand
+    }
+    reverse_proxy backend:4943
+}

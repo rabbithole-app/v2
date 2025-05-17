@@ -1,0 +1,26 @@
+<rbth-sidebar collapsible="icon">
+  <app-sidebar-header />
+  <div rbthSidebarContent>
+    <div rbthSidebarGroup>
+      <div rbthSidebarGroupLabel>Canisters</div>
+      <app-navigation rbthSidebarGroupContent />
+    </div>
+  </div>
+  <div rbthSidebarFooter></div>
+  <!-- <rbth-sidebar-rail /> -->
+</rbth-sidebar>
+<rbth-sidebar-inset>
+  <header
+    class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12"
+  >
+    <div class="flex items-center gap-2 px-4">
+      <rbth-sidebar-trigger class="-ml-1" />
+      <brn-separator
+        hlmSeparator
+        orientation="vertical"
+        class="mr-2 data-[orientation=vertical]:h-4"
+      />
+    </div>
+  </header>
+  <ng-content />
+</rbth-sidebar-inset>

@@ -1,0 +1,79 @@
+{
+  "name": "backend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/backend",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "docker compose up",
+        "parallel": false
+      },
+      "dependsOn": [
+        {
+          "target": "build",
+          "projects": ["rabbithole"]
+        }
+      ]
+    },
+    "compose": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "docker compose",
+        "env": {
+          "COMPOSE_PROJECT_NAME": "rabbithole"
+        },
+        "parallel": false
+      }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "docker compose exec backend dfx deploy",
+        "parallel": false
+      },
+      "dependsOn": [
+        {
+          "target": "build",
+          "projects": ["rabbithole"]
+        }
+      ]
+    },
+    "install-ca": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "commands": [
+          "docker cp $(docker ps -q --filter \"name=caddy\"):/data/caddy/pki/authorities/local/root.crt ./root.crt",
+          "sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain root.crt"
+        ],
+        "env": {
+          "COMPOSE_PROJECT_NAME": "rabbithole"
+        },
+        "parallel": false
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "cwd": "apps/backend",
+        "command": "docker compose up",
+        "env": {
+          "COMPOSE_PROJECT_NAME": "rabbithole"
+        },
+        "parallel": false
+      },
+      "dependsOn": [
+        {
+          "target": "build",
+          "projects": ["rabbithole"]
+        }
+      ]
+    }
+  }
+}

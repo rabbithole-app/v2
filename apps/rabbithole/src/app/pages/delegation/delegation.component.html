@@ -1,0 +1,18 @@
+<app-login>
+  @if (publicKey(); as pk) {
+  <rbth-delegation-internet-identity
+    [publicKey]="pk"
+    [targets]="targets"
+    (delegate)="handleDelegate($event)"
+  >
+    <button
+      type="button"
+      class="focus:outline-hidden inline-flex items-center justify-center gap-x-3 rounded-full border border-transparent bg-gradient-to-tl from-blue-600 to-violet-600 px-4 py-3 text-center text-sm font-medium text-white hover:from-violet-600 hover:to-blue-600 focus:from-violet-600 focus:to-blue-600"
+      rbthInternetIdentityTrigger
+    >
+      <img src="./ic.svg" alt="" width="24px" />
+      Sign in with Internet Identity
+    </button>
+  </rbth-delegation-internet-identity>
+  }
+</app-login>

@@ -1,0 +1,18 @@
+{
+  "eslint.validate": ["javascript", "typescript", "html"],
+  "eslint.enable": true,
+  "editor.formatOnSave": true,
+  "[motoko]": {
+    "editor.defaultFormatter": "dfinity-foundation.vscode-motoko",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[typescript]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
+  },
+  "tailwindCSS.experimental.configFile": "apps/rabbithole/src/styles.css"
+}

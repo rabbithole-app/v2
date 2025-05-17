@@ -1,0 +1,11 @@
+# Internet Computer
+.dfx
+.mops
+deps
+dist
+src/declarations
+
+# other
+replica.log
+.env
+root.crt
