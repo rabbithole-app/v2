@@ -17,8 +17,7 @@ mops install
 
 # deploy canisters in local
 dfx deps deploy
-dfx deploy rabbithole-frontend
-dfx deploy rabbithole-backend
+dfx deploy
 
 # generate declarations
 dfx generate

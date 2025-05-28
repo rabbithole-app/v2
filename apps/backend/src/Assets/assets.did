@@ -1,0 +1,212 @@
+type UpgradeArgs = record { set_permissions : opt SetPermissions };
+type UnsetAssetContentArguments = record {
+  content_encoding : text;
+  key : Key;
+};
+type Time = int;
+type StreamingToken = blob;
+type StreamingStrategy = variant {
+  Callback : record {
+    callback : StreamingCallback;
+    token : StreamingToken;
+  };
+};
+type StreamingCallbackResponse = record {
+  body : blob;
+  token : opt StreamingToken;
+};
+type StreamingCallback = func(StreamingToken) -> (StreamingCallbackResponse) query;
+type StoreArgs = record {
+  content : blob;
+  content_encoding : text;
+  content_type : text;
+  is_aliased : opt bool;
+  key : Key;
+  sha256 : opt blob;
+};
+type SetPermissions = record {
+  commit : vec principal;
+  manage_permissions : vec principal;
+  prepare : vec principal;
+};
+type SetAssetPropertiesArguments = record {
+  allow_raw_access : opt opt bool;
+  headers : opt opt vec Header;
+  is_aliased : opt opt bool;
+  key : Key;
+  max_age : opt opt nat64;
+};
+type SetAssetContentArguments = record {
+  chunk_ids : vec ChunkId;
+  content_encoding : text;
+  key : Key;
+  sha256 : opt blob;
+};
+type RevokePermission = record {
+  of_principal : principal;
+  permission : Permission;
+};
+type Result = variant {
+  err : text;
+  ok : text;
+};
+type Permission = variant {
+  Commit;
+  Manage;
+  Prepare;
+};
+type ListPermitted = record { permission : Permission };
+type Key = text;
+type InitArgs = record {};
+type HttpResponse = record {
+  body : blob;
+  headers : vec Header;
+  status_code : nat16;
+  streaming_strategy : opt StreamingStrategy;
+  upgrade : opt bool;
+};
+type HttpRequest = record {
+  body : blob;
+  certificate_version : opt nat16;
+  headers : vec Header;
+  method : text;
+  url : text;
+};
+type Header = record {
+  text;
+  text;
+};
+type GrantPermission = record {
+  permission : Permission;
+  to_principal : principal;
+};
+type GetChunkArgs = record {
+  content_encoding : text;
+  index : nat;
+  key : Key;
+  sha256 : opt blob;
+};
+type GetArgs = record {
+  accept_encodings : vec text;
+  key : Key;
+};
+type EncodedAsset = record {
+  content : blob;
+  content_encoding : text;
+  content_type : text;
+  sha256 : opt blob;
+  total_length : nat;
+};
+type DeleteBatchArguments = record { batch_id : BatchId };
+type DeleteAssetArguments = record { key : Key };
+type CreateChunksResponse = record { chunk_ids : vec ChunkId };
+type CreateChunksArguments = record {
+  batch_id : BatchId;
+  content : vec blob;
+};
+type CreateChunkResponse = record { chunk_id : nat };
+type CreateChunkArguments = record {
+  batch_id : BatchId;
+  content : blob;
+};
+type CreateBatchResponse = record { batch_id : BatchId };
+type CreateAssetArguments = record {
+  allow_raw_access : opt bool;
+  content_type : text;
+  enable_aliasing : opt bool;
+  headers : opt vec Header;
+  key : Key;
+  max_age : opt nat64;
+};
+type ConfigureArguments = record {
+  max_batches : opt opt nat64;
+  max_bytes : opt opt nat64;
+  max_chunks : opt opt nat64;
+};
+type ConfigurationResponse = record {
+  max_batches : opt nat64;
+  max_bytes : opt nat64;
+  max_chunks : opt nat64;
+};
+type ComputeEvidenceArguments = record {
+  batch_id : BatchId;
+  max_iterations : opt nat16;
+};
+type CommitProposedBatchArguments = record {
+  batch_id : BatchId;
+  evidence : blob;
+};
+type CommitBatchArguments = record {
+  batch_id : BatchId;
+  operations : vec BatchOperationKind;
+};
+type ClearArguments = record {};
+type ChunkId = nat;
+type ChunkContent = record { content : blob };
+type CertifiedTree = record {
+  certificate : blob;
+  tree : blob;
+};
+type CanisterArgs = variant {
+  Init : InitArgs;
+  Upgrade : UpgradeArgs;
+};
+type BatchOperationKind = variant {
+  Clear : ClearArguments;
+  CreateAsset : CreateAssetArguments;
+  DeleteAsset : DeleteAssetArguments;
+  SetAssetContent : SetAssetContentArguments;
+  SetAssetProperties : SetAssetPropertiesArguments;
+  UnsetAssetContent : UnsetAssetContentArguments;
+};
+type BatchId = nat;
+type AssetsCanister = service {
+  api_version : () -> (nat16) query;
+  authorize : (principal) -> ();
+  certified_tree : (record {}) -> (CertifiedTree);
+  clear : (ClearArguments) -> ();
+  commit_batch : (CommitBatchArguments) -> ();
+  commit_proposed_batch : (CommitProposedBatchArguments) -> ();
+  compute_evidence : (ComputeEvidenceArguments) -> (opt blob);
+  configure : (ConfigureArguments) -> ();
+  create_asset : (CreateAssetArguments) -> ();
+  create_batch : (record {}) -> (CreateBatchResponse);
+  create_chunk : (CreateChunkArguments) -> (CreateChunkResponse);
+  create_chunks : (CreateChunksArguments) -> (CreateChunksResponse);
+  deauthorize : (principal) -> ();
+  delete_asset : (DeleteAssetArguments) -> ();
+  delete_batch : (DeleteBatchArguments) -> ();
+  get : (GetArgs) -> (EncodedAsset) query;
+  get_chunk : (GetChunkArgs) -> (ChunkContent) query;
+  get_configuration : () -> (ConfigurationResponse);
+  grant_permission : (GrantPermission) -> ();
+  http_request : (HttpRequest) -> (HttpResponse) query;
+  http_request_streaming_callback : (StreamingToken) -> (StreamingCallbackResponse) query;
+  list : (record {}) -> (vec AssetDetails) query;
+  list_authorized : () -> (vec principal);
+  list_permitted : (ListPermitted) -> (vec principal);
+  propose_commit_batch : (CommitBatchArguments) -> ();
+  revoke_permission : (RevokePermission) -> ();
+  set_asset_content : (SetAssetContentArguments) -> ();
+  set_asset_properties : (SetAssetPropertiesArguments) -> ();
+  store : (StoreArgs) -> ();
+  take_ownership : () -> ();
+  unset_asset_content : (UnsetAssetContentArguments) -> ();
+  validate_commit_proposed_batch : (CommitProposedBatchArguments) -> (Result);
+  validate_configure : (ConfigureArguments) -> (Result);
+  validate_grant_permission : (GrantPermission) -> (Result);
+  validate_revoke_permission : (RevokePermission) -> (Result);
+  validate_take_ownership : () -> (Result);
+};
+type AssetEncodingDetails = record {
+  content_encoding : text;
+  length : nat;
+  modified : Time;
+  sha256 : opt blob;
+};
+type AssetDetails = record {
+  content_type : text;
+  encodings : vec AssetEncodingDetails;
+  key : Key;
+};
+service : (CanisterArgs) -> AssetsCanister;

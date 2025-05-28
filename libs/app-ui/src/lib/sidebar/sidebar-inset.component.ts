@@ -5,10 +5,9 @@ import { ClassValue } from 'clsx';
 @Component({
   selector: 'rbth-sidebar-inset',
   standalone: true,
-  styles: `
-    @reference 'tailwindcss';
-    :host { @apply contents; }
-  `,
+  host: {
+    class: 'contents',
+  },
   template: ` <main [class]="computedClass()"><ng-content /></main> `,
 })
 export class RbthSidebarInsetComponent {

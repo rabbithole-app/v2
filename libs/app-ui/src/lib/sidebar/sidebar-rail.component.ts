@@ -6,10 +6,9 @@ import { SidebarService } from './sidebar.service';
 
 @Component({
   selector: 'rbth-sidebar-rail',
-  styles: `
-    @reference 'tailwindcss';
-    :host { @apply contents; }
-  `,
+  host: {
+    class: 'contents',
+  },
   template: `<button
     data-sidebar="rail"
     aria-label="Toggle Sidebar"

@@ -1,7 +1,8 @@
-import { Directive, computed, input, signal } from '@angular/core';
+import { computed, Directive, input, signal } from '@angular/core';
 import { hlm } from '@spartan-ng/brain/core';
-import { type VariantProps, cva } from 'class-variance-authority';
+import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
 import { injectBrnButtonConfig } from './hlm-button.token';
 
 export const buttonVariants = cva(
@@ -21,7 +22,7 @@ export const buttonVariants = cva(
       },
       size: {
         default: 'h-10 py-2 px-4',
-        sm: 'h-9 px-3 rounded-md',
+        sm: 'h-9 px-3 text-xs rounded-md',
         lg: 'h-11 px-8 rounded-md',
         icon: 'h-10 w-10',
       },
@@ -45,9 +46,15 @@ export type ButtonVariants = VariantProps<typeof buttonVariants>;
 export class HlmButtonDirective {
   private readonly _config = injectBrnButtonConfig();
 
-  private readonly _additionalClasses = signal<ClassValue>('');
+  public readonly size = input<ButtonVariants['size']>(this._config.size);
 
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+  public readonly variant = input<ButtonVariants['variant']>(
+    this._config.variant
+  );
+
+  private readonly _additionalClasses = signal<ClassValue>('');
 
   protected readonly _computedClass = computed(() =>
     hlm(
@@ -56,12 +63,6 @@ export class HlmButtonDirective {
       this._additionalClasses()
     )
   );
-
-  public readonly variant = input<ButtonVariants['variant']>(
-    this._config.variant
-  );
-
-  public readonly size = input<ButtonVariants['size']>(this._config.size);
 
   setClass(classes: string): void {
     this._additionalClasses.set(classes);

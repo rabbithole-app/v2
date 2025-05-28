@@ -2,6 +2,7 @@
   "eslint.validate": ["javascript", "typescript", "html"],
   "eslint.enable": true,
   "editor.formatOnSave": true,
+  "editor.tabSize": 2,
   "[motoko]": {
     "editor.defaultFormatter": "dfinity-foundation.vscode-motoko",
     "editor.formatOnSave": true,
@@ -14,5 +15,6 @@
       "source.fixAll.eslint": "explicit"
     }
   },
-  "tailwindCSS.experimental.configFile": "apps/rabbithole/src/styles.css"
+  "tailwindCSS.experimental.configFile": "apps/rabbithole/src/styles.css",
+  "nxConsole.generateAiAgentRules": true
 }

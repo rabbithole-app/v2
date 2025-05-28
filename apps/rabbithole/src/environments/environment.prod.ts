@@ -8,4 +8,5 @@ export const environment = {
   production: true,
   scheme: 'rabbithole',
   backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
+  assetsCanisterId: import.meta.env.CANISTER_ID_ASSETS,
 };

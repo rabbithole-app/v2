@@ -10,6 +10,7 @@ export default [
       '**/dist',
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
+      'apps/backend/src/declarations',
     ],
   },
   {

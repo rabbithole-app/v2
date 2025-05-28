@@ -1,2 +1,4 @@
 [dependencies]
 base = "0.13.3"
+http-assets = "0.0.6"
+map = "9.0.1"

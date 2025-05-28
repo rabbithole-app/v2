@@ -1,24 +1,8 @@
-import {
-  computed,
-  DestroyRef,
-  effect,
-  inject,
-  Injectable,
-  signal,
-} from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { AnonymousIdentity, Identity } from '@dfinity/agent';
 import { AuthClient } from '@dfinity/auth-client';
-import { connect } from 'ngxtension/connect';
-import {
-  from,
-  map,
-  mergeWith,
-  ReplaySubject,
-  connect as rxConnect,
-  Subject,
-  switchMap,
-} from 'rxjs';
+import { map } from 'rxjs';
 
 import { assertClient } from './asserts';
 import { AUTH_CONFIG, AuthClientLogoutOptions, IAuthService } from './tokens';
@@ -45,14 +29,11 @@ export class AuthService implements IAuthService {
   principalId = computed(() => this.#state().identity.getPrincipal().toText());
   ready$ = toObservable(this.#state).pipe(map(({ ready }) => ready));
   #authConfig = inject(AUTH_CONFIG);
-  #destroyRef = inject(DestroyRef);
-  #refresh = new Subject<void>();
 
   constructor() {
     this.#initState();
     effect(() => console.info(`Principal ID: ${this.principalId()}`));
   }
-
   async signIn() {
     const { client } = this.#state();
 
@@ -64,7 +45,7 @@ export class AuthService implements IAuthService {
       ...options,
       onSuccess: (message) => {
         if (options.onSuccess) options.onSuccess(message);
-        this.#refresh.next();
+        this.#initState();
       },
     });
   }
@@ -75,33 +56,19 @@ export class AuthService implements IAuthService {
     assertClient(client);
 
     await client.logout(opts);
-    this.#refresh.next();
+    this.#initState();
   }
 
-  #initState() {
-    const authClient$ = from(AuthClient.create()).pipe(
-      rxConnect(
-        (shared) =>
-          shared.pipe(
-            mergeWith(
-              this.#refresh.asObservable().pipe(switchMap(() => shared))
-            ),
-            map((client) => ({ client, identity: client.getIdentity() })),
-            rxConnect((shared) =>
-              shared.pipe(
-                mergeWith(
-                  shared.pipe(
-                    switchMap(({ client }) => client.isAuthenticated()),
-                    map((isAuthenticated) => ({ isAuthenticated, ready: true }))
-                  )
-                )
-              )
-            )
-          ),
-        { connector: () => new ReplaySubject(1) }
-      )
-    );
-
-    connect(this.#state, authClient$, this.#destroyRef);
+  async #initState() {
+    const client = await AuthClient.create();
+    const identity = client.getIdentity();
+    const isAuthenticated = await client.isAuthenticated();
+    this.#state.update((state) => ({
+      ...state,
+      client,
+      identity,
+      isAuthenticated,
+      ready: true,
+    }));
   }
 }

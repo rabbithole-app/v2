@@ -1,0 +1,109 @@
+@if (disabled()) {
+<div [class]="dropzoneComputedClass()">
+  <ng-container [ngTemplateOutlet]="dropzoneContent" />
+</div>
+} @else {
+<div
+  (dragenter)="handleDragEnter($any($event))"
+  (dragleave)="handleDragLeave($any($event))"
+  (dragover)="handleDragOver($any($event))"
+  (drop)="handleDrop($any($event))"
+  (click)="openFileDialog()"
+  (keydown.enter)="openFileDialog()"
+  (keydown.space)="openFileDialog()"
+  [attr.data-dragging]="isDragging()"
+  tabindex="0"
+  role="button"
+  aria-label="Upload files by clicking or dragging and dropping"
+  [class]="dropzoneComputedClass()"
+>
+  <ng-container [ngTemplateOutlet]="dropzoneContent" />
+</div>
+}
+
+<ng-template #dropzoneContent>
+  <div class="flex flex-col items-center justify-center text-center">
+    <div
+      class="bg-background mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border"
+      aria-hidden="true"
+    >
+      <ng-icon hlm class="opacity-60" size="sm" name="lucideFileUp" />
+    </div>
+    <p class="mb-1.5 text-sm font-medium">Upload files</p>
+    <p class="text-muted-foreground mb-2 text-xs">
+      Drag & drop or click to browse
+    </p>
+    <div
+      class="text-muted-foreground/70 flex flex-wrap justify-center gap-1 text-xs"
+    >
+      <span>All files</span>
+      <span>∙</span>
+      <span>Max {{ config.maxFiles }} files</span>
+      <span>∙</span>
+      <span>Up to {{ config.maxSize | formatBytes }}</span>
+    </div>
+  </div>
+</ng-template>
+
+@for (error of fileUploadService.errors(); track error) {
+<div class="text-destructive flex items-center gap-1 text-xs" role="alert">
+  <ng-icon hlm size="xs" class="shrink-0" name="lucideCircleAlert" />
+  <span>{{ error }}</span>
+</div>
+} @let fileList = fileUploadService.files(); @if (fileList.length) {
+<div class="space-y-2">
+  @for (file of fileList; track file.id) {
+  <div
+    class="bg-background flex items-center justify-between gap-2 rounded-lg border p-2 pe-3"
+  >
+    <div class="flex items-center gap-3 overflow-hidden">
+      <div
+        class="flex aspect-square size-10 shrink-0 items-center justify-center rounded border"
+      >
+        <ng-icon
+          hlm
+          class="opacity-60"
+          size="sm"
+          [name]="file.file | fileIcon"
+        />
+      </div>
+      <div class="flex min-w-0 flex-col gap-0.5">
+        <p class="truncate text-[13px] font-medium">
+          {{ file.file.name }}
+        </p>
+        <p class="text-muted-foreground text-xs">
+          {{ file.file.size | formatBytes }}
+        </p>
+      </div>
+    </div>
+    <button
+      hlmBtn
+      size="icon"
+      variant="ghost"
+      class="text-muted-foreground/80 hover:text-foreground -me-2 size-8 hover:bg-transparent"
+      (click)="fileUploadService.removeFile(file.id)"
+      aria-label="Remove file"
+    >
+      <ng-icon hlm size="sm" name="lucideX" aria-hidden="true" />
+    </button>
+  </div>
+  }
+  <div class="flex gap-2">
+    <button hlmBtn size="sm" (click)="handleUpload()">
+      <ng-icon hlm size="sm" class="mr-2" name="lucideUpload" />
+      Upload
+    </button>
+    @if (fileList.length > 1) {
+    <button
+      hlmBtn
+      size="sm"
+      variant="outline"
+      (click)="fileUploadService.clearFiles()"
+    >
+      <ng-icon hlm size="sm" class="mr-2" name="lucideTrash2" />
+      Remove all files
+    </button>
+    }
+  </div>
+</div>
+}

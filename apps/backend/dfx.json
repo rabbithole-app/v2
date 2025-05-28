@@ -12,6 +12,14 @@
       "source": ["./dist"],
       "type": "assets"
     },
+    "assets": {
+      "declarations": {
+        "node_compatibility": true
+      },
+      "init_arg": "(variant { Init = record {} })",
+      "main": "src/Assets/Canister.mo",
+      "type": "motoko"
+    },
     "internet-identity": {
       "type": "pull",
       "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"

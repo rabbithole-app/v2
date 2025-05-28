@@ -18,7 +18,6 @@ import {
   RbthSidebarTriggerComponent,
 } from './lib/sidebar';
 import { RbthSidebarComponent } from './lib/sidebar/sidebar.component';
-export * from './lib/sidebar';
 
 const RbthSidebarLayoutImports = [
   RbthSidebarComponent,
@@ -45,5 +44,6 @@ const RbthSidebarLayoutImports = [
 })
 export class RbthSidebarLayoutModule {}
 
-export { RbthTooltipTriggerDirective } from './lib/tooltip/tooltip-trigger.directive';
-export { RbthTooltipComponent } from './lib/tooltip/tooltip.component';
+export * from './lib/file-upload';
+export * from './lib/sidebar';
+export * from './lib/tooltip';
