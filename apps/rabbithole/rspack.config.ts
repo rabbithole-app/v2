@@ -1,4 +1,5 @@
 import { createConfig } from '@nx/angular-rspack';
+import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
 import { rspack } from '@rspack/core';
 import { config } from 'dotenv';
 
@@ -15,13 +16,12 @@ export default createConfig(
   {
     options: {
       root: __dirname,
-
       outputPath: {
         base: '../../dist/apps/rabbithole',
       },
       index: './src/index.html',
       browser: './src/main.ts',
-      polyfills: ['zone.js'],
+      polyfills: [],
       tsConfig: './tsconfig.app.json',
       assets: [
         {
@@ -67,6 +67,11 @@ export default createConfig(
             with: './src/environments/environment.prod.ts',
           },
         ],
+      },
+      rspackConfigOverrides: {
+        plugins: [process.env['RSDOCTOR'] && new RsdoctorRspackPlugin()].filter(
+          Boolean
+        ),
       },
     },
 

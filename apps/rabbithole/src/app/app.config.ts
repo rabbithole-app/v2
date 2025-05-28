@@ -1,7 +1,7 @@
 import {
   ApplicationConfig,
+  provideExperimentalZonelessChangeDetection,
   Provider,
-  provideZoneChangeDetection,
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Principal } from '@dfinity/principal';
@@ -40,7 +40,7 @@ const authConfig: AuthConfig = {
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideExperimentalZonelessChangeDetection(),
     provideRouter(appRoutes),
     provideAuthService(),
     { provide: AUTH_CONFIG, useValue: authConfig },

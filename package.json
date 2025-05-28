@@ -6,6 +6,7 @@
     "start": "nx serve rabbithole",
     "lint": "nx run-many -t lint -p rabbithole assets app-ui auth utils",
     "build:frontend": "nx build rabbithole",
+    "build:frontend-rsdoctor": "RSDOCTOR=1 nx build rabbithole",
     "tauri": "nx run tauri-app:tauri",
     "tauri:dev": "nx serve tauri-app",
     "tauri:build": "nx build tauri-app"
@@ -67,6 +68,8 @@
     "@nx/web": "21.0.3",
     "@nx/workspace": "21.0.3",
     "@playwright/test": "^1.36.0",
+    "@rsdoctor/cli": "^1.1.2",
+    "@rsdoctor/rspack-plugin": "^1.1.2",
     "@rspack/cli": "^1.3.10",
     "@rspack/core": "^1.3.8",
     "@rspack/dev-server": "1.1.1",
