@@ -1,0 +1,48 @@
+<rbth-drawer side="right" state="open">
+  <button id="edit-profile" variant="outline" brnSheetTrigger hlmBtn>
+    Upload files
+  </button>
+  <rbth-drawer-content *brnSheetContent="let ctx">
+    <rbth-drawer-header>
+      <h2 rbthDrawerTitle>Upload</h2>
+    </rbth-drawer-header>
+    <div class="flex-1">
+      <div class="flex gap-2 px-4 pb-2">
+        <button hlmBtn (click)="openDirectoryPicker()">
+          <ng-icon hlm class="mr-2" size="sm" name="lucideFolderUp" />
+          Upload directory
+        </button>
+        <button hlmBtn variant="secondary" (click)="list()">
+          <ng-icon hlm class="mr-2" size="sm" name="lucideList" />
+          List
+        </button>
+      </div>
+      <!-- @if (parsedError(); as error) { -->
+      <!-- <div hlmAlert variant="destructive">
+      <ng-icon hlm hlmAlertIcon name="lucideTriangleAlert" />
+      <h4 hlmAlertTitle>Unexpected Error</h4>
+      <p hlmAlertDesc>Your session has expired. Please log in again.</p>
+    </div> -->
+      <!-- } -->
+      <rbth-file-upload-dropzone
+        class="flex flex-col gap-2 px-4 pb-4 w-full"
+        (added)="upload($event)"
+        [disabled]="dropzoneDisabled()"
+      />
+      <h3 rbthDrawerSeparator>Active</h3>
+      <div class="space-y-4 p-4">
+        @for (item of items(); track item.id) {
+        <rbth-upload-item
+          [data]="item"
+          (removeUpload)="handleRemove(item.id)"
+          (cancelUpload)="handleCancel(item.id)"
+          (retryUpload)="handleRetry(item.id)"
+        />
+        }
+      </div>
+    </div>
+    <!-- <rbth-drawer-footer>
+      <button hlmBtn type="submit">Save Changes</button>
+    </rbth-drawer-footer> -->
+  </rbth-drawer-content>
+</rbth-drawer>

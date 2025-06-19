@@ -43,7 +43,6 @@ export default [
       '**/*.mjs',
     ],
     plugins: { perfectionist },
-    // Override or add rules here
     rules: {
       ...perfectionist.configs['recommended-alphabetical'].rules,
       'perfectionist/sort-enums': 'off',

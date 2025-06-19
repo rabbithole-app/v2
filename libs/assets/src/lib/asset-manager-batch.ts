@@ -3,10 +3,7 @@ import { sha256 } from '@noble/hashes/sha2';
 
 import { AssetManager } from './asset-manager';
 import { AssetsCanisterRecord } from './canisters/assets';
-import {
-  BatchOperationKind,
-  CreateAssetArguments,
-} from './canisters/assets.did';
+import { BatchOperationKind } from './canisters/assets.did';
 import { CommitBatchArgs, Progress, StoreArgs } from './types';
 import { LimitFn } from './utils/limit';
 
@@ -130,7 +127,10 @@ export class AssetManagerBatch {
         : [];
       return [
         {
-          CreateAsset: <CreateAssetArguments>{
+          CreateAsset: {
+            allow_raw_access: [],
+            max_age: [],
+            enable_aliasing: [],
             key,
             content_type: config?.contentType ?? readable.contentType,
             headers,

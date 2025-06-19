@@ -5,10 +5,7 @@
   "editor.tabSize": 2,
   "[motoko]": {
     "editor.defaultFormatter": "dfinity-foundation.vscode-motoko",
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit"
-    }
+    "editor.formatOnSave": true
   },
   "[typescript]": {
     "editor.codeActionsOnSave": {

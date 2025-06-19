@@ -1,14 +1,13 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import {
   type FileSystemDirectoryHandle,
   type FileSystemFileHandle,
-  showDirectoryPicker,
-  showOpenFilePicker,
 } from 'native-file-system-adapter';
 
-import { FileMetadata, FileWithPreview } from './file-upload.model';
+import { FileWithPreview } from './file-upload.model';
 import { injectFileUploadConfig } from './file-upload.token';
 import { formatBytes } from './file-upload.utils';
+import { BrowserFSPicker } from '@rabbithole/core';
 
 type State = {
   errors: string[];
@@ -23,10 +22,12 @@ const INITIAL_VALUE: State = {
 @Injectable()
 export class FileUploadService {
   #state = signal(INITIAL_VALUE);
-
   readonly errors = computed(() => this.#state().errors);
+
   readonly files = computed(() => this.#state().files);
   #config = injectFileUploadConfig();
+  // TODO: replace to token which provides another service for Tauri v2
+  #fsPickerService = inject(BrowserFSPicker);
 
   private readonly ignoreFileList = ['.DS_Store', 'Thumbs.db'];
 
@@ -49,8 +50,8 @@ export class FileUploadService {
       if (file.size > this.#config.maxSize) {
         errors.push(
           `${file.name} is too large. Maximum size is ${formatBytes(
-            this.#config.maxSize
-          )}`
+            this.#config.maxSize,
+          )}`,
         );
         continue;
       }
@@ -58,7 +59,7 @@ export class FileUploadService {
       const isDuplicate = currentFiles.some(
         (existingFile) =>
           existingFile.file.name === file.name &&
-          existingFile.file.size === file.size
+          existingFile.file.size === file.size,
       );
 
       if (isDuplicate) {
@@ -99,6 +100,33 @@ export class FileUploadService {
     this.#state.update((prev) => ({ ...prev, files: [], errors: [] }));
   }
 
+  async listFilesAndDirsRecursively(
+    dirHandle: FileSystemDirectoryHandle,
+    cwd?: string,
+  ): Promise<[{ file: File; path: string }[], string[]]> {
+    const path = cwd ? `${cwd}/${dirHandle.name}` : dirHandle.name;
+    const files: Array<{ file: File; path: string }> = [];
+    const directories: string[] = [path];
+    for await (const handle of dirHandle.values()) {
+      if (this.ignoreFileList.includes(handle.name)) continue;
+      if (handle.kind === 'directory') {
+        const [f, d] = await this.listFilesAndDirsRecursively(
+          handle as FileSystemDirectoryHandle,
+          path,
+        );
+        files.push(...f);
+        directories.push(...d);
+      } else {
+        files.push({
+          file: await (handle as FileSystemFileHandle).getFile(),
+          path,
+        });
+      }
+    }
+
+    return [files, directories];
+  }
+
   removeFile(id: string) {
     const fileToRemove = this.#state().files.find((file) => file.id === id);
 
@@ -117,71 +145,23 @@ export class FileUploadService {
     this.#state.update((prev) => ({ ...prev, isDragging }));
   }
 
-  setInitialFiles(initialFiles: FileMetadata[]) {
-    const files = initialFiles.map((file) => ({
-      file,
-      id: file.id,
-      preview: file.url,
-    }));
-
-    this.#state.update((prev) => ({ ...prev, files }));
-  }
-
   // Methods for working with File System Access API
   async showDirectoryPicker() {
-    try {
-      const dirHandle = await showDirectoryPicker();
-      const [files] = await this.listFilesAndDirsRecursively(dirHandle);
-
-      const fileObjects = files.map(({ file }) => file);
-      this.addFiles(fileObjects);
-    } catch (err) {
-      console.error('Directory picker error:', err);
-    }
+    const dirHandle = await this.#fsPickerService.showDirectoryPicker();
+    const [files] = await this.listFilesAndDirsRecursively(dirHandle);
+    const fileObjects = files.map(({ file }) => file);
+    this.addFiles(fileObjects);
   }
 
   async showOpenFilePicker() {
-    try {
-      const fileHandles = await showOpenFilePicker({
-        multiple: this.#config.multiple,
-      });
+    const fileHandles = await this.#fsPickerService.showOpenFilePicker({
+      multiple: this.#config.multiple,
+    });
 
-      const files = await Promise.all(
-        fileHandles.map((handle) => handle.getFile())
-      );
+    const files = await Promise.all(
+      fileHandles.map((handle) => handle.getFile()),
+    );
 
-      this.addFiles(files);
-    } catch (err) {
-      console.error('File picker error:', err);
-    }
-  }
-
-  private async listFilesAndDirsRecursively(
-    dirHandle: FileSystemDirectoryHandle,
-    cwd?: string
-  ): Promise<[{ file: File; path: string }[], string[]]> {
-    const path = cwd ? `${cwd}/${dirHandle.name}` : dirHandle.name;
-    const files: Array<{ file: File; path: string }> = [];
-    const directories: string[] = [path];
-
-    for await (const [name, handle] of dirHandle.entries()) {
-      if (this.ignoreFileList.includes(name)) continue;
-
-      if (handle.kind === 'directory') {
-        const [f, d] = await this.listFilesAndDirsRecursively(
-          handle as FileSystemDirectoryHandle,
-          path
-        );
-        files.push(...f);
-        directories.push(...d);
-      } else {
-        files.push({
-          file: await (handle as FileSystemFileHandle).getFile(),
-          path,
-        });
-      }
-    }
-
-    return [files, directories];
+    this.addFiles(files);
   }
 }

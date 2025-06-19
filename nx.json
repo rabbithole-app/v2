@@ -14,7 +14,6 @@
     ],
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
   },
-  "nxCloudId": "68230e08a157222d862dd963",
   "plugins": [
     {
       "plugin": "@nx/angular/plugin",
@@ -103,10 +102,11 @@
     },
     "@nx/angular:library": {
       "linter": "eslint",
-      "unitTestRunner": "jest"
+      "unitTestRunner": "vitest"
     },
     "@nx/angular:component": {
-      "style": "css"
+      "style": "css",
+      "changeDetection": "OnPush"
     }
   }
 }

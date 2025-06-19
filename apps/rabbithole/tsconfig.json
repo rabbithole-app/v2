@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "esModuleInterop": true,
+    "lib": ["es2022", "dom", "dom.iterable"],
     "target": "es2022",
     "forceConsistentCasingInFileNames": true,
     "strict": true,

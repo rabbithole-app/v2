@@ -4,7 +4,6 @@ import { ClassValue } from 'clsx';
 
 @Directive({
   selector: 'ul[rbthSidebarMenu]',
-  standalone: true,
   exportAs: 'rbthSidebarMenu',
   host: {
     '[class]': 'computedClass()',
@@ -12,7 +11,6 @@ import { ClassValue } from 'clsx';
   },
 })
 export class RbthSidebarMenuDirective {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly computedClass = computed(() =>

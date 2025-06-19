@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/worker",
+    "lib": ["es2018", "webworker"],
+    "types": [],
+    "target": "es2018",
+    "moduleResolution": "bundler"
+  },
+  "include": ["src/**/*.worker.ts", "../../libs/core/src/**/*.worker.ts"]
+}

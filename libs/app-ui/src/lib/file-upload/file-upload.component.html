@@ -1,49 +1,7 @@
-@if (disabled()) {
-<div [class]="dropzoneComputedClass()">
-  <ng-container [ngTemplateOutlet]="dropzoneContent" />
-</div>
-} @else {
-<div
-  (dragenter)="handleDragEnter($any($event))"
-  (dragleave)="handleDragLeave($any($event))"
-  (dragover)="handleDragOver($any($event))"
-  (drop)="handleDrop($any($event))"
-  (click)="openFileDialog()"
-  (keydown.enter)="openFileDialog()"
-  (keydown.space)="openFileDialog()"
-  [attr.data-dragging]="isDragging()"
-  tabindex="0"
-  role="button"
-  aria-label="Upload files by clicking or dragging and dropping"
-  [class]="dropzoneComputedClass()"
->
-  <ng-container [ngTemplateOutlet]="dropzoneContent" />
-</div>
-}
-
-<ng-template #dropzoneContent>
-  <div class="flex flex-col items-center justify-center text-center">
-    <div
-      class="bg-background mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border"
-      aria-hidden="true"
-    >
-      <ng-icon hlm class="opacity-60" size="sm" name="lucideFileUp" />
-    </div>
-    <p class="mb-1.5 text-sm font-medium">Upload files</p>
-    <p class="text-muted-foreground mb-2 text-xs">
-      Drag & drop or click to browse
-    </p>
-    <div
-      class="text-muted-foreground/70 flex flex-wrap justify-center gap-1 text-xs"
-    >
-      <span>All files</span>
-      <span>∙</span>
-      <span>Max {{ config.maxFiles }} files</span>
-      <span>∙</span>
-      <span>Up to {{ config.maxSize | formatBytes }}</span>
-    </div>
-  </div>
-</ng-template>
+<rbth-file-upload-dropzone
+  (added)="fileUploadService.addFiles($event)"
+  [disabled]="disabled()"
+/>
 
 @for (error of fileUploadService.errors(); track error) {
 <div class="text-destructive flex items-center gap-1 text-xs" role="alert">
@@ -87,7 +45,7 @@
       <ng-icon hlm size="sm" name="lucideX" aria-hidden="true" />
     </button>
   </div>
-  }
+  } @if (!immediately()) {
   <div class="flex gap-2">
     <button hlmBtn size="sm" (click)="handleUpload()">
       <ng-icon hlm size="sm" class="mr-2" name="lucideUpload" />
@@ -105,5 +63,6 @@
     </button>
     }
   </div>
+  }
 </div>
 }

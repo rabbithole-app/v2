@@ -4,7 +4,6 @@ import { ClassValue } from 'clsx';
 
 @Directive({
   selector: '[rbthSidebarGroupLabel]',
-  standalone: true,
   exportAs: 'rbthSidebarGroupLabel',
   host: {
     '[class]': 'computedClass()',
@@ -12,7 +11,6 @@ import { ClassValue } from 'clsx';
   },
 })
 export class RbthSidebarGroupLabelDirective {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly computedClass = computed(() =>

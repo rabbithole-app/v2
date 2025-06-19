@@ -162,7 +162,6 @@ type BatchOperationKind = variant {
 type BatchId = nat;
 type AssetsCanister = service {
   api_version : () -> (nat16) query;
-  authorize : (principal) -> ();
   certified_tree : (record {}) -> (CertifiedTree);
   clear : (ClearArguments) -> ();
   commit_batch : (CommitBatchArguments) -> ();
@@ -173,7 +172,6 @@ type AssetsCanister = service {
   create_batch : (record {}) -> (CreateBatchResponse);
   create_chunk : (CreateChunkArguments) -> (CreateChunkResponse);
   create_chunks : (CreateChunksArguments) -> (CreateChunksResponse);
-  deauthorize : (principal) -> ();
   delete_asset : (DeleteAssetArguments) -> ();
   delete_batch : (DeleteBatchArguments) -> ();
   get : (GetArgs) -> (EncodedAsset) query;
@@ -183,7 +181,6 @@ type AssetsCanister = service {
   http_request : (HttpRequest) -> (HttpResponse) query;
   http_request_streaming_callback : (StreamingToken) -> (StreamingCallbackResponse) query;
   list : (record {}) -> (vec AssetDetails) query;
-  list_authorized : () -> (vec principal);
   list_permitted : (ListPermitted) -> (vec principal);
   propose_commit_batch : (CommitBatchArguments) -> ();
   revoke_permission : (RevokePermission) -> ();

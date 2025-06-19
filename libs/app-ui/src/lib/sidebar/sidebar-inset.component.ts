@@ -4,14 +4,12 @@ import { ClassValue } from 'clsx';
 
 @Component({
   selector: 'rbth-sidebar-inset',
-  standalone: true,
   host: {
     class: 'contents',
   },
   template: ` <main [class]="computedClass()"><ng-content /></main> `,
 })
 export class RbthSidebarInsetComponent {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly computedClass = computed(() =>

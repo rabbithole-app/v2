@@ -427,21 +427,6 @@ module {
       BaseAssets.delete_batch(state, caller, args);
     };
 
-    /// @deprecated Use [grant_permission()](#method-grant_permission) instead.
-    public func authorize(caller : Principal, principal : Principal) : async* Result<(), Text> {
-      await* BaseAssets.authorize(state, caller, principal);
-    };
-
-    /// @deprecated Use [revoke_permission()](#method-revoke_permission) instead.
-    public func deauthorize(caller : Principal, principal : Principal) : async* Result<(), Text> {
-      await* BaseAssets.deauthorize(state, caller, principal);
-    };
-
-    /// @deprecated Use [list_permitted()](#method-list_permitted) instead.
-    public func list_authorized() : [Principal] {
-      BaseAssets.list_authorized(state);
-    };
-
     /// This method grants a permission to a principal.
     ///
     /// Callable by: Principals with [ManagePermissions](#permission-managepermissions) permission, and canister controllers.

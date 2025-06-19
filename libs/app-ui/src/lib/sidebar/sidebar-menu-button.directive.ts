@@ -42,7 +42,6 @@ export type SidebarMenuButtonVariants = VariantProps<
 
 @Directive({
   selector: '[rbthSidebarMenuButton]',
-  standalone: true,
   exportAs: 'rbthSidebarMenuButton',
   host: {
     '[class]': 'computedClass()',
@@ -60,7 +59,7 @@ export type SidebarMenuButtonVariants = VariantProps<
 export class RbthSidebarMenuButtonDirective {
   isActive = input(false, { transform: booleanAttribute });
   size = input<NonNullable<ButtonVariants['size']>>('default');
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   variant = input<NonNullable<ButtonVariants['variant']>>('default');

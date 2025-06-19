@@ -1,4 +1,12 @@
 {
   "singleQuote": true,
-  "plugins": ["prettier-plugin-motoko"]
+  "plugins": ["prettier-plugin-motoko"],
+  "overrides": [
+    {
+      "files": "*.html",
+      "options": {
+        "parser": "angular"
+      }
+    }
+  ]
 }

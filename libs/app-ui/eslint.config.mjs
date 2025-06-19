@@ -25,6 +25,12 @@ export default [
           type: 'attribute',
         },
       ],
+      '@angular-eslint/no-input-rename': [
+        'error',
+        {
+          allowedNames: ['class'],
+        },
+      ],
     },
   },
   {

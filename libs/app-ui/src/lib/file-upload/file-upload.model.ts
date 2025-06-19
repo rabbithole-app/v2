@@ -1,13 +1,6 @@
-export type FileMetadata = {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  url: string;
-};
-
 export type FileWithPreview = {
-  file: File | FileMetadata;
+  file: File;
   id: string;
+  path?: string;
   preview?: string;
 };

@@ -1,15 +1,18 @@
 import { createConfig } from '@nx/angular-rspack';
 import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
 import { rspack } from '@rspack/core';
+import CompressionPlugin from 'compression-webpack-plugin';
 import { config } from 'dotenv';
-
 const { parsed } = config({ path: '../backend/.env' });
 
 function getEnvVars() {
-  return Object.entries(parsed ?? {}).reduce((acc, [key, value]) => {
-    if (/^(CANISTER_ID|DFX)_/.test(key)) acc[key] = value;
-    return acc;
-  }, {} as Record<string, unknown>);
+  return Object.entries(parsed ?? {}).reduce(
+    (acc, [key, value]) => {
+      if (/^(CANISTER_ID|DFX)_/.test(key)) acc[key] = value;
+      return acc;
+    },
+    {} as Record<string, unknown>,
+  );
 }
 
 export default createConfig(
@@ -34,6 +37,18 @@ export default createConfig(
       devServer: {},
     },
     rspackConfigOverrides: {
+      module: {
+        parser: {
+          javascript: {
+            importMeta: true,
+            url: true,
+          },
+        },
+      },
+      infrastructureLogging: {
+        level: 'warn',
+        debug: ['rspack'],
+      },
       plugins: [
         new rspack.DefinePlugin({
           'import.meta.env': JSON.stringify({
@@ -69,9 +84,26 @@ export default createConfig(
         ],
       },
       rspackConfigOverrides: {
-        plugins: [process.env['RSDOCTOR'] && new RsdoctorRspackPlugin()].filter(
-          Boolean
-        ),
+        plugins: [
+          new CompressionPlugin({
+            filename: '[path][base].gz',
+            algorithm: 'gzip',
+            test: /\.(js|css|html|svg|wasm)$/,
+            threshold: 10240,
+            minRatio: 0.8,
+          }),
+          new CompressionPlugin({
+            filename: '[path][base].br',
+            algorithm: 'brotliCompress',
+            test: /\.(js|css|html|svg|wasm)$/,
+            compressionOptions: {
+              level: 11,
+            },
+            threshold: 10240,
+            minRatio: 0.8,
+          }),
+          process.env['RSDOCTOR'] && new RsdoctorRspackPlugin(),
+        ].filter(Boolean),
       },
     },
 
@@ -84,6 +116,12 @@ export default createConfig(
         namedChunks: true,
         devServer: {},
       },
+      rspackConfigOverrides: {
+        infrastructureLogging: {
+          level: 'info',
+          debug: ['rspack', 'webpack-dev-server'],
+        },
+      },
     },
-  }
+  },
 );
