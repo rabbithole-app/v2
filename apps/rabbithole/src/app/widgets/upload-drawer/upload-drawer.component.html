@@ -29,17 +29,16 @@
         (added)="upload($event)"
         [disabled]="dropzoneDisabled()"
       />
+      @if (activeItems().length) {
       <h3 rbthDrawerSeparator>Active</h3>
-      <div class="space-y-4 p-4">
-        @for (item of items(); track item.id) {
-        <rbth-upload-item
-          [data]="item"
-          (removeUpload)="handleRemove(item.id)"
-          (cancelUpload)="handleCancel(item.id)"
-          (retryUpload)="handleRetry(item.id)"
-        />
-        }
-      </div>
+      <app-upload-drawer-list [items]="activeItems()" />
+      } @if (completedItems().length) {
+      <h3 rbthDrawerSeparator>Completed</h3>
+      <app-upload-drawer-list [items]="completedItems()" />
+      } @if (failedItems().length) {
+      <h3 rbthDrawerSeparator>Failed</h3>
+      <app-upload-drawer-list [items]="failedItems()" />
+      }
     </div>
     <!-- <rbth-drawer-footer>
       <button hlmBtn type="submit">Save Changes</button>

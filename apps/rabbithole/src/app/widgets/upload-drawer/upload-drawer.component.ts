@@ -19,18 +19,17 @@ import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
 import { showDirectoryPicker } from 'native-file-system-adapter';
 
 import { provideCoreWorker } from '../../core/injectors';
-import { assertAssetManager, UploadService } from './upload.service';
-import { BrowserFSPicker, UploadFile } from '@rabbithole/core';
+import { UploadDrawerListComponent } from './upload-drawer-list.component';
+import { UploadService } from './upload.service';
+import { BrowserFSPicker } from '@rabbithole/core';
 import {
   FileUploadService,
   RbthDrawerComponent,
   RbthDrawerContentComponent,
-  RbthDrawerFooterComponent,
   RbthDrawerHeaderComponent,
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
   RbthFileUploadDropzoneComponent,
-  RbthUploadItemComponent,
 } from '@rabbithole/ui';
 
 @Component({
@@ -45,9 +44,9 @@ import {
     RbthDrawerTitleDirective,
     HlmButtonDirective,
     NgIcon,
-    RbthUploadItemComponent,
     RbthDrawerSeparatorDirective,
     RbthFileUploadDropzoneComponent,
+    UploadDrawerListComponent,
   ],
   providers: [
     FileUploadService,
@@ -68,21 +67,20 @@ export class UploadDrawerComponent {
   #uploadService = inject(UploadService, {
     self: true,
   });
+  #items = computed(() => this.#uploadService.state().files);
+  activeItems = computed(() =>
+    this.#items().filter(({ status }) =>
+      ['calchash', 'commit', 'pendind', 'processing'].includes(status),
+    ),
+  );
+  completedItems = computed(() =>
+    this.#items().filter(({ status }) => ['done'].includes(status)),
+  );
   dropzoneDisabled = computed(() => !this.#uploadService.hasCommitPermission());
+  failedItems = computed(() =>
+    this.#items().filter(({ status }) => ['failed'].includes(status)),
+  );
   fileUploadService = inject(FileUploadService, { self: true });
-  items = computed(() => this.#uploadService.state().files);
-
-  handleCancel(id: UploadFile['id']) {
-    this.#uploadService.cancel(id);
-  }
-
-  handleRemove(id: UploadFile['id']) {
-    this.#uploadService.remove(id);
-  }
-
-  handleRetry(id: UploadFile['id']) {
-    this.#uploadService.retry(id);
-  }
 
   // TODO: add logic for worker
   async list() {

@@ -63,19 +63,19 @@ export type StoreArgs =
 export type StoreBlobArgs = [
   blob: Blob,
   config: Omit<StoreConfig, 'fileName'> &
-    Required<Pick<StoreConfig, 'fileName'>>
+    Required<Pick<StoreConfig, 'fileName'>>,
 ];
 
 export type StoreBytesArgs = [
   bytes: ArrayBuffer | number[] | Uint8Array,
   config: Omit<StoreConfig, 'fileName'> &
-    Required<Pick<StoreConfig, 'fileName'>>
+    Required<Pick<StoreConfig, 'fileName'>>,
 ];
 
 /**
  * Configuration that can be passed to set and override defaults and add progress callback
  */
-export interface StoreConfig {
+export type StoreConfig = {
   /**
    * Content encoding
    * @default 'identity'
@@ -109,7 +109,11 @@ export interface StoreConfig {
    * File hash generation will be skipped if hash is provided
    */
   sha256?: Uint8Array;
-}
+  /**
+   * AbortSignal to cancel the upload process
+   */
+  signal?: AbortSignal;
+};
 
 export type StoreFileArgs = [file: File, config?: StoreConfig];
 

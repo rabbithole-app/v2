@@ -14,7 +14,7 @@ export class AssetManagerBatch {
   private _scheduledOperations: Array<
     (
       batch_id: bigint,
-      onProgress?: (progress: Progress) => void
+      onProgress?: (progress: Progress) => void,
     ) => Promise<BatchOperationKind[]>
   > = [];
   private _sha256: Record<string, SHA256TYPE> = {};
@@ -22,7 +22,7 @@ export class AssetManagerBatch {
   constructor(
     private readonly _actor: ActorSubclass<AssetsCanisterRecord>,
     private readonly _limit: LimitFn,
-    private readonly _maxChunkSize: number
+    private readonly _maxChunkSize: number,
   ) {}
 
   /**
@@ -37,11 +37,11 @@ export class AssetManagerBatch {
     args?.onProgress?.({
       current: Object.values(this._progress).reduce(
         (acc, val) => acc + val.current,
-        0
+        0,
       ),
       total: Object.values(this._progress).reduce(
         (acc, val) => acc + val.total,
-        0
+        0,
       ),
     });
 
@@ -49,8 +49,8 @@ export class AssetManagerBatch {
     const operations = (
       await Promise.all(
         this._scheduledOperations.map((scheduled_operation) =>
-          scheduled_operation(batch_id, args?.onProgress)
-        )
+          scheduled_operation(batch_id, args?.onProgress),
+        ),
       )
     ).flat();
 
@@ -82,71 +82,84 @@ export class AssetManagerBatch {
       config?.path ?? '',
       config?.fileName ?? readable.fileName,
     ].join('/');
+
+    // Check abort signal before starting upload
+    if (config?.signal?.aborted) {
+      throw new Error('Upload aborted');
+    }
+
     if (!config?.sha256) {
       this._sha256[key] = sha256.create();
     }
     this._progress[key] = { current: 0, total: readable.length };
     config?.onProgress?.(this._progress[key]);
     this._scheduledOperations.push(async (batch_id, onProgress) => {
+      console.log('_scheduledOperations push', batch_id);
       await readable.open();
-      const chunkCount = Math.ceil(readable.length / this._maxChunkSize);
-      const chunkIds: bigint[] = await Promise.all(
-        Array.from({ length: chunkCount }).map(async (_, index) => {
-          const content = await readable.slice(
-            index * this._maxChunkSize,
-            Math.min((index + 1) * this._maxChunkSize, readable.length)
-          );
-          if (!config?.sha256) {
-            this._sha256[key].update(content);
-          }
-          const { chunk_id } = await this._limit(() =>
-            this._actor.create_chunk({
-              content,
-              batch_id,
-            })
-          );
-          this._progress[key].current += content.length;
-          config?.onProgress?.(this._progress[key]);
-          onProgress?.({
-            current: Object.values(this._progress).reduce(
-              (acc, val) => acc + val.current,
-              0
-            ),
-            total: Object.values(this._progress).reduce(
-              (acc, val) => acc + val.total,
-              0
-            ),
-          });
+      try {
+        const chunkCount = Math.ceil(readable.length / this._maxChunkSize);
+        const chunkIds: bigint[] = await Promise.all(
+          Array.from({ length: chunkCount }).map(async (_, index) => {
+            const content = await readable.slice(
+              index * this._maxChunkSize,
+              Math.min((index + 1) * this._maxChunkSize, readable.length),
+            );
+            if (!config?.sha256) {
+              this._sha256[key].update(content);
+            }
+            const { chunk_id } = await this._limit(
+              () =>
+                this._actor.create_chunk({
+                  content,
+                  batch_id,
+                }),
+              config?.signal,
+            );
+            this._progress[key].current += content.length;
+            config?.onProgress?.(this._progress[key]);
+            onProgress?.({
+              current: Object.values(this._progress).reduce(
+                (acc, val) => acc + val.current,
+                0,
+              ),
+              total: Object.values(this._progress).reduce(
+                (acc, val) => acc + val.total,
+                0,
+              ),
+            });
 
-          return chunk_id;
-        })
-      );
-      await readable.close();
-      const headers: [[string, string][]] | [] = config?.headers
-        ? [config.headers]
-        : [];
-      return [
-        {
-          CreateAsset: {
-            allow_raw_access: [],
-            max_age: [],
-            enable_aliasing: [],
-            key,
-            content_type: config?.contentType ?? readable.contentType,
-            headers,
+            return chunk_id;
+          }),
+        );
+
+        const headers: [[string, string][]] | [] = config?.headers
+          ? [config.headers]
+          : [];
+        return [
+          {
+            CreateAsset: {
+              allow_raw_access: [],
+              max_age: [],
+              enable_aliasing: [],
+              key,
+              content_type: config?.contentType ?? readable.contentType,
+              headers,
+            },
           },
-        },
-        {
-          SetAssetContent: {
-            key,
-            sha256: [
-              config?.sha256 ?? new Uint8Array(this._sha256[key].digest()),
-            ],
-            chunk_ids: chunkIds,
-            content_encoding: config?.contentEncoding ?? 'identity',
+          {
+            SetAssetContent: {
+              key,
+              sha256: [
+                config?.sha256 ?? new Uint8Array(this._sha256[key].digest()),
+              ],
+              chunk_ids: chunkIds,
+              content_encoding: config?.contentEncoding ?? 'identity',
+            },
           },
-        },
-      ] satisfies BatchOperationKind[];
+        ] satisfies BatchOperationKind[];
+      } finally {
+        await readable.close();
+      }
     });
     return key;
   }

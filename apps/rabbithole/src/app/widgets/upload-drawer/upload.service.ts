@@ -70,7 +70,6 @@ export class UploadService {
     this.#coreWorkerService.workerMessage$
       .pipe(messageByAction('upload:progress'), takeUntilDestroyed())
       .subscribe(({ payload }) => {
-        console.log(payload);
         this.#updateStatus(payload);
       });
   }

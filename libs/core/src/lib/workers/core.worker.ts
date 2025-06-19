@@ -4,13 +4,16 @@ import { AnonymousIdentity } from '@dfinity/agent';
 import { arrayBufferToUint8Array, createAgent } from '@dfinity/utils';
 import { type } from 'arktype';
 import { isNonNull } from 'remeda';
-import { defer, from, Observable, of, Subject } from 'rxjs';
+import { defer, from, Observable, of, ReplaySubject, Subject } from 'rxjs';
 import {
+  audit,
   catchError,
   combineLatestWith,
+  connect,
   filter,
   map,
   mergeMap,
+  mergeWith,
   retry,
   shareReplay,
   switchMap,
@@ -120,23 +123,49 @@ const retryFileUpload = new Subject<UploadFile['id']>();
 uploadFiles
   .asObservable()
   .pipe(
+    // some logic for retry upload
+    connect(
+      (shared) =>
+        shared.pipe(
+          mergeWith(
+            shared.pipe(
+              audit((item) =>
+                retryFileUpload
+                  .asObservable()
+                  .pipe(filter((id) => item.id === id)),
+              ),
+            ),
+          ),
+        ),
+      {
+        connector: () => new ReplaySubject(1),
+      },
+    ),
     withLatestFrom(assetManager$),
     mergeMap(([{ id, bytes, config }, assetManager]) => {
       return new Observable<UploadStatus>((subscriber) => {
+        const controller = new AbortController();
+        const cancelSub = cancelFileUpload
+          .asObservable()
+          .pipe(filter((_id) => id === _id))
+          .subscribe(() => {
+            controller.abort();
+          });
         subscriber.next({ id, status: 'calchash' });
-        const sub = from(crypto.subtle.digest('SHA-256', bytes))
+        const uploadSub = from(crypto.subtle.digest('SHA-256', bytes))
           .pipe(
             map(arrayBufferToUint8Array),
             switchMap((sha256) =>
               assetManager.store(bytes, {
                 ...config,
+                signal: controller.signal,
                 sha256,
                 onProgress: (progress) => {
                   subscriber.next({ id, status: 'processing', ...progress });
                 },
               }),
             ),
-            map((key) => <UploadStatus>{ id, status: 'done' }),
+            map(() => <UploadStatus>{ id, status: 'done' }),
             catchError((err) =>
               of<UploadStatus>({
                 id,
@@ -145,9 +174,15 @@ uploadFiles
               }),
             ),
           )
-          .subscribe((value) => subscriber.next(value));
+          .subscribe({
+            next: (value) => subscriber.next(value),
+            complete: () => subscriber.complete(),
+          });
 
-        return () => sub.unsubscribe();
+        return () => {
+          cancelSub.unsubscribe();
+          uploadSub.unsubscribe();
+        };
       });
     }),
   )

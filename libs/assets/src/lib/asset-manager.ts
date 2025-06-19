@@ -93,7 +93,7 @@ export class AssetManager {
    */
   public async get(
     key: string,
-    acceptEncodings?: ContentEncoding[]
+    acceptEncodings?: ContentEncoding[],
   ): Promise<Asset> {
     const data = await this._actor.get({
       key,
@@ -112,7 +112,7 @@ export class AssetManager {
       Number(data.total_length),
       data.content_encoding,
       data.content.length,
-      data.sha256[0] as Exclude<(typeof data.sha256)[0], number[]>
+      data.sha256[0] as Exclude<(typeof data.sha256)[0], number[]>,
     );
   }
 
@@ -136,25 +136,33 @@ export class AssetManager {
       config?.fileName ?? readable.fileName,
     ].join('/');
 
-    // If asset is small enough upload in one request else upload in chunks (batch)
+    // Check abort signal before starting upload
+    if (config?.signal?.aborted) {
+      throw new Error('Upload aborted');
+    }
+
+    // If asset is small enough upload in one request
     if (readable.length <= this._maxSingleFileSize) {
       config?.onProgress?.({ current: 0, total: readable.length });
       await this._limit(async () => {
         await readable.open();
-        const bytes = await readable.slice(0, readable.length);
-        await readable.close();
-        const hash =
-          config?.sha256 ??
-          sha256.create().update(new Uint8Array(bytes)).digest();
-        return this._actor.store({
-          key,
-          content: bytes,
-          content_type: readable.contentType,
-          sha256: [hash],
-          content_encoding: config?.contentEncoding ?? 'identity',
-          is_aliased: [],
-        });
-      });
+        try {
+          const bytes = await readable.slice(0, readable.length);
+          const hash =
+            config?.sha256 ??
+            sha256.create().update(new Uint8Array(bytes)).digest();
+          return this._actor.store({
+            key,
+            content: bytes,
+            content_type: readable.contentType,
+            sha256: [hash],
+            content_encoding: config?.contentEncoding ?? 'identity',
+            is_aliased: [],
+          });
+        } finally {
+          await readable.close();
+        }
+      }, config?.signal);
       config?.onProgress?.({
         current: readable.length,
         total: readable.length,
