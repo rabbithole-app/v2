@@ -1,5 +1,6 @@
 import {
   computed,
+  effect,
   inject,
   Injectable,
   Injector,
@@ -10,13 +11,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { isDeepEqual } from 'remeda';
 
 import { injectCoreWorker } from '../../core/injectors';
-import { AssetManager } from '@rabbithole/assets';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   FileUploadWithStatus,
   injectStorageActor,
   messageByAction,
-  // MessagePayload,
   StorageCanisterActor,
   UploadFile,
   UploadStatus,
@@ -28,13 +27,6 @@ type State = {
   // hasCommitPermission: boolean;
   // error: ParsedAgentError | null;
 };
-
-export function assertAssetManager(
-  assetManager: AssetManager | null,
-): asserts assetManager is AssetManager {
-  if (!assetManager)
-    throw Error('The AssetManager instance is not initialized');
-}
 
 const INITIAL_VALUE: State = {
   files: [],
@@ -72,32 +64,9 @@ export class UploadService {
       .subscribe(({ payload }) => {
         this.#updateStatus(payload);
       });
-  }
-  // #assetCanisterId = inject(ASSETS_CANISTER_ID);
 
-  // constructor() {
-  //   console.log('AssetsService');
-  //   effect(() => console.log(this.listCommitPermitted.value()));
-  //   connect(
-  //     this.#state,
-  //     toObservable(this.#authState.identity).pipe(
-  //       switchMap((identity) =>
-  //         createAgent({
-  //           identity,
-  //           fetchRootKey: !environment.production,
-  //           host: 'https://localhost', //environment.httpAgentHost,
-  //         })
-  //       ),
-  //       map((agent) => {
-  //         const assetManager = new AssetManager({
-  //           canisterId: this.#assetCanisterId,
-  //           agent,
-  //         });
-  //         return { assetManager };
-  //       })
-  //     )
-  //   );
-  // }
+    effect(() => console.log(this.listCommitPermitted.value()));
+  }
 
   async addFile(item: { file: File; path?: string }) {
     const id = crypto.randomUUID();

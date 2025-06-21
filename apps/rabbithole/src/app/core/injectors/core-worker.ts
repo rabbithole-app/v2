@@ -53,8 +53,6 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
         workerService.postMessage({ action: 'worker:config', payload });
       });
 
-    console.log(workerService);
-
     return workerService as NonNullableProps<typeof workerService, 'worker'>;
   },
   {

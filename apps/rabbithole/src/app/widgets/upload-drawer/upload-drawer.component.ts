@@ -18,7 +18,11 @@ import {
 import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
 import { showDirectoryPicker } from 'native-file-system-adapter';
 
-import { provideCoreWorker } from '../../core/injectors';
+import {
+  assertAssetManager,
+  ASSET_MANAGER_TOKEN,
+  provideCoreWorker,
+} from '../../core/injectors';
 import { UploadDrawerListComponent } from './upload-drawer-list.component';
 import { UploadService } from './upload.service';
 import { BrowserFSPicker } from '@rabbithole/core';
@@ -73,6 +77,7 @@ export class UploadDrawerComponent {
       ['calchash', 'commit', 'pendind', 'processing'].includes(status),
     ),
   );
+  assetManager = inject(ASSET_MANAGER_TOKEN);
   completedItems = computed(() =>
     this.#items().filter(({ status }) => ['done'].includes(status)),
   );
@@ -82,11 +87,11 @@ export class UploadDrawerComponent {
   );
   fileUploadService = inject(FileUploadService, { self: true });
 
-  // TODO: add logic for worker
   async list() {
-    // const { assetManager } = this.#uploadService.state();
-    // assertAssetManager(assetManager);
-    // const list = await assetManager.list();
+    const assetManager = this.assetManager();
+    assertAssetManager(assetManager);
+    const list = await assetManager.list();
+    console.log(list);
   }
 
   async openDirectoryPicker() {
