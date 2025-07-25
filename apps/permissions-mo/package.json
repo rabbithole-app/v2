@@ -1,0 +1,19 @@
+{
+  "name": "permissions-mo",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.4",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@dfinity/pic": "^0.13.1",
+    "@dfinity/principal": "^2.4.1"
+  }
+}

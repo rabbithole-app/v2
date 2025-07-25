@@ -37,6 +37,9 @@ export default createConfig(
       devServer: {},
     },
     rspackConfigOverrides: {
+      watchOptions: {
+        ignored: ['**/*.mo', '**/.git', '**/node_modules'],
+      },
       module: {
         parser: {
           javascript: {

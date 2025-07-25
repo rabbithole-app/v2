@@ -1,0 +1,42 @@
+{
+  "name": "permissions-mo",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/permissions-mo",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/permissions-mo",
+        "command": "dfx build example",
+        "parallel": false
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/permissions-mo",
+        "command": "vitest",
+        "parallel": false
+      }
+    },
+    "doc": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/permissions-mo",
+        "commands": [
+          "$(dfx cache show)/mo-doc --source src/Permissions --format plain"
+        ],
+        "parallel": false
+      }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/permissions-mo",
+        "command": "dfx deploy example",
+        "parallel": false
+      }
+    }
+  }
+}

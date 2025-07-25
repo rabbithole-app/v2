@@ -10,7 +10,7 @@
     "tauri": "nx run tauri-app:tauri",
     "tauri:dev": "nx serve tauri-app",
     "tauri:build": "nx build tauri-app",
-    "test": "nx run-many -t test -p rabbithole assets app-ui auth core utils"
+    "test": "nx run-many -t test -p rabbithole assets app-ui auth core utils permissions-mo"
   },
   "private": true,
   "dependencies": {
@@ -57,6 +57,7 @@
     "@angular/cli": "~20.0.1",
     "@angular/compiler-cli": "~20.0.2",
     "@angular/language-service": "~20.0.2",
+    "@dfinity/pic": "^0.13.1",
     "@eslint/js": "^9.8.0",
     "@nx/angular": "21.2.0-beta.2",
     "@nx/angular-rspack": "21.1.0",
