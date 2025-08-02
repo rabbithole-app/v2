@@ -1,22 +1,21 @@
 import { InjectionToken } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { HttpAgent } from '@dfinity/agent';
-import { createAgent, CreateAgentParams } from '@dfinity/utils';
+import { HttpAgent, HttpAgentOptions } from '@dfinity/agent';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { filter, switchMap } from 'rxjs/operators';
 
 import { ExtractInjectionToken } from '../types';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
-export const CREATE_AGENT_PARAMS_TOKEN = new InjectionToken<
-  Omit<CreateAgentParams, 'identity'>
->('CREATE_AGENT_PARAMS');
+export const HTTP_AGENT_OPTIONS_TOKEN = new InjectionToken<
+  Omit<HttpAgentOptions, 'identity'>
+>('HTTP_AGENT_OPTIONS');
 
 export const [injectHttpAgent, provideHttpAgent, HTTP_AGENT_TOKEN] =
   createInjectionToken(
     (
       authService: ExtractInjectionToken<typeof AUTH_SERVICE>,
-      agentParams: ExtractInjectionToken<typeof CREATE_AGENT_PARAMS_TOKEN>
+      httpAgentOptions: ExtractInjectionToken<typeof HTTP_AGENT_OPTIONS_TOKEN>,
     ) => {
       const identity$ = toObservable(authService.identity);
       return toSignal(
@@ -24,21 +23,23 @@ export const [injectHttpAgent, provideHttpAgent, HTTP_AGENT_TOKEN] =
           filter((v) => v),
           switchMap(() =>
             identity$.pipe(
-              switchMap((identity) => createAgent({ ...agentParams, identity }))
-            )
-          )
+              switchMap((identity) =>
+                HttpAgent.create({ ...httpAgentOptions, identity }),
+              ),
+            ),
+          ),
         ),
-        { initialValue: null }
+        { initialValue: HttpAgent.createSync(httpAgentOptions) },
       );
     },
     {
       isRoot: false,
-      deps: [AUTH_SERVICE, CREATE_AGENT_PARAMS_TOKEN],
-    }
+      deps: [AUTH_SERVICE, HTTP_AGENT_OPTIONS_TOKEN],
+    },
   );
 
 export function assertHttpAgent(
-  agent: HttpAgent | null
+  agent: HttpAgent | null,
 ): asserts agent is HttpAgent {
   if (!agent) throw Error('The HttpAgent instance is not initialized');
 }

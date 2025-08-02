@@ -8,7 +8,7 @@ export type AssetsCanisterRecord = _SERVICE;
  * @param config Configuration to make calls to the Replica.
  */
 export function getAssetsCanister(
-  config: ActorConfig
+  config: ActorConfig,
 ): ActorSubclass<AssetsCanisterRecord> {
   return Actor.createActor<AssetsCanisterRecord>(idlFactory, config);
 }

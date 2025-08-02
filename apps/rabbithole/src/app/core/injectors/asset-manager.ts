@@ -1,6 +1,6 @@
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { HttpAgent } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
-import { createAgent } from '@dfinity/utils';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { map, switchMap } from 'rxjs/operators';
 
@@ -8,8 +8,8 @@ import { AssetManager } from '@rabbithole/assets';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   ASSETS_CANISTER_ID,
-  CREATE_AGENT_PARAMS_TOKEN,
   ExtractInjectionToken,
+  HTTP_AGENT_OPTIONS_TOKEN,
 } from '@rabbithole/core';
 
 export function assertAssetManager(
@@ -24,15 +24,13 @@ export const [injectAssetManager, provideAssetManager, ASSET_MANAGER_TOKEN] =
     (
       authService: ExtractInjectionToken<typeof AUTH_SERVICE>,
       assetCanisterId: Principal,
-      createAgentParams: ExtractInjectionToken<
-        typeof CREATE_AGENT_PARAMS_TOKEN
-      >,
+      httpAgentOptions: ExtractInjectionToken<typeof HTTP_AGENT_OPTIONS_TOKEN>,
     ) =>
       toSignal(
         toObservable(authService.identity).pipe(
           switchMap((identity) =>
-            createAgent({
-              ...createAgentParams,
+            HttpAgent.create({
+              ...httpAgentOptions,
               identity,
             }),
           ),
@@ -48,6 +46,6 @@ export const [injectAssetManager, provideAssetManager, ASSET_MANAGER_TOKEN] =
       ),
     {
       isRoot: false,
-      deps: [AUTH_SERVICE, ASSETS_CANISTER_ID, CREATE_AGENT_PARAMS_TOKEN],
+      deps: [AUTH_SERVICE, ASSETS_CANISTER_ID, HTTP_AGENT_OPTIONS_TOKEN],
     },
   );

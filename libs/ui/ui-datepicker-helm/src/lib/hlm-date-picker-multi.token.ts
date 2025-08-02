@@ -38,17 +38,8 @@ const HlmDatePickerMultiConfigToken = new InjectionToken<
   HlmDatePickerMultiConfig<unknown>
 >('HlmDatePickerMultiConfig');
 
-export function provideHlmDatePickerConfig<T>(
-  config: Partial<HlmDatePickerMultiConfig<T>>
-): ValueProvider {
-  return {
-    provide: HlmDatePickerMultiConfigToken,
-    useValue: { ...getDefaultConfig(), ...config },
-  };
-}
-
 export function injectHlmDatePickerMultiConfig<
-  T
+  T,
 >(): HlmDatePickerMultiConfig<T> {
   const injectedConfig = inject(HlmDatePickerMultiConfigToken, {
     optional: true,
@@ -56,4 +47,13 @@ export function injectHlmDatePickerMultiConfig<
   return injectedConfig
     ? (injectedConfig as HlmDatePickerMultiConfig<T>)
     : getDefaultConfig();
+}
+
+export function provideHlmDatePickerConfig<T>(
+  config: Partial<HlmDatePickerMultiConfig<T>>,
+): ValueProvider {
+  return {
+    provide: HlmDatePickerMultiConfigToken,
+    useValue: { ...getDefaultConfig(), ...config },
+  };
 }

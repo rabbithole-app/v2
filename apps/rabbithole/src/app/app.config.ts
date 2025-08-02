@@ -5,6 +5,7 @@ import {
   provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { HttpAgentOptions } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { isTauri } from '@tauri-apps/api/core';
 
@@ -22,7 +23,7 @@ import {
 import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
   ASSETS_CANISTER_ID,
-  CREATE_AGENT_PARAMS_TOKEN,
+  HTTP_AGENT_OPTIONS_TOKEN,
   provideStorageActor,
 } from '@rabbithole/core';
 
@@ -56,11 +57,11 @@ export const appConfig: ApplicationConfig = {
       useValue: Principal.fromText(environment.assetsCanisterId),
     },
     {
-      provide: CREATE_AGENT_PARAMS_TOKEN,
+      provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {
-        fetchRootKey: !environment.production,
+        shouldFetchRootKey: !environment.production,
         host: 'https://localhost',
-      },
+      } satisfies HttpAgentOptions,
     },
     provideStorageActor(),
     provideAssetManager(),

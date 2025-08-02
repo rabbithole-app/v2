@@ -10,17 +10,17 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
-    depends_on:
-      - backend
 
   backend:
-    image: ghcr.io/dfinity/icp-dev-env-slim:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     platform: linux/amd64
     working_dir: /app
     volumes:
-      - ./networks.json:/root/.config/dfx/networks.json
       - ./:/app:rw
       - ../../dist/apps/rabbithole/browser:/app/dist:ro
+      - ../permissions-mo:/permissions-mo:ro
     entrypoint: ['sh', '-c', 'scripts/install.sh']
     healthcheck:
       test: ['CMD', 'dfx', 'ping']

@@ -1,7 +1,6 @@
 /// <reference lib="webworker" />
 
-import { AnonymousIdentity } from '@dfinity/agent';
-import { arrayBufferToUint8Array, createAgent } from '@dfinity/utils';
+import { AnonymousIdentity, HttpAgent } from '@dfinity/agent';
 import { type } from 'arktype';
 import { isNonNull } from 'remeda';
 import { defer, from, Observable, of, ReplaySubject, Subject } from 'rxjs';
@@ -94,8 +93,8 @@ const workerConfig = new Subject<WorkerConfig>();
 // const agentParams = new Subject<Omit<CreateAgentParams, 'identity'>>();
 const agent$ = identity$.pipe(
   combineLatestWith(workerConfig.asObservable()),
-  switchMap(([identity, { createAgentParams }]) =>
-    createAgent({ ...createAgentParams, identity }),
+  switchMap(([identity, { httpAgentOptions }]) =>
+    HttpAgent.create({ ...httpAgentOptions, identity }),
   ),
   shareReplay(1),
 );
@@ -152,19 +151,16 @@ uploadFiles
             controller.abort();
           });
         subscriber.next({ id, status: 'calchash' });
-        const uploadSub = from(crypto.subtle.digest('SHA-256', bytes))
+        const uploadSub = from(
+          assetManager.store(bytes, {
+            ...config,
+            signal: controller.signal,
+            onProgress: (progress) => {
+              subscriber.next({ id, status: 'processing', ...progress });
+            },
+          }),
+        )
           .pipe(
-            map(arrayBufferToUint8Array),
-            switchMap((sha256) =>
-              assetManager.store(bytes, {
-                ...config,
-                signal: controller.signal,
-                sha256,
-                onProgress: (progress) => {
-                  subscriber.next({ id, status: 'processing', ...progress });
-                },
-              }),
-            ),
             map(() => <UploadStatus>{ id, status: 'done' }),
             catchError((err) =>
               of<UploadStatus>({

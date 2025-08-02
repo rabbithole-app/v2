@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, forwardRef } from '@angular/core';
-import { fromHexString } from '@dfinity/candid';
 import { DelegationChain, Ed25519PublicKey } from '@dfinity/identity';
 import { Principal } from '@dfinity/principal';
+import { hexToBytes } from '@noble/hashes/utils';
 import { injectQueryParams } from 'ngxtension/inject-query-params';
 
 import { environment } from '../../../environments/environment';
@@ -21,8 +21,8 @@ export class DelegationComponent {
   publicKey = injectQueryParams<Ed25519PublicKey | null>(
     ({ sessionPublicKey }) =>
       sessionPublicKey
-        ? Ed25519PublicKey.fromDer(fromHexString(sessionPublicKey))
-        : null
+        ? Ed25519PublicKey.fromDer(hexToBytes(sessionPublicKey))
+        : null,
   );
   readonly targets = [Principal.fromText(environment.backendCanisterId)];
 
@@ -32,7 +32,7 @@ export class DelegationComponent {
     window.open(
       `${
         environment.scheme
-      }://internetIdentityCallback?delegationChain=${encodeURIComponent(json)}`
+      }://internetIdentityCallback?delegationChain=${encodeURIComponent(json)}`,
     );
   }
 }

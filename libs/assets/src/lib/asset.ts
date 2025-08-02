@@ -3,17 +3,14 @@ import {
   ActorSubclass,
   Cbor as cbor,
   Certificate,
-  compare,
-  getDefaultAgent,
   HashTree,
+  HttpAgent,
   lookup_path,
+  LookupPathStatus,
   lookupResultToBuffer,
-  LookupStatus,
   reconstruct,
-  uint8ToBuf,
 } from '@dfinity/agent';
-import { lebDecode } from '@dfinity/candid';
-import { PipeArrayBuffer } from '@dfinity/candid/lib/cjs/utils/buffer';
+import { compare, lebDecode, PipeArrayBuffer } from '@dfinity/candid';
 import { sha256 } from '@noble/hashes/sha2';
 
 import { AssetsCanisterRecord } from './canisters/assets';
@@ -34,7 +31,7 @@ export class Asset {
     public readonly length: number,
     public readonly contentEncoding: string,
     public readonly chunkSize: number,
-    public readonly sha256?: Uint8Array
+    public readonly sha256?: Uint8Array,
   ) {}
 
   /**
@@ -44,7 +41,7 @@ export class Asset {
    */
   async getChunks(
     onChunk: (index: number, chunk: Uint8Array) => void,
-    sequential?: boolean
+    sequential?: boolean,
   ) {
     onChunk(0, this._content);
     const chunkLimit = sequential ? limit(1) : this._limit;
@@ -59,8 +56,8 @@ export class Asset {
               sha256: this.sha256 ? [this.sha256] : [],
             });
             onChunk(index + 1, content as Uint8Array);
-          })
-      )
+          }),
+      ),
     );
   }
 
@@ -69,7 +66,8 @@ export class Asset {
    */
   async isCertified(): Promise<boolean> {
     // Below implementation is based on Internet Computer service worker
-    const agent = Actor.agentOf(this._actor) ?? getDefaultAgent();
+    console.log('isCertified');
+    const agent = Actor.agentOf(this._actor) ?? (await HttpAgent.create());
     const canisterId = Actor.canisterIdOf(this._actor);
 
     if (!agent.rootKey) {
@@ -83,13 +81,13 @@ export class Asset {
         headers: [['Accept-Encoding', this._acceptEncodings.join(', ')]],
         body: new Uint8Array(),
         certificate_version: [],
-      })
+      }),
     );
 
-    let certificate: ArrayBuffer | undefined;
-    let tree: ArrayBuffer | undefined;
+    let certificate: Uint8Array | undefined;
+    let tree: Uint8Array | undefined;
     const certificateHeader = response.headers.find(
-      ([key]) => key.trim().toLowerCase() === 'ic-certificate'
+      ([key]) => key.trim().toLowerCase() === 'ic-certificate',
     );
     if (!certificateHeader) {
       return false;
@@ -97,7 +95,7 @@ export class Asset {
     const fields = certificateHeader[1].split(/,/);
     for (const f of fields) {
       const [, name, b64Value] = [...(f.match(/^(.*)=:(.*):$/) ?? [])].map(
-        (x) => x.trim()
+        (x) => x.trim(),
       );
       const value = base64Decode(b64Value);
       if (name === 'certificate') {
@@ -113,7 +111,7 @@ export class Asset {
     }
 
     const cert = await Certificate.create({
-      certificate: new Uint8Array(certificate),
+      certificate,
       rootKey: agent.rootKey,
       canisterId,
     }).catch(() => Promise.resolve());
@@ -124,10 +122,10 @@ export class Asset {
     }
 
     // Check certificate time
-    const timeLookup = cert.lookup(['time']);
+    const timeLookup = cert.lookup_path(['time']);
     if (
-      timeLookup.status !== LookupStatus.Found ||
-      !(timeLookup.value instanceof ArrayBuffer)
+      timeLookup.status !== LookupPathStatus.Found ||
+      !(timeLookup.value instanceof Uint8Array)
     ) {
       return false;
     }
@@ -143,17 +141,17 @@ export class Asset {
       return false;
     }
 
-    const hashTree: HashTree = cbor.decode(new Uint8Array(tree));
+    const hashTree = cbor.decode<HashTree>(tree);
     const reconstructed = await reconstruct(hashTree);
-    const witness = cert.lookup([
+    const witness = cert.lookup_path([
       'canister',
       canisterId.toUint8Array(),
       'certified_data',
     ]);
 
     if (
-      witness.status !== LookupStatus.Found ||
-      !(witness.value instanceof ArrayBuffer)
+      witness.status !== LookupPathStatus.Found ||
+      !(witness.value instanceof Uint8Array)
     ) {
       // Could not find certified data for this canister in the certificate
       return false;
@@ -167,12 +165,10 @@ export class Asset {
 
     // Lookup hash of asset in tree
     const treeSha = lookupResultToBuffer(
-      lookup_path(['http_assets', this._key], hashTree)
+      lookup_path(['http_assets', this._key], hashTree),
     );
 
-    return (
-      !!treeSha && !!this.sha256 && compare(this.sha256.buffer, treeSha) === 0
-    );
+    return !!treeSha && !!this.sha256 && compare(this.sha256, treeSha) === 0;
   }
 
   /**
@@ -203,7 +199,7 @@ export class Asset {
   async toUint8Array(): Promise<Uint8Array> {
     const bytes = new Uint8Array(this.length);
     await this.getChunks((index, chunk) =>
-      bytes.set(chunk, index * this.chunkSize)
+      bytes.set(chunk, index * this.chunkSize),
     );
     return bytes;
   }
@@ -222,6 +218,6 @@ export class Asset {
     } else {
       await this.getChunks((_, chunk) => hash.update(chunk), true);
     }
-    return compare(uint8ToBuf(this.sha256), uint8ToBuf(hash.digest())) === 0;
+    return compare(this.sha256, hash.digest()) === 0;
   }
 }

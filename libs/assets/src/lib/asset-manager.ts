@@ -141,16 +141,14 @@ export class AssetManager {
       throw new Error('Upload aborted');
     }
 
-    // If asset is small enough upload in one request
+    // If asset is small enough upload in one request else upload in chunks (batch)
     if (readable.length <= this._maxSingleFileSize) {
       config?.onProgress?.({ current: 0, total: readable.length });
       await this._limit(async () => {
         await readable.open();
         try {
           const bytes = await readable.slice(0, readable.length);
-          const hash =
-            config?.sha256 ??
-            sha256.create().update(new Uint8Array(bytes)).digest();
+          const hash = config?.sha256 ?? sha256(new Uint8Array(bytes));
           return this._actor.store({
             key,
             content: bytes,

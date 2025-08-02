@@ -6,13 +6,10 @@ import {
 } from '@dfinity/auth-client';
 import {
   DelegationChain,
+  Ed25519KeyIdentity,
   isDelegationValid,
   JsonnableDelegationChain,
 } from '@dfinity/identity';
-import {
-  Ed25519KeyIdentity,
-  JsonnableEd25519KeyIdentity,
-} from '@dfinity/identity/lib/cjs/identity/ed25519';
 import { load } from '@tauri-apps/plugin-store';
 
 import { TauriStorage } from './storage';
@@ -36,7 +33,7 @@ export async function createAuthClient(): Promise<AuthClient> {
 export async function loadDelegationChain() {
   const store = await load(STORE_PATH, { autoSave: false });
   const delegationChainJson = await store.get<JsonnableDelegationChain>(
-    KEY_STORAGE_DELEGATION
+    KEY_STORAGE_DELEGATION,
   );
   let delegationChain = delegationChainJson
     ? DelegationChain.fromJSON(delegationChainJson)
@@ -57,9 +54,7 @@ export async function loadIdentity() {
   const identityJson = await store.get<string>(KEY_STORAGE_KEY);
 
   return identityJson
-    ? Ed25519KeyIdentity.fromParsedJson(
-        JSON.parse(identityJson) as JsonnableEd25519KeyIdentity
-      )
+    ? Ed25519KeyIdentity.fromParsedJson(JSON.parse(identityJson))
     : null;
 }
 

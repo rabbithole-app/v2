@@ -37,8 +37,8 @@ const principalSchema = type('string').narrow((value, ctx) => {
 // .pipe(Principal.fromText);
 
 export const workerConfigSchema = type({
-  createAgentParams: httpAgentOptionsSchema.and({
-    'fetchRootKey?': 'boolean',
+  httpAgentOptions: httpAgentOptionsSchema.and({
+    'shouldFetchRootKey?': 'boolean',
   }),
   // canisters: type.Record("'assets'", principalSchema),
   canisters: {
@@ -48,6 +48,7 @@ export const workerConfigSchema = type({
 
 export type CoreWorkerActionsIn = Prettify<
   {
+    'fs:load-list': unknown;
     'upload:add': { payload: UploadFile };
     'upload:cancel': { payload: Pick<UploadFile, 'id'> };
     'upload:remove': { payload: Pick<UploadFile, 'id'> };
@@ -57,6 +58,7 @@ export type CoreWorkerActionsIn = Prettify<
 >;
 export type CoreWorkerActionsOut = Prettify<
   {
+    'fs:list': { payload: unknown };
     'upload:progress': { payload: UploadStatus };
   } & WorkerActionsOut
 >;

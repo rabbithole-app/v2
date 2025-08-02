@@ -1,7 +1,6 @@
 import { effect, inject, Injectable, Provider } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Principal } from '@dfinity/principal';
-import { CreateAgentParams } from '@dfinity/utils';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { filter } from 'rxjs';
 
@@ -11,8 +10,8 @@ import {
   ASSETS_CANISTER_ID,
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,
-  CREATE_AGENT_PARAMS_TOKEN,
   ExtractInjectionToken,
+  HTTP_AGENT_OPTIONS_TOKEN,
   messageByAction,
   NonNullableProps,
   WORKER,
@@ -25,7 +24,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
   (
     authService: ExtractInjectionToken<typeof AUTH_SERVICE>,
     assetCanisterId: Principal,
-    createAgentParams: ExtractInjectionToken<typeof CREATE_AGENT_PARAMS_TOKEN>,
+    httpAgentOptions: ExtractInjectionToken<typeof HTTP_AGENT_OPTIONS_TOKEN>,
   ) => {
     const workerService = inject<
       WorkerService<CoreWorkerMessageIn, CoreWorkerMessageOut>
@@ -47,7 +46,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
       .pipe(messageByAction('worker:init'), takeUntilDestroyed())
       .subscribe(() => {
         const payload: WorkerConfigIn = {
-          createAgentParams,
+          httpAgentOptions,
           canisters: { assets: assetCanisterId.toText() },
         };
         workerService.postMessage({ action: 'worker:config', payload });
@@ -57,7 +56,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
   },
   {
     isRoot: false,
-    deps: [AUTH_SERVICE, ASSETS_CANISTER_ID, CREATE_AGENT_PARAMS_TOKEN],
+    deps: [AUTH_SERVICE, ASSETS_CANISTER_ID, HTTP_AGENT_OPTIONS_TOKEN],
     extraProviders: [
       {
         provide: WORKER,

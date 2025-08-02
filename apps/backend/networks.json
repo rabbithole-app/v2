@@ -1,8 +1,0 @@
-{
-  "local": {
-    "bind": "0.0.0.0:4943",
-    "replica": {
-      "subnet_type": "application"
-    }
-  }
-}

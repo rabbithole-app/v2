@@ -1,5 +1,4 @@
 import { computed } from '@angular/core';
-import { defaultAgent } from '@dfinity/utils';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import { ASSETS_CANISTER_ID } from '../tokens';
@@ -13,20 +12,19 @@ export const [injectStorageActor, provideStorageActor, STORAGE_ACTOR_TOKEN] =
   createInjectionToken(
     (
       canisterId: ExtractInjectionToken<typeof ASSETS_CANISTER_ID>,
-      httpAgent: ExtractInjectionToken<typeof HTTP_AGENT_TOKEN>
+      httpAgent: ExtractInjectionToken<typeof HTTP_AGENT_TOKEN>,
     ) =>
-      computed(() => {
-        const agent = httpAgent() ?? defaultAgent();
-        return getAssetsCanister({
-          agent,
+      computed(() =>
+        getAssetsCanister({
+          agent: httpAgent(),
           canisterId,
-        });
-      }),
+        }),
+      ),
     {
       isRoot: false,
       deps: [ASSETS_CANISTER_ID, HTTP_AGENT_TOKEN],
       extraProviders: [provideHttpAgent()],
-    }
+    },
   );
 // export const [injectStorageActor, provideStorageActor, STORAGE_ACTOR_TOKEN] =
 //   createInjectionToken(
@@ -66,7 +64,7 @@ export const [injectStorageActor, provideStorageActor, STORAGE_ACTOR_TOKEN] =
 //   );
 
 export function assertStorageActor(
-  actor: StorageCanisterActor | null
+  actor: StorageCanisterActor | null,
 ): asserts actor is StorageCanisterActor {
   if (!actor)
     throw Error('The StorageCanisterActor instance is not initialized');

@@ -8,13 +8,13 @@ import {
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { AnonymousIdentity, SignIdentity } from '@dfinity/agent';
 import { AuthClient } from '@dfinity/auth-client';
-import { toHexString } from '@dfinity/candid';
 import {
   DelegationChain,
   DelegationIdentity,
   Ed25519KeyIdentity,
   JsonnableDelegationChain,
 } from '@dfinity/identity';
+import { bytesToHex } from '@noble/hashes/utils';
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { map } from 'rxjs/operators';
@@ -59,7 +59,7 @@ export class TauriDeepLinkAuthService implements IAuthService {
       .pipe(
         map(({ delegationChain }) => delegationChain),
         waitDelegationExpired(),
-        takeUntilDestroyed()
+        takeUntilDestroyed(),
       )
       .subscribe(() => this.signOut());
     this.#initState();
@@ -68,7 +68,7 @@ export class TauriDeepLinkAuthService implements IAuthService {
   async signIn() {
     // AuthClient has generated and saved Ed25519KeyIdentity in the storage
     const identity = (await loadIdentity()) as Ed25519KeyIdentity;
-    const publicKey = toHexString(identity.getPublicKey().toDer());
+    const publicKey = bytesToHex(identity.getPublicKey().toDer());
     const url = `${this.#authConfig.appUrl}${
       this.#authConfig.delegationPath
     }?sessionPublicKey=${publicKey}`;
@@ -104,7 +104,7 @@ export class TauriDeepLinkAuthService implements IAuthService {
     }));
 
     const unlistenFn = await onOpenUrl((urls) =>
-      this.#parseDelegationFromUrl(urls[0])
+      this.#parseDelegationFromUrl(urls[0]),
     );
     this.#destroyRef.onDestroy(() => unlistenFn());
   }
@@ -115,10 +115,10 @@ export class TauriDeepLinkAuthService implements IAuthService {
     // Get JSON from deep link query param
     const encodedDelegationChain = url.replace(
       `${this.#authConfig.scheme}://internetIdentityCallback?delegationChain=`,
-      ''
+      '',
     );
     const json: JsonnableDelegationChain = JSON.parse(
-      decodeURIComponent(encodedDelegationChain)
+      decodeURIComponent(encodedDelegationChain),
     );
 
     const delegationChain: DelegationChain = DelegationChain.fromJSON(json);
@@ -126,7 +126,7 @@ export class TauriDeepLinkAuthService implements IAuthService {
     // Here we create an identity with the delegation chain we received from the website
     const internetIdentity = DelegationIdentity.fromDelegation(
       identity,
-      delegationChain
+      delegationChain,
     );
 
     this.#state.update((state) => ({
