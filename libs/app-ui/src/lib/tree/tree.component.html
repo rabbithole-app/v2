@@ -1,0 +1,55 @@
+<cdk-tree
+  #tree
+  class="flex flex-col"
+  [dataSource]="data()"
+  [childrenAccessor]="childrenAccessor"
+  [trackBy]="trackBy"
+  [expansionKey]="expansionKey"
+>
+  <cdk-tree-node
+    *cdkTreeNodeDef="let node"
+    rbthTreeItem
+    [cdkTreeNodeTypeaheadLabel]="node.name"
+    [isDisabled]="!shouldRender(node)"
+    (click)="selected.set(node)"
+  >
+    <span rbthTreeItemLabel>
+      <ng-icon
+        class="text-muted-foreground pointer-events-none"
+        hlm
+        size="sm"
+        name="lucideFile"
+      />{{ node.name }}</span
+    >
+  </cdk-tree-node>
+  <cdk-tree-node
+    *cdkTreeNodeDef="let node; when: hasChild"
+    rbthTreeItem
+    [cdkTreeNodeTypeaheadLabel]="node.name"
+    [isDisabled]="!shouldRender(node)"
+    [isExpandable]="true"
+    (click)="selected.set(node)"
+  >
+    <span rbthTreeItemLabel>
+      <span class="flex items-center" cdkTreeNodeToggle>
+        <ng-icon
+          class="text-muted-foreground in-aria-[expanded=false]:-rotate-90"
+          hlm
+          size="sm"
+          name="lucideChevronDown"
+        />
+      </span>
+      <span class="flex items-center gap-2">
+        @let iconName =
+          tree.isExpanded(node) ? 'lucideFolderOpen' : 'lucideFolder';
+        <ng-icon
+          class="text-muted-foreground pointer-events-none"
+          hlm
+          size="sm"
+          [name]="iconName"
+        />
+        {{ node.name }}
+      </span></span
+    >
+  </cdk-tree-node>
+</cdk-tree>

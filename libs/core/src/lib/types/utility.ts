@@ -14,3 +14,7 @@ export type NonNullableProps<T, K extends keyof T> = {
 export type Prettify<T> = {
   [K in keyof T]: T[K];
 } & NonNullable<unknown>;
+
+export type WithRequiredProperty<Type, Key extends keyof Type> = {
+  [Property in Key]-?: Type[Property];
+} & Type;

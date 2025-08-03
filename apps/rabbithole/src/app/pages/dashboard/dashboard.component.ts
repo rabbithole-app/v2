@@ -10,6 +10,7 @@ import { lucideLogOut } from '@ng-icons/lucide';
 import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
 import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
 
+import { FSTree } from '../../widgets/fs-tree/fs-tree.component';
 import { SidebarLayoutComponent } from '../../widgets/sidebar/sidebar.component';
 import { UploadDrawerComponent } from '../../widgets/upload-drawer/upload-drawer.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -22,6 +23,7 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
     HlmIconDirective,
     SidebarLayoutComponent,
     UploadDrawerComponent,
+    FSTree,
   ],
   providers: [provideIcons({ lucideLogOut })],
   templateUrl: './dashboard.component.html',
