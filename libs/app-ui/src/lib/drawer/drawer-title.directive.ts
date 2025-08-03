@@ -1,6 +1,6 @@
 import { computed, Directive, input } from '@angular/core';
 import { hlm } from '@spartan-ng/brain/core';
-import { BrnSheetTitleDirective } from '@spartan-ng/brain/sheet';
+import { BrnSheetTitle } from '@spartan-ng/brain/sheet';
 import type { ClassValue } from 'clsx';
 
 @Directive({
@@ -8,11 +8,11 @@ import type { ClassValue } from 'clsx';
   host: {
     '[class]': '_computedClass()',
   },
-  hostDirectives: [BrnSheetTitleDirective],
+  hostDirectives: [BrnSheetTitle],
 })
 export class RbthDrawerTitleDirective {
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
   protected _computedClass = computed(() =>
-    hlm('flex-1 text-lg font-semibold flex flex-col gap-1', this.userClass())
+    hlm('flex-1 text-lg font-semibold flex flex-col gap-1', this.userClass()),
   );
 }

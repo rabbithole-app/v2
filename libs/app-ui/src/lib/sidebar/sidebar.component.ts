@@ -8,11 +8,8 @@ import {
   Signal,
 } from '@angular/core';
 import { BrnDialogState } from '@spartan-ng/brain/dialog';
-import { BrnSheetContentDirective } from '@spartan-ng/brain/sheet';
-import {
-  HlmSheetComponent,
-  HlmSheetContentComponent,
-} from '@spartan-ng/ui-sheet-helm';
+import { BrnSheetContent } from '@spartan-ng/brain/sheet';
+import { HlmSheet, HlmSheetContent } from '@spartan-ng/helm/sheet';
 import { ClassValue } from 'clsx';
 
 import {
@@ -34,9 +31,9 @@ const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
     NgTemplateOutlet,
     // BrnSheetOverlayComponent,
     // BrnSheetTriggerDirective,
-    BrnSheetContentDirective,
-    HlmSheetComponent,
-    HlmSheetContentComponent,
+    BrnSheetContent,
+    HlmSheet,
+    HlmSheetContent,
     // HlmSheetTitleDirective,
     RbthSidebarBaseComponent,
   ],
@@ -48,17 +45,17 @@ const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
 export class RbthSidebarComponent {
   private readonly _config = injectSidebarConfig();
   collapsible = input<NonNullable<SidebarVariants['collapsible']>>(
-    this._config.collapsible
+    this._config.collapsible,
   );
   isMobile = injectIsMobile();
   sidebarService = inject(SidebarService);
   sheetState: Signal<BrnDialogState> = computed(
-    () => this.sidebarService.state().sheetState
+    () => this.sidebarService.state().sheetState,
   );
   side = input<SidebarConfig['side']>(this._config.side);
   readonly styleWidth = `--sidebar-width: ${SIDEBAR_WIDTH}; --sidebar-width-icon: ${SIDEBAR_WIDTH_ICON};`;
   readonly styleWidthMobile = `--sidebar-width: ${SIDEBAR_WIDTH_MOBILE};`;
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+
   readonly userClass = input<ClassValue>('', { alias: 'class' });
   variant = input<SidebarConfig['variant']>(this._config.variant);
 

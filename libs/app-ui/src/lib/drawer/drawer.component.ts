@@ -5,26 +5,23 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 import {
-  BrnDialogComponent,
+  BrnDialog,
   provideBrnDialogDefaultOptions,
 } from '@spartan-ng/brain/dialog';
-import {
-  BrnSheetComponent,
-  BrnSheetOverlayComponent,
-} from '@spartan-ng/brain/sheet';
+import { BrnSheet, BrnSheetOverlay } from '@spartan-ng/brain/sheet';
 
 import { RbthDrawerOverlayDirective } from './drawer-overlay.directive';
 
 @Component({
   selector: 'rbth-drawer',
-  imports: [BrnSheetOverlayComponent, RbthDrawerOverlayDirective],
+  imports: [BrnSheetOverlay, RbthDrawerOverlayDirective],
   providers: [
     {
-      provide: BrnDialogComponent,
-      useExisting: forwardRef(() => BrnSheetComponent),
+      provide: BrnDialog,
+      useExisting: forwardRef(() => BrnSheet),
     },
     {
-      provide: BrnSheetComponent,
+      provide: BrnSheet,
       useExisting: forwardRef(() => RbthDrawerComponent),
     },
     provideBrnDialogDefaultOptions({
@@ -39,4 +36,4 @@ import { RbthDrawerOverlayDirective } from './drawer-overlay.directive';
   changeDetection: ChangeDetectionStrategy.OnPush,
   exportAs: 'rbthDrawer',
 })
-export class RbthDrawerComponent extends BrnSheetComponent {}
+export class RbthDrawerComponent extends BrnSheet {}

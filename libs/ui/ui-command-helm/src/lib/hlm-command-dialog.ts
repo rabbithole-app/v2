@@ -1,0 +1,57 @@
+import {
+  computed,
+  contentChild,
+  Directive,
+  effect,
+  ElementRef,
+  inject,
+  input,
+  Renderer2,
+  signal,
+} from '@angular/core';
+import { BrnCommandSearchInputToken } from '@spartan-ng/brain/command';
+import { hlm, injectExposesStateProvider } from '@spartan-ng/brain/core';
+import type { ClassValue } from 'clsx';
+
+@Directive({
+  selector: '[hlmCommandDialog]',
+  host: {
+    '[class]': '_computedClass()',
+  },
+})
+export class HlmCommandDialog {
+  private readonly _stateProvider = injectExposesStateProvider({ host: true });
+  public readonly state =
+    this._stateProvider.state ?? signal('closed').asReadonly();
+  public readonly userClass = input<ClassValue>('', { alias: 'class' });
+  protected readonly _computedClass = computed(() =>
+    hlm(
+      'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-top-[2%] data-[state=open]:slide-in-from-top-[2%]',
+      this.userClass(),
+    ),
+  );
+
+  private readonly _element = inject(ElementRef);
+
+  private readonly _renderer = inject(Renderer2);
+  /** Access the search field */
+  private readonly _searchInput = contentChild(BrnCommandSearchInputToken, {
+    read: ElementRef,
+  });
+
+  constructor() {
+    effect(() => {
+      this._renderer.setAttribute(
+        this._element.nativeElement,
+        'data-state',
+        this.state(),
+      );
+
+      const searchInput = this._searchInput();
+
+      if (this.state() === 'open' && searchInput) {
+        searchInput.nativeElement.focus();
+      }
+    });
+  }
+}

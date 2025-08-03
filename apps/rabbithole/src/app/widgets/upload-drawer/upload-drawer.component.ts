@@ -11,11 +11,8 @@ import {
   lucideList,
   lucideTriangleAlert,
 } from '@ng-icons/lucide';
-import {
-  BrnSheetContentDirective,
-  BrnSheetTriggerDirective,
-} from '@spartan-ng/brain/sheet';
-import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
+import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
+import { HlmButton } from '@spartan-ng/helm/button';
 import { showDirectoryPicker } from 'native-file-system-adapter';
 
 import {
@@ -39,14 +36,14 @@ import {
 @Component({
   selector: 'app-upload-drawer',
   imports: [
-    BrnSheetTriggerDirective,
-    BrnSheetContentDirective,
+    BrnSheetTrigger,
+    BrnSheetContent,
     RbthDrawerComponent,
     RbthDrawerContentComponent,
     RbthDrawerHeaderComponent,
     // RbthDrawerFooterComponent,
     RbthDrawerTitleDirective,
-    HlmButtonDirective,
+    HlmButton,
     NgIcon,
     RbthDrawerSeparatorDirective,
     RbthFileUploadDropzoneComponent,

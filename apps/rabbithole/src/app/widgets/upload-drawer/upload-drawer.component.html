@@ -1,4 +1,4 @@
-<rbth-drawer side="right" state="open">
+<rbth-drawer side="right">
   <button id="edit-profile" variant="outline" brnSheetTrigger hlmBtn>
     Upload files
   </button>
@@ -30,14 +30,16 @@
         [disabled]="dropzoneDisabled()"
       />
       @if (activeItems().length) {
-      <h3 rbthDrawerSeparator>Active</h3>
-      <app-upload-drawer-list [items]="activeItems()" />
-      } @if (completedItems().length) {
-      <h3 rbthDrawerSeparator>Completed</h3>
-      <app-upload-drawer-list [items]="completedItems()" />
-      } @if (failedItems().length) {
-      <h3 rbthDrawerSeparator>Failed</h3>
-      <app-upload-drawer-list [items]="failedItems()" />
+        <h3 rbthDrawerSeparator>Active</h3>
+        <app-upload-drawer-list [items]="activeItems()" />
+      }
+      @if (completedItems().length) {
+        <h3 rbthDrawerSeparator>Completed</h3>
+        <app-upload-drawer-list [items]="completedItems()" />
+      }
+      @if (failedItems().length) {
+        <h3 rbthDrawerSeparator>Failed</h3>
+        <app-upload-drawer-list [items]="failedItems()" />
       }
     </div>
     <!-- <rbth-drawer-footer>

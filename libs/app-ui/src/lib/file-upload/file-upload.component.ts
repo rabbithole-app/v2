@@ -22,8 +22,8 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { hlm } from '@spartan-ng/brain/core';
-import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
-import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 import { ClassValue } from 'clsx';
 
 import { FileIconPipe } from './file-icon.pipe';
@@ -36,8 +36,8 @@ import { FormatBytesPipe } from './format-bytes.pipe';
   selector: 'rbth-file-upload',
   imports: [
     NgIcon,
-    HlmButtonDirective,
-    HlmIconDirective,
+    HlmButton,
+    HlmIcon,
     FormatBytesPipe,
     FileIconPipe,
     RbthFileUploadDropzoneComponent,

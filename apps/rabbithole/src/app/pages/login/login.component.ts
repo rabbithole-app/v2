@@ -7,8 +7,8 @@ import {
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideDownload, lucideGithub } from '@ng-icons/lucide';
-import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
-import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 import { isTauri } from '@tauri-apps/api/core';
 
 import { environment } from '../../../environments/environment';
@@ -17,7 +17,7 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
 
 @Component({
   selector: 'app-login',
-  imports: [NgIcon, HlmButtonDirective, HlmIconDirective],
+  imports: [NgIcon, HlmButton, HlmIcon],
   providers: [provideIcons({ lucideGithub, lucideDownload })],
   templateUrl: './login.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

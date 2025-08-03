@@ -1,20 +1,20 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronsUpDown } from '@ng-icons/lucide';
-import { BrnMenuTriggerDirective } from '@spartan-ng/brain/menu';
-import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
-import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
+import { BrnMenuTrigger } from '@spartan-ng/brain/menu';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 // import {
-//   HlmMenuComponent,
-//   HlmMenuGroupComponent,
-//   HlmMenuItemDirective,
-//   HlmMenuItemIconDirective,
-//   HlmMenuItemSubIndicatorComponent,
-//   HlmMenuLabelComponent,
-//   HlmMenuSeparatorComponent,
-//   HlmMenuShortcutComponent,
-//   HlmSubMenuComponent,
-// } from '@spartan-ng/ui-menu-helm';
+//   HlmMenu,
+//   HlmMenuGroup,
+//   HlmMenuItem,
+//   HlmMenuItemIcon,
+//   HlmMenuItemSubIndicator,
+//   HlmMenuLabel,
+//   HlmMenuSeparator,
+//   HlmMenuShortcut,
+//   HlmSubMenu,
+// } from '@spartan-ng/helm/menu';
 
 import {
   RbthSidebarHeaderDirective,
@@ -26,7 +26,7 @@ import {
 @Component({
   selector: 'app-sidebar-header',
   imports: [
-    BrnMenuTriggerDirective,
+    BrnMenuTrigger,
 
     // HlmMenuComponent,
     // HlmSubMenuComponent,
@@ -38,8 +38,8 @@ import {
     // HlmMenuItemIconDirective,
     // HlmMenuGroupComponent,
 
-    HlmButtonDirective,
-    HlmIconDirective,
+    HlmButton,
+    HlmIcon,
     NgIcon,
     RbthSidebarMenuDirective,
     RbthSidebarMenuItemDirective,

@@ -55,18 +55,18 @@ export type SidebarVariants = VariantProps<typeof sidebarVariants>;
 export class RbthSidebarBaseComponent {
   private readonly _config = injectSidebarConfig();
   collapsible = input<NonNullable<SidebarVariants['collapsible']>>(
-    this._config.collapsible
+    this._config.collapsible,
   );
   #sidebarService = inject(SidebarService);
 
   state = computed(() =>
-    this.#sidebarService.state().isOpen ? 'expanded' : 'collapsed'
+    this.#sidebarService.state().isOpen ? 'expanded' : 'collapsed',
   );
   attrDataCollapsible = computed(() =>
-    this.state() === 'collapsed' ? this.collapsible() : ''
+    this.state() === 'collapsed' ? this.collapsible() : '',
   );
   side = input<SidebarConfig['side']>(this._config.side);
-  // eslint-disable-next-line @angular-eslint/no-input-rename
+
   readonly userClass = input<ClassValue>('', { alias: 'class' });
   variant = input<SidebarConfig['variant']>(this._config.variant);
 
@@ -76,8 +76,8 @@ export class RbthSidebarBaseComponent {
     hlm(
       sidebarVariants({ collapsible: this.collapsible() }),
       this.userClass(),
-      this.additionalClasses()
-    )
+      this.additionalClasses(),
+    ),
   );
 
   protected readonly sidebarContainerClass = computed(() => {
@@ -92,7 +92,7 @@ export class RbthSidebarBaseComponent {
       variant === 'floating' || variant === 'inset'
         ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]'
         : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l',
-      this.userClass()
+      this.userClass(),
     );
   });
 
@@ -104,13 +104,13 @@ export class RbthSidebarBaseComponent {
       'group-data-[side=right]:rotate-180',
       variant === 'floating' || variant === 'inset'
         ? 'group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]'
-        : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon)'
+        : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon)',
     );
   });
 
   protected readonly sidebarInnerClass = computed(() =>
     hlm(
-      'bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm'
-    )
+      'bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm',
+    ),
   );
 }

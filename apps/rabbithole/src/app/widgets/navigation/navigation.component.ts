@@ -9,7 +9,7 @@ import {
   lucideSettings2,
   lucideSquareTerminal,
 } from '@ng-icons/lucide';
-import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 import { combineLatestWith, map } from 'rxjs/operators';
 
 import {
@@ -59,7 +59,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
     RbthSidebarMenuDirective,
     RbthSidebarMenuItemDirective,
     RbthSidebarMenuButtonDirective,
-    HlmIconDirective,
+    HlmIcon,
     RbthTooltipTriggerDirective,
   ],
   templateUrl: './navigation.component.html',
@@ -82,10 +82,10 @@ export class NavigationComponent {
     this.breakpointObserver.observe(`(min-width: ${MOBILE_BREAKPOINT}px)`).pipe(
       combineLatestWith(
         toObservable(this.#sidebarService.state).pipe(
-          map((state) => state.isOpen)
-        )
+          map((state) => state.isOpen),
+        ),
       ),
-      map(([state, isOpen]) => !state.matches || isOpen)
-    )
+      map(([state, isOpen]) => !state.matches || isOpen),
+    ),
   );
 }

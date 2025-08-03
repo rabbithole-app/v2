@@ -3,8 +3,8 @@ import { hlm } from '@spartan-ng/brain/core';
 import {
   type ButtonVariants,
   buttonVariants,
-  HlmButtonDirective,
-} from '@spartan-ng/ui-button-helm';
+  HlmButton,
+} from '@spartan-ng/helm/button';
 import { cva, VariantProps } from 'class-variance-authority';
 import { ClassValue } from 'clsx';
 
@@ -33,7 +33,7 @@ const sidebarMenuButtonVariants = cva(
       variant: 'default',
       size: 'default',
     },
-  }
+  },
 );
 
 export type SidebarMenuButtonVariants = VariantProps<
@@ -51,7 +51,7 @@ export type SidebarMenuButtonVariants = VariantProps<
   },
   hostDirectives: [
     {
-      directive: HlmButtonDirective,
+      directive: HlmButton,
       inputs: ['variant', 'size'],
     },
   ],
@@ -70,7 +70,7 @@ export class RbthSidebarMenuButtonDirective {
       buttonVariants(props),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sidebarMenuButtonVariants(props as any),
-      this.userClass()
+      this.userClass(),
     );
   });
 }

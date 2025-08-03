@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideFileUp } from '@ng-icons/lucide';
-import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 import { cva } from 'class-variance-authority';
 import { ClassValue } from 'clsx';
 
@@ -37,7 +37,7 @@ export const dropzoneVariants = cva(
 
 @Component({
   selector: 'rbth-file-upload-dropzone',
-  imports: [NgIcon, HlmIconDirective, FormatBytesPipe, NgTemplateOutlet],
+  imports: [NgIcon, HlmIcon, FormatBytesPipe, NgTemplateOutlet],
   providers: [provideIcons({ lucideFileUp })],
   templateUrl: './file-upload-dropzone.component.html',
   host: {

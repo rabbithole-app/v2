@@ -7,8 +7,8 @@ import {
 import { Params, Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLogOut } from '@ng-icons/lucide';
-import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
-import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 
 import { FSTree } from '../../widgets/fs-tree/fs-tree.component';
 import { SidebarLayoutComponent } from '../../widgets/sidebar/sidebar.component';
@@ -19,8 +19,8 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
   selector: 'app-dashboard',
   imports: [
     NgIcon,
-    HlmButtonDirective,
-    HlmIconDirective,
+    HlmButton,
+    HlmIcon,
     SidebarLayoutComponent,
     UploadDrawerComponent,
     FSTree,

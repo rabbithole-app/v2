@@ -1,6 +1,6 @@
 import { computed, Directive, input } from '@angular/core';
 import { hlm } from '@spartan-ng/brain/core';
-import { HlmSeparatorDirective } from '@spartan-ng/ui-separator-helm';
+import { HlmSeparator } from '@spartan-ng/helm/separator';
 import { ClassValue } from 'clsx';
 
 @Directive({
@@ -11,13 +11,12 @@ import { ClassValue } from 'clsx';
     '[class]': 'computedClass()',
     'data-sidebar': 'separator',
   },
-  hostDirectives: [HlmSeparatorDirective],
+  hostDirectives: [HlmSeparator],
 })
 export class RbthSidebarSeparatorDirective {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly computedClass = computed(() =>
-    hlm('bg-sidebar-border mx-2 w-auto', this.userClass())
+    hlm('bg-sidebar-border mx-2 w-auto', this.userClass()),
   );
 }

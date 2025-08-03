@@ -24,13 +24,10 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { hlm } from '@spartan-ng/brain/core';
-import {
-  BrnProgressComponent,
-  BrnProgressIndicatorComponent,
-} from '@spartan-ng/brain/progress';
-import { HlmButtonDirective } from '@spartan-ng/ui-button-helm';
-import { HlmIconDirective } from '@spartan-ng/ui-icon-helm';
-import { HlmSpinnerComponent } from '@spartan-ng/ui-spinner-helm';
+import { BrnProgress, BrnProgressIndicator } from '@spartan-ng/brain/progress';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { ClassValue } from 'clsx';
 
 import {
@@ -48,14 +45,14 @@ import { FileUploadWithStatus } from '@rabbithole/core';
 @Component({
   selector: 'rbth-upload-item',
   imports: [
-    HlmSpinnerComponent,
+    HlmSpinner,
     NgIcon,
-    HlmButtonDirective,
-    HlmIconDirective,
+    HlmButton,
+    HlmIcon,
     FormatBytesPipe,
     FileIconPipe,
-    BrnProgressComponent,
-    BrnProgressIndicatorComponent,
+    BrnProgress,
+    BrnProgressIndicator,
     RbthProgressDirective,
     RbthProgressIndicatorDirective,
     NgTemplateOutlet,
@@ -101,7 +98,9 @@ export class RbthUploadItemComponent {
   removeUpload = output();
   retryUpload = output();
   showProgress = computed(() =>
-    ['calchash', 'commit', 'pending', 'processing'].includes(this.data().status)
+    ['calchash', 'commit', 'pending', 'processing'].includes(
+      this.data().status,
+    ),
   );
 
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
@@ -109,7 +108,7 @@ export class RbthUploadItemComponent {
   protected _computedClass = computed(() =>
     hlm(
       'flex w-full flex-col gap-4 rounded-2xl border border-stroke-soft-200 p-3',
-      this.userClass()
-    )
+      this.userClass(),
+    ),
   );
 }
