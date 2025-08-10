@@ -44,10 +44,12 @@ const RbthSidebarLayoutImports = [
 })
 export class RbthSidebarLayoutModule {}
 
+export * from './lib/copy-to-clipboard';
 export * from './lib/drawer';
 export * from './lib/file-upload';
 export * from './lib/progress';
 export * from './lib/sidebar';
+export * from './lib/toaster';
 export * from './lib/tooltip';
 export * from './lib/tree';
 export * from './lib/upload-item';

@@ -16,7 +16,6 @@ import {
   lucideFolderOpen,
 } from '@ng-icons/lucide';
 import { hlm } from '@spartan-ng/brain/core';
-import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { ClassValue } from 'clsx';
 
@@ -42,7 +41,6 @@ function flattenNodes(nodes: NestedNode[]): NestedNode[] {
   selector: 'rbth-tree',
   imports: [
     NgIcon,
-    HlmButton,
     HlmIcon,
     CdkTreeModule,
     RbthTreeDirective,

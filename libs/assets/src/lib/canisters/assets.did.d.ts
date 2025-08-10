@@ -40,11 +40,12 @@ export interface AssetsCanister {
     StreamingCallbackResponse
   >;
   list: ActorMethod<[{}], Array<AssetDetails>>;
-  list_permitted: ActorMethod<[ListPermitted], Array<Principal>>;
+  list_permitted: ActorMethod<[ListPermitted], Array<PermissionInfo>>;
   propose_commit_batch: ActorMethod<[CommitBatchArguments], undefined>;
   revoke_permission: ActorMethod<[RevokePermission], undefined>;
   set_asset_content: ActorMethod<[SetAssetContentArguments], undefined>;
   set_asset_properties: ActorMethod<[SetAssetPropertiesArguments], undefined>;
+  show_tree: ActorMethod<[], Result>;
   store: ActorMethod<[StoreArgs], undefined>;
   take_ownership: ActorMethod<[], undefined>;
   unset_asset_content: ActorMethod<[UnsetAssetContentArguments], undefined>;
@@ -137,6 +138,7 @@ export interface EncodedAsset {
   content_encoding: string;
   total_length: bigint;
 }
+export type Entry = { Directory: string } | { Asset: string };
 export interface GetArgs {
   key: Key;
   accept_encodings: Array<string>;
@@ -150,6 +152,7 @@ export interface GetChunkArgs {
 export interface GrantPermission {
   permission: Permission;
   to_principal: Principal;
+  entry: [] | [Entry];
 }
 export type Header = [string, string];
 export interface HttpRequest {
@@ -169,16 +172,23 @@ export interface HttpResponse {
 export type InitArgs = {};
 export type Key = string;
 export interface ListPermitted {
-  permission: Permission;
+  permission: [] | [Permission];
+  entry: [] | [Entry];
 }
 export type Permission =
-  | { Prepare: null }
-  | { Manage: null }
-  | { Commit: null };
+  | { Read: null }
+  | { Write: null }
+  | { Admin: null }
+  | { Permissions: null };
+export interface PermissionInfo {
+  permission: Permission;
+  principal: Principal;
+}
 export type Result = { ok: string } | { err: string };
 export interface RevokePermission {
   permission: Permission;
   of_principal: Principal;
+  entry: [] | [Entry];
 }
 export interface SetAssetContentArguments {
   key: Key;
@@ -193,11 +203,7 @@ export interface SetAssetPropertiesArguments {
   allow_raw_access: [] | [[] | [boolean]];
   max_age: [] | [[] | [bigint]];
 }
-export interface SetPermissions {
-  prepare: Array<Principal>;
-  commit: Array<Principal>;
-  manage_permissions: Array<Principal>;
-}
+export type SetPermissions = Array<[Permission, Array<Principal>]>;
 export interface StoreArgs {
   key: Key;
   content: Uint8Array | number[];

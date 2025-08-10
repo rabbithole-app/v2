@@ -8,11 +8,14 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { isDeepEqual } from 'remeda';
+import { type } from 'arktype';
+import { first, isDeepEqual, isNonNull, isNonNullish } from 'remeda';
 
 import { injectCoreWorker } from '../../core/injectors';
+import { Permission } from '@rabbithole/assets';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
+  ExtractVariantKeys,
   FileUploadWithStatus,
   injectStorageActor,
   messageByAction,
@@ -32,18 +35,44 @@ const INITIAL_VALUE: State = {
   files: [],
 };
 
+const showTreeSchema = type({
+  ok: 'string',
+})
+  .or({
+    err: 'string',
+  })
+  .pipe((result, ctx) => {
+    if ('err' in result) {
+      ctx.mustBe(result.err);
+      return ctx.errors;
+    }
+
+    return result.ok;
+  });
+
 @Injectable()
 export class UploadService {
   #injector = inject(Injector);
   storageActor = injectStorageActor({
     injector: this.#injector,
   });
-  listCommitPermitted = resource<string[], StorageCanisterActor | null>({
+  listCommitPermitted = resource<
+    { permission: ExtractVariantKeys<Permission>; principalId: string }[],
+    StorageCanisterActor | null
+  >({
     params: () => this.storageActor(),
     loader: async ({ params: actor }) => {
       if (!actor) return [];
-      const list = await actor.list_permitted({ permission: { Commit: null } });
-      return list.map((principalId) => principalId.toText());
+      const list = await actor.list_permitted({
+        entry: [],
+        permission: [],
+      });
+      return list.map(({ principal, permission }) => ({
+        principalId: principal.toText(),
+        permission: first(
+          Object.keys(permission),
+        ) as ExtractVariantKeys<Permission>,
+      }));
     },
     defaultValue: [],
     equal: isDeepEqual,
@@ -52,7 +81,19 @@ export class UploadService {
   hasCommitPermission = computed(() => {
     const permitted = this.listCommitPermitted.value();
     const principalId = this.#authState.principalId();
-    return permitted.includes(principalId);
+    return isNonNullish(
+      permitted.find((item) => item.principalId === principalId),
+    );
+  });
+  showTree = resource<string, StorageCanisterActor | null>({
+    params: () => this.storageActor(),
+    loader: async ({ params: actor }) => {
+      if (!actor) return '';
+      const result = await actor.show_tree();
+      const parsedResult = showTreeSchema(result);
+      return parsedResult instanceof type.errors ? '' : parsedResult;
+    },
+    defaultValue: '',
   });
   #state = signal(INITIAL_VALUE);
   state = this.#state.asReadonly();
@@ -66,6 +107,7 @@ export class UploadService {
       });
 
     effect(() => console.log(this.listCommitPermitted.value()));
+    effect(() => console.log(this.showTree.value()));
   }
 
   async addFile(item: { file: File; path?: string }) {

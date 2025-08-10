@@ -1,7 +1,13 @@
 import { InjectionToken } from '@angular/core';
 
+export type BuildVariantFromKeys<T extends string> = {
+  [K in T]: { [P in K]: null };
+}[T];
+
 export type ExtractInjectionToken<P> =
   P extends InjectionToken<infer T> ? T : never;
+
+export type ExtractVariantKeys<T> = T extends Record<infer K, any> ? K : never;
 
 export type MutableProperties<T, K extends keyof T> = {
   -readonly [P in K]: T[P];

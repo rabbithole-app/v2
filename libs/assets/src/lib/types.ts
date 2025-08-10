@@ -120,3 +120,12 @@ export type StoreFileArgs = [file: File, config?: StoreConfig];
 export type StorePathArgs = [path: string, config?: StoreConfig];
 
 export type StoreReadableArgs = [readable: Readable, config?: StoreConfig];
+
+export type {
+  Entry,
+  GrantPermission,
+  ListPermitted,
+  Permission,
+  PermissionInfo,
+  RevokePermission,
+} from './canisters/assets.did';

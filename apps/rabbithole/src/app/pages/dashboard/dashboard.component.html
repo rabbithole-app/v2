@@ -5,7 +5,10 @@
       <ng-icon hlm class="mr-2" size="sm" name="lucideLogOut" />
       Sign out
     </button>
-    <app-fs-tree />
+    <div class="flex gap-2">
+      <app-fs-tree class="flex-1/4" />
+      <app-permissions-table class="flex-3/4" />
+    </div>
     <app-upload-drawer />
   </div>
 </app-sidebar-layout>

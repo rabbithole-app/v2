@@ -1,0 +1,64 @@
+<hlm-dialog>
+  <ng-content />
+  <hlm-dialog-content
+    class="sm:max-w-[425px] w-[600px]!"
+    *brnDialogContent="let ctx"
+  >
+    <hlm-dialog-header>
+      @let title = isEditMode() ? 'Edit permission' : 'Add permission';
+      <h3 hlmDialogTitle>{{ title }}</h3>
+      <p hlmDialogDescription></p>
+    </hlm-dialog-header>
+    <form class="*:not-first:mt-2" [formGroup]="form">
+      <label hlmLabel for="principal" class="text-right">Principal ID</label>
+      <div class="flex rounded-md shadow-xs">
+        <input
+          hlmInput
+          id="principal"
+          formControlName="principal"
+          [attr.aria-invalid]="principalControl.invalid"
+          class="not-aria-invalid:-me-px rounded-e-none shadow-none focus-visible:z-10 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive peer"
+        />
+        <brn-select
+          placeholder="Select a permission"
+          formControlName="permission"
+        >
+          <hlm-select-trigger class="w-fit rounded-s-none shadow-none">
+            <hlm-select-value>
+              <ng-template hlmSelectValue let-selected>
+                {{ selected }}
+              </ng-template>
+            </hlm-select-value>
+          </hlm-select-trigger>
+          <hlm-select-content class="w-64 min-w-48">
+            @for (option of permissions; track option.value) {
+              <hlm-option
+                [value]="option.value"
+                class="flex flex-col items-start gap-0 justify-center"
+              >
+                <span>{{ option.label }}</span>
+                <span class="text-muted-foreground text-xs">{{
+                  option.description
+                }}</span>
+              </hlm-option>
+            }
+          </hlm-select-content>
+        </brn-select>
+      </div>
+    </form>
+    <hlm-dialog-footer>
+      <button
+        hlmBtn
+        type="button"
+        [disabled]="form.invalid"
+        (click)="handleSubmit()"
+      >
+        @if (isEditMode()) {
+          Save
+        } @else {
+          Add
+        }
+      </button>
+    </hlm-dialog-footer>
+  </hlm-dialog-content>
+</hlm-dialog>

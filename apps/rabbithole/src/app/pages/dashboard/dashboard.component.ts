@@ -11,6 +11,7 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 import { FSTree } from '../../widgets/fs-tree/fs-tree.component';
+import { PermissionsTableComponent } from '../../widgets/permissions-table/permissions-table.component';
 import { SidebarLayoutComponent } from '../../widgets/sidebar/sidebar.component';
 import { UploadDrawerComponent } from '../../widgets/upload-drawer/upload-drawer.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -24,6 +25,7 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
     SidebarLayoutComponent,
     UploadDrawerComponent,
     FSTree,
+    PermissionsTableComponent,
   ],
   providers: [provideIcons({ lucideLogOut })],
   templateUrl: './dashboard.component.html',
