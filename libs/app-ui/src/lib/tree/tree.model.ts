@@ -1,5 +1,5 @@
-export type NestedNode = {
-  children?: NestedNode[];
-  key: string;
+export type TreeNode = {
+  children?: TreeNode[];
   name: string;
+  path?: string;
 };

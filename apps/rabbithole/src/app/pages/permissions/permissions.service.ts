@@ -1,5 +1,6 @@
 import {
   computed,
+  effect,
   inject,
   Injectable,
   Injector,
@@ -7,18 +8,23 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Actor } from '@dfinity/agent';
 import { toast } from 'ngx-sonner';
 import { isDeepEqual } from 'remeda';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
-import { PermissionsItem } from './permissions.model';
-import { convertPermissionInfoItems } from './permissions.utils';
+import { PermissionsItem } from '../../widgets/permissions-table/permissions-table.model';
+import {
+  convertPermissionInfoItems,
+  convertTreeNodes,
+} from './permissions.utils';
 import { Entry, GrantPermission, RevokePermission } from '@rabbithole/assets';
 import {
   injectStorageActor,
   parseCanisterRejectError,
   StorageCanisterActor,
 } from '@rabbithole/core';
+import { TreeNode } from '@rabbithole/ui';
 
 type State = {
   entry: Entry | null;
@@ -56,6 +62,20 @@ export class PermissionsService {
     defaultValue: [],
     equal: isDeepEqual,
   });
+  tree = resource<TreeNode[], StorageCanisterActor>({
+    params: () => this.storageActor(),
+    loader: async ({ params: actor }) => {
+      const fsTree = await actor.fs_tree();
+      return [
+        {
+          name: Actor.canisterIdOf(actor).toText(),
+          children: convertTreeNodes(fsTree),
+        },
+      ];
+    },
+    defaultValue: [],
+  });
+  rootNode = computed(() => this.tree.value()[0]);
   state = this.#state.asReadonly();
   #grantPermission = new Subject<Omit<GrantPermission, 'entry'>>();
   #revokePermission = new Subject<Omit<RevokePermission, 'entry'>>();

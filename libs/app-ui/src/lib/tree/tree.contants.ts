@@ -1,55 +1,70 @@
-import { NestedNode } from './tree.model';
+import { TreeNode } from './tree.model';
 
-export const EXAMPLE_DATA: NestedNode[] = [
+export const EXAMPLE_DATA: TreeNode[] = [
   {
     name: 'Company',
-    key: 'company',
+    path: 'company',
     children: [
       {
         name: 'Engineering',
-        key: 'engineering',
+        path: 'company/engineering',
         children: [
           {
             name: 'Frontend',
-            key: 'frontend',
+            path: 'company/engineering/frontend',
             children: [
               {
                 name: 'Design System',
-                key: 'design-system',
+                path: 'company/engineering/frontend/design-system',
                 children: [
-                  { name: 'Components', key: 'components' },
-                  { name: 'Tokens', key: 'tokens' },
-                  { name: 'Guidelines', key: 'guidelines' },
+                  {
+                    name: 'Components',
+                    path: 'company/engineering/frontend/design-system/components',
+                  },
+                  {
+                    name: 'Tokens',
+                    path: 'company/engineering/frontend/design-system/tokens',
+                  },
+                  {
+                    name: 'Guidelines',
+                    path: 'company/engineering/frontend/design-system/guidelines',
+                  },
                 ],
               },
-              { name: 'Web Platform', key: 'web-platform' },
+              {
+                name: 'Web Platform',
+                path: 'company/engineering/frontend/web-platform',
+              },
             ],
           },
           {
             name: 'Backend',
-            key: 'backend',
+            path: 'company/engineering/backend',
             children: [
-              { name: 'APIs', key: 'apis' },
-              { name: 'Infrastructure', key: 'infrastructure' },
+              { name: 'APIs', path: 'company/engineering/backend/apis' },
+              {
+                name: 'Infrastructure',
+                path: 'company/engineering/backend/infrastructure',
+              },
             ],
           },
-          { name: 'Platform Team', key: 'platform-team' },
+          { name: 'Platform Team', path: 'company/engineering/platform-team' },
         ],
       },
       {
         name: 'Marketing',
-        key: 'marketing',
+        path: 'company/marketing',
         children: [
-          { name: 'Content', key: 'content' },
-          { name: 'SEO', key: 'seo' },
+          { name: 'Content', path: 'company/marketing/content' },
+          { name: 'SEO', path: 'company/marketing/seo' },
         ],
       },
       {
         name: 'Operations',
-        key: 'operations',
+        path: 'company/operations',
         children: [
-          { name: 'HR', key: 'hr' },
-          { name: 'Finance', key: 'finance' },
+          { name: 'HR', path: 'company/operations/hr' },
+          { name: 'Finance', path: 'company/operations/finance' },
         ],
       },
     ],

@@ -128,4 +128,5 @@ export type {
   Permission,
   PermissionInfo,
   RevokePermission,
+  TreeNode,
 } from './canisters/assets.did';

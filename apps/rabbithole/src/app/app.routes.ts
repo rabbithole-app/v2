@@ -7,8 +7,16 @@ export const appRoutes: Route[] = [
   {
     path: '',
     component: DashboardComponent,
-    pathMatch: 'full',
     canActivate: [dashboardGuard],
+    children: [
+      {
+        path: 'permissions',
+        loadComponent: () =>
+          import('./pages/permissions/permissions.component').then(
+            (m) => m.PermissionsComponent,
+          ),
+      },
+    ],
   },
   {
     path: 'login',
@@ -20,7 +28,7 @@ export const appRoutes: Route[] = [
     path: 'delegation',
     loadComponent: () =>
       import('./pages/delegation/delegation.component').then(
-        (m) => m.DelegationComponent
+        (m) => m.DelegationComponent,
       ),
   },
   { path: '**', pathMatch: 'full', redirectTo: '' },

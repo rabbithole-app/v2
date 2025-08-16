@@ -1,6 +1,6 @@
 import { randomInteger } from 'remeda';
 
-import { PermissionsItem } from './permissions.model';
+import { PermissionsItem } from './permissions-table.model';
 import { randomPrincipal } from '@rabbithole/core';
 
 export const PERMISSIONS_DATA: PermissionsItem[] = Array.from({

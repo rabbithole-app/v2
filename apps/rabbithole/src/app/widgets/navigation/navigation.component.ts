@@ -5,9 +5,9 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideBookOpen,
-  lucideBot,
   lucideSettings2,
   lucideSquareTerminal,
+  lucideUserCog,
 } from '@ng-icons/lucide';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { combineLatestWith, map } from 'rxjs/operators';
@@ -34,9 +34,9 @@ const NAVIGATION_ITEMS: NavItem[] = [
     icon: 'lucideSquareTerminal',
   },
   {
-    title: 'Models',
-    url: '#',
-    icon: 'lucideBot',
+    title: 'Permissions',
+    url: '/permissions',
+    icon: 'lucideUserCog',
   },
   {
     title: 'Documentation',
@@ -67,7 +67,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
   providers: [
     provideIcons({
       lucideBookOpen,
-      lucideBot,
+      lucideUserCog,
       lucideSettings2,
       lucideSquareTerminal,
     }),

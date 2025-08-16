@@ -1,24 +1,25 @@
 <ul rbthSidebarMenu>
   @for (item of data; track item.title) {
-  <li rbthSidebarMenuItem>
-    <a
-      rbthSidebarMenuButton
-      class="group-data-[collapsible=icon]:w-10! group-data-[collapsible=icon]:h-10! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:align-center"
-      variant="ghost"
-      [isActive]="rla.isActive"
-      [routerLink]="item.url"
-      routerLinkActive
-      #rla="routerLinkActive"
-      [rbthTooltipTrigger]="item.title"
-      [rbthTooltipDisabled]="tooltipDisabled()"
-      [aria-describedby]="item.title"
-      position="right"
-    >
-      <ng-icon size="sm" hlm [name]="item.icon" hlmMenuIcon />
-      <span class="group-data-[collapsible=icon]:hidden!">{{
-        item.title
-      }}</span>
-    </a>
-  </li>
+    <li rbthSidebarMenuItem>
+      <a
+        rbthSidebarMenuButton
+        class="group-data-[collapsible=icon]:w-10! group-data-[collapsible=icon]:h-10! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:align-center"
+        variant="ghost"
+        [isActive]="rla.isActive"
+        [routerLink]="item.url"
+        routerLinkActive
+        #rla="routerLinkActive"
+        [rbthTooltipTrigger]="item.title"
+        [rbthTooltipDisabled]="tooltipDisabled()"
+        [aria-describedby]="item.title"
+        position="right"
+        [routerLinkActiveOptions]="{ exact: item.url === '/' }"
+      >
+        <ng-icon size="sm" hlm [name]="item.icon" hlmMenuIcon />
+        <span class="group-data-[collapsible=icon]:hidden!">{{
+          item.title
+        }}</span>
+      </a>
+    </li>
   }
 </ul>

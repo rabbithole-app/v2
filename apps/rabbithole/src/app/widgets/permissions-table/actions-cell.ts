@@ -31,7 +31,7 @@ import { ClassValue } from 'clsx';
 
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
-import { PermissionsItem } from './permissions.model';
+import { PermissionsItem } from './permissions-table.model';
 import { Permission } from '@rabbithole/assets';
 import { ExtractVariantKeys } from '@rabbithole/core';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';

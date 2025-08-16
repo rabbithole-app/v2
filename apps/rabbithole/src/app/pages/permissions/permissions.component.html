@@ -1,0 +1,11 @@
+<rbth-tree
+  class="overflow-auto"
+  [data]="permissionsService.tree.value()"
+  [selected]="permissionsService.rootNode()"
+  (selectedChange)="handleSelect($event)"
+/>
+<app-permissions-table
+  [data]="permissionsService.listPermitted.value()"
+  (grant)="permissionsService.grantPermission($event)"
+  (revoke)="permissionsService.revokePermission($event)"
+/>

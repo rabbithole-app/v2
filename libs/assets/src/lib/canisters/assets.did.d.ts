@@ -30,6 +30,7 @@ export interface AssetsCanister {
   create_chunks: ActorMethod<[CreateChunksArguments], CreateChunksResponse>;
   delete_asset: ActorMethod<[DeleteAssetArguments], undefined>;
   delete_batch: ActorMethod<[DeleteBatchArguments], undefined>;
+  fs_tree: ActorMethod<[], Array<TreeNode>>;
   get: ActorMethod<[GetArgs], EncodedAsset>;
   get_chunk: ActorMethod<[GetChunkArgs], ChunkContent>;
   get_configuration: ActorMethod<[], ConfigurationResponse>;
@@ -225,6 +226,10 @@ export type StreamingStrategy = {
 };
 export type StreamingToken = Uint8Array | number[];
 export type Time = bigint;
+export interface TreeNode {
+  name: Key;
+  children: [] | [Array<TreeNode>];
+}
 export interface UnsetAssetContentArguments {
   key: Key;
   content_encoding: string;

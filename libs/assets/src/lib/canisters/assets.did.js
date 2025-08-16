@@ -1,4 +1,5 @@
 export const idlFactory = ({ IDL }) => {
+  const TreeNode = IDL.Rec();
   const Permission = IDL.Variant({
     Read: IDL.Null,
     Write: IDL.Null,
@@ -86,6 +87,9 @@ export const idlFactory = ({ IDL }) => {
   });
   const CreateChunksResponse = IDL.Record({ chunk_ids: IDL.Vec(ChunkId) });
   const DeleteBatchArguments = IDL.Record({ batch_id: BatchId });
+  TreeNode.fill(
+    IDL.Record({ name: Key, children: IDL.Opt(IDL.Vec(TreeNode)) }),
+  );
   const GetArgs = IDL.Record({
     key: Key,
     accept_encodings: IDL.Vec(IDL.Text),
@@ -201,6 +205,7 @@ export const idlFactory = ({ IDL }) => {
     ),
     delete_asset: IDL.Func([DeleteAssetArguments], [], []),
     delete_batch: IDL.Func([DeleteBatchArguments], [], []),
+    fs_tree: IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     get: IDL.Func([GetArgs], [EncodedAsset], ['query']),
     get_chunk: IDL.Func([GetChunkArgs], [ChunkContent], ['query']),
     get_configuration: IDL.Func([], [ConfigurationResponse], []),

@@ -1,9 +1,9 @@
 import { CdkTree, CdkTreeModule } from '@angular/cdk/tree';
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   input,
   model,
   viewChild,
@@ -21,12 +21,11 @@ import { ClassValue } from 'clsx';
 
 import { RbthTreeLabelDirective } from './tree-item-label.directive';
 import { RbthTreeDirective } from './tree-item.directive';
-import { EXAMPLE_DATA } from './tree.contants';
-import { NestedNode } from './tree.model';
+import { TreeNode } from './tree.model';
 import { injectTreeConfig } from './tree.token';
 import { WithRequiredProperty } from '@rabbithole/core';
 
-function flattenNodes(nodes: NestedNode[]): NestedNode[] {
+function flattenNodes(nodes: TreeNode[]): TreeNode[] {
   const flattenedNodes = [];
   for (const node of nodes) {
     flattenedNodes.push(node);
@@ -60,27 +59,32 @@ function flattenNodes(nodes: NestedNode[]): NestedNode[] {
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RbthTreeComponent implements AfterViewInit {
+export class RbthTreeComponent {
   config = injectTreeConfig();
-  data = input.required<NestedNode[]>();
-  selected = model<NestedNode>();
-  tree = viewChild.required<CdkTree<NestedNode>>(CdkTree);
+  data = input.required<TreeNode[]>();
+  selected = model<TreeNode>();
+  tree = viewChild.required<CdkTree<TreeNode>>(CdkTree);
   readonly userClass = input<ClassValue>('');
   protected readonly computedClass = computed(() =>
-    hlm('flex h-full flex-col gap-2 *:first:grow', this.userClass()),
+    hlm('contents', this.userClass()),
   );
 
-  childrenAccessor = (dataNode: NestedNode) => dataNode.children ?? [];
-
-  expansionKey = (node: NestedNode) => node.key;
-
-  hasChild = (_: number, node: NestedNode) => !!node.children?.length;
-
-  ngAfterViewInit(): void {
-    this.#expandNodesToLevel(EXAMPLE_DATA, 0, 2);
+  constructor() {
+    effect(() => {
+      const data = this.data();
+      if (data.length) {
+        this.#expandNodesToLevel(data, 0, 2);
+      }
+    });
   }
 
-  shouldRender(node: NestedNode) {
+  childrenAccessor = (dataNode: TreeNode) => dataNode.children ?? [];
+
+  expansionKey = (node: TreeNode) => node.path;
+
+  hasChild = (_: number, node: TreeNode) => !!node.children?.length;
+
+  shouldRender(node: TreeNode) {
     let parent = this.#getParentNode(node);
     while (parent) {
       if (!this.tree().isExpanded(parent)) {
@@ -91,10 +95,10 @@ export class RbthTreeComponent implements AfterViewInit {
     return true;
   }
 
-  trackBy = (index: number, node: NestedNode) => this.expansionKey(node);
+  trackBy = (index: number, node: TreeNode) => this.expansionKey(node);
 
   #expandNodesToLevel(
-    nodes: NestedNode[],
+    nodes: TreeNode[],
     currentLevel: number,
     targetLevel: number,
   ) {
@@ -111,8 +115,8 @@ export class RbthTreeComponent implements AfterViewInit {
     }
   }
 
-  #getParentNode(node: NestedNode) {
-    for (const parent of flattenNodes(EXAMPLE_DATA)) {
+  #getParentNode(node: TreeNode) {
+    for (const parent of flattenNodes(this.data())) {
       if (parent.children?.includes(node)) {
         return parent;
       }
@@ -122,8 +126,8 @@ export class RbthTreeComponent implements AfterViewInit {
   }
 
   #isExpandable(
-    node: NestedNode,
-  ): node is WithRequiredProperty<NestedNode, 'children'> {
+    node: TreeNode,
+  ): node is WithRequiredProperty<TreeNode, 'children'> {
     return !!node.children?.length;
   }
 }
