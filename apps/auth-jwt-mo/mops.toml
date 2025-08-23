@@ -1,0 +1,10 @@
+[dependencies]
+map = "9.0.1"
+liminal = "1.0.0"
+core = "0.6.0"
+ic = "3.0.0"
+xtended-numbers = "2.0.0"
+
+[package]
+name = "auth-jwt"
+version = "0.1.0"

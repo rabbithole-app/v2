@@ -10,7 +10,7 @@
     "tauri": "nx run tauri-app:tauri",
     "tauri:dev": "nx serve tauri-app",
     "tauri:build": "nx build tauri-app",
-    "test": "nx run-many -t test -p rabbithole assets app-ui auth core utils permissions-mo"
+    "test": "nx run-many -t test -p rabbithole assets app-ui auth core utils permissions-mo auth-jwt-mo"
   },
   "private": true,
   "dependencies": {
