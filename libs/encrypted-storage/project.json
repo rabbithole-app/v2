@@ -1,0 +1,19 @@
+{
+  "name": "encrypted-storage",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/encrypted-storage/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "swc libs/encrypted-storage/src -d dist/libs/encrypted-storage/cjs --config-file libs/encrypted-storage/.swcrc.cjs.json",
+          "swc libs/encrypted-storage/src -d dist/libs/encrypted-storage/esm --config-file libs/encrypted-storage/.swcrc.esm.json"
+        ],
+        "parallel": false
+      }
+    }
+  },
+  "tags": []
+}

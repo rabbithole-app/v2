@@ -40,7 +40,7 @@ import {
   RbthProgressIndicatorDirective,
 } from '../progress';
 import { RbthTooltipTriggerDirective } from '../tooltip';
-import { FileUploadWithStatus } from '@rabbithole/core';
+import { FileUploadWithStatus, UploadState } from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-upload-item',
@@ -91,17 +91,24 @@ export class RbthUploadItemComponent {
   progress = computed(() => {
     const data = this.data();
 
-    return data.status === 'processing'
+    return data.status === UploadState.IN_PROGRESS
       ? Math.round((data.current / data.total) * 100)
-      : null;
+      : data.status === UploadState.FINALIZING
+        ? 100
+        : null;
   });
   removeUpload = output();
   retryUpload = output();
   showProgress = computed(() =>
-    ['calchash', 'commit', 'pending', 'processing'].includes(
-      this.data().status,
-    ),
+    [
+      UploadState.FINALIZING,
+      UploadState.IN_PROGRESS,
+      UploadState.INITIALIZING,
+      UploadState.NOT_STARTED,
+      UploadState.REQUESTING_VETKD,
+    ].includes(this.data().status),
   );
+  readonly uploadState = UploadState;
 
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
 

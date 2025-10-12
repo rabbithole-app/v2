@@ -6,6 +6,15 @@
   "sourceRoot": "apps/rabbithole/src",
   "tags": [],
   "targets": {
+    "build-403": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tailwindcss -i ./apps/rabbithole/src/styles.403.css -o ./tmp/styles.403.css --minify"
+      }
+    },
+    "build": {
+      "dependsOn": ["build-403"]
+    },
     "serve": {
       "dependsOn": [{ "projects": ["backend"], "target": "serve" }]
     },

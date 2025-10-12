@@ -12,7 +12,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { APP_DERIVATION_ORIGIN, AUTH_MAX_TIME_TO_LIVE } from './core/constants';
-import { provideAssetManager } from './core/injectors';
+import { provideEncryptedStorage } from './core/injectors';
 import { isCustomDomain } from './core/utils';
 import {
   AUTH_CONFIG,
@@ -22,9 +22,9 @@ import {
 } from '@rabbithole/auth';
 import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
-  ASSETS_CANISTER_ID,
+  ENCRYPTED_STORAGE_CANISTER_ID,
   HTTP_AGENT_OPTIONS_TOKEN,
-  provideStorageActor,
+  provideEncryptedStorageActor,
 } from '@rabbithole/core';
 
 export const provideAuthService = (): Provider => ({
@@ -53,8 +53,8 @@ export const appConfig: ApplicationConfig = {
     provideAuthService(),
     { provide: AUTH_CONFIG, useValue: authConfig },
     {
-      provide: ASSETS_CANISTER_ID,
-      useValue: Principal.fromText(environment.assetsCanisterId),
+      provide: ENCRYPTED_STORAGE_CANISTER_ID,
+      useValue: Principal.fromText(environment.encryptedStorageCanisterId),
     },
     {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
@@ -63,7 +63,7 @@ export const appConfig: ApplicationConfig = {
         host: 'https://localhost',
       } satisfies HttpAgentOptions,
     },
-    provideStorageActor(),
-    provideAssetManager(),
+    provideEncryptedStorageActor(),
+    provideEncryptedStorage(),
   ],
 };

@@ -1,31 +1,36 @@
 import { computed } from '@angular/core';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
-import { ASSETS_CANISTER_ID } from '../tokens';
+import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
 import { ExtractInjectionToken } from '../types';
 import { HTTP_AGENT_TOKEN, provideHttpAgent } from './http-agent';
-import { getAssetsCanister } from '@rabbithole/assets';
+import { createEncryptedStorageActor } from '@rabbithole/encrypted-storage';
 
-export type StorageCanisterActor = ReturnType<typeof getAssetsCanister>;
+export type EncryptedStorageActor = ReturnType<
+  typeof createEncryptedStorageActor
+>;
 
-export const [injectStorageActor, provideStorageActor, STORAGE_ACTOR_TOKEN] =
-  createInjectionToken(
-    (
-      canisterId: ExtractInjectionToken<typeof ASSETS_CANISTER_ID>,
-      httpAgent: ExtractInjectionToken<typeof HTTP_AGENT_TOKEN>,
-    ) =>
-      computed(() =>
-        getAssetsCanister({
-          agent: httpAgent(),
-          canisterId,
-        }),
-      ),
-    {
-      isRoot: false,
-      deps: [ASSETS_CANISTER_ID, HTTP_AGENT_TOKEN],
-      extraProviders: [provideHttpAgent()],
-    },
-  );
+export const [
+  injectEncryptedStorageActor,
+  provideEncryptedStorageActor,
+  STORAGE_ACTOR_TOKEN,
+] = createInjectionToken(
+  (
+    canisterId: ExtractInjectionToken<typeof ENCRYPTED_STORAGE_CANISTER_ID>,
+    httpAgent: ExtractInjectionToken<typeof HTTP_AGENT_TOKEN>,
+  ) =>
+    computed(() =>
+      createEncryptedStorageActor({
+        agent: httpAgent(),
+        canisterId,
+      }),
+    ),
+  {
+    isRoot: false,
+    deps: [ENCRYPTED_STORAGE_CANISTER_ID, HTTP_AGENT_TOKEN],
+    extraProviders: [provideHttpAgent()],
+  },
+);
 // export const [injectStorageActor, provideStorageActor, STORAGE_ACTOR_TOKEN] =
 //   createInjectionToken(
 //     (
@@ -63,9 +68,9 @@ export const [injectStorageActor, provideStorageActor, STORAGE_ACTOR_TOKEN] =
 //     }
 //   );
 
-export function assertStorageActor(
-  actor: StorageCanisterActor | null,
-): asserts actor is StorageCanisterActor {
+export function assertEncryptedStorageActor(
+  actor: EncryptedStorageActor | null,
+): asserts actor is EncryptedStorageActor {
   if (!actor)
-    throw Error('The StorageCanisterActor instance is not initialized');
+    throw Error('The EncryptedStorageActor instance is not initialized');
 }

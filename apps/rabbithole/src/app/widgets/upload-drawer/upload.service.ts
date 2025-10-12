@@ -3,32 +3,31 @@ import {
   effect,
   inject,
   Injectable,
-  Injector,
   resource,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { type } from 'arktype';
-import { first, isDeepEqual, isNonNullish } from 'remeda';
+import { isDeepEqual, isNonNullish } from 'remeda';
+import { match, P } from 'ts-pattern';
 
-import { injectCoreWorker } from '../../core/injectors';
-import { Permission } from '@rabbithole/assets';
+import { injectCoreWorker, injectEncryptedStorage } from '../../core/injectors';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
-  ExtractVariantKeys,
   FileUploadWithStatus,
-  injectStorageActor,
   messageByAction,
-  StorageCanisterActor,
-  UploadFile,
+  UploadAsset,
+  UploadId,
+  UploadState,
   UploadStatus,
 } from '@rabbithole/core';
+import {
+  EncryptedStorage,
+  PermissionItem,
+} from '@rabbithole/encrypted-storage';
 
 type State = {
-  // assetManager: AssetManager | null;
   files: FileUploadWithStatus[];
-  // hasCommitPermission: boolean;
-  // error: ParsedAgentError | null;
 };
 
 const INITIAL_VALUE: State = {
@@ -52,44 +51,25 @@ const showTreeSchema = type({
 
 @Injectable()
 export class UploadService {
-  #injector = inject(Injector);
-  storageActor = injectStorageActor({
-    injector: this.#injector,
-  });
-  listCommitPermitted = resource<
-    { permission: ExtractVariantKeys<Permission>; principalId: string }[],
-    StorageCanisterActor | null
-  >({
-    params: () => this.storageActor(),
-    loader: async ({ params: actor }) => {
-      if (!actor) return [];
-      const list = await actor.list_permitted({
-        entry: [],
-        permission: [],
-      });
-      return list.map(({ principal, permission }) => ({
-        principalId: principal.toText(),
-        permission: first(
-          Object.keys(permission),
-        ) as ExtractVariantKeys<Permission>,
-      }));
-    },
+  encryptedStorage = injectEncryptedStorage();
+  listPermitted = resource<PermissionItem[], EncryptedStorage>({
+    params: () => this.encryptedStorage(),
+    loader: async ({ params: encryptedStorage }) =>
+      await encryptedStorage.listPermitted(),
     defaultValue: [],
     equal: isDeepEqual,
   });
   #authState = inject(AUTH_SERVICE);
-  hasCommitPermission = computed(() => {
-    const permitted = this.listCommitPermitted.value();
+  hasWritePermission = computed(() => {
+    const permitted = this.listPermitted.value();
     const principalId = this.#authState.principalId();
-    return isNonNullish(
-      permitted.find((item) => item.principalId === principalId),
-    );
+    return isNonNullish(permitted.find((item) => item.user === principalId));
   });
-  showTree = resource<string, StorageCanisterActor | null>({
-    params: () => this.storageActor(),
-    loader: async ({ params: actor }) => {
-      if (!actor) return '';
-      const result = await actor.show_tree();
+  showTree = resource<string, EncryptedStorage>({
+    params: () => this.encryptedStorage(),
+    loader: async ({ params: encryptedStorage }) => {
+      // if (!actor) return '';
+      const result = await encryptedStorage.showTree();
       const parsedResult = showTreeSchema(result);
       return parsedResult instanceof type.errors ? '' : parsedResult;
     },
@@ -101,13 +81,56 @@ export class UploadService {
 
   constructor() {
     this.#coreWorkerService.workerMessage$
-      .pipe(messageByAction('upload:progress'), takeUntilDestroyed())
+      .pipe(messageByAction('upload:progress-file'), takeUntilDestroyed())
       .subscribe(({ payload }) => {
         this.#updateStatus(payload);
       });
 
-    effect(() => console.log(this.listCommitPermitted.value()));
+    effect(() => console.log(this.listPermitted.value()));
     effect(() => console.log(this.showTree.value()));
+  }
+
+  async addAsset(item: { file: File; path?: string }) {
+    const id = crypto.randomUUID();
+    this.#state.update((state) => ({
+      ...state,
+      files: state.files.concat({
+        ...item,
+        id,
+        status: UploadState.NOT_STARTED,
+      }),
+    }));
+    const arrayBuffer = await item.file.arrayBuffer();
+    const config = match(item.file)
+      .returnType<UploadAsset['config']>()
+      .with(
+        {
+          type: P.union('application/gzip', 'application/x-gzip', ''),
+          name: P.when((name) => name.endsWith('.gz')),
+        },
+        ({ name }) => ({ fileName: name, contentEncoding: 'gzip' }),
+      )
+      .with(
+        {
+          type: P.union('application/octet-stream', ''),
+          name: P.when((name) => name.endsWith('.br')),
+        },
+        ({ name }) => ({ fileName: name, contentEncoding: 'br' }),
+      )
+      .otherwise(({ name }) => ({ fileName: name }));
+    const payload: UploadAsset = {
+      id,
+      bytes: arrayBuffer,
+      config,
+    };
+    if (item.path) {
+      payload.config.path = item.path;
+    }
+
+    this.#coreWorkerService.postMessage(
+      { action: 'upload:add-asset', payload },
+      { transfer: [payload.bytes] },
+    );
   }
 
   async addFile(item: { file: File; path?: string }) {
@@ -117,15 +140,16 @@ export class UploadService {
       files: state.files.concat({
         ...item,
         id,
-        status: 'pending',
+        status: UploadState.NOT_STARTED,
       }),
     }));
     const arrayBuffer = await item.file.arrayBuffer();
-    const payload: UploadFile = {
+    const payload: UploadAsset = {
       id,
       bytes: arrayBuffer,
       config: {
         fileName: item.file.name,
+        contentType: item.file.type,
       },
     };
     if (item.path) {
@@ -133,26 +157,26 @@ export class UploadService {
     }
 
     this.#coreWorkerService.postMessage(
-      { action: 'upload:add', payload },
+      { action: 'upload:add-file', payload },
       { transfer: [payload.bytes] },
     );
   }
 
-  cancel(id: UploadFile['id']) {
+  cancel(id: UploadId) {
     this.#coreWorkerService.postMessage({
       action: 'upload:cancel',
       payload: { id },
     });
   }
 
-  remove(id: UploadFile['id']) {
+  remove(id: UploadId) {
     this.#state.update((state) => ({
       ...state,
       files: state.files.filter((item) => item.id !== id),
     }));
   }
 
-  retry(id: UploadFile['id']) {
+  retry(id: UploadId) {
     this.#coreWorkerService.postMessage({
       action: 'upload:retry',
       payload: { id },

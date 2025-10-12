@@ -1,30 +1,18 @@
-import {
-  computed,
-  effect,
-  inject,
-  Injectable,
-  Injector,
-  resource,
-  signal,
-} from '@angular/core';
+import { computed, Injectable, resource, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Actor } from '@dfinity/agent';
 import { toast } from 'ngx-sonner';
 import { isDeepEqual } from 'remeda';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
-import { PermissionsItem } from '../../widgets/permissions-table/permissions-table.model';
+import { injectEncryptedStorage } from '../../core/injectors';
+import { parseCanisterRejectError } from '@rabbithole/core';
 import {
-  convertPermissionInfoItems,
-  convertTreeNodes,
-} from './permissions.utils';
-import { Entry, GrantPermission, RevokePermission } from '@rabbithole/assets';
-import {
-  injectStorageActor,
-  parseCanisterRejectError,
-  StorageCanisterActor,
-} from '@rabbithole/core';
-import { TreeNode } from '@rabbithole/ui';
+  Entry,
+  GrantPermission,
+  PermissionItem,
+  RevokePermission,
+} from '@rabbithole/encrypted-storage';
+import { EncryptedStorage, type TreeNode } from '@rabbithole/encrypted-storage';
 
 type State = {
   entry: Entry | null;
@@ -41,37 +29,28 @@ const INITIAL_VALUE: State = {
 
 @Injectable({ providedIn: 'root' })
 export class PermissionsService {
-  #injector = inject(Injector);
-  storageActor = injectStorageActor({
-    injector: this.#injector,
-  });
+  encryptedStorage = injectEncryptedStorage();
   #state = signal(INITIAL_VALUE);
   #entry = computed(() => this.#state().entry);
   listPermitted = resource<
-    PermissionsItem[],
-    { actor: StorageCanisterActor; entry: Entry | null }
+    PermissionItem[],
+    { encryptedStorage: EncryptedStorage; entry: Entry | null }
   >({
-    params: () => ({ actor: this.storageActor(), entry: this.#entry() }),
-    loader: async ({ params: { actor, entry } }) => {
-      const items = await actor.list_permitted({
-        entry: entry ? [entry] : [],
-        permission: [],
-      });
-      return convertPermissionInfoItems(items);
+    params: () => ({
+      encryptedStorage: this.encryptedStorage(),
+      entry: this.#entry(),
+    }),
+    loader: async ({ params: { encryptedStorage, entry } }) => {
+      const items = await encryptedStorage.listPermitted(entry ?? undefined);
+      return items;
     },
     defaultValue: [],
     equal: isDeepEqual,
   });
-  tree = resource<TreeNode[], StorageCanisterActor>({
-    params: () => this.storageActor(),
-    loader: async ({ params: actor }) => {
-      const fsTree = await actor.fs_tree();
-      return [
-        {
-          name: Actor.canisterIdOf(actor).toText(),
-          children: convertTreeNodes(fsTree),
-        },
-      ];
+  tree = resource<TreeNode[], EncryptedStorage>({
+    params: () => this.encryptedStorage(),
+    loader: async ({ params: encryptedStorage }) => {
+      return await encryptedStorage.fsTree();
     },
     defaultValue: [],
   });
@@ -108,17 +87,15 @@ export class PermissionsService {
 
   #addEntry<T = GrantPermission | RevokePermission>(args: Omit<T, 'entry'>): T {
     const { entry } = this.state();
-    return {
-      ...args,
-      entry: entry ? [entry] : [],
-    } as T;
+
+    return { ...args, entry } as T;
   }
 
   async #grantPermissionHandler(args: GrantPermission) {
     const id = toast.loading('Grant permission...');
-    const actor = this.storageActor();
+    const encryptedStorage = this.encryptedStorage();
     try {
-      await actor.grant_permission(args);
+      await encryptedStorage.grantPermission(args);
       toast.success('Permission succesfully granted', { id });
     } catch (err) {
       const errorMessage =
@@ -129,9 +106,9 @@ export class PermissionsService {
 
   async #revokePermissionHandler(args: RevokePermission) {
     const id = toast.loading('Revoke permission...');
-    const actor = this.storageActor();
+    const encryptedStorage = this.encryptedStorage();
     try {
-      await actor.revoke_permission(args);
+      await encryptedStorage.revokePermission(args);
       toast.success('Permission succesfully revoked', { id });
     } catch (err) {
       const errorMessage =

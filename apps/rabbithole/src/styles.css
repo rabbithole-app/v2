@@ -1,6 +1,8 @@
 @import '@angular/cdk/overlay-prebuilt.css';
-@import 'tailwindcss' source('../../..');
+@import 'tailwindcss';
 @import '@spartan-ng/brain/hlm-tailwind-preset.css';
+
+@source "../../../libs/**/*.{ts,html}";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -39,20 +41,21 @@
   --sidebar-ring: oklch(0.77 0 0);
   --font-sans: Open Sans, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    'Liberation Mono', 'Courier New', monospace;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
   --radius: 0.625rem;
   --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
   --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-sm:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
   --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
 
   --overlay-gray: 51 51 51 / 24%;
@@ -100,15 +103,15 @@
   --radius: 0.625rem;
   --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
   --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-sm:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
   --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
-    0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
 
   --overlay-gray: 51 51 51 / 56%;
@@ -180,16 +183,16 @@
   }
 
   .shadow-custom-md {
-    --tw-shadow: 0 0 0 1px rgba(51, 51, 51, 0.04),
-      0 1px 1px 0.5px rgba(51, 51, 51, 0.04),
+    --tw-shadow:
+      0 0 0 1px rgba(51, 51, 51, 0.04), 0 1px 1px 0.5px rgba(51, 51, 51, 0.04),
       0 3px 3px -1.5px rgba(51, 51, 51, 0.02),
       0 6px 6px -3px rgba(51, 51, 51, 0.04),
       0 12px 12px -6px rgba(51, 51, 51, 0.04),
       0 24px 24px -12px rgba(51, 51, 51, 0.04),
       0 48px 48px -24px rgba(51, 51, 51, 0.04),
       inset 0 -1px 1px -0.5px rgba(51, 51, 51, 0.06);
-    --tw-shadow-colored: 0 0 0 1px var(--tw-shadow-color),
-      0 1px 1px 0.5px var(--tw-shadow-color),
+    --tw-shadow-colored:
+      0 0 0 1px var(--tw-shadow-color), 0 1px 1px 0.5px var(--tw-shadow-color),
       0 3px 3px -1.5px var(--tw-shadow-color),
       0 6px 6px -3px var(--tw-shadow-color),
       0 12px 12px -6px var(--tw-shadow-color),
@@ -200,7 +203,8 @@
 
   .shadow-custom-md,
   .shadow-custom-sm {
-    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000),
-      var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+    box-shadow:
+      var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+      var(--tw-shadow);
   }
 }

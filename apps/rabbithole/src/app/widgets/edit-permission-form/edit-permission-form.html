@@ -10,13 +10,13 @@
       <p hlmDialogDescription></p>
     </hlm-dialog-header>
     <form class="*:not-first:mt-2" [formGroup]="form">
-      <label hlmLabel for="principal" class="text-right">Principal ID</label>
+      <label hlmLabel for="user" class="text-right">Principal ID</label>
       <div class="flex rounded-md shadow-xs">
         <input
           hlmInput
-          id="principal"
-          formControlName="principal"
-          [attr.aria-invalid]="principalControl.invalid"
+          id="user"
+          formControlName="user"
+          [attr.aria-invalid]="userControl.invalid"
           class="not-aria-invalid:-me-px rounded-e-none shadow-none focus-visible:z-10 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive peer"
         />
         <brn-select

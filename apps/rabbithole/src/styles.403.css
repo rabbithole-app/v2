@@ -1,0 +1,7 @@
+@import 'tailwindcss' source(none);
+
+html {
+  height: 100%;
+}
+
+@source "../public/403.html";

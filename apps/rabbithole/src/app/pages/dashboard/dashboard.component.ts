@@ -4,14 +4,10 @@ import {
   effect,
   inject,
 } from '@angular/core';
-import { Params, Router } from '@angular/router';
-import { NgIcon, provideIcons } from '@ng-icons/core';
+import { Params, Router, RouterModule, RouterOutlet } from '@angular/router';
+import { provideIcons } from '@ng-icons/core';
 import { lucideLogOut } from '@ng-icons/lucide';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
 
-import { FSTree } from '../../widgets/fs-tree/fs-tree.component';
-import { PermissionsTableComponent } from '../../widgets/permissions-table/permissions-table.component';
 import { SidebarLayoutComponent } from '../../widgets/sidebar/sidebar.component';
 import { UploadDrawerComponent } from '../../widgets/upload-drawer/upload-drawer.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -19,13 +15,10 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
 @Component({
   selector: 'app-dashboard',
   imports: [
-    NgIcon,
-    HlmButton,
-    HlmIcon,
     SidebarLayoutComponent,
     UploadDrawerComponent,
-    FSTree,
-    PermissionsTableComponent,
+    RouterOutlet,
+    RouterModule,
   ],
   providers: [provideIcons({ lucideLogOut })],
   templateUrl: './dashboard.component.html',

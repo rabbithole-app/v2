@@ -34,6 +34,7 @@ export class AuthService implements IAuthService {
     this.#initState();
     effect(() => console.info(`Principal ID: ${this.principalId()}`));
   }
+
   async signIn() {
     const { client } = this.#state();
 

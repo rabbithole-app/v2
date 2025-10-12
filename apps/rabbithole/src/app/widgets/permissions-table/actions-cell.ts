@@ -31,9 +31,11 @@ import { ClassValue } from 'clsx';
 
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
-import { PermissionsItem } from './permissions-table.model';
-import { Permission } from '@rabbithole/assets';
-import { ExtractVariantKeys } from '@rabbithole/core';
+import {
+  GrantPermission,
+  Permission,
+  PermissionItem,
+} from '@rabbithole/encrypted-storage';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 
 @Component({
@@ -110,17 +112,12 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 })
 export class ActionsCellComponent {
   dialogRef = viewChild.required(BrnDialog);
-  edit = output<{
-    permission: ExtractVariantKeys<Permission>;
-    principal: string;
-  }>();
+  edit = output<Omit<GrantPermission, 'entry'>>();
   revoke = output();
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   get permission() {
-    return this._context.row.getValue<ExtractVariantKeys<Permission>>(
-      'permission',
-    );
+    return this._context.row.getValue<Permission>('permission');
   }
 
   get principal() {
@@ -132,7 +129,7 @@ export class ActionsCellComponent {
   );
 
   private readonly _context =
-    injectFlexRenderContext<CellContext<PermissionsItem, unknown>>();
+    injectFlexRenderContext<CellContext<PermissionItem, unknown>>();
 
   handleRevoke() {
     this.dialogRef().close();

@@ -1,0 +1,22 @@
+{
+  "canisters": {
+    "encrypted-storage": {
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "node_compatibility": true,
+        "output": "declarations/encrypted-storage"
+      },
+      "main": "src/EncryptedStorageCanister.mo",
+      "type": "motoko",
+      "args": "--max-stable-pages 3276800"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": "mops sources"
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

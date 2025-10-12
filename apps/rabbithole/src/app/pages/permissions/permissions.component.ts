@@ -14,6 +14,7 @@ import { match, P } from 'ts-pattern';
 import { PermissionsTableComponent } from '../../widgets/permissions-table/permissions-table.component';
 import { PermissionsService } from './permissions.service';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { type Entry } from '@rabbithole/encrypted-storage';
 import { RbthTreeComponent, TreeNode } from '@rabbithole/ui';
 
 @Component({
@@ -36,10 +37,12 @@ export class PermissionsComponent {
 
   handleSelect(node: TreeNode | undefined) {
     const entry = match(node)
-      .with({ children: P.array(), path: P.string.select() }, (path) => ({
-        Directory: path,
-      }))
-      .with({ path: P.string.select() }, (path) => ({ Asset: path }))
+      .returnType<Entry | null>()
+      .with({ children: P.array(), path: P.string.select() }, (path) => [
+        'Directory',
+        path,
+      ])
+      .with({ path: P.string.select() }, (path) => ['File', path])
       .otherwise(() => null);
     this.permissionsService.setEntry(entry);
   }

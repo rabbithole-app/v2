@@ -5,11 +5,15 @@
     <div class="text-sm/6 font-bold">{{ file.name }}</div>
     <div class="flex items-center gap-1">
       <span class="text-muted-foreground text-xs">
-        @let d = data(); @switch (d.status) { @case ('processing') {
-        {{ d.current | formatRangeBytes : d.total }}
-        }@default {
-        {{ d.file.size | formatBytes }}
-        } }
+        @let d = data();
+        @switch (d.status) {
+          @case (uploadState.IN_PROGRESS) {
+            {{ d.current | formatRangeBytes: d.total }}
+          }
+          @default {
+            {{ d.file.size | formatBytes }}
+          }
+        }
       </span>
       <span class="text-muted-foreground text-xs">∙</span>
       <ng-container [ngTemplateOutlet]="statusIcon" />
@@ -19,53 +23,89 @@
   <ng-container [ngTemplateOutlet]="actionButtons" />
 </div>
 @if (showProgress()) {
-<brn-progress
-  rbth
-  class="w-full h-1.5 rounded-full"
-  aria-labelledby="loading"
-  [value]="progress()"
->
-  <brn-progress-indicator rbth />
-</brn-progress>
+  <brn-progress
+    rbth
+    class="w-full h-1.5 rounded-full"
+    aria-labelledby="loading"
+    [value]="progress()"
+  >
+    <brn-progress-indicator rbth />
+  </brn-progress>
 }
 
 <ng-template #statusIcon>
-  @let d = data(); @switch (d.status) { @case ('failed') {
-  <ng-icon
-    [rbthTooltipTrigger]="d.errorMessage"
-    hlm
-    size="sm"
-    name="lucideTriangleAlert"
-    aria-hidden="true"
-  />
-  } @case ('done') {
-  <ng-icon hlm size="sm" name="lucideCheck" aria-hidden="true" />
-  } @default {
-  <hlm-spinner size="xs" />
-  } }
+  @let d = data();
+  @switch (d.status) {
+    @case (uploadState.FAILED) {
+      <ng-icon
+        [rbthTooltipTrigger]="d.errorMessage"
+        hlm
+        size="sm"
+        name="lucideTriangleAlert"
+        aria-hidden="true"
+      />
+    }
+    @case (uploadState.COMPLETED) {
+      <ng-icon hlm size="sm" name="lucideCheck" aria-hidden="true" />
+    }
+    @default {
+      <hlm-spinner class="size-4" />
+    }
+  }
 </ng-template>
 
 <ng-template #statusText>
   <span class="text-xs ml-1 font-semibold">
-    @let d = data(); @switch (d.status) { @case ('failed') { Failed } @case
-    ('done') { Completed } @case ('pending') { Pending... } @default {
-    Uploading... } }
+    @let d = data();
+    @switch (d.status) {
+      @case (uploadState.FAILED) {
+        Failed
+      }
+      @case (uploadState.COMPLETED) {
+        Completed
+      }
+      @case (uploadState.NOT_STARTED) {
+        Pending...
+      }
+      @case (uploadState.INITIALIZING) {
+        Initializing...
+      }
+      @case (uploadState.REQUESTING_VETKD) {
+        Requesting vetKeys...
+      }
+      @case (uploadState.FINALIZING) {
+        Finalizing...
+      }
+      @default {
+        Uploading...
+      }
+    }
   </span>
 </ng-template>
 
 <ng-template #actionButtons>
-  @switch (data().status) { @case ('failed') {
-  <ng-container [ngTemplateOutlet]="retryButton" />
-  <ng-container [ngTemplateOutlet]="removeButton" />
-  } @case ('calchash') {<ng-container
-    [ngTemplateOutlet]="cancelButton"
-  />}@case('processing') {
-  <ng-container [ngTemplateOutlet]="cancelButton" />
-  }@case('pending') {
-  <ng-container [ngTemplateOutlet]="cancelButton" />
-  } @case ('done') {
-  <ng-container [ngTemplateOutlet]="removeButton" />
-  } }
+  @switch (data().status) {
+    @case (uploadState.FAILED) {
+      <ng-container [ngTemplateOutlet]="retryButton" />
+      <ng-container [ngTemplateOutlet]="removeButton" />
+    }
+    @case (uploadState.REQUESTING_VETKD) {
+      <ng-container [ngTemplateOutlet]="cancelButton" />
+    }
+    @case (uploadState.INITIALIZING) {
+      <ng-container [ngTemplateOutlet]="cancelButton" />
+    }
+    @case (uploadState.IN_PROGRESS) {
+      <ng-container [ngTemplateOutlet]="cancelButton" />
+    }
+    @case (uploadState.NOT_STARTED) {
+      <ng-container [ngTemplateOutlet]="cancelButton" />
+    }
+    @case (uploadState.FINALIZING) {}
+    @case (uploadState.COMPLETED) {
+      <ng-container [ngTemplateOutlet]="removeButton" />
+    }
+  }
 </ng-template>
 <ng-template #retryButton>
   <button

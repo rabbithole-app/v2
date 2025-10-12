@@ -1,0 +1,23 @@
+{
+  "name": "@rabbithole/encrypted-storage",
+  "version": "0.0.1",
+  "private": false,
+  "main": "./cjs/index.js",
+  "module": "./esm/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    "require": "./cjs/index.js",
+    "import": "./esm/index.js"
+  },
+  "dependencies": {
+    "@dfinity/agent": "*",
+    "@noble/hashes": "*",
+    "@dfinity/candid": "*",
+    "@dfinity/principal": "*",
+    "@dfinity/vetkeys": "*",
+    "@tanstack/store": "*",
+    "mime": "*",
+    "idb-keyval": "*",
+    "ts-pattern": "*"
+  }
+}

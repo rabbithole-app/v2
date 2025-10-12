@@ -85,6 +85,7 @@ export class RbthToaster {
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
   public readonly userStyle = input<Record<string, string>>(
     {},
+    // eslint-disable-next-line @angular-eslint/no-input-rename
     { alias: 'style' },
   );
   public readonly visibleToasts = input<

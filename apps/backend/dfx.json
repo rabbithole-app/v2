@@ -12,18 +12,19 @@
       "source": ["./dist"],
       "type": "assets"
     },
-    "assets": {
+    "encrypted-storage": {
       "declarations": {
+        "bindings": ["js", "ts"],
         "node_compatibility": true
       },
-      "init_arg": "(variant { Init = record {} })",
-      "main": "src/Assets/Canister.mo",
-      "type": "motoko"
+      "main": "src/EncryptedStorageCanister.mo",
+      "type": "motoko",
+      "args": "--max-stable-pages 3276800"
     },
     "internet-identity": {
       "type": "custom",
-      "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
-      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",
+      "candid": "https://github.com/dfinity/internet-identity/releases/download/release-2025-08-15/internet_identity.did",
+      "wasm": "https://github.com/dfinity/internet-identity/releases/download/release-2025-08-15/internet_identity_dev.wasm.gz",
       "remote": {
         "id": {
           "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"

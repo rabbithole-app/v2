@@ -6,8 +6,8 @@ import {
 } from '@angular/core';
 import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
 
-import { CopyToClipboardComponent } from '../../../../src';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { CopyToClipboardComponent } from '@rabbithole/ui';
 
 @Component({
   template: `<rbth-copy-to-clipboard

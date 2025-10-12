@@ -1,14 +1,11 @@
 <app-sidebar-layout>
-  <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
-    {{ authService.principalId() }}
+  <div class="p-4 pt-0">
+    <!-- {{ authService.principalId() }}
     <button hlmBtn variant="ghost" (click)="authService.signOut()">
       <ng-icon hlm class="mr-2" size="sm" name="lucideLogOut" />
       Sign out
-    </button>
-    <div class="flex gap-2">
-      <app-fs-tree class="flex-1/4" />
-      <app-permissions-table class="flex-3/4" />
-    </div>
+    </button> -->
+    <router-outlet />
     <app-upload-drawer />
   </div>
 </app-sidebar-layout>

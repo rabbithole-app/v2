@@ -3,20 +3,42 @@ import { type } from 'arktype';
 
 import { Prettify } from './utility';
 
-export const uploadFileSchema = type({
-  id: 'string.uuid.v4',
+export enum UploadState {
+  NOT_STARTED,
+  REQUESTING_VETKD,
+  INITIALIZING,
+  IN_PROGRESS,
+  PAUSED,
+  COMPLETED,
+  FAILED,
+  CANCELED,
+  FINALIZING,
+}
+
+const uploadIdSchema = type('string.uuid.v4');
+
+export const uploadSchema = type({
+  id: uploadIdSchema,
   bytes: 'ArrayBuffer',
   config: {
-    'contentEncoding?': "'br' | 'compress' | 'deflate' | 'gzip' | 'identity'",
     'contentType?': 'string',
     fileName: 'string>=1',
-    'headers?': type(['string', 'string']).array(),
     'path?': 'string',
   },
-  'metadata?': {
-    'encryption?': 'boolean',
-  },
 });
+
+export const uploadAssetSchema = uploadSchema.and(
+  type({
+    config: {
+      'contentEncoding?': "'br' | 'compress' | 'deflate' | 'gzip' | 'identity'",
+      'headers?': type(['string', 'string']).array(),
+      'isAliased?': 'boolean',
+    },
+  }),
+);
+
+// TODO: extend schema if needed
+export const uploadFileSchema = uploadSchema;
 
 export const fileIdSchema = uploadFileSchema.pick('id');
 
@@ -40,16 +62,17 @@ export const workerConfigSchema = type({
   httpAgentOptions: httpAgentOptionsSchema.and({
     'shouldFetchRootKey?': 'boolean',
   }),
-  // canisters: type.Record("'assets'", principalSchema),
+  // canisters: type.Record("'encryptedStorage'", principalSchema),
   canisters: {
-    assets: principalSchema,
+    encryptedStorage: principalSchema,
   },
 });
 
 export type CoreWorkerActionsIn = Prettify<
   {
     'fs:load-list': unknown;
-    'upload:add': { payload: UploadFile };
+    'upload:add-asset': { payload: UploadAsset };
+    'upload:add-file': { payload: UploadFile };
     'upload:cancel': { payload: Pick<UploadFile, 'id'> };
     'upload:remove': { payload: Pick<UploadFile, 'id'> };
     'upload:retry': { payload: Pick<UploadFile, 'id'> };
@@ -59,7 +82,8 @@ export type CoreWorkerActionsIn = Prettify<
 export type CoreWorkerActionsOut = Prettify<
   {
     'fs:list': { payload: unknown };
-    'upload:progress': { payload: UploadStatus };
+    'upload:progress-asset': { payload: UploadStatus };
+    'upload:progress-file': { payload: UploadStatus };
   } & WorkerActionsOut
 >;
 
@@ -91,15 +115,26 @@ export type Message<T extends Record<string, any>> = Prettify<
     [K in keyof T]: { action: K } & T[K];
   }[keyof T]
 >;
+
+export type UploadAsset = typeof uploadAssetSchema.infer;
+
 export type UploadFile = typeof uploadFileSchema.infer;
+
+export type UploadId = typeof uploadIdSchema.infer;
 
 export type UploadStatus = {
   id: string;
 } & (
-  | { current: number; status: 'processing'; total: number }
-  | { errorMessage: string; status: 'failed' }
-  | { status: 'calchash' | 'commit' | 'done' | 'pending' }
+  | { current: number; status: UploadState.IN_PROGRESS; total: number }
+  | { errorMessage: string; status: UploadState.FAILED }
+  | {
+      status: Exclude<
+        UploadState,
+        UploadState.FAILED | UploadState.IN_PROGRESS
+      >;
+    }
 );
+
 export type WorkerActionsIn = {
   'worker:config': { payload?: any };
 };

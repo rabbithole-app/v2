@@ -3,49 +3,68 @@
 import { AnonymousIdentity, HttpAgent } from '@dfinity/agent';
 import { type } from 'arktype';
 import { isNonNull } from 'remeda';
-import { defer, from, Observable, of, ReplaySubject, Subject } from 'rxjs';
+import { defer, from, Observable, of, Subject } from 'rxjs';
 import {
-  audit,
   catchError,
   combineLatestWith,
-  connect,
   filter,
   map,
   mergeMap,
-  mergeWith,
   retry,
   shareReplay,
   switchMap,
   withLatestFrom,
 } from 'rxjs/operators';
 
+import { customRepeatWhen } from '../operators';
 import {
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,
   fileIdSchema,
+  UploadAsset,
+  uploadAssetSchema,
   UploadFile,
   uploadFileSchema,
+  UploadId,
+  UploadState,
   UploadStatus,
   WorkerConfig,
   workerConfigSchema,
 } from '../types';
 import { loadIdentity } from '../utils';
-import { AssetManager, getAssetsCanister } from '@rabbithole/assets';
+import { AssetManager, EncryptedStorage } from '@rabbithole/encrypted-storage';
 
 const postMessage = (message: CoreWorkerMessageOut) =>
   self.postMessage(message);
 
 addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
   switch (data.action) {
-    case 'upload:add': {
+    case 'upload:add-asset': {
+      const asset = uploadAssetSchema(data.payload);
+      if (asset instanceof type.errors) {
+        console.error(asset.summary);
+        postMessage({
+          action: 'upload:progress-asset',
+          payload: {
+            id: data.payload.id,
+            status: UploadState.FAILED,
+            errorMessage: asset.summary,
+          },
+        });
+      } else {
+        uploadAssets.next(asset);
+      }
+      break;
+    }
+    case 'upload:add-file': {
       const file = uploadFileSchema(data.payload);
       if (file instanceof type.errors) {
         console.error(file.summary);
         postMessage({
-          action: 'upload:progress',
+          action: 'upload:progress-file',
           payload: {
             id: data.payload.id,
-            status: 'failed',
+            status: UploadState.FAILED,
             errorMessage: file.summary,
           },
         });
@@ -60,9 +79,9 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
       if (payload instanceof type.errors) {
         console.error(payload.summary);
       } else if (data.action === 'upload:cancel') {
-        cancelFileUpload.next(payload.id);
+        cancelUpload.next(payload.id);
       } else {
-        retryFileUpload.next(payload.id);
+        retryUpload.next(payload.id);
       }
       break;
     }
@@ -89,8 +108,6 @@ const identity$ = defer(() => loadIdentity()).pipe(
   shareReplay(1),
 );
 const workerConfig = new Subject<WorkerConfig>();
-// const assetCanisterId = new Subject<Principal>();
-// const agentParams = new Subject<Omit<CreateAgentParams, 'identity'>>();
 const agent$ = identity$.pipe(
   combineLatestWith(workerConfig.asObservable()),
   switchMap(([identity, { httpAgentOptions }]) =>
@@ -98,10 +115,16 @@ const agent$ = identity$.pipe(
   ),
   shareReplay(1),
 );
-const assetManagerActor$ = agent$.pipe(
+
+const encryptedStorage$ = agent$.pipe(
   combineLatestWith(workerConfig.asObservable()),
-  map(([agent, config]) =>
-    getAssetsCanister({ agent, canisterId: config.canisters.assets }),
+  map(
+    ([agent, config]) =>
+      new EncryptedStorage({
+        agent,
+        canisterId: config.canisters.encryptedStorage,
+        origin: `https://${config.canisters.encryptedStorage}.localhost`,
+      }),
   ),
   shareReplay(1),
 );
@@ -110,62 +133,56 @@ const assetManager$ = agent$.pipe(
   combineLatestWith(workerConfig.asObservable()),
   map(
     ([agent, config]) =>
-      new AssetManager({ agent, canisterId: config.canisters.assets }),
+      new AssetManager({
+        agent,
+        canisterId: config.canisters.encryptedStorage,
+      }),
   ),
   shareReplay(1),
 );
 
+const uploadAssets = new Subject<UploadAsset>();
 const uploadFiles = new Subject<UploadFile>();
-const cancelFileUpload = new Subject<UploadFile['id']>();
-const retryFileUpload = new Subject<UploadFile['id']>();
+const cancelUpload = new Subject<UploadId>();
+const retryUpload = new Subject<UploadId>();
 
-uploadFiles
+uploadAssets
   .asObservable()
   .pipe(
-    // some logic for retry upload
-    connect(
-      (shared) =>
-        shared.pipe(
-          mergeWith(
-            shared.pipe(
-              audit((item) =>
-                retryFileUpload
-                  .asObservable()
-                  .pipe(filter((id) => item.id === id)),
-              ),
-            ),
-          ),
-        ),
-      {
-        connector: () => new ReplaySubject(1),
-      },
+    customRepeatWhen((item) =>
+      retryUpload.asObservable().pipe(filter((id) => item.id === id)),
     ),
     withLatestFrom(assetManager$),
     mergeMap(([{ id, bytes, config }, assetManager]) => {
       return new Observable<UploadStatus>((subscriber) => {
         const controller = new AbortController();
-        const cancelSub = cancelFileUpload
+        const cancelSub = cancelUpload
           .asObservable()
           .pipe(filter((_id) => id === _id))
           .subscribe(() => {
             controller.abort();
           });
-        subscriber.next({ id, status: 'calchash' });
         const uploadSub = from(
-          assetManager.store(bytes, {
-            ...config,
-            signal: controller.signal,
-            onProgress: (progress) => {
-              subscriber.next({ id, status: 'processing', ...progress });
+          assetManager.store([
+            bytes,
+            {
+              ...config,
+              signal: controller.signal,
+              onProgress: (progress) => {
+                subscriber.next({
+                  id,
+                  ...progress,
+                });
+              },
             },
-          }),
+          ]),
         )
           .pipe(
-            map(() => <UploadStatus>{ id, status: 'done' }),
+            map(() => <UploadStatus>{ id, status: UploadState.COMPLETED }),
             catchError((err) =>
               of<UploadStatus>({
                 id,
-                status: 'failed',
+                status: UploadState.FAILED,
                 errorMessage: (err as Error).message,
               }),
             ),
@@ -183,5 +200,62 @@ uploadFiles
     }),
   )
   .subscribe((payload) => {
-    postMessage({ action: 'upload:progress', payload });
+    postMessage({ action: 'upload:progress-asset', payload });
+  });
+
+uploadFiles
+  .asObservable()
+  .pipe(
+    customRepeatWhen((item) =>
+      retryUpload.asObservable().pipe(filter((id) => item.id === id)),
+    ),
+    withLatestFrom(encryptedStorage$),
+    mergeMap(([{ id, bytes, config }, encryptedStorage]) => {
+      return new Observable<UploadStatus>((subscriber) => {
+        const controller = new AbortController();
+        const cancelSub = cancelUpload
+          .asObservable()
+          .pipe(filter((_id) => id === _id))
+          .subscribe(() => {
+            controller.abort();
+          });
+        const uploadSub = from(
+          encryptedStorage.store([
+            bytes,
+            {
+              ...config,
+              signal: controller.signal,
+              onProgress: (progress) => {
+                subscriber.next({
+                  id,
+                  ...progress,
+                });
+              },
+            },
+          ]),
+        )
+          .pipe(
+            map(() => <UploadStatus>{ id, status: UploadState.COMPLETED }),
+            catchError((err) =>
+              of<UploadStatus>({
+                id,
+                status: UploadState.FAILED,
+                errorMessage: (err as Error).message,
+              }),
+            ),
+          )
+          .subscribe({
+            next: (value) => subscriber.next(value),
+            complete: () => subscriber.complete(),
+          });
+
+        return () => {
+          cancelSub.unsubscribe();
+          uploadSub.unsubscribe();
+        };
+      });
+    }),
+  )
+  .subscribe((payload) => {
+    postMessage({ action: 'upload:progress-file', payload });
   });

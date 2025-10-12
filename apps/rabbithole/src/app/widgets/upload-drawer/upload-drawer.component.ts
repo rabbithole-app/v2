@@ -16,13 +16,13 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { showDirectoryPicker } from 'native-file-system-adapter';
 
 import {
-  assertAssetManager,
-  ASSET_MANAGER_TOKEN,
+  assertEncryptedStorage,
+  ENCRYPTED_STORAGE_TOKEN,
   provideCoreWorker,
 } from '../../core/injectors';
 import { UploadDrawerListComponent } from './upload-drawer-list.component';
 import { UploadService } from './upload.service';
-import { BrowserFSPicker } from '@rabbithole/core';
+import { BrowserFSPicker, UploadState } from '@rabbithole/core';
 import {
   FileUploadService,
   RbthDrawerComponent,
@@ -71,23 +71,30 @@ export class UploadDrawerComponent {
   #items = computed(() => this.#uploadService.state().files);
   activeItems = computed(() =>
     this.#items().filter(({ status }) =>
-      ['calchash', 'commit', 'pendind', 'processing'].includes(status),
+      [
+        UploadState.FINALIZING,
+        UploadState.IN_PROGRESS,
+        UploadState.INITIALIZING,
+        UploadState.NOT_STARTED,
+        UploadState.PAUSED,
+        UploadState.REQUESTING_VETKD,
+      ].includes(status),
     ),
   );
-  assetManager = inject(ASSET_MANAGER_TOKEN);
   completedItems = computed(() =>
-    this.#items().filter(({ status }) => ['done'].includes(status)),
+    this.#items().filter(({ status }) => status === UploadState.COMPLETED),
   );
-  dropzoneDisabled = computed(() => !this.#uploadService.hasCommitPermission());
+  dropzoneDisabled = computed(() => !this.#uploadService.hasWritePermission());
+  encryptedStorage = inject(ENCRYPTED_STORAGE_TOKEN);
   failedItems = computed(() =>
-    this.#items().filter(({ status }) => ['failed'].includes(status)),
+    this.#items().filter(({ status }) => status === UploadState.FAILED),
   );
   fileUploadService = inject(FileUploadService, { self: true });
 
   async list() {
-    const assetManager = this.assetManager();
-    assertAssetManager(assetManager);
-    const list = await assetManager.list();
+    const encryptedStorage = this.encryptedStorage();
+    assertEncryptedStorage(encryptedStorage);
+    const list = await encryptedStorage.list();
     console.log(list);
   }
 
@@ -101,8 +108,6 @@ export class UploadDrawerComponent {
   }
 
   async upload(files: File[] | FileList) {
-    // const { assetManager } = this.#uploadService.state();
-    // assertAssetManager(assetManager);
     if (files instanceof FileList) {
       files = [...files];
     }

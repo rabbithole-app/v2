@@ -32,13 +32,11 @@ import {
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
 import { ActionsCellComponent } from './actions-cell';
-import { PermissionsItem } from './permissions-table.model';
-import {
+import type {
   GrantPermission,
-  Permission,
+  PermissionItem,
   RevokePermission,
-} from '@rabbithole/assets';
-import { ExtractVariantKeys } from '@rabbithole/core';
+} from '@rabbithole/encrypted-storage';
 import {
   PermissionCell,
   PrincipalCell,
@@ -47,25 +45,24 @@ import {
   TableRowSelection,
 } from '@rabbithole/ui/tanstack';
 
-const permissionSortingFn: SortingFn<PermissionsItem> = (
-  rowA: Row<PermissionsItem>,
-  rowB: Row<PermissionsItem>,
+const permissionSortingFn: SortingFn<PermissionItem> = (
+  rowA: Row<PermissionItem>,
+  rowB: Row<PermissionItem>,
   columnId: string,
 ) => {
-  const permissionA = rowA.getValue<PermissionsItem['permission']>(columnId),
-    permissionB = rowB.getValue<PermissionsItem['permission']>(columnId);
+  const permissionA = rowA.getValue<PermissionItem['permission']>(columnId),
+    permissionB = rowB.getValue<PermissionItem['permission']>(columnId);
   if (permissionA === permissionB) return 0;
   if (
-    permissionA === 'Admin' ||
-    (permissionA === 'Permissions' &&
-      ['Read', 'Write'].includes(permissionB)) ||
-    (permissionA === 'Write' && permissionB === 'Read')
+    (permissionA === 'ReadWriteManage' &&
+      ['Read', 'ReadWrite'].includes(permissionB)) ||
+    (permissionA === 'ReadWrite' && permissionB === 'Read')
   )
     return 1;
   return -1;
 };
 
-const statusFilterFn: FilterFn<PermissionsItem> = (
+const statusFilterFn: FilterFn<PermissionItem> = (
   row,
   columnId,
   filterValue: string[],
@@ -99,12 +96,12 @@ const statusFilterFn: FilterFn<PermissionsItem> = (
   templateUrl: './permissions-table.component.html',
 })
 export class PermissionsTableComponent {
-  data = input<PermissionsItem[]>([]);
+  data = input<PermissionItem[]>([]);
   grant = output<Omit<GrantPermission, 'entry'>>();
   readonly hlmMuted = hlmMuted;
   revoke = output<Omit<RevokePermission, 'entry'>>();
   protected readonly _availablePageSizes = [5, 10, 20, 10000];
-  protected readonly _columns: ColumnDef<PermissionsItem>[] = [
+  protected readonly _columns: ColumnDef<PermissionItem>[] = [
     {
       accessorKey: 'select',
       id: 'select',
@@ -115,7 +112,7 @@ export class PermissionsTableComponent {
     },
     {
       header: 'Principal ID',
-      accessorKey: 'principal',
+      accessorKey: 'user',
       id: 'principal',
       cell: () => flexRenderComponent(PrincipalCell, { inputs: {} }),
     },
@@ -144,15 +141,10 @@ export class PermissionsTableComponent {
         flexRenderComponent(ActionsCellComponent, {
           inputs: {},
           outputs: {
-            edit: (args) => this.grant.emit(this.prepareGrantArgs(args)),
+            edit: (args) => this.grant.emit(args),
             revoke: () =>
               this.revoke.emit({
-                of_principal: Principal.fromText(
-                  row.getValue<string>('principal'),
-                ),
-                permission: {
-                  [row.getValue<string>('permission')]: null,
-                } as Permission,
+                user: Principal.fromText(row.getValue<string>('user')),
               }),
           },
         }),
@@ -165,7 +157,7 @@ export class PermissionsTableComponent {
     pageIndex: 0,
   });
   private readonly _sorting = signal<SortingState>([]);
-  protected readonly _table = createAngularTable<PermissionsItem>(() => ({
+  protected readonly _table = createAngularTable<PermissionItem>(() => ({
     // data: this.#permissionsService.listPermitted.value(),
     data: this.data(),
     columns: this._columns,
@@ -205,21 +197,6 @@ export class PermissionsTableComponent {
   protected readonly _hidableColumns = this._table
     .getAllColumns()
     .filter((column) => column.getCanHide());
-
-  prepareGrantArgs({
-    principal,
-    permission,
-  }: {
-    permission: ExtractVariantKeys<Permission>;
-    principal: string;
-  }) {
-    return {
-      to_principal: Principal.fromText(principal),
-      permission: {
-        [permission]: null,
-      } as Permission,
-    };
-  }
 
   protected _filterChange(event: Event) {
     const target = event.target as HTMLInputElement;

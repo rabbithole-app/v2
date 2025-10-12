@@ -1,0 +1,27 @@
+{
+  "name": "encrypted-file-storage",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.4",
+    "prettier": "^3.6.2",
+    "prettier-plugin-motoko": "^0.11.3",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@dfinity/pic": "^0.13.1",
+    "@dfinity/principal": "^3.2.1",
+    "@tanstack/pacer": "^0.15.3"
+  },
+  "overrides": {
+    "@dfinity/pic": {
+      "@dfinity/principal": "$@dfinity/principal"
+    }
+  }
+}

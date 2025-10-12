@@ -1,21 +1,19 @@
-import { effect, inject, Injectable, Provider } from '@angular/core';
+import { effect, inject, Provider } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Principal } from '@dfinity/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
-import { filter } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   assertWorker,
-  ASSETS_CANISTER_ID,
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,
+  ENCRYPTED_STORAGE_CANISTER_ID,
   ExtractInjectionToken,
   HTTP_AGENT_OPTIONS_TOKEN,
   messageByAction,
   NonNullableProps,
   WORKER,
-  WorkerConfig,
   WorkerConfigIn,
   WorkerService,
 } from '@rabbithole/core';
@@ -47,7 +45,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
       .subscribe(() => {
         const payload: WorkerConfigIn = {
           httpAgentOptions,
-          canisters: { assets: assetCanisterId.toText() },
+          canisters: { encryptedStorage: assetCanisterId.toText() },
         };
         workerService.postMessage({ action: 'worker:config', payload });
       });
@@ -56,7 +54,11 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
   },
   {
     isRoot: false,
-    deps: [AUTH_SERVICE, ASSETS_CANISTER_ID, HTTP_AGENT_OPTIONS_TOKEN],
+    deps: [
+      AUTH_SERVICE,
+      ENCRYPTED_STORAGE_CANISTER_ID,
+      HTTP_AGENT_OPTIONS_TOKEN,
+    ],
     extraProviders: [
       {
         provide: WORKER,

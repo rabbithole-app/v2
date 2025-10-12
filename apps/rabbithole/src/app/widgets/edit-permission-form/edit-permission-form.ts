@@ -24,8 +24,11 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSelectModule } from '@spartan-ng/helm/select';
 import { isNonNull, isNonNullish } from 'remeda';
 
-import { Permission } from '@rabbithole/assets';
-import { ExtractVariantKeys, principalValidator } from '@rabbithole/core';
+import { principalValidator } from '@rabbithole/core';
+import type {
+  GrantPermission,
+  Permission,
+} from '@rabbithole/encrypted-storage';
 
 @Component({
   selector: 'app-edit-permission-form',
@@ -49,50 +52,46 @@ import { ExtractVariantKeys, principalValidator } from '@rabbithole/core';
 export class EditPermissionFormComponent {
   dialog = viewChild.required(HlmDialog);
   #fb = inject(FormBuilder);
-  principalControl = this.#fb.control<string | null>(null, {
+  userControl = this.#fb.control<string | null>(null, {
     validators: [Validators.required, principalValidator],
   });
   form = this.#fb.nonNullable.group({
-    principal: this.principalControl,
-    permission: this.#fb.control<ExtractVariantKeys<Permission>>('Read', {
+    user: this.userControl,
+    permission: this.#fb.control<Permission>('Read', {
       validators: [Validators.required],
     }),
   });
   principal = input<string>();
   isEditMode = computed(() => isNonNullish(this.principal()));
-  permission = input<ExtractVariantKeys<Permission>>();
-  permissionChange = output<{
-    permission: ExtractVariantKeys<Permission>;
-    principal: string;
-  }>();
+  permission = input<Permission>();
+  permissionChange = output<Omit<GrantPermission, 'entry'>>();
   readonly permissions = [
     { value: 'Read', label: 'Read', description: 'Permission to read' },
-    { value: 'Write', label: 'Write', description: 'Permission to modify' },
     {
-      value: 'Permissions',
-      label: 'Permissions',
-      description: 'Rights to modify the permissions of other identities',
+      value: 'ReadWrite',
+      label: 'ReadWrite',
+      description: 'Permission to modify',
     },
     {
-      value: 'Admin',
-      label: 'Admin',
-      description: 'Full administrative rights, including managing permissions',
+      value: 'ReadWriteManage',
+      label: 'ReadWriteManage',
+      description: 'Rights to modify the permissions of other identities',
     },
   ];
 
   constructor() {
     effect(() => {
-      const principal = this.principal() ?? null;
+      const user = this.principal() ?? null;
       const permission = this.permission() ?? 'Read';
-      this.form.patchValue({ principal, permission });
+      this.form.patchValue({ user, permission });
     });
   }
 
   handleSubmit() {
-    const { principal, permission } = this.form.getRawValue();
+    const { user, permission } = this.form.getRawValue();
 
-    if (isNonNull(principal) && isNonNull(permission)) {
-      this.permissionChange.emit({ principal, permission });
+    if (isNonNull(user) && isNonNull(permission)) {
+      this.permissionChange.emit({ user, permission });
     }
 
     this.dialog().close();

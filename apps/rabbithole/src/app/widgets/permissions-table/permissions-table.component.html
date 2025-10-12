@@ -6,9 +6,7 @@
     (input)="_filterChanged($event)"
   />
   <div class="flex items-center gap-2">
-    <app-edit-permission-form
-      (permissionChange)="grant.emit(prepareGrantArgs($event))"
-    >
+    <app-edit-permission-form (permissionChange)="grant.emit($event)">
       <button variant="outline" appEditPermissionFormTrigger>
         <ng-icon hlm name="lucideUserPlus" size="sm" />Add permission
       </button>

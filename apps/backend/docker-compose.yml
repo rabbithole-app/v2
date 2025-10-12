@@ -1,4 +1,4 @@
-name: 'rabbithole'
+name: "rabbithole"
 
 services:
   caddy:
@@ -20,10 +20,10 @@ services:
     volumes:
       - ./:/app:rw
       - ../../dist/apps/rabbithole/browser:/app/dist:ro
-      - ../permissions-mo:/permissions-mo:ro
-    entrypoint: ['sh', '-c', 'scripts/install.sh']
+      - ../encrypted-storage-mo:/encrypted-storage-mo:ro
+    entrypoint: ["sh", "-c", "scripts/install.sh"]
     healthcheck:
-      test: ['CMD', 'dfx', 'ping']
+      test: ["CMD", "dfx", "ping"]
       interval: 15s
       timeout: 1m
     tty: true
