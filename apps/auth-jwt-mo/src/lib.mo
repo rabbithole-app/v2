@@ -1,18 +1,18 @@
 import Principal "mo:core/Principal";
 import Int "mo:core/Int";
+import Iter "mo:core/Iter";
 import Text "mo:core/Text";
 import Blob "mo:core/Blob";
 import Result "mo:core/Result";
 import Time "mo:core/Time";
-import Nat8 "mo:core/Nat8";
 import JWT "mo:jwt";
 import ECDSA "mo:ecdsa";
 import BaseX "mo:base-x-encoder";
-import Option "mo:core/Option";
 import Map "mo:map/Map";
 import Set "mo:map/Set";
-import Runtime "mo:core/Runtime";
+import Error "mo:core/Error";
 import IC "mo:ic";
+import Sha256 "mo:sha2/Sha256";
 
 module AuthJWT {
   let ACCESS_TOKEN_EXPIRY_NANOS = 900_000_000_000; // 15 minutes
@@ -29,7 +29,7 @@ module AuthJWT {
     signature = #skip;
   };
 
-  public let hash_tokens : Map.HashUtils<JWT.Token> = (
+  public let hashTokens : Map.HashUtils<JWT.Token> = (
     func(key) = hashText(JWT.toText(key)),
     func(a, b) = Text.equal(JWT.toText(a), JWT.toText(b)),
   );
@@ -46,44 +46,44 @@ module AuthJWT {
 
   public type Store = {
     var id : Int;
-    var keyPairBytes : ?([Nat8], [Nat8]);
     var refreshTokens : Map.Map<Text, RefreshToken>;
     var blacklist : Set.Set<JWT.Token>;
     canisterId : Principal;
+    keyId : { curve : IC.EcdsaCurve; name : Text };
+    var publicKey : ?Blob;
   };
 
-  public func new(canisterId : Principal) : Store {
+  public type InitArgs = {
+    canisterId : Principal;
+    keyName : Text;
+  };
+
+  public func new({ canisterId; keyName } : InitArgs) : Store {
     {
       var id = 0;
-      var keyPairBytes = null;
       var refreshTokens = Map.new<Text, RefreshToken>();
       var blacklist = Set.new<JWT.Token>();
+      var publicKey = null;
       canisterId;
+      keyId = {
+        curve = #secp256k1;
+        name = keyName;
+      };
     };
   };
 
   public func init(self : Store) : async () {
-    ignore generateEcdsaKey(self);
-  };
-
-  func generateEcdsaKey(self : Store) : async Result.Result<(), Text> {
-    if (Option.isSome(self.keyPairBytes)) return #ok;
-
-    let random = await ic.raw_rand();
-    let curve = ECDSA.prime256v1Curve();
-    switch (ECDSA.generatePrivateKey(random.vals(), curve)) {
-      case (#ok privateKey) {
-        let publicKey = privateKey.getPublicKey().toBytes(#spki);
-        self.keyPairBytes := ?(privateKey.toBytes(#sec1), publicKey);
-        #ok;
-      };
-      case (#err message) #err(message);
-    };
+    let { public_key } = await ic.ecdsa_public_key({
+      canister_id = ?self.canisterId;
+      derivation_path = [];
+      key_id = self.keyId;
+    });
+    self.publicKey := ?public_key;
   };
 
   public func getEcdsaPublicKey(self : Store) : ?ECDSA.PublicKey {
-    let ?keyPairBytes = self.keyPairBytes else return null;
-    let #ok(publicKey) = ECDSA.publicKeyFromBytes(keyPairBytes.1.vals(), #spki) else return null;
+    let ?blob = self.publicKey else return null;
+    let #ok(publicKey) = ECDSA.publicKeyFromBytes(Iter.fromArray(Blob.toArray(blob)), #raw({ curve = ECDSA.secp256k1Curve() })) else return null;
     ?publicKey;
   };
 
@@ -97,7 +97,7 @@ module AuthJWT {
     let now = Time.now();
     let unsignedToken : JWT.UnsignedToken = {
       header = [
-        ("alg", #string("ES256")),
+        ("alg", #string("ES256K")),
         ("typ", #string("JWT")),
       ];
       payload = [
@@ -135,7 +135,7 @@ module AuthJWT {
     switch (await sign(self, unsignedToken)) {
       case (#ok token) {
         if (Result.isOk(JWT.validate(value.token, unsafeValidationOptions))) {
-          ignore Set.put(self.blacklist, hash_tokens, value.token);
+          ignore Set.put(self.blacklist, hashTokens, value.token);
         };
 
         let accessToken = JWT.toText(token);
@@ -149,41 +149,29 @@ module AuthJWT {
   public func check(self : Store) {
     let now = Time.now();
     self.refreshTokens := Map.filter<Text, RefreshToken>(self.refreshTokens, thash, func(_, { expiresAt }) = expiresAt > now);
-    self.blacklist := Set.filter<JWT.Token>(self.blacklist, hash_tokens, func(token) = Result.isOk(JWT.validate(token, unsafeValidationOptions)));
+    self.blacklist := Set.filter<JWT.Token>(self.blacklist, hashTokens, func(token) = Result.isOk(JWT.validate(token, unsafeValidationOptions)));
   };
 
-  public func isBlacklisted(self : Store, accessToken : Text) : Bool {
-    let #ok(token) = JWT.parse(accessToken) else return false;
-    Set.has(self.blacklist, hash_tokens, token);
+  public func isBlacklisted(self : Store, token : JWT.Token) : Bool {
+    Set.has(self.blacklist, hashTokens, token);
   };
 
   func sign(self : Store, unsignedToken : JWT.UnsignedToken) : async Result.Result<JWT.Token, Text> {
-    let privateKey = do {
-      let keyPairBytes = switch (self.keyPairBytes) {
-        case (?v) v;
-        case null {
-          ignore generateEcdsaKey(self);
-          let ?keyPairBytes = self.keyPairBytes else return #err("ECDSA key haven't initialized");
-          keyPairBytes;
-        };
+    try {
+      let message = JWT.toBlobUnsigned(unsignedToken);
+      let { signature } = await (with cycles = 30_000_000_000) ic.sign_with_ecdsa({
+        message_hash = Sha256.fromBlob(#sha256, message);
+        derivation_path = [];
+        key_id = self.keyId;
+      });
+      let signatureInfo : JWT.SignatureInfo = {
+        algorithm = "ES256K";
+        value = signature;
+        message;
       };
-      let curve = ECDSA.prime256v1Curve();
-      let #ok(key) = ECDSA.privateKeyFromBytes(keyPairBytes.0.vals(), #sec1({ curve })) else Runtime.unreachable();
-      key;
-    };
-    let message = JWT.toBlobUnsigned(unsignedToken);
-    let random = await ic.raw_rand();
-    let signatureResult = privateKey.sign(message.vals(), random.vals());
-    switch (signatureResult) {
-      case (#ok signature) {
-        let signatureInfo : JWT.SignatureInfo = {
-          algorithm = "ES256";
-          value = Blob.fromArray(signature.toBytes(#raw));
-          message;
-        };
-        #ok({ unsignedToken with signature = signatureInfo });
-      };
-      case (#err message) #err message;
+      #ok({ unsignedToken with signature = signatureInfo });
+    } catch (error) {
+      #err(Error.message(error));
     };
   };
 };

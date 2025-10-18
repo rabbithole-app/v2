@@ -3,14 +3,54 @@ import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import { setTimer; recurringTimer } "mo:core/Timer";
 import Error "mo:core/Error";
+
 import Liminal "mo:liminal";
 import JWTMiddleware "mo:liminal/Middleware/JWT";
+import Route "mo:liminal/Route";
+import Router "mo:liminal/Router";
+import RouteContext "mo:liminal/RouteContext";
+import RouterMiddleware "mo:liminal/Middleware/Router";
+
 import AuthJWT "";
 
 shared ({ caller = owner }) persistent actor class AuthJWTCanister() = self {
   transient let canisterId = Principal.fromActor(self);
 
-  let authJWT = AuthJWT.new(canisterId);
+  let authJWT = AuthJWT.new({
+    canisterId;
+    keyName = "dfx_test_key";
+  });
+
+  transient let routerConfig : RouterMiddleware.Config = {
+    prefix = ?"/api";
+    identityRequirement = ?#custom(
+      func(identity) {
+        if (identity.isAuthenticated()) {
+          let #jwt(token) = identity.kind else return false;
+          return not AuthJWT.isBlacklisted(authJWT, token);
+        };
+
+        false;
+      }
+    );
+    routes = [
+      Router.getQuery(
+        "/whoami",
+        func(context : RouteContext.RouteContext) : Route.HttpResponse {
+          // Get authenticated identity
+          switch (context.getIdentity()) {
+            case (?identity) switch (identity.isAuthenticated(), identity.getId()) {
+              case (true, ?id) return context.buildResponse(#ok, #json(#object_([("caller", #string id)])));
+              case _ {};
+            };
+            case null {};
+          };
+
+          context.buildResponse(#unauthorized, #error(#message("Not logged in")));
+        },
+      )
+    ];
+  };
 
   // Http App
   transient let app = Liminal.App({
@@ -30,6 +70,7 @@ shared ({ caller = owner }) persistent actor class AuthJWTCanister() = self {
           expiration = true;
         };
       }),
+      RouterMiddleware.new(routerConfig),
     ];
     errorSerializer = Liminal.defaultJsonErrorSerializer;
     candidRepresentationNegotiator = Liminal.defaultCandidRepresentationNegotiator;
@@ -57,7 +98,7 @@ shared ({ caller = owner }) persistent actor class AuthJWTCanister() = self {
   // for testing JWT
   public query func getEcdsaPublicKey() : async Text {
     switch (AuthJWT.getEcdsaPublicKey(authJWT)) {
-      case (?publicKey) publicKey.toText(#pem({ byteEncoding = #spki }));
+      case (?publicKey) publicKey.toText(#jwk);
       case null throw Error.reject("ECDSA key haven't initialized");
     };
   };

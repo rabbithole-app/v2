@@ -3,9 +3,12 @@ import {
   type CanisterFixture,
   createIdentity,
   PocketIc,
+  SubnetStateType,
 } from "@dfinity/pic";
 import { Principal } from "@dfinity/principal";
-import { importSPKI, jwtVerify } from "jose";
+// jose v5 is being used, as v6 has removed support for ES256K (secp256k1)
+// which is necessary for verifying JWT tokens with an Internet Computer
+import { importJWK, jwtVerify } from "jose";
 import { resolve } from "node:path";
 import {
   afterEach,
@@ -24,6 +27,7 @@ import {
   type Result,
   type Tokens,
 } from "../declarations/example/example.did.js";
+import { setupChunkedCanister } from "./ic-management.utils.js";
 
 function isOkResult(result: Result): result is Extract<Result, { ok: Tokens }> {
   return Object.keys(result)[0] === "ok";
@@ -44,13 +48,20 @@ const ownerIdentity = createIdentity("owner");
 
 async function createPic(): Promise<[PocketIc, CanisterFixture<_SERVICE>]> {
   // create a new PocketIC instance
-  const pic = await PocketIc.create(inject("PIC_URL"));
+  const pic = await PocketIc.create(inject("PIC_URL"), {
+    ii: {
+      state: {
+        type: SubnetStateType.New,
+      },
+    },
+  });
 
   // Setup the canister and actor
-  const fixture = await pic.setupCanister<_SERVICE>({
+  const fixture = await setupChunkedCanister<_SERVICE>({
+    pic,
+    wasmPath: WASM_PATH,
+    sender: ownerIdentity,
     idlFactory,
-    wasm: WASM_PATH,
-    sender: ownerIdentity.getPrincipal(),
   });
 
   // next block to init ecdsa keypair in the canister
@@ -84,13 +95,15 @@ describe("AuthJWT", () => {
     await pic.setTime(date);
     const result = await actor.authorize();
     assert(isOkResult(result));
-    const spki = await actor.getEcdsaPublicKey();
-    const algorithm = "ES256";
-    const ecPublicKey = await importSPKI(spki, algorithm);
+    const jwkJson = await actor.getEcdsaPublicKey();
+    const jwk = JSON.parse(jwkJson);
+    // jose v5 supports ES256K
+    const algorithm = "ES256K";
+    const ecPublicKey = await importJWK(jwk, algorithm);
     const subject = ownerIdentity.getPrincipal().toText();
     const verifyResult = await jwtVerify(result.ok.accessToken, ecPublicKey, {
       subject: ownerIdentity.getPrincipal().toText(),
-      algorithms: ["ES256"],
+      algorithms: ["ES256K"],
     });
     expect(verifyResult.payload.sub).toEqual(subject);
     expect(verifyResult.payload.exp).toBeGreaterThan(date.getTime() / 1000);
