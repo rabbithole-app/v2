@@ -1,0 +1,19 @@
+{
+  "name": "rabbithole-backend",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.8.1",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@dfinity/pic": "^0.16.1",
+    "@dfinity/principal": "^3.3.0"
+  }
+}
