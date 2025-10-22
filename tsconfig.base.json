@@ -16,10 +16,10 @@
     "baseUrl": ".",
     "paths": {
       "@rabbithole/auth": ["libs/auth/src/index.ts"],
-      "@rabbithole/encrypted-storage": ["libs/encrypted-storage/src/index.ts"],
       "@rabbithole/auth/tauri": ["libs/auth/tauri/src/index.ts"],
       "@rabbithole/core": ["libs/core/src/index.ts"],
-      "@rabbithole/declarations/*": ["apps/backend/src/declarations/*"],
+      "@rabbithole/declarations": ["libs/declarations/src/index.ts"],
+      "@rabbithole/encrypted-storage": ["libs/encrypted-storage/src/index.ts"],
       "@rabbithole/ui": ["libs/app-ui/src/index.ts"],
       "@rabbithole/ui/tanstack": ["libs/app-ui/tanstack/src/index.ts"],
       "@rabbithole/utils": ["libs/utils/src/index.ts"],

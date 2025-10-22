@@ -13,6 +13,7 @@ import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { APP_DERIVATION_ORIGIN, AUTH_MAX_TIME_TO_LIVE } from './core/constants';
 import { provideEncryptedStorage } from './core/injectors';
+import { provideMainActor } from './core/injectors/main-actor';
 import { isCustomDomain } from './core/utils';
 import {
   AUTH_CONFIG,
@@ -24,6 +25,7 @@ import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   HTTP_AGENT_OPTIONS_TOKEN,
+  MAIN_CANISTER_ID,
   provideEncryptedStorageActor,
 } from '@rabbithole/core';
 
@@ -52,6 +54,11 @@ export const appConfig: ApplicationConfig = {
     provideRouter(appRoutes),
     provideAuthService(),
     { provide: AUTH_CONFIG, useValue: authConfig },
+    {
+      provide: MAIN_CANISTER_ID,
+      useValue: Principal.fromText(environment.backendCanisterId),
+    },
+    provideMainActor(),
     {
       provide: ENCRYPTED_STORAGE_CANISTER_ID,
       useValue: Principal.fromText(environment.encryptedStorageCanisterId),

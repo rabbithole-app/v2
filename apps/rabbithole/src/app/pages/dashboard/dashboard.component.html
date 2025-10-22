@@ -1,11 +1,11 @@
 <app-sidebar-layout>
-  <div class="p-4 pt-0">
-    <!-- {{ authService.principalId() }}
+  <router-outlet />
+  <app-upload-drawer />
+  <!-- <div class="p-4 pt-0">
+    {{ authService.principalId() }}
     <button hlmBtn variant="ghost" (click)="authService.signOut()">
       <ng-icon hlm class="mr-2" size="sm" name="lucideLogOut" />
       Sign out
-    </button> -->
-    <router-outlet />
-    <app-upload-drawer />
-  </div>
+    </button>
+  </div> -->
 </app-sidebar-layout>

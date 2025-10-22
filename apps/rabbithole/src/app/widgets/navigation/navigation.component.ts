@@ -8,6 +8,7 @@ import {
   lucideSettings2,
   lucideSquareTerminal,
   lucideUserCog,
+  lucideUsers,
 } from '@ng-icons/lucide';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { combineLatestWith, map } from 'rxjs/operators';
@@ -37,6 +38,11 @@ const NAVIGATION_ITEMS: NavItem[] = [
     title: 'Permissions',
     url: '/permissions',
     icon: 'lucideUserCog',
+  },
+  {
+    title: 'Users',
+    url: '/users',
+    icon: 'lucideUsers',
   },
   {
     title: 'Documentation',
@@ -70,6 +76,7 @@ const NAVIGATION_ITEMS: NavItem[] = [
       lucideUserCog,
       lucideSettings2,
       lucideSquareTerminal,
+      lucideUsers,
     }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

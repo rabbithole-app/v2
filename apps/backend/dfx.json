@@ -2,6 +2,7 @@
   "canisters": {
     "rabbithole-backend": {
       "declarations": {
+        "bindings": ["js", "ts"],
         "node_compatibility": true
       },
       "main": "src/main.mo",
