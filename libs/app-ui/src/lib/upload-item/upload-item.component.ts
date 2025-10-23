@@ -23,7 +23,7 @@ import {
   lucideVideo,
   lucideX,
 } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { BrnProgress, BrnProgressIndicator } from '@spartan-ng/brain/progress';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';

@@ -1,4 +1,4 @@
-import { BooleanInput } from '@angular/cdk/coercion';
+import type { BooleanInput } from '@angular/cdk/coercion';
 import {
   booleanAttribute,
   ChangeDetectionStrategy,
@@ -6,17 +6,18 @@ import {
   computed,
   forwardRef,
   input,
+  linkedSignal,
   model,
   output,
-  signal,
 } from '@angular/core';
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { hlm } from '@spartan-ng/brain/core';
-import { ChangeFn, TouchFn } from '@spartan-ng/brain/forms';
+import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import type { ChangeFn, TouchFn } from '@spartan-ng/brain/forms';
 import { BrnSwitch, BrnSwitchThumb } from '@spartan-ng/brain/switch';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 import { HlmSwitchThumb } from './hlm-switch-thumb';
+
 export const HLM_SWITCH_VALUE_ACCESSOR = {
   provide: NG_VALUE_ACCESSOR,
   useExisting: forwardRef(() => HlmSwitch),
@@ -37,9 +38,9 @@ export const HLM_SWITCH_VALUE_ACCESSOR = {
     <brn-switch
       [class]="_computedClass()"
       [checked]="checked()"
-      (changed)="handleChange($event)"
+      (checkedChange)="handleChange($event)"
       (touched)="_onTouched?.()"
-      [disabled]="disabled()"
+      [disabled]="_disabled()"
       [id]="id()"
       [aria-label]="ariaLabel()"
       [aria-labelledby]="ariaLabelledby()"
@@ -66,23 +67,16 @@ export class HlmSwitch implements ControlValueAccessor {
     alias: 'aria-labelledby',
   });
 
-  /** Emits when the checked state of the switch changes. */
-  public readonly changed = output<boolean>();
-
   /** The checked state of the switch. */
   public readonly checked = model<boolean>(false);
 
+  /** Emits when the checked state of the switch changes. */
+  public readonly checkedChange = output<boolean>();
+
   /** The disabled state of the switch. */
-  public readonly disabledInput = input<boolean, BooleanInput>(false, {
+  public readonly disabled = input<boolean, BooleanInput>(false, {
     transform: booleanAttribute,
-    alias: 'disabled',
   });
-
-  private readonly _writableDisabled = computed(() =>
-    signal(this.disabledInput()),
-  );
-
-  public readonly disabled = computed(() => this._writableDisabled()());
 
   /** Used to set the id on the underlying brn element. */
   public readonly id = input<string | null>(null);
@@ -91,10 +85,12 @@ export class HlmSwitch implements ControlValueAccessor {
 
   protected readonly _computedClass = computed(() =>
     hlm(
-      'group data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50',
+      'data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 shadow-xs group inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent outline-none transition-all focus-visible:ring-[3px] data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50',
       this.userClass(),
     ),
   );
+
+  protected readonly _disabled = linkedSignal(this.disabled);
 
   protected _onChange?: ChangeFn<boolean>;
   protected _onTouched?: TouchFn;
@@ -110,7 +106,7 @@ export class HlmSwitch implements ControlValueAccessor {
   }
 
   setDisabledState(isDisabled: boolean): void {
-    this._writableDisabled().set(isDisabled);
+    this._disabled.set(isDisabled);
   }
 
   writeValue(value: boolean): void {
@@ -120,6 +116,6 @@ export class HlmSwitch implements ControlValueAccessor {
   protected handleChange(value: boolean): void {
     this.checked.set(value);
     this._onChange?.(value);
-    this.changed.emit(value);
+    this.checkedChange.emit(value);
   }
 }

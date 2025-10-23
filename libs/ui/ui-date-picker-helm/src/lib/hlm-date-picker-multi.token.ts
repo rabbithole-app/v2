@@ -1,4 +1,4 @@
-import { inject, InjectionToken, ValueProvider } from '@angular/core';
+import { inject, InjectionToken, type ValueProvider } from '@angular/core';
 
 export interface HlmDatePickerMultiConfig<T> {
   /**
@@ -49,7 +49,7 @@ export function injectHlmDatePickerMultiConfig<
     : getDefaultConfig();
 }
 
-export function provideHlmDatePickerConfig<T>(
+export function provideHlmDatePickerMultiConfig<T>(
   config: Partial<HlmDatePickerMultiConfig<T>>,
 ): ValueProvider {
   return {

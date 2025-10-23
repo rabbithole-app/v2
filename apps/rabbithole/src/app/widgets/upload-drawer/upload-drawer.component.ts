@@ -13,6 +13,7 @@ import {
 } from '@ng-icons/lucide';
 import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
 import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 import { showDirectoryPicker } from 'native-file-system-adapter';
 
 import {
@@ -44,6 +45,7 @@ import {
     // RbthDrawerFooterComponent,
     RbthDrawerTitleDirective,
     HlmButton,
+    HlmIcon,
     NgIcon,
     RbthDrawerSeparatorDirective,
     RbthFileUploadDropzoneComponent,

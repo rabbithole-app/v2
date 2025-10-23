@@ -1,5 +1,5 @@
 import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
@@ -20,7 +20,7 @@ export type CardVariants = VariantProps<typeof cardVariants>;
 })
 export class HlmCard {
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected _computedClass = computed(() =>
+  protected readonly _computedClass = computed(() =>
     hlm(cardVariants(), this.userClass()),
   );
 }

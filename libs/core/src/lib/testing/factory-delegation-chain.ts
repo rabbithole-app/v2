@@ -21,6 +21,6 @@ export async function factoryDelegationChain(): Promise<DelegationChain> {
   };
   return DelegationChain.fromDelegations(
     [signedDelegation],
-    new Uint8Array(id.getPublicKey().toDer()).buffer as DerEncodedPublicKey,
+    new Uint8Array(id.getPublicKey().toDer()) as unknown as DerEncodedPublicKey,
   );
 }

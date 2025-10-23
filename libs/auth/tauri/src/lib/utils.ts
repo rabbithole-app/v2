@@ -31,7 +31,7 @@ export async function createAuthClient(): Promise<AuthClient> {
 }
 
 export async function loadDelegationChain() {
-  const store = await load(STORE_PATH, { autoSave: false });
+  const store = await load(STORE_PATH, { autoSave: false, defaults: {} });
   const delegationChainJson = await store.get<JsonnableDelegationChain>(
     KEY_STORAGE_DELEGATION,
   );
@@ -50,7 +50,7 @@ export async function loadDelegationChain() {
 }
 
 export async function loadIdentity() {
-  const store = await load(STORE_PATH, { autoSave: false });
+  const store = await load(STORE_PATH, { autoSave: false, defaults: {} });
   const identityJson = await store.get<string>(KEY_STORAGE_KEY);
 
   return identityJson
@@ -59,14 +59,14 @@ export async function loadIdentity() {
 }
 
 export async function saveDelegationChain(delegationChain: DelegationChain) {
-  const store = await load(STORE_PATH, { autoSave: false });
+  const store = await load(STORE_PATH, { autoSave: false, defaults: {} });
   const value = JSON.stringify(delegationChain.toJSON());
   await store.set(KEY_STORAGE_DELEGATION, value);
   await store.save();
 }
 
 export async function saveIdentity(identity: Ed25519KeyIdentity) {
-  const store = await load(STORE_PATH, { autoSave: false });
+  const store = await load(STORE_PATH, { autoSave: false, defaults: {} });
   await store.set(KEY_STORAGE_KEY, identity.toJSON());
   await store.save();
 }

@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  HostListener,
   input,
   type InputSignal,
   type Signal,
@@ -10,7 +9,7 @@ import {
   viewChild,
   ViewEncapsulation,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 import {
   EmblaCarouselDirective,
@@ -27,6 +26,7 @@ import {
     '[class]': '_computedClass()',
     role: 'region',
     'aria-roledescription': 'carousel',
+    '(keydown)': 'onKeydown($event)',
   },
   imports: [EmblaCarouselDirective],
   template: `
@@ -55,12 +55,12 @@ export class HlmCarousel {
 
   public readonly options: InputSignal<
     Omit<EmblaOptionsType, 'axis'> | undefined
-  > = input();
+  > = input<Omit<EmblaOptionsType, 'axis'>>();
 
   public readonly orientation = input<'horizontal' | 'vertical'>('horizontal');
-  public readonly plugins: InputSignal<EmblaPluginType[]> = input(
-    [] as EmblaPluginType[],
-  );
+  public readonly plugins: InputSignal<EmblaPluginType[]> = input<
+    EmblaPluginType[]
+  >([]);
   private readonly _slideCount = signal(0);
   public readonly slideCount = this._slideCount.asReadonly();
 
@@ -100,7 +100,6 @@ export class HlmCarousel {
     }
   }
 
-  @HostListener('keydown', ['$event'])
   protected onKeydown(event: KeyboardEvent) {
     if (event.key === 'ArrowLeft') {
       event.preventDefault();

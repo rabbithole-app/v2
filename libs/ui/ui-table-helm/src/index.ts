@@ -1,8 +1,7 @@
-import { NgModule } from '@angular/core';
-
 import {
   HlmCaption,
   HlmTable,
+  HlmTableContainer,
   HlmTBody,
   HlmTd,
   HlmTFoot,
@@ -15,6 +14,7 @@ export * from './lib/hlm-table';
 
 export const HlmTableImports = [
   HlmCaption,
+  HlmTableContainer,
   HlmTable,
   HlmTBody,
   HlmTd,
@@ -23,9 +23,3 @@ export const HlmTableImports = [
   HlmTHead,
   HlmTr,
 ] as const;
-
-@NgModule({
-  imports: [...HlmTableImports],
-  exports: [...HlmTableImports],
-})
-export class HlmTableModule {}

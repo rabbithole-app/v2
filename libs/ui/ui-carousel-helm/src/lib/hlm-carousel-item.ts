@@ -6,7 +6,7 @@ import {
   input,
   ViewEncapsulation,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 import { HlmCarousel } from './hlm-carousel';
@@ -24,6 +24,7 @@ import { HlmCarousel } from './hlm-carousel';
 })
 export class HlmCarouselItem {
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
   private readonly _orientation = inject(HlmCarousel).orientation;
   protected readonly _computedClass = computed(() =>
     hlm(

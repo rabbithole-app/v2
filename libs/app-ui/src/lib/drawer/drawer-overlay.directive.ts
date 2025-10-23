@@ -1,5 +1,6 @@
 import { computed, Directive, effect, input, untracked } from '@angular/core';
-import { hlm, injectCustomClassSettable } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
+import { injectCustomClassSettable } from '@spartan-ng/brain/core';
 import type { ClassValue } from 'clsx';
 
 @Directive({

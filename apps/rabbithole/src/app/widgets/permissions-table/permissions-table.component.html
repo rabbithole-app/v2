@@ -8,12 +8,12 @@
   <div class="flex items-center gap-2">
     <app-edit-permission-form (permissionChange)="grant.emit($event)">
       <button variant="outline" appEditPermissionFormTrigger>
-        <ng-icon hlm name="lucideUserPlus" size="sm" />Add permission
+        <ng-icon hlmIcon name="lucideUserPlus" size="sm" />Add permission
       </button>
     </app-edit-permission-form>
     <button hlmBtn variant="outline" align="end" [brnMenuTriggerFor]="menu">
       Columns
-      <ng-icon hlm name="lucideChevronDown" class="ml-2" size="sm" />
+      <ng-icon hlmIcon name="lucideChevronDown" size="sm" />
     </button>
     <ng-template #menu>
       <hlm-menu class="w-32">

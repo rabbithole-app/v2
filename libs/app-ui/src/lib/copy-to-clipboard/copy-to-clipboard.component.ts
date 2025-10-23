@@ -10,9 +10,9 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { IconName, NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideClipboard, lucideClipboardCheck } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/brain/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 import { of, Subject, timer } from 'rxjs';
 import { map, mergeWith, switchMap } from 'rxjs/operators';

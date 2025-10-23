@@ -1,4 +1,4 @@
-import { BooleanInput } from '@angular/cdk/coercion';
+import type { BooleanInput } from '@angular/cdk/coercion';
 import {
   booleanAttribute,
   ChangeDetectionStrategy,
@@ -6,13 +6,13 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import type { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronLeft } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/brain/core';
-import { ButtonVariants } from '@spartan-ng/helm/button';
+import type { ButtonVariants } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { ClassValue } from 'clsx';
+import { hlm } from '@spartan-ng/helm/utils';
+import type { ClassValue } from 'clsx';
 
 import { HlmPaginationLink } from './hlm-pagination-link';
 

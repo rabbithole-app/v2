@@ -5,9 +5,8 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { BrnSeparator } from '@spartan-ng/brain/separator';
-import { HlmSeparator } from '@spartan-ng/helm/separator';
 import type { ClassValue } from 'clsx';
 
 import { NavigationComponent } from '../navigation/navigation.component';
@@ -19,7 +18,6 @@ import { RbthSidebarLayoutModule, SidebarService } from '@rabbithole/ui';
   imports: [
     RbthSidebarLayoutModule,
     BrnSeparator,
-    HlmSeparator,
     SidebarHeaderComponent,
     NavigationComponent,
   ],

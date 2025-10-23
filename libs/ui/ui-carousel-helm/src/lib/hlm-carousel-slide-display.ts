@@ -5,7 +5,8 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { ClassValue } from 'clsx';
+import { hlm } from '@spartan-ng/helm/utils';
+import type { ClassValue } from 'clsx';
 
 import { HlmCarousel } from './hlm-carousel';
 
@@ -13,7 +14,7 @@ import { HlmCarousel } from './hlm-carousel';
   selector: 'hlm-carousel-slide-display',
   template: `
     <span class="sr-only">{{ _labelContent() }}</span>
-    <div aria-hidden="true" class="text-muted-foreground text-sm">
+    <div aria-hidden="true" [class]="slideClass()">
       {{ _currentSlide() }} / {{ _carousel.slideCount() }}
     </div>
   `,
@@ -23,12 +24,17 @@ import { HlmCarousel } from './hlm-carousel';
   },
 })
 export class HlmCarouselSlideDisplay {
-  public readonly label = input('Slide');
+  /** Screen reader only text for the slide display */
+  public readonly label = input<string>('Slide');
+
+  public readonly slideClass = input<ClassValue>(
+    'text-muted-foreground text-sm',
+  );
 
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
   protected readonly _carousel = inject(HlmCarousel);
-  protected _computedClass = computed(() => this.userClass());
+
+  protected readonly _computedClass = computed(() => hlm('', this.userClass()));
 
   protected readonly _currentSlide = computed(
     () => this._carousel.currentSlide() + 1,

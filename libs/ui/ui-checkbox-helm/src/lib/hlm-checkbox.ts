@@ -1,4 +1,4 @@
-import { BooleanInput } from '@angular/cdk/coercion';
+import type { BooleanInput } from '@angular/cdk/coercion';
 import {
   booleanAttribute,
   ChangeDetectionStrategy,
@@ -10,13 +10,13 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck } from '@ng-icons/lucide';
 import { BrnCheckbox } from '@spartan-ng/brain/checkbox';
-import { hlm } from '@spartan-ng/brain/core';
 import type { ChangeFn, TouchFn } from '@spartan-ng/brain/forms';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 export const HLM_CHECKBOX_VALUE_ACCESSOR = {
@@ -39,7 +39,7 @@ export const HLM_CHECKBOX_VALUE_ACCESSOR = {
       [aria-label]="ariaLabel()"
       [aria-labelledby]="ariaLabelledby()"
       [aria-describedby]="ariaDescribedby()"
-      (changed)="_handleChange()"
+      (checkedChange)="_handleChange()"
       (touched)="_onTouched?.()"
     >
       @if (checked()) {
@@ -79,10 +79,11 @@ export class HlmCheckbox implements ControlValueAccessor {
     alias: 'aria-labelledby',
   });
 
-  public readonly changed = output<boolean>();
-
   /** The checked state of the checkbox. */
   public readonly checked = model<CheckboxValue>(false);
+
+  /** Emits when checked state changes. */
+  public readonly checkedChange = output<CheckboxValue>();
 
   /** Whether the checkbox is disabled. */
   public readonly disabled = input<boolean, BooleanInput>(false, {
@@ -108,7 +109,7 @@ export class HlmCheckbox implements ControlValueAccessor {
 
   protected readonly _computedClass = computed(() =>
     hlm(
-      'peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 cursor-default',
+      'border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive shadow-xs peer size-4 shrink-0 cursor-default rounded-[4px] border outline-none transition-shadow focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
       this.userClass(),
       this._state().disabled() ? 'cursor-not-allowed opacity-50' : '',
     ),
@@ -142,7 +143,7 @@ export class HlmCheckbox implements ControlValueAccessor {
       previousChecked === 'indeterminate' ? true : !previousChecked,
     );
     this._onChange?.(!previousChecked);
-    this.changed.emit(!previousChecked);
+    this.checkedChange.emit(!previousChecked);
   }
 }
 

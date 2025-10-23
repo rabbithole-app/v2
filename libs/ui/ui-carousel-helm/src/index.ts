@@ -1,5 +1,3 @@
-import { NgModule } from '@angular/core';
-
 import { HlmCarousel } from './lib/hlm-carousel';
 import { HlmCarouselContent } from './lib/hlm-carousel-content';
 import { HlmCarouselItem } from './lib/hlm-carousel-item';
@@ -22,9 +20,3 @@ export const HlmCarouselImports = [
   HlmCarouselNext,
   HlmCarouselSlideDisplay,
 ] as const;
-
-@NgModule({
-  imports: [...HlmCarouselImports],
-  exports: [...HlmCarouselImports],
-})
-export class HlmCarouselModule {}

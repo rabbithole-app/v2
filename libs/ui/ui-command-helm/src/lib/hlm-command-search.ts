@@ -4,8 +4,8 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
 import { provideHlmIconConfig } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Component({
@@ -18,10 +18,10 @@ import type { ClassValue } from 'clsx';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmCommandSearch {
-  /*** The user defined class  */
+  /** The user defined class  */
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
-  /*** The styles to apply  */
+  /** The styles to apply  */
   protected readonly _computedClass = computed(() =>
     hlm(
       'flex h-9 items-center gap-2 border-b px-3 [&>_ng-icon]:flex-none [&>_ng-icon]:opacity-50',

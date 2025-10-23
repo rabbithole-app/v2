@@ -8,22 +8,23 @@ import {
   Injector,
   input,
   linkedSignal,
+  signal,
   untracked,
 } from '@angular/core';
 import { FormGroupDirective, NgControl, NgForm } from '@angular/forms';
-import { hlm } from '@spartan-ng/brain/core';
 import { BrnFormFieldControl } from '@spartan-ng/brain/form-field';
 import { ErrorStateMatcher, ErrorStateTracker } from '@spartan-ng/brain/forms';
-import { cva, VariantProps } from 'class-variance-authority';
+import { hlm } from '@spartan-ng/helm/utils';
+import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
 export const inputVariants = cva(
-  'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+  'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input shadow-xs focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base outline-none transition-[color,box-shadow] file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
   {
     variants: {
       error: {
-        auto: '[&.ng-invalid.ng-touched]:text-destructive/20 dark:[&.ng-invalid.ng-touched]:text-destructive/40 [&.ng-invalid.ng-touched]:border-destructive [&.ng-invalid.ng-touched]:focus-visible:ring-destructive',
-        true: 'text-destructive/20 dark:text-destructive/40 border-destructive focus-visible:ring-destructive',
+        auto: '[&.ng-invalid.ng-touched]:border-destructive [&.ng-invalid.ng-touched]:ring-destructive/20 dark:[&.ng-invalid.ng-touched]:ring-destructive/40',
+        true: 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
       },
     },
     defaultVariants: {
@@ -47,27 +48,32 @@ type InputVariants = VariantProps<typeof inputVariants>;
 })
 export class HlmInput implements BrnFormFieldControl, DoCheck {
   public readonly error = input<InputVariants['error']>('auto');
-
   private readonly _errorStateTracker: ErrorStateTracker;
 
   public readonly errorState = computed(() =>
     this._errorStateTracker.errorState(),
   );
-  private readonly _injector = inject(Injector);
 
+  private readonly _injector = inject(Injector);
   public readonly ngControl: NgControl | null = this._injector.get(
     NgControl,
     null,
   );
-
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly _state = linkedSignal(() => ({ error: this.error() }));
+  private readonly _additionalClasses = signal<ClassValue>('');
 
   protected readonly _computedClass = computed(() =>
-    hlm(inputVariants({ error: this._state().error }), this.userClass()),
+    hlm(
+      inputVariants({ error: this._state().error }),
+      this.userClass(),
+      this._additionalClasses(),
+    ),
   );
+
   private readonly _defaultErrorStateMatcher = inject(ErrorStateMatcher);
+
   private readonly _parentForm = inject(NgForm, { optional: true });
 
   private readonly _parentFormGroup = inject(FormGroupDirective, {
@@ -101,6 +107,10 @@ export class HlmInput implements BrnFormFieldControl, DoCheck {
 
   ngDoCheck() {
     this._errorStateTracker.updateErrorState();
+  }
+
+  setClass(classes: string): void {
+    this._additionalClasses.set(classes);
   }
 
   setError(error: InputVariants['error']) {

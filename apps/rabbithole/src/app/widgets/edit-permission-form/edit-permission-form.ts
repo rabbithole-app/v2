@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { BrnDialogContent } from '@spartan-ng/brain/dialog';
-import { BrnSelectModule } from '@spartan-ng/brain/select';
+import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmDialog,
@@ -21,7 +21,7 @@ import {
 } from '@spartan-ng/helm/dialog';
 import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
-import { HlmSelectModule } from '@spartan-ng/helm/select';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { isNonNull, isNonNullish } from 'remeda';
 
 import { principalValidator } from '@rabbithole/core';
@@ -44,8 +44,8 @@ import type {
     HlmLabel,
     HlmInput,
     HlmButton,
-    BrnSelectModule,
-    HlmSelectModule,
+    BrnSelectImports,
+    HlmSelectImports,
     ReactiveFormsModule,
   ],
 })

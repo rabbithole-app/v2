@@ -1,5 +1,5 @@
 import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { injectBrnProgress } from '@spartan-ng/brain/progress';
 import { cva } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';

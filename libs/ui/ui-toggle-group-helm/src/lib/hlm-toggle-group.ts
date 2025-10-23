@@ -1,10 +1,10 @@
 import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
-import { VariantProps } from 'class-variance-authority';
+import { hlm } from '@spartan-ng/helm/utils';
+import type { VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
 import { provideHlmToggleGroup } from './hlm-toggle-group.token';
-import { toggleGroupItemVariants } from './hlm-toggle-item';
+import type { toggleGroupItemVariants } from './hlm-toggle-item';
 
 type ToggleGroupItemVariants = VariantProps<typeof toggleGroupItemVariants>;
 
@@ -23,7 +23,7 @@ export class HlmToggleGroup {
     input<ToggleGroupItemVariants['variant']>('outline');
   protected readonly _computedClass = computed(() =>
     hlm(
-      'group/toggle-group flex w-fit items-center rounded-md data-[variant=outline]:shadow-xs focus:[&>[hlm][brnToggle]]:z-10',
+      'group/toggle-group data-[variant=outline]:shadow-xs flex w-fit items-center rounded-md focus:[&>[hlm][brnToggle]]:z-10',
       this.userClass(),
     ),
   );

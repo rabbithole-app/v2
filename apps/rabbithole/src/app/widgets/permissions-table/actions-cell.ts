@@ -12,7 +12,6 @@ import {
   BrnAlertDialogContent,
   BrnAlertDialogTrigger,
 } from '@spartan-ng/brain/alert-dialog';
-import { hlm } from '@spartan-ng/brain/core';
 import { BrnDialog } from '@spartan-ng/brain/dialog';
 import {
   HlmAlertDialog,
@@ -26,6 +25,7 @@ import {
 } from '@spartan-ng/helm/alert-dialog';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
 import { ClassValue } from 'clsx';
 
@@ -72,7 +72,7 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
         rbthTooltipTrigger="Edit permission"
         appEditPermissionFormTrigger
       >
-        <ng-icon hlm name="lucideUserPen" size="sm" />
+        <ng-icon hlmIcon name="lucideUserPen" size="sm" />
         <span class="sr-only">Edit</span>
       </button>
     </app-edit-permission-form>
@@ -86,7 +86,7 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
         brnAlertDialogTrigger
       >
         <span class="sr-only">Revoke</span>
-        <ng-icon hlm size="sm" name="lucideTrash2" />
+        <ng-icon hlmIcon size="sm" name="lucideTrash2" />
       </button>
       <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
         <hlm-alert-dialog-header>

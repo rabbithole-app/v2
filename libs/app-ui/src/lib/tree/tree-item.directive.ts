@@ -1,7 +1,7 @@
 import { CdkTreeNode } from '@angular/cdk/tree';
 import { computed, Directive, inject, input } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 import { isDeepEqual } from 'remeda';
 import { asapScheduler } from 'rxjs';

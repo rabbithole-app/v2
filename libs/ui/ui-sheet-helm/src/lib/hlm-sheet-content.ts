@@ -12,12 +12,12 @@ import {
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideX } from '@ng-icons/lucide';
 import {
-  hlm,
   injectExposedSideProvider,
   injectExposesStateProvider,
 } from '@spartan-ng/brain/core';
 import { BrnSheetClose } from '@spartan-ng/brain/sheet';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import { cva } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
@@ -33,7 +33,7 @@ export const sheetVariants = cva(
           'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t',
         left: 'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm',
         right:
-          'inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+          'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
       },
     },
     defaultVariants: {
@@ -61,7 +61,7 @@ export const sheetVariants = cva(
 })
 export class HlmSheetContent {
   private readonly _stateProvider = injectExposesStateProvider({ host: true });
-  public state = this._stateProvider.state ?? signal('closed');
+  public readonly state = this._stateProvider.state ?? signal('closed');
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
   private readonly _sideProvider = injectExposedSideProvider({ host: true });
   protected readonly _computedClass = computed(() =>

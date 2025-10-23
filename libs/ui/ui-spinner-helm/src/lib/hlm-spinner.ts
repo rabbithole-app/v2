@@ -4,7 +4,7 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Component({
@@ -38,7 +38,7 @@ export class HlmSpinner {
   public readonly userClass = input<ClassValue>('size-8', { alias: 'class' });
   protected readonly _computedClass = computed(() =>
     hlm(
-      'inline-block [&>svg]:text-foreground/30 [&>svg]:fill-accent',
+      '[&>svg]:text-foreground/30 [&>svg]:fill-accent inline-block',
       this.userClass(),
     ),
   );

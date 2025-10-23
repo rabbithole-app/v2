@@ -4,7 +4,7 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Component({
@@ -17,7 +17,7 @@ import type { ClassValue } from 'clsx';
 })
 export class HlmSheetHeader {
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected _computedClass = computed(() =>
+  protected readonly _computedClass = computed(() =>
     hlm('flex flex-col gap-1.5 p-4', this.userClass()),
   );
 }

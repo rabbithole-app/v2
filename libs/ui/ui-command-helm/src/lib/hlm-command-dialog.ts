@@ -10,7 +10,8 @@ import {
   signal,
 } from '@angular/core';
 import { BrnCommandSearchInputToken } from '@spartan-ng/brain/command';
-import { hlm, injectExposesStateProvider } from '@spartan-ng/brain/core';
+import { injectExposesStateProvider } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Directive({

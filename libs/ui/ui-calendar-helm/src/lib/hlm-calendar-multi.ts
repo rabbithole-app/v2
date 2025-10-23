@@ -1,4 +1,5 @@
-import { BooleanInput, NumberInput } from '@angular/cdk/coercion';
+import type { BooleanInput, NumberInput } from '@angular/cdk/coercion';
+import { NgTemplateOutlet } from '@angular/common';
 import {
   booleanAttribute,
   ChangeDetectionStrategy,
@@ -16,18 +17,22 @@ import {
   BrnCalendarCellButton,
   BrnCalendarGrid,
   BrnCalendarHeader,
+  BrnCalendarMonthSelect,
   BrnCalendarMulti,
   BrnCalendarNextButton,
   BrnCalendarPreviousButton,
   BrnCalendarWeek,
   BrnCalendarWeekday,
+  BrnCalendarYearSelect,
   injectBrnCalendarI18n,
-  Weekday,
+  type Weekday,
 } from '@spartan-ng/brain/calendar';
-import { hlm } from '@spartan-ng/brain/core';
 import { injectDateAdapter } from '@spartan-ng/brain/date-time';
+import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { buttonVariants } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Component({
@@ -44,6 +49,11 @@ import type { ClassValue } from 'clsx';
     BrnCalendarGrid,
     NgIcon,
     HlmIcon,
+    BrnCalendarMonthSelect,
+    NgTemplateOutlet,
+    BrnSelectImports,
+    HlmSelectImports,
+    BrnCalendarYearSelect,
   ],
   viewProviders: [provideIcons({ lucideChevronLeft, lucideChevronRight })],
   template: `
@@ -64,8 +74,55 @@ import type { ClassValue } from 'clsx';
         <!-- Header -->
         <div class="space-y-4">
           <div class="relative flex items-center justify-center pt-1">
-            <div brnCalendarHeader class="text-sm font-medium">
-              {{ _heading() }}
+            <div class="flex w-full items-center justify-center gap-1.5">
+              <ng-template #month>
+                <brn-select brnCalendarMonthSelect>
+                  <hlm-select-trigger size="sm" [class]="_selectClass">
+                    <brn-select-value />
+                  </hlm-select-trigger>
+                  <hlm-select-content class="max-h-80">
+                    @for (month of _i18n.config().months(); track month) {
+                      <hlm-option [value]="month">{{ month }}</hlm-option>
+                    }
+                  </hlm-select-content>
+                </brn-select>
+              </ng-template>
+              <ng-template #year>
+                <brn-select brnCalendarYearSelect>
+                  <hlm-select-trigger size="sm" [class]="_selectClass">
+                    <brn-select-value />
+                  </hlm-select-trigger>
+                  <hlm-select-content class="max-h-80">
+                    @for (year of _i18n.config().years(); track year) {
+                      <hlm-option [value]="year">{{ year }}</hlm-option>
+                    }
+                  </hlm-select-content>
+                </brn-select>
+              </ng-template>
+              @let heading = _heading();
+              @switch (captionLayout()) {
+                @case ('dropdown') {
+                  <ng-container [ngTemplateOutlet]="month" />
+                  <ng-container [ngTemplateOutlet]="year" />
+                }
+                @case ('dropdown-months') {
+                  <ng-container [ngTemplateOutlet]="month" />
+                  <div brnCalendarHeader class="text-sm font-medium">
+                    {{ heading.year }}
+                  </div>
+                }
+                @case ('dropdown-years') {
+                  <div brnCalendarHeader class="text-sm font-medium">
+                    {{ heading.month }}
+                  </div>
+                  <ng-container [ngTemplateOutlet]="year" />
+                }
+                @case ('label') {
+                  <div brnCalendarHeader class="text-sm font-medium">
+                    {{ heading.header }}
+                  </div>
+                }
+              }
             </div>
 
             <div class="flex items-center space-x-1">
@@ -93,9 +150,9 @@ import type { ClassValue } from 'clsx';
                 *brnCalendarWeekday="let weekday"
                 scope="col"
                 class="text-muted-foreground w-8 rounded-md text-[0.8rem] font-normal"
-                [attr.aria-label]="_i18n.labelWeekday(weekday)"
+                [attr.aria-label]="_i18n.config().labelWeekday(weekday)"
               >
-                {{ _i18n.formatWeekdayName(weekday) }}
+                {{ _i18n.config().formatWeekdayName(weekday) }}
               </th>
             </tr>
           </thead>
@@ -126,6 +183,11 @@ import type { ClassValue } from 'clsx';
 })
 export class HlmCalendarMulti<T> {
   public readonly calendarClass = input<ClassValue>('');
+
+  /** Show dropdowns to navigate between months or years. */
+  public readonly captionLayout = input<
+    'dropdown-months' | 'dropdown-years' | 'dropdown' | 'label'
+  >('label');
 
   /** The selected value. */
   public readonly date = model<T[]>();
@@ -158,14 +220,14 @@ export class HlmCalendarMulti<T> {
   });
 
   /** The day the week starts on */
-  public readonly weekStartsOn = input<Weekday, NumberInput>(0, {
+  public readonly weekStartsOn = input<Weekday, NumberInput>(undefined, {
     transform: (v: unknown) => numberAttribute(v) as Weekday,
   });
 
   protected readonly _btnClass = hlm(
     buttonVariants({ variant: 'ghost' }),
     'size-8 p-0 font-normal aria-selected:opacity-100',
-    'data-[outside]:text-muted-foreground data-[outside]:opacity-50 data-[outside]:aria-selected:bg-accent/50 data-[outside]:aria-selected:text-muted-foreground data-[outside]:aria-selected:opacity-30',
+    'data-[outside]:text-muted-foreground data-[outside]:aria-selected:bg-accent/50 data-[outside]:aria-selected:text-muted-foreground data-[outside]:opacity-50 data-[outside]:aria-selected:opacity-30',
     'data-[today]:bg-accent data-[today]:text-accent-foreground',
     'data-[selected]:bg-primary data-[selected]:text-primary-foreground data-[selected]:hover:bg-primary data-[selected]:hover:text-primary-foreground data-[selected]:focus:bg-primary data-[selected]:focus:text-primary-foreground',
     'data-[disabled]:text-muted-foreground data-[disabled]:opacity-50',
@@ -185,10 +247,19 @@ export class HlmCalendarMulti<T> {
   private readonly _calendar = viewChild.required(BrnCalendarMulti);
 
   /** Get the heading for the current month and year */
-  protected readonly _heading = computed(() =>
-    this._i18n.formatHeader(
-      this._dateAdapter.getMonth(this._calendar().focusedDate()),
-      this._dateAdapter.getYear(this._calendar().focusedDate()),
-    ),
-  );
+  protected readonly _heading = computed(() => {
+    const config = this._i18n.config();
+    const date = this._calendar().focusedDate();
+
+    return {
+      header: config.formatHeader(
+        this._dateAdapter.getMonth(date),
+        this._dateAdapter.getYear(date),
+      ),
+      month: config.formatMonth(this._dateAdapter.getMonth(date)),
+      year: config.formatYear(this._dateAdapter.getYear(date)),
+    };
+  });
+
+  protected readonly _selectClass = 'gap-0 px-1.5 py-2 [&>ng-icon]:ml-1';
 }

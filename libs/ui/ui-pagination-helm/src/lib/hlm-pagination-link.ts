@@ -1,8 +1,8 @@
-import { BooleanInput } from '@angular/cdk/coercion';
+import type { BooleanInput } from '@angular/cdk/coercion';
 import { booleanAttribute, computed, Directive, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { hlm } from '@spartan-ng/brain/core';
 import { type ButtonVariants, buttonVariants } from '@spartan-ng/helm/button';
+import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 

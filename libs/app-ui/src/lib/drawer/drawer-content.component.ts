@@ -9,8 +9,8 @@ import {
   Renderer2,
   signal,
 } from '@angular/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import {
-  hlm,
   injectExposedSideProvider,
   injectExposesStateProvider,
 } from '@spartan-ng/brain/core';

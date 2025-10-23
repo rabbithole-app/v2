@@ -4,7 +4,7 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
 import { cva } from 'class-variance-authority';

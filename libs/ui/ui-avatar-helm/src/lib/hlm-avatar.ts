@@ -6,7 +6,7 @@ import {
   ViewEncapsulation,
 } from '@angular/core';
 import { BrnAvatar } from '@spartan-ng/brain/avatar';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Component({
@@ -29,7 +29,7 @@ export class HlmAvatar extends BrnAvatar {
 
   protected readonly _computedClass = computed(() =>
     hlm(
-      'relative flex shrink-0 overflow-hidden rounded-full size-8',
+      'relative flex size-8 shrink-0 overflow-hidden rounded-full',
       this.userClass(),
     ),
   );

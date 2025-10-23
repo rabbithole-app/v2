@@ -15,7 +15,7 @@ import {
   lucideFolder,
   lucideFolderOpen,
 } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { ClassValue } from 'clsx';
 

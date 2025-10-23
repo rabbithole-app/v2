@@ -1,5 +1,3 @@
-import { NgModule } from '@angular/core';
-
 import { HlmAvatarFallback } from './lib/fallback';
 import { HlmAvatar } from './lib/hlm-avatar';
 import { HlmAvatarImage } from './lib/image';
@@ -13,9 +11,3 @@ export const HlmAvatarImports = [
   HlmAvatarImage,
   HlmAvatar,
 ] as const;
-
-@NgModule({
-  imports: [...HlmAvatarImports],
-  exports: [...HlmAvatarImports],
-})
-export class HlmAvatarModule {}

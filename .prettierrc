@@ -1,6 +1,7 @@
 {
   "singleQuote": true,
   "plugins": ["prettier-plugin-motoko"],
+  "tailwindFunctions": ["hlm", "cva"],
   "overrides": [
     {
       "files": "*.html",

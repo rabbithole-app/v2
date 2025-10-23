@@ -7,9 +7,9 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/brain/core';
 import { BrnSelectOption } from '@spartan-ng/brain/select';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Component({
@@ -38,7 +38,7 @@ export class HlmSelectOption {
   protected readonly _brnSelectOption = inject(BrnSelectOption, { host: true });
   protected readonly _computedClass = computed(() =>
     hlm(
-      'data-[active]:bg-accent data-[active]:text-accent-foreground [&>ng-icon]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>ng-icon]:pointer-events-none [&>ng-icon]:shrink-0 [&>ng-icon]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2',
+      'data-[active]:bg-accent data-[active]:text-accent-foreground [&>ng-icon]:text-muted-foreground *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>ng-icon]:pointer-events-none [&>ng-icon]:size-4 [&>ng-icon]:shrink-0',
       this.userClass(),
     ),
   );

@@ -14,7 +14,7 @@ export class TauriStorage implements AuthClientStorage {
   #options: StoreOptions;
 
   constructor(options?: StoreOptions) {
-    this.#options = options ?? { autoSave: false };
+    this.#options = options ?? { autoSave: false, defaults: {} };
   }
 
   async get<T = string>(key: string): Promise<T | null> {

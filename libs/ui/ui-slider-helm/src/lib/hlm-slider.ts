@@ -4,7 +4,6 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
 import {
   BrnSlider,
   BrnSliderRange,
@@ -13,6 +12,7 @@ import {
   BrnSliderTrack,
   injectBrnSlider,
 } from '@spartan-ng/brain/slider';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Component({

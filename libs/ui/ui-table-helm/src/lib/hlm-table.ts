@@ -5,9 +5,9 @@ import {
   inject,
   InjectionToken,
   input,
-  ValueProvider,
+  type ValueProvider,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 // Configuration Interface and InjectionToken
@@ -17,6 +17,7 @@ export const HlmTableConfigToken = new InjectionToken<HlmTableVariant>(
 export interface HlmTableVariant {
   caption: string;
   table: string;
+  tableContainer: string;
   tbody: string;
   td: string;
   tfoot: string;
@@ -26,13 +27,14 @@ export interface HlmTableVariant {
 }
 
 export const HlmTableVariantDefault: HlmTableVariant = {
+  tableContainer: 'relative w-full overflow-x-auto',
   table: 'w-full caption-bottom text-sm',
   thead: '[&_tr]:border-b',
   tbody: '[&_tr:last-child]:border-0',
   tfoot: 'bg-muted/50 border-t font-medium [&>tr]:last:border-b-0',
   tr: 'hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors',
-  th: 'text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
-  td: 'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+  th: 'text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+  td: 'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
   caption: 'text-muted-foreground mt-4 text-sm',
 };
 
@@ -51,6 +53,27 @@ export function provideHlmTableConfig(
   };
 }
 
+@Directive({
+  selector: 'div[hlmTableContainer]',
+  host: {
+    '[class]': '_computedClass()',
+    'data-slot': 'table-container',
+  },
+})
+export class HlmTableContainer {
+  public readonly userClass = input<ClassValue>('', { alias: 'class' });
+  private readonly _globalOrDefaultConfig = injectHlmTableConfig();
+
+  protected readonly _computedClass = computed(() =>
+    hlm(
+      this._globalOrDefaultConfig
+        ? this._globalOrDefaultConfig.tableContainer.trim()
+        : '',
+      this.userClass(),
+    ),
+  );
+}
+
 /**
  * Directive to apply Shadcn-like styling to a <table> element.
  * It resolves and provides base classes for its child table elements.
@@ -59,9 +82,9 @@ export function provideHlmTableConfig(
  */
 @Directive({
   selector: 'table[hlmTable]',
-  standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table',
   },
 })
 export class HlmTable {
@@ -107,9 +130,9 @@ export class HlmTable {
  */
 @Directive({
   selector: 'thead[hlmTHead]',
-  standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table-header',
   },
 })
 export class HlmTHead {
@@ -132,9 +155,9 @@ export class HlmTHead {
  */
 @Directive({
   selector: 'tbody[hlmTBody]',
-  standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table-body',
   },
 })
 export class HlmTBody {
@@ -157,9 +180,9 @@ export class HlmTBody {
  */
 @Directive({
   selector: 'tfoot[hlmTFoot]',
-  standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table-footer',
   },
 })
 export class HlmTFoot {
@@ -182,9 +205,9 @@ export class HlmTFoot {
  */
 @Directive({
   selector: 'tr[hlmTr]',
-  standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table-row',
   },
 })
 export class HlmTr {
@@ -205,9 +228,9 @@ export class HlmTr {
  */
 @Directive({
   selector: 'th[hlmTh]',
-  standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table-head',
   },
 })
 export class HlmTh {
@@ -231,6 +254,7 @@ export class HlmTh {
   standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table-cell',
   },
 })
 export class HlmTd {
@@ -251,9 +275,9 @@ export class HlmTd {
  */
 @Directive({
   selector: 'caption[hlmCaption]',
-  standalone: true,
   host: {
     '[class]': '_computedClass()',
+    'data-slot': 'table-caption',
   },
 })
 export class HlmCaption {

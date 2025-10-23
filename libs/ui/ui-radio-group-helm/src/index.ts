@@ -1,5 +1,3 @@
-import { NgModule } from '@angular/core';
-
 import { HlmRadio } from './lib/hlm-radio';
 import { HlmRadioGroup } from './lib/hlm-radio-group';
 import { HlmRadioIndicator } from './lib/hlm-radio-indicator';
@@ -12,10 +10,4 @@ export const HlmRadioGroupImports = [
   HlmRadioGroup,
   HlmRadio,
   HlmRadioIndicator,
-];
-
-@NgModule({
-  imports: [...HlmRadioGroupImports],
-  exports: [...HlmRadioGroupImports],
-})
-export class HlmRadioGroupModule {}
+] as const;

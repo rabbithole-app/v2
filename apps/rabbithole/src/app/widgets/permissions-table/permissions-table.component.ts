@@ -4,12 +4,12 @@ import { Principal } from '@dfinity/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucideUserPlus } from '@ng-icons/lucide';
 import { BrnMenuTrigger } from '@spartan-ng/brain/menu';
-import { BrnSelectModule } from '@spartan-ng/brain/select';
+import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmInput } from '@spartan-ng/helm/input';
-import { HlmMenuModule } from '@spartan-ng/helm/menu';
-import { HlmSelectModule } from '@spartan-ng/helm/select';
+import { HlmMenuImports } from '@spartan-ng/helm/menu';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { hlmMuted } from '@spartan-ng/helm/typography';
 import {
@@ -78,12 +78,12 @@ const statusFilterFn: FilterFn<PermissionItem> = (
     FlexRenderDirective,
     FormsModule,
     BrnMenuTrigger,
-    HlmMenuModule,
+    HlmMenuImports,
     NgIcon,
     HlmIcon,
     HlmInput,
-    BrnSelectModule,
-    HlmSelectModule,
+    BrnSelectImports,
+    HlmSelectImports,
     EditPermissionFormComponent,
     HlmButton,
     EditPermissionFormTriggerDirective,

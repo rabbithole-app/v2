@@ -33,7 +33,9 @@ export class HlmDialogService {
         `${hlmDialogOverlayClass} ${options?.backdropClass ?? ''}`,
       ),
       context: {
-        ...(options?.context ?? {}),
+        ...(options?.context && typeof options.context === 'object'
+          ? options.context
+          : {}),
         $component: component,
         $dynamicComponentClass: options?.contentClass,
       },
