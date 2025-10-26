@@ -1,0 +1,52 @@
+---
+alwaysApply: false
+---
+
+## Взаимодействие с бекендом
+
+Так как приложение строится на Internet Computer, то работа с бекендом имеет свои тонкости. В основе приложения задействованы 2 основных вида канистр (смартконтрактов в терминологии Internet Computer):
+
+- основная канистра Rabbithole (rabbithole-backend, собирается из [main.mo](../apps/backend/src/main.mo)). В этой канистре находятся общие данные приложения - список полльзователей, привязанных канистр, пользовательских хранилищ, куда есть доступ и прочее. Также через основную канистру происходит установка wasm-модулей и обновление пользовательских хранилищ.
+- пользовательская канистра EncryptedStorage (создается динамически пользователем, собирается [EncryptedStorageCanister.mo](../apps/backend/src/EncryptedStorageCanister.mo)). В этой канистре хранятся зашифрованные файлы пользователя, фронтенд-ассеты, которые позволяют работать с канистрой напрямую, без взаимодействия через основной фронтенд приложения.
+
+В докере при генерации declarations нельзя выходить за пределы проекта, потому все интерфейсы для фронтенда формируются в директорию apps/backend/src/declarations. В рамках разработки используются только канистры encrypted-storage и rabbithole-backend. Так как в NX не должны нарушаться границы проектов при импорте, то после внесения изменений в бекенд и генерации новых declarations папки [encrypted-storage](../apps/backend/src/declarations/encrypted-storage/) и [rabbithole-backend](../apps/backend/src/declarations/rabbithole-backend/) копируются в библиотеку @rabbithole/declarations в libs/declarations/src/encrypted-storage и libs/declarations/src/backend.
+
+Для работы с методами основной канистры (все методы можно найти в типе [\_SERVICE](../apps/backend/src/declarations/rabbithole-backend/rabbithole-backend.did.d.ts)) на стороне фронтенда в Angular используется [injectMainActor](../apps/rabbithole/src/app/core/injectors/main-actor.ts).
+
+Пример работы с методом whoami из основной канистры
+
+```typescript
+import { Component, resource } from '@angular/core';
+import { ActorSubclass } from '@dfinity/agent';
+
+import { injectMainActor } from '../../core/injectors'; // relative path to injectMainActor
+import { RabbitholeActorService } from '@rabbithole/declarations';
+
+@Component({
+  selector: 'app-example',
+  template: `
+    <button (click)="whoami.refetch()">Who am I</button>
+    <p>{{ whoami() }}</p>
+  `,
+})
+export class ExampleComponent {
+  #mainActor = injectMainActor();
+  whoami = resource<
+    string,
+    {
+      actor: ActorSubclass<RabbitholeActorService>;
+    }
+  >({
+    params: () => ({
+      actor: this.#mainActor(),
+    }),
+    loader: async ({ params: { actor } }) => {
+      return await actor.whoami();
+    },
+  });
+}
+```
+
+Для взаимодействия с пользовательской канистрой необходимо обращаться к классам EncryptedStorage и AssetManager из библиотеки [@rabbithole/encrypted-storage](../libs/encrypted-storage/). AssetManager необходимо использовать при загрузке ассетов, к которым нужен публичный доступ по url, например, файлы пользовательского интерфейса. EncryptedStorage используется для загрузки в канистру, скачивания зашифрованных файлов, выдачи или изъятия прав доступа с хранилища или отдельных файлов или папок, просмотра списка файлов и папок.
+
+Для работы с методами пользовательской канистры (все методы можно найти в классе [EncryptedStorage](../libs/encrypted-storage/src/lib/encrypted-storage.ts), который служит адаптером, выполняющим запросы к пользовательской канистре по интерфейсу [\_SERVICE](../apps/backend/src/declarations/encrypted-storage/encrypted-storage.did.d.ts)) на стороне фронтенда в Angular используется [injectEncryptedStorage](../apps/rabbithole/src/app/core/injectors/encrypted-storage.ts).

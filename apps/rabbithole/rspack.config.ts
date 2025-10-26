@@ -59,6 +59,15 @@ export default createConfig(
             NODE_ENV: process.env['NODE_ENV'],
           }),
         }),
+        new rspack.CopyRspackPlugin({
+          patterns: [
+            {
+              from: '../../tmp/styles.403.css',
+              to: './styles.403.css',
+              noErrorOnMissing: true,
+            },
+          ],
+        }),
       ],
     },
   },

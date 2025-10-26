@@ -29,6 +29,17 @@
         "parallel": false
       }
     },
+    "generate-declarations": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "commands": ["docker compose exec backend dfx generate", "cp -r src/declarations/rabbithole-backend ../../libs/declarations/src/backend", "cp -r src/declarations/encrypted-storage ../../libs/declarations/src/encrypted-storage"],
+        "env": {
+          "COMPOSE_PROJECT_NAME": "rabbithole"
+        },
+        "parallel": false
+      }
+    },
     "deploy": {
       "executor": "nx:run-commands",
       "options": {

@@ -1,0 +1,219 @@
+---
+alwaysApply: false
+---
+
+## Users
+
+Страница "Пользователи" представляет из себя таблицу с пагинацией и представлением интерфейса [`Profile`](../apps/backend/src/declarations/rabbithole-backend/rabbithole-backend.did.d.ts), экспортируемого из библиотеки [@rabbithole/backend](../libs/backend):
+
+```typescript
+export interface Profile {
+  id: Principal;
+  username: string;
+  displayName: [] | [string];
+  inviter: [] | [Principal];
+  createdAt: Time;
+  updatedAt: Time;
+  avatarUrl: [] | [string];
+}
+```
+
+Это typescript представление [Candid](https://github.com/dfinity/candid) для типа, описанного на Motoko:
+
+```motoko
+public type Profile = {
+  id : Principal; // principal id (уникально в рамках сети)
+  username : Text; // имя пользователя (уникально в рамках приложения)
+  displayName : ?Text; // отображаемое имя (опционально)
+  avatarUrl : ?Text; // путь до аватар пользователя, предварительно загруженной при создании профиля (опционально)
+  createdAt : Time.Time; // unix-время создания профиля в наносекундах
+  updatedAt : Time.Time; // unix-время последнего изменения профиля в наносекундах
+  inviter : ?Principal; // principal id пользователя, который пригласил этого пользователя
+};
+
+```
+
+В Typescript такой тип можно представить как:
+
+```typescript
+public type Profile = {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+  createdAt: Date;
+  updatedAt : Date;
+  inviter?: string;
+};
+```
+
+утилитная функция `convertProfile()` создает из сырого candid-представления ts-представление типа Profile:
+
+```typescript
+import { isNonNullish } from 'remeda';
+import { Profile as ProfileRaw } from '@rabbithole/declarations';
+
+const NANOSECONDS_PER_MILLISECOND = 1_000_000n;
+
+const timeInNanosToDate = (time: bigint) =>
+  new Date(Number(time / NANOSECONDS_PER_MILLISECOND));
+
+function convertProfile(item: ProfileRaw): Profile {
+  return {
+    id: item.id.toText(),
+    username: item.username,
+    createdAt: timeInNanosToDate(item.createdAt),
+    updatedAt: timeInNanosToDate(item.updatedAt),
+    displayName: isNonNullish(item.displayName)
+      ? item.displayName[0]
+      : undefined,
+    inviter: item.inviter[0] ? item.inviter[0].toText() : undefined,
+  };
+}
+```
+
+Таблица работает на [Tanstack Table](https://tanstack.com/table/latest) последней версии, использует [ui-примитивы Spartan NG](../libs/ui/), а также [внутренние ui-компоненты](../libs/app-ui/), например [`copy-to-clipboard`](../libs/app-ui/src/lib/copy-to-clipboard/) или [`tooltip`](../libs/app-ui/src/lib/tooltip/). В компоненте отображается общее количество профилей и формируются кнопки пагинации.
+
+Список колонок:
+- User - является комбинацией нескольких полей `username`, `displayName`, `id` и `avatarUrl`. Сетка 2x2, левая колонка содержит аватар (компонент [`@spartan-ng/helm/avatar`](../libs/ui/ui-avatar-helm/)), правая верхняя ячейка отображает `displayName` если он задан или же `username`. Правая нижняя ячейка содержит id, обернутый в компонент `copy-to-clipboard`;
+- Created at - отображает дату создания профиля, поле `createdAt` в формате `short`, используя [`Angular DatePipe`](https://angular.dev/api/common/DatePipe). Имеет в заголовке фильтр, позволяющий ввести опциональные даты min и max для фильтрации по полю на стороне бекенда в запросе `listProfiles`
+- Updated at - отображает дату создания профиля, поле `updatedAt` в формате `short`, используя [`Angular DatePipe`](https://angular.dev/api/common/DatePipe). Скрыта по умолчанию
+
+Взаимодействует с бекендом через метод канистры `listProfiles`.
+
+### Backend
+
+Функционал профилей на стороне канистры реализован в библиотеке [Profiles](../apps/backend/src/Profiles/lib.mo).
+При работе с канистрой Internet Computer особое значение имеет `identity`, который указан в текущем экземпляре `HttpAgent`, который в свою очередь передан при создании `Actor`.
+Используемые библиотеки: 
+- [`@dfinity/agent`](https://www.npmjs.com/package/@dfinity/agent)
+- [`@dfinity/identity`](https://www.npmjs.com/package/@dfinity/identity)
+```typescript
+import { Ed25519KeyIdentity } from '@icp-sdk/core/identity'; // renamed from @dfinity/identity
+import { Actor, type ActorSubclass } from '@icp-sdk/core/agent'; // renamed from @dfinity/agent;
+import { RabbitholeActorService, rabbitholeIdlFactory } from '@rabbithole/declarations';
+
+const ed25519Identity = Ed25519KeyIdentity.generate();
+const agent = HttpAgent.createSync({
+  identity: ed25519Identity,
+  shouldFetchRootKey: !environment.production,
+  host: environment.production ? 'https://icp-api.io' : 'https://localhost',
+});
+const actor = Actor.createActor<RabbitholeActorService>(rabbitholeIdlFactory, {
+  agent,
+  canisterId: '<CANISTER_ID>'
+});
+
+// далее вызов методов канистры будет от указанного identity, поле caller будет содержать principalId сгенерированного identity (его можно получить на клиенте вызовом `ed25519Identity.getPrincipal()`)
+
+```
+
+Доступные методы в формате candid:
+
+- `createProfile: (args: CreateProfileArgs) -> (nat);`
+`createProfile` принимает в качестве аргумента args типа [`CreateProfileArgs`](../apps/backend/src/declarations/rabbithole-backend/rabbithole-backend.did.d.ts) и возвращает в случае успеха ключ в коллекции БД, который на фронтенде никак не используется, это натуральное число, в typescript тип bigint. Обязательное поле `username` типа `string`, поля `displayName`, `inviter`, `avatarUrl` являются необязательными, если поле пустое, то отправляется пустой массив `[]`, если есть значение - `[значение]`
+
+```typescript
+export interface CreateProfileArgs {
+  'username' : string,
+  'displayName' : [] | [string],
+  'inviter' : [] | [Principal],
+  'avatarUrl' : [] | [string],
+}
+```
+При вызове метода для `principal id` вызывающего `identity` создается профиль в канистре.
+
+- `deleteProfile: () -> ();`
+Удаляет существующий профиль вызывающего.
+
+- `getProfile: () -> (opt Profile) query;`
+Возвращает данные профиля для вызывающего. Если профиль существует, то возвращается [`[Profile]`](../apps/backend/src/declarations/rabbithole-backend/rabbithole-backend.did.d.ts), если нет - `[]`.
+
+- `updateProfile: (args: UpdateProfileArgs) -> ();`
+Используется для изменения полей `displayName` и `avatarUrl`. Также как и в случае с созданием профиля, поля необязательные (nullable), потому если необходимо очистить значение поля, то следует отправлять `[]`, в ином случае `[string]`.
+
+```typescript
+export interface UpdateProfileArgs {
+  'displayName' : [] | [string],
+  'avatarUrl' : [] | [string],
+}
+```
+
+- `usernameExists: (username: text) -> (bool) query;`
+Метод используется для асинхронной валидации при создании профиля. Если метод возвращает `true`, то введенный `username` уже существует, если `false` - `username` доступен.
+
+- `listProfiles: (options: ListOptions) -> (GetProfilesResponse) query`
+`listProfiles` возвращает список зарегистрированных пользователей. Принимает в качестве аргумента `options` типа [`ListOptions`](../apps/backend/src/declarations/rabbithole-backend/rabbithole-backend.did.d.ts) и возвращает объект типа [`GetProfilesResponse`](../apps/backend/src/declarations/rabbithole-backend/rabbithole-backend.did.d.ts).
+
+```typescript
+export interface ListOptions {
+  'pagination' : { 'offset' : bigint, 'limit' : bigint },
+  'count' : boolean,
+  'sort' : Array<[string, SortDirection]>,
+  'filter' : {
+    'id' : [] | [Array<Principal>],
+    'username' : [] | [string],
+    'displayName' : [] | [string],
+    'inviter' : [] | [Array<Principal>],
+    'createdAt' : [] | [{ 'max' : [] | [bigint], 'min' : [] | [bigint] }],
+    'avatarUrl' : [] | [boolean],
+  },
+}
+
+export interface GetProfilesResponse {
+  'total' : [] | [bigint],
+  'data' : Array<Profile>,
+  'instructions' : bigint,
+}
+```
+
+Разберем для чего служит каждое поле интерфейса `ListOptions`:
+- `pagination` определяет отступ от выборки и количество элементов для возврата. Например, если в таблице отображается 10 строк, то на первой странице пагинации `{ offset: 0n, limit: 10n }`, на второй `{ offset: 10n, limit: 10n }`;
+- `count` принимает булево значение, указывающее следует ли возвращать в ответе общее количество записей в `total`. Если отправить `false`, то `total` придет со значением `[]`, если `true`, то - `[<всего_записей>]`;
+- `sort` позволяет указать поле для сортировки и направление сортировки в формате `[string, SortDirection]`, где первый элемент кортежа это поле, по которому следует отсортировать результат, а второе [`SortDirection`](../apps/backend/src/declarations/rabbithole-backend/rabbithole-backend.did.d.ts) - по убыванию `{ Descending : null }` или по возрастанию `{ Ascending : null }`. По умолчанию пустой массив `[]`, для получения списка профилей от новых к старым - `[["createdAt", { Descending : null }]]`;
+- `filter` позволяет отфильтровать по полям, по умолчанию каждое значение приравнено null, то есть при отправке в канистру значением служит пустой массив `[]`:
+```typescript
+filter: {
+  id : [],
+  username: [],
+  displayName: [],
+  inviter: [],
+  createdAt: [],
+  avatarUrl: [],
+}
+```
+- `filter.id` принимает массив `Principal` и ищет ЛЮБОЙ ИЗ (any of) переданных `Principal`. Пример, `id: [[Principal.fromText("avntc-ztu3d-ybakm-lh4g6-2mrwf-7nbr2-ooi5q-t2cxc-dsg5u-lzn4f-jae")]]`
+- `filter.username` примимает ТОЧНОЕ (строгое соответствие, equal) значение `username`. Если в БД есть пользователь с `username` alice, то `username: ["alice"]` найдет профиль пользователя
+- `filter.displayName` примимает ТОЧНОЕ (строгое соответствие, equal) значение `displayName`. Если в БД есть пользователь с `displayName` Alice, то `displayName: [["Alice"]]` найдет профиль пользователя
+- `filter.inviter` принимает массив `Principal` и ищет ЛЮБОЙ ИЗ (any of) переданных `Principal`. Пример, `inviter: [[Principal.fromText("avntc-ztu3d-ybakm-lh4g6-2mrwf-7nbr2-ooi5q-t2cxc-dsg5u-lzn4f-jae")]]`
+- `filter.createdAt` принимает период дат в наносекундах, когда был зарегистрирован профиль. `min` и `max` являются опциональными (nullable), если указан только `min`, то будет произведена фильтрация от указанной даты. Если указан только `max`, то будет произведена фильтрация до указанной даты. Если указаны и `min` и `max`, то будет произведена фильтрация с учетом указанного периода. Отсутствие обоих полей равносильно отсутствию фильтра `filter.createdAt`. Для конвертации даты в bigint следует используют утилитную функцию `toBigIntNanoSeconds` из `@dfinity/utils`, для работы с датами библиотеку `date-fns`:
+
+```typescript
+import { toBigIntNanoSeconds } from "@dfinity/utils";
+import { startOfMonth, endOfMonth, endOfYesterday, subDays } from "date-fns";
+
+filter: {
+  id : [],
+  username: [],
+  displayName: [],
+  inviter: [],
+  
+  // за последние 10 дней
+  createdAt: [{ min: [toBigIntNanoSeconds(subDays(new Date(), 10))], max: [] }],
+  
+  // до конца вчерашнего дня
+  // createdAt: [{ min: [], max: [toBigIntNanoSeconds(endOfYesterday())] }],
+
+  // все профили, зарегистрированные в текущем месяце
+  // createdAt: [{ min: [toBigIntNanoSeconds(startOfMonth(new Date()))], max: [toBigIntNanoSeconds(endOfMonth(new Date()))] }],
+  
+  avatarUrl: [],
+}
+```
+
+- `filter.avatarUrl` принимает булево значение, если `avatarUrl: [true]`, то вернет профили, у которых есть аватар, если же `avatarUrl: [false]`, то вернет профили, у которых аватар не установлен.
+
+возвращаемый объект типа `GetProfilesResponse` содержит следующие поля:
+- `total` общее количество найденных записей, в случае если в запросе был задан `count: true`. На клиенской стороне может служить для вычисления количества страниц для пагинации;
+- `data` содержит массив найденных профилей
+- `instructions` количество инструкций, потраченных на поиск по запросу, служит как отладочная информация, на фронтенде не используется
