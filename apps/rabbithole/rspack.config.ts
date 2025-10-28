@@ -78,7 +78,7 @@ export default createConfig(
           {
             type: 'initial',
             maximumWarning: '500kb',
-            maximumError: '1.5mb',
+            maximumError: '2mb',
           },
           {
             type: 'anyComponentStyle',

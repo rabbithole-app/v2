@@ -10,6 +10,11 @@ export const appRoutes: Route[] = [
     canActivate: [dashboardGuard],
     children: [
       {
+        path: 'users',
+        loadComponent: () =>
+          import('./pages/users/users.component').then((m) => m.UsersComponent),
+      },
+      {
         path: 'permissions',
         loadComponent: () =>
           import('./pages/permissions/permissions.component').then(

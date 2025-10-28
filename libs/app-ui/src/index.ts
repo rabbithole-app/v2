@@ -53,3 +53,4 @@ export * from './lib/toaster';
 export * from './lib/tooltip';
 export * from './lib/tree';
 export * from './lib/upload-item';
+export * from './lib/users-table';

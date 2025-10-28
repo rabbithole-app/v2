@@ -11,7 +11,8 @@
     "rabbithole-frontend": {
       "dependencies": ["rabbithole-backend"],
       "source": ["./dist"],
-      "type": "assets"
+      "type": "assets",
+      "build": ""
     },
     "encrypted-storage": {
       "declarations": {
