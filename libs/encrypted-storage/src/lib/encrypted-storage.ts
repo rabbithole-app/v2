@@ -1,5 +1,6 @@
 import { Actor, ActorSubclass } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
+import { arrayBufferToUint8Array } from '@dfinity/utils';
 import {
   DerivedKeyMaterial,
   DerivedPublicKey,
@@ -167,6 +168,18 @@ export class EncryptedStorage {
     return await this.#actor.revokePermission({
       entry: entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
       user: typeof user === 'string' ? Principal.fromText(user) : user,
+    });
+  }
+
+  async saveThumbnail(entry: Entry, blob: Blob) {
+    const buffer = await blob.arrayBuffer();
+    const content = arrayBufferToUint8Array(buffer);
+    return await this.#actor.saveThumbnail({
+      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
+      thumbnail: {
+        content,
+        contentType: blob.type ?? 'image/jpeg',
+      },
     });
   }
 
