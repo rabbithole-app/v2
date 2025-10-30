@@ -5,7 +5,7 @@ import {
   input,
 } from '@angular/core';
 
-import { UploadService } from './upload.service';
+import { UploadService } from '../../core/services';
 import { FileUploadWithStatus, UploadFile } from '@rabbithole/core';
 import { RbthUploadItemComponent } from '@rabbithole/ui';
 

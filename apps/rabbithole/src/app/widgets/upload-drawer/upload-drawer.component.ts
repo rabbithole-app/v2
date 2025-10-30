@@ -21,8 +21,8 @@ import {
   ENCRYPTED_STORAGE_TOKEN,
   provideCoreWorker,
 } from '../../core/injectors';
+import { UploadService } from '../../core/services';
 import { UploadDrawerListComponent } from './upload-drawer-list.component';
-import { UploadService } from './upload.service';
 import { BrowserFSPicker, UploadState } from '@rabbithole/core';
 import {
   FileUploadService,

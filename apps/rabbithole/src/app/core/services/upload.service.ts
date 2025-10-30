@@ -11,12 +11,13 @@ import { type } from 'arktype';
 import { isDeepEqual, isNonNullish } from 'remeda';
 import { match, P } from 'ts-pattern';
 
-import { injectCoreWorker, injectEncryptedStorage } from '../../core/injectors';
+import { injectCoreWorker, injectEncryptedStorage } from '../injectors';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   FileUploadWithStatus,
   messageByAction,
   UploadAsset,
+  UploadFile,
   UploadId,
   UploadState,
   UploadStatus,
@@ -101,7 +102,7 @@ export class UploadService {
       }),
     }));
     const arrayBuffer = await item.file.arrayBuffer();
-    const config = match(item.file)
+    let config = match(item.file)
       .returnType<UploadAsset['config']>()
       .with(
         {
@@ -118,6 +119,15 @@ export class UploadService {
         ({ name }) => ({ fileName: name, contentEncoding: 'br' }),
       )
       .otherwise(({ name }) => ({ fileName: name }));
+
+    // Add isAliased: true if file name is index.html
+    if (item.file.name === 'index.html') {
+      config = {
+        ...config,
+        isAliased: true,
+      };
+    }
+
     const payload: UploadAsset = {
       id,
       bytes: arrayBuffer,
@@ -144,12 +154,12 @@ export class UploadService {
       }),
     }));
     const arrayBuffer = await item.file.arrayBuffer();
-    const payload: UploadAsset = {
+    const payload: UploadFile = {
       id,
       bytes: arrayBuffer,
       config: {
         fileName: item.file.name,
-        contentType: item.file.type,
+        contentType: item.file.type
       },
     };
     if (item.path) {
