@@ -45,7 +45,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
 
   public shared ({ caller }) func create(args : T.CreateArguments) : async T.NodeDetails {
     switch (EncryptedStorage.create(storage, caller, args)) {
-      case (#ok value) value;
+      case (#ok node) node;
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -139,6 +139,13 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   public query ({ caller }) func fsTree() : async [T.TreeNode] {
     switch (EncryptedStorage.fsTree(storage, caller)) {
       case (#ok tree) tree;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func setThumbnail(args : T.SetThumbnailArguments) : async T.NodeDetails {
+    switch (EncryptedStorage.setThumbnail(storage, caller, args)) {
+      case (#ok node) node;
       case (#err message) throw Error.reject(message);
     };
   };

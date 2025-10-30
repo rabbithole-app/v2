@@ -110,6 +110,16 @@ module EncryptedFileStorage {
   //   #ok;
   // };
 
+  public func get(self : T.StableStore, caller : Principal, args : T.GetArguments) : Result.Result<T.NodeDetails, Text> {
+    switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
+      case (#ok _) {
+        let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+        #ok(Node.getDetails(node));
+      };
+      case (#err message) #err message;
+    };
+  };
+
   public func getChunk(self : T.StableStore, caller : Principal, args : T.GetChunkArguments) : Result.Result<T.ChunkContent, Text> {
     switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
       case (#ok _) {};
@@ -536,5 +546,14 @@ module EncryptedFileStorage {
         #ok(await ManagementCanister.vetKdDeriveKey(Blob.fromArray(input), self.domainSeparatorBytes, self.vetKdKeyId, transportKey));
       };
     };
+  };
+
+  public func setThumbnail(self : T.StableStore, caller : T.Caller, args : T.SetThumbnailArguments) : Result.Result<T.NodeDetails, Text> {
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+      case (#err message) return #err message;
+      case (#ok _) {};
+    };
+
+    FileSystem.setThumbnail(self.fs, args) |> Result.mapOk(_, Node.getDetails);
   };
 };

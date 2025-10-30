@@ -336,4 +336,15 @@ module FileSystem {
     };
     output;
   };
+
+  public func setThumbnail(self : Store, args : T.SetThumbnailArguments) : Result.Result<T.NodeStore, Text> {
+    let ?node = findNodeByEntry(self, ?args.entry) else return #err(ErrorMessages.entryNotFound(args.entry));
+    switch (node.metadata) {
+      case (#File(file)) {
+        file.thumbnailKey := args.thumbnailKey;
+        #ok node;
+      };
+      case (#Directory(_)) #err(ErrorMessages.badArgs());
+    };
+  };
 };

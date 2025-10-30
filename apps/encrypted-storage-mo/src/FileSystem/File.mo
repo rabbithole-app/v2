@@ -17,6 +17,7 @@ module File {
     var contentType = "";
     var size = 0;
     var locked = true;
+    var thumbnailKey = null;
   };
 
   /// Deallocates the file content
@@ -80,6 +81,7 @@ module File {
     newFile.size := self.size;
     newFile.contentType := self.contentType;
     newFile.locked := self.locked;
+    newFile.thumbnailKey := self.thumbnailKey;
 
     newFile;
   };

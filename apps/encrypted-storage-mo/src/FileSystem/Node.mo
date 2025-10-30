@@ -47,6 +47,7 @@ module Node {
         sha256 = metadata.sha256;
         contentType = metadata.contentType;
         size = metadata.size;
+        thumbnailKey = metadata.thumbnailKey;
       };
       case (#Directory metadata) #Directory { color = metadata.color };
     };

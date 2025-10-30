@@ -98,6 +98,7 @@ module {
     sha256 : ?Blob;
     contentType : Text;
     size : Nat;
+    thumbnailKey : ?Text;
   };
 
   type NodeBase = {
@@ -120,6 +121,8 @@ module {
     var size : Nat;
     var contentType : Text;
     var locked : Bool;
+    // key in the asset canister
+    var thumbnailKey : ?Text;
   };
 
   public type NodeMetadataStore = {
@@ -144,6 +147,11 @@ module {
       #File : FileMetadata;
       #Directory : DirectoryMetadata;
     };
+  };
+
+  public type SetThumbnailArguments = {
+    entry : Entry;
+    thumbnailKey : ?Text;
   };
 
   /* -------------------------------- Directory ------------------------------- */
@@ -204,6 +212,10 @@ module {
   };
 
   public type Entry = ({ #File; #Directory }, Text);
+
+  public type GetArguments = {
+    entry : Entry;
+  };
 
   public type CreateArguments = {
     entry : Entry;
