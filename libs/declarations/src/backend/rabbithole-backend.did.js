@@ -83,14 +83,10 @@ export const idlFactory = ({ IDL }) => {
     'data' : IDL.Vec(Profile),
     'instructions' : IDL.Nat,
   });
-  const Key = IDL.Text;
-  const StoreArgs = IDL.Record({
-    'key' : Key,
+  const CreateProfileAvatarArgs = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
-    'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'content_type' : IDL.Text,
-    'is_aliased' : IDL.Opt(IDL.Bool),
-    'content_encoding' : IDL.Text,
+    'contentType' : IDL.Text,
+    'filename' : IDL.Text,
   });
   const UpdateProfileArgs = IDL.Record({
     'displayName' : IDL.Opt(IDL.Text),
@@ -111,7 +107,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
-    'saveAvatar' : IDL.Func([StoreArgs], [], []),
+    'removeAvatar' : IDL.Func([IDL.Text], [], []),
+    'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'whoami' : IDL.Func([], [IDL.Text], ['query']),

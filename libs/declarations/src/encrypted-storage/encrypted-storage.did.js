@@ -64,6 +64,7 @@ export const idlFactory = ({ IDL }) => {
   const Time = IDL.Int;
   const FileMetadata = IDL.Record({
     'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'thumbnailKey' : IDL.Opt(IDL.Text),
     'contentType' : IDL.Text,
     'size' : IDL.Nat,
   });
@@ -210,6 +211,13 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Principal,
     'entry' : IDL.Opt(Entry),
   });
+  const SaveThumbnailArguments = IDL.Record({
+    'thumbnail' : IDL.Record({
+      'content' : IDL.Vec(IDL.Nat8),
+      'contentType' : IDL.Text,
+    }),
+    'entry' : Entry,
+  });
   const StoreArgs = IDL.Record({
     'key' : Key,
     'content' : IDL.Vec(IDL.Nat8),
@@ -297,6 +305,7 @@ export const idlFactory = ({ IDL }) => {
     'move' : IDL.Func([MoveArguments], [], []),
     'proposeCommitAssetBatch' : IDL.Func([CommitBatchArguments], [], []),
     'revokePermission' : IDL.Func([RevokePermissionArguments], [], []),
+    'saveThumbnail' : IDL.Func([SaveThumbnailArguments], [NodeDetails], []),
     'setAssetContent' : IDL.Func([SetAssetContentArguments], [], []),
     'setAssetProperties' : IDL.Func([SetAssetPropertiesArguments], [], []),
     'showTree' : IDL.Func([IDL.Opt(Entry)], [IDL.Text], ['query']),

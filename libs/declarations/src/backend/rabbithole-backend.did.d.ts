@@ -12,13 +12,17 @@ export interface CreateProfileArgs {
   'inviter' : [] | [Principal],
   'avatarUrl' : [] | [string],
 }
+export interface CreateProfileAvatarArgs {
+  'content' : Uint8Array | number[],
+  'contentType' : string,
+  'filename' : string,
+}
 export interface GetProfilesResponse {
   'total' : [] | [bigint],
   'data' : Array<Profile>,
   'instructions' : bigint,
 }
 export type Header = [string, string];
-export type Key = string;
 export interface ListOptions {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
   'count' : boolean,
@@ -51,7 +55,8 @@ export interface Rabbithole {
     RawUpdateHttpResponse
   >,
   'listProfiles' : ActorMethod<[ListOptions], GetProfilesResponse>,
-  'saveAvatar' : ActorMethod<[StoreArgs], undefined>,
+  'removeAvatar' : ActorMethod<[string], undefined>,
+  'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
   'usernameExists' : ActorMethod<[string], boolean>,
   'whoami' : ActorMethod<[], string>,
@@ -84,14 +89,6 @@ export interface RawUpdateHttpResponse {
 }
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
-export interface StoreArgs {
-  'key' : Key,
-  'content' : Uint8Array | number[],
-  'sha256' : [] | [Uint8Array | number[]],
-  'content_type' : string,
-  'is_aliased' : [] | [boolean],
-  'content_encoding' : string,
-}
 export type StreamingCallback = ActorMethod<
   [StreamingToken],
   StreamingCallbackResponse

@@ -125,6 +125,7 @@ export interface EncryptedStorageCanister {
   'move' : ActorMethod<[MoveArguments], undefined>,
   'proposeCommitAssetBatch' : ActorMethod<[CommitBatchArguments], undefined>,
   'revokePermission' : ActorMethod<[RevokePermissionArguments], undefined>,
+  'saveThumbnail' : ActorMethod<[SaveThumbnailArguments], NodeDetails>,
   'setAssetContent' : ActorMethod<[SetAssetContentArguments], undefined>,
   'setAssetProperties' : ActorMethod<[SetAssetPropertiesArguments], undefined>,
   'showTree' : ActorMethod<[[] | [Entry]], string>,
@@ -135,6 +136,7 @@ export interface EncryptedStorageCanister {
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
   'sha256' : [] | [Uint8Array | number[]],
+  'thumbnailKey' : [] | [string],
   'contentType' : string,
   'size' : bigint,
 }
@@ -209,6 +211,10 @@ export interface RawUpdateHttpResponse {
 export interface RevokePermissionArguments {
   'user' : Principal,
   'entry' : [] | [Entry],
+}
+export interface SaveThumbnailArguments {
+  'thumbnail' : { 'content' : Uint8Array | number[], 'contentType' : string },
+  'entry' : Entry,
 }
 export interface SetAssetContentArguments {
   'key' : Key,
