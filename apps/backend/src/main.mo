@@ -10,6 +10,7 @@ import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
 import { basename } "mo:encrypted-storage/Path";
+import Sha256 "mo:sha2/Sha256";
 import Profiles "Profiles";
 
 shared ({ caller = installer }) persistent actor class Rabbithole() = self {
@@ -52,9 +53,24 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
     await* app.http_request_update(request);
   };
 
-  public shared ({ caller }) func saveAvatar(args : HttpAssets.StoreArgs) : async () {
-    let avatarKey = "/" # Text.join("/", Iter.fromArray(["static", Principal.toText(caller), basename(args.key)]));
-    assetCanister.store(canisterId, { args with key = avatarKey });
+  public shared ({ caller }) func saveAvatar({ filename; content; contentType } : Profiles.CreateProfileAvatarArgs) : async Text {
+    assert not Principal.isAnonymous(caller);
+    let args : HttpAssets.StoreArgs = {
+      key = "/" # Text.join("/", Iter.fromArray(["static", Principal.toText(caller), filename]));
+      content;
+      sha256 = ?Sha256.fromBlob(#sha256, content);
+      content_type = contentType;
+      content_encoding = "identity";
+      is_aliased = null;
+    };
+    assetCanister.store(canisterId, args);
+    args.key;
+  };
+
+  public shared ({ caller }) func removeAvatar(filename : Text) : async () {
+    assert not Principal.isAnonymous(caller);
+    let key = "/" # Text.join("/", Iter.fromArray(["static", Principal.toText(caller), filename]));
+    assetCanister.delete_asset(canisterId, { key });
   };
 
   public query ({ caller }) func whoami() : async Text {

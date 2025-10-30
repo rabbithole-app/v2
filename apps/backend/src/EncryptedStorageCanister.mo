@@ -1,5 +1,7 @@
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
+import Text "mo:core/Text";
+import Iter "mo:core/Iter";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
@@ -8,10 +10,12 @@ import CORSMiddleware "mo:liminal/Middleware/CORS";
 import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
+import Sha256 "mo:sha2/Sha256";
 
 import EncryptedStorage "mo:encrypted-storage";
 import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
 import T "mo:encrypted-storage/Types";
+import Types "Types";
 
 shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = this {
   let keyId : ManagementCanister.VetKdKeyid = {
@@ -307,5 +311,36 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
 
   public shared func certifiedTree(args : {}) : async (HttpAssets.CertifiedTree) {
     assetCanister.certified_tree(args);
+  };
+
+  public shared ({ caller }) func saveThumbnail(args : Types.SaveThumbnailArguments) : async T.NodeDetails {
+    assert not Principal.isAnonymous(caller);
+    switch (EncryptedStorage.get(storage, caller, { entry = args.entry })) {
+      case (#ok node) {
+        let (#File(_)) = node.metadata else throw Error.reject("Directory does not support thumbnails");
+        let filename = switch (Text.decodeUtf8(node.keyId.1)) {
+          case (?key) key;
+          case null node.name;
+        };
+        let storeArgs : HttpAssets.StoreArgs = {
+          key = "/" # Text.join("/", Iter.fromArray(["static", "thumbnails", Principal.toText(node.keyId.0), filename]));
+          content = args.thumbnail.content;
+          sha256 = ?Sha256.fromBlob(#sha256, args.thumbnail.content);
+          content_type = args.thumbnail.contentType;
+          content_encoding = "identity";
+          is_aliased = null;
+        };
+        assetCanister.store(canisterId, storeArgs);
+        let setThumbnailArgs : T.SetThumbnailArguments = {
+          entry = args.entry;
+          thumbnailKey = ?storeArgs.key;
+        };
+        switch (EncryptedStorage.setThumbnail(storage, caller, setThumbnailArgs)) {
+          case (#ok node) node;
+          case (#err message) throw Error.reject(message);
+        };
+      };
+      case (#err message) throw Error.reject(message);
+    };
   };
 };

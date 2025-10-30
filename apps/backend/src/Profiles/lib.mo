@@ -62,6 +62,12 @@ module {
     inviter : ?Principal;
   };
 
+  public type CreateProfileAvatarArgs = {
+    filename : Text;
+    content : Blob;
+    contentType : Text;
+  };
+
   public type UpdateProfileArgs = {
     avatarUrl : ?Text;
     displayName : ?Text;
