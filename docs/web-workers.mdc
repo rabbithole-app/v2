@@ -1,0 +1,50 @@
+---
+alwaysApply: false
+---
+
+## Работа с web-workers
+
+Так как в приложении возможна фоновая загрузка файлов, а интерфейс при этом должен быть отзывчив, в качестве оптимизации функционал по загрузке файлов и ассетов вынесен в веб-воркер. В данный момент в приложении используется один основной веб-воркер [`core.worker.ts`](../libs/core/src/lib/workers/core.worker.ts).
+
+Используемые библиотеки:
+- скоуп `@dfinity/*` - работа с Internet Computer
+- `remeda` - вспомогательные утилиты
+- `rxjs` - работа с асинхронными данными в потоке
+- `arktype` - runtime-валидация входящих событий
+
+Типизация входящих и исходящих событий web-worker'ов определена в файле [`worker.ts`](../libs/core/src/lib/types/worker.ts). `WorkerMessageIn` и `WorkerMessageOut` определяет общие для всех веб-воркеров события, а `CoreWorkerMessageIn` и `CoreWorkerMessageOut` расширяют список событий для [`core.worker.ts`](../libs/core/src/lib/workers/core.worker.ts).
+
+Для работы с [`core.worker.ts`](../libs/core/src/lib/workers/core.worker.ts) из angular есть сервис [`CoreService`](../libs/core/src/lib/services/core.service.ts) и обертка над `CoreService` с [`injectCoreWorker`](../apps/rabbithole/src/app/core/injectors/core-worker.ts), в которой производится базовая инициализация и разрушение воркера при аутентификации и разлогине пользователя. В `@rabbilhole/core` реализован rxjs-оператор [`messageByAction`](../libs/core/src/lib/operators/message-by-action.ts), который принимает в качестве аргумента принимает событие веб-воркера, которое необходимо фильтровать в потоке событий.
+
+Пример использования `core.worker` в контексте `angular`:
+
+```typescript
+import { Component } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+
+import { injectCoreWorker } from "../../core/injectors";
+import { messageByAction } from "@rabbithole/core";
+
+@Component({
+  selector: 'app-example-worker',
+  templateUrl: `
+    <div>
+      <h1>Example Worker</h1>
+      <button (click)="ping()">Ping</button>
+    </div>
+  `,
+})
+export class ExampleWorkerComponent {
+  #coreWorkerService = injectCoreWorker();
+
+  constructor() {
+    this.#coreWorkerService.workerMessage$
+      .pipe(messageByAction('worker:pong'), takeUntilDestroyed())
+      .subscribe(() => console.log('pong'));
+  }
+
+  ping() {
+    this.#coreWorkerService.postMessage({ action: 'worker:ping' });
+  }
+}
+```

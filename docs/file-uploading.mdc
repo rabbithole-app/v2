@@ -1,0 +1,13 @@
+---
+alwaysApply: false
+---
+
+## Загрузка файлов
+
+Пользовательская канистра поддерживает загрузку общедоступных файлов (ассетов), которые доступны каждому по url. Для обслуживания на стороне бекенда используется библиотека [`http-assets`](https://mops.one/http-assets). В канистру можно установить фронтенд и иметь доступ к своей канистре без необходимости использовать внешний фронтенд основного приложения.
+
+Для загрузки ассетов используется класс [`AssetManager`](../libs/encrypted-storage/src/lib/asset-manager.ts), импортируемый из `@rabbithole/encrypted-storage`.
+
+Для загрузки файлов с шифрованием на стороне клиента используется класс [`EncryptedStorage`](../libs/encrypted-storage/src/lib/encrypted-storage.ts), также импортируемый из `@rabbithole/encrypted-storage`.
+
+Для загрузки файлов и ассетов через [`web-worker`](web-workers.mdc) реализован сервис [`UploadService`](../apps/rabbithole/src/app/core/services/upload.service.ts). При этом вызов методов методов сервиса `addFile`/`addAsset` будет дополнять payload необходимыми данными, отправлять сообщение в воркер, слушать события из воркера.

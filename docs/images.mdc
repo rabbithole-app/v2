@@ -1,0 +1,88 @@
+---
+alwaysApply: false
+---
+
+## Работа с изображениями
+
+Работа с изображениями это большая нагрузка на основной поток браузера, потому необходимо все операции с изображениями производить в веб-воркере.
+
+Большинство библиотек для обработки изображений не способны быстро обрабатывать большие файлы и это может стать проблемой при генерации тумб. Библиотека [`@silvia-odwyer/photon`](https://github.com/silvia-odwyer/photon) написана на Rust и имеет высокую производительность, код скомпилирован в WASM-модуль, размер wasm-файла относительно небольшой (1.88mb против 14.4mb у [`@imagemagick/magick-wasm`](https://github.com/dlemstra/magick-wasm)).
+
+Константы для тумбы и аватара пользователя:
+```typescript
+export const MAX_THUMBNAIL_WIDTH = 512;
+export const MAX_THUMBNAIL_HEIGHT = 512;
+export const MAX_AVATAR_WIDTH = 512;
+export const MAX_AVATAR_HEIGHT = 512;
+```
+
+Типы:
+```typescript
+export type CropperPosition {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+}
+export type Dimensions {
+    width: number;
+    height: number;
+}
+```
+
+Входящие события для [`core.worker.ts`](../libs/core/src/lib/workers/core.worker.ts):
+```typescript
+{
+  action: 'image:crop';
+  payload: {
+    id: string;
+    image: File;
+    cropper: {
+      maxSize: Dimensions;
+      position: CropperPosition;
+    };
+    offscreenCanvas: OffscreenCanvas;
+  }
+}
+```
+
+`offscreenCanvas` отправляется в воркер в аргумента `transfer`:
+
+```typescript
+postMessage({ action: 'image:crop', payload }, [payload.offscreenCanvas]);
+```
+
+В воркере при получении события `upload:add-file` если файл является изображением, то:
+- создается тумба изображения
+- вызывается событие `upload:thumnbail`
+```typescript
+{
+  action: 'upload:thumnbail';
+  payload: {
+    id: string;
+    blob: Blob;
+  }
+}
+```
+- вызывается метод `saveThumbnail` у экземпляра [`EncryptedStorage`](../libs/encrypted-storage/src/lib/encrypted-storage.ts):
+
+```typescript
+const nodeDetails = await encryptedStorage.saveThumbnail(['File', 'путь_к_файлу'], blob);
+```
+
+Исходящие события:
+```typescript
+{
+  action: 'image:crop-done';
+  payload: {
+    id: string;
+    blob: Blob;
+  }
+} | {
+  action: 'image:crop-failed';
+  payload: {
+    id: string;
+    errorMessage: string;
+  }
+}
+```
