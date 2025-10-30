@@ -93,6 +93,10 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
         workerConfig.next(config);
       }
       break;
+    } 
+    case 'worker:ping': {
+      postMessage({ action: 'worker:pong' });
+      break;
     }
     default:
       break;

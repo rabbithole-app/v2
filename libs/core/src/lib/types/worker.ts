@@ -137,10 +137,12 @@ export type UploadStatus = {
 
 export type WorkerActionsIn = {
   'worker:config': { payload?: any };
+  'worker:ping': unknown;
 };
 
 export type WorkerActionsOut = {
   'worker:init': unknown;
+  'worker:pong': unknown;  
   'worker:signOut': unknown;
 };
 export type WorkerConfig = typeof workerConfigSchema.infer;
