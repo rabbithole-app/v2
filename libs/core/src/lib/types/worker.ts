@@ -37,8 +37,11 @@ export const uploadAssetSchema = uploadSchema.and(
   }),
 );
 
-// TODO: extend schema if needed
-export const uploadFileSchema = uploadSchema;
+export const uploadFileSchema = uploadSchema.and(
+  type({
+    'offscreenCanvas?': 'object',
+  })
+);
 
 export const fileIdSchema = uploadFileSchema.pick('id');
 
@@ -71,6 +74,7 @@ export const workerConfigSchema = type({
 export type CoreWorkerActionsIn = Prettify<
   {
     'fs:load-list': unknown;
+    'image:crop': { payload: ImageCropPayload };
     'upload:add-asset': { payload: UploadAsset };
     'upload:add-file': { payload: UploadFile };
     'upload:cancel': { payload: Pick<UploadFile, 'id'> };
@@ -79,11 +83,15 @@ export type CoreWorkerActionsIn = Prettify<
     'worker:config': { payload: WorkerConfigIn };
   } & WorkerActionsIn
 >;
+
 export type CoreWorkerActionsOut = Prettify<
   {
     'fs:list': { payload: unknown };
+    'image:crop-done': { payload: { blob: Blob; id: string; } };
+    'image:crop-failed': { payload: { errorMessage: string; id: string; } };
     'upload:progress-asset': { payload: UploadStatus };
     'upload:progress-file': { payload: UploadStatus };
+    'upload:thumbnail': { payload: { id: string; thumbnailKey?: string; } };
   } & WorkerActionsOut
 >;
 
@@ -110,6 +118,30 @@ export type ExtractPayloadByAction<T, A> = T extends {
   ? P
   : never;
 
+export const imageCropSchema = type({
+  id: uploadIdSchema,
+  cropper: {
+    maxSize: {
+      width: 'number',
+      height: 'number',
+    },
+    position: {
+      x1: 'number',
+      y1: 'number',
+      x2: 'number',
+      y2: 'number',
+    },
+  },
+  image: 'File',
+  /**
+   * OffscreenCanvas does not have a built-in arktype type. Use 'object' for validation,
+   * and specify OffscreenCanvas in the TypeScript type for better type safety.
+   */
+  offscreenCanvas: 'object',
+});
+
+export type ImageCropPayload = { offscreenCanvas: OffscreenCanvas } & Omit<typeof imageCropSchema.infer, 'offscreenCanvas'>;
+
 export type Message<T extends Record<string, any>> = Prettify<
   {
     [K in keyof T]: { action: K } & T[K];
@@ -118,7 +150,7 @@ export type Message<T extends Record<string, any>> = Prettify<
 
 export type UploadAsset = typeof uploadAssetSchema.infer;
 
-export type UploadFile = typeof uploadFileSchema.infer;
+export type UploadFile = { offscreenCanvas?: OffscreenCanvas } & Omit<typeof uploadFileSchema.infer, 'offscreenCanvas'>;
 
 export type UploadId = typeof uploadIdSchema.infer;
 
@@ -145,6 +177,7 @@ export type WorkerActionsOut = {
   'worker:pong': unknown;  
   'worker:signOut': unknown;
 };
+
 export type WorkerConfig = typeof workerConfigSchema.infer;
 
 export type WorkerConfigIn = typeof workerConfigSchema.inferIn;
