@@ -1,0 +1,22 @@
+---
+alwaysApply: false
+---
+
+Angular-компонент, который является контролом и может использоваться как элемент формы. Вместо имплементации интерфейса `ControlValueAccessor` рекомендуется имплементировать `FormValueControl` (импортируется из `@angular/forms/signals`) с генерик-типом `string | null`.
+
+Шаблон представляет из себя компонент [`hlm-avatar`](../libs/ui/ui-avatar-helm/) (импортируется из `@spartan-ng/helm/avatar`), размер 140, в директиве `hlmAvatarFallback` задается [placeholder-изображение](../apps/rabbithole/public/avatar-placeholder.svg) из проекта. В директиве `hlmAvatarImage` размещен выбранный пользователем аватар (значение контрола это путь до аватарки).
+
+При наведении на аватар появляется кнопка редактирования: 
+
+```html
+<button hlmBtn size="icon" variant="ghost" class="size-8">
+	<ng-icon hlm size="sm" name="lucidePencil" />
+</button>
+```
+
+Если значение уже установлено (отображается пользовательский аватар, а не fallback), то при наведении также отображается кнопка удаления выбранного значения (аватара):
+```html
+<button hlmBtn size="icon" variant="ghost" class="size-8">
+	<ng-icon hlm size="sm" name="lucideTrash" />
+</button>
+```

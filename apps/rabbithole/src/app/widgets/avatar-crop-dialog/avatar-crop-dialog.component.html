@@ -1,0 +1,22 @@
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>Crop avatar</h2>
+</hlm-dialog-header>
+<image-cropper
+  [imageFile]="image"
+  [options]="imageCropperOptions"
+  (cropperChange)="cropperPosition.set($event)"
+  (imageLoaded)="loadedImage.set($event)"
+  (cropperReady)="displaySize.set($event)"
+  class="max-w-none"
+/>
+<hlm-dialog-footer class="mt-6 flex justify-end gap-3">
+  <button hlmBtn variant="outline" (click)="close()">Cancel</button>
+  @if (loading()) {
+    <button hlmBtn variant="outline" disabled>
+			<hlm-spinner class="size-4 mr-0.5" />
+			Saving...
+		</button>
+  } @else {
+    <button hlmBtn (click)="save()">Save</button>
+  }
+</hlm-dialog-footer>

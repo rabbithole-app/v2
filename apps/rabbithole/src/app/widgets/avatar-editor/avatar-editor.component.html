@@ -1,0 +1,83 @@
+<div
+  class="group relative"
+  (mouseenter)="onMouseEnter()"
+  (mouseleave)="onMouseLeave()"
+>
+  <hlm-avatar
+    class="size-[140px] transition-all duration-500 ease-in-out group-hover:grayscale"
+  >
+    <img
+      hlmAvatarImage
+      [src]="avatarSrc()"
+      alt="Avatar"
+      class="transition-all duration-500 ease-in-out"
+    />
+    <img
+      hlmAvatarFallback
+      src="/avatar-placeholder.svg"
+      alt="Avatar placeholder"
+      class="transition-all duration-500 ease-in-out"
+    />
+  </hlm-avatar>
+
+  <!-- Dimming overlay layer -->
+  <div
+    class="absolute inset-0 rounded-full bg-black/50 transition-opacity duration-300 ease-in-out"
+    [class.opacity-0]="!showControls()"
+    [class.opacity-100]="showControls()"
+    [class.pointer-events-none]="!showControls()"
+  ></div>
+
+  <!-- Layer for action buttons -->
+  <div
+    class="absolute inset-0 flex items-center justify-center gap-2 transition-opacity duration-300"
+    [class.opacity-0]="!showControls()"
+    [class.opacity-100]="showControls()"
+    [class.pointer-events-none]="!showControls()"
+    [class.pointer-events-auto]="showControls()"
+  >
+    <button
+      hlmBtn
+      size="icon"
+      variant="secondary"
+      class="size-8"
+      [rbthTooltipTrigger]="'Edit'"
+      [style.animation]="
+        showControls() ? 'bounce-in 0.6s ease-out 0.1s both' : 'none'
+      "
+      (click)="handleEdit()"
+    >
+      <ng-icon hlm size="sm" name="lucidePencil" />
+    </button>
+
+    <!-- Show delete button only if an avatar value exists -->
+    @if (hasValue()) {
+      @if (deleting()) {
+        <button
+          hlmBtn
+          size="icon"
+          variant="secondary"
+          class="size-8 disabled:opacity-100"
+          disabled
+        >
+          <hlm-spinner class="size-4" />
+          <span class="sr-only">Deleting...</span>
+        </button>
+      } @else {
+        <button
+          hlmBtn
+          size="icon"
+          variant="secondary"
+          class="size-8 text-destructive hover:text-destructive"
+          [rbthTooltipTrigger]="'Delete'"
+          [style.animation]="
+            showControls() ? 'bounce-in 0.6s ease-out 0.2s both' : 'none'
+          "
+          (click)="handleDelete()"
+        >
+          <ng-icon hlm size="sm" name="lucideTrash" />
+        </button>
+      }
+    }
+  </div>
+</div>
