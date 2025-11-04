@@ -209,6 +209,7 @@ module {
     domainSeparator : Text;
     region : MemoryRegion.MemoryRegion;
     rootPermissions : [(Principal, Permission)];
+    certs : ?CertifiedAssets.StableStore;
   };
 
   public type Entry = ({ #File; #Directory }, Text);

@@ -20,6 +20,16 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     domainSeparator = "file_storage_dapp";
     region = MemoryRegion.new();
     rootPermissions = [(owner, #ReadWriteManage), (canisterId, #ReadWriteManage)];
+    // If you are going to use HttpAssets, initialize it before EncryptedStorage,
+    // and use httpAssetsState.fs.certs as the value for certs:
+    // ```motoko
+    // var assetStableData = HttpAssets.init_stable_store(canisterId, owner);
+    // assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
+    // let httpAssetsState = HttpAssets.from_version(assetStableData);
+    // certs = ?httpAssetsState.fs.certs;
+    // ```
+    // Otherwise, use null.
+    certs = null;
   });
 
   public query ({ caller }) func list(entry : ?T.Entry) : async [T.NodeDetails] {

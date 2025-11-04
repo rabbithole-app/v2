@@ -9,7 +9,6 @@ import CORSMiddleware "mo:liminal/Middleware/CORS";
 import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
-import { basename } "mo:encrypted-storage/Path";
 import Sha256 "mo:sha2/Sha256";
 import Profiles "Profiles";
 
@@ -21,13 +20,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   var assetStableData = HttpAssets.init_stable_store(canisterId, installer);
   assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
 
-  let setPermissions : HttpAssets.SetPermissions = {
-    commit = [installer];
-    manage_permissions = [installer];
-    prepare = [installer];
-  };
-
-  transient var assetStore = HttpAssets.Assets(assetStableData, ?setPermissions);
+  transient var assetStore = HttpAssets.Assets(assetStableData, null);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
 
   // Create the HTTP App with middleware
@@ -53,6 +46,15 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
     await* app.http_request_update(request);
   };
 
+  public query func http_request_streaming_callback(token : HttpAssets.StreamingToken) : async HttpAssets.StreamingCallbackResponse {
+    switch (assetStore.http_request_streaming_callback(token)) {
+      case (#err(e)) throw Error.reject(e);
+      case (#ok(response)) response;
+    };
+  };
+
+  assetStore.set_streaming_callback(http_request_streaming_callback);
+
   public shared ({ caller }) func saveAvatar({ filename; content; contentType } : Profiles.CreateProfileAvatarArgs) : async Text {
     assert not Principal.isAnonymous(caller);
     let args : HttpAssets.StoreArgs = {
@@ -63,7 +65,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
       content_encoding = "identity";
       is_aliased = null;
     };
-    assetCanister.store(canisterId, args);
+    assetCanister.store(installer, args);
     args.key;
   };
 

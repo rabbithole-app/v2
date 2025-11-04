@@ -23,22 +23,26 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     name = "dfx_test_key";
   };
   let canisterId = Principal.fromActor(this);
+
+  // Initialize HttpAssets first to use its certificate store
+  var assetStableData = HttpAssets.init_stable_store(canisterId, owner);
+  assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
+
+  // Extract certificate store from HttpAssets for shared use
+  // Use from_version to get the current state
+  let httpAssetsState = HttpAssets.from_version(assetStableData);
+
+  // Use shared certificate store from HttpAssets for EncryptedStorage
   let storage = EncryptedStorage.new({
     canisterId;
     vetKdKeyId = keyId;
     domainSeparator = "file_storage_dapp";
     region = MemoryRegion.new();
     rootPermissions = [(owner, #ReadWriteManage), (canisterId, #ReadWriteManage)];
+    certs = ?httpAssetsState.fs.certs;
   });
-  var assetStableData = HttpAssets.init_stable_store(canisterId, owner);
-  assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
 
-  let setPermissions : HttpAssets.SetPermissions = {
-    commit = [owner];
-    manage_permissions = [owner];
-    prepare = [owner];
-  };
-  transient var assetStore = HttpAssets.Assets(assetStableData, ?setPermissions);
+  transient var assetStore = HttpAssets.Assets(assetStableData, null);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
 
   // Create the HTTP App with middleware
@@ -330,7 +334,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
           content_encoding = "identity";
           is_aliased = null;
         };
-        assetCanister.store(canisterId, storeArgs);
+        assetCanister.store(owner, storeArgs);
         let setThumbnailArgs : T.SetThumbnailArguments = {
           entry = args.entry;
           thumbnailKey = ?storeArgs.key;

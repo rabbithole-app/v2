@@ -49,20 +49,19 @@ module EncryptedFileStorage {
   ///   rootPermissions = [(owner, #ReadWriteManage), (canisterId, #ReadWriteManage)];
   /// });
   /// ```
-  public func new({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator } : T.EncryptedStorageInitArgs) : T.StableStore {
+  public func new({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs } : T.EncryptedStorageInitArgs) : T.StableStore {
     let fs = FileSystem.new({
       region;
       rootPermissions;
     });
     let upload = Upload.new(region);
-    let certs = CertifiedAssets.init_stable_store();
 
     {
       canisterId;
       region;
       fs;
       upload;
-      certs;
+      certs = Option.get(certs, CertifiedAssets.init_stable_store());
       vetKdKeyId;
       domainSeparatorBytes = Text.encodeUtf8(domainSeparator);
       var streamingCallback = null;
