@@ -19,7 +19,6 @@ import { showDirectoryPicker } from 'native-file-system-adapter';
 import {
   assertEncryptedStorage,
   ENCRYPTED_STORAGE_TOKEN,
-  provideCoreWorker,
 } from '../../core/injectors';
 import { UploadService } from '../../core/services';
 import { UploadDrawerListComponent } from './upload-drawer-list.component';
@@ -61,7 +60,6 @@ import {
       lucideTriangleAlert,
       lucideFolderUp,
     }),
-    provideCoreWorker(),
   ],
   templateUrl: './upload-drawer.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

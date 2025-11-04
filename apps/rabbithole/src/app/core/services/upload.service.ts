@@ -15,6 +15,9 @@ import { injectCoreWorker, injectEncryptedStorage } from '../injectors';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   FileUploadWithStatus,
+  isPhotonSupportedMimeType,
+  MAX_THUMBNAIL_HEIGHT,
+  MAX_THUMBNAIL_WIDTH,
   messageByAction,
   UploadAsset,
   UploadFile,
@@ -145,6 +148,7 @@ export class UploadService {
 
   async addFile(item: { file: File; path?: string }) {
     const id = crypto.randomUUID();
+    // Add file to state with initial parameters
     this.#state.update((state) => ({
       ...state,
       files: state.files.concat({
@@ -153,22 +157,40 @@ export class UploadService {
         status: UploadState.NOT_STARTED,
       }),
     }));
+
     const arrayBuffer = await item.file.arrayBuffer();
     const payload: UploadFile = {
       id,
       bytes: arrayBuffer,
       config: {
         fileName: item.file.name,
-        contentType: item.file.type
+        contentType: item.file.type,
       },
     };
+
+    // If the file is an image, create an offscreenCanvas
+    if (isPhotonSupportedMimeType(item.file.type)) {
+      payload.offscreenCanvas = new OffscreenCanvas(
+        MAX_THUMBNAIL_WIDTH,
+        MAX_THUMBNAIL_HEIGHT,
+      );
+    }
+
+    // Add path if present
     if (item.path) {
       payload.config.path = item.path;
     }
 
+    // If we have an offscreenCanvas, add it to the transfer list
+    const transferList: Transferable[] = [payload.bytes];
+    if (payload.offscreenCanvas) {
+      transferList.push(payload.offscreenCanvas as Transferable);
+    }
+
+    // Send message to coreWorker
     this.#coreWorkerService.postMessage(
       { action: 'upload:add-file', payload },
-      { transfer: [payload.bytes] },
+      { transfer: transferList },
     );
   }
 

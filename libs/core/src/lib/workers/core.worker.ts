@@ -2,14 +2,19 @@
 
 import { AnonymousIdentity, HttpAgent, uint8ToBuf } from '@dfinity/agent';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
-import {
-  crop,
-  PhotonImage,
-  resize,
-} from '@silvia-odwyer/photon';
+import photonInit, { crop, PhotonImage, resize } from '@silvia-odwyer/photon';
 import { type } from 'arktype';
 import { isNonNull } from 'remeda';
-import { defer, EMPTY, from, Observable, of, Subject, Subscription } from 'rxjs';
+import {
+  defer,
+  EMPTY,
+  from,
+  Observable,
+  of,
+  ReplaySubject,
+  Subject,
+  Subscription,
+} from 'rxjs';
 import {
   audit,
   catchError,
@@ -47,11 +52,40 @@ import {
   WorkerConfig,
   workerConfigSchema,
 } from '../types';
-import { loadIdentity } from '../utils';
-import { AssetManager, EncryptedStorage, Entry } from '@rabbithole/encrypted-storage';
+import { isPhotonSupportedMimeType, loadIdentity } from '../utils';
+import {
+  AssetManager,
+  EncryptedStorage,
+  Entry,
+} from '@rabbithole/encrypted-storage';
 
 const postMessage = (message: CoreWorkerMessageOut) =>
   self.postMessage(message);
+
+// Initialize WASM module - required for worker context
+let wasmInitialized = false;
+let wasmInitPromise: Promise<void> | null = null;
+
+async function ensureWasmInitialized(): Promise<void> {
+  if (wasmInitialized) {
+    return;
+  }
+
+  if (!wasmInitPromise) {
+    wasmInitPromise = (async () => {
+      try {
+        // Use absolute path as import.meta.url in dev points to source file
+        await photonInit({ module_or_path: '/photon_rs_bg.wasm' });
+        wasmInitialized = true;
+      } catch (error) {
+        wasmInitPromise = null;
+        throw error;
+      }
+    })();
+  }
+
+  return wasmInitPromise;
+}
 
 addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
   switch (data.action) {
@@ -71,11 +105,15 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
           action: 'image:crop-failed',
           payload: {
             id: data.payload.id,
-            errorMessage: 'offscreenCanvas must be an instance of OffscreenCanvas',
+            errorMessage:
+              'offscreenCanvas must be an instance of OffscreenCanvas',
           },
         });
       } else {
-        imageCrop.next({ ...imageCropData, offscreenCanvas: imageCropData.offscreenCanvas as OffscreenCanvas });
+        imageCrop.next({
+          ...imageCropData,
+          offscreenCanvas: imageCropData.offscreenCanvas as OffscreenCanvas,
+        });
       }
       break;
     }
@@ -108,18 +146,25 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
             errorMessage: file.summary,
           },
         });
-      } else if (file.offscreenCanvas !== undefined && !(file.offscreenCanvas instanceof OffscreenCanvas)) {
+      } else if (
+        file.offscreenCanvas !== undefined &&
+        !(file.offscreenCanvas instanceof OffscreenCanvas)
+      ) {
         // offscreenCanvas is optional for upload:add-file, but if provided must be OffscreenCanvas
         postMessage({
           action: 'upload:progress-file',
           payload: {
             id: data.payload.id,
             status: UploadState.FAILED,
-            errorMessage: 'offscreenCanvas must be an instance of OffscreenCanvas',
+            errorMessage:
+              'offscreenCanvas must be an instance of OffscreenCanvas',
           },
         });
       } else {
-        uploadFiles.next({ ...file, offscreenCanvas: file.offscreenCanvas as OffscreenCanvas });
+        uploadFiles.next({
+          ...file,
+          offscreenCanvas: file.offscreenCanvas as OffscreenCanvas,
+        });
       }
       break;
     }
@@ -143,7 +188,7 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
         workerConfig.next(config);
       }
       break;
-    } 
+    }
     case 'worker:ping': {
       postMessage({ action: 'worker:pong' });
       break;
@@ -275,21 +320,40 @@ uploadFiles
             controller.abort();
           });
         // Generate thumbnail for image files (non-blocking for upload progress)
-        const created = new Subject<boolean>();
+        const created = new ReplaySubject<boolean>();
         let thumbnailSub: Subscription | undefined;
-        if (config.contentType?.startsWith('image/') && offscreenCanvas) {
-          const entry: Entry = ['File', [config.path ?? '', config.fileName].join('/')];
-          const imageThumbnailArgs = { image: new File([bytes], config.fileName, { type: config.contentType }), offscreenCanvas };
-          thumbnailSub = from(processImageThumbnail(imageThumbnailArgs)).pipe(
-            audit(() => created.asObservable().pipe(filter(v => v))),
-            switchMap(blob => encryptedStorage.saveThumbnail(entry, blob)),
-            catchError(() => EMPTY)
-          ).subscribe(value => {
-            const thumbnailKey = match(value)
-              .with({ metadata: { File: { thumbnailKey: [P.optional(P.string.select())] }} }, v => v)
-              .otherwise(() => undefined);
-            postMessage({ action: 'upload:thumbnail', payload: { id, thumbnailKey } });
-          });
+        if (isPhotonSupportedMimeType(config.contentType) && offscreenCanvas) {
+          const entry: Entry = [
+            'File',
+            [config.path ?? '', config.fileName].join('/'),
+          ];
+          const imageThumbnailArgs = {
+            bytes,
+            imageType: config.contentType as string,
+            offscreenCanvas,
+          };
+          thumbnailSub = from(processImageThumbnail(imageThumbnailArgs))
+            .pipe(
+              audit(() => created.asObservable().pipe(filter((v) => v))),
+              switchMap((blob) => encryptedStorage.saveThumbnail(entry, blob)),
+              catchError(() => EMPTY),
+            )
+            .subscribe((value) => {
+              const thumbnailKey = match(value)
+                .with(
+                  {
+                    metadata: {
+                      File: { thumbnailKey: [P.optional(P.string.select())] },
+                    },
+                  },
+                  (v) => v,
+                )
+                .otherwise(() => undefined);
+              postMessage({
+                action: 'upload:thumbnail',
+                payload: { id, thumbnailKey },
+              });
+            });
         }
 
         const uploadSub = from(
@@ -299,6 +363,14 @@ uploadFiles
               ...config,
               signal: controller.signal,
               onProgress: (progress) => {
+                if (
+                  [
+                    UploadState.IN_PROGRESS,
+                    UploadState.REQUESTING_VETKD,
+                  ].includes(progress.status)
+                ) {
+                  created.next(true);
+                }
                 subscriber.next({
                   id,
                   ...progress,
@@ -318,13 +390,7 @@ uploadFiles
             ),
           )
           .subscribe({
-            next: (value) => {
-              if ([UploadState.IN_PROGRESS, UploadState.REQUESTING_VETKD].includes(value.status)) {
-                created.next(true);
-              }
-
-              subscriber.next(value);
-            },
+            next: (value) => subscriber.next(value),
             complete: () => subscriber.complete(),
           });
 
@@ -340,27 +406,49 @@ uploadFiles
     postMessage({ action: 'upload:progress-file', payload });
   });
 
-imageCrop.asObservable()
+imageCrop
+  .asObservable()
   .pipe(
-    mergeMap(payload => 
+    mergeMap((payload) =>
       from(processImageCrop(payload)).pipe(
-        map((blob) => <CoreWorkerMessageOut>({
-          action: 'image:crop-done',
-          payload: { id: payload.id, blob }
-        })),
-        catchError(error => 
+        switchMap((blob) => blob.arrayBuffer()),
+        map(
+          (bytes) =>
+            <CoreWorkerMessageOut>{
+              action: 'image:crop-done',
+              payload: {
+                id: payload.id,
+                bytes,
+                imageType: payload.imageType,
+              },
+            },
+        ),
+        catchError((error) =>
           of<CoreWorkerMessageOut>({
             action: 'image:crop-failed',
-            payload: { id: payload.id, errorMessage: (error as Error)?.message ?? 'Unknown error' }
-          })
-        )
-      )
-    )
-  ).subscribe(message => {
+            payload: {
+              id: payload.id,
+              errorMessage: (error as Error)?.message ?? 'Unknown error',
+            },
+          }),
+        ),
+      ),
+    ),
+  )
+  .subscribe((message) => {
     postMessage(message);
   });
 
-async function photonImageToBlob({ photonImage, imageType, offscreenCanvas }: { imageType: string, offscreenCanvas: OffscreenCanvas; photonImage: PhotonImage }) {
+async function photonImageToBlob({
+  photonImage,
+  imageType,
+  offscreenCanvas,
+}: {
+  imageType: string;
+  offscreenCanvas: OffscreenCanvas;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  photonImage: any;
+}) {
   if (['image/gif', 'image/png'].includes(imageType)) {
     const ctx = offscreenCanvas.getContext('2d');
     const imageData = photonImage.get_image_data();
@@ -374,36 +462,88 @@ async function photonImageToBlob({ photonImage, imageType, offscreenCanvas }: { 
   }
 }
 
-async function processImageCrop({ image, cropper, offscreenCanvas }: ImageCropPayload) {
-  const buffer = await image.arrayBuffer();
-  let photonImage = PhotonImage.new_from_byteslice(arrayBufferToUint8Array(buffer));
-  const [width, height] = [photonImage.get_width(), photonImage.get_height()];
-  const ratioW = width / cropper.maxSize.width;
-  const ratioH = height / cropper.maxSize.height;
-  photonImage = crop(
-    photonImage,
-    Math.round(cropper.position.x1 * ratioW),
-    Math.round(cropper.position.y1 * ratioH),
-    Math.round(cropper.position.x2 * ratioW),
-    Math.round(cropper.position.y2 * ratioH)
+async function processImageCrop({
+  bytes,
+  imageType,
+  cropper,
+  offscreenCanvas,
+}: ImageCropPayload) {
+  await ensureWasmInitialized();
+
+  let photonImage = PhotonImage.new_from_byteslice(
+    arrayBufferToUint8Array(bytes),
   );
+  const [width, height] = [photonImage.get_width(), photonImage.get_height()];
+  // Coordinates are already converted to original image size in the component
+  let x1 = cropper.position.x1;
+  let y1 = cropper.position.y1;
+  let x2 = cropper.position.x2;
+  let y2 = cropper.position.y2;
+
+  // Validate and clamp coordinates to image boundaries
+  x1 = Math.max(0, Math.min(x1, width - 1));
+  y1 = Math.max(0, Math.min(y1, height - 1));
+  x2 = Math.max(0, Math.min(x2, width - 1));
+  y2 = Math.max(0, Math.min(y2, height - 1));
+
+  // Ensure x1 < x2 and y1 < y2
+  if (x1 >= x2) {
+    if (x1 === x2) {
+      x2 = Math.min(x1 + 1, width - 1);
+    } else {
+      [x1, x2] = [x2, x1];
+    }
+  }
+  if (y1 >= y2) {
+    if (y1 === y2) {
+      y2 = Math.min(y1 + 1, height - 1);
+    } else {
+      [y1, y2] = [y2, y1];
+    }
+  }
+
+  photonImage = crop(photonImage, x1, y1, x2, y2);
   // Resize to avatar size (512x512) only if the cropped image is larger than the max
-  const [croppedWidth, croppedHeight] = [photonImage.get_width(), photonImage.get_height()];
+  const [croppedWidth, croppedHeight] = [
+    photonImage.get_width(),
+    photonImage.get_height(),
+  ];
   if (croppedWidth > MAX_AVATAR_WIDTH || croppedHeight > MAX_AVATAR_HEIGHT) {
     photonImage = resize(photonImage, MAX_AVATAR_WIDTH, MAX_AVATAR_HEIGHT, 5);
   }
-  return photonImageToBlob({ photonImage, imageType: image.type, offscreenCanvas });
+  return photonImageToBlob({
+    photonImage,
+    imageType,
+    offscreenCanvas,
+  });
 }
 
-async function processImageThumbnail({ image, offscreenCanvas }: { image: File; offscreenCanvas: OffscreenCanvas }) {
-  const buffer = await image.arrayBuffer();
-  let photonImage = PhotonImage.new_from_byteslice(arrayBufferToUint8Array(buffer));
+async function processImageThumbnail({
+  bytes,
+  imageType,
+  offscreenCanvas,
+}: {
+  bytes: ArrayBuffer;
+  imageType: string;
+  offscreenCanvas: OffscreenCanvas;
+}) {
+  await ensureWasmInitialized();
+  let photonImage = PhotonImage.new_from_byteslice(
+    arrayBufferToUint8Array(bytes),
+  );
   const [width, height] = [photonImage.get_width(), photonImage.get_height()];
-  const ratio = Math.min(MAX_THUMBNAIL_WIDTH / width, MAX_THUMBNAIL_HEIGHT / height);
+  const ratio = Math.min(
+    MAX_THUMBNAIL_WIDTH / width,
+    MAX_THUMBNAIL_HEIGHT / height,
+  );
   if (ratio < 1) {
     const newWidth = width * ratio;
     const newHeight = height * ratio;
     photonImage = resize(photonImage, newWidth, newHeight, 5);
   }
-  return photonImageToBlob({ photonImage, imageType: image.type, offscreenCanvas });
+  return photonImageToBlob({
+    photonImage,
+    imageType,
+    offscreenCanvas,
+  });
 }

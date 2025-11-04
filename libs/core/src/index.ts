@@ -1,4 +1,5 @@
 export * from './lib/asserts';
+export * from './lib/constants';
 export * from './lib/injectors';
 export * from './lib/operators';
 export * from './lib/services';

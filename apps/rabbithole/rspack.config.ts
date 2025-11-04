@@ -37,8 +37,18 @@ export default createConfig(
       devServer: {},
     },
     rspackConfigOverrides: {
-      watchOptions: {
-        ignored: ['**/*.mo', '**/.git', '**/node_modules'],
+      experiments: {
+        asyncWebAssembly: true,
+      },
+      output: {
+        wasmLoading: 'fetch',
+        workerWasmLoading: 'fetch',
+        enabledWasmLoadingTypes: ['fetch'],
+        // Default pattern for WASM modules - includes module identifier
+        webassemblyModuleFilename: '[name].[hash].wasm',
+      },
+      resolve: {
+        extensions: ['.wasm', '...'],
       },
       module: {
         parser: {
@@ -47,6 +57,25 @@ export default createConfig(
             url: true,
           },
         },
+        rules: [
+          {
+            // Specific rule for photon WASM - use fixed name
+            test: /photon_rs_bg\.wasm$/,
+            type: 'asset/resource',
+            generator: {
+              filename: 'photon_rs_bg.wasm',
+            },
+          },
+          {
+            // Generic rule for other WASM modules - use dynamic naming
+            test: /\.wasm$/,
+            exclude: /photon_rs_bg\.wasm$/,
+            type: 'asset/resource',
+            generator: {
+              filename: 'wasm/[name].[hash][ext]',
+            },
+          },
+        ],
       },
       infrastructureLogging: {
         level: 'warn',
@@ -129,6 +158,9 @@ export default createConfig(
         devServer: {},
       },
       rspackConfigOverrides: {
+        output: {
+          publicPath: '/',
+        },
         infrastructureLogging: {
           level: 'info',
           debug: ['rspack', 'webpack-dev-server'],

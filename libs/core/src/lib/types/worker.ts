@@ -1,6 +1,7 @@
 import { Principal } from '@dfinity/principal';
 import { type } from 'arktype';
 
+import { isPhotonSupportedMimeType } from '../utils';
 import { Prettify } from './utility';
 
 export enum UploadState {
@@ -40,7 +41,7 @@ export const uploadAssetSchema = uploadSchema.and(
 export const uploadFileSchema = uploadSchema.and(
   type({
     'offscreenCanvas?': 'object',
-  })
+  }),
 );
 
 export const fileIdSchema = uploadFileSchema.pick('id');
@@ -87,11 +88,13 @@ export type CoreWorkerActionsIn = Prettify<
 export type CoreWorkerActionsOut = Prettify<
   {
     'fs:list': { payload: unknown };
-    'image:crop-done': { payload: { blob: Blob; id: string; } };
-    'image:crop-failed': { payload: { errorMessage: string; id: string; } };
+    'image:crop-done': {
+      payload: { bytes: ArrayBuffer; id: string; imageType: string };
+    };
+    'image:crop-failed': { payload: { errorMessage: string; id: string } };
     'upload:progress-asset': { payload: UploadStatus };
     'upload:progress-file': { payload: UploadStatus };
-    'upload:thumbnail': { payload: { id: string; thumbnailKey?: string; } };
+    'upload:thumbnail': { payload: { id: string; thumbnailKey?: string } };
   } & WorkerActionsOut
 >;
 
@@ -132,7 +135,12 @@ export const imageCropSchema = type({
       y2: 'number',
     },
   },
-  image: 'File',
+  bytes: 'ArrayBuffer',
+  imageType: type('string').narrow(
+    (mimeType, ctx) =>
+      isPhotonSupportedMimeType(mimeType) ||
+      ctx.reject('not a supported image type'),
+  ),
   /**
    * OffscreenCanvas does not have a built-in arktype type. Use 'object' for validation,
    * and specify OffscreenCanvas in the TypeScript type for better type safety.
@@ -140,7 +148,10 @@ export const imageCropSchema = type({
   offscreenCanvas: 'object',
 });
 
-export type ImageCropPayload = { offscreenCanvas: OffscreenCanvas } & Omit<typeof imageCropSchema.infer, 'offscreenCanvas'>;
+export type ImageCropPayload = { offscreenCanvas: OffscreenCanvas } & Omit<
+  typeof imageCropSchema.infer,
+  'offscreenCanvas'
+>;
 
 export type Message<T extends Record<string, any>> = Prettify<
   {
@@ -150,7 +161,10 @@ export type Message<T extends Record<string, any>> = Prettify<
 
 export type UploadAsset = typeof uploadAssetSchema.infer;
 
-export type UploadFile = { offscreenCanvas?: OffscreenCanvas } & Omit<typeof uploadFileSchema.infer, 'offscreenCanvas'>;
+export type UploadFile = { offscreenCanvas?: OffscreenCanvas } & Omit<
+  typeof uploadFileSchema.infer,
+  'offscreenCanvas'
+>;
 
 export type UploadId = typeof uploadIdSchema.infer;
 
@@ -174,7 +188,7 @@ export type WorkerActionsIn = {
 
 export type WorkerActionsOut = {
   'worker:init': unknown;
-  'worker:pong': unknown;  
+  'worker:pong': unknown;
   'worker:signOut': unknown;
 };
 

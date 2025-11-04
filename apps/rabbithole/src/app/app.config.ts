@@ -12,7 +12,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { APP_DERIVATION_ORIGIN, AUTH_MAX_TIME_TO_LIVE } from './core/constants';
-import { provideEncryptedStorage } from './core/injectors';
+import { provideCoreWorker, provideEncryptedStorage } from './core/injectors';
 import { provideMainActor } from './core/injectors/main-actor';
 import { isCustomDomain } from './core/utils';
 import {
@@ -72,5 +72,6 @@ export const appConfig: ApplicationConfig = {
     },
     provideEncryptedStorageActor(),
     provideEncryptedStorage(),
+    provideCoreWorker(),
   ],
 };
