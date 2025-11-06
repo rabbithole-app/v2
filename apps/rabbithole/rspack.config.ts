@@ -165,6 +165,11 @@ export default createConfig(
           level: 'info',
           debug: ['rspack', 'webpack-dev-server'],
         },
+        plugins: [
+          ...(process.env['RSDOCTOR']
+            ? [new RsdoctorRspackPlugin()]
+            : []),
+        ],
       },
     },
   },

@@ -60,9 +60,6 @@ export class CoreService {
     if (typeof Worker !== 'undefined' && this.workerEnabled) {
       const worker = new Worker(
         new URL('../workers/core.worker', import.meta.url),
-        {
-          type: 'module',
-        }
       );
       worker.onmessage = (event) => this.#workerMessage.next(event);
       this.worker.set(worker);

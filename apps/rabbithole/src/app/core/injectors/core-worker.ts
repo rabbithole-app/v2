@@ -69,7 +69,6 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
                   '../../../../../../libs/core/src/lib/workers/core.worker',
                   import.meta.url,
                 ),
-                { type: 'module' },
               )
             : null,
       } satisfies Provider,

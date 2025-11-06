@@ -10,8 +10,8 @@ import {
   imports: [HlmCheckbox],
   template: `
     <hlm-checkbox
-      [checked]="_checkedState()"
-      (changed)="_context.table.toggleAllRowsSelected()"
+      [checked]="_checkedState() === true"
+      (checkedChange)="_context.table.toggleAllRowsSelected()"
     />
   `,
   host: {
@@ -38,9 +38,8 @@ export class TableHeadSelection<T> {
   imports: [HlmCheckbox],
   template: `
     <hlm-checkbox
-      type="checkbox"
-      [checked]="_context.row.getIsSelected()"
-      (changed)="_context.row.getToggleSelectedHandler()($event)"
+      [checked]="!!_context.row.getIsSelected()"
+      (checkedChange)="_context.row.getToggleSelectedHandler()($event)"
     />
   `,
   host: {
