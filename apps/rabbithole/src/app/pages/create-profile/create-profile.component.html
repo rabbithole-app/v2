@@ -1,0 +1,101 @@
+<div class="w-full max-w-md">
+  <div hlmCard>
+    <div hlmCardHeader>
+      <div class="flex items-center justify-between">
+        <h1 hlmCardTitle>Create Profile</h1>
+        <button
+          hlmBtn
+          type="button"
+          variant="ghost"
+          size="icon"
+          (click)="authService.signOut()"
+          class="size-8"
+        >
+          <ng-icon hlmIcon size="sm" name="lucideLogOut" />
+          <span class="sr-only">Sign out</span>
+        </button>
+      </div>
+    </div>
+    <div hlmCardContent>
+      <form [formGroup]="form" class="space-y-6">
+        <!-- Avatar Editor -->
+        <div class="flex justify-center">
+          <app-avatar-editor formControlName="avatarUrl" />
+        </div>
+
+        <!-- Username Field -->
+        <hlm-form-field>
+          <label hlmLabel for="username">Username</label>
+          <input
+            hlmInput
+            id="username"
+            formControlName="username"
+            placeholder="Enter your username"
+            [attr.aria-invalid]="usernameControl.invalid"
+            [attr.aria-describedby]="
+              usernameControl.invalid ? 'username-error' : 'username-hint'
+            "
+          />
+          @if (
+            usernameControl.hasError('required') && usernameControl.touched
+          ) {
+            <hlm-error id="username-error">Username is required</hlm-error>
+          }
+          @if (
+            usernameControl.hasError('usernameExists') &&
+            usernameControl.touched
+          ) {
+            <hlm-error id="username-error"
+              >This username is already taken</hlm-error
+            >
+          }
+          @if (
+            !usernameControl.hasError('required') &&
+            !usernameControl.hasError('usernameExists') &&
+            usernameControl.touched
+          ) {
+            <hlm-hint id="username-hint">Choose a unique username</hlm-hint>
+          }
+        </hlm-form-field>
+
+        <!-- Display Name Field -->
+        <hlm-form-field>
+          <label hlmLabel for="displayName">Display Name (Optional)</label>
+          <input
+            hlmInput
+            id="displayName"
+            formControlName="displayName"
+            placeholder="Enter your display name"
+          />
+          <hlm-hint>This name will be visible to other users</hlm-hint>
+        </hlm-form-field>
+
+        <!-- Submit Button -->
+        <div class="flex justify-end">
+          @if (loading()) {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              disabled
+              class="w-full sm:w-auto"
+            >
+              <hlm-spinner class="size-4 mr-0.5" />
+              Creating...
+            </button>
+          } @else {
+            <button
+              hlmBtn
+              type="button"
+              (click)="handleSubmit()"
+              [disabled]="form.invalid"
+              class="w-full sm:w-auto"
+            >
+              Create
+            </button>
+          }
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

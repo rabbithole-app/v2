@@ -1,13 +1,13 @@
 import { Route } from '@angular/router';
 
-import { dashboardGuard, loginGuard } from './core/guards';
+import { createProfileGuard, dashboardGuard, loginGuard, profileGuard } from './core/guards';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 
 export const appRoutes: Route[] = [
   {
     path: '',
     component: DashboardComponent,
-    canActivate: [dashboardGuard],
+    canActivate: [dashboardGuard, profileGuard],
     children: [
       {
         path: 'users',
@@ -19,6 +19,13 @@ export const appRoutes: Route[] = [
         loadComponent: () =>
           import('./pages/permissions/permissions.component').then(
             (m) => m.PermissionsComponent,
+          ),
+      },
+      {
+        path: 'profile',
+        loadComponent: () =>
+          import('./pages/profile/profile.component').then(
+            (m) => m.ProfileComponent,
           ),
       },
     ],
@@ -34,6 +41,14 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('./pages/delegation/delegation.component').then(
         (m) => m.DelegationComponent,
+      ),
+  },
+  {
+    path: 'create-profile',
+    canActivate: [dashboardGuard, createProfileGuard],
+    loadComponent: () =>
+      import('./pages/create-profile/create-profile.component').then(
+        (m) => m.CreateProfileComponent,
       ),
   },
   { path: '**', pathMatch: 'full', redirectTo: '' },

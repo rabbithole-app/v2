@@ -5,10 +5,12 @@ import {
   AsyncValidatorFn,
   ValidationErrors,
 } from '@angular/forms';
+import { Actor } from '@dfinity/agent';
 import { toast } from 'ngx-sonner';
-import { filter } from 'rxjs';
+import { map } from 'rxjs';
 
 import { injectMainActor } from '../injectors';
+import { parseCanisterRejectError } from '@rabbithole/core';
 import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
 
 @Injectable({ providedIn: 'root' })
@@ -17,13 +19,19 @@ export class ProfileService {
   #profileResource = resource({
     params: () => this.#actor(),
     loader: async ({ params: actor }) => {
+      const agent = Actor.agentOf(actor);
+      const principal = await agent?.getPrincipal();
+      if (principal?.isAnonymous()) {
+        return null;
+      }
+      
       const profile = await actor.getProfile();
       return profile[0] ?? null;
     },
   });
   profile = computed(() => this.#profileResource.value());
   ready$ = toObservable(this.#profileResource.value).pipe(
-    filter((v) => v !== undefined),
+    map((v) => v !== undefined)
   );
 
   checkUsernameValidator(): AsyncValidatorFn {
@@ -46,9 +54,11 @@ export class ProfileService {
       toast.success('Profile created successfully', { id });
       this.#profileResource.reload();
     } catch (error) {
-      toast.error('Failed to create profile: ' + (error as Error).message, {
+      const errorMessage = parseCanisterRejectError(error) ?? 'An error has occurred';
+      toast.error(`Failed to create profile: ${errorMessage}`, {
         id,
       });
+      throw error;
     }
   }
 
@@ -60,9 +70,11 @@ export class ProfileService {
       toast.success('Profile deleted successfully', { id });
       this.#profileResource.reload();
     } catch (error) {
-      toast.error('Failed to delete profile: ' + (error as Error).message, {
+      const errorMessage = parseCanisterRejectError(error) ?? 'An error has occurred';
+      toast.error(`Failed to delete profile: ${errorMessage}`, {
         id,
       });
+      throw error;
     }
   }
 
@@ -74,9 +86,11 @@ export class ProfileService {
       toast.success('Profile updated successfully', { id });
       this.#profileResource.reload();
     } catch (error) {
-      toast.error('Failed to update profile: ' + (error as Error).message, {
+      const errorMessage = parseCanisterRejectError(error) ?? 'An error has occurred';
+      toast.error(`Failed to update profile: ${errorMessage}`, {
         id,
       });
+      throw error;
     }
   }
 }

@@ -2,10 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
+  forwardRef,
   inject,
   model,
   signal,
 } from '@angular/core';
+import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePencil, lucideTrash } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
@@ -38,14 +41,21 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
     RbthTooltipTriggerDirective,
     HlmSpinner,
   ],
-  providers: [BrowserFSPicker, provideIcons({ lucidePencil, lucideTrash })],
+  providers: [
+    {
+        provide: NG_VALUE_ACCESSOR,
+        useExisting: forwardRef(() => AvatarEditorComponent),
+        multi: true
+    },
+    BrowserFSPicker, provideIcons({ lucidePencil, lucideTrash })
+],
   templateUrl: './avatar-editor.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class]': '"relative inline-block"',
   },
 })
-export class AvatarEditorComponent {
+export class AvatarEditorComponent implements ControlValueAccessor {
   readonly value = model<string | null>(null);
   avatarSrc = computed(() => {
     const backendUrl = environment.production
@@ -64,6 +74,10 @@ export class AvatarEditorComponent {
   private readonly _hlmDialogService = inject(HlmDialogService);
   #fsPickerService = inject(BrowserFSPicker);
   #mainActor = injectMainActor();
+
+  constructor() {
+    effect(() => this.onChanged(this.value()));
+  }
 
   async handleDelete() {
     if (this.disabled()) return;
@@ -106,6 +120,9 @@ export class AvatarEditorComponent {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
+  onChanged = (value: string | null) => {};
+
   onMouseEnter() {
     this.#isHovered.set(true);
   }
@@ -113,6 +130,9 @@ export class AvatarEditorComponent {
   onMouseLeave() {
     this.#isHovered.set(false);
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  onTouched = () => {};
 
   openCropDialog(file: File) {
     const dialogRef = this._hlmDialogService.open(AvatarCropDialogComponent, {
@@ -126,5 +146,21 @@ export class AvatarEditorComponent {
     dialogRef.closed$.subscribe((avatarKey) => {
       this.value.set(avatarKey ?? null);
     });
+  }
+
+  registerOnChange(fn: () => void): void {
+    this.onChanged = fn;
+  }
+
+  registerOnTouched(fn: () => void): void {
+    this.onTouched = fn;
+  }
+
+  setDisabledState?(isDisabled: boolean): void {
+    this.disabled.set(isDisabled);
+  }
+
+  writeValue(value: string | null): void {
+    this.value.set(value ?? null);
   }
 }

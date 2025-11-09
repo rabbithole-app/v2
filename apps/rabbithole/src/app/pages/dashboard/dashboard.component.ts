@@ -4,7 +4,7 @@ import {
   effect,
   inject,
 } from '@angular/core';
-import { Params, Router, RouterModule, RouterOutlet } from '@angular/router';
+import { Params, Router, RouterOutlet } from '@angular/router';
 import { provideIcons } from '@ng-icons/core';
 import { lucideLogOut } from '@ng-icons/lucide';
 
@@ -18,7 +18,6 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
     SidebarLayoutComponent,
     UploadDrawerComponent,
     RouterOutlet,
-    RouterModule,
   ],
   providers: [provideIcons({ lucideLogOut })],
   templateUrl: './dashboard.component.html',
