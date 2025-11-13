@@ -55,7 +55,10 @@ export const idlFactory = ({ IDL }) => {
     IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
     IDL.Text,
   );
-  const CreateArguments = IDL.Record({ 'entry' : Entry });
+  const CreateArguments = IDL.Record({
+    'entry' : Entry,
+    'overwrite' : IDL.Bool,
+  });
   const Permission = IDL.Variant({
     'Read' : IDL.Null,
     'ReadWrite' : IDL.Null,
@@ -105,6 +108,7 @@ export const idlFactory = ({ IDL }) => {
     'batch_id' : BatchId,
   });
   const CreateChunksResponse = IDL.Record({ 'chunk_ids' : IDL.Vec(ChunkId) });
+  const CreateBatchArguments = IDL.Record({ 'entry' : Entry });
   const CreateBatchResponse = IDL.Record({ 'batchId' : BatchId });
   const CreateChunkArguments = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
@@ -268,7 +272,7 @@ export const idlFactory = ({ IDL }) => {
         [CreateChunksResponse],
         [],
       ),
-    'createBatch' : IDL.Func([CreateArguments], [CreateBatchResponse], []),
+    'createBatch' : IDL.Func([CreateBatchArguments], [CreateBatchResponse], []),
     'createChunk' : IDL.Func([CreateChunkArguments], [CreateChunkResponse], []),
     'delete' : IDL.Func([DeleteArguments], [], []),
     'deleteAsset' : IDL.Func([DeleteAssetArguments], [], []),

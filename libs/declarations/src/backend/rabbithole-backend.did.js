@@ -101,6 +101,11 @@ export const idlFactory = ({ IDL }) => {
         [RawQueryHttpResponse],
         ['query'],
       ),
+    'http_request_streaming_callback' : IDL.Func(
+        [StreamingToken],
+        [StreamingCallbackResponse],
+        ['query'],
+      ),
     'http_request_update' : IDL.Func(
         [RawUpdateHttpRequest],
         [RawUpdateHttpResponse],

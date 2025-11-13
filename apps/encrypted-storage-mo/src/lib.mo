@@ -346,7 +346,7 @@ module EncryptedFileStorage {
   /// //   case (#err message) return #err message;
   /// // };
   /// ```
-  public func createBatch(self : T.StableStore, caller : Principal, args : T.CreateArguments) : Result.Result<T.CreateBatchResponse, Text> {
+  public func createBatch(self : T.StableStore, caller : Principal, args : T.CreateBatchArguments) : Result.Result<T.CreateBatchResponse, Text> {
     switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
       case (#ok _) {};
       case (#err message) return #err message;

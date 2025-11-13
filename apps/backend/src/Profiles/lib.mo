@@ -105,7 +105,7 @@ module {
     };
 
     switch (options.filter.username) {
-      case (?v) ignore dbQuery.Where("username", #eq(#Text(v)));
+      case (?v) ignore dbQuery.Where("username", #eq(#Text(v))); //.Or("username", #startsWith(#Text(v)));
       case null {};
     };
 
@@ -186,16 +186,13 @@ module {
       ?profile;
     };
 
-    public func delete(caller : Principal) : ZenDB.Types.Result<(), Text> {
+    public func delete(caller : Principal) : ZenDB.Types.Result<Profile, Text> {
       let profileToDeleteQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
       switch (profilesCollection.delete(profileToDeleteQuery)) {
         case (#ok(deletedProfiles)) {
-          if (not Iter.all(deletedProfiles.vals(), func(_, { id }) = Principal.equal(caller, id))) {
-            return #err("Profile not found");
-          };
-
-          #ok();
+          let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(deletedProfiles) |> List.first(_) else return #err("Profile not found");
+          #ok(profile);
         };
         case (#err message) #err message;
       };

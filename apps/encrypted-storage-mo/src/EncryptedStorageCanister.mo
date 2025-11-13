@@ -46,13 +46,6 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func store(args : T.StoreArguments) : async () {
-    switch (EncryptedStorage.store(storage, caller, args)) {
-      case (#ok value) value;
-      case (#err(message)) throw Error.reject(message);
-    };
-  };
-
   public shared ({ caller }) func create(args : T.CreateArguments) : async T.NodeDetails {
     switch (EncryptedStorage.create(storage, caller, args)) {
       case (#ok node) node;

@@ -1,22 +1,24 @@
 export const idlFactory = ({ IDL }) => {
+  const TreeNode = IDL.Rec();
   const Entry = IDL.Tuple(
     IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
     IDL.Text,
   );
-  const CreateArguments = IDL.Record({ 'entry' : Entry });
+  const CreateArguments = IDL.Record({
+    'entry' : Entry,
+    'overwrite' : IDL.Bool,
+  });
   const Permission = IDL.Variant({
     'Read' : IDL.Null,
     'ReadWrite' : IDL.Null,
     'ReadWriteManage' : IDL.Null,
   });
   const Time = IDL.Int;
-  const ChunkId = IDL.Nat;
   const FileMetadata = IDL.Record({
     'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'thumbnailKey' : IDL.Opt(IDL.Text),
     'contentType' : IDL.Text,
     'size' : IDL.Nat,
-    'chunkIds' : IDL.Vec(ChunkId),
-    'downloads' : IDL.Nat,
   });
   const DirectoryColor = IDL.Variant({
     'blue' : IDL.Null,
@@ -55,6 +57,9 @@ export const idlFactory = ({ IDL }) => {
     'recursive' : IDL.Bool,
     'entry' : Entry,
   });
+  TreeNode.fill(
+    IDL.Record({ 'name' : IDL.Text, 'children' : IDL.Opt(IDL.Vec(TreeNode)) })
+  );
   const GetChunkArguments = IDL.Record({
     'chunkIndex' : IDL.Nat,
     'entry' : Entry,
@@ -65,33 +70,33 @@ export const idlFactory = ({ IDL }) => {
   const VetKeyVerificationKey = IDL.Vec(IDL.Nat8);
   const GrantPermissionArguments = IDL.Record({
     'permission' : Permission,
-    'principal' : IDL.Principal,
+    'user' : IDL.Principal,
     'entry' : IDL.Opt(Entry),
   });
   const HasPermissionArguments = IDL.Record({
     'permission' : Permission,
-    'principal' : IDL.Principal,
+    'user' : IDL.Principal,
     'entry' : IDL.Opt(Entry),
+  });
+  const PermissionExt = IDL.Variant({
+    'Read' : IDL.Null,
+    'ReadWrite' : IDL.Null,
+    'ReadWriteManage' : IDL.Null,
+    'Controller' : IDL.Null,
   });
   const MoveArguments = IDL.Record({
     'entry' : Entry,
     'target' : IDL.Opt(Entry),
   });
   const RevokePermissionArguments = IDL.Record({
-    'principal' : IDL.Principal,
+    'user' : IDL.Principal,
     'entry' : IDL.Opt(Entry),
   });
-  const StoreArguments = IDL.Variant({
-    'File' : IDL.Record({
-      'metadata' : IDL.Record({
-        'content' : IDL.Vec(IDL.Nat8),
-        'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-        'contentType' : IDL.Text,
-        'size' : IDL.Nat,
-      }),
-      'path' : IDL.Text,
-    }),
+  const SetThumbnailArguments = IDL.Record({
+    'thumbnailKey' : IDL.Opt(IDL.Text),
+    'entry' : Entry,
   });
+  const ChunkId = IDL.Nat;
   const UpdateArguments = IDL.Variant({
     'File' : IDL.Record({
       'metadata' : IDL.Record({
@@ -112,6 +117,7 @@ export const idlFactory = ({ IDL }) => {
     'createBatch' : IDL.Func([CreateArguments], [CreateBatchResponse], []),
     'createChunk' : IDL.Func([CreateChunkArguments], [CreateChunkResponse], []),
     'delete' : IDL.Func([DeleteArguments], [], []),
+    'fsTree' : IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     'getChunk' : IDL.Func([GetChunkArguments], [ChunkContent], ['query']),
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
     'getVetkeyVerificationKey' : IDL.Func([], [VetKeyVerificationKey], []),
@@ -120,13 +126,13 @@ export const idlFactory = ({ IDL }) => {
     'list' : IDL.Func([IDL.Opt(Entry)], [IDL.Vec(NodeDetails)], ['query']),
     'listPermitted' : IDL.Func(
         [IDL.Opt(Entry)],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, Permission))],
-        ['query'],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, PermissionExt))],
+        [],
       ),
     'move' : IDL.Func([MoveArguments], [], []),
     'revokePermission' : IDL.Func([RevokePermissionArguments], [], []),
+    'setThumbnail' : IDL.Func([SetThumbnailArguments], [NodeDetails], []),
     'showTree' : IDL.Func([IDL.Opt(Entry)], [IDL.Text], ['query']),
-    'store' : IDL.Func([StoreArguments], [], []),
     'update' : IDL.Func([UpdateArguments], [], []),
   });
   return EncryptedStorageCanister;

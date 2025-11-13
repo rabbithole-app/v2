@@ -116,15 +116,10 @@ module {
     let path = url.path.original;
     var req = _req;
 
-    let keyId : T.KeyId = switch (Path.fromText(path)) {
-      case (#ok segments) {
-        let list = List.fromArray(segments);
-        switch (List.size(list), List.get(list, 0), List.get(list, 1), List.get(list, 2)) {
-          case (3, ?"encrypted", ?keyOwner, ?keyName) (Principal.fromText(keyOwner), Text.encodeUtf8(keyName));
-          case _ return #err("Failed to parse path '" # path # "' into keyId");
-        };
-      };
-      case (#err message) return #err message;
+    let list = Path.fromText(path) |> List.fromArray(_.segments);
+    let keyId : T.KeyId = switch (List.size(list), List.get(list, 0), List.get(list, 1), List.get(list, 2)) {
+      case (3, ?"encrypted", ?keyOwner, ?keyName) (Principal.fromText(keyOwner), Text.encodeUtf8(keyName));
+      case _ return #err("Failed to parse path '" # path # "' into keyId");
     };
 
     let file = switch (FileSystem.get(self.fs, #keyId(keyId))) {

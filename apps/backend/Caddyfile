@@ -1,4 +1,4 @@
-localhost, *.localhost {
+localhost, *.localhost, *.raw.localhost {
     tls internal {
         on_demand
     }

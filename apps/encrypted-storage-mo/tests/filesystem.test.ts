@@ -80,7 +80,7 @@ describe('FileSystem', () => {
       expect(
         await actor.hasPermission({
           entry: [],
-          principal: ownerIdentity.getPrincipal(),
+          user: ownerIdentity.getPrincipal(),
           permission: READ_WRITE_MANAGE,
         }),
       ).toBeTruthy();
@@ -90,7 +90,7 @@ describe('FileSystem', () => {
       expect(
         await actor.hasPermission({
           entry: [],
-          principal: ownerIdentity.getPrincipal(),
+          user: ownerIdentity.getPrincipal(),
           permission: READ_WRITE,
         }),
       ).toBeTruthy();
@@ -100,7 +100,7 @@ describe('FileSystem', () => {
       expect(
         await actor.hasPermission({
           entry: [],
-          principal: ownerIdentity.getPrincipal(),
+          user: ownerIdentity.getPrincipal(),
           permission: READ,
         }),
       ).toBeTruthy();
@@ -110,7 +110,7 @@ describe('FileSystem', () => {
       expect(
         await actor.hasPermission({
           entry: [],
-          principal: aliceIdentity.getPrincipal(),
+          user: aliceIdentity.getPrincipal(),
           permission: READ,
         }),
       ).toBeFalsy();
@@ -121,6 +121,7 @@ describe('FileSystem', () => {
     test('should create entries', async () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
+        overwrite: false,
       });
       expect(result).toMatchObject({
         id: 1938799411200000002n,
@@ -128,10 +129,12 @@ describe('FileSystem', () => {
       });
       const result2 = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/detective'],
+        overwrite: false,
       });
       expect(result2).toMatchObject({ id: 1938799411200000003n });
       const result3 = await actor.create({
         entry: [FILE, 'Documents/Photos/1.jpg'],
+        overwrite: false,
       });
       expect(result3).toMatchObject({ id: 1938799411200000005n });
     });
@@ -139,11 +142,13 @@ describe('FileSystem', () => {
     test('should return err if entry exists', async () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
+        overwrite: false,
       });
       expect(result).toMatchObject({ id: 1938799411200000002n });
       await expect(
         actor.create({
           entry: [DIRECTORY, 'Documents/Books/classic'],
+          overwrite: false,
         }),
       ).rejects.toThrowError();
     });
@@ -153,6 +158,7 @@ describe('FileSystem', () => {
     test('should throw NotEmpty error with recursive false', async () => {
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
+        overwrite: false,
       });
       expect(result).toMatchObject({ id: 1938799411200000002n });
       await expect(
@@ -180,10 +186,12 @@ describe('FileSystem', () => {
       // create entries
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
+        overwrite: false,
       });
       expect(result).toMatchObject({ id: 1938799411200000002n });
       const result2 = await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
+        overwrite: false,
       });
       expect(result2).toMatchObject({ id: 1938799411200000004n });
 
@@ -207,27 +215,35 @@ describe('FileSystem', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [FILE, 'Photos/1.jpg'],
+        overwrite: false,
       });
       await actor.create({
         entry: [FILE, 'Photos/2.jpg'],
+        overwrite: false,
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/2.jpg'],
+        overwrite: false,
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/3.jpg'],
+        overwrite: false,
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/1.jpg'],
+        overwrite: false,
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/2.jpg'],
+        overwrite: false,
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/2.jpg'],
+        overwrite: false,
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/3.jpg'],
+        overwrite: false,
       });
     });
 
@@ -257,35 +273,35 @@ describe('FileSystem', () => {
         [
           {
             entry: [[DIRECTORY, 'Photos']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE,
           },
         ],
         [
           {
             entry: [[DIRECTORY, 'Shared/Photos']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           },
         ],
         [
           {
             entry: [[DIRECTORY, 'Shared/Photos']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ_WRITE,
           },
         ],
         [
           {
             entry: [[FILE, 'Photos/2.jpg']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           },
         ],
         [
           {
             entry: [[FILE, 'Shared/Photos/2.jpg']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ_WRITE,
           },
         ],
@@ -303,35 +319,35 @@ describe('FileSystem', () => {
       expect(
         await actor.hasPermission({
           entry: [[DIRECTORY, 'Shared/Photos']],
-          principal: aliceIdentity.getPrincipal(),
+          user: aliceIdentity.getPrincipal(),
           permission: READ,
         }),
       ).toBeTruthy();
       expect(
         await actor.hasPermission({
           entry: [[DIRECTORY, 'Shared/Photos']],
-          principal: aliceIdentity.getPrincipal(),
+          user: aliceIdentity.getPrincipal(),
           permission: READ_WRITE,
         }),
       ).toBeFalsy();
       expect(
         await actor.hasPermission({
           entry: [[DIRECTORY, 'Shared/Photos']],
-          principal: bobIdentity.getPrincipal(),
+          user: bobIdentity.getPrincipal(),
           permission: READ_WRITE,
         }),
       ).toBeTruthy();
       expect(
         await actor.hasPermission({
           entry: [[FILE, 'Shared/Photos/2.jpg']],
-          principal: aliceIdentity.getPrincipal(),
+          user: aliceIdentity.getPrincipal(),
           permission: READ_WRITE_MANAGE,
         }),
       ).toBeTruthy();
       expect(
         await actor.hasPermission({
           entry: [[FILE, 'Shared/Photos/2.jpg']],
-          principal: bobIdentity.getPrincipal(),
+          user: bobIdentity.getPrincipal(),
           permission: READ_WRITE,
         }),
       ).toBeTruthy();
@@ -342,34 +358,39 @@ describe('FileSystem', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
+        overwrite: false,
       });
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
+        overwrite: false,
       });
-      await actor.create({ entry: [FILE, 'Private/wallet.dat'] });
+      await actor.create({
+        entry: [FILE, 'Private/wallet.dat'],
+        overwrite: false,
+      });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-        principal: aliceIdentity.getPrincipal(),
+        user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-        principal: bobIdentity.getPrincipal(),
+        user: bobIdentity.getPrincipal(),
         permission: READ,
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-        principal: charlieIdentity.getPrincipal(),
+        user: charlieIdentity.getPrincipal(),
         permission: READ_WRITE_MANAGE,
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-        principal: aliceIdentity.getPrincipal(),
+        user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-        principal: Principal.anonymous(),
+        user: Principal.anonymous(),
         permission: READ,
       });
     });
@@ -383,14 +404,14 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeTruthy();
@@ -399,21 +420,21 @@ describe('FileSystem', () => {
             entry: [
               [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
             ],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeTruthy();
@@ -423,7 +444,7 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           }),
         ).toBeFalsy();
@@ -441,14 +462,14 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Private']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeFalsy();
         expect(
           await actor.hasPermission({
             entry: [[FILE, 'Private/wallet.dat']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeFalsy();
@@ -464,21 +485,21 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeFalsy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           }),
         ).toBeFalsy();
@@ -488,7 +509,7 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
@@ -504,21 +525,21 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: charlieIdentity.getPrincipal(),
+            user: charlieIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: charlieIdentity.getPrincipal(),
+            user: charlieIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: charlieIdentity.getPrincipal(),
+            user: charlieIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           }),
         ).toBeTruthy();
@@ -530,7 +551,7 @@ describe('FileSystem', () => {
           entry: [
             [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
           ],
-          principal: danIdentity.getPrincipal(),
+          user: danIdentity.getPrincipal(),
           permission: READ,
         });
         expect(result).toBeNull();
@@ -540,14 +561,14 @@ describe('FileSystem', () => {
             entry: [
               [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
             ],
-            principal: danIdentity.getPrincipal(),
+            user: danIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
-            principal: danIdentity.getPrincipal(),
+            user: danIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeFalsy();
@@ -558,7 +579,7 @@ describe('FileSystem', () => {
           entry: [
             [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
           ],
-          principal: danIdentity.getPrincipal(),
+          user: danIdentity.getPrincipal(),
           permission: READ_WRITE,
         });
         expect(result2).toBeNull();
@@ -568,7 +589,7 @@ describe('FileSystem', () => {
             entry: [
               [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
             ],
-            principal: danIdentity.getPrincipal(),
+            user: danIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeTruthy();
@@ -577,7 +598,7 @@ describe('FileSystem', () => {
           entry: [
             [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
           ],
-          principal: danIdentity.getPrincipal(),
+          user: danIdentity.getPrincipal(),
           permission: READ_WRITE_MANAGE,
         });
         expect(result3).toBeNull();
@@ -586,7 +607,7 @@ describe('FileSystem', () => {
             entry: [
               [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
             ],
-            principal: danIdentity.getPrincipal(),
+            user: danIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           }),
         ).toBeTruthy();
@@ -602,7 +623,7 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-            principal: Principal.anonymous(),
+            user: Principal.anonymous(),
             permission: READ,
           }),
         ).toBeTruthy();
@@ -614,15 +635,16 @@ describe('FileSystem', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
+        overwrite: false,
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-        principal: aliceIdentity.getPrincipal(),
+        user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-        principal: Principal.anonymous(),
+        user: Principal.anonymous(),
         permission: READ,
       });
     });
@@ -631,13 +653,13 @@ describe('FileSystem', () => {
       test('should not have #ReadWrite permission', async () => {
         const result = await actor.revokePermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-          principal: aliceIdentity.getPrincipal(),
+          user: aliceIdentity.getPrincipal(),
         });
         expect(result).toBeNull();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeFalsy();
@@ -648,13 +670,13 @@ describe('FileSystem', () => {
       test('should not have #Read permission', async () => {
         const result = await actor.revokePermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-          principal: Principal.anonymous(),
+          user: Principal.anonymous(),
         });
         expect(result).toBeNull();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
-            principal: Principal.anonymous(),
+            user: Principal.anonymous(),
             permission: READ,
           }),
         ).toBeFalsy();
@@ -667,24 +689,29 @@ describe('FileSystem', () => {
       beforeEach(async () => {
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]/photos'],
+          overwrite: false,
         });
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]/documents'],
+          overwrite: false,
         });
-        await actor.create({ entry: [FILE, 'Private/wallet.dat'] });
+        await actor.create({
+          entry: [FILE, 'Private/wallet.dat'],
+          overwrite: false,
+        });
         await actor.grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]']],
-          principal: aliceIdentity.getPrincipal(),
+          user: aliceIdentity.getPrincipal(),
           permission: READ_WRITE,
         });
         await actor.grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-          principal: aliceIdentity.getPrincipal(),
+          user: aliceIdentity.getPrincipal(),
           permission: READ_WRITE,
         });
         await actor.grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-          principal: bobIdentity.getPrincipal(),
+          user: bobIdentity.getPrincipal(),
           permission: READ,
         });
 
@@ -695,42 +722,42 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           }),
         ).toBeFalsy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-            principal: aliceIdentity.getPrincipal(),
+            user: aliceIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           }),
         ).toBeFalsy();
@@ -749,21 +776,21 @@ describe('FileSystem', () => {
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ,
           }),
         ).toBeTruthy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ_WRITE,
           }),
         ).toBeFalsy();
         expect(
           await actor.hasPermission({
             entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
-            principal: bobIdentity.getPrincipal(),
+            user: bobIdentity.getPrincipal(),
             permission: READ_WRITE_MANAGE,
           }),
         ).toBeFalsy();
@@ -772,7 +799,10 @@ describe('FileSystem', () => {
   });
 
   test('should reinstall the canister', async () => {
-    await actor.create({ entry: [DIRECTORY, 'test/dir/sub'] });
+    await actor.create({
+      entry: [DIRECTORY, 'test/dir/sub'],
+      overwrite: false,
+    });
     const preReinstallTree = await actor.showTree([]);
 
     await pic.reinstallCode({

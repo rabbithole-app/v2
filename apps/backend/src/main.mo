@@ -35,6 +35,14 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
     errorSerializer = Liminal.defaultJsonErrorSerializer;
     candidRepresentationNegotiator = Liminal.defaultCandidRepresentationNegotiator;
     logger = Liminal.buildDebugLogger(#info);
+    urlNormalization = {
+      pathIsCaseSensitive = false;
+      preserveTrailingSlash = false;
+      queryKeysAreCaseSensitive = false;
+      removeEmptyPathSegments = true;
+      resolvePathDotSegments = true;
+      usernameIsCaseSensitive = false;
+    };
   });
 
   // Expose standard HTTP interface
@@ -109,7 +117,12 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
 
   public shared ({ caller }) func deleteProfile() : async () {
     assert not Principal.isAnonymous(caller);
-    let #err(message) = profiles.delete(caller) else return;
-    throw Error.reject(message);
+    switch (profiles.delete(caller)) {
+      case (#ok profile) {
+        let ?key = profile.avatarUrl else return;
+        assetCanister.delete_asset(canisterId, { key });
+      };
+      case (#err message) throw Error.reject(message);
+    };
   };
 };

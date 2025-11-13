@@ -281,7 +281,7 @@ export class EncryptedStorage {
 
     // create file
     const details = await this.#limit(
-      () => this.#actor.create({ entry }),
+      () => this.#actor.create({ entry, overwrite: true }),
       config.signal,
     );
 

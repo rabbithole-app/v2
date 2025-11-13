@@ -50,6 +50,10 @@ export interface Rabbithole {
   'deleteProfile' : ActorMethod<[], undefined>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
+  'http_request_streaming_callback' : ActorMethod<
+    [StreamingToken],
+    StreamingCallbackResponse
+  >,
   'http_request_update' : ActorMethod<
     [RawUpdateHttpRequest],
     RawUpdateHttpResponse

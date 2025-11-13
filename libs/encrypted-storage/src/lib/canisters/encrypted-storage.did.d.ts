@@ -30,7 +30,7 @@ export interface CommitProposedBatchArguments {
   'batch_id' : BatchId,
   'evidence' : Uint8Array | number[],
 }
-export interface CreateArguments { 'entry' : Entry }
+export interface CreateArguments { 'entry' : Entry, 'overwrite' : boolean }
 export interface CreateAssetArguments {
   'key' : Key,
   'content_type' : string,
@@ -39,6 +39,7 @@ export interface CreateAssetArguments {
   'max_age' : [] | [bigint],
   'enable_aliasing' : [] | [boolean],
 }
+export interface CreateBatchArguments { 'entry' : Entry }
 export interface CreateBatchResponse { 'batchId' : BatchId }
 export interface CreateBatchResponse__1 { 'batch_id' : BatchId }
 export interface CreateChunkArguments {
@@ -95,7 +96,7 @@ export interface EncryptedStorageCanister {
     [CreateChunksArguments],
     CreateChunksResponse
   >,
-  'createBatch' : ActorMethod<[CreateArguments], CreateBatchResponse>,
+  'createBatch' : ActorMethod<[CreateBatchArguments], CreateBatchResponse>,
   'createChunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
   'delete' : ActorMethod<[DeleteArguments], undefined>,
   'deleteAsset' : ActorMethod<[DeleteAssetArguments], undefined>,

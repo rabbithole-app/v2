@@ -220,6 +220,7 @@ module {
 
   public type CreateArguments = {
     entry : Entry;
+    overwrite : Bool;
   };
 
   public type UpdateArguments = {
@@ -283,6 +284,10 @@ module {
     var expiresAt : Time.Time;
     var totalBytes : Nat;
     chunkIds : Vector.Vector<ChunkId>;
+  };
+
+  public type CreateBatchArguments = {
+    entry : Entry;
   };
 
   public type CreateBatchResponse = {

@@ -150,10 +150,11 @@ module FileSystem {
     };
   };
 
-  public func create(self : Store, owner : Principal, { entry } : T.CreateArguments) : Result.Result<T.NodeStore, Text> {
-    switch (findNodeByEntry(self, ?entry)) {
-      case null #ok(createPath(self, owner, entry));
-      case (?_) #err(ErrorMessages.entryAlreadyExists(entry));
+  public func create(self : Store, owner : Principal, { entry; overwrite } : T.CreateArguments) : Result.Result<T.NodeStore, Text> {
+    switch (findNodeByEntry(self, ?entry), overwrite) {
+      case (null, _) #ok(createPath(self, owner, entry));
+      case (?node, true) #ok(node);
+      case (?_, false) #err(ErrorMessages.entryAlreadyExists(entry));
     };
   };
 

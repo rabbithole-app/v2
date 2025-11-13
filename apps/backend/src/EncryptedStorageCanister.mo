@@ -63,6 +63,14 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     errorSerializer = Liminal.defaultJsonErrorSerializer;
     candidRepresentationNegotiator = Liminal.defaultCandidRepresentationNegotiator;
     logger = Liminal.buildDebugLogger(#info);
+    urlNormalization = {
+      pathIsCaseSensitive = false;
+      preserveTrailingSlash = false;
+      queryKeysAreCaseSensitive = false;
+      removeEmptyPathSegments = true;
+      resolvePathDotSegments = true;
+      usernameIsCaseSensitive = false;
+    };
   });
 
   // Expose standard HTTP interface
@@ -128,7 +136,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func createBatch(args : T.CreateArguments) : async T.CreateBatchResponse {
+  public shared ({ caller }) func createBatch(args : T.CreateBatchArguments) : async T.CreateBatchResponse {
     switch (EncryptedStorage.createBatch(storage, caller, args)) {
       case (#ok batch) batch;
       case (#err(message)) throw Error.reject(message);

@@ -5,7 +5,7 @@ import type { IDL } from '@dfinity/candid';
 export type BatchId = bigint;
 export interface ChunkContent { 'content' : Uint8Array | number[] }
 export type ChunkId = bigint;
-export interface CreateArguments { 'entry' : Entry }
+export interface CreateArguments { 'entry' : Entry, 'overwrite' : boolean }
 export interface CreateBatchResponse { 'batchId' : BatchId }
 export interface CreateChunkArguments {
   'content' : Uint8Array | number[],
@@ -27,36 +27,39 @@ export interface EncryptedStorageCanister {
   'createBatch' : ActorMethod<[CreateArguments], CreateBatchResponse>,
   'createChunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
   'delete' : ActorMethod<[DeleteArguments], undefined>,
+  'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'getChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'grantPermission' : ActorMethod<[GrantPermissionArguments], undefined>,
   'hasPermission' : ActorMethod<[HasPermissionArguments], boolean>,
   'list' : ActorMethod<[[] | [Entry]], Array<NodeDetails>>,
-  'listPermitted' : ActorMethod<[[] | [Entry]], Array<[Principal, Permission]>>,
+  'listPermitted' : ActorMethod<
+    [[] | [Entry]],
+    Array<[Principal, PermissionExt]>
+  >,
   'move' : ActorMethod<[MoveArguments], undefined>,
   'revokePermission' : ActorMethod<[RevokePermissionArguments], undefined>,
+  'setThumbnail' : ActorMethod<[SetThumbnailArguments], NodeDetails>,
   'showTree' : ActorMethod<[[] | [Entry]], string>,
-  'store' : ActorMethod<[StoreArguments], undefined>,
   'update' : ActorMethod<[UpdateArguments], undefined>,
 }
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
   'sha256' : [] | [Uint8Array | number[]],
+  'thumbnailKey' : [] | [string],
   'contentType' : string,
   'size' : bigint,
-  'chunkIds' : Array<ChunkId>,
-  'downloads' : bigint,
 }
 export interface GetChunkArguments { 'chunkIndex' : bigint, 'entry' : Entry }
 export interface GrantPermissionArguments {
   'permission' : Permission,
-  'principal' : Principal,
+  'user' : Principal,
   'entry' : [] | [Entry],
 }
 export interface HasPermissionArguments {
   'permission' : Permission,
-  'principal' : Principal,
+  'user' : Principal,
   'entry' : [] | [Entry],
 }
 export type KeyId = [Owner, KeyName];
@@ -77,23 +80,24 @@ export type Owner = Principal;
 export type Permission = { 'Read' : null } |
   { 'ReadWrite' : null } |
   { 'ReadWriteManage' : null };
+export type PermissionExt = { 'Read' : null } |
+  { 'ReadWrite' : null } |
+  { 'ReadWriteManage' : null } |
+  { 'Controller' : null };
 export interface RevokePermissionArguments {
-  'principal' : Principal,
+  'user' : Principal,
   'entry' : [] | [Entry],
 }
-export type StoreArguments = {
-    'File' : {
-      'metadata' : {
-        'content' : Uint8Array | number[],
-        'sha256' : [] | [Uint8Array | number[]],
-        'contentType' : string,
-        'size' : bigint,
-      },
-      'path' : string,
-    }
-  };
+export interface SetThumbnailArguments {
+  'thumbnailKey' : [] | [string],
+  'entry' : Entry,
+}
 export type Time = bigint;
 export type TransportKey = Uint8Array | number[];
+export interface TreeNode {
+  'name' : string,
+  'children' : [] | [Array<TreeNode>],
+}
 export type UpdateArguments = {
     'File' : {
       'metadata' : {
