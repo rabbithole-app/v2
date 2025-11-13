@@ -56,6 +56,11 @@ export class EncryptedStorage {
     this.#limit = limit(concurrency ?? 16);
   }
 
+  async createDirectory(path: string) {
+    const entry: EntryRaw = [{ Directory: null }, path];
+    return await this.#actor.create({ entry, overwrite: false });
+  }
+
   async fsTree() {
     const fsTree = await this.#actor.fsTree();
     const canisterId = Actor.canisterIdOf(this.#actor);

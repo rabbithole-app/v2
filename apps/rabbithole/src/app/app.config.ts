@@ -24,6 +24,7 @@ import {
 import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
+  FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
   MAIN_CANISTER_ID,
   provideEncryptedStorageActor,
@@ -73,5 +74,6 @@ export const appConfig: ApplicationConfig = {
     provideEncryptedStorageActor(),
     provideEncryptedStorage(),
     provideCoreWorker(),
+    FileSystemAccessService,
   ],
 };

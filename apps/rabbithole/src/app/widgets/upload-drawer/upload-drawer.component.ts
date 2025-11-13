@@ -14,7 +14,6 @@ import {
 import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { showDirectoryPicker } from 'native-file-system-adapter';
 
 import {
   assertEncryptedStorage,
@@ -22,9 +21,8 @@ import {
 } from '../../core/injectors';
 import { UploadService } from '../../core/services';
 import { UploadDrawerListComponent } from './upload-drawer-list.component';
-import { BrowserFSPicker, UploadState } from '@rabbithole/core';
+import { FileSystemAccessService, UploadState } from '@rabbithole/core';
 import {
-  FileUploadService,
   RbthDrawerComponent,
   RbthDrawerContentComponent,
   RbthDrawerHeaderComponent,
@@ -51,8 +49,6 @@ import {
     UploadDrawerListComponent,
   ],
   providers: [
-    FileUploadService,
-    BrowserFSPicker,
     UploadService,
     provideIcons({
       lucideCross,
@@ -89,7 +85,7 @@ export class UploadDrawerComponent {
   failedItems = computed(() =>
     this.#items().filter(({ status }) => status === UploadState.FAILED),
   );
-  fileUploadService = inject(FileUploadService, { self: true });
+  #fsAccessService = inject(FileSystemAccessService);
 
   async list() {
     const encryptedStorage = this.encryptedStorage();
@@ -98,21 +94,27 @@ export class UploadDrawerComponent {
     console.log(list);
   }
 
-  async openDirectoryPicker() {
-    const dirHandle = await showDirectoryPicker();
-    const [items] =
-      await this.fileUploadService.listFilesAndDirsRecursively(dirHandle);
-    for (const item of items) {
-      this.#uploadService.addFile(item);
-    }
-  }
-
   async upload(files: File[] | FileList) {
     if (files instanceof FileList) {
       files = [...files];
     }
     for (const file of files) {
       this.#uploadService.addFile({ file });
+    }
+  }
+
+  async uploadDirectory() {
+    const items = await this.#fsAccessService.list();
+    for (const item of items) {
+      if (item.kind === 'file') {
+        this.#uploadService.addFile({ file: item.file, path: item.parentPath });
+      } else if (item.kind === 'directory') {
+        const path = item.parentPath
+          ? `${item.parentPath}/${item.name}`
+          : item.name;
+        // TODO: Add more reactive state updates when creating a directory
+        this.encryptedStorage().createDirectory(path);
+      }
     }
   }
 }

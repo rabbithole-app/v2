@@ -25,7 +25,7 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { environment } from '../../../environments/environment';
 import { injectMainActor } from '../../core/injectors/main-actor';
 import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dialog.component';
-import { BrowserFSPicker } from '@rabbithole/core';
+import { FileSystemAccessService } from '@rabbithole/core';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 
 @Component({
@@ -43,12 +43,12 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
   ],
   providers: [
     {
-        provide: NG_VALUE_ACCESSOR,
-        useExisting: forwardRef(() => AvatarEditorComponent),
-        multi: true
+      provide: NG_VALUE_ACCESSOR,
+      useExisting: forwardRef(() => AvatarEditorComponent),
+      multi: true,
     },
-    BrowserFSPicker, provideIcons({ lucidePencil, lucideTrash })
-],
+    provideIcons({ lucidePencil, lucideTrash }),
+  ],
   templateUrl: './avatar-editor.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -72,7 +72,7 @@ export class AvatarEditorComponent implements ControlValueAccessor {
   showControls = computed(() => this.#isHovered() && !this.disabled());
   readonly touched = signal(false);
   private readonly _hlmDialogService = inject(HlmDialogService);
-  #fsPickerService = inject(BrowserFSPicker);
+  #fsAccessService = inject(FileSystemAccessService);
   #mainActor = injectMainActor();
 
   constructor() {
@@ -101,17 +101,17 @@ export class AvatarEditorComponent implements ControlValueAccessor {
     if (this.disabled()) return;
 
     try {
-      const fileHandles = await this.#fsPickerService.showOpenFilePicker({
+      const fileHandles = await this.#fsAccessService.fileOpen({
         multiple: false,
       });
 
-      const files = await Promise.all(
-        fileHandles.map((handle) => handle.getFile()),
-      );
+      // const files = await Promise.all(
+      //   fileHandles.map((handle) => handle.getFile()),
+      // );
 
-      if (files.length > 0 && files[0].type.startsWith('image/')) {
-        this.openCropDialog(files[0]);
-      }
+      // if (files.length > 0 && files[0].type.startsWith('image/')) {
+      //   this.openCropDialog(files[0]);
+      // }
     } catch (error) {
       // The user cancelled the file picker dialog
       if ((error as Error).name !== 'AbortError') {

@@ -7,7 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { type } from 'arktype';
 import { isDeepEqual, isNonNullish } from 'remeda';
 import { match, P } from 'ts-pattern';
 
@@ -38,21 +37,6 @@ const INITIAL_VALUE: State = {
   files: [],
 };
 
-const showTreeSchema = type({
-  ok: 'string',
-})
-  .or({
-    err: 'string',
-  })
-  .pipe((result, ctx) => {
-    if ('err' in result) {
-      ctx.mustBe(result.err);
-      return ctx.errors;
-    }
-
-    return result.ok;
-  });
-
 @Injectable()
 export class UploadService {
   encryptedStorage = injectEncryptedStorage();
@@ -72,10 +56,7 @@ export class UploadService {
   showTree = resource<string, EncryptedStorage>({
     params: () => this.encryptedStorage(),
     loader: async ({ params: encryptedStorage }) => {
-      // if (!actor) return '';
-      const result = await encryptedStorage.showTree();
-      const parsedResult = showTreeSchema(result);
-      return parsedResult instanceof type.errors ? '' : parsedResult;
+      return await encryptedStorage.showTree();
     },
     defaultValue: '',
   });

@@ -1,13 +1,8 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
-import {
-  type FileSystemDirectoryHandle,
-  type FileSystemFileHandle,
-} from 'native-file-system-adapter';
+import { computed, Injectable, signal } from '@angular/core';
 
 import { FileWithPreview } from './file-upload.model';
 import { injectFileUploadConfig } from './file-upload.token';
 import { formatBytes } from './file-upload.utils';
-import { BrowserFSPicker } from '@rabbithole/core';
 
 type State = {
   errors: string[];
@@ -26,10 +21,6 @@ export class FileUploadService {
 
   readonly files = computed(() => this.#state().files);
   #config = injectFileUploadConfig();
-  // TODO: replace to token which provides another service for Tauri v2
-  #fsPickerService = inject(BrowserFSPicker);
-
-  private readonly ignoreFileList = ['.DS_Store', 'Thumbs.db'];
 
   addFiles(files: File[] | FileList) {
     const fileArray = Array.from(files);
@@ -100,33 +91,6 @@ export class FileUploadService {
     this.#state.update((prev) => ({ ...prev, files: [], errors: [] }));
   }
 
-  async listFilesAndDirsRecursively(
-    dirHandle: FileSystemDirectoryHandle,
-    cwd?: string,
-  ): Promise<[{ file: File; path: string }[], string[]]> {
-    const path = cwd ? `${cwd}/${dirHandle.name}` : dirHandle.name;
-    const files: Array<{ file: File; path: string }> = [];
-    const directories: string[] = [path];
-    for await (const handle of dirHandle.values()) {
-      if (this.ignoreFileList.includes(handle.name)) continue;
-      if (handle.kind === 'directory') {
-        const [f, d] = await this.listFilesAndDirsRecursively(
-          handle as FileSystemDirectoryHandle,
-          path,
-        );
-        files.push(...f);
-        directories.push(...d);
-      } else {
-        files.push({
-          file: await (handle as FileSystemFileHandle).getFile(),
-          path,
-        });
-      }
-    }
-
-    return [files, directories];
-  }
-
   removeFile(id: string) {
     const fileToRemove = this.#state().files.find((file) => file.id === id);
 
@@ -143,25 +107,5 @@ export class FileUploadService {
 
   setDragging(isDragging: boolean) {
     this.#state.update((prev) => ({ ...prev, isDragging }));
-  }
-
-  // Methods for working with File System Access API
-  async showDirectoryPicker() {
-    const dirHandle = await this.#fsPickerService.showDirectoryPicker();
-    const [files] = await this.listFilesAndDirsRecursively(dirHandle);
-    const fileObjects = files.map(({ file }) => file);
-    this.addFiles(fileObjects);
-  }
-
-  async showOpenFilePicker() {
-    const fileHandles = await this.#fsPickerService.showOpenFilePicker({
-      multiple: this.#config.multiple,
-    });
-
-    const files = await Promise.all(
-      fileHandles.map((handle) => handle.getFile()),
-    );
-
-    this.addFiles(files);
   }
 }

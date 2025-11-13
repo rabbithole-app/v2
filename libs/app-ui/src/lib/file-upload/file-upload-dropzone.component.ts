@@ -14,10 +14,11 @@ import { lucideFileUp } from '@ng-icons/lucide';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { cva } from 'class-variance-authority';
 import { ClassValue } from 'clsx';
+import { match, P } from 'ts-pattern';
 
 import { injectFileUploadConfig } from './file-upload.token';
 import { FormatBytesPipe } from './format-bytes.pipe';
-import { BrowserFSPicker } from '@rabbithole/core';
+import { FileSystemAccessService } from '@rabbithole/core';
 
 export const dropzoneVariants = cva(
   'border-input hover:bg-accent/50 data-[dragging=true]:bg-accent/50 flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed p-4 transition-colors',
@@ -55,7 +56,7 @@ export class RbthFileUploadDropzoneComponent {
     dropzoneVariants({ disabled: this.disabled() }),
   );
   // TODO: replace to token which provides another service for Tauri v2
-  #fsPickerService = inject(BrowserFSPicker);
+  #fsAccessService = inject(FileSystemAccessService);
 
   handleDragEnter(event: DragEvent) {
     event.preventDefault();
@@ -93,12 +94,16 @@ export class RbthFileUploadDropzoneComponent {
 
   async openFileDialog() {
     if (this.disabled()) return;
-    const fileHandles = await this.#fsPickerService.showOpenFilePicker({
+    const fileHandles = await this.#fsAccessService.fileOpen({
       multiple: this.config.multiple,
     });
-
     const files = await Promise.all(
-      fileHandles.map((handle) => handle.getFile()),
+      match(fileHandles)
+        .with(P.array({ handle: P.nonNullable.select() }), (v) =>
+          v.map((f) => f.getFile()),
+        )
+        .with({ handle: P.nonNullable.select() }, (f) => [f.getFile()])
+        .run(),
     );
     this.added.emit(files);
   }
