@@ -4,8 +4,10 @@ import { toast } from 'ngx-sonner';
 import { isDeepEqual } from 'remeda';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
-import { injectEncryptedStorage } from '../../core/injectors';
-import { parseCanisterRejectError } from '@rabbithole/core';
+import {
+  injectEncryptedStorage,
+  parseCanisterRejectError,
+} from '@rabbithole/core';
 import {
   Entry,
   GrantPermission,

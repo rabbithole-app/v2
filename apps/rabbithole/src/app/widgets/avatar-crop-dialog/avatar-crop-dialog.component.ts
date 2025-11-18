@@ -38,9 +38,10 @@ import {
   throwError,
 } from 'rxjs';
 
-import { injectCoreWorker, injectMainActor } from '../../core/injectors';
+import { injectMainActor } from '../../core/injectors';
 import {
   ImageCropPayload,
+  injectCoreWorker,
   isPhotonSupportedMimeType,
   MAX_AVATAR_HEIGHT,
   MAX_AVATAR_WIDTH,
