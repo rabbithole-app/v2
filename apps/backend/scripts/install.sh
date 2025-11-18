@@ -19,7 +19,18 @@ sleep 10
 mops install
 
 echo "🚀 Deploying canisters..."
-dfx deploy
+dfx deploy rabbithole-backend --network local
+dfx deploy encrypted-storage --network local
+dfx deploy internet-identity --network local
+dfx canister create rabbithole-frontend --network local
+dfx generate
+
+# Verify canisters are deployed
+echo "✅ Verifying canisters are deployed..."
+if [ -f .dfx/local/canister_ids.json ]; then
+    echo "Canisters deployed:"
+    cat .dfx/local/canister_ids.json | grep -o '"[^"]*":' | sed 's/"//g' | sed 's/://g' | head -5
+fi
 
 # keep waiting
 tail -f /app/replica.log
