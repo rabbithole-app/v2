@@ -15,13 +15,15 @@ import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
+import { UploadDrawerListComponent } from './upload-drawer-list.component';
 import {
   assertEncryptedStorage,
   ENCRYPTED_STORAGE_TOKEN,
-} from '../../core/injectors';
-import { UploadService } from '../../core/services';
-import { UploadDrawerListComponent } from './upload-drawer-list.component';
-import { FileSystemAccessService, UploadState } from '@rabbithole/core';
+  FileSystemAccessService,
+  provideUploadFilesService,
+  UPLOAD_SERVICE_TOKEN,
+  UploadState,
+} from '@rabbithole/core';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -49,7 +51,7 @@ import {
     UploadDrawerListComponent,
   ],
   providers: [
-    UploadService,
+    provideUploadFilesService(),
     provideIcons({
       lucideCross,
       lucideList,
@@ -61,9 +63,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UploadDrawerComponent {
-  #uploadService = inject(UploadService, {
-    self: true,
-  });
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN, { self: true });
   #items = computed(() => this.#uploadService.state().files);
   activeItems = computed(() =>
     this.#items().filter(({ status }) =>
@@ -80,7 +80,7 @@ export class UploadDrawerComponent {
   completedItems = computed(() =>
     this.#items().filter(({ status }) => status === UploadState.COMPLETED),
   );
-  dropzoneDisabled = computed(() => !this.#uploadService.hasWritePermission());
+  dropzoneDisabled = computed(() => !this.#uploadService.hasPermission());
   encryptedStorage = inject(ENCRYPTED_STORAGE_TOKEN);
   failedItems = computed(() =>
     this.#items().filter(({ status }) => status === UploadState.FAILED),
@@ -99,7 +99,7 @@ export class UploadDrawerComponent {
       files = [...files];
     }
     for (const file of files) {
-      this.#uploadService.addFile({ file });
+      this.#uploadService.add({ file });
     }
   }
 
@@ -107,7 +107,7 @@ export class UploadDrawerComponent {
     const items = await this.#fsAccessService.list();
     for (const item of items) {
       if (item.kind === 'file') {
-        this.#uploadService.addFile({ file: item.file, path: item.parentPath });
+        this.#uploadService.add({ file: item.file, path: item.parentPath });
       } else if (item.kind === 'directory') {
         const path = item.parentPath
           ? `${item.parentPath}/${item.name}`

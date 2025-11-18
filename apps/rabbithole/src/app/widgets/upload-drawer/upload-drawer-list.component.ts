@@ -5,8 +5,11 @@ import {
   input,
 } from '@angular/core';
 
-import { UploadService } from '../../core/services';
-import { FileUploadWithStatus, UploadFile } from '@rabbithole/core';
+import {
+  FileUploadWithStatus,
+  UPLOAD_SERVICE_TOKEN,
+  UploadFile,
+} from '@rabbithole/core';
 import { RbthUploadItemComponent } from '@rabbithole/ui';
 
 @Component({
@@ -27,7 +30,7 @@ import { RbthUploadItemComponent } from '@rabbithole/ui';
 })
 export class UploadDrawerListComponent {
   items = input.required<FileUploadWithStatus[]>();
-  #uploadService = inject(UploadService);
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
 
   handleCancel(id: UploadFile['id']) {
     this.#uploadService.cancel(id);

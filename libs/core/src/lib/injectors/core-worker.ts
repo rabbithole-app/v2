@@ -3,20 +3,19 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Principal } from '@dfinity/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
-import { AUTH_SERVICE } from '@rabbithole/auth';
+import { assertWorker } from '../asserts';
+import { messageByAction } from '../operators';
+import { WorkerService } from '../services';
+import { ENCRYPTED_STORAGE_CANISTER_ID, WORKER } from '../tokens';
 import {
-  assertWorker,
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,
-  ENCRYPTED_STORAGE_CANISTER_ID,
   ExtractInjectionToken,
-  HTTP_AGENT_OPTIONS_TOKEN,
-  messageByAction,
   NonNullableProps,
-  WORKER,
   WorkerConfigIn,
-  WorkerService,
-} from '@rabbithole/core';
+} from '../types';
+import { HTTP_AGENT_OPTIONS_TOKEN } from './http-agent';
+import { AUTH_SERVICE } from '@rabbithole/auth';
 
 export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
   (
@@ -64,12 +63,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
         provide: WORKER,
         useFactory: () =>
           typeof Worker !== 'undefined'
-            ? new Worker(
-                new URL(
-                  '../../../../../../libs/core/src/lib/workers/core.worker',
-                  import.meta.url,
-                ),
-              )
+            ? new Worker(new URL('../workers/core.worker', import.meta.url))
             : null,
       } satisfies Provider,
       WorkerService,

@@ -52,7 +52,11 @@ import {
   WorkerConfig,
   workerConfigSchema,
 } from '../types';
-import { isPhotonSupportedMimeType, loadIdentity } from '../utils';
+import {
+  isPhotonSupportedMimeType,
+  loadIdentity,
+  parseCanisterRejectError,
+} from '../utils';
 import {
   AssetManager,
   EncryptedStorage,
@@ -283,7 +287,7 @@ uploadAssets
               of<UploadStatus>({
                 id,
                 status: UploadState.FAILED,
-                errorMessage: (err as Error).message,
+                errorMessage: parseCanisterRejectError(err) ?? 'Unknown error',
               }),
             ),
           )
@@ -385,7 +389,7 @@ uploadFiles
               of<UploadStatus>({
                 id,
                 status: UploadState.FAILED,
-                errorMessage: (err as Error).message,
+                errorMessage: parseCanisterRejectError(err) ?? 'Unknown error',
               }),
             ),
           )

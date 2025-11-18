@@ -2,10 +2,9 @@ import { computed } from '@angular/core';
 import { Principal } from '@dfinity/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
-import {
-  ENCRYPTED_STORAGE_CANISTER_ID,
-  injectHttpAgent,
-} from '@rabbithole/core';
+import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
+import { ExtractInjectionToken } from '../types';
+import { injectHttpAgent } from './http-agent';
 import { EncryptedStorage } from '@rabbithole/encrypted-storage';
 
 export function assertEncryptedStorage(
@@ -20,16 +19,16 @@ export const [
   provideEncryptedStorage,
   ENCRYPTED_STORAGE_TOKEN,
 ] = createInjectionToken(
-  (encryptedStorageCanisterId: Principal) => {
+  (canisterId: ExtractInjectionToken<typeof ENCRYPTED_STORAGE_CANISTER_ID>) => {
     const httpAgent = injectHttpAgent();
-    return computed(() => {
-      const agent = httpAgent();
-      return new EncryptedStorage({
-        canisterId: encryptedStorageCanisterId,
-        origin: `https://${encryptedStorageCanisterId.toText()}.localhost`,
-        agent,
-      });
-    });
+    return computed(
+      () =>
+        new EncryptedStorage({
+          canisterId,
+          origin: `https://${canisterId.toText()}.localhost`,
+          agent: httpAgent(),
+        }),
+    );
   },
   {
     isRoot: false,

@@ -1,3 +1,6 @@
 export * from './core.service';
 export * from './file-system-access.service';
+export * from './ic-management.service';
+export * from './upload-assets.service';
+export * from './upload-files.service';
 export * from './worker.service';
