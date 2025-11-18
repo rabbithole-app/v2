@@ -6,6 +6,7 @@ import {
   ValidationErrors,
 } from '@angular/forms';
 import { Actor } from '@dfinity/agent';
+import { fromNullable } from '@dfinity/utils';
 import { toast } from 'ngx-sonner';
 import { map } from 'rxjs';
 
@@ -22,16 +23,16 @@ export class ProfileService {
       const agent = Actor.agentOf(actor);
       const principal = await agent?.getPrincipal();
       if (principal?.isAnonymous()) {
-        return null;
+        return undefined;
       }
-      
+
       const profile = await actor.getProfile();
-      return profile[0] ?? null;
+      return fromNullable(profile) ?? null;
     },
   });
   profile = computed(() => this.#profileResource.value());
   ready$ = toObservable(this.#profileResource.value).pipe(
-    map((v) => v !== undefined)
+    map((v) => v !== undefined),
   );
 
   checkUsernameValidator(): AsyncValidatorFn {
@@ -54,7 +55,8 @@ export class ProfileService {
       toast.success('Profile created successfully', { id });
       this.#profileResource.reload();
     } catch (error) {
-      const errorMessage = parseCanisterRejectError(error) ?? 'An error has occurred';
+      const errorMessage =
+        parseCanisterRejectError(error) ?? 'An error has occurred';
       toast.error(`Failed to create profile: ${errorMessage}`, {
         id,
       });
@@ -70,7 +72,8 @@ export class ProfileService {
       toast.success('Profile deleted successfully', { id });
       this.#profileResource.reload();
     } catch (error) {
-      const errorMessage = parseCanisterRejectError(error) ?? 'An error has occurred';
+      const errorMessage =
+        parseCanisterRejectError(error) ?? 'An error has occurred';
       toast.error(`Failed to delete profile: ${errorMessage}`, {
         id,
       });
@@ -86,7 +89,8 @@ export class ProfileService {
       toast.success('Profile updated successfully', { id });
       this.#profileResource.reload();
     } catch (error) {
-      const errorMessage = parseCanisterRejectError(error) ?? 'An error has occurred';
+      const errorMessage =
+        parseCanisterRejectError(error) ?? 'An error has occurred';
       toast.error(`Failed to update profile: ${errorMessage}`, {
         id,
       });
