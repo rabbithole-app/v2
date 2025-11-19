@@ -44,6 +44,7 @@ const RbthSidebarLayoutImports = [
 })
 export class RbthSidebarLayoutModule {}
 
+export * from './lib/canister-status';
 export * from './lib/copy-to-clipboard';
 export * from './lib/drawer';
 export * from './lib/file-upload';
