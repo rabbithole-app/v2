@@ -5,22 +5,16 @@ import {
   inject,
 } from '@angular/core';
 import { Params, Router, RouterOutlet } from '@angular/router';
-import { provideIcons } from '@ng-icons/core';
-import { lucideLogOut } from '@ng-icons/lucide';
 
 import { SidebarLayoutComponent } from '../../widgets/sidebar/sidebar.component';
-import { UploadDrawerComponent } from '../../widgets/upload-drawer/upload-drawer.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [
-    SidebarLayoutComponent,
-    UploadDrawerComponent,
-    RouterOutlet,
-  ],
-  providers: [provideIcons({ lucideLogOut })],
-  templateUrl: './dashboard.component.html',
+  imports: [SidebarLayoutComponent, RouterOutlet],
+  template: `<app-sidebar-layout>
+    <router-outlet />
+  </app-sidebar-layout>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {

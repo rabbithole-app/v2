@@ -29,7 +29,7 @@ const INITIAL_VALUE: State = {
   },
 };
 
-@Injectable({ providedIn: 'root' })
+@Injectable()
 export class PermissionsService {
   encryptedStorage = injectEncryptedStorage();
   #state = signal(INITIAL_VALUE);
