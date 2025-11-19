@@ -1,9 +1,5 @@
-import { computed, effect, inject, Injectable, resource } from '@angular/core';
-import { Principal } from '@dfinity/principal';
-import {
-  CanisterStatusResponse,
-  ICManagementCanister,
-} from '@icp-sdk/canisters/ic-management';
+import { computed, inject, Injectable, resource } from '@angular/core';
+import { ICManagementCanister } from '@icp-sdk/canisters/ic-management';
 
 import { injectHttpAgent } from '../injectors';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
@@ -19,32 +15,18 @@ export class ICManagementService {
     const agent = this.#httpAgent();
     return ICManagementCanister.create({ agent });
   });
-  canisterStatus = resource<CanisterStatusResponse, ICManagementCanister>({
+  canisterStatus = resource<ParsedCanisterStatus, ICManagementCanister>({
     params: () => this.#icManagement(),
     loader: async ({ params: icManagement }) => {
       const pid = this.#authService.identity().getPrincipal();
+
       if (pid.isAnonymous()) {
         throw new Error('Anonymous user cannot access IC management');
       }
+
       const result = await icManagement.canisterStatus(this.#canisterId);
 
-      return result;
+      return parseCanisterStatus(result);
     },
   });
-
-  constructor() {
-    effect(() => console.log(this.canisterStatus.value()));
-  }
-
-  async getCanisterStatus(
-    canisterId: Principal,
-  ): Promise<ParsedCanisterStatus> {
-    const pid = this.#authService.identity().getPrincipal();
-    if (pid.isAnonymous()) {
-      throw new Error('Anonymous user cannot access IC management');
-    }
-    const icManagement = this.#icManagement();
-    const response = await icManagement.canisterStatus(canisterId);
-    return parseCanisterStatus(response);
-  }
 }
