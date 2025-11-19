@@ -4,7 +4,7 @@ import {
   Provider,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { HttpAgentOptions } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { isTauri } from '@tauri-apps/api/core';
@@ -22,14 +22,9 @@ import {
 } from '@rabbithole/auth';
 import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
-  ENCRYPTED_STORAGE_CANISTER_ID,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
   MAIN_CANISTER_ID,
-  provideAssetManager,
-  provideCoreWorker,
-  provideEncryptedStorage,
-  provideEncryptedStorageActor,
 } from '@rabbithole/core';
 
 export const provideAuthService = (): Provider => ({
@@ -54,7 +49,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
-    provideRouter(appRoutes),
+    provideRouter(appRoutes, withComponentInputBinding()),
     provideAuthService(),
     { provide: AUTH_CONFIG, useValue: authConfig },
     {
@@ -63,20 +58,12 @@ export const appConfig: ApplicationConfig = {
     },
     provideMainActor(),
     {
-      provide: ENCRYPTED_STORAGE_CANISTER_ID,
-      useValue: Principal.fromText(environment.encryptedStorageCanisterId),
-    },
-    {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {
         shouldFetchRootKey: !environment.production,
         host: 'https://localhost',
       } satisfies HttpAgentOptions,
     },
-    provideEncryptedStorageActor(),
-    provideEncryptedStorage(),
-    provideAssetManager(),
-    provideCoreWorker(),
     FileSystemAccessService,
   ],
 };
