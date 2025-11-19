@@ -1,15 +1,13 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+} from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-import { NgIcon, provideIcons } from '@ng-icons/core';
-import {
-  lucideBookOpen,
-  lucideSettings2,
-  lucideSquareTerminal,
-  lucideUserCog,
-  lucideUsers,
-} from '@ng-icons/lucide';
+import { NgIcon } from '@ng-icons/core';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { combineLatestWith, map } from 'rxjs/operators';
 
@@ -22,39 +20,11 @@ import {
 } from '@rabbithole/ui';
 import { MOBILE_BREAKPOINT } from '@rabbithole/ui';
 
-type NavItem = {
+export type NavItem = {
   icon: string;
   title: string;
   url: string;
 };
-
-const NAVIGATION_ITEMS: NavItem[] = [
-  {
-    title: 'Playground',
-    url: '/',
-    icon: 'lucideSquareTerminal',
-  },
-  {
-    title: 'Permissions',
-    url: '/permissions',
-    icon: 'lucideUserCog',
-  },
-  {
-    title: 'Users',
-    url: '/users',
-    icon: 'lucideUsers',
-  },
-  {
-    title: 'Documentation',
-    url: '#',
-    icon: 'lucideBookOpen',
-  },
-  {
-    title: 'Settings',
-    url: '#',
-    icon: 'lucideSettings2',
-  },
-];
 
 @Component({
   selector: 'app-navigation',
@@ -69,21 +39,12 @@ const NAVIGATION_ITEMS: NavItem[] = [
     RbthTooltipTriggerDirective,
   ],
   templateUrl: './navigation.component.html',
-  styles: ``,
-  providers: [
-    provideIcons({
-      lucideBookOpen,
-      lucideUserCog,
-      lucideSettings2,
-      lucideSquareTerminal,
-      lucideUsers,
-    }),
-  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NavigationComponent {
   breakpointObserver = inject(BreakpointObserver);
-  readonly data = NAVIGATION_ITEMS;
+  data = input.required<NavItem[]>();
+  exact = input('/');
   #sidebarService = inject(SidebarService);
   tooltipDisabled = toSignal(
     this.breakpointObserver.observe(`(min-width: ${MOBILE_BREAKPOINT}px)`).pipe(

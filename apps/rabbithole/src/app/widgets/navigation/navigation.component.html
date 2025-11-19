@@ -1,5 +1,5 @@
 <ul rbthSidebarMenu>
-  @for (item of data; track item.title) {
+  @for (item of data(); track item.title) {
     <li rbthSidebarMenuItem>
       <a
         rbthSidebarMenuButton
@@ -13,7 +13,7 @@
         [rbthTooltipDisabled]="tooltipDisabled()"
         [aria-describedby]="item.title"
         position="right"
-        [routerLinkActiveOptions]="{ exact: item.url === '/' }"
+        [routerLinkActiveOptions]="{ exact: item.url === exact() }"
       >
         <ng-icon size="sm" hlmIcon [name]="item.icon" hlmMenuIcon />
         <span class="group-data-[collapsible=icon]:hidden!">{{

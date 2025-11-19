@@ -5,8 +5,9 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
+import { RouterOutlet } from '@angular/router';
 import { BrnSeparator } from '@spartan-ng/brain/separator';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 import { NavigationComponent } from '../navigation/navigation.component';
@@ -20,6 +21,7 @@ import { RbthSidebarLayoutModule, SidebarService } from '@rabbithole/ui';
     BrnSeparator,
     SidebarHeaderComponent,
     NavigationComponent,
+    RouterOutlet,
   ],
   templateUrl: './sidebar.component.html',
   host: {
