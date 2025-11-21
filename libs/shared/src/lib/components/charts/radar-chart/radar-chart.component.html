@@ -1,0 +1,87 @@
+<svg
+  [attr.width]="width()"
+  [attr.height]="height()"
+  [attr.viewBox]="'0 0 ' + width() + ' ' + height()"
+  class="w-full h-full"
+  preserveAspectRatio="xMidYMid meet"
+>
+  @if (data().length > 0 && getXKeys().length > 0) {
+    <g [attr.transform]="'translate(' + centerX() + ',' + centerY() + ')'">
+      <!-- Grid circles (background) - like in original: one full circle with fill, one half circle without fill -->
+      <circle
+        class="grid-circle grid-circle-bg"
+        [attr.cx]="0"
+        [attr.cy]="0"
+        [attr.r]="maxRadius()"
+        [attr.fill]="gridStroke()"
+        [attr.fill-opacity]="0.1"
+        [attr.stroke]="'none'"
+      ></circle>
+      <circle
+        class="grid-circle"
+        [attr.cx]="0"
+        [attr.cy]="0"
+        [attr.r]="maxRadius() / 2"
+        [attr.fill]="'none'"
+        [attr.stroke]="gridStroke()"
+        [attr.stroke-width]="gridStrokeWidth()"
+      ></circle>
+
+      <!-- Axes (lines from center to edge) -->
+      @for (key of getXKeys(); track $index) {
+        @let axisAngle = getAngle($index);
+        <line
+          class="axis-line"
+          [attr.x1]="0"
+          [attr.y1]="0"
+          [attr.x2]="getAxisEndX(axisAngle)"
+          [attr.y2]="getAxisEndY(axisAngle)"
+          [attr.stroke]="axisStroke()"
+          [attr.stroke-width]="axisStrokeWidth()"
+        ></line>
+        <!-- Axis labels -->
+        <text
+          class="axis-label"
+          [attr.x]="getLabelX(axisAngle)"
+          [attr.y]="getLabelY(axisAngle)"
+          [attr.text-anchor]="getTextAnchor($index, getXKeys().length)"
+          [attr.font-size]="labelFontSize()"
+          [attr.fill]="labelColor()"
+          [attr.dy]="'0.35em'"
+        >
+          {{ key }}
+        </text>
+      }
+
+      <!-- Data visualization -->
+      @for (row of data(); track $index) {
+        @let xVals = xGet()(row);
+        @if (xVals.length > 0) {
+          <!-- Draw a line connecting all the dots -->
+          <path
+            class="path-line"
+            [attr.d]="path()(xVals)"
+            [attr.fill]="fill()"
+            [attr.fill-opacity]="fillOpacity()"
+            [attr.stroke]="stroke()"
+            [attr.stroke-width]="strokeWidth()"
+          ></path>
+
+          <!-- Plot each dot -->
+          @for (circleR of xVals; track $index) {
+            @let thisAngle = getAngle($index);
+            <circle
+              [attr.cx]="getX(circleR, thisAngle)"
+              [attr.cy]="getY(circleR, thisAngle)"
+              [attr.fill]="circleFill()"
+              [attr.r]="r()"
+              [attr.stroke]="circleStroke()"
+              [attr.stroke-width]="circleStrokeWidth()"
+            ></circle>
+          }
+        }
+      }
+    </g>
+  }
+</svg>
+

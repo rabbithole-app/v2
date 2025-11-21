@@ -1,0 +1,26 @@
+.path-line {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.grid-circle {
+  stroke: var(--label-color, var(--muted-foreground));
+}
+
+.grid-circle-bg {
+  fill: var(--label-color, var(--muted-foreground));
+  opacity: 1;
+}
+
+.axis-line {
+  stroke: var(--label-color, var(--muted-foreground));
+  fill: none;
+}
+
+.axis-label {
+  font-size: var(--font-size-ultra-small, 10px);
+  fill: var(--value-color, var(--foreground));
+  pointer-events: none;
+  user-select: none;
+}
+
