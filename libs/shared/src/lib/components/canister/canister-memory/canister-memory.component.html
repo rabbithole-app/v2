@@ -1,0 +1,78 @@
+<div class="min-w-[200px]">
+  <div hlmItem variant="muted" class="h-full">
+    <div hlmItemHeader>
+      <h2 class="font-bold" hlmItemTitle>Memory</h2>
+    </div>
+    <div hlmItemContent class="space-y-4">
+      <!-- First area: in total -->
+      <p class="text-sm">
+        <span>{{ totalMemoryFormatted() }}</span>
+        <small class="ml-1 text-xs text-muted-foreground">in total</small>
+      </p>
+
+      <!-- Second area: all memory metrics without spacing between lines -->
+      <div>
+        <p class="text-sm inline-flex items-center gap-1">
+          <span>{{ wasmMemoryFormatted() }}</span>
+          <small class="ml-1 text-xs text-muted-foreground">on heap</small>
+          @if (warning()) {
+            <shared-inline-warning
+              [iconSize]="16"
+              [title]="heapWarningLabel() || undefined"
+            />
+          }
+        </p>
+
+        <p class="text-sm">
+          <span>{{ stableMemoryFormatted() }}</span>
+          <small class="ml-1 text-xs text-muted-foreground">on stable</small>
+        </p>
+
+        @if (showGlobalMemory()) {
+          <p class="text-sm">
+            <span>{{ globalMemoryFormatted() }}</span>
+            <small class="ml-1 text-xs text-muted-foreground">in global</small>
+          </p>
+        }
+
+        @if (showChunkStore()) {
+          <p class="text-sm">
+            <span>{{ wasmChunkStoreFormatted() }}</span>
+            <small class="ml-1 text-xs text-muted-foreground">in chunks</small>
+          </p>
+        }
+
+        @if (showSnapshots()) {
+          <p class="text-sm">
+            <span>{{ snapshotsFormatted() }}</span>
+            <small class="ml-1 text-xs text-muted-foreground">on snapshot</small>
+          </p>
+        }
+
+        <p class="text-sm">
+          <span>{{ customSectionsFormatted() }}</span>
+          <small class="ml-1 text-xs text-muted-foreground">of custom sections</small>
+        </p>
+
+        <p class="text-sm">
+          <span>{{ wasmBinaryFormatted() }}</span>
+          <small class="ml-1 text-xs text-muted-foreground">of code</small>
+        </p>
+
+        @if (showHistory()) {
+          <p class="text-sm">
+            <span>{{ canisterHistoryFormatted() }}</span>
+            <small class="ml-1 text-xs text-muted-foreground">in history</small>
+          </p>
+        }
+      </div>
+
+      <!-- Third area: chart -->
+      <shared-canister-memory-chart
+        [memoryMetrics]="memoryMetrics()"
+        [segment]="segment()"
+      />
+    </div>
+  </div>
+</div>
+
