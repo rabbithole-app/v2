@@ -1,127 +1,50 @@
 @if (canisterStatus(); as status) {
   <div class="container mx-auto p-6">
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <!-- Runtime Section -->
-      <div hlmItem variant="muted" class="self-start">
-        <div hlmItemHeader>
-          <h2 hlmItemTitle class="font-bold">Runtime</h2>
-        </div>
-        <div hlmItemContent class="space-y-4">
-          <div>
-            <div class="text-sm">Status:</div>
-            <rbth-canister-status variant="outline" [status]="status.status" />
-          </div>
+    <hlm-tabs tab="settings">
+      <hlm-tabs-list class="grid grid-cols-3">
+        <button hlmTabsTrigger="wasm">WASM</button>
+        <button hlmTabsTrigger="frontend">Frontend</button>
+        <button hlmTabsTrigger="settings">Settings</button>
+      </hlm-tabs-list>
 
-          <div>
-            <div class="text-sm">Available Cycles:</div>
-            <div class="text-sm text-muted-foreground">{{ availableCycles() }}</div>
-          </div>
-
-          <div>
-            <div class="text-sm">Daily Idle Consumption:</div>
-            <div class="text-sm text-muted-foreground">{{ dailyIdleConsumption() }}</div>
-          </div>
-
-          <div>
-            <div class="text-sm">Queries:</div>
-            <div>
-              <div class="text-sm text-muted-foreground">{{ queriesCalls() }} calls</div>
-              <div class="text-sm text-muted-foreground">{{ queriesInstructions() }} instructions</div>
-              <div class="text-sm text-muted-foreground">{{ queriesRequests() }} requests</div>
-              <div class="text-sm text-muted-foreground">{{ queriesResponses() }} responses</div>
-            </div>
-          </div>
+      <div hlmTabsContent="wasm">
+        <div class="mt-4">
+          <p class="text-sm text-muted-foreground">WASM content will be here</p>
         </div>
       </div>
 
-      <!-- Memory Section -->
-      <shared-canister-memory
-        [canister]="canisterStatus()"
-      />
-
-      <!-- Health Check Section -->
-      <div hlmItem variant="muted" class="self-start">
-        <div hlmItemHeader>
-          <h2 hlmItemTitle class="font-bold">Health Check</h2>
+      <div hlmTabsContent="frontend">
+        <div class="mt-4">
+          <p class="text-sm text-muted-foreground">Frontend content will be here</p>
         </div>
-        <div hlmItemContent class="space-y-4">
-          <div class="space-y-2">
-            <p class="text-sm text-muted-foreground">
-              The grace period is set to {{ gracePeriodDays() }} days.
-            </p>
+      </div>
 
-            <div class="space-y-2">
-              <div>
-                <span class="text-sm text-muted-foreground">Cycles needed:</span>
-                <div class="text-sm font-medium mt-0.5">{{ cyclesNeededFormatted() }}</div>
-              </div>
+      <div hlmTabsContent="settings">
+        <div class="mt-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <!-- Runtime Section -->
+            <shared-canister-runtime [canister]="status" variant="muted" class="self-start" />
 
-              <div class="flex items-center gap-2">
-                <div class="flex-1">
-                  <brn-progress [value]="progressValue()" [max]="100">
-                    <hlm-progress />
-                  </brn-progress>
-                </div>
-                <div class="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
-                  <span class="font-medium">{{ cyclesNeededFormatted() }}</span>
-                  <span>/</span>
-                  <span class="font-medium">{{ currentBalanceFormatted() }}</span>
-                </div>
-              </div>
+            <!-- Memory Section -->
+            <shared-canister-memory [canister]="status" variant="muted" class="h-full" />
 
-              <div class="flex items-center gap-2 pt-2">
-                @if (isSafe()) {
-                  <svg
-                    class="size-4 text-emerald-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <span class="text-sm font-medium text-emerald-500">
-                    Safe – {{ safetyPercentage() }}% of cycles needed
-                  </span>
-                } @else {
-                  <svg
-                    class="size-4 text-amber-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                  <span class="text-sm font-medium text-amber-500">
-                    Warning – {{ safetyPercentage() }}% of cycles needed
-                  </span>
-                }
-              </div>
-            </div>
+            <!-- Health Check Section -->
+            <shared-canister-health-check [canister]="status" variant="muted" class="self-start" />
+          </div>
+
+          <!-- Controllers Section -->
+          <div class="col-span-full mt-6">
+            <shared-canister-controllers-table
+              [controllers]="controllers()"
+              [currentPrincipalId]="currentPrincipalId()"
+              [loadingState]="loadingState()"
+              (addController)="_handleAddController($event)"
+              (removeController)="_handleRemoveController($event)"
+            />
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Controllers Section -->
-    <div class="col-span-full mt-6">
-      <shared-canister-controllers-table
-        [controllers]="controllers()"
-        [currentPrincipalId]="currentPrincipalId()"
-        [loadingState]="loadingState()"
-        (addController)="_handleAddController($event)"
-        (removeController)="_handleRemoveController($event)"
-      />
-    </div>
+    </hlm-tabs>
   </div>
 }
 

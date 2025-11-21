@@ -4,6 +4,7 @@ import {
   computed,
   input,
 } from '@angular/core';
+import { HlmItem } from '@spartan-ng/helm/item';
 import { HlmItemImports } from '@spartan-ng/helm/item';
 
 import { CanisterMemoryChartComponent } from '../canister-memory-chart/canister-memory-chart.component';
@@ -13,6 +14,12 @@ import { formatBytes } from '@rabbithole/ui';
 
 @Component({
   selector: 'shared-canister-memory',
+  hostDirectives: [
+    {
+      directive: HlmItem,
+      inputs: ['variant', 'size', 'class'],
+    },
+  ],
   imports: [
     ...HlmItemImports,
     CanisterMemoryChartComponent,
@@ -23,12 +30,12 @@ import { formatBytes } from '@rabbithole/ui';
 })
 export class CanisterMemoryComponent {
   /** Canister data info */
-  canister = input<CanisterDataInfo | undefined>();
+  canister = input.required<CanisterDataInfo>();
 
   /** Canister data (optional, for warnings) */
   canisterData = input<{ warning?: { heap?: boolean } } | undefined>();
 
-  memoryMetrics = computed(() => this.canister()?.memoryMetrics);
+  memoryMetrics = computed(() => this.canister().memoryMetrics);
 
   canisterHistorySize = computed(
     () => this.memoryMetrics()?.canisterHistorySize,
@@ -55,7 +62,7 @@ export class CanisterMemoryComponent {
   /** Heap warning label */
   heapWarningLabel = input<string | undefined>();
 
-  memorySizeInTotal = computed(() => this.canister()?.memorySize);
+  memorySizeInTotal = computed(() => this.canister().memorySize);
 
   /** Segment type */
   segment = input<string>('');
