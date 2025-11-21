@@ -1,4 +1,4 @@
-export * from './canister-status.utils';
+export * from './canister';
 export * from './create-auth-client';
 export * from './cycles';
 export * from './format-number';
