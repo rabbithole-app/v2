@@ -1,0 +1,132 @@
+<div class="flex items-center justify-between">
+  <h2 class="text-lg font-semibold">Controllers</h2>
+  @if (_isAdding()) {
+    <button hlmBtn variant="secondary" disabled>
+      <hlm-spinner class="size-4" />
+      Adding controller...
+    </button>
+  } @else {
+    <button hlmBtn (click)="_openAddDialog()">
+      <ng-icon hlmIcon name="lucidePlus" size="sm" />
+      Add controller
+    </button>
+  }
+</div>
+
+<div class="border-border w-full overflow-auto rounded-md border">
+  @defer {
+    <table hlmTable class="w-full">
+      <thead hlmTHead>
+        @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+          <tr hlmTr>
+            @for (header of headerGroup.headers; track header.id) {
+              <th hlmTh [attr.colSpan]="header.colSpan">
+                @if (!header.isPlaceholder) {
+                  <ng-container
+                    *flexRender="
+                      header.column.columnDef.header;
+                      props: header.getContext();
+                      let headerText
+                    "
+                  >
+                    <div [innerHTML]="headerText"></div>
+                  </ng-container>
+                }
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+      <tbody hlmTBody class="w-full">
+        @for (row of table.getRowModel().rows; track row.original.principal.toText()) {
+          <tr hlmTr [attr.key]="row.id">
+            @for (cell of row.getVisibleCells(); track $index) {
+              <td hlmTd>
+                @if (cell.column.id === 'action') {
+                  @let principalToRemove = row.original.principal;
+                  @let isCurrent = _isCurrentPrincipal(principalToRemove);
+                  @let isRemoving = _isRemoving(principalToRemove);
+                  @if (!isCurrent) {
+                    <button
+                      class="size-8 text-destructive hover:text-destructive"
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      [disabled]="isRemoving"
+                      (click)="_openRemoveDialog(principalToRemove)"
+                    >
+                      <span class="sr-only">Remove</span>
+                      @if (isRemoving) {
+                        <hlm-spinner class="size-4 text-foreground" />
+                      } @else {
+                        <ng-icon hlmIcon size="sm" name="lucideTrash2" />
+                      }
+                    </button>
+                  }
+                } @else {
+                  <ng-container
+                    *flexRender="
+                      cell.column.columnDef.cell;
+                      props: cell.getContext();
+                      let cellContent
+                    "
+                  >
+                    <div [innerHTML]="cellContent"></div>
+                  </ng-container>
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td hlmTd class="h-24 text-center" [attr.colspan]="_columns.length">
+              No controllers found.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
+
+<div class="flex items-center justify-end gap-3">
+  @if (table.getRowCount() > 0) {
+      <brn-select
+        [ngModel]="table.getState().pagination.pageSize"
+        (ngModelChange)="table.setPageSize($event); table.resetPageIndex()"
+      >
+      <hlm-select-trigger class="w-20 inline-flex">
+        <hlm-select-value />
+      </hlm-select-trigger>
+      <hlm-select-content>
+        @for (size of _availablePageSizes; track size) {
+          <hlm-option [value]="size">
+            {{ size === 10000 ? 'All' : size }}
+          </hlm-option>
+        }
+      </hlm-select-content>
+    </brn-select>
+
+    <div class="flex space-x-1">
+        <button
+          size="sm"
+          variant="outline"
+          hlmBtn
+          [disabled]="!table.getCanPreviousPage()"
+          (click)="table.previousPage()"
+        >
+          Previous
+        </button>
+        <button
+          size="sm"
+          variant="outline"
+          hlmBtn
+          [disabled]="!table.getCanNextPage()"
+          (click)="table.nextPage()"
+        >
+          Next
+        </button>
+    </div>
+  }
+</div>
+
