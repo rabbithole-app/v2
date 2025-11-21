@@ -1,4 +1,11 @@
-import { Component, input, output, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Principal } from '@dfinity/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -32,6 +39,7 @@ import {
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
 import { ActionsCellComponent } from './actions-cell';
+import { AUTH_SERVICE } from '@rabbithole/auth';
 import type {
   GrantPermission,
   PermissionItem,
@@ -96,12 +104,14 @@ const statusFilterFn: FilterFn<PermissionItem> = (
   templateUrl: './permissions-table.component.html',
 })
 export class PermissionsTableComponent {
+  #authService = inject(AUTH_SERVICE);
+  currentPrincipalId = computed(() => this.#authService.principalId());
   data = input<PermissionItem[]>([]);
   grant = output<Omit<GrantPermission, 'entry'>>();
   readonly hlmMuted = hlmMuted;
   revoke = output<Omit<RevokePermission, 'entry'>>();
   protected readonly _availablePageSizes = [5, 10, 20, 10000];
-  protected readonly _columns: ColumnDef<PermissionItem>[] = [
+  protected readonly _columns = computed<ColumnDef<PermissionItem>[]>(() => [
     {
       accessorKey: 'select',
       id: 'select',
@@ -114,7 +124,13 @@ export class PermissionsTableComponent {
       header: 'Principal ID',
       accessorKey: 'user',
       id: 'principal',
-      cell: () => flexRenderComponent(PrincipalCell, { inputs: {} }),
+      cell: ({ row }) =>
+        flexRenderComponent(PrincipalCell, {
+          inputs: {
+            isBold:
+              row.getValue<string>('principal') === this.currentPrincipalId(),
+          },
+        }),
     },
     {
       accessorKey: 'permission',
@@ -149,7 +165,7 @@ export class PermissionsTableComponent {
           },
         }),
     },
-  ];
+  ]);
 
   private readonly _columnFilters = signal<ColumnFiltersState>([]);
   private readonly _pagination = signal<PaginationState>({
@@ -160,7 +176,7 @@ export class PermissionsTableComponent {
   protected readonly _table = createAngularTable<PermissionItem>(() => ({
     // data: this.#permissionsService.listPermitted.value(),
     data: this.data(),
-    columns: this._columns,
+    columns: this._columns(),
     state: {
       columnFilters: this._columnFilters(),
       sorting: this._sorting(),
