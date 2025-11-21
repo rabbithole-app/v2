@@ -76,6 +76,6 @@ export class CanisterCardComponent {
   memory = computed(() => {
     const status = this.canisterStatus();
     if (!status?.memorySize) return '0 Bytes';
-    return formatBytes(status.memorySize);
+    return formatBytes(Number(status.memorySize));
   });
 }

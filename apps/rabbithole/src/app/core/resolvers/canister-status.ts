@@ -4,14 +4,14 @@ import { Principal } from '@dfinity/principal';
 import { catchError, of } from 'rxjs';
 
 import {
+  CanisterDataInfo,
   ENCRYPTED_STORAGE_CANISTER_ID,
   ICManagementService,
-  ParsedCanisterStatus,
   resourceToObservable,
 } from '@rabbithole/core';
 
 export const canisterStatusResolver: ResolveFn<
-  ParsedCanisterStatus | RedirectCommand
+  CanisterDataInfo | RedirectCommand
 > = (route) => {
   const router = inject(Router);
   const canisterId = route.paramMap.get('id');
