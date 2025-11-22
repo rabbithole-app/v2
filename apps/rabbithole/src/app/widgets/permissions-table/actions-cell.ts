@@ -32,9 +32,9 @@ import { ClassValue } from 'clsx';
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
 import {
-  GrantPermission,
-  Permission,
-  PermissionItem,
+  GrantStoragePermission,
+  StoragePermission,
+  StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 
@@ -112,12 +112,12 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 })
 export class ActionsCellComponent {
   dialogRef = viewChild.required(BrnDialog);
-  edit = output<Omit<GrantPermission, 'entry'>>();
+  edit = output<Omit<GrantStoragePermission, 'entry'>>();
   revoke = output();
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   get permission() {
-    return this._context.row.getValue<Permission>('permission');
+    return this._context.row.getValue<StoragePermission>('permission');
   }
 
   get principal() {
@@ -129,7 +129,7 @@ export class ActionsCellComponent {
   );
 
   private readonly _context =
-    injectFlexRenderContext<CellContext<PermissionItem, unknown>>();
+    injectFlexRenderContext<CellContext<StoragePermissionItem, unknown>>();
 
   handleRevoke() {
     this.dialogRef().close();

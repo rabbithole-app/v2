@@ -19,12 +19,12 @@ import {
   Entry,
   EntryKind,
   EntryRaw,
-  GrantPermission,
-  Permission,
-  PermissionItem,
-  PermissionRaw,
+  GrantStoragePermission,
   Progress,
-  RevokePermission,
+  RevokeStoragePermission,
+  StoragePermission,
+  StoragePermissionItem,
+  StoragePermissionRaw,
   StoreArgs,
   StoreBlobArgs,
   StorePathArgs,
@@ -128,11 +128,11 @@ export class EncryptedStorage {
     return vetkey.asDerivedKeyMaterial();
   }
 
-  async grantPermission({ user, permission, entry }: GrantPermission) {
-    return await this.#actor.grantPermission({
+  async grantPermission({ user, permission, entry }: GrantStoragePermission) {
+    return await this.#actor.grantStoragePermission({
       entry: entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
       user: typeof user === 'string' ? Principal.fromText(user) : user,
-      permission: { [permission]: null } as PermissionRaw,
+      permission: { [permission]: null } as StoragePermissionRaw,
     });
   }
 
@@ -142,13 +142,13 @@ export class EncryptedStorage {
     entry,
   }: {
     entry?: Entry;
-    permission: Permission;
+    permission: StoragePermission;
     user: Principal | string;
   }) {
-    return await this.#actor.hasPermission({
+    return await this.#actor.hasStoragePermission({
       entry: entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
       user: typeof user === 'string' ? Principal.fromText(user) : user,
-      permission: { [permission]: null } as PermissionRaw,
+      permission: { [permission]: null } as StoragePermissionRaw,
     });
   }
 
@@ -158,19 +158,19 @@ export class EncryptedStorage {
     );
   }
 
-  async listPermitted(entry?: Entry): Promise<PermissionItem[]> {
+  async listPermitted(entry?: Entry): Promise<StoragePermissionItem[]> {
     const list = await this.#actor.listPermitted(
       entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
     );
 
     return list.map(([principal, permission]) => ({
       user: principal.toString(),
-      permission: Object.keys(permission)[0] as Permission,
+      permission: Object.keys(permission)[0] as StoragePermission,
     }));
   }
 
-  async revokePermission({ user, entry }: RevokePermission) {
-    return await this.#actor.revokePermission({
+  async revokePermission({ user, entry }: RevokeStoragePermission) {
+    return await this.#actor.revokeStoragePermission({
       entry: entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
       user: typeof user === 'string' ? Principal.fromText(user) : user,
     });
@@ -318,7 +318,7 @@ export class EncryptedStorage {
 
     // create batch
     const { batchId } = await this.#limit(
-      () => this.#actor.createBatch({ entry }),
+      () => this.#actor.createStorageBatch({ entry }),
       config.signal,
     );
 
@@ -336,7 +336,7 @@ export class EncryptedStorage {
         this.#sha256[key].update(content);
 
         const { chunkId } = await this.#limit(
-          () => this.#actor.createChunk({ content, batchId }),
+          () => this.#actor.createStorageChunk({ content, batchId }),
           config.signal,
         );
         this.#progress.setState((state) => {

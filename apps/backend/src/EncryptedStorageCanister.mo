@@ -2,6 +2,7 @@ import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
+import Result "mo:core/Result";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
@@ -94,7 +95,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
 
   EncryptedStorage.setStreamingCallback(storage, http_request_streaming_callback);
 
-  public query ({ caller }) func list(entry : ?T.Entry) : async [T.NodeDetails] {
+  public query ({ caller }) func listStorage(entry : ?T.Entry) : async [T.NodeDetails] {
     switch (EncryptedStorage.list(storage, caller, entry)) {
       case (#ok items) items;
       case (#err(message)) throw Error.reject(message);
@@ -136,14 +137,14 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func createBatch(args : T.CreateBatchArguments) : async T.CreateBatchResponse {
+  public shared ({ caller }) func createStorageBatch(args : T.CreateBatchArguments) : async T.CreateBatchResponse {
     switch (EncryptedStorage.createBatch(storage, caller, args)) {
       case (#ok batch) batch;
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public shared func createChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
+  public shared func createStorageChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
     switch (EncryptedStorage.createChunk(storage, args)) {
       case (#ok chunk) chunk;
       case (#err(message)) throw Error.reject(message);
@@ -157,32 +158,32 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func clear() : async () {
+  public shared ({ caller }) func clearStorage() : async () {
     switch (EncryptedStorage.clear(storage, caller)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public query ({ caller }) func hasPermission(args : T.HasPermissionArguments) : async Bool {
+  public query ({ caller }) func hasStoragePermission(args : T.HasPermissionArguments) : async Bool {
     EncryptedStorage.hasPermission(storage, caller, args);
   };
 
-  public shared ({ caller }) func grantPermission(args : T.GrantPermissionArguments) : async () {
+  public shared ({ caller }) func grantStoragePermission(args : T.GrantPermissionArguments) : async () {
     switch (EncryptedStorage.grantPermission(storage, caller, args)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public shared ({ caller }) func revokePermission(args : T.RevokePermissionArguments) : async () {
+  public shared ({ caller }) func revokeStoragePermission(args : T.RevokePermissionArguments) : async () {
     switch (EncryptedStorage.revokePermission(storage, caller, args)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public shared query ({ caller }) func getChunk(args : T.GetChunkArguments) : async T.ChunkContent {
+  public shared query ({ caller }) func getStorageChunk(args : T.GetChunkArguments) : async T.ChunkContent {
     switch (EncryptedStorage.getChunk(storage, caller, args)) {
       case (#ok chunk) chunk;
       case (#err(message)) throw Error.reject(message);
@@ -221,109 +222,133 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
 
   assetStore.set_streaming_callback(http_request_streaming_callback);
 
-  public shared query func apiVersion() : async Nat16 {
+  public shared query func api_version() : async Nat16 {
     assetCanister.api_version();
   };
 
-  public shared query func getAsset(args : HttpAssets.GetArgs) : async HttpAssets.EncodedAsset {
+  public shared query func get(args : HttpAssets.GetArgs) : async HttpAssets.EncodedAsset {
     assetCanister.get(args);
   };
 
-  public shared query func getAssetChunk(args : HttpAssets.GetChunkArgs) : async (HttpAssets.ChunkContent) {
+  public shared query func get_chunk(args : HttpAssets.GetChunkArgs) : async (HttpAssets.ChunkContent) {
     assetCanister.get_chunk(args);
   };
 
-  // public shared ({ caller }) func grant_permission(args : HttpAssets.GrantPermission) : async () {
-  //   await* assetCanister.grant_permission(caller, args);
-  // };
+  public shared ({ caller }) func grant_permission(args : HttpAssets.GrantPermission) : async () {
+    await* assetCanister.grant_permission(caller, args);
+  };
 
-  // public shared ({ caller }) func revoke_permission(args : HttpAssets.RevokePermission) : async () {
-  //   await* assetCanister.revoke_permission(caller, args);
-  // };
+  public shared ({ caller }) func revoke_permission(args : HttpAssets.RevokePermission) : async () {
+    await* assetCanister.revoke_permission(caller, args);
+  };
 
-  // public shared query func list(args : {}) : async [HttpAssets.AssetDetails] {
-  //   assetCanister.list(args);
-  // };
+  public shared query func list(args : {}) : async [HttpAssets.AssetDetails] {
+    assetCanister.list(args);
+  };
 
-  public shared ({ caller }) func storeAsset(args : HttpAssets.StoreArgs) : async () {
+  public shared ({ caller }) func store(args : HttpAssets.StoreArgs) : async () {
     assetCanister.store(caller, args);
   };
 
-  public shared ({ caller }) func createAsset(args : HttpAssets.CreateAssetArguments) : async () {
+  public shared ({ caller }) func create_asset(args : HttpAssets.CreateAssetArguments) : async () {
     assetCanister.create_asset(caller, args);
   };
 
-  public shared ({ caller }) func setAssetContent(args : HttpAssets.SetAssetContentArguments) : async () {
+  public shared ({ caller }) func set_asset_content(args : HttpAssets.SetAssetContentArguments) : async () {
     await* assetCanister.set_asset_content(caller, args);
   };
 
-  public shared ({ caller }) func unsetAssetContent(args : HttpAssets.UnsetAssetContentArguments) : async () {
+  public shared ({ caller }) func unset_asset_content(args : HttpAssets.UnsetAssetContentArguments) : async () {
     assetCanister.unset_asset_content(caller, args);
   };
 
-  public shared ({ caller }) func deleteAsset(args : HttpAssets.DeleteAssetArguments) : async () {
+  public shared ({ caller }) func delete_asset(args : HttpAssets.DeleteAssetArguments) : async () {
     assetCanister.delete_asset(caller, args);
   };
 
-  public shared ({ caller }) func setAssetProperties(args : HttpAssets.SetAssetPropertiesArguments) : async () {
+  public shared ({ caller }) func set_asset_properties(args : HttpAssets.SetAssetPropertiesArguments) : async () {
     assetCanister.set_asset_properties(caller, args);
   };
 
-  public shared ({ caller }) func clearAssets(args : HttpAssets.ClearArguments) : async () {
+  public shared ({ caller }) func clear(args : HttpAssets.ClearArguments) : async () {
     assetCanister.clear(caller, args);
   };
 
-  public shared ({ caller }) func createAssetBatch(args : {}) : async (HttpAssets.CreateBatchResponse) {
+  public shared ({ caller }) func create_batch(args : {}) : async (HttpAssets.CreateBatchResponse) {
     assetCanister.create_batch(caller, args);
   };
 
-  public shared ({ caller }) func createAssetChunk(args : HttpAssets.CreateChunkArguments) : async (HttpAssets.CreateChunkResponse) {
+  public shared ({ caller }) func create_chunk(args : HttpAssets.CreateChunkArguments) : async (HttpAssets.CreateChunkResponse) {
     assetCanister.create_chunk(caller, args);
   };
 
-  public shared ({ caller }) func createAssetChunks(args : HttpAssets.CreateChunksArguments) : async HttpAssets.CreateChunksResponse {
+  public shared ({ caller }) func create_chunks(args : HttpAssets.CreateChunksArguments) : async HttpAssets.CreateChunksResponse {
     await* assetCanister.create_chunks(caller, args);
   };
 
-  public shared ({ caller }) func commitAssetBatch(args : HttpAssets.CommitBatchArguments) : async () {
+  public shared ({ caller }) func commit_batch(args : HttpAssets.CommitBatchArguments) : async () {
     await* assetCanister.commit_batch(caller, args);
   };
 
-  public shared ({ caller }) func proposeCommitAssetBatch(args : HttpAssets.CommitBatchArguments) : async () {
+  public shared ({ caller }) func propose_commit_batch(args : HttpAssets.CommitBatchArguments) : async () {
     assetCanister.propose_commit_batch(caller, args);
   };
 
-  public shared ({ caller }) func commitProposedAssetBatch(args : HttpAssets.CommitProposedBatchArguments) : async () {
+  public shared ({ caller }) func commit_proposed_batch(args : HttpAssets.CommitProposedBatchArguments) : async () {
     await* assetCanister.commit_proposed_batch(caller, args);
   };
 
-  // public shared ({ caller }) func computeEvidence(args : HttpAssets.ComputeEvidenceArguments) : async (?Blob) {
-  //   await* assetCanister.compute_evidence(caller, args);
-  // };
+  public shared ({ caller }) func compute_evidence(args : HttpAssets.ComputeEvidenceArguments) : async (?Blob) {
+    await* assetCanister.compute_evidence(caller, args);
+  };
 
-  public shared ({ caller }) func deleteAssetBatch(args : HttpAssets.DeleteBatchArguments) : async () {
+  public shared ({ caller }) func delete_batch(args : HttpAssets.DeleteBatchArguments) : async () {
     assetCanister.delete_batch(caller, args);
   };
 
-  // public shared func listPermitted(args : HttpAssets.ListPermitted) : async ([Principal]) {
-  //   assetCanister.list_permitted(args);
-  // };
+  public shared func list_permitted(args : HttpAssets.ListPermitted) : async ([Principal]) {
+    assetCanister.list_permitted(args);
+  };
 
-  // public shared ({ caller }) func takeOwnership() : async () {
-  //   await* assetCanister.take_ownership(caller);
-  // };
+  public shared ({ caller }) func take_ownership() : async () {
+    await* assetCanister.take_ownership(caller);
+  };
 
-  // public shared ({ caller }) func getAssetConfiguration() : async (HttpAssets.ConfigurationResponse) {
-  //   assetCanister.get_configuration(caller);
-  // };
+  public shared ({ caller }) func get_configuration() : async (HttpAssets.ConfigurationResponse) {
+    assetCanister.get_configuration(caller);
+  };
 
-  // public shared ({ caller }) func configure(args : HttpAssets.ConfigureArguments) : async () {
-  //   assetCanister.configure(caller, args);
-  // };
+  public shared ({ caller }) func configure(args : HttpAssets.ConfigureArguments) : async () {
+    assetCanister.configure(caller, args);
+  };
 
-  public shared func certifiedTree(args : {}) : async (HttpAssets.CertifiedTree) {
+  public shared func certified_tree(args : {}) : async (HttpAssets.CertifiedTree) {
     assetCanister.certified_tree(args);
   };
+
+  public shared func validate_grant_permission(args : HttpAssets.GrantPermission) : async (Result.Result<Text, Text>) {
+    assetCanister.validate_grant_permission(args);
+  };
+
+  public shared func validate_revoke_permission(args : HttpAssets.RevokePermission) : async (Result.Result<Text, Text>) {
+    assetCanister.validate_revoke_permission(args);
+  };
+
+  public shared func validate_take_ownership() : async (Result.Result<Text, Text>) {
+    assetCanister.validate_take_ownership();
+  };
+
+  public shared func validate_commit_proposed_batch(args : HttpAssets.CommitProposedBatchArguments) : async (Result.Result<Text, Text>) {
+    assetCanister.validate_commit_proposed_batch(args);
+  };
+
+  public shared func validate_configure(args : HttpAssets.ConfigureArguments) : async (Result.Result<Text, Text>) {
+    assetCanister.validate_configure(args);
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /*                             Thumbnails methods                             */
+  /* -------------------------------------------------------------------------- */
 
   public shared ({ caller }) func saveThumbnail(args : Types.SaveThumbnailArguments) : async T.NodeDetails {
     assert not Principal.isAnonymous(caller);

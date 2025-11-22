@@ -1,4 +1,5 @@
 import { ActorSubclass } from '@dfinity/agent';
+import { Principal } from '@dfinity/principal';
 import { sha256 } from '@noble/hashes/sha2';
 import { Store } from '@tanstack/store';
 
@@ -13,6 +14,8 @@ import { ReadableFile } from './readable/readableFile';
 import {
   AssetManagerConfig,
   ContentEncoding,
+  Permission,
+  PermissionRaw,
   Progress,
   StoreArgs,
   UploadState,
@@ -83,7 +86,7 @@ export class AssetManager {
    * Delete all files from assets canister
    */
   async clear(): Promise<void> {
-    await this._actor.clearAssets({});
+    await this._actor.clear({});
   }
 
   /**
@@ -91,7 +94,7 @@ export class AssetManager {
    * @param key The path to the file on the assets canister e.g. /folder/to/my_file.txt
    */
   async delete(key: string): Promise<void> {
-    await this._actor.deleteAsset({ key });
+    await this._actor.delete_asset({ key });
   }
 
   /**
@@ -103,7 +106,7 @@ export class AssetManager {
     key: string,
     acceptEncodings?: ContentEncoding[],
   ): Promise<Asset> {
-    const data = await this._actor.getAsset({
+    const data = await this._actor.get({
       key,
       accept_encodings: acceptEncodings ?? ['identity'],
     });
@@ -124,13 +127,40 @@ export class AssetManager {
     );
   }
 
+  async grantPermission(permission: Permission, user: Principal | string) {
+    const to_principal =
+      typeof user === 'string' ? Principal.fromText(user) : user;
+
+    return await this._actor.grant_permission({
+      permission: { [permission]: null } as PermissionRaw,
+      to_principal,
+    });
+  }
+
   // /**
   //  * Get list of all files in assets canister
   //  * @returns All files in asset canister
   //  */
-  // public async list(): ReturnType<_SERVICE['list']> {
-  //   return this._actor.list({});
-  // }
+  public async list(): ReturnType<_SERVICE['list']> {
+    return this._actor.list({});
+  }
+
+  async listPermitted(
+    permission: Permission,
+  ): Promise<ReturnType<_SERVICE['list_permitted']>> {
+    return await this._actor.list_permitted({
+      permission: { [permission]: null } as PermissionRaw,
+    });
+  }
+
+  async revokePermission(permission: Permission, user: Principal | string) {
+    const of_principal =
+      typeof user === 'string' ? Principal.fromText(user) : user;
+    return await this._actor.revoke_permission({
+      permission: { [permission]: null } as PermissionRaw,
+      of_principal,
+    });
+  }
 
   /**
    * Store data on assets canister
@@ -166,7 +196,7 @@ export class AssetManager {
         try {
           const bytes = await readable.slice(0, readable.length);
           const hash = config?.sha256 ?? sha256(new Uint8Array(bytes));
-          return this._actor.storeAsset({
+          return this._actor.store({
             key,
             content: bytes,
             content_type: readable.contentType,

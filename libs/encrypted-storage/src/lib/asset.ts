@@ -49,7 +49,7 @@ export class Asset {
       Array.from({ length: Math.ceil(this.length / this.chunkSize) - 1 }).map(
         (_, index) =>
           chunkLimit(async () => {
-            const { content } = await this._actor.getAssetChunk({
+            const { content } = await this._actor.get_chunk({
               key: this._key,
               content_encoding: this.contentEncoding,
               index: BigInt(index + 1),

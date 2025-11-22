@@ -41,9 +41,9 @@ import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit
 import { ActionsCellComponent } from './actions-cell';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import type {
-  GrantPermission,
-  PermissionItem,
-  RevokePermission,
+  GrantStoragePermission,
+  RevokeStoragePermission,
+  StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 import {
   PermissionCell,
@@ -53,13 +53,14 @@ import {
   TableRowSelection,
 } from '@rabbithole/ui/tanstack';
 
-const permissionSortingFn: SortingFn<PermissionItem> = (
-  rowA: Row<PermissionItem>,
-  rowB: Row<PermissionItem>,
+const permissionSortingFn: SortingFn<StoragePermissionItem> = (
+  rowA: Row<StoragePermissionItem>,
+  rowB: Row<StoragePermissionItem>,
   columnId: string,
 ) => {
-  const permissionA = rowA.getValue<PermissionItem['permission']>(columnId),
-    permissionB = rowB.getValue<PermissionItem['permission']>(columnId);
+  const permissionA =
+      rowA.getValue<StoragePermissionItem['permission']>(columnId),
+    permissionB = rowB.getValue<StoragePermissionItem['permission']>(columnId);
   if (permissionA === permissionB) return 0;
   if (
     (permissionA === 'ReadWriteManage' &&
@@ -70,7 +71,7 @@ const permissionSortingFn: SortingFn<PermissionItem> = (
   return -1;
 };
 
-const statusFilterFn: FilterFn<PermissionItem> = (
+const statusFilterFn: FilterFn<StoragePermissionItem> = (
   row,
   columnId,
   filterValue: string[],
@@ -106,66 +107,68 @@ const statusFilterFn: FilterFn<PermissionItem> = (
 export class PermissionsTableComponent {
   #authService = inject(AUTH_SERVICE);
   currentPrincipalId = computed(() => this.#authService.principalId());
-  data = input<PermissionItem[]>([]);
-  grant = output<Omit<GrantPermission, 'entry'>>();
+  data = input<StoragePermissionItem[]>([]);
+  grant = output<Omit<GrantStoragePermission, 'entry'>>();
   readonly hlmMuted = hlmMuted;
-  revoke = output<Omit<RevokePermission, 'entry'>>();
+  revoke = output<Omit<RevokeStoragePermission, 'entry'>>();
   protected readonly _availablePageSizes = [5, 10, 20, 10000];
-  protected readonly _columns = computed<ColumnDef<PermissionItem>[]>(() => [
-    {
-      accessorKey: 'select',
-      id: 'select',
-      header: () => flexRenderComponent(TableHeadSelection),
-      cell: () => flexRenderComponent(TableRowSelection),
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      header: 'Principal ID',
-      accessorKey: 'user',
-      id: 'principal',
-      cell: ({ row }) =>
-        flexRenderComponent(PrincipalCell, {
-          inputs: {
-            isBold:
-              row.getValue<string>('principal') === this.currentPrincipalId(),
-          },
-        }),
-    },
-    {
-      accessorKey: 'permission',
-      id: 'permission',
-      header: () =>
-        flexRenderComponent(TableHeadSortButton, {
-          inputs: { header: 'Permission' },
-        }),
-      cell: ({ row }) =>
-        flexRenderComponent(PermissionCell, {
-          inputs: {
-            permission: row.getValue('permission'),
-          },
-        }),
-      size: 100,
-      filterFn: statusFilterFn,
-      sortingFn: permissionSortingFn,
-    },
-    {
-      id: 'action',
-      header: 'Actions',
-      enableHiding: false,
-      cell: ({ row }) =>
-        flexRenderComponent(ActionsCellComponent, {
-          inputs: {},
-          outputs: {
-            edit: (args) => this.grant.emit(args),
-            revoke: () =>
-              this.revoke.emit({
-                user: Principal.fromText(row.getValue<string>('user')),
-              }),
-          },
-        }),
-    },
-  ]);
+  protected readonly _columns = computed<ColumnDef<StoragePermissionItem>[]>(
+    () => [
+      {
+        accessorKey: 'select',
+        id: 'select',
+        header: () => flexRenderComponent(TableHeadSelection),
+        cell: () => flexRenderComponent(TableRowSelection),
+        enableSorting: false,
+        enableHiding: false,
+      },
+      {
+        header: 'Principal ID',
+        accessorKey: 'user',
+        id: 'principal',
+        cell: ({ row }) =>
+          flexRenderComponent(PrincipalCell, {
+            inputs: {
+              isBold:
+                row.getValue<string>('principal') === this.currentPrincipalId(),
+            },
+          }),
+      },
+      {
+        accessorKey: 'permission',
+        id: 'permission',
+        header: () =>
+          flexRenderComponent(TableHeadSortButton, {
+            inputs: { header: 'Permission' },
+          }),
+        cell: ({ row }) =>
+          flexRenderComponent(PermissionCell, {
+            inputs: {
+              permission: row.getValue('permission'),
+            },
+          }),
+        size: 100,
+        filterFn: statusFilterFn,
+        sortingFn: permissionSortingFn,
+      },
+      {
+        id: 'action',
+        header: 'Actions',
+        enableHiding: false,
+        cell: ({ row }) =>
+          flexRenderComponent(ActionsCellComponent, {
+            inputs: {},
+            outputs: {
+              edit: (args) => this.grant.emit(args),
+              revoke: () =>
+                this.revoke.emit({
+                  user: Principal.fromText(row.getValue<string>('user')),
+                }),
+            },
+          }),
+      },
+    ],
+  );
 
   private readonly _columnFilters = signal<ColumnFiltersState>([]);
   private readonly _pagination = signal<PaginationState>({
@@ -173,7 +176,7 @@ export class PermissionsTableComponent {
     pageIndex: 0,
   });
   private readonly _sorting = signal<SortingState>([]);
-  protected readonly _table = createAngularTable<PermissionItem>(() => ({
+  protected readonly _table = createAngularTable<StoragePermissionItem>(() => ({
     // data: this.#permissionsService.listPermitted.value(),
     data: this.data(),
     columns: this._columns(),

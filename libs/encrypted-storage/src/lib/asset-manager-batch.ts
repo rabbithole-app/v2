@@ -35,9 +35,7 @@ export class AssetManagerBatch {
    */
   async commit(args?: CommitBatchArgs): Promise<void> {
     // Create batch
-    const { batch_id } = await this._limit(() =>
-      this._actor.createAssetBatch({}),
-    );
+    const { batch_id } = await this._limit(() => this._actor.create_batch({}));
 
     const store = new Derived({
       fn: () =>
@@ -73,9 +71,7 @@ export class AssetManagerBatch {
     ).flat();
 
     // Commit batch
-    await this._limit(() =>
-      this._actor.commitAssetBatch({ batch_id, operations }),
-    );
+    await this._limit(() => this._actor.commit_batch({ batch_id, operations }));
 
     // Cleanup
     this._scheduledOperations = [];
@@ -150,7 +146,7 @@ export class AssetManagerBatch {
             }
             const { chunk_id } = await this._limit(
               () =>
-                this._actor.createAssetChunk({
+                this._actor.create_chunk({
                   content,
                   batch_id,
                 }),

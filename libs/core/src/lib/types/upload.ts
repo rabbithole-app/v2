@@ -13,6 +13,7 @@ export interface IUploadService {
   cancel(id: UploadId): void;
   clear(): void;
   hasPermission: Signal<boolean>;
+  reloadPermissions(): void;
   remove(id: UploadId): void;
   retry(id: UploadId): void;
   state: Signal<UploadServiceState>;

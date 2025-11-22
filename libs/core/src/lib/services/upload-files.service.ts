@@ -13,23 +13,23 @@ import { UploadBaseService } from './upload-base.service';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   EncryptedStorage,
-  PermissionItem,
+  StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 
 @Injectable()
 export class UploadFilesService implements IUploadService {
   encryptedStorage = injectEncryptedStorage();
-  listPermitted = resource<PermissionItem[], EncryptedStorage>({
+  listPermitted = resource<StoragePermissionItem[], EncryptedStorage>({
     params: () => this.encryptedStorage(),
     loader: async ({ params: encryptedStorage }) =>
       await encryptedStorage.listPermitted(),
     defaultValue: [],
     equal: isDeepEqual,
   });
-  #authState = inject(AUTH_SERVICE);
+  #authService = inject(AUTH_SERVICE);
   hasPermission = computed(() => {
     const permitted = this.listPermitted.value();
-    const principalId = this.#authState.principalId();
+    const principalId = this.#authService.principalId();
     return isNonNullish(permitted.find((item) => item.user === principalId));
   });
   showTree = resource<string, EncryptedStorage>({
@@ -108,6 +108,10 @@ export class UploadFilesService implements IUploadService {
 
   clear() {
     this.#uploadBaseService.clear();
+  }
+
+  reloadPermissions() {
+    this.listPermitted.reload();
   }
 
   remove(id: UploadId) {

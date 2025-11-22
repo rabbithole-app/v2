@@ -1,22 +1,38 @@
-import { computed, inject, Injectable } from '@angular/core';
+import { computed, inject, Injectable, resource } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Principal } from '@dfinity/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { match, P } from 'ts-pattern';
 
-import { injectAssetManager, injectCoreWorker } from '../injectors';
+import {
+  injectAssetManager,
+  injectCoreWorker,
+  provideAssetManager,
+} from '../injectors';
 import { messageByAction } from '../operators';
 import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
 import { IUploadService, UploadAsset, UploadId, UploadState } from '../types';
 import { ICManagementService } from './ic-management.service';
 import { UploadBaseService } from './upload-base.service';
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import { AssetManager } from '@rabbithole/encrypted-storage';
 
 @Injectable()
 export class UploadAssetsService implements IUploadService {
-  assetManager = injectAssetManager();
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  #assetManager = injectAssetManager();
+  listPermitted = resource<Principal[], AssetManager>({
+    params: () => this.#assetManager(),
+    loader: async ({ params: assetManager }) =>
+      await assetManager.listPermitted('Commit'),
+    defaultValue: [],
+  });
+  #authService = inject(AUTH_SERVICE);
   hasPermission = computed(() => {
-    // TODO: Implement permission check
-    return true;
+    const permitted = this.listPermitted.value().map((item) => item.toText());
+    const principalId = this.#authService.principalId();
+
+    return permitted.includes(principalId);
   });
   #uploadBaseService = inject(UploadBaseService, { self: true });
   state = this.#uploadBaseService.state;
@@ -90,6 +106,10 @@ export class UploadAssetsService implements IUploadService {
     this.#uploadBaseService.clear();
   }
 
+  reloadPermissions() {
+    this.listPermitted.reload();
+  }
+
   remove(id: UploadId) {
     this.#uploadBaseService.remove(id);
   }
@@ -111,3 +131,9 @@ export const [injectUploadAssetsService, provideUploadAssetsService] =
       ICManagementService,
     ],
   });
+
+export const UPLOAD_ASSETS_SERVICE_PROVIDERS = [
+  { provide: UPLOAD_SERVICE_TOKEN, useClass: UploadAssetsService },
+  UploadBaseService,
+  provideAssetManager(),
+];

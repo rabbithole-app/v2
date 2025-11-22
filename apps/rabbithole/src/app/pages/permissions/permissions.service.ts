@@ -10,9 +10,9 @@ import {
 } from '@rabbithole/core';
 import {
   Entry,
-  GrantPermission,
-  PermissionItem,
-  RevokePermission,
+  GrantStoragePermission,
+  RevokeStoragePermission,
+  StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 import { EncryptedStorage, type TreeNode } from '@rabbithole/encrypted-storage';
 
@@ -35,7 +35,7 @@ export class PermissionsService {
   #state = signal(INITIAL_VALUE);
   #entry = computed(() => this.#state().entry);
   listPermitted = resource<
-    PermissionItem[],
+    StoragePermissionItem[],
     { encryptedStorage: EncryptedStorage; entry: Entry | null }
   >({
     params: () => ({
@@ -58,8 +58,8 @@ export class PermissionsService {
   });
   rootNode = computed(() => this.tree.value()[0]);
   state = this.#state.asReadonly();
-  #grantPermission = new Subject<Omit<GrantPermission, 'entry'>>();
-  #revokePermission = new Subject<Omit<RevokePermission, 'entry'>>();
+  #grantPermission = new Subject<Omit<GrantStoragePermission, 'entry'>>();
+  #revokePermission = new Subject<Omit<RevokeStoragePermission, 'entry'>>();
 
   constructor() {
     const revoke$ = this.#revokePermission.asObservable().pipe(
@@ -75,11 +75,11 @@ export class PermissionsService {
     });
   }
 
-  grantPermission(args: Omit<GrantPermission, 'entry'>) {
+  grantPermission(args: Omit<GrantStoragePermission, 'entry'>) {
     this.#grantPermission.next(args);
   }
 
-  revokePermission(args: Omit<RevokePermission, 'entry'>) {
+  revokePermission(args: Omit<RevokeStoragePermission, 'entry'>) {
     this.#revokePermission.next(args);
   }
 
@@ -87,13 +87,15 @@ export class PermissionsService {
     this.#state.update((state) => ({ ...state, entry }));
   }
 
-  #addEntry<T = GrantPermission | RevokePermission>(args: Omit<T, 'entry'>): T {
+  #addEntry<T = GrantStoragePermission | RevokeStoragePermission>(
+    args: Omit<T, 'entry'>,
+  ): T {
     const { entry } = this.state();
 
     return { ...args, entry } as T;
   }
 
-  async #grantPermissionHandler(args: GrantPermission) {
+  async #grantPermissionHandler(args: GrantStoragePermission) {
     const id = toast.loading('Grant permission...');
     const encryptedStorage = this.encryptedStorage();
     try {
@@ -106,7 +108,7 @@ export class PermissionsService {
     }
   }
 
-  async #revokePermissionHandler(args: RevokePermission) {
+  async #revokePermissionHandler(args: RevokeStoragePermission) {
     const id = toast.loading('Revoke permission...');
     const encryptedStorage = this.encryptedStorage();
     try {

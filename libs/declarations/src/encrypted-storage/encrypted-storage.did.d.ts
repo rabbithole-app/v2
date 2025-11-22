@@ -2,6 +2,17 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface AssetDetails {
+  'key' : Key,
+  'encodings' : Array<AssetEncodingDetails>,
+  'content_type' : string,
+}
+export interface AssetEncodingDetails {
+  'modified' : Time,
+  'sha256' : [] | [Uint8Array | number[]],
+  'length' : bigint,
+  'content_encoding' : string,
+}
 export type BatchId = bigint;
 export type BatchOperationKind = {
     'SetAssetProperties' : SetAssetPropertiesArguments
@@ -30,6 +41,20 @@ export interface CommitProposedBatchArguments {
   'batch_id' : BatchId,
   'evidence' : Uint8Array | number[],
 }
+export interface ComputeEvidenceArguments {
+  'batch_id' : BatchId,
+  'max_iterations' : [] | [number],
+}
+export interface ConfigurationResponse {
+  'max_batches' : [] | [bigint],
+  'max_bytes' : [] | [bigint],
+  'max_chunks' : [] | [bigint],
+}
+export interface ConfigureArguments {
+  'max_batches' : [] | [[] | [bigint]],
+  'max_bytes' : [] | [[] | [bigint]],
+  'max_chunks' : [] | [[] | [bigint]],
+}
 export interface CreateArguments { 'entry' : Entry, 'overwrite' : boolean }
 export interface CreateAssetArguments {
   'key' : Key,
@@ -40,18 +65,18 @@ export interface CreateAssetArguments {
   'enable_aliasing' : [] | [boolean],
 }
 export interface CreateBatchArguments { 'entry' : Entry }
-export interface CreateBatchResponse { 'batchId' : BatchId }
-export interface CreateBatchResponse__1 { 'batch_id' : BatchId }
+export interface CreateBatchResponse { 'batch_id' : BatchId }
+export interface CreateBatchResponse__1 { 'batchId' : BatchId }
 export interface CreateChunkArguments {
-  'content' : Uint8Array | number[],
-  'batchId' : BatchId,
-}
-export interface CreateChunkArguments__1 {
   'content' : Uint8Array | number[],
   'batch_id' : BatchId,
 }
-export interface CreateChunkResponse { 'chunkId' : bigint }
-export interface CreateChunkResponse__1 { 'chunk_id' : bigint }
+export interface CreateChunkArguments__1 {
+  'content' : Uint8Array | number[],
+  'batchId' : BatchId,
+}
+export interface CreateChunkResponse { 'chunk_id' : bigint }
+export interface CreateChunkResponse__1 { 'chunkId' : bigint }
 export interface CreateChunksArguments {
   'content' : Array<Uint8Array | number[]>,
   'batch_id' : BatchId,
@@ -76,39 +101,46 @@ export interface EncodedAsset {
   'total_length' : bigint,
 }
 export interface EncryptedStorageCanister {
-  'apiVersion' : ActorMethod<[], number>,
-  'certifiedTree' : ActorMethod<[{}], CertifiedTree>,
-  'clear' : ActorMethod<[], undefined>,
-  'clearAssets' : ActorMethod<[ClearArguments], undefined>,
-  'commitAssetBatch' : ActorMethod<[CommitBatchArguments], undefined>,
-  'commitProposedAssetBatch' : ActorMethod<
+  'api_version' : ActorMethod<[], number>,
+  'certified_tree' : ActorMethod<[{}], CertifiedTree>,
+  'clear' : ActorMethod<[ClearArguments], undefined>,
+  'clearStorage' : ActorMethod<[], undefined>,
+  'commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
+  'commit_proposed_batch' : ActorMethod<
     [CommitProposedBatchArguments],
     undefined
   >,
+  'compute_evidence' : ActorMethod<
+    [ComputeEvidenceArguments],
+    [] | [Uint8Array | number[]]
+  >,
+  'configure' : ActorMethod<[ConfigureArguments], undefined>,
   'create' : ActorMethod<[CreateArguments], NodeDetails>,
-  'createAsset' : ActorMethod<[CreateAssetArguments], undefined>,
-  'createAssetBatch' : ActorMethod<[{}], CreateBatchResponse__1>,
-  'createAssetChunk' : ActorMethod<
+  'createStorageBatch' : ActorMethod<
+    [CreateBatchArguments],
+    CreateBatchResponse__1
+  >,
+  'createStorageChunk' : ActorMethod<
     [CreateChunkArguments__1],
     CreateChunkResponse__1
   >,
-  'createAssetChunks' : ActorMethod<
-    [CreateChunksArguments],
-    CreateChunksResponse
-  >,
-  'createBatch' : ActorMethod<[CreateBatchArguments], CreateBatchResponse>,
-  'createChunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
+  'create_asset' : ActorMethod<[CreateAssetArguments], undefined>,
+  'create_batch' : ActorMethod<[{}], CreateBatchResponse>,
+  'create_chunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
+  'create_chunks' : ActorMethod<[CreateChunksArguments], CreateChunksResponse>,
   'delete' : ActorMethod<[DeleteArguments], undefined>,
-  'deleteAsset' : ActorMethod<[DeleteAssetArguments], undefined>,
-  'deleteAssetBatch' : ActorMethod<[DeleteBatchArguments], undefined>,
+  'delete_asset' : ActorMethod<[DeleteAssetArguments], undefined>,
+  'delete_batch' : ActorMethod<[DeleteBatchArguments], undefined>,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
-  'getAsset' : ActorMethod<[GetArgs], EncodedAsset>,
-  'getAssetChunk' : ActorMethod<[GetChunkArgs], ChunkContent>,
-  'getChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
+  'get' : ActorMethod<[GetArgs], EncodedAsset>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
+  'getStorageChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
-  'grantPermission' : ActorMethod<[GrantPermissionArguments], undefined>,
-  'hasPermission' : ActorMethod<[HasPermissionArguments], boolean>,
+  'get_chunk' : ActorMethod<[GetChunkArgs], ChunkContent>,
+  'get_configuration' : ActorMethod<[], ConfigurationResponse>,
+  'grantStoragePermission' : ActorMethod<[GrantPermissionArguments], undefined>,
+  'grant_permission' : ActorMethod<[GrantPermission], undefined>,
+  'hasStoragePermission' : ActorMethod<[HasPermissionArguments], boolean>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
   'http_request_streaming_callback' : ActorMethod<
     [StreamingToken],
@@ -118,21 +150,39 @@ export interface EncryptedStorageCanister {
     [RawUpdateHttpRequest],
     RawUpdateHttpResponse
   >,
-  'list' : ActorMethod<[[] | [Entry]], Array<NodeDetails>>,
+  'list' : ActorMethod<[{}], Array<AssetDetails>>,
   'listPermitted' : ActorMethod<
     [[] | [Entry]],
     Array<[Principal, PermissionExt]>
   >,
+  'listStorage' : ActorMethod<[[] | [Entry]], Array<NodeDetails>>,
+  'list_permitted' : ActorMethod<[ListPermitted], Array<Principal>>,
   'move' : ActorMethod<[MoveArguments], undefined>,
-  'proposeCommitAssetBatch' : ActorMethod<[CommitBatchArguments], undefined>,
-  'revokePermission' : ActorMethod<[RevokePermissionArguments], undefined>,
+  'propose_commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
+  'revokeStoragePermission' : ActorMethod<
+    [RevokePermissionArguments],
+    undefined
+  >,
+  'revoke_permission' : ActorMethod<[RevokePermission], undefined>,
   'saveThumbnail' : ActorMethod<[SaveThumbnailArguments], NodeDetails>,
-  'setAssetContent' : ActorMethod<[SetAssetContentArguments], undefined>,
-  'setAssetProperties' : ActorMethod<[SetAssetPropertiesArguments], undefined>,
+  'set_asset_content' : ActorMethod<[SetAssetContentArguments], undefined>,
+  'set_asset_properties' : ActorMethod<
+    [SetAssetPropertiesArguments],
+    undefined
+  >,
   'showTree' : ActorMethod<[[] | [Entry]], string>,
-  'storeAsset' : ActorMethod<[StoreArgs], undefined>,
-  'unsetAssetContent' : ActorMethod<[UnsetAssetContentArguments], undefined>,
+  'store' : ActorMethod<[StoreArgs], undefined>,
+  'take_ownership' : ActorMethod<[], undefined>,
+  'unset_asset_content' : ActorMethod<[UnsetAssetContentArguments], undefined>,
   'update' : ActorMethod<[UpdateArguments], undefined>,
+  'validate_commit_proposed_batch' : ActorMethod<
+    [CommitProposedBatchArguments],
+    Result
+  >,
+  'validate_configure' : ActorMethod<[ConfigureArguments], Result>,
+  'validate_grant_permission' : ActorMethod<[GrantPermission], Result>,
+  'validate_revoke_permission' : ActorMethod<[RevokePermission], Result>,
+  'validate_take_ownership' : ActorMethod<[], Result>,
 }
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
@@ -149,13 +199,17 @@ export interface GetChunkArgs {
   'content_encoding' : string,
 }
 export interface GetChunkArguments { 'chunkIndex' : bigint, 'entry' : Entry }
-export interface GrantPermissionArguments {
+export interface GrantPermission {
   'permission' : Permission,
+  'to_principal' : Principal,
+}
+export interface GrantPermissionArguments {
+  'permission' : Permission__1,
   'user' : Principal,
   'entry' : [] | [Entry],
 }
 export interface HasPermissionArguments {
-  'permission' : Permission,
+  'permission' : Permission__1,
   'user' : Principal,
   'entry' : [] | [Entry],
 }
@@ -163,10 +217,11 @@ export type Header = [string, string];
 export type Key = string;
 export type KeyId = [Owner, KeyName];
 export type KeyName = Uint8Array | number[];
+export interface ListPermitted { 'permission' : Permission }
 export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
   'id' : bigint,
-  'permissions' : Array<[Principal, Permission]>,
+  'permissions' : Array<[Principal, Permission__1]>,
   'modifiedAt' : [] | [Time],
   'metadata' : { 'File' : FileMetadata } |
     { 'Directory' : DirectoryMetadata },
@@ -176,13 +231,16 @@ export interface NodeDetails {
   'keyId' : KeyId,
 }
 export type Owner = Principal;
-export type Permission = { 'Read' : null } |
-  { 'ReadWrite' : null } |
-  { 'ReadWriteManage' : null };
+export type Permission = { 'Prepare' : null } |
+  { 'Manage' : null } |
+  { 'Commit' : null };
 export type PermissionExt = { 'Read' : null } |
   { 'ReadWrite' : null } |
   { 'ReadWriteManage' : null } |
   { 'Controller' : null };
+export type Permission__1 = { 'Read' : null } |
+  { 'ReadWrite' : null } |
+  { 'ReadWriteManage' : null };
 export interface RawQueryHttpRequest {
   'url' : string,
   'method' : string,
@@ -208,6 +266,12 @@ export interface RawUpdateHttpResponse {
   'headers' : Array<Header>,
   'streaming_strategy' : [] | [StreamingStrategy],
   'status_code' : number,
+}
+export type Result = { 'ok' : string } |
+  { 'err' : string };
+export interface RevokePermission {
+  'permission' : Permission,
+  'of_principal' : Principal,
 }
 export interface RevokePermissionArguments {
   'user' : Principal,

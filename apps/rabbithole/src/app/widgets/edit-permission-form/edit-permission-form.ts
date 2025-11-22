@@ -26,8 +26,8 @@ import { isNonNull, isNonNullish } from 'remeda';
 
 import { principalValidator } from '@rabbithole/core';
 import type {
-  GrantPermission,
-  Permission,
+  GrantStoragePermission,
+  StoragePermission,
 } from '@rabbithole/encrypted-storage';
 
 @Component({
@@ -57,14 +57,14 @@ export class EditPermissionFormComponent {
   });
   form = this.#fb.nonNullable.group({
     user: this.userControl,
-    permission: this.#fb.control<Permission>('Read', {
+    permission: this.#fb.control<StoragePermission>('Read', {
       validators: [Validators.required],
     }),
   });
   principal = input<string>();
   isEditMode = computed(() => isNonNullish(this.principal()));
-  permission = input<Permission>();
-  permissionChange = output<Omit<GrantPermission, 'entry'>>();
+  permission = input<StoragePermission>();
+  permissionChange = output<Omit<GrantStoragePermission, 'entry'>>();
   readonly permissions = [
     { value: 'Read', label: 'Read', description: 'Permission to read' },
     {

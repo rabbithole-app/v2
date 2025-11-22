@@ -4,6 +4,7 @@ import { Principal } from '@dfinity/principal';
 import {
   Entry as EntryRaw,
   Permission as PermissionRaw,
+  Permission__1 as StoragePermissionRaw,
 } from './canisters/encrypted-storage.did';
 import { Readable } from './readable/readable';
 
@@ -69,18 +70,13 @@ export type Entry = [ExtractVariantKeys<EntryKind>, string];
 
 export type EntryKind = EntryRaw[0];
 
-export type GrantPermission = {
+export type GrantStoragePermission = {
   entry?: Entry;
-  permission: Permission;
+  permission: StoragePermission;
   user: Principal | string;
 };
 
 export type Permission = ExtractVariantKeys<PermissionRaw>;
-
-export type PermissionItem = {
-  permission: Permission;
-  user: string;
-};
 
 /**
  * Upload progress in bytes
@@ -95,6 +91,13 @@ export type Progress =
       >;
     };
 
+export type RevokeStoragePermission = {
+  entry?: Entry;
+  user: Principal | string;
+};
+
+export type StoragePermission = ExtractVariantKeys<StoragePermissionRaw>;
+
 /**
  * Upload progress in bytes
  */
@@ -103,9 +106,9 @@ export type Progress =
 //   total: number;
 // }
 
-export type RevokePermission = {
-  entry?: Entry;
-  user: Principal | string;
+export type StoragePermissionItem = {
+  permission: StoragePermission;
+  user: string;
 };
 
 /**
@@ -188,6 +191,7 @@ export type TreeNode = {
 export type {
   Entry as EntryRaw,
   Permission as PermissionRaw,
+  Permission__1 as StoragePermissionRaw,
 } from './canisters/encrypted-storage.did';
 
 type ExtractVariantKeys<T> = T extends Record<infer K, unknown> ? K : never;
