@@ -1,8 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideAlertTriangle } from '@ng-icons/lucide';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -29,4 +25,3 @@ export class InlineWarningComponent {
   /** Warning title/tooltip */
   title = input<string | undefined>();
 }
-

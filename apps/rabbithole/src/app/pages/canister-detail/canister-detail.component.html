@@ -1,6 +1,6 @@
 @if (canisterStatus(); as status) {
   <div class="container mx-auto p-6">
-    <hlm-tabs tab="settings">
+    <hlm-tabs tab="wasm">
       <hlm-tabs-list class="grid grid-cols-3">
         <button hlmTabsTrigger="wasm">WASM</button>
         <button hlmTabsTrigger="frontend">Frontend</button>
@@ -8,40 +8,40 @@
       </hlm-tabs-list>
 
       <div hlmTabsContent="wasm">
-        <div class="mt-4">
-          <p class="text-sm text-muted-foreground">WASM content will be here</p>
-        </div>
+        <p class="text-sm text-muted-foreground">WASM content will be here</p>
       </div>
 
       <div hlmTabsContent="frontend">
-        <div class="mt-4">
-          <p class="text-sm text-muted-foreground">Frontend content will be here</p>
-        </div>
+        @if (!isController()) {
+          <app-add-controller-instructions />
+        } @else if (!hasUploadPermission()) {
+          <shared-commit-permission-warning />
+        } @else {
+          <shared-frontend-upload />
+        }
       </div>
 
       <div hlmTabsContent="settings">
-        <div class="mt-6">
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            <!-- Runtime Section -->
-            <shared-canister-runtime [canister]="status" variant="muted" class="self-start" />
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <!-- Runtime Section -->
+          <shared-canister-runtime [canister]="status" variant="muted" class="self-start" />
 
-            <!-- Memory Section -->
-            <shared-canister-memory [canister]="status" variant="muted" class="h-full" />
+          <!-- Memory Section -->
+          <shared-canister-memory [canister]="status" variant="muted" class="h-full" />
 
-            <!-- Health Check Section -->
-            <shared-canister-health-check [canister]="status" variant="muted" class="self-start" />
-          </div>
+          <!-- Health Check Section -->
+          <shared-canister-health-check [canister]="status" variant="muted" class="self-start" />
+        </div>
 
-          <!-- Controllers Section -->
-          <div class="col-span-full mt-6">
-            <shared-canister-controllers-table
-              [controllers]="controllers()"
-              [currentPrincipalId]="currentPrincipalId()"
-              [loadingState]="loadingState()"
-              (addController)="_handleAddController($event)"
-              (removeController)="_handleRemoveController($event)"
-            />
-          </div>
+        <!-- Controllers Section -->
+        <div class="col-span-full mt-6">
+          <shared-canister-controllers-table
+            [controllers]="controllers()"
+            [currentPrincipalId]="currentPrincipalId()"
+            [loadingState]="loadingState()"
+            (addController)="_handleAddController($event)"
+            (removeController)="_handleRemoveController($event)"
+          />
         </div>
       </div>
     </hlm-tabs>

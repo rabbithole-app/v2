@@ -10,17 +10,23 @@ import { Principal } from '@dfinity/principal';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { filter, map, mergeWith } from 'rxjs';
 
+import { AddControllerInstructionsComponent } from '../../widgets/add-controller-instructions/add-controller-instructions.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   CanisterDataInfo,
-  ENCRYPTED_STORAGE_CANISTER_ID,
+  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   ICManagementService,
+  provideCoreWorker,
+  UPLOAD_ASSETS_SERVICE_PROVIDERS,
+  UPLOAD_SERVICE_TOKEN,
 } from '@rabbithole/core';
 import {
   CanisterControllersTableComponent,
   CanisterHealthCheckComponent,
   CanisterMemoryComponent,
   CanisterRuntimeComponent,
+  CommitPermissionWarningComponent,
+  FrontendUploadComponent,
 } from '@rabbithole/shared';
 
 @Component({
@@ -33,19 +39,14 @@ import {
     CanisterRuntimeComponent,
     CanisterHealthCheckComponent,
     CanisterControllersTableComponent,
+    FrontendUploadComponent,
+    AddControllerInstructionsComponent,
+    CommitPermissionWarningComponent,
   ],
   providers: [
-    {
-      provide: ENCRYPTED_STORAGE_CANISTER_ID,
-      useFactory: () => {
-        const route = inject(ActivatedRoute);
-        const canisterId = route.snapshot.paramMap.get('id');
-        if (!canisterId) {
-          throw new Error('Canister ID parameter is required');
-        }
-        return Principal.fromText(canisterId);
-      },
-    },
+    ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
+    UPLOAD_ASSETS_SERVICE_PROVIDERS,
+    provideCoreWorker(),
     ICManagementService,
   ],
 })
@@ -66,20 +67,25 @@ export class CanisterDetailComponent {
     { requireSync: true },
   );
 
-  controllers = computed(() => {
-    const status = this.canisterStatus();
-    return status?.settings.controllers ?? [];
-  });
+  controllers = computed(() => this.canisterStatus().settings.controllers);
 
   #authService = inject(AUTH_SERVICE);
-
   currentPrincipalId = computed(() => {
     return this.#authService.principalId();
   });
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
 
-  loadingState = computed(() => {
-    return this.#icManagementService.state().loading;
+  hasUploadPermission = computed(() => this.#uploadService.hasPermission());
+
+  isController = computed(() => {
+    const controllers = this.controllers();
+    const currentPrincipalId = this.currentPrincipalId();
+    return controllers.some(
+      (controller) => controller.toText() === currentPrincipalId,
+    );
   });
+
+  loadingState = computed(() => this.#icManagementService.state().loading);
 
   protected _handleAddController(principal: Principal) {
     this.#icManagementService.addController(principal);

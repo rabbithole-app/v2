@@ -71,7 +71,6 @@ export class CanisterMemoryChartComponent {
   /** Segment type (optional, used for conditional display) */
   segment = input<string>('');
 
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly _computedClass = computed(() =>
