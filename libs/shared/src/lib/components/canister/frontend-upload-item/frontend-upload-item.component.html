@@ -1,0 +1,58 @@
+<div class="flex size-5 shrink-0 items-center justify-center">
+  <ng-container [ngTemplateOutlet]="statusIcon" />
+</div>
+
+<div class="flex-1 min-w-0">
+  <p class="truncate text-xs text-muted-foreground">
+    @let d = data();
+
+    @if (d.path && d.path !== '/') {
+      {{ d.path }}/{{ d.file.name }}
+    } @else {
+      {{ d.file.name }}
+    }
+    <span class="ml-1.5">
+      @switch (d.status) {
+        @case (uploadState.IN_PROGRESS) {
+          ({{ d.current | formatRangeBytes: d.total }})
+        }
+        @default {
+          ({{ d.file.size | formatBytes }})
+        }
+      }
+    </span>
+  </p>
+  <!-- @if (file.status === 'error' && file.error) {
+      <p class="text-destructive text-xs">{{ file.error }}</p>
+    } -->
+</div>
+
+<ng-template #statusIcon>
+  @let d = data();
+  @switch (d.status) {
+    @case (uploadState.FAILED) {
+      <ng-icon
+        [rbthTooltipTrigger]="d.errorMessage"
+        hlm
+        size="xs"
+        class="text-destructive"
+        name="lucideTriangleAlert"
+        aria-hidden="true"
+      />
+    }
+    @case (uploadState.COMPLETED) {
+      <ng-icon hlm size="xs" name="lucideCheck" aria-hidden="true" />
+    }
+    @case (uploadState.NOT_STARTED) {
+      <ng-icon hlm class="text-muted-foreground" size="xs" name="lucideFile" />
+    }
+    @default {
+      <hlm-spinner
+        size="xs"
+        icon="lucideLoaderCircle"
+        class="text-muted-foreground"
+      />
+    }
+  }
+</ng-template>
+

@@ -9,6 +9,7 @@ export default [
   {
     files: ['**/*.ts'],
     rules: {
+      '@angular-eslint/no-input-rename': 'off',
       '@angular-eslint/directive-selector': [
         'error',
         {
