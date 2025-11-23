@@ -1,0 +1,310 @@
+<rbth-drawer side="right">
+  <ng-content />
+  <rbth-drawer-content *brnSheetContent="let ctx">
+    <rbth-drawer-header>
+      <div rbthDrawerTitle>
+        <h2>Install WASM to canister</h2>
+        <p class="text-muted-foreground text-sm font-normal">
+          Select a WASM file to install to user canister
+        </p>
+      </div>
+    </rbth-drawer-header>
+
+    <div class="flex-1 overflow-y-auto p-5 space-y-6">
+    <!-- Error alert -->
+    @if (errorMessage()) {
+      <div hlmAlert variant="destructive">
+        <ng-icon hlm hlmAlertIcon name="lucideCircleAlert" />
+        <h4 hlmAlertTitle>Installation failed</h4>
+        <div hlmAlertDescription>{{ errorMessage() }}</div>
+      </div>
+    }
+
+    <!-- File selection zone with tabs -->
+    @if (!selectedFile()) {
+      <hlm-tabs tab="file" class="w-full">
+        <hlm-tabs-list class="grid w-full grid-cols-2">
+          <button hlmTabsTrigger="file">
+            <ng-icon hlm size="sm" name="lucideBinary" />
+            From file
+          </button>
+          <button hlmTabsTrigger="github" [disabled]="true">
+            <ng-icon hlm size="sm" name="lucideGithub" />
+            From GitHub
+          </button>
+        </hlm-tabs-list>
+        <div hlmTabsContent="file">
+          <div
+            hlmEmpty
+            class="border-input hover:bg-accent/50 flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed p-8 transition-colors"
+            (dragover)="$event.preventDefault()"
+            (drop)="handleDrop($event)"
+            role="button"
+            tabindex="0"
+          >
+            <div hlmEmptyHeader>
+              <div hlmEmptyMedia variant="icon">
+                <ng-icon name="lucideBinary" />
+              </div>
+              <div hlmEmptyTitle>Select WASM file</div>
+              <div hlmEmptyDescription>
+                Select a WASM file to install to user canister
+              </div>
+            </div>
+            <div hlmEmptyContent>
+              <div class="flex gap-2">
+                <button hlmBtn (click)="fileOpen()">
+                  <ng-icon hlm size="sm" name="lucideUpload" />
+                  Select file
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div hlmTabsContent="github">
+          <div
+            class="border-input flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed p-8 opacity-50"
+          >
+            <div
+              class="bg-background mb-4 flex size-16 shrink-0 items-center justify-center rounded-full border"
+              aria-hidden="true"
+            >
+              <ng-icon hlm class="opacity-60" size="lg" name="lucideGithub" />
+            </div>
+            <p class="mb-2 text-base font-medium">GitHub releases</p>
+            <p class="text-muted-foreground mb-4 text-center text-sm">
+              Select a release from GitHub repository
+            </p>
+            <p class="text-muted-foreground text-xs">Coming soon</p>
+          </div>
+        </div>
+      </hlm-tabs>
+    }
+
+    <!-- Selected WASM file -->
+    @if (selectedFile(); as wasm) {
+      <div class="bg-muted/50 flex items-center gap-3 rounded-lg border p-4">
+        <div
+          class="flex aspect-square size-12 shrink-0 items-center justify-center rounded border"
+        >
+          <ng-icon hlm class="opacity-60 size-6" name="lucideBinary" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="truncate text-sm font-medium">{{ wasm.name }}</p>
+          <p class="text-muted-foreground text-xs">
+            {{ wasm.size | formatBytes }}
+          </p>
+        </div>
+        @if (!isProcessing()) {
+          <button hlmBtn variant="ghost" size="icon-sm" (click)="onCancel()">
+            <ng-icon hlm size="sm" name="lucideX" />
+          </button>
+        }
+      </div>
+    }
+
+    <!-- Install mode selection -->
+    @if (selectedFile()) {
+      <div class="space-y-4">
+        <div>
+          <h2 hlmH2 class="text-sm font-medium mb-2 border-0 pb-0">Installation mode</h2>
+          <hlm-radio-group
+            [value]="installMode()"
+            (valueChange)="onInstallModeChange($event)"
+            class="mt-2"
+          >
+            <div
+              class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+              [attr.data-checked]="installMode() === 'install'"
+              role="button"
+              tabindex="0"
+              (click)="onInstallModeChange('install')"
+              (keydown.enter)="onInstallModeChange('install')"
+              (keydown.space)="onInstallModeChange('install'); $event.preventDefault()"
+            >
+              <hlm-radio value="install" class="mt-0.5">
+                <hlm-radio-indicator />
+              </hlm-radio>
+              <div class="flex-1">
+                <div class="text-sm font-medium">Install</div>
+                <div class="text-muted-foreground text-xs">
+                  Installs the module in an empty canister
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+              [attr.data-checked]="installMode() === 'reinstall'"
+              role="button"
+              tabindex="0"
+              (click)="onInstallModeChange('reinstall')"
+              (keydown.enter)="onInstallModeChange('reinstall')"
+              (keydown.space)="onInstallModeChange('reinstall'); $event.preventDefault()"
+            >
+              <hlm-radio value="reinstall" class="mt-0.5">
+                <hlm-radio-indicator />
+              </hlm-radio>
+              <div class="flex-1">
+                <div class="text-sm font-medium">Reinstall</div>
+                <div class="text-muted-foreground text-xs">
+                  Reinstalls the module, discarding the canister's state
+                </div>
+              </div>
+            </div>
+            <div
+              class="flex flex-col gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+              [attr.data-checked]="installMode() === 'upgrade'"
+            >
+              <div
+                class="flex cursor-pointer items-start gap-3"
+                role="button"
+                tabindex="0"
+                (click)="onInstallModeChange('upgrade')"
+                (keydown.enter)="onInstallModeChange('upgrade')"
+                (keydown.space)="onInstallModeChange('upgrade'); $event.preventDefault()"
+              >
+                <hlm-radio value="upgrade" class="mt-0.5">
+                  <hlm-radio-indicator />
+                </hlm-radio>
+                <div class="flex-1">
+                  <div class="text-sm font-medium">Upgrade</div>
+                  <div class="text-muted-foreground text-xs">
+                    Upgrades the module, preserving the canister's state
+                  </div>
+                </div>
+              </div>
+
+              <!-- Upgrade options -->
+              @if (isUpgradeMode()) {
+                <div
+                  class="space-y-3 rounded-lg border p-4"
+                  (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
+                  tabindex="-1"
+                >
+                  <div class="flex items-center gap-2">
+                    <hlm-checkbox
+                      [checked]="skipPreUpgrade()"
+                      (checkedChange)="skipPreUpgrade.set($event)"
+                      id="skip-pre-upgrade"
+                    />
+                    <label
+                      for="skip-pre-upgrade"
+                      class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Skip pre-upgrade
+                    </label>
+                  </div>
+
+                  @if (skipPreUpgrade()) {
+                    <div class="ml-6 flex items-center gap-2">
+                      <hlm-checkbox
+                        [checked]="skipPreUpgradeValue()"
+                        (checkedChange)="skipPreUpgradeValue.set($event)"
+                        id="skip-pre-upgrade-value"
+                      />
+                      <label
+                        for="skip-pre-upgrade-value"
+                        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Skip pre-upgrade value
+                        <span class="text-muted-foreground text-xs block mt-1"
+                          >Boolean value to skip the pre-upgrade hook execution</span
+                        >
+                      </label>
+                    </div>
+                  }
+
+                  <div class="flex items-center gap-2">
+                    <hlm-checkbox
+                      [checked]="wasmMemoryPersistenceEnabled()"
+                      (checkedChange)="wasmMemoryPersistenceEnabled.set($event)"
+                      id="wasm-memory-persistence"
+                    />
+                    <label
+                      for="wasm-memory-persistence"
+                      class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      WASM memory persistence
+                    </label>
+                  </div>
+
+                  @if (wasmMemoryPersistenceEnabled()) {
+                    <div class="ml-6">
+                      <brn-select
+                        [value]="wasmMemoryPersistence()"
+                        (valueChange)="onWasmMemoryPersistenceChange($event)"
+                      >
+                        <hlm-select-trigger class="w-48">
+                          <hlm-select-value>
+                            <ng-template hlmSelectValue let-selected>
+                              {{ selected === 'keep' ? 'Keep' : 'Replace' }}
+                            </ng-template>
+                          </hlm-select-value>
+                        </hlm-select-trigger>
+                        <hlm-select-content class="w-64">
+                          <hlm-option
+                            value="keep"
+                            class="flex flex-col items-start gap-0 py-2"
+                          >
+                            <span class="font-medium">Keep</span>
+                            <span class="text-muted-foreground text-xs"
+                              >Preserve existing WASM memory</span
+                            >
+                          </hlm-option>
+                          <hlm-option
+                            value="replace"
+                            class="flex flex-col items-start gap-0 py-2"
+                          >
+                            <span class="font-medium">Replace</span>
+                            <span class="text-muted-foreground text-xs"
+                              >Replace WASM memory with new module</span
+                            >
+                          </hlm-option>
+                        </hlm-select-content>
+                      </brn-select>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </hlm-radio-group>
+        </div>
+      </div>
+    }
+
+      <!-- Progress -->
+      @if (installState().status === 'uploading') {
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-sm">
+            <span class="font-medium">{{ statusText() }}</span>
+            <span class="text-muted-foreground">
+              {{ progress() | number: '1.0-0' }}%
+            </span>
+          </div>
+          <div hlmProgress [value]="progress()" class="h-2">
+            <hlm-progress-indicator />
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Install button -->
+    <rbth-drawer-footer>
+      <button
+        hlmBtn
+        [disabled]="isButtonDisabled()"
+        (click)="onInstall()"
+        class="ml-auto"
+      >
+        @if (isProcessing()) {
+          <hlm-spinner class="size-4 mr-0.5" />
+        } @else {
+          <ng-icon hlm size="sm" name="lucideUpload" />
+        }
+        {{ statusText() }}
+      </button>
+    </rbth-drawer-footer>
+  </rbth-drawer-content>
+</rbth-drawer>
+

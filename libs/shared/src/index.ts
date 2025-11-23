@@ -9,6 +9,9 @@ export * from './lib/components/canister/canister-runtime/canister-runtime.compo
 export * from './lib/components/canister/commit-permission-warning/commit-permission-warning.component';
 export * from './lib/components/canister/frontend-upload-item/frontend-upload-item.component';
 export * from './lib/components/canister/frontend-upload-list/frontend-upload-list.component';
+export * from './lib/components/canister/frontend-upload/frontend-upload-trigger.directive';
 export * from './lib/components/canister/frontend-upload/frontend-upload.component';
 export * from './lib/components/canister/inline-warning/inline-warning.component';
+export * from './lib/components/canister/wasm-install/wasm-install-trigger.directive';
+export * from './lib/components/canister/wasm-install/wasm-install.component';
 export * from './lib/shared/shared.component';
