@@ -6,7 +6,11 @@ import {
   loginGuard,
   storageViewGuard,
 } from './core/guards';
-import { canisterStatusResolver, profileResolver } from './core/resolvers';
+import {
+  canisterListResolver,
+  canisterStatusResolver,
+  profileResolver,
+} from './core/resolvers';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 
 export const appRoutes: Route[] = [
@@ -40,6 +44,9 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'canisters',
+        resolve: {
+          canisterList: canisterListResolver,
+        },
         children: [
           {
             path: '',
