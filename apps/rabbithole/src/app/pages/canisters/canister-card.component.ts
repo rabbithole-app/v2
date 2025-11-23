@@ -43,16 +43,23 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CanisterCardComponent {
-  canisterId = input.required<Principal>();
-  canisterIdText = computed(() => this.canisterId().toText());
+  canisterId = input.required<Principal | string>();
+  canisterIdText = computed(() => {
+    const id = this.canisterId();
+    return typeof id === 'string' ? id : id.toText();
+  });
   #parentInjector = inject(Injector);
   #icManagementService = computed(() => {
     const canisterIdValue = this.canisterId();
+    const principal =
+      typeof canisterIdValue === 'string'
+        ? Principal.fromText(canisterIdValue)
+        : canisterIdValue;
     const childInjector = Injector.create({
       providers: [
         {
           provide: ENCRYPTED_STORAGE_CANISTER_ID,
-          useValue: canisterIdValue,
+          useValue: principal,
         },
         ICManagementService,
       ],

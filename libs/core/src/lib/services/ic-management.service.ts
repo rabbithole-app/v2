@@ -2,11 +2,9 @@ import { computed, inject, Injectable, resource, signal } from '@angular/core';
 import { Principal } from '@dfinity/principal';
 import {
   canister_status_result,
-  CanisterSettings,
   ICManagementCanister,
 } from '@icp-sdk/canisters/ic-management';
 import { toast } from 'ngx-sonner';
-import { Subject, switchMap } from 'rxjs';
 
 import { injectHttpAgent } from '../injectors';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';

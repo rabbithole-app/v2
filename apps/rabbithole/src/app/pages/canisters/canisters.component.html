@@ -1,9 +1,8 @@
 <div class="container mx-auto space-y-6">
   <h1 class="text-2xl font-semibold">Canisters</h1>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    @for (canisterId of canisterIds(); track canisterId.toText()) {
+    @for (canisterId of canisterIds(); track canisterId) {
       <app-canister-card [canisterId]="canisterId" />
     }
   </div>
 </div>
-

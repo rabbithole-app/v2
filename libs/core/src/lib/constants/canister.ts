@@ -9,3 +9,5 @@ export const SIX_MONTHS = ONE_MONTH * 6; // 15_552_000 seconds
 export const ONE_YEAR = ONE_MONTH * 12; // 31_104_000 seconds, 360 days
 export const TWO_YEARS = ONE_YEAR * 2;
 export const FIVE_YEARS = ONE_YEAR * 5;
+
+export const INSTALL_MAX_CHUNK_SIZE = 1024 * 1024; // 1MB

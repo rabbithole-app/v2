@@ -5,15 +5,28 @@ import {
   inject,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Principal } from '@dfinity/principal';
-import { HlmTabsImports } from '@spartan-ng/helm/tabs';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import {
+  lucideBinary,
+  lucidePackage,
+  lucideRefreshCw,
+  lucideUpload,
+} from '@ng-icons/lucide';
+import { BrnSelectImports } from '@spartan-ng/brain/select';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { filter, map, mergeWith } from 'rxjs';
 
 import { AddControllerInstructionsComponent } from '../../widgets/add-controller-instructions/add-controller-instructions.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   CanisterDataInfo,
+  ENCRYPTED_STORAGE_CANISTER_ID,
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   ICManagementService,
   provideCoreWorker,
@@ -27,19 +40,37 @@ import {
   CanisterRuntimeComponent,
   CommitPermissionWarningComponent,
   FrontendUploadComponent,
+  FrontendUploadTriggerDirective,
+  WasmInstallComponent,
+  WasmInstallTriggerDirective,
 } from '@rabbithole/shared';
+import {
+  RbthTooltipComponent,
+  RbthTooltipTriggerDirective,
+} from '@rabbithole/ui';
 
 @Component({
   selector: 'app-canister-detail',
   templateUrl: './canister-detail.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ...HlmTabsImports,
+    ...BrnSelectImports,
+    ...HlmButtonImports,
+    ...HlmButtonGroupImports,
+    ...HlmSelectImports,
+    ...HlmSpinnerImports,
+    HlmIcon,
+    NgIcon,
+    RbthTooltipComponent,
+    RbthTooltipTriggerDirective,
     CanisterMemoryComponent,
     CanisterRuntimeComponent,
     CanisterHealthCheckComponent,
     CanisterControllersTableComponent,
     FrontendUploadComponent,
+    FrontendUploadTriggerDirective,
+    WasmInstallComponent,
+    WasmInstallTriggerDirective,
     AddControllerInstructionsComponent,
     CommitPermissionWarningComponent,
   ],
@@ -48,11 +79,27 @@ import {
     UPLOAD_ASSETS_SERVICE_PROVIDERS,
     provideCoreWorker(),
     ICManagementService,
+    provideIcons({
+      lucideBinary,
+      lucidePackage,
+      lucideRefreshCw,
+      lucideUpload,
+    }),
   ],
 })
 export class CanisterDetailComponent {
-  #icManagementService = inject(ICManagementService);
   #route = inject(ActivatedRoute);
+  // List of available canisters from resolver
+  readonly canisterList = toSignal(
+    this.#route.data.pipe(
+      map((data) =>
+        (data['canisterList'] as Principal[]).map((v) => v.toText()),
+      ),
+    ),
+    { requireSync: true },
+  );
+
+  #icManagementService = inject(ICManagementService);
 
   // Combines initial data from resolver with reactive updates from service resource
   canisterStatus = toSignal(
@@ -69,12 +116,15 @@ export class CanisterDetailComponent {
 
   controllers = computed(() => this.canisterStatus().settings.controllers);
 
+  readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  readonly currentCanisterId = computed(() => this.#canisterId.toText());
+
   #authService = inject(AUTH_SERVICE);
   currentPrincipalId = computed(() => {
     return this.#authService.principalId();
   });
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
 
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
   hasUploadPermission = computed(() => this.#uploadService.hasPermission());
 
   isController = computed(() => {
@@ -85,7 +135,13 @@ export class CanisterDetailComponent {
     );
   });
 
+  readonly isLoadingStatus = computed(() =>
+    this.#icManagementService.canisterStatus.isLoading(),
+  );
+
   loadingState = computed(() => this.#icManagementService.state().loading);
+
+  #router = inject(Router);
 
   protected _handleAddController(principal: Principal) {
     this.#icManagementService.addController(principal);
@@ -93,5 +149,15 @@ export class CanisterDetailComponent {
 
   protected _handleRemoveController(principal: Principal) {
     this.#icManagementService.removeController(principal);
+  }
+
+  protected _onCanisterChange(canisterId: string[] | string | undefined) {
+    if (typeof canisterId === 'string') {
+      this.#router.navigate(['/canisters', canisterId]);
+    }
+  }
+
+  protected _refreshStatus() {
+    this.#icManagementService.canisterStatus.reload();
   }
 }
