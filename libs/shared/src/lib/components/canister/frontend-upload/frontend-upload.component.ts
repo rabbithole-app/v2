@@ -3,9 +3,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  contentChild,
+  effect,
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -17,8 +20,8 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { BrnProgress } from '@spartan-ng/brain/progress';
+import { BrnSheetContent } from '@spartan-ng/brain/sheet';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
@@ -30,6 +33,7 @@ import { unzipSync } from 'fflate';
 import { match, P } from 'ts-pattern';
 
 import { FrontendUploadListComponent } from '../frontend-upload-list/frontend-upload-list.component';
+import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
 import {
   FileSystemAccessService,
   provideCoreWorker,
@@ -37,20 +41,33 @@ import {
   UPLOAD_SERVICE_TOKEN,
   UploadState,
 } from '@rabbithole/core';
-import { FormatBytesPipe } from '@rabbithole/ui';
+import {
+  FormatBytesPipe,
+  RbthDrawerComponent,
+  RbthDrawerContentComponent,
+  RbthDrawerFooterComponent,
+  RbthDrawerHeaderComponent,
+  RbthDrawerTitleDirective,
+} from '@rabbithole/ui';
 
 @Component({
   selector: 'shared-frontend-upload',
   imports: [
-    ...HlmCardImports,
     ...HlmButtonImports,
     ...HlmProgressImports,
     ...HlmSpinnerImports,
     ...HlmTabsImports,
     ...HlmEmptyImports,
+    BrnSheetContent,
+    BrnProgress,
+    RbthDrawerComponent,
+    RbthDrawerContentComponent,
+    RbthDrawerFooterComponent,
+    RbthDrawerHeaderComponent,
+    RbthDrawerTitleDirective,
+    FrontendUploadTriggerDirective,
     NgIcon,
     HlmIcon,
-    BrnProgress,
     DecimalPipe,
     FormatBytesPipe,
     FrontendUploadListComponent,
@@ -59,6 +76,7 @@ import { FormatBytesPipe } from '@rabbithole/ui';
     UPLOAD_ASSETS_SERVICE_PROVIDERS,
     provideCoreWorker(),
     provideIcons({
+      lucideFileArchive,
       lucideGithub,
       lucidePackage,
       lucideUpload,
@@ -80,16 +98,35 @@ export class FrontendUploadComponent {
         .state()
         .files.filter(({ status }) => status === UploadState.COMPLETED).length,
   );
+  readonly drawer = viewChild(RbthDrawerComponent);
   files = computed(() => this.#uploadService.state().files);
   readonly icons = { fileArchive: lucideFileArchive };
   isProcessing = computed(() => this.#uploadService.state().isProcessing);
   overallProgress = computed(() => this.#uploadService.state().overallProgress);
+  readonly statusText = computed(() => {
+    if (this.isProcessing()) {
+      return 'Uploading...';
+    }
+    return 'Upload';
+  });
   readonly totalFiles = computed(() => this.files().length);
+  readonly trigger = contentChild(FrontendUploadTriggerDirective);
   readonly userClass = input<ClassValue>('', { alias: 'class' });
   protected readonly _computedClass = computed(() =>
     hlm('flex flex-col gap-y-4', this.userClass()),
   );
   #fsAccessService = inject(FileSystemAccessService);
+
+  constructor() {
+    // Connect the directive to the drawer via effect
+    effect(() => {
+      const trigger = this.trigger();
+      const drawer = this.drawer();
+      if (trigger && drawer) {
+        trigger.setDrawer(drawer);
+      }
+    });
+  }
 
   async fileOpen() {
     const fileHandle = await this.#fsAccessService.fileOpen({

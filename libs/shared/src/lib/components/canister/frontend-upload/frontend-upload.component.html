@@ -1,13 +1,16 @@
-<div hlmCard class="w-full max-w-2xl">
-  <!-- Header -->
-  <div hlmCardHeader>
-    <h2 class="text-lg font-semibold">Upload frontend to canister</h2>
-    <p class="text-muted-foreground text-sm">
-      Select an archive with frontend to upload to user canister
-    </p>
-  </div>
+<rbth-drawer side="right">
+  <ng-content />
+  <rbth-drawer-content *brnSheetContent="let ctx">
+    <rbth-drawer-header>
+      <div rbthDrawerTitle>
+        <h2>Upload frontend to canister</h2>
+        <p class="text-muted-foreground text-sm font-normal">
+          Select an archive with frontend to upload to user canister
+        </p>
+      </div>
+    </rbth-drawer-header>
 
-  <div hlmCardContent class="space-y-6">
+    <div class="flex-1 overflow-y-auto p-5 space-y-6">
     <!-- File selection zone with tabs -->
     @if (!archiveFile()) {
       <hlm-tabs tab="file" class="w-full">
@@ -91,36 +94,46 @@
       </div>
     }
 
+      <!-- Overall progress -->
+      @if (isProcessing()) {
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-sm">
+            <span class="font-medium"> Uploading files... </span>
+            <span class="text-muted-foreground">
+              {{ completedFiles() }} / {{ totalFiles() }} files
+            </span>
+          </div>
+          <div hlmProgress [value]="overallProgress()" class="h-2">
+            <hlm-progress-indicator />
+          </div>
+          <p class="text-muted-foreground text-xs">
+            {{ overallProgress() | number: '1.0-0' }}% completed
+          </p>
+        </div>
+      }
+
+      <!-- File list -->
+      @if (files().length > 0) {
+        <shared-frontend-upload-list [items]="files()" />
+      }
+    </div>
+
     <!-- Install button -->
-    @if (archiveFile() && !isProcessing()) {
-      <button hlmBtn (click)="onInstall()">
-        <ng-icon hlm size="sm" name="lucidePackage" />
-        Install
+    <rbth-drawer-footer>
+      <button
+        hlmBtn
+        [disabled]="!archiveFile() || isProcessing()"
+        (click)="onInstall()"
+        class="ml-auto"
+      >
+        @if (isProcessing()) {
+          <hlm-spinner class="size-4 mr-0.5" />
+        } @else {
+          <ng-icon hlm size="sm" name="lucidePackage" />
+        }
+        {{ statusText() }}
       </button>
-    }
-
-    <!-- Overall progress -->
-    @if (isProcessing()) {
-      <div class="space-y-2">
-        <div class="flex items-center justify-between text-sm">
-          <span class="font-medium"> Uploading files... </span>
-          <span class="text-muted-foreground">
-            {{ completedFiles() }} / {{ totalFiles() }} files
-          </span>
-        </div>
-        <div hlmProgress [value]="overallProgress()" class="h-2">
-          <hlm-progress-indicator />
-        </div>
-        <p class="text-muted-foreground text-xs">
-          {{ overallProgress() | number: '1.0-0' }}% completed
-        </p>
-      </div>
-    }
-
-    <!-- File list -->
-    @if (files().length > 0) {
-      <shared-frontend-upload-list [items]="files()" />
-    }
-  </div>
-</div>
+    </rbth-drawer-footer>
+  </rbth-drawer-content>
+</rbth-drawer>
 
