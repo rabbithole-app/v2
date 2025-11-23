@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
-import { UploadDrawerComponent } from '../../widgets/upload-drawer/upload-drawer.component';
+import { UploadDrawerComponent } from '@rabbithole/shared';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
 
 @Component({

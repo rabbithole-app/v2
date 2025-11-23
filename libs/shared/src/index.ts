@@ -11,7 +11,10 @@ export * from './lib/components/canister/frontend-upload-item/frontend-upload-it
 export * from './lib/components/canister/frontend-upload-list/frontend-upload-list.component';
 export * from './lib/components/canister/frontend-upload/frontend-upload-trigger.directive';
 export * from './lib/components/canister/frontend-upload/frontend-upload.component';
+export * from './lib/components/canister/frontend-upload/frontend-upload.component';
 export * from './lib/components/canister/inline-warning/inline-warning.component';
 export * from './lib/components/canister/wasm-install/wasm-install-trigger.directive';
 export * from './lib/components/canister/wasm-install/wasm-install.component';
+export * from './lib/components/upload/upload-drawer/upload-drawer-list.component';
+export * from './lib/components/upload/upload-drawer/upload-drawer.component';
 export * from './lib/shared/shared.component';
