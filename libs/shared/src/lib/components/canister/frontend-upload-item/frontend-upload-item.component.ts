@@ -6,12 +6,7 @@ import {
   input,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import {
-  lucideCheck,
-  lucideFile,
-  lucideLoaderCircle,
-  lucideTriangleAlert,
-} from '@ng-icons/lucide';
+import { lucideCheck, lucideFile, lucideTriangleAlert } from '@ng-icons/lucide';
 import { BrnProgress, BrnProgressIndicator } from '@spartan-ng/brain/progress';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -46,7 +41,6 @@ import {
       lucideFile,
       lucideCheck,
       lucideTriangleAlert,
-      lucideLoaderCircle,
     }),
   ],
   host: {

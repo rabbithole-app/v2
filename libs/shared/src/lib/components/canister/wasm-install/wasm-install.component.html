@@ -10,19 +10,21 @@
       </div>
     </rbth-drawer-header>
 
-    <div class="flex-1 overflow-y-auto p-5 space-y-6">
+    <div class="flex-1 overflow-y-auto space-y-6">
     <!-- Error alert -->
     @if (errorMessage()) {
-      <div hlmAlert variant="destructive">
-        <ng-icon hlm hlmAlertIcon name="lucideCircleAlert" />
-        <h4 hlmAlertTitle>Installation failed</h4>
-        <div hlmAlertDescription>{{ errorMessage() }}</div>
+      <div class="px-4">
+        <div hlmAlert variant="destructive">
+          <ng-icon hlm hlmAlertIcon name="lucideCircleAlert" />
+          <h4 hlmAlertTitle>Installation failed</h4>
+          <div hlmAlertDescription>{{ errorMessage() }}</div>
+        </div>
       </div>
     }
 
     <!-- File selection zone with tabs -->
     @if (!selectedFile()) {
-      <hlm-tabs tab="file" class="w-full">
+      <hlm-tabs tab="file" class="w-full px-4">
         <hlm-tabs-list class="grid w-full grid-cols-2">
           <button hlmTabsTrigger="file">
             <ng-icon hlm size="sm" name="lucideBinary" />
@@ -83,7 +85,7 @@
 
     <!-- Selected WASM file -->
     @if (selectedFile(); as wasm) {
-      <div class="bg-muted/50 flex items-center gap-3 rounded-lg border p-4">
+      <div class="mx-4 bg-muted/50 flex items-center gap-3 rounded-lg border p-4">
         <div
           class="flex aspect-square size-12 shrink-0 items-center justify-center rounded border"
         >
@@ -105,14 +107,12 @@
 
     <!-- Install mode selection -->
     @if (selectedFile()) {
-      <div class="space-y-4">
-        <div>
-          <h2 hlmH2 class="text-sm font-medium mb-2 border-0 pb-0">Installation mode</h2>
-          <hlm-radio-group
-            [value]="installMode()"
-            (valueChange)="onInstallModeChange($event)"
-            class="mt-2"
-          >
+      <h3 rbthDrawerSeparator>Installation mode</h3>
+      <div class="px-4">
+        <hlm-radio-group
+          [value]="installMode()"
+          (valueChange)="onInstallModeChange($event)"
+        >
             <div
               class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
               [attr.data-checked]="installMode() === 'install'"
@@ -269,13 +269,12 @@
               }
             </div>
           </hlm-radio-group>
-        </div>
       </div>
     }
 
       <!-- Progress -->
       @if (installState().status === 'uploading') {
-        <div class="space-y-2">
+        <div class="space-y-2 mx-4">
           <div class="flex items-center justify-between text-sm">
             <span class="font-medium">{{ statusText() }}</span>
             <span class="text-muted-foreground">

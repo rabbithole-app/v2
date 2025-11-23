@@ -32,7 +32,6 @@ import { HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
-import { HlmH2 } from '@spartan-ng/helm/typography';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 import { toast } from 'ngx-sonner';
@@ -46,6 +45,7 @@ import {
   RbthDrawerContentComponent,
   RbthDrawerFooterComponent,
   RbthDrawerHeaderComponent,
+  RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui';
 
@@ -63,11 +63,11 @@ import {
     ...HlmSpinnerImports,
     ...HlmTabsImports,
     BrnSheetContent,
-    HlmH2,
     RbthDrawerComponent,
     RbthDrawerContentComponent,
     RbthDrawerFooterComponent,
     RbthDrawerHeaderComponent,
+    RbthDrawerSeparatorDirective,
     RbthDrawerTitleDirective,
     WasmInstallTriggerDirective,
     NgIcon,
@@ -114,11 +114,7 @@ export class WasmInstallComponent {
   });
   readonly isProcessing = computed(() => {
     const state = this.installState();
-    return (
-      state.status === 'uploading' ||
-      state.status === 'installing' ||
-      state.status === 'completed'
-    );
+    return state.status === 'uploading' || state.status === 'installing';
   });
   readonly isUpgradeMode = computed(() => this.installMode() === 'upgrade');
   readonly progress = computed(() => {
@@ -130,15 +126,12 @@ export class WasmInstallComponent {
   });
   readonly skipPreUpgrade = signal<boolean>(false);
   readonly skipPreUpgradeValue = signal<boolean>(false);
-  readonly statusText = computed(() => {
-    const state = this.installState();
-    return match(state)
+  readonly statusText = computed(() =>
+    match(this.installState())
       .with({ status: 'uploading' }, () => 'Uploading WASM...')
       .with({ status: 'installing' }, () => 'Installing WASM...')
-      .with({ status: 'completed' }, () => 'Install WASM')
-      .with({ status: 'failed' }, () => 'Install WASM')
-      .otherwise(() => 'Install WASM');
-  });
+      .otherwise(() => 'Install WASM'),
+  );
   readonly trigger = contentChild(WasmInstallTriggerDirective);
   readonly userClass = input<ClassValue>('', { alias: 'class' });
   readonly wasmFile = computed(() => {
