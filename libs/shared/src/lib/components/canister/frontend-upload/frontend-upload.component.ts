@@ -32,8 +32,8 @@ import type { ClassValue } from 'clsx';
 import { unzipSync } from 'fflate';
 import { match, P } from 'ts-pattern';
 
-import { FrontendUploadListComponent } from '../frontend-upload-list/frontend-upload-list.component';
 import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
+import { UploadDrawerListComponent } from '../../upload/upload-drawer/upload-drawer-list.component';
 import {
   FileSystemAccessService,
   provideCoreWorker,
@@ -47,11 +47,12 @@ import {
   RbthDrawerContentComponent,
   RbthDrawerFooterComponent,
   RbthDrawerHeaderComponent,
+  RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui';
 
 @Component({
-  selector: 'shared-frontend-upload',
+  selector: 'shared-frontend-upload-drawer',
   imports: [
     ...HlmButtonImports,
     ...HlmProgressImports,
@@ -64,13 +65,14 @@ import {
     RbthDrawerContentComponent,
     RbthDrawerFooterComponent,
     RbthDrawerHeaderComponent,
+    RbthDrawerSeparatorDirective,
     RbthDrawerTitleDirective,
     FrontendUploadTriggerDirective,
     NgIcon,
     HlmIcon,
     DecimalPipe,
     FormatBytesPipe,
-    FrontendUploadListComponent,
+    UploadDrawerListComponent,
   ],
   providers: [
     UPLOAD_ASSETS_SERVICE_PROVIDERS,
@@ -89,17 +91,34 @@ import {
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FrontendUploadComponent {
-  readonly archiveFile = signal<File | null>(null);
+export class FrontendUploadDrawerComponent {
   #uploadService = inject(UPLOAD_SERVICE_TOKEN, { self: true });
+  files = computed(() => this.#uploadService.state().files);
+  readonly activeItems = computed(() =>
+    this.files().filter(({ status }) =>
+      [
+        UploadState.FINALIZING,
+        UploadState.IN_PROGRESS,
+        UploadState.INITIALIZING,
+        UploadState.NOT_STARTED,
+        UploadState.REQUESTING_VETKD,
+      ].includes(status),
+    ),
+  );
+  readonly archiveFile = signal<File | null>(null);
   readonly completedFiles = computed(
     () =>
       this.#uploadService
         .state()
         .files.filter(({ status }) => status === UploadState.COMPLETED).length,
   );
+  readonly completedItems = computed(() =>
+    this.files().filter(({ status }) => status === UploadState.COMPLETED),
+  );
   readonly drawer = viewChild(RbthDrawerComponent);
-  files = computed(() => this.#uploadService.state().files);
+  readonly failedItems = computed(() =>
+    this.files().filter(({ status }) => status === UploadState.FAILED),
+  );
   readonly icons = { fileArchive: lucideFileArchive };
   isProcessing = computed(() => this.#uploadService.state().isProcessing);
   overallProgress = computed(() => this.#uploadService.state().overallProgress);
