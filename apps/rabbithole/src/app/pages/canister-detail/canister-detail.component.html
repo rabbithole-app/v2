@@ -82,6 +82,18 @@
         (removeController)="_handleRemoveController($event)"
       />
     </div>
+
+    <!-- Snapshots Section -->
+    <div class="col-span-full">
+      <shared-canister-snapshots-table
+        [snapshots]="snapshots()"
+        [loadingState]="snapshotsLoadingState()"
+        (takeSnapshot)="_onTakeSnapshot($event || undefined)"
+        (restoreSnapshot)="_onRestoreSnapshot($event)"
+        (deleteSnapshot)="_onDeleteSnapshot($event)"
+        (reloadSnapshots)="_onReloadSnapshots()"
+      />
+    </div>
   </div>
 }
 

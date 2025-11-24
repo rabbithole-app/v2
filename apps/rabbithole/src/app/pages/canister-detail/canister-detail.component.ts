@@ -17,6 +17,7 @@ import {
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
@@ -36,8 +37,11 @@ import {
 import {
   CanisterControllersTableComponent,
   CanisterHealthCheckComponent,
+  CanisterLoadSnapshotDialogComponent,
   CanisterMemoryComponent,
   CanisterRuntimeComponent,
+  CanisterSnapshotsTableComponent,
+  CanisterTakeSnapshotDialogComponent,
   CommitPermissionWarningComponent,
   FrontendUploadDrawerComponent,
   FrontendUploadTriggerDirective,
@@ -67,6 +71,7 @@ import {
     CanisterRuntimeComponent,
     CanisterHealthCheckComponent,
     CanisterControllersTableComponent,
+    CanisterSnapshotsTableComponent,
     FrontendUploadDrawerComponent,
     FrontendUploadTriggerDirective,
     WasmInstallComponent,
@@ -138,9 +143,20 @@ export class CanisterDetailComponent {
   readonly isLoadingStatus = computed(() =>
     this.#icManagementService.canisterStatus.isLoading(),
   );
-
   loadingState = computed(() => this.#icManagementService.state().loading);
 
+  snapshots = computed(() => this.#icManagementService.snapshots.value() ?? []);
+  snapshotsLoadingState = computed(() => {
+    const state = this.#icManagementService.state().snapshots;
+    const isLoadingSnapshots = this.#icManagementService.snapshots.isLoading();
+
+    return {
+      ...state,
+      loading: isLoadingSnapshots,
+    };
+  });
+
+  #dialogService = inject(HlmDialogService);
   #router = inject(Router);
 
   protected _handleAddController(principal: Principal) {
@@ -155,6 +171,58 @@ export class CanisterDetailComponent {
     if (typeof canisterId === 'string') {
       this.#router.navigate(['/canisters', canisterId]);
     }
+  }
+
+  protected _onDeleteSnapshot(id: string) {
+    this.#icManagementService.deleteSnapshot(id);
+  }
+
+  protected _onReloadSnapshots() {
+    this.#icManagementService.snapshots.reload();
+  }
+
+  protected _onRestoreSnapshot(id: string) {
+    const dialogRef = this.#dialogService.open(
+      CanisterLoadSnapshotDialogComponent,
+      {
+        contentClass: 'min-w-[400px] sm:max-w-[500px]',
+        context: {
+          state: computed(
+            () => this.#icManagementService.state().snapshots.restoreStatus,
+          ),
+          action: () => this.#icManagementService.loadSnapshot(id),
+          snapshotId: id,
+        },
+      },
+    );
+
+    dialogRef.closed$.subscribe((result) => {
+      if (result) {
+        // Snapshot was loaded successfully
+      }
+    });
+  }
+
+  protected _onTakeSnapshot(id?: string) {
+    const dialogRef = this.#dialogService.open(
+      CanisterTakeSnapshotDialogComponent,
+      {
+        contentClass: 'min-w-[400px] sm:max-w-[500px]',
+        context: {
+          state: computed(
+            () => this.#icManagementService.state().snapshots.takeStatus,
+          ),
+          action: () => this.#icManagementService.takeSnapshot(id),
+          snapshotId: id,
+        },
+      },
+    );
+
+    dialogRef.closed$.subscribe((result) => {
+      if (result) {
+        // Snapshot was created successfully
+      }
+    });
   }
 
   protected _refreshStatus() {
