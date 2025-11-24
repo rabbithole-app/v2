@@ -1,23 +1,37 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
 import { Principal } from '@dfinity/principal';
+import { hexStringToUint8Array, uint8ArrayToHexString } from '@dfinity/utils';
 import {
   canister_status_result,
   ICManagementCanister,
+  OptionSnapshotParams,
+  snapshot_id,
+  SnapshotIdText,
+  SnapshotParams,
 } from '@icp-sdk/canisters/ic-management';
 import { toast } from 'ngx-sonner';
 
 import { injectHttpAgent } from '../injectors';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
-import { CanisterDataInfo } from '../types';
-import { canisterStatus } from '../utils';
+import { CanisterDataInfo, Snapshot } from '../types';
+import { canisterStatus, timeInNanosToDate } from '../utils';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
+type RestoreSnapshotStatus = 'idle' | 'restoring' | 'starting' | 'stopping';
 type State = {
   loading: {
     adding: string[];
     removing: string[];
   };
+  snapshots: {
+    deleting: string[];
+    replacing: string | null;
+    restoreStatus: RestoreSnapshotStatus;
+    takeStatus: TakeSnapshotStatus;
+  };
 };
+
+type TakeSnapshotStatus = 'idle' | 'starting' | 'stopping' | 'taking';
 
 @Injectable()
 export class ICManagementService {
@@ -42,10 +56,40 @@ export class ICManagementService {
       return canisterStatus(result as canister_status_result);
     },
   });
+  snapshots = resource<Snapshot[], ICManagementCanister>({
+    params: () => this.#icManagement(),
+    loader: async ({ params: icManagement }) => {
+      const pid = this.#authService.identity().getPrincipal();
+
+      if (pid.isAnonymous()) {
+        throw new Error('Anonymous user cannot access IC management');
+      }
+
+      const result = (await icManagement.listCanisterSnapshots({
+        canisterId: this.#canisterId,
+      })) as Array<{
+        id: Uint8Array;
+        taken_at_timestamp: bigint;
+        total_size: bigint;
+      }>;
+
+      return result.map((snapshot) => ({
+        id: uint8ArrayToHexString(snapshot.id),
+        takenAtTimestamp: timeInNanosToDate(snapshot.taken_at_timestamp),
+        totalSize: snapshot.total_size,
+      }));
+    },
+  });
   #state = signal<State>({
     loading: {
       adding: [],
       removing: [],
+    },
+    snapshots: {
+      deleting: [],
+      replacing: null,
+      restoreStatus: 'idle',
+      takeStatus: 'idle',
     },
   });
   state = this.#state.asReadonly();
@@ -91,6 +135,124 @@ export class ICManagementService {
     }
   }
 
+  async deleteSnapshot(snapshotId: snapshot_id | SnapshotIdText) {
+    const pid = this.#authService.identity().getPrincipal();
+
+    if (pid.isAnonymous()) {
+      throw new Error('Anonymous user cannot access IC management');
+    }
+
+    const snapshotIdString =
+      typeof snapshotId === 'string'
+        ? snapshotId
+        : uint8ArrayToHexString(snapshotId);
+    const toastId = toast.loading('Deleting snapshot...');
+
+    this.#state.update((state) => ({
+      ...state,
+      snapshots: {
+        ...state.snapshots,
+        deleting: [...state.snapshots.deleting, snapshotIdString],
+      },
+    }));
+
+    try {
+      const params: SnapshotParams = {
+        canisterId: this.#canisterId,
+        snapshotId:
+          typeof snapshotId === 'string'
+            ? hexStringToUint8Array(snapshotId)
+            : snapshotId,
+      };
+
+      await this.#icManagement().deleteCanisterSnapshot(params);
+      toast.success('Snapshot deleted successfully', { id: toastId });
+      this.snapshots.reload();
+    } catch (error) {
+      toast.error('Failed to delete snapshot', { id: toastId });
+      console.error(error);
+    } finally {
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          deleting: state.snapshots.deleting.filter(
+            (id) => id !== snapshotIdString,
+          ),
+        },
+      }));
+    }
+  }
+
+  async loadSnapshot(snapshotId: snapshot_id | SnapshotIdText) {
+    const pid = this.#authService.identity().getPrincipal();
+
+    if (pid.isAnonymous()) {
+      throw new Error('Anonymous user cannot access IC management');
+    }
+
+    const toastId = toast.loading('Stopping canister...');
+
+    try {
+      // Step 1: Stop canister
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          restoreStatus: 'stopping',
+        },
+      }));
+      await this.#icManagement().stopCanister(this.#canisterId);
+
+      // Step 2: Load snapshot
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          restoreStatus: 'restoring',
+        },
+      }));
+
+      const params: Required<OptionSnapshotParams> = {
+        canisterId: this.#canisterId,
+        snapshotId:
+          typeof snapshotId === 'string'
+            ? hexStringToUint8Array(snapshotId)
+            : snapshotId,
+      };
+
+      toast.loading('Restoring canister...', { id: toastId });
+      await this.#icManagement().loadCanisterSnapshot(params);
+
+      // Step 3: Start canister
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          restoreStatus: 'starting',
+        },
+      }));
+
+      toast.loading('Starting canister...', { id: toastId });
+      await this.#icManagement().startCanister(this.#canisterId);
+
+      toast.success('Snapshot loaded successfully', { id: toastId });
+      this.snapshots.reload();
+      this.canisterStatus.reload();
+    } catch (error) {
+      toast.error('Failed to load snapshot', { id: toastId });
+      console.error(error);
+    } finally {
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          restoreStatus: 'idle',
+        },
+      }));
+    }
+  }
+
   async removeController(principal: Principal) {
     if (this.canisterStatus.hasValue()) {
       const controllers = this.canisterStatus
@@ -130,6 +292,88 @@ export class ICManagementService {
           },
         }));
       }
+    }
+  }
+
+  async takeSnapshot(snapshotId?: snapshot_id | SnapshotIdText) {
+    const pid = this.#authService.identity().getPrincipal();
+
+    if (pid.isAnonymous()) {
+      throw new Error('Anonymous user cannot access IC management');
+    }
+
+    const toastId = toast.loading('Stopping canister...');
+
+    try {
+      // Step 1: Stop canister
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          takeStatus: 'stopping',
+        },
+      }));
+      await this.#icManagement().stopCanister(this.#canisterId);
+
+      // Step 2: Take snapshot
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          takeStatus: 'taking',
+        },
+      }));
+
+      const params: OptionSnapshotParams = {
+        canisterId: this.#canisterId,
+      };
+
+      if (snapshotId) {
+        params.snapshotId =
+          typeof snapshotId === 'string'
+            ? hexStringToUint8Array(snapshotId)
+            : snapshotId;
+      }
+
+      toast.loading(
+        snapshotId ? 'Replacing snapshot...' : 'Taking snapshot...',
+        { id: toastId },
+      );
+      await this.#icManagement().takeCanisterSnapshot(params);
+
+      // Step 3: Start canister
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          takeStatus: 'starting',
+        },
+      }));
+
+      toast.loading('Starting canister...', { id: toastId });
+      await this.#icManagement().startCanister(this.#canisterId);
+
+      toast.success(
+        snapshotId
+          ? 'Snapshot replaced successfully'
+          : 'Snapshot taken successfully',
+        { id: toastId },
+      );
+      this.snapshots.reload();
+    } catch (error) {
+      toast.error(
+        snapshotId ? 'Failed to replace snapshot' : 'Failed to take snapshot',
+        { id: toastId },
+      );
+      console.error(error);
+    } finally {
+      this.#state.update((state) => ({
+        ...state,
+        snapshots: {
+          ...state.snapshots,
+          takeStatus: 'idle',
+        },
+      }));
     }
   }
 }
