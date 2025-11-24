@@ -5,4 +5,5 @@ export * from './format-number';
 export * from './is-photon-supported-mime-type';
 export * from './parse-canister-reject-error';
 export * from './principal';
+export * from './time';
 export * from './worker';

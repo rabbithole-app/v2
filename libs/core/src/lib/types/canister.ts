@@ -50,3 +50,9 @@ export interface CanisterSettings {
 export type CanisterStatus = 'running' | 'stopped' | 'stopping';
 
 export type CanisterSyncStatus = 'error' | 'loading' | 'synced' | 'syncing';
+
+export type Snapshot = {
+  id: string;
+  totalSize: bigint;
+  takenAtTimestamp: Date;
+};

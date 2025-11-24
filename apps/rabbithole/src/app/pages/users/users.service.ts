@@ -3,7 +3,7 @@ import { ActorSubclass } from '@dfinity/agent';
 import { isDeepEqual, isNonNullish } from 'remeda';
 
 import { injectMainActor } from '../../core/injectors/main-actor';
-import { timeInNanosToDate } from '../../core/utils';
+import { timeInNanosToDate } from '@rabbithole/core';
 import {
   ListOptions,
   Profile as ProfileRaw,
