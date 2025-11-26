@@ -19,7 +19,7 @@ services:
     working_dir: /app
     volumes:
       - ./:/app:rw
-      - ../../dist/apps/rabbithole/browser:/app/dist
+      - ../../:/workspace:rw
       - ../encrypted-storage-mo:/encrypted-storage-mo:ro
     entrypoint: ["sh", "-c", "scripts/install.sh"]
     healthcheck:

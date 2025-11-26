@@ -9,10 +9,15 @@
       "type": "motoko"
     },
     "rabbithole-frontend": {
-      "dependencies": ["rabbithole-backend"],
-      "source": ["./dist"],
+      "dependencies": [],
+      "source": ["dist"],
       "type": "assets",
-      "build": ""
+      "frontend": {
+        "entrypoint": "index.html"
+      },
+      "build": [
+        "bash scripts/build-frontend.sh"
+      ]
     },
     "encrypted-storage": {
       "declarations": {
@@ -25,14 +30,24 @@
     },
     "internet-identity": {
       "type": "custom",
-      "candid": "https://github.com/dfinity/internet-identity/releases/download/release-2025-08-15/internet_identity.did",
-      "wasm": "https://github.com/dfinity/internet-identity/releases/download/release-2025-08-15/internet_identity_dev.wasm.gz",
+      "candid": "https://github.com/dfinity/internet-identity/releases/download/release-2025-11-21/internet_identity.did",
+      "wasm": "https://github.com/dfinity/internet-identity/releases/download/release-2025-11-21/internet_identity_dev.wasm.gz",
       "remote": {
         "id": {
           "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
         }
       },
       "frontend": {}
+    },
+    "icp-ledger": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icp-2025-08-29/ledger.did",
+      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icp-2025-08-29/ledger-canister_notify-method.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
+        }
+      }
     }
   },
   "defaults": {
