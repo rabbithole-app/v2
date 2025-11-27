@@ -1,4 +1,4 @@
-import { Directive, computed, input } from '@angular/core';
+import { computed, Directive, input } from '@angular/core';
 import { BrnTabsContent } from '@spartan-ng/brain/tabs';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';

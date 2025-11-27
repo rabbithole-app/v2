@@ -6,7 +6,6 @@
       class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-10! px-2!"
       variant="ghost"
       align="center"
-      [brnMenuTriggerFor]="menu"
     >
       <div
         class="text-sidebar-primary-foreground flex aspect-square size-10 items-center justify-center"
@@ -34,64 +33,64 @@
 </ul>
 
 <ng-template #menu>
-  <!-- <hlm-menu class="w-56">
-    <hlm-menu-label>My Account</hlm-menu-label>
-    <hlm-menu-separator />
-    <hlm-menu-group>
-      <button hlmMenuItem>
+  <!-- <hlm-dropdown-menu class="w-56">
+    <hlm-dropdown-menu-label>My Account</hlm-dropdown-menu-label>
+    <hlm-dropdown-menu-separator />
+    <hlm-dropdown-menu-group>
+      <button hlmDropdownMenuItem>
         <ng-icon hlmIcon name="lucideUser" hlmMenuIcon />
         <span>Profile</span>
-        <hlm-menu-shortcut>⇧⌘P</hlm-menu-shortcut>
+        <hlm-dropdown-menu-shortcut>⇧⌘P</hlm-dropdown-menu-shortcut>
       </button>
-    </hlm-menu-group>
+    </hlm-dropdown-menu-group>
 
-    <hlm-menu-separator />
+    <hlm-dropdown-menu-separator />
 
-    <hlm-menu-group>
-      <button hlmMenuItem>
+    <hlm-dropdown-menu-group>
+      <button hlmDropdownMenuItem>
         <ng-icon hlmIcon name="lucideCircleUser" hlmMenuIcon />
         <span>Team</span>
-        <hlm-menu-shortcut>⌘B</hlm-menu-shortcut>
+        <hlm-dropdown-menu-shortcut>⌘B</hlm-dropdown-menu-shortcut>
       </button>
 
-      <button hlmMenuItem>
+      <button hlmDropdownMenuItem>
         <ng-icon hlmIcon name="lucideSmile" hlmMenuIcon />
         <span>Invite Users</span>
-        <hlm-menu-item-sub-indicator />
+        <hlm-dropdown-menu-item-sub-indicator />
       </button>
 
-      <button hlmMenuItem>
+      <button hlmDropdownMenuItem>
         <ng-icon hlmIcon name="lucidePlus" hlmMenuIcon />
         <span>New Team</span>
-        <hlm-menu-shortcut>⌘+T</hlm-menu-shortcut>
+        <hlm-dropdown-menu-shortcut>⌘+T</hlm-dropdown-menu-shortcut>
       </button>
-    </hlm-menu-group>
+    </hlm-dropdown-menu-group>
 
-    <hlm-menu-separator />
+    <hlm-dropdown-menu-separator />
 
-    <hlm-menu-group>
-      <button hlmMenuItem>
+    <hlm-dropdown-menu-group>
+      <button hlmDropdownMenuItem>
         <ng-icon hlmIcon name="lucideGithub" hlmMenuIcon />
         <span>Github</span>
       </button>
 
-      <button hlmMenuItem>
+      <button hlmDropdownMenuItem>
         <ng-icon hlmIcon name="lucideCircleHelp" hlmMenuIcon />
         <span>Support</span>
       </button>
 
-      <button hlmMenuItem disabled>
+      <button hlmDropdownMenuItem disabled>
         <ng-icon hlmIcon name="lucideCode" hlmMenuIcon />
         <span>API</span>
       </button>
-    </hlm-menu-group>
+    </hlm-dropdown-menu-group>
 
-    <hlm-menu-separator />
+    <hlm-dropdown-menu-separator />
 
-    <button hlmMenuItem>
+    <button hlmDropdownMenuItem>
       <ng-icon hlmIcon name="lucideLogOut" hlmMenuIcon />
       <span>Logout</span>
-      <hlm-menu-shortcut>⇧⌘Q</hlm-menu-shortcut>
+      <hlm-dropdown-menu-shortcut>⇧⌘Q</hlm-dropdown-menu-shortcut>
     </button>
-  </hlm-menu> -->
+  </hlm-dropdown-menu> -->
 </ng-template>

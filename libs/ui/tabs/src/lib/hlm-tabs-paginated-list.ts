@@ -2,9 +2,9 @@ import { CdkObserveContent } from '@angular/cdk/observers';
 import {
 	ChangeDetectionStrategy,
 	Component,
-	type ElementRef,
 	computed,
 	contentChildren,
+	type ElementRef,
 	input,
 	viewChild,
 } from '@angular/core';
@@ -17,12 +17,17 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 import type { Observable } from 'rxjs';
+
 import { listVariants } from './hlm-tabs-list';
 
 @Component({
 	selector: 'hlm-paginated-tabs-list',
 	imports: [CdkObserveContent, NgIcon, HlmIcon],
 	providers: [provideIcons({ lucideChevronRight, lucideChevronLeft })],
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	host: {
+		'[class]': '_computedClass()',
+	},
 	template: `
 		<button
 			#previousPaginator
@@ -66,31 +71,26 @@ import { listVariants } from './hlm-tabs-list';
 			<ng-icon hlm size="base" name="lucideChevronRight" />
 		</button>
 	`,
-	host: {
-		'[class]': '_computedClass()',
-	},
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmTabsPaginatedList extends BrnTabsPaginatedList {
 	public readonly items = contentChildren(BrnTabsTrigger, { descendants: false });
 	/** Explicitly annotating type to avoid non-portable inferred type */
 	public readonly itemsChanges: Observable<ReadonlyArray<BrnPaginatedTabHeaderItem>> = toObservable(this.items);
 
-	public readonly tabListContainer = viewChild.required<ElementRef<HTMLElement>>('tabListContainer');
-	public readonly tabList = viewChild.required<ElementRef<HTMLElement>>('tabList');
-	public readonly tabListInner = viewChild.required<ElementRef<HTMLElement>>('tabListInner');
 	public readonly nextPaginator = viewChild.required<ElementRef<HTMLElement>>('nextPaginator');
+	public readonly paginationButtonClass = input<ClassValue>('', { alias: 'paginationButtonClass' });
 	public readonly previousPaginator = viewChild.required<ElementRef<HTMLElement>>('previousPaginator');
+	public readonly tabList = viewChild.required<ElementRef<HTMLElement>>('tabList');
+	public readonly tabListClass = input<ClassValue>('', { alias: 'tabListClass' });
+
+	public readonly tabListContainer = viewChild.required<ElementRef<HTMLElement>>('tabListContainer');
+	public readonly tabListInner = viewChild.required<ElementRef<HTMLElement>>('tabListInner');
 
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	protected readonly _computedClass = computed(() =>
 		hlm('relative flex flex-shrink-0 gap-1 overflow-hidden', this.userClass()),
 	);
 
-	public readonly tabListClass = input<ClassValue>('', { alias: 'tabListClass' });
-	protected readonly _tabListClass = computed(() => hlm(listVariants(), this.tabListClass()));
-
-	public readonly paginationButtonClass = input<ClassValue>('', { alias: 'paginationButtonClass' });
 	protected readonly _paginationButtonClass = computed(() =>
 		hlm(
 			'relative z-[2] select-none disabled:cursor-default',
@@ -98,6 +98,7 @@ export class HlmTabsPaginatedList extends BrnTabsPaginatedList {
 			this.paginationButtonClass(),
 		),
 	);
+	protected readonly _tabListClass = computed(() => hlm(listVariants(), this.tabListClass()));
 
 	protected _itemSelected(event: KeyboardEvent) {
 		event.preventDefault();

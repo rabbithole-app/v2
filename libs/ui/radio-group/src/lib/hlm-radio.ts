@@ -1,9 +1,10 @@
-import { DOCUMENT, isPlatformBrowser } from '@angular/common';
+import { isPlatformBrowser } from '@angular/common';
 import {
 	booleanAttribute,
 	ChangeDetectionStrategy,
 	Component,
 	computed,
+	DOCUMENT,
 	effect,
 	ElementRef,
 	inject,
@@ -19,6 +20,15 @@ import type { ClassValue } from 'clsx';
 @Component({
 	selector: 'hlm-radio',
 	imports: [BrnRadio],
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	host: {
+		'[attr.id]': 'null',
+		'[attr.aria-label]': 'null',
+		'[attr.aria-labelledby]': 'null',
+		'[attr.aria-describedby]': 'null',
+		'[attr.data-disabled]': 'disabled() ? "" : null',
+		'data-slot': 'radio-group-item',
+	},
 	template: `
 		<brn-radio
 			[id]="id()"
@@ -35,23 +45,35 @@ import type { ClassValue } from 'clsx';
 			<ng-content />
 		</brn-radio>
 	`,
-	changeDetection: ChangeDetectionStrategy.OnPush,
-	host: {
-		'[attr.id]': 'null',
-		'[attr.aria-label]': 'null',
-		'[attr.aria-labelledby]': 'null',
-		'[attr.aria-describedby]': 'null',
-		'[attr.data-disabled]': 'disabled() ? "" : null',
-		'data-slot': 'radio-group-item',
-	},
 })
 export class HlmRadio<T = unknown> {
-	private readonly _document = inject(DOCUMENT);
-	private readonly _renderer = inject(Renderer2);
-	private readonly _elementRef = inject(ElementRef);
-	private readonly _isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+	/** Used to set the aria-describedby attribute on the underlying brn element. */
+	public readonly ariaDescribedby = input<string | undefined>(undefined, { alias: 'aria-describedby' });
+	/** Used to set the aria-label attribute on the underlying brn element. */
+	public readonly ariaLabel = input<string | undefined>(undefined, { alias: 'aria-label' });
+	/** Used to set the aria-labelledby attribute on the underlying brn element. */
+	public readonly ariaLabelledby = input<string | undefined>(undefined, { alias: 'aria-labelledby' });
+	/**
+	 * Event emitted when the checked state of this radio button changes.
+	 */
+	// eslint-disable-next-line @angular-eslint/no-output-native
+	public readonly change = output<BrnRadioChange<T>>();
+
+	/** Whether the checkbox is disabled. */
+	public readonly disabled = input(false, { transform: booleanAttribute });
+	/** Used to set the id on the underlying brn element. */
+	public readonly id = input<string | undefined>(undefined);
+
+	/** Whether the checkbox is required. */
+	public readonly required = input(false, { transform: booleanAttribute });
 
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+	/**
+	 * The value this radio button represents.
+	 */
+	public readonly value = input.required<T>();
+
 	protected readonly _computedClass = computed(() =>
 		hlm(
 			'group flex items-center gap-x-3',
@@ -60,34 +82,13 @@ export class HlmRadio<T = unknown> {
 		),
 	);
 
-	/** Used to set the id on the underlying brn element. */
-	public readonly id = input<string | undefined>(undefined);
+	private readonly _document = inject(DOCUMENT);
 
-	/** Used to set the aria-label attribute on the underlying brn element. */
-	public readonly ariaLabel = input<string | undefined>(undefined, { alias: 'aria-label' });
+	private readonly _elementRef = inject(ElementRef);
 
-	/** Used to set the aria-labelledby attribute on the underlying brn element. */
-	public readonly ariaLabelledby = input<string | undefined>(undefined, { alias: 'aria-labelledby' });
+	private readonly _isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
-	/** Used to set the aria-describedby attribute on the underlying brn element. */
-	public readonly ariaDescribedby = input<string | undefined>(undefined, { alias: 'aria-describedby' });
-
-	/**
-	 * The value this radio button represents.
-	 */
-	public readonly value = input.required<T>();
-
-	/** Whether the checkbox is required. */
-	public readonly required = input(false, { transform: booleanAttribute });
-
-	/** Whether the checkbox is disabled. */
-	public readonly disabled = input(false, { transform: booleanAttribute });
-
-	/**
-	 * Event emitted when the checked state of this radio button changes.
-	 */
-	// eslint-disable-next-line @angular-eslint/no-output-native
-	public readonly change = output<BrnRadioChange<T>>();
+	private readonly _renderer = inject(Renderer2);
 
 	constructor() {
 		effect(() => {

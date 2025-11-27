@@ -1,15 +1,15 @@
 import { inject, InjectionToken, type ValueProvider } from '@angular/core';
 
-export type TransformValueToString<T> = (option: T) => string;
-
 export interface HlmAutocompleteConfig<T, V = T> {
-	transformValueToSearch: TransformValueToString<T>;
-	transformOptionToString: TransformValueToString<T>;
-	transformOptionToValue: ((option: T) => V) | undefined;
+	debounceTime: number;
 	requireSelection: boolean;
 	showClearBtn: boolean;
-	debounceTime: number;
+	transformOptionToString: TransformValueToString<T>;
+	transformOptionToValue: ((option: T) => V) | undefined;
+	transformValueToSearch: TransformValueToString<T>;
 }
+
+export type TransformValueToString<T> = (option: T) => string;
 
 function getDefaultConfig<T, V = T>(): HlmAutocompleteConfig<T, V> {
 	return {
@@ -24,12 +24,12 @@ function getDefaultConfig<T, V = T>(): HlmAutocompleteConfig<T, V> {
 
 const HlmAutocompleteConfigToken = new InjectionToken<HlmAutocompleteConfig<unknown, unknown>>('HlmAutocompleteConfig');
 
-export function provideHlmAutocompleteConfig<T, V = T>(config: Partial<HlmAutocompleteConfig<T, V>>): ValueProvider {
-	return { provide: HlmAutocompleteConfigToken, useValue: { ...getDefaultConfig(), ...config } };
-}
-
 export function injectHlmAutocompleteConfig<T, V = T>(): HlmAutocompleteConfig<T, V> {
 	return (
 		(inject(HlmAutocompleteConfigToken, { optional: true }) as HlmAutocompleteConfig<T, V> | null) ?? getDefaultConfig()
 	);
+}
+
+export function provideHlmAutocompleteConfig<T, V = T>(config: Partial<HlmAutocompleteConfig<T, V>>): ValueProvider {
+	return { provide: HlmAutocompleteConfigToken, useValue: { ...getDefaultConfig(), ...config } };
 }

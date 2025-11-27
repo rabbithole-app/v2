@@ -11,24 +11,29 @@
         <ng-icon hlmIcon name="lucideUserPlus" size="sm" />Add permission
       </button>
     </app-edit-permission-form>
-    <button hlmBtn variant="outline" align="end" [brnMenuTriggerFor]="menu">
+    <button
+      hlmBtn
+      variant="outline"
+      align="end"
+      [hlmDropdownMenuTrigger]="menu"
+    >
       Columns
       <ng-icon hlmIcon name="lucideChevronDown" size="sm" />
     </button>
     <ng-template #menu>
-      <hlm-menu class="w-32">
+      <hlm-dropdown-menu class="w-32">
         @for (column of _hidableColumns; track column.id) {
           <button
-            hlmMenuItemCheckbox
+            hlmDropdownMenuCheckbox
             class="capitalize"
             [checked]="column.getIsVisible()"
             (triggered)="column.toggleVisibility()"
           >
-            <hlm-menu-item-check />
+            <hlm-dropdown-menu-checkbox-indicator />
             {{ column.columnDef.id }}
           </button>
         }
-      </hlm-menu>
+      </hlm-dropdown-menu>
     </ng-template>
   </div>
 </div>
@@ -80,7 +85,11 @@
           </tr>
         } @empty {
           <tr hlmTr>
-            <td hlmTd class="h-24 text-center" [attr.colspan]="_columns().length">
+            <td
+              hlmTd
+              class="h-24 text-center"
+              [attr.colspan]="_columns().length"
+            >
               No results.
             </td>
           </tr>

@@ -1,8 +1,9 @@
-import { Directive, computed, input } from '@angular/core';
+import { computed, Directive, input } from '@angular/core';
 import { BrnToggleGroupItem } from '@spartan-ng/brain/toggle-group';
 import { ToggleVariants, toggleVariants } from '@spartan-ng/helm/toggle';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
 import { injectHlmToggleGroup } from './hlm-toggle-group.token';
 
 @Directive({
@@ -23,15 +24,15 @@ import { injectHlmToggleGroup } from './hlm-toggle-group.token';
 	},
 })
 export class HlmToggleGroupItem {
-	protected readonly _toggleGroup = injectHlmToggleGroup();
-
-	public readonly variant = input<ToggleVariants['variant']>('default');
 	public readonly size = input<ToggleVariants['size']>('default');
 
-	protected readonly _variant = computed(() => this._toggleGroup.variant() || this.variant());
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	public readonly variant = input<ToggleVariants['variant']>('default');
+
+	protected readonly _toggleGroup = injectHlmToggleGroup();
 	protected readonly _size = computed(() => this._toggleGroup.size() || this.size());
 
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	protected readonly _variant = computed(() => this._toggleGroup.variant() || this.variant());
 
 	protected readonly _computedClass = computed(() =>
 		hlm(

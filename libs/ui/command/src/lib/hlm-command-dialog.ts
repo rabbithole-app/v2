@@ -1,4 +1,4 @@
-import { Directive, ElementRef, Renderer2, computed, contentChild, effect, inject, input, signal } from '@angular/core';
+import { computed, contentChild, Directive, effect, ElementRef, inject, input, Renderer2, signal } from '@angular/core';
 import { BrnCommandSearchInputToken } from '@spartan-ng/brain/command';
 import { injectExposesStateProvider } from '@spartan-ng/brain/core';
 import { hlm } from '@spartan-ng/helm/utils';
@@ -13,12 +13,6 @@ import type { ClassValue } from 'clsx';
 export class HlmCommandDialog {
 	private readonly _stateProvider = injectExposesStateProvider({ host: true });
 	public readonly state = this._stateProvider.state ?? signal('closed').asReadonly();
-	private readonly _renderer = inject(Renderer2);
-	private readonly _element = inject(ElementRef);
-
-	/** Access the search field */
-	private readonly _searchInput = contentChild(BrnCommandSearchInputToken, { read: ElementRef });
-
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	protected readonly _computedClass = computed(() =>
 		hlm(
@@ -26,6 +20,12 @@ export class HlmCommandDialog {
 			this.userClass(),
 		),
 	);
+
+	private readonly _element = inject(ElementRef);
+
+	private readonly _renderer = inject(Renderer2);
+	/** Access the search field */
+	private readonly _searchInput = contentChild(BrnCommandSearchInputToken, { read: ElementRef });
 
 	constructor() {
 		effect(() => {

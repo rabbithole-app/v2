@@ -7,13 +7,11 @@ import type { ClassValue } from 'clsx';
 	selector: 'textarea[hlmInputGroupTextarea]',
 	hostDirectives: [HlmTextarea],
 	host: {
-		'[class]': '_computedClass()',
 		'data-slot': 'input-group-control',
+		'[class]': '_computedClass()',
 	},
 })
 export class HlmInputGroupTextarea {
-	private readonly _hlmInput = inject(HlmTextarea);
-
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
 	protected readonly _computedClass = computed(() =>
@@ -22,6 +20,8 @@ export class HlmInputGroupTextarea {
 			this.userClass(),
 		),
 	);
+
+	private readonly _hlmInput = inject(HlmTextarea);
 
 	constructor() {
 		effect(() => {

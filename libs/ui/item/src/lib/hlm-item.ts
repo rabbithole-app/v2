@@ -2,6 +2,7 @@ import { computed, Directive, input } from '@angular/core';
 import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
 import { injectHlmItemConfig } from './hlm-item-token';
 
 const itemVariants = cva(
@@ -39,11 +40,11 @@ export type ItemVariants = VariantProps<typeof itemVariants>;
 export class HlmItem {
 	private readonly _config = injectHlmItemConfig();
 
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	public readonly size = input<ItemVariants['size']>(this._config.size);
 
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	public readonly variant = input<ItemVariants['variant']>(this._config.variant);
 	protected readonly _computedClass = computed(() =>
 		hlm(itemVariants({ variant: this.variant(), size: this.size() }), this.userClass()),
 	);
-	public readonly variant = input<ItemVariants['variant']>(this._config.variant);
-	public readonly size = input<ItemVariants['size']>(this._config.size);
 }

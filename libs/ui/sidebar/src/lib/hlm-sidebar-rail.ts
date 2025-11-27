@@ -1,26 +1,25 @@
 import { computed, Directive, inject, input } from '@angular/core';
 import { hlm } from '@spartan-ng/helm/utils';
+import type { ClassValue } from 'clsx';
 
 import { HlmSidebarService } from './hlm-sidebar.service';
 
-import type { ClassValue } from 'clsx';
-
 @Directive({
 	selector: 'button[hlmSidebarRail]',
-
 	host: {
 		'data-sidebar': 'rail',
 		'data-slot': 'sidebar-rail',
-		'aria-label': 'Toggle Sidebar',
+		'[attr.aria-label]': 'ariaLabel()',
 		tabindex: '-1',
 		'[class]': '_computedClass()',
 		'(click)': 'onClick()',
 	},
 })
 export class HlmSidebarRail {
-	private readonly _sidebarService = inject(HlmSidebarService);
+	public readonly ariaLabel = input<string>('Toggle Sidebar', { alias: 'aria-label' });
 
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
 	protected readonly _computedClass = computed(() =>
 		hlm(
 			'hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex',
@@ -32,6 +31,7 @@ export class HlmSidebarRail {
 			this.userClass(),
 		),
 	);
+	private readonly _sidebarService = inject(HlmSidebarService);
 
 	protected onClick(): void {
 		this._sidebarService.toggleSidebar();

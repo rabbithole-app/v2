@@ -6,15 +6,15 @@ import type { ClassValue } from 'clsx';
 // Configuration Interface and InjectionToken
 export const HlmTableConfigToken = new InjectionToken<HlmTableVariant>('HlmTableConfig');
 export interface HlmTableVariant {
-	tableContainer: string;
-	table: string;
-	thead: string;
-	tbody: string;
-	tfoot: string;
-	tr: string;
-	th: string;
-	td: string;
 	caption: string;
+	table: string;
+	tableContainer: string;
+	tbody: string;
+	td: string;
+	tfoot: string;
+	th: string;
+	thead: string;
+	tr: string;
 }
 
 export const HlmTableVariantDefault: HlmTableVariant = {
@@ -29,15 +29,15 @@ export const HlmTableVariantDefault: HlmTableVariant = {
 	caption: 'text-muted-foreground mt-4 text-sm',
 };
 
+export function injectHlmTableConfig(): HlmTableVariant {
+	return inject(HlmTableConfigToken, { optional: true }) ?? HlmTableVariantDefault;
+}
+
 export function provideHlmTableConfig(config: Partial<HlmTableVariant>): ValueProvider {
 	return {
 		provide: HlmTableConfigToken,
 		useValue: { ...HlmTableVariantDefault, ...config },
 	};
-}
-
-export function injectHlmTableConfig(): HlmTableVariant {
-	return inject(HlmTableConfigToken, { optional: true }) ?? HlmTableVariantDefault;
 }
 
 @Directive({
@@ -48,8 +48,8 @@ export function injectHlmTableConfig(): HlmTableVariant {
 	},
 })
 export class HlmTableContainer {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.tableContainer.trim() : '', this.userClass()),
@@ -70,9 +70,9 @@ export class HlmTableContainer {
 	},
 })
 export class HlmTable {
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	/** Input to configure the variant of the table, this input has the highest priority. */
 	public readonly userVariant = input<Partial<HlmTableVariant> | string>({}, { alias: 'hlmTable' });
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
 	/** Global or default configuration provided by injectHlmTableConfig() */
 	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
@@ -109,8 +109,8 @@ export class HlmTable {
 	},
 })
 export class HlmTHead {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.thead.trim() : '', this.userClass()),
@@ -129,8 +129,8 @@ export class HlmTHead {
 	},
 })
 export class HlmTBody {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.tbody.trim() : '', this.userClass()),
@@ -149,8 +149,8 @@ export class HlmTBody {
 	},
 })
 export class HlmTFoot {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.tfoot.trim() : '', this.userClass()),
@@ -169,8 +169,8 @@ export class HlmTFoot {
 	},
 })
 export class HlmTr {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.tr.trim() : '', this.userClass()),
@@ -189,8 +189,8 @@ export class HlmTr {
 	},
 })
 export class HlmTh {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.th.trim() : '', this.userClass()),
@@ -203,15 +203,14 @@ export class HlmTh {
  */
 @Directive({
 	selector: 'td[hlmTd]',
-	standalone: true,
 	host: {
 		'[class]': '_computedClass()',
 		'data-slot': 'table-cell',
 	},
 })
 export class HlmTd {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.td.trim() : '', this.userClass()),
@@ -230,8 +229,8 @@ export class HlmTd {
 	},
 })
 export class HlmCaption {
-	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _globalOrDefaultConfig = injectHlmTableConfig();
 
 	protected readonly _computedClass = computed(() =>
 		hlm(this._globalOrDefaultConfig ? this._globalOrDefaultConfig.caption.trim() : '', this.userClass()),

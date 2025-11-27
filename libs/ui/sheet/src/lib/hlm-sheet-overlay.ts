@@ -1,4 +1,4 @@
-import { Directive, computed, effect, input, untracked } from '@angular/core';
+import { computed, Directive, effect, input, untracked } from '@angular/core';
 import { injectCustomClassSettable } from '@spartan-ng/brain/core';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
@@ -10,7 +10,6 @@ import type { ClassValue } from 'clsx';
 	},
 })
 export class HlmSheetOverlay {
-	private readonly _classSettable = injectCustomClassSettable({ optional: true, host: true });
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	protected readonly _computedClass = computed(() =>
 		hlm(
@@ -18,6 +17,7 @@ export class HlmSheetOverlay {
 			this.userClass(),
 		),
 	);
+	private readonly _classSettable = injectCustomClassSettable({ optional: true, host: true });
 
 	constructor() {
 		effect(() => {

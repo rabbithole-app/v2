@@ -1,19 +1,21 @@
-import type { ClassValue } from 'clsx';
-
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideGripVertical } from '@ng-icons/lucide';
 import { BrnResizableHandle } from '@spartan-ng/brain/resizable';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
+import type { ClassValue } from 'clsx';
 
 @Component({
 	selector: 'hlm-resizable-handle',
 	exportAs: 'hlmResizableHandle',
-	hostDirectives: [{ directive: BrnResizableHandle, inputs: ['withHandle', 'disabled'] }],
+	imports: [NgIcon, HlmIcon],
 	providers: [provideIcons({ lucideGripVertical })],
 	changeDetection: ChangeDetectionStrategy.OnPush,
+	hostDirectives: [{ directive: BrnResizableHandle, inputs: ['withHandle', 'disabled'] }],
+	host: {
+		'[class]': '_computedClass()',
+	},
 	template: `
 		@if (_brnResizableHandle.withHandle()) {
 			<div class="bg-border z-10 flex h-4 w-3 items-center justify-center rounded-sm border">
@@ -21,15 +23,11 @@ import { hlm } from '@spartan-ng/helm/utils';
 			</div>
 		}
 	`,
-	host: {
-		'[class]': '_computedClass()',
-	},
-	imports: [NgIcon, HlmIcon],
 })
 export class HlmResizableHandle {
-	protected readonly _brnResizableHandle = inject(BrnResizableHandle);
-
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+	protected readonly _brnResizableHandle = inject(BrnResizableHandle);
 
 	protected readonly _computedClass = computed(() =>
 		hlm(

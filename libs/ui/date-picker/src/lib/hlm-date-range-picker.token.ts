@@ -37,11 +37,11 @@ function getDefaultConfig<T>(): HlmDateRangePickerConfig<T> {
 
 const HlmDateRangePickerConfigToken = new InjectionToken<HlmDateRangePickerConfig<unknown>>('HlmDateRangePickerConfig');
 
-export function provideHlmDateRangePickerConfig<T>(config: Partial<HlmDateRangePickerConfig<T>>): ValueProvider {
-	return { provide: HlmDateRangePickerConfigToken, useValue: { ...getDefaultConfig(), ...config } };
-}
-
 export function injectHlmDateRangePickerConfig<T>(): HlmDateRangePickerConfig<T> {
 	const injectedConfig = inject(HlmDateRangePickerConfigToken, { optional: true });
 	return injectedConfig ? (injectedConfig as HlmDateRangePickerConfig<T>) : getDefaultConfig();
+}
+
+export function provideHlmDateRangePickerConfig<T>(config: Partial<HlmDateRangePickerConfig<T>>): ValueProvider {
+	return { provide: HlmDateRangePickerConfigToken, useValue: { ...getDefaultConfig(), ...config } };
 }

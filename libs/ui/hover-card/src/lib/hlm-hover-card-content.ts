@@ -1,12 +1,12 @@
 import {
 	ChangeDetectionStrategy,
 	Component,
-	ElementRef,
-	Renderer2,
 	computed,
 	effect,
+	ElementRef,
 	inject,
 	input,
+	Renderer2,
 	signal,
 } from '@angular/core';
 import { injectExposedSideProvider, injectExposesStateProvider } from '@spartan-ng/brain/core';
@@ -15,27 +15,17 @@ import type { ClassValue } from 'clsx';
 
 @Component({
 	selector: 'hlm-hover-card-content',
+	changeDetection: ChangeDetectionStrategy.OnPush,
 	host: {
 		'[class]': '_computedClass()',
 	},
 	template: `
 		<ng-content />
 	`,
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmHoverCardContent {
-	private readonly _renderer = inject(Renderer2);
-	private readonly _element = inject(ElementRef);
-
-	public readonly state = injectExposesStateProvider({ host: true }).state ?? signal('closed').asReadonly();
 	public readonly side = injectExposedSideProvider({ host: true }).side ?? signal('bottom').asReadonly();
-
-	constructor() {
-		effect(() => {
-			this._renderer.setAttribute(this._element.nativeElement, 'data-state', this.state());
-			this._renderer.setAttribute(this._element.nativeElement, 'data-side', this.side());
-		});
-	}
+	public readonly state = injectExposesStateProvider({ host: true }).state ?? signal('closed').asReadonly();
 
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	protected readonly _computedClass = computed(() =>
@@ -45,4 +35,14 @@ export class HlmHoverCardContent {
 			this.userClass(),
 		),
 	);
+
+	private readonly _element = inject(ElementRef);
+
+	private readonly _renderer = inject(Renderer2);
+	constructor() {
+		effect(() => {
+			this._renderer.setAttribute(this._element.nativeElement, 'data-state', this.state());
+			this._renderer.setAttribute(this._element.nativeElement, 'data-side', this.side());
+		});
+	}
 }

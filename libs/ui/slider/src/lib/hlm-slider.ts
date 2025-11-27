@@ -12,6 +12,7 @@ import type { ClassValue } from 'clsx';
 
 @Component({
 	selector: 'hlm-slider, brn-slider [hlm]',
+	imports: [BrnSliderThumb, BrnSliderTrack, BrnSliderRange, BrnSliderTick],
 	changeDetection: ChangeDetectionStrategy.OnPush,
 	hostDirectives: [
 		{
@@ -20,6 +21,9 @@ import type { ClassValue } from 'clsx';
 			outputs: ['valueChange'],
 		},
 	],
+	host: {
+		'[class]': '_computedClass()',
+	},
 	template: `
 		<div brnSliderTrack class="bg-muted relative h-1.5 w-full grow overflow-hidden rounded-full">
 			<div class="bg-primary absolute h-full" brnSliderRange></div>
@@ -42,14 +46,10 @@ import type { ClassValue } from 'clsx';
 			brnSliderThumb
 		></span>
 	`,
-	host: {
-		'[class]': '_computedClass()',
-	},
-	imports: [BrnSliderThumb, BrnSliderTrack, BrnSliderRange, BrnSliderTick],
 })
 export class HlmSlider {
-	protected readonly _slider = injectBrnSlider();
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	protected readonly _slider = injectBrnSlider();
 	protected readonly _computedClass = computed(() =>
 		hlm(
 			'relative flex w-full touch-none items-center select-none',

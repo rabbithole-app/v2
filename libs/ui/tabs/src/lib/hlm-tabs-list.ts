@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { BrnTabsList } from '@spartan-ng/brain/tabs';
 import { hlm } from '@spartan-ng/helm/utils';
-import { type VariantProps, cva } from 'class-variance-authority';
+import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
 export const listVariants = cva(
@@ -22,12 +22,12 @@ type ListVariants = VariantProps<typeof listVariants>;
 
 @Component({
 	selector: 'hlm-tabs-list',
+	changeDetection: ChangeDetectionStrategy.OnPush,
 	hostDirectives: [BrnTabsList],
-	template: '<ng-content/>',
 	host: {
 		'[class]': '_computedClass()',
 	},
-	changeDetection: ChangeDetectionStrategy.OnPush,
+	template: '<ng-content/>',
 })
 export class HlmTabsList {
 	public readonly orientation = input<ListVariants['orientation']>('horizontal');

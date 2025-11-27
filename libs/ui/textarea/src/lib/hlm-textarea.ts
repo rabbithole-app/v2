@@ -36,39 +36,39 @@ type TextareaVariants = VariantProps<typeof textareaVariants>;
 
 @Directive({
 	selector: '[hlmTextarea]',
-	host: {
-		'data-slot': 'textarea',
-		'[class]': '_computedClass()',
-	},
 	providers: [
 		{
 			provide: BrnFormFieldControl,
 			useExisting: forwardRef(() => HlmTextarea),
 		},
 	],
+	host: {
+		'data-slot': 'textarea',
+		'[class]': '_computedClass()',
+	},
 })
 export class HlmTextarea implements BrnFormFieldControl, DoCheck {
-	private readonly _injector = inject(Injector);
-	private readonly _additionalClasses = signal<ClassValue>('');
-
+	public readonly error = input<TextareaVariants['error']>('auto');
 	private readonly _errorStateTracker: ErrorStateTracker;
 
-	private readonly _defaultErrorStateMatcher = inject(ErrorStateMatcher);
-	private readonly _parentForm = inject(NgForm, { optional: true });
-	private readonly _parentFormGroup = inject(FormGroupDirective, { optional: true });
+	public readonly errorState = computed(() => this._errorStateTracker.errorState());
 
+	private readonly _injector = inject(Injector);
+	public readonly ngControl: NgControl | null = this._injector.get(NgControl, null);
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+	protected readonly _state = linkedSignal(() => ({ error: this.error() }));
+	private readonly _additionalClasses = signal<ClassValue>('');
+
 	protected readonly _computedClass = computed(() =>
 		hlm(textareaVariants({ error: this._state().error }), this.userClass(), this._additionalClasses()),
 	);
 
-	public readonly error = input<TextareaVariants['error']>('auto');
+	private readonly _defaultErrorStateMatcher = inject(ErrorStateMatcher);
 
-	protected readonly _state = linkedSignal(() => ({ error: this.error() }));
+	private readonly _parentForm = inject(NgForm, { optional: true });
 
-	public readonly ngControl: NgControl | null = this._injector.get(NgControl, null);
-
-	public readonly errorState = computed(() => this._errorStateTracker.errorState());
+	private readonly _parentFormGroup = inject(FormGroupDirective, { optional: true });
 
 	constructor() {
 		this._errorStateTracker = new ErrorStateTracker(
@@ -94,11 +94,11 @@ export class HlmTextarea implements BrnFormFieldControl, DoCheck {
 		this._errorStateTracker.updateErrorState();
 	}
 
-	public setError(error: TextareaVariants['error']): void {
-		this._state.set({ error });
-	}
-
 	public setClass(classes: string): void {
 		this._additionalClasses.set(classes);
+	}
+
+	public setError(error: TextareaVariants['error']): void {
+		this._state.set({ error });
 	}
 }

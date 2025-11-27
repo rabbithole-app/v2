@@ -25,6 +25,7 @@ import type { ClassValue } from 'clsx';
 	selector: 'hlm-calendar-range',
 	imports: [BrnCalendarImports, NgIcon, HlmIcon, HlmSelectImports, BrnSelectImports, NgTemplateOutlet],
 	viewProviders: [provideIcons({ lucideChevronLeft, lucideChevronRight })],
+	changeDetection: ChangeDetectionStrategy.OnPush,
 	template: `
 		<div
 			brnCalendarRange
@@ -137,49 +138,60 @@ import type { ClassValue } from 'clsx';
 			</div>
 		</div>
 	`,
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmCalendarRange<T> {
 	public readonly calendarClass = input<ClassValue>('');
 
-	protected readonly _computedCalenderClass = computed(() => hlm('rounded-md border p-3', this.calendarClass()));
-
-	/** Access the calendar i18n */
-	protected readonly _i18n = injectBrnCalendarI18n();
-
-	/** Access the date time adapter */
-	protected readonly _dateAdapter = injectDateAdapter<T>();
-
-	/** The minimum date that can be selected.*/
-	public readonly min = input<T>();
-
-	/** The maximum date that can be selected. */
-	public readonly max = input<T>();
-
 	/** Show dropdowns to navigate between months or years. */
-	public readonly captionLayout = input<'dropdown' | 'label' | 'dropdown-months' | 'dropdown-years'>('label');
+	public readonly captionLayout = input<'dropdown-months' | 'dropdown-years' | 'dropdown' | 'label'>('label');
+
+	/** Whether a specific date is disabled. */
+	public readonly dateDisabled = input<(date: T) => boolean>(() => false);
+
+	/** The default focused date. */
+	public readonly defaultFocusedDate = input<T>();
 
 	/** Determine if the date picker is disabled. */
 	public readonly disabled = input<boolean, BooleanInput>(false, {
 		transform: booleanAttribute,
 	});
 
-	/** The start date of the range. */
-	public readonly startDate = model<T>();
-
 	/** The end date of the range. */
 	public readonly endDate = model<T>();
 
-	/** Whether a specific date is disabled. */
-	public readonly dateDisabled = input<(date: T) => boolean>(() => false);
+	/** The maximum date that can be selected. */
+	public readonly max = input<T>();
+
+	/** The minimum date that can be selected.*/
+	public readonly min = input<T>();
+
+	/** The start date of the range. */
+	public readonly startDate = model<T>();
 
 	/** The day the week starts on */
 	public readonly weekStartsOn = input<Weekday, NumberInput>(undefined, {
 		transform: (v: unknown) => numberAttribute(v) as Weekday,
 	});
 
-	/** The default focused date. */
-	public readonly defaultFocusedDate = input<T>();
+	protected readonly _btnClass = hlm(
+		buttonVariants({ variant: 'ghost' }),
+		'size-8 p-0 font-normal aria-selected:opacity-100',
+		'data-[outside]:text-muted-foreground data-[outside]:aria-selected:text-muted-foreground',
+		'data-[today]:bg-accent data-[today]:text-accent-foreground',
+		'data-[selected]:bg-primary data-[selected]:text-primary-foreground data-[selected]:focus:bg-primary data-[selected]:focus:text-primary-foreground',
+		'data-[disabled]:text-muted-foreground data-[disabled]:opacity-50',
+		'data-[range-start]:rounded-l-md',
+		'data-[range-end]:rounded-r-md',
+		'data-[range-between]:bg-accent data-[range-between]:text-accent-foreground data-[range-between]:rounded-none',
+	);
+
+	protected readonly _computedCalenderClass = computed(() => hlm('rounded-md border p-3', this.calendarClass()));
+
+	/** Access the date time adapter */
+	protected readonly _dateAdapter = injectDateAdapter<T>();
+
+	/** Access the calendar i18n */
+	protected readonly _i18n = injectBrnCalendarI18n();
 
 	/** Access the calendar directive */
 	private readonly _calendar = viewChild.required(BrnCalendarRange);
@@ -195,18 +207,6 @@ export class HlmCalendarRange<T> {
 			year: config.formatYear(this._dateAdapter.getYear(date)),
 		};
 	});
-
-	protected readonly _btnClass = hlm(
-		buttonVariants({ variant: 'ghost' }),
-		'size-8 p-0 font-normal aria-selected:opacity-100',
-		'data-[outside]:text-muted-foreground data-[outside]:aria-selected:text-muted-foreground',
-		'data-[today]:bg-accent data-[today]:text-accent-foreground',
-		'data-[selected]:bg-primary data-[selected]:text-primary-foreground data-[selected]:focus:bg-primary data-[selected]:focus:text-primary-foreground',
-		'data-[disabled]:text-muted-foreground data-[disabled]:opacity-50',
-		'data-[range-start]:rounded-l-md',
-		'data-[range-end]:rounded-r-md',
-		'data-[range-between]:bg-accent data-[range-between]:text-accent-foreground data-[range-between]:rounded-none',
-	);
 
 	protected readonly _selectClass = 'gap-0 px-1.5 py-2 [&>ng-icon]:ml-1';
 }

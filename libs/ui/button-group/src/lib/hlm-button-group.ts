@@ -21,7 +21,7 @@ export const buttonGroupVariants = cva(
 );
 
 @Directive({
-	selector: '[hlmButtonGroup]',
+	selector: '[hlmButtonGroup],hlm-button-group',
 	host: {
 		'data-slot': 'button-group',
 		role: 'group',
@@ -30,8 +30,8 @@ export const buttonGroupVariants = cva(
 	},
 })
 export class HlmButtonGroup {
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	public readonly orientation = input<'horizontal' | 'vertical'>('horizontal');
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
 	protected readonly _computedClass = computed(() =>
 		hlm(buttonGroupVariants({ orientation: this.orientation() }), this.userClass()),

@@ -10,12 +10,12 @@ import { FormsModule } from '@angular/forms';
 import { Principal } from '@dfinity/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucideUserPlus } from '@ng-icons/lucide';
-import { BrnMenuTrigger } from '@spartan-ng/brain/menu';
+
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmInput } from '@spartan-ng/helm/input';
-import { HlmMenuImports } from '@spartan-ng/helm/menu';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { hlmMuted } from '@spartan-ng/helm/typography';
@@ -86,8 +86,7 @@ const statusFilterFn: FilterFn<StoragePermissionItem> = (
   imports: [
     FlexRenderDirective,
     FormsModule,
-    BrnMenuTrigger,
-    HlmMenuImports,
+    HlmDropdownMenuImports,
     NgIcon,
     HlmIcon,
     HlmInput,

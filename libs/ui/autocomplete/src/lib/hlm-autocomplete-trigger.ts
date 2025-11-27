@@ -9,14 +9,14 @@ import { BrnDialog } from '@spartan-ng/brain/dialog';
 	},
 })
 export class HlmAutocompleteTrigger {
-	private readonly _host = inject(ElementRef, { host: true });
-
-	private readonly _brnDialog = inject(BrnDialog, { optional: true });
-
 	/** Whether the trigger is disabled. */
 	public readonly disabledTrigger = input<boolean, BooleanInput>(false, {
 		transform: booleanAttribute,
 	});
+
+	private readonly _brnDialog = inject(BrnDialog, { optional: true });
+
+	private readonly _host = inject(ElementRef, { host: true });
 
 	constructor() {
 		if (!this._brnDialog) return;

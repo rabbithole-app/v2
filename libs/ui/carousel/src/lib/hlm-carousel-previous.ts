@@ -1,43 +1,34 @@
-import {
-	ChangeDetectionStrategy,
-	Component,
-	ViewEncapsulation,
-	computed,
-	effect,
-	inject,
-	input,
-	untracked,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, untracked } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowLeft } from '@ng-icons/lucide';
 import { HlmButton, provideBrnButtonConfig } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
 import { HlmCarousel } from './hlm-carousel';
 
 @Component({
 	selector: 'button[hlm-carousel-previous], button[hlmCarouselPrevious]',
+	imports: [NgIcon, HlmIcon],
+	providers: [provideIcons({ lucideArrowLeft }), provideBrnButtonConfig({ variant: 'outline', size: 'icon' })],
 	changeDetection: ChangeDetectionStrategy.OnPush,
-	encapsulation: ViewEncapsulation.None,
+	hostDirectives: [{ directive: HlmButton, inputs: ['variant', 'size'] }],
 	host: {
 		'[disabled]': 'isDisabled()',
 		'(click)': '_carousel.scrollPrev()',
 	},
-	hostDirectives: [{ directive: HlmButton, inputs: ['variant', 'size'] }],
-	providers: [provideIcons({ lucideArrowLeft }), provideBrnButtonConfig({ variant: 'outline', size: 'icon' })],
-	imports: [NgIcon, HlmIcon],
 	template: `
 		<ng-icon hlm size="sm" name="lucideArrowLeft" />
 		<span class="sr-only">Previous slide</span>
 	`,
 })
 export class HlmCarouselPrevious {
-	private readonly _button = inject(HlmButton);
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
 	protected readonly _carousel = inject(HlmCarousel);
 
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _button = inject(HlmButton);
 
 	private readonly _computedClass = computed(() =>
 		hlm(
@@ -48,8 +39,6 @@ export class HlmCarouselPrevious {
 			this.userClass(),
 		),
 	);
-	protected readonly isDisabled = () => !this._carousel.canScrollPrev();
-
 	constructor() {
 		effect(() => {
 			const computedClass = this._computedClass();
@@ -57,4 +46,6 @@ export class HlmCarouselPrevious {
 			untracked(() => this._button.setClass(computedClass));
 		});
 	}
+
+	protected readonly isDisabled = () => !this._carousel.canScrollPrev();
 }

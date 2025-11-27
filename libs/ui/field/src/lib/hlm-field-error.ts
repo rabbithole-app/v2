@@ -4,6 +4,7 @@ import { ClassValue } from 'clsx';
 
 @Component({
 	selector: 'hlm-field-error',
+	changeDetection: ChangeDetectionStrategy.OnPush,
 	template: `
 		<div role="alert" data-slot="field-error" [class]="_computedClass()">
 			<ng-content>
@@ -21,11 +22,12 @@ import { ClassValue } from 'clsx';
 			</ng-content>
 		</div>
 	`,
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmFieldError {
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	public readonly error = input<Array<{ message: string } | undefined>>();
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+	protected readonly _computedClass = computed(() => hlm('text-destructive text-sm font-normal', this.userClass()));
 
 	protected readonly _uniqueErrors = computed(() => {
 		const errors = this.error();
@@ -35,6 +37,4 @@ export class HlmFieldError {
 
 		return [...new Map(errors.map((err) => [err?.message, err])).values()];
 	});
-
-	protected readonly _computedClass = computed(() => hlm('text-destructive text-sm font-normal', this.userClass()));
 }

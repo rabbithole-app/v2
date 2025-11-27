@@ -1,13 +1,13 @@
 import { inject, InjectionToken, type ValueProvider } from '@angular/core';
 
 export interface HlmSidebarConfig {
-	sidebarWidth: string;
-	sidebarWidthMobile: string;
-	sidebarWidthIcon: string;
-	sidebarCookieName: string;
-	sidebarCookieMaxAge: number;
-	sidebarKeyboardShortcut: string;
 	mobileBreakpoint: string;
+	sidebarCookieMaxAge: number;
+	sidebarCookieName: string;
+	sidebarKeyboardShortcut: string;
+	sidebarWidth: string;
+	sidebarWidthIcon: string;
+	sidebarWidthMobile: string;
 }
 
 const defaultConfig: HlmSidebarConfig = {
@@ -22,10 +22,10 @@ const defaultConfig: HlmSidebarConfig = {
 
 const HlmSidebarConfigToken = new InjectionToken<HlmSidebarConfig>('HlmSidebarConfig');
 
-export function provideHlmSidebarConfig(config: Partial<HlmSidebarConfig>): ValueProvider {
-	return { provide: HlmSidebarConfigToken, useValue: { ...defaultConfig, ...config } };
-}
-
 export function injectHlmSidebarConfig(): HlmSidebarConfig {
 	return inject(HlmSidebarConfigToken, { optional: true }) ?? defaultConfig;
+}
+
+export function provideHlmSidebarConfig(config: Partial<HlmSidebarConfig>): ValueProvider {
+	return { provide: HlmSidebarConfigToken, useValue: { ...defaultConfig, ...config } };
 }

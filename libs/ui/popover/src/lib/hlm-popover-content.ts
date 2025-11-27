@@ -1,4 +1,4 @@
-import { Directive, ElementRef, Renderer2, computed, effect, inject, input, signal } from '@angular/core';
+import { computed, Directive, effect, ElementRef, inject, input, Renderer2, signal } from '@angular/core';
 import { injectExposesStateProvider } from '@spartan-ng/brain/core';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
@@ -12,15 +12,6 @@ import type { ClassValue } from 'clsx';
 export class HlmPopoverContent {
 	private readonly _stateProvider = injectExposesStateProvider({ host: true });
 	public state = this._stateProvider.state ?? signal('closed');
-	private readonly _renderer = inject(Renderer2);
-	private readonly _element = inject(ElementRef);
-
-	constructor() {
-		effect(() => {
-			this._renderer.setAttribute(this._element.nativeElement, 'data-state', this.state());
-		});
-	}
-
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	protected readonly _computedClass = computed(() =>
 		hlm(
@@ -28,4 +19,13 @@ export class HlmPopoverContent {
 			this.userClass(),
 		),
 	);
+
+	private readonly _element = inject(ElementRef);
+
+	private readonly _renderer = inject(Renderer2);
+	constructor() {
+		effect(() => {
+			this._renderer.setAttribute(this._element.nativeElement, 'data-state', this.state());
+		});
+	}
 }

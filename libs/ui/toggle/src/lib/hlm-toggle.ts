@@ -1,4 +1,4 @@
-import { Directive, computed, input } from '@angular/core';
+import { computed, Directive, input } from '@angular/core';
 import { BrnToggle } from '@spartan-ng/brain/toggle';
 import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -43,9 +43,9 @@ export type ToggleVariants = VariantProps<typeof toggleVariants>;
 	},
 })
 export class HlmToggle {
-	public readonly variant = input<ToggleVariants['variant']>('default');
 	public readonly size = input<ToggleVariants['size']>('default');
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	public readonly variant = input<ToggleVariants['variant']>('default');
 
 	protected readonly _computedClass = computed(() =>
 		hlm(

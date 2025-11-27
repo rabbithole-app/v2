@@ -2,24 +2,29 @@
   <div class="flex items-center justify-between mb-4">
     <h2 class="text-xl font-semibold">Users</h2>
     <div class="flex items-center gap-2">
-      <button hlmBtn variant="outline" align="end" [brnMenuTriggerFor]="menu">
+      <button
+        hlmBtn
+        variant="outline"
+        align="end"
+        [hlmDropdownMenuTrigger]="menu"
+      >
         Columns
         <ng-icon hlmIcon name="lucideChevronDown" size="sm" />
       </button>
       <ng-template #menu>
-        <hlm-menu class="w-32">
+        <hlm-dropdown-menu class="w-32">
           @for (column of _hidableColumns; track column.id) {
             <button
-              hlmMenuItemCheckbox
+              hlmDropdownMenuCheckbox
               class="capitalize"
               [checked]="column.getIsVisible()"
               (triggered)="column.toggleVisibility()"
             >
-              <hlm-menu-item-check />
+              <hlm-dropdown-menu-checkbox-indicator />
               {{ column.columnDef.id }}
             </button>
           }
-        </hlm-menu>
+        </hlm-dropdown-menu>
       </ng-template>
     </div>
   </div>
@@ -29,7 +34,10 @@
       <div class="overflow-auto max-h-[65vh] min-h-[200px]">
         <table hlmTable class="w-full">
           <thead hlmTHead class="sticky top-0 bg-background z-10">
-            @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+            @for (
+              headerGroup of table.getHeaderGroups();
+              track headerGroup.id
+            ) {
               <tr hlmTr>
                 @for (header of headerGroup.headers; track header.id) {
                   <th hlmTh [attr.colSpan]="header.colSpan">
@@ -67,28 +75,46 @@
                         "
                       >
                         <div class="flex items-center gap-3">
-                          <div class="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                          <div
+                            class="h-10 w-10 rounded-full bg-muted flex items-center justify-center"
+                          >
                             @if (userData.profile.avatarUrl) {
-                              <img [src]="userData.profile.avatarUrl" [alt]="userData.profile.username" class="h-10 w-10 rounded-full object-cover" />
+                              <img
+                                [src]="userData.profile.avatarUrl"
+                                [alt]="userData.profile.username"
+                                class="h-10 w-10 rounded-full object-cover"
+                              />
                             } @else {
                               <span class="text-sm font-medium">
-                                {{ userData.profile.username.charAt(0).toUpperCase() }}
+                                {{
+                                  userData.profile.username
+                                    .charAt(0)
+                                    .toUpperCase()
+                                }}
                               </span>
                             }
                           </div>
                           <div class="flex flex-col">
                             <div class="font-medium">
-                              {{ userData.profile.displayName || userData.profile.username }}
+                              {{
+                                userData.profile.displayName ||
+                                  userData.profile.username
+                              }}
                             </div>
                             <div class="text-sm text-muted-foreground">
-                              <rbth-copy-to-clipboard [content]="userData.profile.id">
+                              <rbth-copy-to-clipboard
+                                [content]="userData.profile.id"
+                              >
                                 {{ userData.profile.id }}
                               </rbth-copy-to-clipboard>
                             </div>
                           </div>
                         </div>
                       </ng-container>
-                    } @else if (cell.column.id === 'createdAt' || cell.column.id === 'updatedAt') {
+                    } @else if (
+                      cell.column.id === 'createdAt' ||
+                      cell.column.id === 'updatedAt'
+                    ) {
                       <ng-container
                         *flexRender="
                           cell.column.columnDef.cell;
@@ -97,7 +123,7 @@
                         "
                       >
                         <div class="text-sm">
-                          {{ dateData.date | date:'short' }}
+                          {{ dateData.date | date: 'short' }}
                         </div>
                       </ng-container>
                     } @else {
@@ -116,13 +142,21 @@
               </tr>
             } @empty {
               <tr hlmTr>
-                <td hlmTd class="h-24 text-center" [attr.colspan]="_columns.length">
+                <td
+                  hlmTd
+                  class="h-24 text-center"
+                  [attr.colspan]="_columns.length"
+                >
                   @if (loading()) {
                     <div class="flex items-center justify-center">
-                      <div class="text-muted-foreground text-sm">Loading...</div>
+                      <div class="text-muted-foreground text-sm">
+                        Loading...
+                      </div>
                     </div>
                   } @else {
-                    <div class="text-muted-foreground text-sm">No users found</div>
+                    <div class="text-muted-foreground text-sm">
+                      No users found
+                    </div>
                   }
                 </td>
               </tr>
@@ -136,7 +170,8 @@
   <div class="flex items-center justify-between gap-8 sm:flex-row mt-4">
     @if (table.getRowCount() > 0) {
       <span [class]="`${hlmMuted} text-sm`">
-        Showing {{ table.getRowModel().rows.length }} of {{ totalCount() }} users
+        Showing {{ table.getRowModel().rows.length }} of
+        {{ totalCount() }} users
       </span>
       <div class="flex items-center gap-3">
         <brn-select

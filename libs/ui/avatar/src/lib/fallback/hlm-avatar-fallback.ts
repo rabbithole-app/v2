@@ -1,4 +1,4 @@
-import { Directive, computed, inject } from '@angular/core';
+import { computed, Directive, inject } from '@angular/core';
 import { BrnAvatarFallback } from '@spartan-ng/brain/avatar';
 import { hlm } from '@spartan-ng/helm/utils';
 

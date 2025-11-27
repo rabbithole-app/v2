@@ -33,11 +33,11 @@ function getDefaultConfig<T>(): HlmDatePickerConfig<T> {
 
 const HlmDatePickerConfigToken = new InjectionToken<HlmDatePickerConfig<unknown>>('HlmDatePickerConfig');
 
-export function provideHlmDatePickerConfig<T>(config: Partial<HlmDatePickerConfig<T>>): ValueProvider {
-	return { provide: HlmDatePickerConfigToken, useValue: { ...getDefaultConfig(), ...config } };
-}
-
 export function injectHlmDatePickerConfig<T>(): HlmDatePickerConfig<T> {
 	const injectedConfig = inject(HlmDatePickerConfigToken, { optional: true });
 	return injectedConfig ? (injectedConfig as HlmDatePickerConfig<T>) : getDefaultConfig();
+}
+
+export function provideHlmDatePickerConfig<T>(config: Partial<HlmDatePickerConfig<T>>): ValueProvider {
+	return { provide: HlmDatePickerConfigToken, useValue: { ...getDefaultConfig(), ...config } };
 }

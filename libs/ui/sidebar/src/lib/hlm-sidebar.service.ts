@@ -1,26 +1,35 @@
-import { DOCUMENT } from '@angular/common';
-import { afterNextRender, computed, DestroyRef, inject, Injectable, type Signal, signal } from '@angular/core';
+import {
+	afterNextRender,
+	computed,
+	DestroyRef,
+	DOCUMENT,
+	inject,
+	Injectable,
+	type Signal,
+	signal,
+} from '@angular/core';
+
 import { injectHlmSidebarConfig } from './hlm-sidebar.token';
 
-export type SidebarVariant = 'sidebar' | 'floating' | 'inset';
+export type SidebarVariant = 'floating' | 'inset' | 'sidebar';
 
 @Injectable({ providedIn: 'root' })
 export class HlmSidebarService {
+	private readonly _isMobile = signal<boolean>(false);
+	public readonly isMobile: Signal<boolean> = this._isMobile.asReadonly();
+	private readonly _open = signal<boolean>(true);
+	public readonly open: Signal<boolean> = this._open.asReadonly();
+	private readonly _openMobile = signal<boolean>(false);
+	public readonly openMobile: Signal<boolean> = this._openMobile.asReadonly();
+	public readonly state = computed<'collapsed' | 'expanded'>(() => (this._open() ? 'expanded' : 'collapsed'));
+	private readonly _variant = signal<SidebarVariant>('sidebar');
+
+	public readonly variant: Signal<SidebarVariant> = this._variant.asReadonly();
 	private readonly _config = injectHlmSidebarConfig();
 	private readonly _document = inject(DOCUMENT);
-	private readonly _window = this._document.defaultView;
-	private readonly _open = signal<boolean>(true);
-	private readonly _openMobile = signal<boolean>(false);
-	private readonly _isMobile = signal<boolean>(false);
-	private readonly _variant = signal<SidebarVariant>('sidebar');
 	private _mediaQuery: MediaQueryList | null = null;
 
-	public readonly open: Signal<boolean> = this._open.asReadonly();
-	public readonly openMobile: Signal<boolean> = this._openMobile.asReadonly();
-	public readonly isMobile: Signal<boolean> = this._isMobile.asReadonly();
-	public readonly variant: Signal<SidebarVariant> = this._variant.asReadonly();
-
-	public readonly state = computed<'expanded' | 'collapsed'>(() => (this._open() ? 'expanded' : 'collapsed'));
+	private readonly _window = this._document.defaultView;
 
 	constructor() {
 		const destroyRef = inject(DestroyRef);

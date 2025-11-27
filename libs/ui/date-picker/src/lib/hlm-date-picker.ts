@@ -21,6 +21,7 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmPopoverContent } from '@spartan-ng/helm/popover';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
 import { injectHlmDatePickerConfig } from './hlm-date-picker.token';
 
 export const HLM_DATE_PICKER_VALUE_ACCESSOR = {
@@ -35,6 +36,10 @@ let nextId = 0;
 	selector: 'hlm-date-picker',
 	imports: [NgIcon, HlmIcon, BrnPopover, BrnPopoverTrigger, BrnPopoverContent, HlmPopoverContent, HlmCalendar],
 	providers: [HLM_DATE_PICKER_VALUE_ACCESSOR, provideIcons({ lucideChevronDown })],
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	host: {
+		class: 'block',
+	},
 	template: `
 		<brn-popover sideOffset="5" [state]="_popoverState()" (stateChanged)="_popoverState.set($event)">
 			<button
@@ -68,15 +73,44 @@ let nextId = 0;
 			</div>
 		</brn-popover>
 	`,
-	host: {
-		class: 'block',
-	},
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmDatePicker<T> implements ControlValueAccessor {
 	private readonly _config = injectHlmDatePickerConfig<T>();
 
+	/** If true, the date picker will close when a date is selected. */
+	public readonly autoCloseOnSelect = input<boolean, BooleanInput>(this._config.autoCloseOnSelect, {
+		transform: booleanAttribute,
+	});
+	/** The id of the button that opens the date picker. */
+	public readonly buttonId = input<string>(`hlm-date-picker-${++nextId}`);
+
+	/** Show dropdowns to navigate between months or years. */
+	public readonly captionLayout = input<'dropdown-months' | 'dropdown-years' | 'dropdown' | 'label'>('label');
+
+	/** The selected value. */
+	public readonly date = input<T>();
+
+	public readonly dateChange = output<T>();
+
+	/** Determine if the date picker is disabled. */
+	public readonly disabled = input<boolean, BooleanInput>(false, {
+		transform: booleanAttribute,
+	});
+
+	/** Defines how the date should be displayed in the UI.  */
+	public readonly formatDate = input<(date: T) => string>(this._config.formatDate);
+
+	/** The maximum date that can be selected. */
+	public readonly max = input<T>();
+
+	/** The minimum date that can be selected.*/
+	public readonly min = input<T>();
+
+	/** Defines how the date should be transformed before saving to model/form. */
+	public readonly transformDate = input<(date: T) => T>(this._config.transformDate);
+
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
 	protected readonly _computedClass = computed(() =>
 		hlm(
 			'ring-offset-background border-input bg-background hover:bg-accent dark:bg-input/30 dark:hover:bg-input/50 hover:text-accent-foreground inline-flex h-9 w-[280px] cursor-default items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm font-normal whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50',
@@ -87,69 +121,26 @@ export class HlmDatePicker<T> implements ControlValueAccessor {
 		),
 	);
 
-	/** The id of the button that opens the date picker. */
-	public readonly buttonId = input<string>(`hlm-date-picker-${++nextId}`);
-
-	/** Show dropdowns to navigate between months or years. */
-	public readonly captionLayout = input<'dropdown' | 'label' | 'dropdown-months' | 'dropdown-years'>('label');
-
-	/** The minimum date that can be selected.*/
-	public readonly min = input<T>();
-
-	/** The maximum date that can be selected. */
-	public readonly max = input<T>();
-
-	/** Determine if the date picker is disabled. */
-	public readonly disabled = input<boolean, BooleanInput>(false, {
-		transform: booleanAttribute,
-	});
-
-	/** The selected value. */
-	public readonly date = input<T>();
-
 	protected readonly _mutableDate = linkedSignal(this.date);
-
-	/** If true, the date picker will close when a date is selected. */
-	public readonly autoCloseOnSelect = input<boolean, BooleanInput>(this._config.autoCloseOnSelect, {
-		transform: booleanAttribute,
-	});
-
-	/** Defines how the date should be displayed in the UI.  */
-	public readonly formatDate = input<(date: T) => string>(this._config.formatDate);
-
-	/** Defines how the date should be transformed before saving to model/form. */
-	public readonly transformDate = input<(date: T) => T>(this._config.transformDate);
-
-	protected readonly _popoverState = signal<BrnDialogState | null>(null);
-
-	protected readonly _mutableDisabled = linkedSignal(this.disabled);
 
 	protected readonly _formattedDate = computed(() => {
 		const date = this._mutableDate();
 		return date ? this.formatDate()(date) : undefined;
 	});
 
-	public readonly dateChange = output<T>();
+	protected readonly _mutableDisabled = linkedSignal(this.disabled);
 
 	protected _onChange?: ChangeFn<T>;
+
 	protected _onTouched?: TouchFn;
+	protected readonly _popoverState = signal<BrnDialogState | null>(null);
 
-	protected _handleChange(value: T) {
-		if (this._mutableDisabled()) return;
-		const transformedDate = this.transformDate()(value);
-
-		this._mutableDate.set(transformedDate);
-		this._onChange?.(transformedDate);
-		this.dateChange.emit(transformedDate);
-
-		if (this.autoCloseOnSelect()) {
-			this._popoverState.set('closed');
-		}
+	public close() {
+		this._popoverState.set('closed');
 	}
 
-	/** CONTROL VALUE ACCESSOR */
-	public writeValue(value: T | null): void {
-		this._mutableDate.set(value ? this.transformDate()(value) : undefined);
+	public open() {
+		this._popoverState.set('open');
 	}
 
 	public registerOnChange(fn: ChangeFn<T>): void {
@@ -164,11 +155,21 @@ export class HlmDatePicker<T> implements ControlValueAccessor {
 		this._mutableDisabled.set(isDisabled);
 	}
 
-	public open() {
-		this._popoverState.set('open');
+	/** CONTROL VALUE ACCESSOR */
+	public writeValue(value: T | null): void {
+		this._mutableDate.set(value ? this.transformDate()(value) : undefined);
 	}
 
-	public close() {
-		this._popoverState.set('closed');
+	protected _handleChange(value: T) {
+		if (this._mutableDisabled()) return;
+		const transformedDate = this.transformDate()(value);
+
+		this._mutableDate.set(transformedDate);
+		this._onChange?.(transformedDate);
+		this.dateChange.emit(transformedDate);
+
+		if (this.autoCloseOnSelect()) {
+			this._popoverState.set('closed');
+		}
 	}
 }

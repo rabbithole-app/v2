@@ -1,8 +1,8 @@
 import type { BooleanInput, NumberInput } from '@angular/cdk/coercion';
 import {
+	booleanAttribute,
 	ChangeDetectionStrategy,
 	Component,
-	booleanAttribute,
 	computed,
 	input,
 	model,
@@ -12,6 +12,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
+
 import { createPageArray, outOfBoundCorrection } from './hlm-numbered-pagination';
 import { HlmPagination } from './hlm-pagination';
 import { HlmPaginationContent } from './hlm-pagination-content';
@@ -23,6 +24,20 @@ import { HlmPaginationPrevious } from './hlm-pagination-previous';
 
 @Component({
 	selector: 'hlm-numbered-pagination-query-params',
+	imports: [
+		FormsModule,
+		HlmPagination,
+		HlmPaginationContent,
+		HlmPaginationItem,
+		HlmPaginationPrevious,
+		HlmPaginationNext,
+		HlmPaginationLink,
+		HlmPaginationEllipsis,
+
+		BrnSelectImports,
+		HlmSelectImports,
+	],
+	changeDetection: ChangeDetectionStrategy.OnPush,
 	template: `
 		<div class="flex items-center justify-between gap-2 px-4 py-2">
 			<div class="flex items-center gap-1 text-sm text-nowrap text-gray-600">
@@ -87,19 +102,6 @@ import { HlmPaginationPrevious } from './hlm-pagination-previous';
 			</brn-select>
 		</div>
 	`,
-	imports: [
-		FormsModule,
-		HlmPagination,
-		HlmPaginationContent,
-		HlmPaginationItem,
-		HlmPaginationPrevious,
-		HlmPaginationNext,
-		HlmPaginationLink,
-		HlmPaginationEllipsis,
-		BrnSelectImports,
-		HlmSelectImports,
-	],
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmNumberedPaginationQueryParams {
 	/**
@@ -111,15 +113,6 @@ export class HlmNumberedPaginationQueryParams {
 	 * The number of items per paginated page.
 	 */
 	public readonly itemsPerPage = model.required<number>();
-
-	/**
-	 * The total number of items in the collection. Only useful when
-	 * doing server-side paging, where the collection size is limited
-	 * to a single page returned by the server API.
-	 */
-	public readonly totalItems = input.required<number, NumberInput>({
-		transform: numberAttribute,
-	});
 
 	/**
 	 * The URL path to use for the pagination links.
@@ -135,6 +128,12 @@ export class HlmNumberedPaginationQueryParams {
 	});
 
 	/**
+	 * The page sizes to show.
+	 * Defaults to [10, 20, 50, 100]
+	 */
+	public readonly pageSizes = input<number[]>([10, 20, 50, 100]);
+
+	/**
 	 * Show the first and last page buttons.
 	 */
 	public readonly showEdges = input<boolean, BooleanInput>(true, {
@@ -142,20 +141,15 @@ export class HlmNumberedPaginationQueryParams {
 	});
 
 	/**
-	 * The page sizes to show.
-	 * Defaults to [10, 20, 50, 100]
+	 * The total number of items in the collection. Only useful when
+	 * doing server-side paging, where the collection size is limited
+	 * to a single page returned by the server API.
 	 */
-	public readonly pageSizes = input<number[]>([10, 20, 50, 100]);
-
-	protected readonly _pageSizesWithCurrent = computed(() => {
-		const pageSizes = this.pageSizes();
-		return pageSizes.includes(this.itemsPerPage())
-			? pageSizes // if current page size is included, return the same array
-			: [...pageSizes, this.itemsPerPage()].sort((a, b) => a - b); // otherwise, add current page size and sort the array
+	public readonly totalItems = input.required<number, NumberInput>({
+		transform: numberAttribute,
 	});
 
 	protected readonly _isFirstPageActive = computed(() => this.currentPage() === 1);
-	protected readonly _isLastPageActive = computed(() => this.currentPage() === this._lastPageNumber());
 
 	protected readonly _lastPageNumber = computed(() => {
 		if (this.totalItems() < 1) {
@@ -165,6 +159,7 @@ export class HlmNumberedPaginationQueryParams {
 		}
 		return Math.ceil(this.totalItems() / this.itemsPerPage());
 	});
+	protected readonly _isLastPageActive = computed(() => this.currentPage() === this._lastPageNumber());
 
 	protected readonly _pages = computed(() => {
 		const correctedCurrentPage = outOfBoundCorrection(this.totalItems(), this.itemsPerPage(), this.currentPage());
@@ -175,5 +170,12 @@ export class HlmNumberedPaginationQueryParams {
 		}
 
 		return createPageArray(correctedCurrentPage, this.itemsPerPage(), this.totalItems(), this.maxSize());
+	});
+
+	protected readonly _pageSizesWithCurrent = computed(() => {
+		const pageSizes = this.pageSizes();
+		return pageSizes.includes(this.itemsPerPage())
+			? pageSizes // if current page size is included, return the same array
+			: [...pageSizes, this.itemsPerPage()].sort((a, b) => a - b); // otherwise, add current page size and sort the array
 	});
 }

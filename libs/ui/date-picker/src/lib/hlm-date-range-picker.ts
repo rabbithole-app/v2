@@ -22,6 +22,7 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmPopoverContent } from '@spartan-ng/helm/popover';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
 import { injectHlmDateRangePickerConfig } from './hlm-date-range-picker.token';
 
 export const HLM_DATE_RANGE_PICKER_VALUE_ACCESSOR = {
@@ -36,6 +37,10 @@ let nextId = 0;
 	selector: 'hlm-date-range-picker',
 	imports: [NgIcon, HlmIcon, BrnPopover, BrnPopoverTrigger, BrnPopoverContent, HlmPopoverContent, HlmCalendarRange],
 	providers: [HLM_DATE_RANGE_PICKER_VALUE_ACCESSOR, provideIcons({ lucideChevronDown })],
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	host: {
+		class: 'block',
+	},
 	template: `
 		<brn-popover
 			sideOffset="5"
@@ -76,15 +81,43 @@ let nextId = 0;
 			</div>
 		</brn-popover>
 	`,
-	host: {
-		class: 'block',
-	},
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmDateRangePicker<T> implements ControlValueAccessor {
 	private readonly _config = injectHlmDateRangePickerConfig<T>();
 
+	/** If true, the date picker will close when the end date is selected */
+	public readonly autoCloseOnEndSelection = input<boolean, BooleanInput>(this._config.autoCloseOnEndSelection, {
+		transform: booleanAttribute,
+	});
+	/** The id of the button that opens the date picker. */
+	public readonly buttonId = input<string>(`hlm-date-picker-range-${++nextId}`);
+
+	/** Show dropdowns to navigate between months or years. */
+	public readonly captionLayout = input<'dropdown-months' | 'dropdown-years' | 'dropdown' | 'label'>('label');
+
+	/** The selected value. */
+	public readonly date = input<[T, T]>();
+
+	public readonly dateChange = output<[T, T] | null>();
+
+	/** Determine if the date picker is disabled. */
+	public readonly disabled = input<boolean, BooleanInput>(false, {
+		transform: booleanAttribute,
+	});
+
+	/** Defines how the date should be displayed in the UI.  */
+	public readonly formatDates = input<(dates: [T | undefined, T | undefined]) => string>(this._config.formatDates);
+
+	/** The maximum date that can be selected. */
+	public readonly max = input<T>();
+
+	/** The minimum date that can be selected.*/
+	public readonly min = input<T>();
+
+	/** Defines how the date should be transformed before saving to model/form. */
+	public readonly transformDates = input<(date: [T, T]) => [T, T]>(this._config.transformDates);
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
 	protected readonly _computedClass = computed(() =>
 		hlm(
 			'ring-offset-background border-input bg-background hover:bg-accent dark:bg-input/30 dark:hover:bg-input/50 hover:text-accent-foreground inline-flex h-9 w-[280px] cursor-default items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm font-normal whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50',
@@ -95,45 +128,11 @@ export class HlmDateRangePicker<T> implements ControlValueAccessor {
 		),
 	);
 
-	/** The id of the button that opens the date picker. */
-	public readonly buttonId = input<string>(`hlm-date-picker-range-${++nextId}`);
-
-	/** Show dropdowns to navigate between months or years. */
-	public readonly captionLayout = input<'dropdown' | 'label' | 'dropdown-months' | 'dropdown-years'>('label');
-
-	/** The minimum date that can be selected.*/
-	public readonly min = input<T>();
-
-	/** The maximum date that can be selected. */
-	public readonly max = input<T>();
-
-	/** Determine if the date picker is disabled. */
-	public readonly disabled = input<boolean, BooleanInput>(false, {
-		transform: booleanAttribute,
-	});
-
-	/** The selected value. */
-	public readonly date = input<[T, T]>();
-
 	protected readonly _mutableDate = linkedSignal(this.date);
 
-	protected readonly _start = linkedSignal(() => this._mutableDate()?.[0]);
 	protected readonly _end = linkedSignal(() => this._mutableDate()?.[1]);
 
-	/** If true, the date picker will close when the end date is selected */
-	public readonly autoCloseOnEndSelection = input<boolean, BooleanInput>(this._config.autoCloseOnEndSelection, {
-		transform: booleanAttribute,
-	});
-
-	/** Defines how the date should be displayed in the UI.  */
-	public readonly formatDates = input<(dates: [T | undefined, T | undefined]) => string>(this._config.formatDates);
-
-	/** Defines how the date should be transformed before saving to model/form. */
-	public readonly transformDates = input<(date: [T, T]) => [T, T]>(this._config.transformDates);
-
-	protected readonly _popoverState = signal<BrnDialogState | null>(null);
-
-	protected readonly _mutableDisabled = linkedSignal(this.disabled);
+	protected readonly _start = linkedSignal(() => this._mutableDate()?.[0]);
 
 	protected readonly _formattedDate = computed(() => {
 		const start = this._start();
@@ -141,13 +140,42 @@ export class HlmDateRangePicker<T> implements ControlValueAccessor {
 		return start || end ? this.formatDates()([start, end]) : undefined;
 	});
 
-	public readonly dateChange = output<[T, T] | null>();
+	protected readonly _mutableDisabled = linkedSignal(this.disabled);
 
 	protected _onChange?: ChangeFn<[T, T] | null>;
-	protected _onTouched?: TouchFn;
 
-	protected _handleStartDayChange(value: T) {
-		this._start.set(value);
+	protected _onTouched?: TouchFn;
+	protected readonly _popoverState = signal<BrnDialogState | null>(null);
+
+	public close() {
+		this._popoverState.set('closed');
+	}
+
+	public open() {
+		this._popoverState.set('open');
+	}
+
+	public registerOnChange(fn: ChangeFn<[T, T] | null>): void {
+		this._onChange = fn;
+	}
+
+	public registerOnTouched(fn: TouchFn): void {
+		this._onTouched = fn;
+	}
+
+	public setDisabledState(isDisabled: boolean): void {
+		this._mutableDisabled.set(isDisabled);
+	}
+
+	/** CONTROL VALUE ACCESSOR */
+	public writeValue(value: [T, T] | null): void {
+		untracked(() => {
+			if (!value) {
+				this._mutableDate.set(undefined);
+			} else {
+				this._mutableDate.set(this.transformDates()(value));
+			}
+		});
 	}
 
 	protected _handleEndDateChange(value: T): void {
@@ -167,35 +195,8 @@ export class HlmDateRangePicker<T> implements ControlValueAccessor {
 		}
 	}
 
-	/** CONTROL VALUE ACCESSOR */
-	public writeValue(value: [T, T] | null): void {
-		untracked(() => {
-			if (!value) {
-				this._mutableDate.set(undefined);
-			} else {
-				this._mutableDate.set(this.transformDates()(value));
-			}
-		});
-	}
-
-	public registerOnChange(fn: ChangeFn<[T, T] | null>): void {
-		this._onChange = fn;
-	}
-
-	public registerOnTouched(fn: TouchFn): void {
-		this._onTouched = fn;
-	}
-
-	public setDisabledState(isDisabled: boolean): void {
-		this._mutableDisabled.set(isDisabled);
-	}
-
-	public open() {
-		this._popoverState.set('open');
-	}
-
-	public close() {
-		this._popoverState.set('closed');
+	protected _handleStartDayChange(value: T) {
+		this._start.set(value);
 	}
 
 	protected _onClose(): void {

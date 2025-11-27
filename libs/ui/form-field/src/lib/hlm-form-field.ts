@@ -10,10 +10,15 @@ import {
 import { BrnFormFieldControl } from '@spartan-ng/brain/form-field';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
 import { HlmError } from './hlm-error';
 
 @Component({
 	selector: 'hlm-form-field',
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	host: {
+		'[class]': '_computedClass()',
+	},
 	template: `
 		<ng-content />
 
@@ -26,17 +31,13 @@ import { HlmError } from './hlm-error';
 			}
 		}
 	`,
-	host: {
-		'[class]': '_computedClass()',
-	},
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmFormField {
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
-	protected readonly _computedClass = computed(() => hlm('block space-y-2', this.userClass()));
 	public readonly control = contentChild(BrnFormFieldControl);
-
 	public readonly errorChildren = contentChildren(HlmError);
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+	protected readonly _computedClass = computed(() => hlm('block space-y-2', this.userClass()));
 
 	protected readonly _hasDisplayedMessage = computed<'error' | 'hint'>(() =>
 		this.errorChildren() && this.errorChildren().length > 0 && this.control()?.errorState() ? 'error' : 'hint',

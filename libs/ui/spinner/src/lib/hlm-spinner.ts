@@ -8,6 +8,7 @@ import type { ClassValue } from 'clsx';
 	selector: 'hlm-spinner',
 	imports: [NgIcon],
 	providers: [provideIcons({ lucideLoader })],
+	changeDetection: ChangeDetectionStrategy.OnPush,
 	host: {
 		role: 'status',
 		'[attr.aria-label]': 'ariaLabel()',
@@ -16,17 +17,16 @@ import type { ClassValue } from 'clsx';
 	template: `
 		<ng-icon [name]="icon()" [class]="_computedClass()" />
 	`,
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmSpinner {
+	/** Aria label for the spinner for accessibility. */
+	public readonly ariaLabel = input<string>('Loading', { alias: 'aria-label' });
+
 	/**
 	 * The name of the icon to be used as the spinner.
 	 * Use provideIcons({ ... }) to register custom icons.
 	 */
 	public readonly icon = input<string>('lucideLoader');
-
-	/** Aria label for the spinner for accessibility. */
-	public readonly ariaLabel = input<string>('Loading', { alias: 'aria-label' });
 
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	protected readonly _computedClass = computed(() => hlm('text-base motion-safe:animate-spin', this.userClass()));

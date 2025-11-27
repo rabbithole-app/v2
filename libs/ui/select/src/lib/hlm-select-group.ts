@@ -1,4 +1,4 @@
-import { Directive, computed, input } from '@angular/core';
+import { computed, Directive, input } from '@angular/core';
 import { BrnSelectGroup } from '@spartan-ng/brain/select';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';

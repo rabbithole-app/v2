@@ -1,4 +1,4 @@
-import { Directive, computed, effect, input, untracked } from '@angular/core';
+import { computed, Directive, effect, input, untracked } from '@angular/core';
 import { injectCustomClassSettable } from '@spartan-ng/brain/core';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
@@ -10,10 +10,10 @@ export const hlmDialogOverlayClass =
 	selector: '[hlmDialogOverlay],brn-dialog-overlay[hlm]',
 })
 export class HlmDialogOverlay {
-	private readonly _classSettable = injectCustomClassSettable({ optional: true, host: true });
-
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
 	protected readonly _computedClass = computed(() => hlm(hlmDialogOverlayClass, this.userClass()));
+	private readonly _classSettable = injectCustomClassSettable({ optional: true, host: true });
 
 	constructor() {
 		effect(() => {

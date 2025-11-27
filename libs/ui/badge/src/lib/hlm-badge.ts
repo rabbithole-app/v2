@@ -1,6 +1,6 @@
-import { Directive, computed, input } from '@angular/core';
+import { computed, Directive, input } from '@angular/core';
 import { hlm } from '@spartan-ng/helm/utils';
-import { type VariantProps, cva } from 'class-variance-authority';
+import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
 const badgeVariants = cva(
@@ -30,8 +30,8 @@ export type BadgeVariants = VariantProps<typeof badgeVariants>;
 	},
 })
 export class HlmBadge {
-	protected readonly _computedClass = computed(() => hlm(badgeVariants({ variant: this.variant() }), this.userClass()));
-
 	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
 	public readonly variant = input<BadgeVariants['variant']>('default');
+	protected readonly _computedClass = computed(() => hlm(badgeVariants({ variant: this.variant() }), this.userClass()));
 }

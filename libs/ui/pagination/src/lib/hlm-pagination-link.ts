@@ -1,16 +1,9 @@
 import type { BooleanInput } from '@angular/cdk/coercion';
-import { Directive, booleanAttribute, computed, input } from '@angular/core';
+import { booleanAttribute, computed, Directive, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { type ButtonVariants, buttonVariants } from '@spartan-ng/helm/button';
 import { hlm } from '@spartan-ng/helm/utils';
-import { type VariantProps, cva } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
-
-export const paginationLinkVariants = cva('', {
-	variants: {},
-	defaultVariants: {},
-});
-export type PaginationLinkVariants = VariantProps<typeof paginationLinkVariants>;
 
 @Directive({
 	selector: '[hlmPaginationLink]',
@@ -33,22 +26,24 @@ export type PaginationLinkVariants = VariantProps<typeof paginationLinkVariants>
 		},
 	],
 	host: {
+		'data-slot': 'pagination-link',
 		'[class]': '_computedClass()',
+		'[attr.data-active]': 'isActive() ? "true" : null',
 		'[attr.aria-current]': 'isActive() ? "page" : null',
 	},
 })
 export class HlmPaginationLink {
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 	/** Whether the link is active (i.e., the current page). */
 	public readonly isActive = input<boolean, BooleanInput>(false, { transform: booleanAttribute });
-	/** The size of the button. */
-	public readonly size = input<ButtonVariants['size']>('icon');
 	/** The link to navigate to the page. */
 	public readonly link = input<RouterLink['routerLink']>();
+	/** The size of the button. */
+	public readonly size = input<ButtonVariants['size']>('icon');
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
 	protected readonly _computedClass = computed(() =>
 		hlm(
-			paginationLinkVariants(),
+			'',
 			this.link() === undefined ? 'cursor-pointer' : '',
 			buttonVariants({
 				variant: this.isActive() ? 'outline' : 'ghost',

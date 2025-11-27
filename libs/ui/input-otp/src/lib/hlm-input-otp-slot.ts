@@ -3,27 +3,28 @@ import { ChangeDetectionStrategy, Component, computed, input, numberAttribute } 
 import { BrnInputOtpSlot } from '@spartan-ng/brain/input-otp';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
 import { HlmInputOtpFakeCaret } from './hlm-input-otp-fake-caret';
 
 @Component({
 	selector: 'hlm-input-otp-slot',
 	imports: [BrnInputOtpSlot, HlmInputOtpFakeCaret],
+	changeDetection: ChangeDetectionStrategy.OnPush,
+	host: {
+		'data-slot': 'input-otp-slot',
+		'[class]': '_computedClass()',
+	},
 	template: `
 		<brn-input-otp-slot [index]="index()">
 			<hlm-input-otp-fake-caret />
 		</brn-input-otp-slot>
 	`,
-	host: {
-		'data-slot': 'input-otp-slot',
-		'[class]': '_computedClass()',
-	},
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmInputOtpSlot {
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
 	/** The index of the slot to render the char or a fake caret */
 	public readonly index = input.required<number, NumberInput>({ transform: numberAttribute });
+
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
 	protected readonly _computedClass = computed(() =>
 		hlm(

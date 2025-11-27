@@ -1,7 +1,8 @@
-import { Directive, computed, input } from '@angular/core';
+import { computed, Directive, input } from '@angular/core';
+
 import { injectHlmIconConfig } from './hlm-icon.token';
 
-export type IconSize = 'xs' | 'sm' | 'base' | 'lg' | 'xl' | 'none' | (Record<never, never> & string);
+export type IconSize = (Record<never, never> & string) | 'base' | 'lg' | 'none' | 'sm' | 'xl' | 'xs';
 
 @Directive({
 	selector: 'ng-icon[hlmIcon], ng-icon[hlm]',
@@ -17,16 +18,16 @@ export class HlmIcon {
 		const size = this.size();
 
 		switch (size) {
-			case 'xs':
-				return '12px';
-			case 'sm':
-				return '16px';
 			case 'base':
 				return '24px';
 			case 'lg':
 				return '32px';
+			case 'sm':
+				return '16px';
 			case 'xl':
 				return '48px';
+			case 'xs':
+				return '12px';
 			default: {
 				return size;
 			}

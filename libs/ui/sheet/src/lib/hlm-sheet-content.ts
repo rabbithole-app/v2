@@ -1,12 +1,12 @@
 import {
 	ChangeDetectionStrategy,
 	Component,
-	ElementRef,
-	Renderer2,
 	computed,
 	effect,
+	ElementRef,
 	inject,
 	input,
+	Renderer2,
 	signal,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -17,6 +17,7 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
 import { cva } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
 import { HlmSheetClose } from './hlm-sheet-close';
 
 export const sheetVariants = cva(
@@ -42,6 +43,7 @@ export const sheetVariants = cva(
 	selector: 'hlm-sheet-content',
 	imports: [HlmSheetClose, BrnSheetClose, NgIcon, HlmIcon],
 	providers: [provideIcons({ lucideX })],
+	changeDetection: ChangeDetectionStrategy.OnPush,
 	host: {
 		'[class]': '_computedClass()',
 		'[attr.data-state]': 'state()',
@@ -53,23 +55,22 @@ export const sheetVariants = cva(
 			<ng-icon hlm size="sm" name="lucideX" />
 		</button>
 	`,
-	changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HlmSheetContent {
 	private readonly _stateProvider = injectExposesStateProvider({ host: true });
-	private readonly _sideProvider = injectExposedSideProvider({ host: true });
 	public readonly state = this._stateProvider.state ?? signal('closed');
-	private readonly _renderer = inject(Renderer2);
+	public readonly userClass = input<ClassValue>('', { alias: 'class' });
+	private readonly _sideProvider = injectExposedSideProvider({ host: true });
+	protected readonly _computedClass = computed(() =>
+		hlm(sheetVariants({ side: this._sideProvider.side() }), this.userClass()),
+	);
+
 	private readonly _element = inject(ElementRef);
 
+	private readonly _renderer = inject(Renderer2);
 	constructor() {
 		effect(() => {
 			this._renderer.setAttribute(this._element.nativeElement, 'data-state', this.state());
 		});
 	}
-
-	public readonly userClass = input<ClassValue>('', { alias: 'class' });
-	protected readonly _computedClass = computed(() =>
-		hlm(sheetVariants({ side: this._sideProvider.side() }), this.userClass()),
-	);
 }

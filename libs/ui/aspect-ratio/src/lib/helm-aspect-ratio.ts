@@ -1,5 +1,5 @@
-import { type NumberInput, coerceNumberProperty } from '@angular/cdk/coercion';
-import { Directive, computed, input } from '@angular/core';
+import { coerceNumberProperty, type NumberInput } from '@angular/cdk/coercion';
+import { computed, Directive, input } from '@angular/core';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
