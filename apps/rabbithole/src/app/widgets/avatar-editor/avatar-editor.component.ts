@@ -23,7 +23,7 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import { environment } from '../../../environments/environment';
-import { injectMainActor } from '../../core/injectors/main-actor';
+import { injectMainActor } from '@rabbithole/core';
 import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dialog.component';
 import { FileSystemAccessService } from '@rabbithole/core';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';

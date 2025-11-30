@@ -12,7 +12,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { APP_DERIVATION_ORIGIN, AUTH_MAX_TIME_TO_LIVE } from './core/constants';
-import { provideMainActor } from './core/injectors/main-actor';
+import { provideMainActor } from '@rabbithole/core';
 import { isCustomDomain } from './core/utils';
 import {
   AUTH_CONFIG,

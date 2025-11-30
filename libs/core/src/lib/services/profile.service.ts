@@ -11,7 +11,7 @@ import { toast } from 'ngx-sonner';
 import { map } from 'rxjs';
 
 import { injectMainActor } from '../injectors';
-import { parseCanisterRejectError } from '@rabbithole/core';
+import { parseCanisterRejectError } from '../utils';
 import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
 
 @Injectable({ providedIn: 'root' })
@@ -98,3 +98,5 @@ export class ProfileService {
     }
   }
 }
+
+

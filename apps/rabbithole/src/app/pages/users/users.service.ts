@@ -2,7 +2,7 @@ import { computed, Injectable, resource, signal } from '@angular/core';
 import { ActorSubclass } from '@dfinity/agent';
 import { isDeepEqual, isNonNullish } from 'remeda';
 
-import { injectMainActor } from '../../core/injectors/main-actor';
+import { injectMainActor } from '@rabbithole/core';
 import { timeInNanosToDate } from '@rabbithole/core';
 import {
   ListOptions,

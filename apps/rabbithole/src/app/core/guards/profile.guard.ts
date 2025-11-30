@@ -7,7 +7,7 @@ import {
 } from '@angular/router';
 import { filter, map } from 'rxjs/operators';
 
-import { ProfileService } from '../../core/services';
+import { ProfileService } from '@rabbithole/core';
 
 export const profileGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
   const router = inject(Router);

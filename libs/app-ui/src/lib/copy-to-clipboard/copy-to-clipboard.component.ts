@@ -21,14 +21,14 @@ import { RbthTooltipTriggerDirective } from '../tooltip';
 
 @Component({
   selector: 'rbth-copy-to-clipboard',
-  template: `<span class="font-mono text-xs truncate">
+  template: `<span class="min-w-0 flex-1 font-mono text-xs truncate">
       <ng-content />
     </span>
     <button
-      class="size-7"
       hlmBtn
       variant="ghost"
       size="icon"
+      class="shrink-0 size-6"
       [rbthTooltipTrigger]="'Copy to clipboard'"
       (click)="handleCopy($event)"
     >
@@ -73,7 +73,7 @@ export class CopyToClipboardComponent {
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected _computedClass = computed(() =>
-    hlm('flex items-center gap-1', this.userClass()),
+    hlm('flex min-w-0 items-center gap-1', this.userClass()),
   );
   #clipboard = inject(Clipboard);
 

@@ -2,12 +2,9 @@ import { computed } from '@angular/core';
 import { Actor } from '@dfinity/agent';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
-import {
-  ExtractInjectionToken,
-  HTTP_AGENT_TOKEN,
-  MAIN_CANISTER_ID,
-  provideHttpAgent,
-} from '@rabbithole/core';
+import { MAIN_CANISTER_ID } from '../tokens';
+import { ExtractInjectionToken } from '../types';
+import { HTTP_AGENT_TOKEN, provideHttpAgent } from './http-agent';
 import {
   RabbitholeActorService,
   rabbitholeIdlFactory,
@@ -31,3 +28,4 @@ export const [injectMainActor, provideMainActor, MAIN_ACTOR_TOKEN] =
       extraProviders: [provideHttpAgent()],
     },
   );
+

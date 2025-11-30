@@ -38,7 +38,7 @@ import {
   throwError,
 } from 'rxjs';
 
-import { injectMainActor } from '../../core/injectors';
+import { injectMainActor } from '@rabbithole/core';
 import {
   ImageCropPayload,
   injectCoreWorker,

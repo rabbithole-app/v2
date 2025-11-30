@@ -14,7 +14,7 @@ import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
-import { ProfileService } from '../../core/services/profile.service';
+import { ProfileService } from '@rabbithole/core';
 import { AvatarEditorComponent } from '../../widgets/avatar-editor/avatar-editor.component';
 
 @Component({
