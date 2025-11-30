@@ -1,6 +1,11 @@
 // Export shared components, services, and utilities here
 // This library is non-buildable and will be included directly in applications
 
+export * from './lib/components/account/account-menu-trigger-content/account-menu-trigger-content-description.directive';
+export * from './lib/components/account/account-menu-trigger-content/account-menu-trigger-content.component';
+export * from './lib/components/account/account-menu/account-menu.component';
+export * from './lib/components/account/icp-wallet-card/icp-wallet-card.component';
+export * from './lib/components/account/wallet-card/wallet-card.component';
 export * from './lib/components/canister/canister-controllers-table/canister-controllers-table.component';
 export * from './lib/components/canister/canister-health-check/canister-health-check.component';
 export * from './lib/components/canister/canister-load-snapshot-dialog/canister-load-snapshot-dialog.component';

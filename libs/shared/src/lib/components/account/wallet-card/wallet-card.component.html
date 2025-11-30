@@ -1,0 +1,185 @@
+<hlm-tabs [tab]="activeTab()" class="w-full">
+  <hlm-tabs-list class="hidden">
+    <button hlmTabsTrigger="balance">Balance</button>
+    <button hlmTabsTrigger="send">Send</button>
+    <button hlmTabsTrigger="review">Review</button>
+  </hlm-tabs-list>
+
+  <div hlmTabsContent="balance" class="mt-0">
+    <div hlmItem class="p-0">
+      <hlm-item-media variant="image" class="size-12">
+        <img
+          [src]="tokenIcon()"
+          [alt]="tokenName()"
+          class="size-full rounded-full"
+        />
+      </hlm-item-media>
+
+      <div hlmItemContent>
+        <div hlmItemTitle>{{ tokenName() }}</div>
+        <p hlmItemDescription class="flex items-center gap-2">
+          {{ formattedBalance() }} {{ tokenSymbol() }}
+
+          <button
+            hlmBtn
+            variant="ghost"
+            size="icon-sm"
+            (click)="refreshBalance()"
+            [disabled]="balance.isLoading()"
+            class="size-6"
+          >
+            @if (balance.isLoading()) {
+              <hlm-spinner class="size-4" />
+            } @else {
+              <ng-icon hlm size="sm" name="lucideRefreshCw" />
+            }
+          </button>
+        </p>
+      </div>
+
+      <hlm-item-actions>
+        <button hlmBtn variant="ghost" size="icon" (click)="goToSend()">
+          <ng-icon hlm size="base" name="lucideSendHorizontal" />
+        </button>
+      </hlm-item-actions>
+    </div>
+  </div>
+
+  <div hlmTabsContent="send" class="mt-0">
+    <div class="space-y-4">
+      <div hlmField>
+        <label hlmFieldLabel for="wallet-amount">Amount</label>
+        <hlm-input-group class="h-auto">
+          <hlm-input-group-addon align="inline-start">
+            <img
+              [src]="tokenIcon()"
+              [alt]="tokenName()"
+              class="size-6 rounded-full"
+            />
+          </hlm-input-group-addon>
+          <input
+            hlmInputGroupInput
+            id="wallet-amount"
+            type="number"
+            [formControl]="sendForm.controls.amount"
+            placeholder="0"
+            step="0.0001"
+            min="0"
+            class="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+          <hlm-input-group-addon align="inline-end">
+            <button
+              hlmInputGroupButton
+              type="button"
+              (click)="setMaxAmount()"
+              [attr.aria-label]="'Set maximum amount'"
+            >
+              <ng-icon hlm size="sm" name="lucideArrowUpToLine" />
+            </button>
+          </hlm-input-group-addon>
+        </hlm-input-group>
+        <p hlmFieldDescription>
+          {{ availableToSend() }} {{ tokenSymbol() }} available to send
+          (considering fees)
+        </p>
+      </div>
+
+      <div
+        hlmField
+        [attr.data-invalid]="
+          recipientControl.touched && recipientControl.errors?.['recipient']
+            ? 'true'
+            : null
+        "
+      >
+        <label hlmFieldLabel for="wallet-recipient">Recipient*</label>
+        <input
+          hlmInput
+          id="wallet-recipient"
+          type="text"
+          [formControl]="recipientControl"
+          [attr.aria-invalid]="
+            recipientControl.touched && recipientControl.errors?.['recipient']
+              ? 'true'
+              : null
+          "
+        />
+        @if (
+          recipientControl.touched && recipientControl.errors?.['recipient']
+        ) {
+          <hlm-field-error
+            >Enter a valid Principal ID or Account ID</hlm-field-error
+          >
+        }
+      </div>
+      <div hlmField orientation="horizontal">
+        <button hlmBtn variant="outline" class="flex-1" (click)="goToBalance()">
+          Cancel
+        </button>
+        <button
+          hlmBtn
+          class="flex-1"
+          [disabled]="!sendForm.valid"
+          (click)="goToReview()"
+        >
+          Review
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Review -->
+  <div hlmTabsContent="review" class="mt-0">
+    <div class="space-y-4">
+      <div class="space-y-1">
+        <span class="text-sm font-medium">Source</span>
+        <p class="break-all font-mono text-sm text-muted-foreground">
+          {{ sourceAccountId() }}
+        </p>
+      </div>
+
+      <div class="flex items-center justify-center gap-3">
+        <ng-icon hlm size="base" name="lucideArrowDown" class="text-primary" />
+        <div class="flex flex-col">
+          <span class="text-lg font-semibold">{{ formattedAmount() }}</span>
+          <span class="text-sm text-muted-foreground">
+            {{ formattedFee() }} {{ tokenSymbol() }} (transaction fee)
+          </span>
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <span class="text-sm font-medium">Destination</span>
+        <p class="break-all font-mono text-sm text-muted-foreground">
+          {{ recipientValue() || 'Not set' }}
+        </p>
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button
+          hlmBtn
+          variant="outline"
+          class="flex-1"
+          [disabled]="isSending()"
+          (click)="goToEdit()"
+        >
+          Edit
+        </button>
+        <button
+          hlmBtn
+          class="flex-1"
+          [disabled]="isSending()"
+          (click)="sendTransaction()"
+        >
+          @if (isSending()) {
+            <hlm-spinner class="mr-2 size-4" />
+            Sending...
+          } @else {
+            <ng-icon hlm size="sm" name="lucideSendHorizontal" class="mr-2" />
+            Send
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+</hlm-tabs>

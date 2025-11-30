@@ -1,0 +1,10 @@
+<hlm-avatar>
+  @if (avatarSrc(); as src) {
+    <img hlmAvatarImage [src]="src" [alt]="title()" />
+  }
+  <img hlmAvatarFallback src="/avatar-placeholder.svg" [alt]="title()" />
+</hlm-avatar>
+<div class="min-w-0 flex flex-col items-start gap-1">
+  <div class="truncate">{{ title() }}</div>
+  <ng-content />
+</div>
