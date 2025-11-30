@@ -1,5 +1,7 @@
 import { Route } from '@angular/router';
+import { Principal } from '@dfinity/principal';
 
+import { environment } from '../environments/environment';
 import {
   createProfileGuard,
   dashboardGuard,
@@ -12,6 +14,7 @@ import {
   profileResolver,
 } from './core/resolvers';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
+import { LEDGER_CANISTER_ID, provideLedgerCanister } from '@rabbithole/core';
 
 export const appRoutes: Route[] = [
   {
@@ -21,6 +24,13 @@ export const appRoutes: Route[] = [
     resolve: {
       profile: profileResolver,
     },
+    providers: [
+      {
+        provide: LEDGER_CANISTER_ID,
+        useValue: Principal.fromText(environment.ledgerCanisterId),
+      },
+      provideLedgerCanister(),
+    ],
     children: [
       {
         path: '',

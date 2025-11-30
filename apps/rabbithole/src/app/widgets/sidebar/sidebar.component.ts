@@ -6,13 +6,13 @@ import {
   signal,
 } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-
+import { HlmSeparator } from '@spartan-ng/helm/separator';
 import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 import { SidebarHeaderComponent } from '../sidebar-header/sidebar-header.component';
+import { AccountMenuComponent } from '@rabbithole/shared';
 import { RbthSidebarLayoutModule, SidebarService } from '@rabbithole/ui';
-import { HlmSeparator } from '@spartan-ng/helm/separator';
 
 @Component({
   selector: 'app-sidebar-layout',
@@ -21,6 +21,7 @@ import { HlmSeparator } from '@spartan-ng/helm/separator';
     SidebarHeaderComponent,
     RouterOutlet,
     HlmSeparator,
+    AccountMenuComponent,
   ],
   templateUrl: './sidebar.component.html',
   host: {
