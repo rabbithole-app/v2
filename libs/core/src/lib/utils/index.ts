@@ -1,6 +1,7 @@
 export * from './canister';
 export * from './create-auth-client';
 export * from './cycles';
+export * from './format-icp';
 export * from './format-number';
 export * from './is-photon-supported-mime-type';
 export * from './parse-canister-reject-error';
