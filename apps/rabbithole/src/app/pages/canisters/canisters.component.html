@@ -1,8 +1,33 @@
-<div class="container mx-auto space-y-6">
+<div class="flex items-center justify-between">
   <h1 class="text-2xl font-semibold">Canisters</h1>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    @for (canisterId of canisterIds(); track canisterId) {
-      <app-canister-card [canisterId]="canisterId" />
-    }
+  <div hlmButtonGroup>
+    <button hlmBtn variant="outline" (click)="_onCreateCanister()">
+      <ng-icon hlmIcon name="lucideDatabase" size="sm" />
+      Create Canister
+    </button>
+    <button hlmBtn variant="outline" (click)="_onLinkCanister()">
+      <ng-icon hlmIcon name="lucideLink" size="sm" />
+      Link Canister
+    </button>
   </div>
 </div>
+@if (canisterIds().length > 0) {
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    @for (canisterId of canisterIds(); track canisterId) {
+      <shared-canister-card [canisterId]="canisterId" />
+    }
+  </div>
+} @else {
+  <div hlmEmpty class="min-h-[400px]">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <ng-icon name="lucideInbox" />
+      </div>
+      <div hlmEmptyTitle>No canisters found</div>
+      <div hlmEmptyDescription>
+        Get started by creating a new canister or linking an existing one to
+        your account using the buttons above.
+      </div>
+    </div>
+  </div>
+}
