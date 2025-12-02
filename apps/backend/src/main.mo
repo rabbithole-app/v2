@@ -11,6 +11,7 @@ import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
 import Sha256 "mo:sha2/Sha256";
 import Profiles "Profiles";
+import Canisters "Canisters";
 
 shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   let zendb = ZenDB.newStableStore(null);
@@ -124,5 +125,26 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
       };
       case (#err message) throw Error.reject(message);
     };
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /*                               User canisters                               */
+  /* -------------------------------------------------------------------------- */
+
+  let canisters = Canisters.new();
+
+  public shared ({ caller }) func addCanister(canisterId : Principal) : async () {
+    assert not Principal.isAnonymous(caller);
+    Canisters.add(canisters, caller, canisterId);
+  };
+
+  public query ({ caller }) func listCanisters() : async [Principal] {
+    assert not Principal.isAnonymous(caller);
+    Canisters.list(canisters, caller);
+  };
+
+  public shared ({ caller }) func deleteCanister(canisterId : Principal) : async () {
+    assert not Principal.isAnonymous(caller);
+    Canisters.delete(canisters, caller, canisterId);
   };
 };

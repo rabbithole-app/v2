@@ -46,7 +46,9 @@ export interface Profile {
   'avatarUrl' : [] | [string],
 }
 export interface Rabbithole {
+  'addCanister' : ActorMethod<[Principal], undefined>,
   'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
+  'deleteCanister' : ActorMethod<[Principal], undefined>,
   'deleteProfile' : ActorMethod<[], undefined>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
@@ -58,6 +60,7 @@ export interface Rabbithole {
     [RawUpdateHttpRequest],
     RawUpdateHttpResponse
   >,
+  'listCanisters' : ActorMethod<[], Array<Principal>>,
   'listProfiles' : ActorMethod<[ListOptions], GetProfilesResponse>,
   'removeAvatar' : ActorMethod<[string], undefined>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,

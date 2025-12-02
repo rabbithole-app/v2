@@ -93,7 +93,9 @@ export const idlFactory = ({ IDL }) => {
     'avatarUrl' : IDL.Opt(IDL.Text),
   });
   const Rabbithole = IDL.Service({
+    'addCanister' : IDL.Func([IDL.Principal], [], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
+    'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteProfile' : IDL.Func([], [], []),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'http_request' : IDL.Func(
@@ -111,6 +113,7 @@ export const idlFactory = ({ IDL }) => {
         [RawUpdateHttpResponse],
         [],
       ),
+    'listCanisters' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
     'removeAvatar' : IDL.Func([IDL.Text], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
