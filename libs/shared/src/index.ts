@@ -16,6 +16,10 @@ export * from './lib/components/canister/canister-runtime/canister-runtime.compo
 export * from './lib/components/canister/canister-snapshots-table/canister-snapshots-table.component';
 export * from './lib/components/canister/canister-take-snapshot-dialog/canister-take-snapshot-dialog.component';
 export * from './lib/components/canister/commit-permission-warning/commit-permission-warning.component';
+export * from './lib/components/canister/controllers-selector/controller-item/controller-item.component';
+export * from './lib/components/canister/controllers-selector/controllers-selector.component';
+export * from './lib/components/canister/create-canister-dialog/create-canister-dialog.component';
+export * from './lib/components/canister/cycles-balance-input/cycles-balance-input.component';
 export * from './lib/components/canister/delete-canister-dialog/delete-canister-dialog.component';
 export * from './lib/components/canister/frontend-upload-item/frontend-upload-item.component';
 export * from './lib/components/canister/frontend-upload-list/frontend-upload-list.component';

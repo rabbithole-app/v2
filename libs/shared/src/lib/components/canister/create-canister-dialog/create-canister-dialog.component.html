@@ -1,0 +1,162 @@
+@let s = state();
+<hlm-dialog-header>
+  <h3 hlmDialogTitle>Create Canister</h3>
+  <p hlmDialogDescription>
+    @if (s.status === 'success') {
+      Your new canister is ready to use. You can view it, create another one, or
+      close this dialog.
+    } @else if (s.status === 'idle') {
+      Configure your new canister settings.
+    }
+  </p>
+</hlm-dialog-header>
+
+@switch (s.status) {
+  @case ('success') {
+    <ng-container
+      [ngTemplateOutlet]="createdTemplate"
+      [ngTemplateOutletContext]="{ $implicit: s.canisterId }"
+    />
+  }
+  @case ('error') {
+    <ng-container
+      [ngTemplateOutlet]="errorTemplate"
+      [ngTemplateOutletContext]="{ $implicit: s.errorMessage }"
+    />
+  }
+  @case ('loading') {
+    <ng-container
+      [ngTemplateOutlet]="loadingTemplate"
+      [ngTemplateOutletContext]="{ $implicit: s.step }"
+    />
+  }
+  @default {
+    <ng-container [ngTemplateOutlet]="formTemplate" />
+  }
+}
+
+<hlm-dialog-footer class="mt-4">
+  @if (s.status === 'success') {
+    <button hlmBtn variant="outline" (click)="_onCreateAnother()">
+      Create Another
+    </button>
+    <button hlmBtn (click)="_onViewCanister(s.canisterId)">
+      View Canister
+    </button>
+  } @else if (s.status === 'idle') {
+    <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+    <button
+      hlmBtn
+      [disabled]="form.controls.cyclesBalance.invalid || insufficientBalance()"
+      (click)="_onCreate()"
+    >
+      Create Canister
+    </button>
+  } @else if (s.status === 'error') {
+    <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+    <button hlmBtn (click)="_handleTryAgain()">Try Again</button>
+  }
+</hlm-dialog-footer>
+
+<ng-template #formTemplate>
+  <div class="mt-4 space-y-6">
+    <div hlmField orientation="responsive">
+      <div hlmFieldLabel>Who should control this canister?</div>
+      <hlm-field-content>
+        <shared-controllers-selector
+          [formControl]="form.controls.controllers"
+          [currentUserPrincipal]="currentUserPrincipal()"
+        />
+        <hlm-field-description>
+          Canister will be deployed with {{ controllersCount() }} controller(s).
+        </hlm-field-description>
+      </hlm-field-content>
+    </div>
+
+    <div hlmField orientation="responsive">
+      <label hlmFieldLabel for="cyclesBalance">Starting cycles balance</label>
+      <hlm-field-content>
+        <shared-cycles-balance-input
+          id="cyclesBalance"
+          [formControl]="form.controls.cyclesBalance"
+          [min]="0.1"
+          [step]="0.1"
+          [max]="100"
+        />
+        <hlm-field-description>
+          Canister creation cost: {{ CANISTER_CREATION_COST_TC }} TC
+        </hlm-field-description>
+      </hlm-field-content>
+    </div>
+
+    <div hlmField orientation="responsive">
+      <div hlmFieldLabel>Cost</div>
+      <hlm-field-content>
+        <div class="text-sm font-medium">{{ totalCostICP() }} ICP</div>
+        <hlm-field-description>
+          Canister will have a cycles balance of {{ totalCyclesTC() }} TC
+        </hlm-field-description>
+      </hlm-field-content>
+    </div>
+
+    <div hlmField orientation="responsive">
+      <div hlmFieldLabel>Wallet Balance</div>
+      <hlm-field-content>
+        <div class="text-sm font-medium">{{ walletBalanceICP() }} ICP</div>
+      </hlm-field-content>
+    </div>
+
+    @if (insufficientBalance()) {
+      <div hlmAlert variant="destructive">
+        <p hlmAlertDescription>You don't have enough ICP. Add funds</p>
+      </div>
+    }
+  </div>
+</ng-template>
+
+<ng-template #createdTemplate let-canisterId>
+  <hlm-empty class="mt-4">
+    <hlm-empty-media variant="icon">
+      <ng-icon name="lucideCheck" class="size-8 text-green-500" />
+    </hlm-empty-media>
+    <hlm-empty-content>
+      <h4 hlmEmptyTitle>Canister Created Successfully</h4>
+      <p hlmEmptyDescription>
+        <rbth-copy-to-clipboard [content]="canisterId">
+          {{ canisterId }}
+        </rbth-copy-to-clipboard>
+      </p>
+    </hlm-empty-content>
+  </hlm-empty>
+</ng-template>
+
+<ng-template #errorTemplate let-message>
+  <div hlmAlert variant="destructive" class="mt-4">
+    <ng-icon hlm hlmAlertIcon name="lucideCircleAlert" />
+    <p hlmAlertDescription>{{ message }}</p>
+  </div>
+</ng-template>
+
+<ng-template #loadingTemplate let-step>
+  <hlm-empty class="mt-4">
+    <hlm-empty-header>
+      <hlm-empty-media variant="icon">
+        <hlm-spinner />
+      </hlm-empty-media>
+      <h4 hlmEmptyTitle>Creating Canister</h4>
+      <p hlmEmptyDescription>
+        @switch (step) {
+          @case ('creating-canister') {
+            Creating canister...
+          }
+          @case ('linking-canister') {
+            Linking canister...
+          }
+          @case ('transferring-icp') {
+            Transferring ICP...
+          }
+        }
+      </p>
+    </hlm-empty-header>
+  </hlm-empty>
+</ng-template>
