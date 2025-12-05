@@ -32,11 +32,10 @@ import type { ClassValue } from 'clsx';
 import { unzipSync } from 'fflate';
 import { match, P } from 'ts-pattern';
 
-import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
 import { UploadDrawerListComponent } from '../../upload/upload-drawer/upload-drawer-list.component';
+import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
 import {
   FileSystemAccessService,
-  provideCoreWorker,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
   UploadState,
@@ -76,7 +75,6 @@ import {
   ],
   providers: [
     UPLOAD_ASSETS_SERVICE_PROVIDERS,
-    provideCoreWorker(),
     provideIcons({
       lucideFileArchive,
       lucideGithub,

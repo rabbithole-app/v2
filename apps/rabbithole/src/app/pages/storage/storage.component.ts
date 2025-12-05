@@ -4,7 +4,6 @@ import { RouterOutlet } from '@angular/router';
 import { PermissionsService } from '../permissions/permissions.service';
 import {
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
-  provideCoreWorker,
   provideEncryptedStorage,
 } from '@rabbithole/core';
 
@@ -15,7 +14,6 @@ import {
   imports: [RouterOutlet],
   providers: [
     ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
-    provideCoreWorker(),
     provideEncryptedStorage(),
     PermissionsService,
   ],

@@ -6,7 +6,7 @@ import { isDeepEqual, isNonNullish } from 'remeda';
 import { MAX_THUMBNAIL_HEIGHT, MAX_THUMBNAIL_WIDTH } from '../constants';
 import { injectCoreWorker, injectEncryptedStorage } from '../injectors';
 import { messageByAction } from '../operators';
-import { UPLOAD_SERVICE_TOKEN } from '../tokens';
+import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
 import { IUploadService, UploadFile, UploadId, UploadState } from '../types';
 import { isPhotonSupportedMimeType } from '../utils';
 import { UploadBaseService } from './upload-base.service';
@@ -18,6 +18,7 @@ import {
 
 @Injectable()
 export class UploadFilesService implements IUploadService {
+  canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   encryptedStorage = injectEncryptedStorage();
   listPermitted = resource<StoragePermissionItem[], EncryptedStorage>({
     params: () => this.encryptedStorage(),
@@ -66,6 +67,7 @@ export class UploadFilesService implements IUploadService {
     const arrayBuffer = await item.file.arrayBuffer();
     const payload: UploadFile = {
       id,
+      storageId: this.canisterId.toText(),
       bytes: arrayBuffer,
       config: {
         fileName: item.file.name,

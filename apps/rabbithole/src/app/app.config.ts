@@ -12,7 +12,6 @@ import { isTauri } from '@tauri-apps/api/core';
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { APP_DERIVATION_ORIGIN, AUTH_MAX_TIME_TO_LIVE } from './core/constants';
-import { provideMainActor } from '@rabbithole/core';
 import { isCustomDomain } from './core/utils';
 import {
   AUTH_CONFIG,
@@ -24,7 +23,10 @@ import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
-  MAIN_CANISTER_ID,
+  LEDGER_CANISTER_ID_TOKEN,
+  MAIN_BACKEND_URL_TOKEN,
+  MAIN_CANISTER_ID_TOKEN,
+  provideCoreWorker,
 } from '@rabbithole/core';
 
 export const provideAuthService = (): Provider => ({
@@ -53,10 +55,11 @@ export const appConfig: ApplicationConfig = {
     provideAuthService(),
     { provide: AUTH_CONFIG, useValue: authConfig },
     {
-      provide: MAIN_CANISTER_ID,
+      provide: MAIN_CANISTER_ID_TOKEN,
       useValue: Principal.fromText(environment.backendCanisterId),
     },
-    provideMainActor(),
+    // provideMainActor(),
+    provideCoreWorker(),
     {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {
@@ -65,5 +68,15 @@ export const appConfig: ApplicationConfig = {
       } satisfies HttpAgentOptions,
     },
     FileSystemAccessService,
+    {
+      provide: LEDGER_CANISTER_ID_TOKEN,
+      useValue: Principal.fromText(environment.ledgerCanisterId),
+    },
+    {
+      provide: MAIN_BACKEND_URL_TOKEN,
+      useValue: environment.production
+        ? `https://${environment.backendCanisterId}.icp0.io`
+        : `https://${environment.backendCanisterId}.localhost`,
+    },
   ],
 };

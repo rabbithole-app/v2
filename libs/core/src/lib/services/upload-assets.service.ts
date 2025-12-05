@@ -82,6 +82,7 @@ export class UploadAssetsService implements IUploadService {
 
     const payload: UploadAsset = {
       id,
+      storageId: this.canisterId.toText(),
       bytes: arrayBuffer,
       config,
     };

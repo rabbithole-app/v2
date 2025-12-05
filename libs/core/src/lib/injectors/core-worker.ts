@@ -1,12 +1,11 @@
 import { effect, inject, Provider } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Principal } from '@dfinity/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import { assertWorker } from '../asserts';
 import { messageByAction } from '../operators';
 import { WorkerService } from '../services';
-import { ENCRYPTED_STORAGE_CANISTER_ID, WORKER } from '../tokens';
+import { WORKER } from '../tokens';
 import {
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,
@@ -20,7 +19,6 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
 export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
   (
     authService: ExtractInjectionToken<typeof AUTH_SERVICE>,
-    assetCanisterId: Principal,
     httpAgentOptions: ExtractInjectionToken<typeof HTTP_AGENT_OPTIONS_TOKEN>,
   ) => {
     const workerService = inject<
@@ -44,7 +42,6 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
       .subscribe(() => {
         const payload: WorkerConfigIn = {
           httpAgentOptions,
-          canisters: { encryptedStorage: assetCanisterId.toText() },
         };
         workerService.postMessage({ action: 'worker:config', payload });
       });
@@ -53,11 +50,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
   },
   {
     isRoot: false,
-    deps: [
-      AUTH_SERVICE,
-      ENCRYPTED_STORAGE_CANISTER_ID,
-      HTTP_AGENT_OPTIONS_TOKEN,
-    ],
+    deps: [AUTH_SERVICE, HTTP_AGENT_OPTIONS_TOKEN],
     extraProviders: [
       {
         provide: WORKER,

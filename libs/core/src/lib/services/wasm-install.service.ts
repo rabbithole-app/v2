@@ -75,7 +75,6 @@ export class WasmInstallService {
       }
 
       this.#state.set({ status: 'installing' });
-      console.log('mode', mode);
 
       await icManagement.installChunkedCode({
         chunkHashesList,

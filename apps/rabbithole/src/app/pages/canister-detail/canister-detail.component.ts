@@ -30,7 +30,6 @@ import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   ICManagementService,
-  provideCoreWorker,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
 } from '@rabbithole/core';
@@ -82,7 +81,6 @@ import {
   providers: [
     ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
     UPLOAD_ASSETS_SERVICE_PROVIDERS,
-    provideCoreWorker(),
     ICManagementService,
     provideIcons({
       lucideBinary,

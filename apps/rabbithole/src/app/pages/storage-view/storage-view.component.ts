@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
+import {
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  injectCoreWorker,
+} from '@rabbithole/core';
 import { UploadDrawerComponent } from '@rabbithole/shared';
-import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
 
 @Component({
   selector: 'app-storage-view',
@@ -11,4 +14,12 @@ import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
 })
 export class StorageViewComponent {
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  #coreWorkerService = injectCoreWorker();
+
+  constructor() {
+    this.#coreWorkerService.postMessage({
+      action: 'worker:init-storage',
+      payload: this.canisterId.toText(),
+    });
+  }
 }

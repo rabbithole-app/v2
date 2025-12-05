@@ -18,8 +18,18 @@ export enum UploadState {
 
 const uploadIdSchema = type('string.uuid.v4');
 
+export const principalSchema = type('string').narrow((value, ctx) => {
+  try {
+    Principal.fromText(value);
+    return true;
+  } catch (error) {
+    return ctx.reject((error as Error).message);
+  }
+});
+
 export const uploadSchema = type({
   id: uploadIdSchema,
+  storageId: principalSchema,
   bytes: 'ArrayBuffer',
   config: {
     'contentType?': 'string',
@@ -52,14 +62,6 @@ const httpAgentOptionsSchema = type({
   'verifyQuerySignatures?': 'boolean',
 });
 
-const principalSchema = type('string').narrow((value, ctx) => {
-  try {
-    Principal.fromText(value);
-    return true;
-  } catch (error) {
-    return ctx.reject((error as Error).message);
-  }
-});
 // .pipe(Principal.fromText);
 
 export const workerConfigSchema = type({
@@ -67,9 +69,6 @@ export const workerConfigSchema = type({
     'shouldFetchRootKey?': 'boolean',
   }),
   // canisters: type.Record("'encryptedStorage'", principalSchema),
-  canisters: {
-    encryptedStorage: principalSchema,
-  },
 });
 
 export type CoreWorkerActionsIn = Prettify<
@@ -82,6 +81,7 @@ export type CoreWorkerActionsIn = Prettify<
     'upload:remove': { payload: Pick<UploadFile, 'id'> };
     'upload:retry': { payload: Pick<UploadFile, 'id'> };
     'worker:config': { payload: WorkerConfigIn };
+    'worker:init-storage': { payload: PrincipalString };
   } & WorkerActionsIn
 >;
 
@@ -104,15 +104,15 @@ export type CoreWorkerMessageOut = Message<CoreWorkerActionsOut>;
 
 export type CoreWorkerMessages = CoreWorkerMessageIn | CoreWorkerMessageOut;
 
-// export type MessagePayload<
-//   T extends Record<string, unknown>,
-//   K extends keyof T,
-// > = T[K] extends { payload: infer P } ? P : never;
-
 export type EventName<
   Namespace extends string,
   Action extends string,
 > = `${Namespace}:${Action}`;
+
+// export type MessagePayload<
+//   T extends Record<string, unknown>,
+//   K extends keyof T,
+// > = T[K] extends { payload: infer P } ? P : never;
 
 export type ExtractPayloadByAction<T, A> = T extends {
   action: A;
@@ -120,6 +120,8 @@ export type ExtractPayloadByAction<T, A> = T extends {
 }
   ? P
   : never;
+
+export type PrincipalString = typeof principalSchema.infer;
 
 export const imageCropSchema = type({
   id: uploadIdSchema,
