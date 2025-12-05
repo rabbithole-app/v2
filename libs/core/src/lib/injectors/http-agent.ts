@@ -33,7 +33,6 @@ export const [injectHttpAgent, provideHttpAgent, HTTP_AGENT_TOKEN] =
       );
     },
     {
-      isRoot: false,
       deps: [AUTH_SERVICE, HTTP_AGENT_OPTIONS_TOKEN],
     },
   );

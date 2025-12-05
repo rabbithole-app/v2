@@ -1,18 +1,19 @@
-import { computed, inject, InjectionToken } from '@angular/core';
+import { computed, InjectionToken } from '@angular/core';
 import { LedgerCanister } from '@dfinity/ledger-icp';
+import { Principal } from '@dfinity/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
+import { ExtractInjectionToken } from '../types';
 import { injectHttpAgent } from './http-agent';
 
-export const LEDGER_CANISTER_ID = new InjectionToken<string>(
-  'LEDGER_CANISTER_ID',
+export const LEDGER_CANISTER_ID_TOKEN = new InjectionToken<Principal>(
+  'LEDGER_CANISTER_ID_TOKEN',
 );
 
 export const [injectLedgerCanister, provideLedgerCanister] =
   createInjectionToken(
-    () => {
+    (canisterId: ExtractInjectionToken<typeof LEDGER_CANISTER_ID_TOKEN>) => {
       const httpAgent = injectHttpAgent();
-      const canisterId = inject(LEDGER_CANISTER_ID);
 
       return computed(() =>
         LedgerCanister.create({
@@ -21,7 +22,5 @@ export const [injectLedgerCanister, provideLedgerCanister] =
         }),
       );
     },
-    {
-      isRoot: false,
-    },
+    { deps: [LEDGER_CANISTER_ID_TOKEN] },
   );
