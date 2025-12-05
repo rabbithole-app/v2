@@ -15,9 +15,7 @@
       "frontend": {
         "entrypoint": "index.html"
       },
-      "build": [
-        "bash scripts/build-frontend.sh"
-      ]
+      "build": ["bash scripts/build-frontend.sh"]
     },
     "encrypted-storage": {
       "declarations": {
@@ -46,6 +44,16 @@
       "remote": {
         "id": {
           "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
+        }
+      }
+    },
+    "cmc": {
+      "type": "custom",
+      "candid": "canisters/cmc/cycles-minting-canister.did",
+      "wasm": "canisters/cmc/cycles-minting-canister-custom.wasm",
+      "remote": {
+        "id": {
+          "ic": "rkp4c-7iaaa-aaaaa-aaaca-cai"
         }
       }
     }

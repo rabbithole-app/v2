@@ -13,7 +13,12 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@dfinity/identity": "^3.4.3",
+    "@dfinity/identity-secp256k1": "^3.4.3",
+    "@dfinity/ledger-icp": "^7.0.1",
     "@dfinity/pic": "^0.16.1",
-    "@dfinity/principal": "^3.3.0"
+    "@dfinity/principal": "^3.4.3",
+    "pem-file": "^1.0.1",
+    "undici": "^7.16.0"
   }
 }

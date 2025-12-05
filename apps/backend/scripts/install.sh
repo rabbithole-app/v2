@@ -25,15 +25,17 @@ sleep 10
 mops install
 
 echo "🚀 Deploying canisters..."
-# Deploy all canisters except icp-ledger first
+# Deploy all canisters except icp-ledger and cmc first
 dfx deploy --network local internet-identity
 dfx deploy --network local rabbithole-backend
 dfx deploy --network local encrypted-storage
 dfx deploy --network local rabbithole-frontend
 
-# Deploy icp-ledger with proper init arguments using environment variables
-echo "🚀 Deploying ICP Ledger with minter: $MINTER_ACCOUNT_ID and default: $DEFAULT_ACCOUNT_ID"
-dfx deploy --network local --specified-id ryjl3-tyaaa-aaaaa-aaaba-cai icp-ledger --argument "(variant { Init = record { minting_account = \"$MINTER_ACCOUNT_ID\"; initial_values = vec { record { \"$DEFAULT_ACCOUNT_ID\"; record { e8s = 10_000_000_000 : nat64; }; }; }; send_whitelist = vec {}; transfer_fee = opt record { e8s = 10_000 : nat64; }; token_symbol = opt \"LICP\"; token_name = opt \"Local ICP\"; } })"
+# Deploy ICP Ledger using dedicated script
+bash scripts/deploy-ledger.sh
+
+# Deploy CMC using dedicated script
+bash scripts/deploy-cmc.sh
 
 dfx generate
 
