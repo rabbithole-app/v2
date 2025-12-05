@@ -21,6 +21,7 @@ import {
 } from '@rabbithole/auth';
 import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
+  CYCLES_MINTING_CANISTER_ID_TOKEN,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
   LEDGER_CANISTER_ID_TOKEN,
@@ -71,6 +72,10 @@ export const appConfig: ApplicationConfig = {
     {
       provide: LEDGER_CANISTER_ID_TOKEN,
       useValue: Principal.fromText(environment.ledgerCanisterId),
+    },
+    {
+      provide: CYCLES_MINTING_CANISTER_ID_TOKEN,
+      useValue: Principal.fromText(environment.cyclesMintingCanisterId),
     },
     {
       provide: MAIN_BACKEND_URL_TOKEN,

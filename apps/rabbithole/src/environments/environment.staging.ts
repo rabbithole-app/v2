@@ -12,5 +12,6 @@ export const environment = {
   scheme: 'rabbithole',
   backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
   encryptedStorageCanisterId: import.meta.env.CANISTER_ID_ENCRYPTED_STORAGE,
-  ledgerCanisterId: import.meta.env.CANISTER_ID_ICP_LEDGER
+  ledgerCanisterId: import.meta.env.CANISTER_ID_ICP_LEDGER,
+  cyclesMintingCanisterId: import.meta.env.CANISTER_ID_CMC,
 };

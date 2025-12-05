@@ -3,11 +3,12 @@ interface ImportMeta {
 }
 
 interface ImportMetaEnv {
+  CANISTER_ID_CMC: string;
   CANISTER_ID_ENCRYPTED_STORAGE: string;
+  CANISTER_ID_ICP_LEDGER: string;
   CANISTER_ID_INTERNET_IDENTITY: string;
   CANISTER_ID_RABBITHOLE_BACKEND: string;
   CANISTER_ID_RABBITHOLE_FRONTEND: string;
-  CANISTER_ID_ICP_LEDGER: string;
   DFX_NETWORK: string;
   DFX_VERSION: string;
 }

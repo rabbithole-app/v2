@@ -14,6 +14,7 @@ import { filter, map, mergeWith } from 'rxjs';
 import { CanistersService } from '@rabbithole/core';
 import {
   CanisterCardComponent,
+  CreateCanisterDialogComponent,
   LinkCanisterDialogComponent,
 } from '@rabbithole/shared';
 
@@ -61,7 +62,13 @@ export class CanistersComponent {
   #dialogService = inject(HlmDialogService);
 
   protected _onCreateCanister() {
-    console.log('Create canister clicked');
+    const dialogRef = this.#dialogService.open(CreateCanisterDialogComponent, {
+      contentClass: 'min-w-[500px] sm:max-w-[600px]',
+    });
+
+    dialogRef.closed$.subscribe(() => {
+      // Dialog closed
+    });
   }
 
   protected _onLinkCanister() {
