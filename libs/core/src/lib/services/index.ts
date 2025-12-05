@@ -1,5 +1,6 @@
 export * from './canisters.service';
 export * from './core.service';
+export * from './cycles-minting-canister.service';
 export * from './file-system-access.service';
 export * from './ic-management.service';
 export * from './icp-ledger.service';

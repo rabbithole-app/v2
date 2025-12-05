@@ -11,6 +11,7 @@ export interface LedgerService {
 export interface TransferParams {
   amount: bigint; // в e8s (1 ICP = 100_000_000 e8s)
   memo?: bigint;
+  subaccount?: Uint8Array; // Optional subaccount for ICRC-1 transfers
   to: string; // AccountIdentifier hex or Principal
 }
 

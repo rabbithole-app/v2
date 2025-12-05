@@ -1,5 +1,6 @@
 export * from './asset-manager';
 export * from './core-worker';
+export * from './cycles-minting-canister';
 export * from './encrypted-storage';
 export * from './http-agent';
 export * from './ledger-canister';
