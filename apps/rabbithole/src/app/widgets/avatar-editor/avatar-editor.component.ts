@@ -21,10 +21,11 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { match, P } from 'ts-pattern';
 
 import { environment } from '../../../environments/environment';
-import { injectMainActor } from '@rabbithole/core';
 import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dialog.component';
+import { injectMainActor } from '@rabbithole/core';
 import { FileSystemAccessService } from '@rabbithole/core';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 
@@ -101,17 +102,17 @@ export class AvatarEditorComponent implements ControlValueAccessor {
     if (this.disabled()) return;
 
     try {
-      const fileHandles = await this.#fsAccessService.fileOpen({
+      const fileHandle = await this.#fsAccessService.fileOpen({
         multiple: false,
       });
 
-      // const files = await Promise.all(
-      //   fileHandles.map((handle) => handle.getFile()),
-      // );
+      const file = await match(fileHandle)
+        .with({ handle: P.nonNullable.select() }, (handle) => handle.getFile())
+        .run();
 
-      // if (files.length > 0 && files[0].type.startsWith('image/')) {
-      //   this.openCropDialog(files[0]);
-      // }
+      if (file.type.startsWith('image/')) {
+        this.openCropDialog(file);
+      }
     } catch (error) {
       // The user cancelled the file picker dialog
       if ((error as Error).name !== 'AbortError') {

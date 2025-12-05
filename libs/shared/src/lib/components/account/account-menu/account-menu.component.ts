@@ -6,6 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AccountIdentifier } from '@dfinity/ledger-icp';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLogOut, lucideUser } from '@ng-icons/lucide';
@@ -40,6 +41,7 @@ import { CopyToClipboardComponent } from '@rabbithole/ui';
     HlmDropdownMenuImports,
     CdkMenu,
     IcpWalletCardComponent,
+    RouterLink,
     // AccountMenuTriggerContentDescriptionDirective,
   ],
   providers: [
