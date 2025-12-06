@@ -9,11 +9,12 @@ export default [
   {
     files: ['**/*.ts'],
     rules: {
+      '@angular-eslint/no-input-rename': 'off',
       '@angular-eslint/directive-selector': [
         'error',
         {
           type: 'attribute',
-          prefix: 'lib',
+          prefix: 'core',
           style: 'camelCase',
         },
       ],
@@ -21,7 +22,7 @@ export default [
         'error',
         {
           type: 'element',
-          prefix: 'lib',
+          prefix: 'core',
           style: 'kebab-case',
         },
       ],

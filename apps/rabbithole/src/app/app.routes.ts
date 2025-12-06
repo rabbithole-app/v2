@@ -1,7 +1,5 @@
 import { Route } from '@angular/router';
-import { Principal } from '@dfinity/principal';
 
-import { environment } from '../environments/environment';
 import {
   createProfileGuard,
   dashboardGuard,

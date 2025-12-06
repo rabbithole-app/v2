@@ -4,7 +4,9 @@ import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import { assertWorker } from '../asserts';
 import { messageByAction } from '../operators';
-import { WorkerService } from '../services';
+// Direct import to avoid circular dependency with services/index.ts
+// which exports services that import from injectors
+import { WorkerService } from '../services/worker.service';
 import { WORKER } from '../tokens';
 import {
   CoreWorkerMessageIn,

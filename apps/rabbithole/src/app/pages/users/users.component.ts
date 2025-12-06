@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 
 import { UsersService } from './users.service';
-import { UsersTableComponent } from '@rabbithole/ui';
+import { UsersTableComponent } from '@rabbithole/core';
 
 @Component({
   selector: 'app-users',

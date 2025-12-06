@@ -59,7 +59,6 @@ export const appConfig: ApplicationConfig = {
       provide: MAIN_CANISTER_ID_TOKEN,
       useValue: Principal.fromText(environment.backendCanisterId),
     },
-    // provideMainActor(),
     provideCoreWorker(),
     {
       provide: HTTP_AGENT_OPTIONS_TOKEN,

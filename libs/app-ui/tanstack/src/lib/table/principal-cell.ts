@@ -1,15 +1,15 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
 
-import { CopyToClipboardComponent } from '@rabbithole/ui';
+import { CopyToClipboardComponent } from '@rabbithole/core';
 
 @Component({
-  template: `<rbth-copy-to-clipboard
+  template: `<core-copy-to-clipboard
     [class.font-bold]="isBold()"
     [content]="value"
   >
     {{ value }}
-  </rbth-copy-to-clipboard>`,
+  </core-copy-to-clipboard>`,
   imports: [CopyToClipboardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {

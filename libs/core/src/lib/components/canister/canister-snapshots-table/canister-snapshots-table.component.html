@@ -1,0 +1,153 @@
+<div class="flex items-center justify-between">
+  <h2 class="text-lg font-semibold">Snapshots</h2>
+  <div hlmButtonGroup>
+    <button
+      hlmBtn
+      variant="outline"
+      [disabled]="_isTakeSnapshotDisabled()"
+      (click)="_onTakeSnapshot()"
+    >
+      @if (loadingState().takeStatus !== 'idle') {
+        <hlm-spinner class="size-4" />
+      } @else {
+        <ng-icon hlm size="sm" name="lucideCamera" />
+      }
+      Take snapshot
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      size="icon"
+      [disabled]="loadingState().loading"
+      (click)="_onReloadSnapshots()"
+    >
+      @if (loadingState().loading) {
+        <hlm-spinner class="size-4" />
+      } @else {
+        <ng-icon hlm size="sm" name="lucideRefreshCw" />
+      }
+    </button>
+  </div>
+</div>
+
+<div class="border-border w-full overflow-auto rounded-md border">
+  @defer {
+    <table hlmTable class="w-full">
+      <thead hlmTHead>
+        @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+          <tr hlmTr>
+            @for (header of headerGroup.headers; track header.id) {
+              <th hlmTh [attr.colSpan]="header.colSpan">
+                @if (!header.isPlaceholder) {
+                  <ng-container
+                    *flexRender="
+                      header.column.columnDef.header;
+                      props: header.getContext();
+                      let headerText
+                    "
+                  >
+                    <div [innerHTML]="headerText"></div>
+                  </ng-container>
+                }
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+      <tbody hlmTBody class="w-full">
+        @for (row of table.getRowModel().rows; track row.original.snapshot.id) {
+          <tr hlmTr [attr.key]="row.id">
+            @for (cell of row.getVisibleCells(); track $index) {
+              <td hlmTd>
+                @if (cell.column.id === 'snapshot') {
+                  <core-copy-to-clipboard [content]="row.original.snapshot.id">
+                    {{ row.original.snapshot.id }}
+                  </core-copy-to-clipboard>
+                } @else if (cell.column.id === 'size') {
+                  {{ _toNumber(row.original.snapshot.totalSize) | formatBytes }}
+                } @else if (cell.column.id === 'timestamp') {
+                  {{ row.original.snapshot.takenAtTimestamp | date: 'short' }}
+                } @else if (cell.column.id === 'actions') {
+                  @let snapshotId = row.original.snapshot.id;
+                  @let isRestoreDisabled = _isRestoreDisabled();
+                  @let isRestoreLoading = _isRestoreLoading();
+                  @let isReplaceDisabled = _isReplaceDisabled();
+                  @let isReplaceLoading = _isReplaceLoading(snapshotId);
+                  @let isDeleteDisabled = _isDeleteDisabled(snapshotId);
+                  @let isDeleteLoading = _isDeleteLoading(snapshotId);
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="size-8"
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      [disabled]="isRestoreDisabled"
+                      [rbthTooltipTrigger]="'Restore snapshot'"
+                      (click)="_onRestoreSnapshot(snapshotId)"
+                    >
+                      <span class="sr-only">Restore</span>
+                      @if (isRestoreLoading) {
+                        <hlm-spinner class="size-4 text-foreground" />
+                      } @else {
+                        <ng-icon hlmIcon size="sm" name="lucideHistory" />
+                      }
+                    </button>
+                    <button
+                      class="size-8"
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      [disabled]="isReplaceDisabled"
+                      [rbthTooltipTrigger]="'Replace snapshot'"
+                      (click)="_onReplaceSnapshot(snapshotId)"
+                    >
+                      <span class="sr-only">Replace</span>
+                      @if (isReplaceLoading) {
+                        <hlm-spinner class="size-4 text-foreground" />
+                      } @else {
+                        <ng-icon hlmIcon size="sm" name="lucideReplace" />
+                      }
+                    </button>
+                    <button
+                      class="size-8 text-destructive hover:text-destructive"
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      [disabled]="isDeleteDisabled"
+                      [rbthTooltipTrigger]="'Delete snapshot'"
+                      (click)="_onDeleteSnapshot(snapshotId)"
+                    >
+                      <span class="sr-only">Delete</span>
+                      @if (isDeleteLoading) {
+                        <hlm-spinner class="size-4 text-foreground" />
+                      } @else {
+                        <ng-icon hlmIcon size="sm" name="lucideTrash2" />
+                      }
+                    </button>
+                  </div>
+                } @else {
+                  <ng-container
+                    *flexRender="
+                      cell.column.columnDef.cell;
+                      props: cell.getContext();
+                      let cellContent
+                    "
+                  >
+                    <div [innerHTML]="cellContent"></div>
+                  </ng-container>
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td hlmTd class="h-24 text-center" [attr.colspan]="_columns().length">
+              No snapshots found.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
+

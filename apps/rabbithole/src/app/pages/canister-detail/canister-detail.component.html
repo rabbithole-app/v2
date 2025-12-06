@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between gap-4">
       <div class="flex items-center gap-4">
         <h1 class="text-2xl font-semibold">Canister Management</h1>
-        
+
         <div hlmButtonGroup>
           <brn-select
             class="[&>div>hlm-select-trigger>button]:rounded-r-none"
@@ -43,38 +43,50 @@
       </div>
 
       @if (isController()) {
-        <shared-wasm-install>
-          <shared-frontend-upload-drawer>
+        <core-wasm-install>
+          <core-frontend-upload-drawer>
             <div hlmButtonGroup>
-              <button hlmBtn variant="outline" sharedWasmInstallTrigger>
+              <button hlmBtn variant="outline" coreWasmInstallTrigger>
                 <ng-icon hlm size="sm" name="lucideBinary" />
                 Install WASM
               </button>
-              <button hlmBtn variant="outline" sharedFrontendUploadTrigger>
+              <button hlmBtn variant="outline" coreFrontendUploadTrigger>
                 <ng-icon hlm size="sm" name="lucidePackage" />
                 Install frontend
               </button>
             </div>
-          </shared-frontend-upload-drawer>
-        </shared-wasm-install>
+          </core-frontend-upload-drawer>
+        </core-wasm-install>
       }
     </div>
 
     <!-- Main content -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
       <!-- Runtime Section -->
-      <shared-canister-runtime [canister]="status" variant="muted" class="self-start" />
+      <core-canister-runtime
+        [canister]="status"
+        variant="muted"
+        class="self-start"
+      />
 
       <!-- Memory Section -->
-      <shared-canister-memory [canister]="status" variant="muted" class="h-full" />
+      <core-canister-memory
+        [canister]="status"
+        variant="muted"
+        class="h-full"
+      />
 
       <!-- Health Check Section -->
-      <shared-canister-health-check [canister]="status" variant="muted" class="self-start" />
+      <core-canister-health-check
+        [canister]="status"
+        variant="muted"
+        class="self-start"
+      />
     </div>
 
     <!-- Controllers Section -->
     <div class="col-span-full">
-      <shared-canister-controllers-table
+      <core-canister-controllers-table
         [controllers]="controllers()"
         [currentPrincipalId]="currentPrincipalId()"
         [loadingState]="loadingState()"
@@ -85,7 +97,7 @@
 
     <!-- Snapshots Section -->
     <div class="col-span-full">
-      <shared-canister-snapshots-table
+      <core-canister-snapshots-table
         [snapshots]="snapshots()"
         [loadingState]="snapshotsLoadingState()"
         (takeSnapshot)="_onTakeSnapshot($event || undefined)"
@@ -96,4 +108,3 @@
     </div>
   </div>
 }
-

@@ -1,0 +1,216 @@
+<div class="flex flex-col w-full">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-semibold">Users</h2>
+    <div class="flex items-center gap-2">
+      <button
+        hlmBtn
+        variant="outline"
+        align="end"
+        [hlmDropdownMenuTrigger]="menu"
+      >
+        Columns
+        <ng-icon hlmIcon name="lucideChevronDown" size="sm" />
+      </button>
+      <ng-template #menu>
+        <hlm-dropdown-menu class="w-32">
+          @for (column of _hidableColumns; track column.id) {
+            <button
+              hlmDropdownMenuCheckbox
+              class="capitalize"
+              [checked]="column.getIsVisible()"
+              (triggered)="column.toggleVisibility()"
+            >
+              <hlm-dropdown-menu-checkbox-indicator />
+              {{ column.columnDef.id }}
+            </button>
+          }
+        </hlm-dropdown-menu>
+      </ng-template>
+    </div>
+  </div>
+
+  <div class="border-border rounded-md border overflow-hidden">
+    @defer {
+      <div class="overflow-auto max-h-[65vh] min-h-[200px]">
+        <table hlmTable class="w-full">
+          <thead hlmTHead class="sticky top-0 bg-background z-10">
+            @for (
+              headerGroup of table.getHeaderGroups();
+              track headerGroup.id
+            ) {
+              <tr hlmTr>
+                @for (header of headerGroup.headers; track header.id) {
+                  <th hlmTh [attr.colSpan]="header.colSpan">
+                    @if (!header.isPlaceholder) {
+                      @if (header.column.id === 'createdAt') {
+                        <span>Created at</span>
+                      } @else {
+                        <ng-container
+                          *flexRender="
+                            header.column.columnDef.header;
+                            props: header.getContext();
+                            let headerText
+                          "
+                        >
+                          <div [innerHTML]="headerText"></div>
+                        </ng-container>
+                      }
+                    }
+                  </th>
+                }
+              </tr>
+            }
+          </thead>
+          <tbody hlmTBody class="w-full">
+            @for (row of table.getRowModel().rows; track row.id) {
+              <tr hlmTr [attr.key]="row.id">
+                @for (cell of row.getVisibleCells(); track $index) {
+                  <td hlmTd>
+                    @if (cell.column.id === 'user') {
+                      <ng-container
+                        *flexRender="
+                          cell.column.columnDef.cell;
+                          props: cell.getContext();
+                          let userData
+                        "
+                      >
+                        <div class="flex items-center gap-3">
+                          <div
+                            class="h-10 w-10 rounded-full bg-muted flex items-center justify-center"
+                          >
+                            @if (userData.profile.avatarUrl) {
+                              <img
+                                [src]="userData.profile.avatarUrl"
+                                [alt]="userData.profile.username"
+                                class="h-10 w-10 rounded-full object-cover"
+                              />
+                            } @else {
+                              <span class="text-sm font-medium">
+                                {{
+                                  userData.profile.username
+                                    .charAt(0)
+                                    .toUpperCase()
+                                }}
+                              </span>
+                            }
+                          </div>
+                          <div class="flex flex-col">
+                            <div class="font-medium">
+                              {{
+                                userData.profile.displayName ||
+                                  userData.profile.username
+                              }}
+                            </div>
+                            <div class="text-sm text-muted-foreground">
+                              <core-copy-to-clipboard
+                                [content]="userData.profile.id"
+                              >
+                                {{ userData.profile.id }}
+                              </core-copy-to-clipboard>
+                            </div>
+                          </div>
+                        </div>
+                      </ng-container>
+                    } @else if (
+                      cell.column.id === 'createdAt' ||
+                      cell.column.id === 'updatedAt'
+                    ) {
+                      <ng-container
+                        *flexRender="
+                          cell.column.columnDef.cell;
+                          props: cell.getContext();
+                          let dateData
+                        "
+                      >
+                        <div class="text-sm">
+                          {{ dateData.date | date: 'short' }}
+                        </div>
+                      </ng-container>
+                    } @else {
+                      <ng-container
+                        *flexRender="
+                          cell.column.columnDef.cell;
+                          props: cell.getContext();
+                          let cellContent
+                        "
+                      >
+                        <div [innerHTML]="cellContent"></div>
+                      </ng-container>
+                    }
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr hlmTr>
+                <td
+                  hlmTd
+                  class="h-24 text-center"
+                  [attr.colspan]="_columns.length"
+                >
+                  @if (loading()) {
+                    <div class="flex items-center justify-center">
+                      <div class="text-muted-foreground text-sm">
+                        Loading...
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="text-muted-foreground text-sm">
+                      No users found
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  <div class="flex items-center justify-between gap-8 sm:flex-row mt-4">
+    @if (table.getRowCount() > 0) {
+      <span [class]="`${hlmMuted} text-sm`">
+        Showing {{ table.getRowModel().rows.length }} of
+        {{ totalCount() }} users
+      </span>
+      <div class="flex items-center gap-3">
+        <brn-select
+          [value]="currentPageSize()"
+          (valueChange)="_onPageSizeChange($event)"
+        >
+          <hlm-select-trigger class="w-20 inline-flex">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content>
+            @for (size of _availablePageSizes; track size) {
+              <hlm-option [value]="size">
+                {{ size === 100 ? 'All' : size }}
+              </hlm-option>
+            }
+          </hlm-select-content>
+        </brn-select>
+
+        <div class="flex space-x-1">
+          <button
+            size="sm"
+            variant="outline"
+            hlmBtn
+            [disabled]="!table.getCanPreviousPage()"
+            (click)="table.previousPage()"
+          >
+            Previous
+          </button>
+          <button
+            size="sm"
+            variant="outline"
+            hlmBtn
+            [disabled]="!table.getCanNextPage()"
+            (click)="table.nextPage()"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+</div>

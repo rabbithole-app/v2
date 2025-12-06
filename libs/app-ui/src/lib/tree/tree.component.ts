@@ -15,15 +15,18 @@ import {
   lucideFolder,
   lucideFolderOpen,
 } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/helm/utils';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 
 import { RbthTreeLabelDirective } from './tree-item-label.directive';
 import { RbthTreeDirective } from './tree-item.directive';
 import { TreeNode } from './tree.model';
 import { injectTreeConfig } from './tree.token';
-import { WithRequiredProperty } from '@rabbithole/core';
+
+export type WithRequiredProperty<Type, Key extends keyof Type> = {
+  [Property in Key]-?: Type[Property];
+} & Type;
 
 function flattenNodes(nodes: TreeNode[]): TreeNode[] {
   const flattenedNodes = [];

@@ -46,7 +46,7 @@ import {
   FrontendUploadTriggerDirective,
   WasmInstallComponent,
   WasmInstallTriggerDirective,
-} from '@rabbithole/shared';
+} from '@rabbithole/core';
 import {
   RbthTooltipComponent,
   RbthTooltipTriggerDirective,

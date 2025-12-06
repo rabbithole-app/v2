@@ -9,11 +9,11 @@ import {
   Renderer2,
   signal,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import {
   injectExposedSideProvider,
   injectExposesStateProvider,
 } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import { cva } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
@@ -33,7 +33,7 @@ export const sheetVariants = cva(
     defaultVariants: {
       side: 'right',
     },
-  }
+  },
 );
 
 @Component({
@@ -55,7 +55,7 @@ export class RbthDrawerContentComponent {
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
   private readonly _sideProvider = injectExposedSideProvider({ host: true });
   protected _computedClass = computed(() =>
-    hlm(sheetVariants({ side: this._sideProvider.side() }), this.userClass())
+    hlm(sheetVariants({ side: this._sideProvider.side() }), this.userClass()),
   );
 
   private readonly _element = inject(ElementRef);
@@ -66,7 +66,7 @@ export class RbthDrawerContentComponent {
       this._renderer.setAttribute(
         this._element.nativeElement,
         'data-state',
-        this.state()
+        this.state(),
       );
     });
   }

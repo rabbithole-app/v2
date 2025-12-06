@@ -11,12 +11,12 @@ import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { filter, map, mergeWith } from 'rxjs';
 
-import { CanistersService } from '@rabbithole/core';
 import {
   CanisterCardComponent,
+  CanistersService,
   CreateCanisterDialogComponent,
   LinkCanisterDialogComponent,
-} from '@rabbithole/shared';
+} from '@rabbithole/core';
 
 @Component({
   selector: 'app-canisters',

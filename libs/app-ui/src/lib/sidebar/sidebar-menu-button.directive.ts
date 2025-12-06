@@ -1,10 +1,10 @@
 import { booleanAttribute, computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import {
   type ButtonVariants,
   buttonVariants,
   HlmButton,
 } from '@spartan-ng/helm/button';
+import { hlm } from '@spartan-ng/helm/utils';
 import { cva, VariantProps } from 'class-variance-authority';
 import { ClassValue } from 'clsx';
 

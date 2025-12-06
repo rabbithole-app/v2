@@ -1,9 +1,9 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePanelLeft } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/helm/utils';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 
 import { SidebarService } from './sidebar.service';

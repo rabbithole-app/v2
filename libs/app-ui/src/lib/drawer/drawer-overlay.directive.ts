@@ -1,6 +1,6 @@
 import { computed, Directive, effect, input, untracked } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { injectCustomClassSettable } from '@spartan-ng/brain/core';
+import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 @Directive({
@@ -16,8 +16,8 @@ export class RbthDrawerOverlayDirective {
       'bg-overlay backdrop-blur-[10px]',
       // animation
       'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-      this.userClass()
-    )
+      this.userClass(),
+    ),
   );
   private readonly _classSettable = injectCustomClassSettable({
     optional: true,

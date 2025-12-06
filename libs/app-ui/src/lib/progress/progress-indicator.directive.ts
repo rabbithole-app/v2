@@ -1,6 +1,6 @@
 import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { injectBrnProgress } from '@spartan-ng/brain/progress';
+import { hlm } from '@spartan-ng/helm/utils';
 import { cva } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
@@ -15,7 +15,7 @@ export const indicatorVariants = cva(
     defaultVariants: {
       indeterminate: false,
     },
-  }
+  },
 );
 
 @Directive({
@@ -31,17 +31,17 @@ export class RbthProgressIndicatorDirective {
 
   protected readonly indeterminate = computed(
     () =>
-      this._progress.value() === null || this._progress.value() === undefined
+      this._progress.value() === null || this._progress.value() === undefined,
   );
 
   protected readonly _computedClass = computed(() =>
     hlm(
       indicatorVariants({ indeterminate: this.indeterminate() }),
-      this.userClass()
-    )
+      this.userClass(),
+    ),
   );
 
   protected readonly transform = computed(
-    () => `translateX(-${100 - (this._progress.value() ?? 100)}%)`
+    () => `translateX(-${100 - (this._progress.value() ?? 100)}%)`,
   );
 }

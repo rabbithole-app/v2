@@ -3,8 +3,8 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   injectCoreWorker,
+  UploadDrawerComponent,
 } from '@rabbithole/core';
-import { UploadDrawerComponent } from '@rabbithole/shared';
 
 @Component({
   selector: 'app-storage-view',

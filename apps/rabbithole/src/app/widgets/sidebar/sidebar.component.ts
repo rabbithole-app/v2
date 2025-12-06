@@ -11,7 +11,7 @@ import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 import { SidebarHeaderComponent } from '../sidebar-header/sidebar-header.component';
-import { AccountMenuComponent } from '@rabbithole/shared';
+import { AccountMenuComponent } from '@rabbithole/core';
 import { RbthSidebarLayoutModule, SidebarService } from '@rabbithole/ui';
 
 @Component({
