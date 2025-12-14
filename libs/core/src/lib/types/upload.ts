@@ -20,6 +20,7 @@ export interface IUploadService {
 }
 
 export type UploadServiceState = {
+  completedCount: number;
   files: FileUploadWithStatus[];
   isProcessing: boolean;
   overallProgress: number;

@@ -1,0 +1,101 @@
+@let selected = state().selected;
+@for (item of items(); track item.id) {
+  <rbth-feat-file-list-grid-item
+    [hlmContextMenuTrigger]="nodesContextMenu"
+    [data]="item"
+    [disabled]="item.disabled ?? false"
+    [loading]="item.disabled ?? false"
+    [selected]="selected.includes(item.id)"
+    (dblclick)="_handleItemDblClick($event, item)"
+    (click)="_handleItemClick($event, item)"
+    (focus)="_handleItemFocus($event, item)"
+    (contextmenu)="_handleItemClick($event, item)"
+  />
+}
+
+<ng-template #nodesContextMenu let-ctx>
+  @let selected = state().selected;
+  @let everyDirectory = state().everyDirectory;
+  @let everyFile = state().everyFile;
+  @let someDirectory = state().someDirectory;
+  @let someFile = state().someFile;
+  <hlm-dropdown-menu class="w-48">
+    @if (everyDirectory) {
+      <hlm-dropdown-menu-group>
+        <div hlmField class="p-2">
+          <label hlmFieldLabel for="field-folder-color">Folder color</label>
+          <rbth-feat-file-list-folder-color-picker
+            hlmInput
+            id="field-folder-color"
+            [formControl]="folderColorControl"
+          />
+        </div>
+      </hlm-dropdown-menu-group>
+      <hlm-dropdown-menu-separator />
+    }
+    <hlm-dropdown-menu-group>
+      <button
+        hlmDropdownMenuItem
+        (click)="_handleItemAction('rename', selected)"
+        [disabled]="selected.length > 1"
+      >
+        <ng-icon hlm name="lucidePencil" hlmMenuIcon />
+        Rename
+      </button>
+      <button hlmDropdownMenuItem (click)="_handleItemAction('move', selected)">
+        <ng-icon hlm name="lucideFolderTree" hlmMenuIcon />
+        @if (selected.length > 1) {
+          Move ({{ selected.length }})
+        } @else {
+          Move
+        }
+      </button>
+      @if (everyFile) {
+        <button
+          hlmDropdownMenuItem
+          (click)="_handleItemAction('download', selected)"
+        >
+          <ng-icon hlm name="lucideDownload" hlmMenuIcon />
+          @if (selected.length > 1) {
+            Download ({{ selected.length }})
+          } @else {
+            Download
+          }
+        </button>
+      }
+      <hlm-dropdown-menu-separator />
+      <button
+        hlmDropdownMenuItem
+        variant="destructive"
+        (click)="_handleItemAction('delete', selected)"
+      >
+        <ng-icon hlm name="lucideTrash2" hlmMenuIcon />
+        @if (selected.length > 1) {
+          Delete ({{ selected.length }})
+        } @else {
+          Delete
+        }
+      </button>
+    </hlm-dropdown-menu-group>
+  </hlm-dropdown-menu>
+</ng-template>
+
+<ng-template #emptyAreaContextMenu>
+  <hlm-dropdown-menu class="w-48">
+    <hlm-dropdown-menu-group>
+      <button hlmDropdownMenuItem>
+        <ng-icon hlm name="lucideFolderPlus" hlmMenuIcon />
+        New folder
+      </button>
+      <hlm-dropdown-menu-separator />
+      <button hlmDropdownMenuItem>
+        <ng-icon hlm name="lucideUpload" hlmMenuIcon />
+        Upload files
+      </button>
+      <button hlmDropdownMenuItem>
+        <ng-icon hlm name="lucideFolderUp" hlmMenuIcon />
+        Upload directory
+      </button>
+    </hlm-dropdown-menu-group>
+  </hlm-dropdown-menu>
+</ng-template>

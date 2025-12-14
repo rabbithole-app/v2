@@ -10,12 +10,11 @@ import { FormsModule } from '@angular/forms';
 import { Principal } from '@dfinity/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucideUserPlus } from '@ng-icons/lucide';
-
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmInput } from '@spartan-ng/helm/input';
-import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { hlmMuted } from '@spartan-ng/helm/typography';
@@ -124,12 +123,12 @@ export class PermissionsTableComponent {
       {
         header: 'Principal ID',
         accessorKey: 'user',
-        id: 'principal',
+        id: 'user',
         cell: ({ row }) =>
           flexRenderComponent(PrincipalCell, {
             inputs: {
               isBold:
-                row.getValue<string>('principal') === this.currentPrincipalId(),
+                row.getValue<string>('user') === this.currentPrincipalId(),
             },
           }),
       },

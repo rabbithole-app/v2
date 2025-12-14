@@ -12,6 +12,7 @@ const INITIAL_VALUE: UploadServiceState = {
   overallProgress: 0,
   isProcessing: false,
   files: [],
+  completedCount: 0,
 };
 
 const calculateOverallProgress = (files: FileUploadWithStatus[]) => {
@@ -101,11 +102,16 @@ export class UploadBaseService {
       });
       const isProcessing = isProcessingFn(files);
       const overallProgress = calculateOverallProgress(files);
+      const completedCount =
+        value.status === UploadState.COMPLETED
+          ? prevState.completedCount + 1
+          : prevState.completedCount;
       return {
         ...prevState,
         isProcessing,
         overallProgress,
         files,
+        completedCount,
       };
     });
   }

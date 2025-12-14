@@ -31,6 +31,5 @@ export * from './canister/wasm-install/wasm-install-trigger.directive';
 export * from './canister/wasm-install/wasm-install.component';
 export * from './charts/radar-chart/radar-chart.component';
 export * from './ui';
-export * from './upload/upload-drawer/upload-drawer-list.component';
-export * from './upload/upload-drawer/upload-drawer.component';
+export * from './upload/upload-drawer-list/upload-drawer-list.component';
 export * from './users/users-table';

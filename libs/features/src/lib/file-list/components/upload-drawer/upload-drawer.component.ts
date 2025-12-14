@@ -4,6 +4,7 @@ import {
   computed,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideCross,
@@ -14,19 +15,16 @@ import {
 import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { distinctUntilChanged, map } from 'rxjs';
 
+import { FileListService } from '../../services';
 import {
-  assertEncryptedStorage,
+  CoreFileUploadDropzoneComponent,
   ENCRYPTED_STORAGE_TOKEN,
-} from '../../../injectors';
-import {
-  FileSystemAccessService,
-  provideUploadFilesService,
-} from '../../../services';
-import { UPLOAD_SERVICE_TOKEN } from '../../../tokens';
-import { UploadState } from '../../../types';
-import { CoreFileUploadDropzoneComponent } from '../../ui';
-import { UploadDrawerListComponent } from './upload-drawer-list.component';
+  UPLOAD_SERVICE_TOKEN,
+  UploadDrawerListComponent,
+  UploadState,
+} from '@rabbithole/core';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -36,7 +34,7 @@ import {
 } from '@rabbithole/ui';
 
 @Component({
-  selector: 'core-upload-drawer',
+  selector: 'rbth-feat-file-list-upload-drawer',
   imports: [
     BrnSheetTrigger,
     BrnSheetContent,
@@ -53,7 +51,6 @@ import {
     UploadDrawerListComponent,
   ],
   providers: [
-    provideUploadFilesService(),
     provideIcons({
       lucideCross,
       lucideList,
@@ -65,7 +62,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UploadDrawerComponent {
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN, { self: true });
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
   #items = computed(() => this.#uploadService.state().files);
   activeItems = computed(() =>
     this.#items().filter(({ status }) =>
@@ -87,13 +84,26 @@ export class UploadDrawerComponent {
   failedItems = computed(() =>
     this.#items().filter(({ status }) => status === UploadState.FAILED),
   );
-  #fsAccessService = inject(FileSystemAccessService);
+  fileListService = inject(FileListService);
 
-  async list() {
-    const encryptedStorage = this.encryptedStorage();
-    assertEncryptedStorage(encryptedStorage);
-    const list = await encryptedStorage.list();
-    console.log(list);
+  constructor() {
+    this.fileListService.files$.pipe(takeUntilDestroyed()).subscribe((item) => {
+      this.#uploadService.add({ file: item.file, path: item.parentPath });
+    });
+    this.fileListService.directories$
+      .pipe(takeUntilDestroyed())
+      .subscribe((path) => {
+        this.encryptedStorage().createDirectory(path);
+      });
+    toObservable(this.#uploadService.state)
+      .pipe(
+        map((state) => state.completedCount),
+        distinctUntilChanged(),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => {
+        this.fileListService.reload();
+      });
   }
 
   async upload(files: File[] | FileList) {
@@ -102,21 +112,6 @@ export class UploadDrawerComponent {
     }
     for (const file of files) {
       this.#uploadService.add({ file });
-    }
-  }
-
-  async uploadDirectory() {
-    const items = await this.#fsAccessService.list();
-    for (const item of items) {
-      if (item.kind === 'file') {
-        this.#uploadService.add({ file: item.file, path: item.parentPath });
-      } else if (item.kind === 'directory') {
-        const path = item.parentPath
-          ? `${item.parentPath}/${item.name}`
-          : item.name;
-        // TODO: Add more reactive state updates when creating a directory
-        this.encryptedStorage().createDirectory(path);
-      }
     }
   }
 }

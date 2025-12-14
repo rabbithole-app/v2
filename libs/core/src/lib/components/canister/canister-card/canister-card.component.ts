@@ -18,12 +18,12 @@ import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 
-import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-canister-dialog.component';
 import { CanistersService, ICManagementService } from '../../../services';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../../../tokens';
 import { formatBytes, formatTCycles } from '../../../utils';
 import { CopyToClipboardComponent } from '../../ui';
 import { CoreCanisterStatusComponent } from '../canister-status';
+import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-canister-dialog.component';
 
 @Component({
   selector: 'core-canister-card',

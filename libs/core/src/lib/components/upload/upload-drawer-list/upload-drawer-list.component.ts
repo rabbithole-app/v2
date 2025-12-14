@@ -7,7 +7,7 @@ import {
 
 import { UPLOAD_SERVICE_TOKEN } from '../../../tokens';
 import { FileUploadWithStatus, UploadFile } from '../../../types';
-import { CoreUploadItemComponent } from '../upload-item';
+import { CoreUploadItemComponent } from '../upload-item/upload-item.component';
 
 @Component({
   selector: 'core-upload-drawer-list',
@@ -41,4 +41,3 @@ export class UploadDrawerListComponent {
     this.#uploadService.retry(id);
   }
 }
-

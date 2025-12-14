@@ -17,7 +17,7 @@ import { HlmItemImports } from '@spartan-ng/helm/item';
     hlmItem
     variant="outline"
     class="w-full"
-    [routerLink]="[canisterIdText()]"
+    [routerLink]="[canisterIdText(), 'drive']"
   >
     <div hlmItemMedia>
       <ng-icon hlm name="lucideDatabase" />

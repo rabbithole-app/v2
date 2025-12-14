@@ -1,0 +1,15 @@
+@let m = mode();
+@if (m.type === 'folder') {
+  <rbth-feat-file-list-animated-folder class="scale-75" />
+} @else if (m.type === 'file') {
+  <ng-icon [name]="iconName()" />
+} @else if (m.type === 'stack') {
+  <div class="flex items-center justify-center mt-2 relative">
+    <ng-icon name="blank" class="relative z-2" />
+    <ng-icon name="blank" class="absolute -ml-7 -mt-1 z-1" />
+    <ng-icon name="blank" class="absolute -ml-7 -mt-2 z-0" />
+    <span class="absolute z-3 font-medium text-base -indent-2">{{
+      m.count
+    }}</span>
+  </div>
+}

@@ -1,0 +1,38 @@
+<div class="container mx-auto space-y-6">
+  <h1 class="text-2xl font-semibold">Storage</h1>
+  <p class="text-sm text-muted-foreground">
+    Storage: {{ canisterId.toText() }}
+  </p>
+  <rbth-feat-file-list-upload-drawer />
+  <rbth-feat-file-list-grid-view
+    [hlmContextMenuTrigger]="emptyAreaContextMenu"
+    [items]="items()"
+    (delete)="_handleDelete($event)"
+    (download)="_handleDownload($event)"
+    (move)="_handleMove($event)"
+    (rename)="_handleRename($event)"
+  />
+</div>
+
+<ng-template #emptyAreaContextMenu>
+  <hlm-dropdown-menu class="w-52">
+    <hlm-dropdown-menu-group>
+      <button hlmDropdownMenuItem>
+        <ng-icon hlm name="lucideFolderPlus" hlmMenuIcon />
+        New folder
+      </button>
+      <hlm-dropdown-menu-separator />
+      <button hlmDropdownMenuItem (click)="fileListService.openFileDialog()">
+        <ng-icon hlm name="lucideUpload" hlmMenuIcon />
+        Upload files
+      </button>
+      <button
+        hlmDropdownMenuItem
+        (click)="fileListService.openDirectoryDialog()"
+      >
+        <ng-icon hlm name="lucideFolderUp" hlmMenuIcon />
+        Upload directory
+      </button>
+    </hlm-dropdown-menu-group>
+  </hlm-dropdown-menu>
+</ng-template>

@@ -32,12 +32,15 @@ import type { ClassValue } from 'clsx';
 import { unzipSync } from 'fflate';
 import { match, P } from 'ts-pattern';
 
-import { UploadDrawerListComponent } from '../../upload/upload-drawer/upload-drawer-list.component';
-import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
-import { FileSystemAccessService, UPLOAD_ASSETS_SERVICE_PROVIDERS } from '../../../services';
+import {
+  FileSystemAccessService,
+  UPLOAD_ASSETS_SERVICE_PROVIDERS,
+} from '../../../services';
 import { UPLOAD_SERVICE_TOKEN } from '../../../tokens';
 import { UploadState } from '../../../types';
 import { FormatBytesPipe } from '../../ui';
+import { UploadDrawerListComponent } from '../../upload/upload-drawer-list/upload-drawer-list.component';
+import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,

@@ -121,7 +121,7 @@ export class ActionsCellComponent {
   }
 
   get principal() {
-    return this._context.row.getValue<string>('principal');
+    return this._context.row.getValue<string>('user');
   }
 
   protected _computedClass = computed(() =>

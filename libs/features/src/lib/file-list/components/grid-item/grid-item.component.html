@@ -1,0 +1,38 @@
+@let isDir = isDirectoryNode();
+@let isFile = isFileNode();
+@let hasThumb = hasThumbnail();
+@let thumbUrl = thumbnailUrl();
+@let itemDisabled = _disabled();
+
+<div
+  class="flex items-end h-[74px] justify-center w-full max-w-[80px] mx-auto relative"
+>
+  @if (isDir) {
+    <rbth-feat-file-list-animated-folder
+      [color]="directoryColor()"
+      [active]="active()"
+    />
+  } @else if (isFile && hasThumb && thumbUrl) {
+    <div
+      class="relative w-full h-full max-w-[80px] max-h-[74px] overflow-hidden flex items-end justify-center"
+    >
+      <img
+        [src]="thumbUrl"
+        [alt]="itemName()"
+        class="max-w-full max-h-full w-auto h-auto object-contain select-none pointer-events-none rounded-xs"
+        loading="lazy"
+      />
+    </div>
+  } @else if (isFile) {
+    <div class="flex items-center justify-center w-full aspect-square">
+      <rbth-feat-file-list-icon [extension]="fileExtension()" />
+    </div>
+  }
+</div>
+
+<p
+  class="text-sm text-center w-[80px] line-clamp-2 overflow-hidden wrap-break-word"
+  [title]="itemName()"
+>
+  {{ itemName() }}
+</p>

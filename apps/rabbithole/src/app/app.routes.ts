@@ -88,9 +88,9 @@ export const appRoutes: Route[] = [
             children: [
               {
                 path: 'drive',
-                loadComponent: () =>
-                  import('./pages/storage-view/storage-view.component').then(
-                    (m) => m.StorageViewComponent,
+                loadChildren: () =>
+                  import('@rabbithole/features/file-list').then(
+                    (m) => m.fileListRoutes,
                   ),
               },
               {

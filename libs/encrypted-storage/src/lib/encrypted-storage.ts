@@ -61,6 +61,13 @@ export class EncryptedStorage {
     return await this.#actor.create({ entry, overwrite: false });
   }
 
+  delete(entry: Entry) {
+    return this.#actor.delete({
+      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
+      recursive: true,
+    });
+  }
+
   async fsTree() {
     const fsTree = await this.#actor.fsTree();
     const canisterId = Actor.canisterIdOf(this.#actor);
@@ -153,7 +160,7 @@ export class EncryptedStorage {
   }
 
   async list(entry?: Entry) {
-    return await this.#actor.list(
+    return await this.#actor.listStorage(
       entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
     );
   }

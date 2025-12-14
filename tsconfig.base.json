@@ -80,7 +80,14 @@
       "@spartan-ng/helm/toggle-group": ["libs/ui/toggle-group/src/index.ts"],
       "@spartan-ng/helm/tooltip": ["libs/ui/tooltip/src/index.ts"],
       "@spartan-ng/helm/typography": ["libs/ui/typography/src/index.ts"],
-      "@spartan-ng/helm/utils": ["libs/ui/utils/src/index.ts"]
+      "@spartan-ng/helm/utils": ["libs/ui/utils/src/index.ts"],
+      "@rabbithole/features": ["libs/features/src/index.ts"],
+      "@rabbithole/features/file-list": [
+        "libs/features/src/lib/file-list/index.ts"
+      ],
+      "@rabbithole/features/canisters": [
+        "libs/features/src/lib/canisters/index.ts"
+      ]
     }
   },
   "exclude": ["node_modules", "tmp"]

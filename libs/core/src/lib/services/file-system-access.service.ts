@@ -7,21 +7,23 @@ import {
   supported,
 } from 'browser-fs-access';
 
+export type FileSystemDirectoryItem = {
+  kind: 'directory';
+  name: string;
+  parentPath?: string;
+};
+
+export type FileSystemFileItem = {
+  file: File;
+  kind: 'file';
+  name: string;
+  parentPath?: string;
+};
+
 /**
  * Represents a file system item - either a file or an empty directory.
  */
-type FileSystemItem =
-  | {
-      file: File;
-      kind: 'file';
-      name: string;
-      parentPath?: string;
-    }
-  | {
-      kind: 'directory';
-      name: string;
-      parentPath?: string;
-    };
+export type FileSystemItem = FileSystemDirectoryItem | FileSystemFileItem;
 
 /**
  * Service for interacting with the File System Access API.

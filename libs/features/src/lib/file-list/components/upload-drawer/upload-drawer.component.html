@@ -8,13 +8,9 @@
     </rbth-drawer-header>
     <div class="flex-1 overflow-y-auto space-y-6">
       <div class="flex gap-2 px-4 pb-2">
-        <button hlmBtn (click)="uploadDirectory()">
+        <button hlmBtn (click)="fileListService.openDirectoryDialog()">
           <ng-icon hlmIcon size="sm" name="lucideFolderUp" />
           Upload directory
-        </button>
-        <button hlmBtn variant="secondary" (click)="list()">
-          <ng-icon hlmIcon size="sm" name="lucideList" />
-          List
         </button>
       </div>
       <!-- @if (parsedError(); as error) { -->
@@ -47,4 +43,3 @@
     </rbth-drawer-footer> -->
   </rbth-drawer-content>
 </rbth-drawer>
-

@@ -14,6 +14,7 @@
   },
   "private": true,
   "dependencies": {
+    "@angular/animations": "^20.3.9",
     "@angular/cdk": "20.2.11",
     "@angular/common": "20.3.9",
     "@angular/compiler": "20.3.9",
@@ -54,6 +55,7 @@
     "file-saver": "^2.0.5",
     "mime": "^4.0.7",
     "nanoid": "^5.1.6",
+    "ng-click-outside2": "^18.0.1",
     "ngx-image-cropper": "^9.1.5",
     "ngx-scrollbar": ">=16.0.0",
     "ngx-sonner": "^3.0.0",
