@@ -684,7 +684,86 @@ describe('FileSystem', () => {
     });
   });
 
-  describe.skip('with owner', () => {
+  describe('list', () => {
+    beforeEach(async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'Shared/with-alice[rw]-bob[r]'],
+        overwrite: false,
+      });
+      await actor.create({
+        entry: [DIRECTORY, 'Shared/with-charlie[rwm]'],
+        overwrite: false,
+      });
+      await actor.grantPermission({
+        entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]']],
+        user: aliceIdentity.getPrincipal(),
+        permission: READ_WRITE,
+      });
+      await actor.grantPermission({
+        entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]']],
+        user: bobIdentity.getPrincipal(),
+        permission: READ,
+      });
+      await actor.grantPermission({
+        entry: [[DIRECTORY, 'Shared/with-charlie[rwm]']],
+        user: charlieIdentity.getPrincipal(),
+        permission: READ_WRITE_MANAGE,
+      });
+    });
+
+    describe('Alice', () => {
+      beforeEach(() => {
+        actor.setIdentity(aliceIdentity);
+      });
+
+      test('list([]) should show Shared', async () => {
+        const list = await actor.list([]);
+        expect(list.map((n) => n.name)).toEqual(['Shared']);
+        const [root] = list;
+        expect(root).toBeTruthy();
+        if (!root) throw new Error('Expected root entry to exist');
+        expect('Directory' in root.metadata).toBeTruthy();
+      });
+
+      test('list(Shared) should show only permitted shares', async () => {
+        const list = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(list.map((n) => n.name)).toEqual(['with-alice[rw]-bob[r]']);
+      });
+    });
+
+    describe('Bob', () => {
+      beforeEach(() => {
+        actor.setIdentity(bobIdentity);
+      });
+
+      test('list([]) should show Shared', async () => {
+        const list = await actor.list([]);
+        expect(list.map((n) => n.name)).toEqual(['Shared']);
+        const [root] = list;
+        expect(root).toBeTruthy();
+        if (!root) throw new Error('Expected root entry to exist');
+        expect('Directory' in root.metadata).toBeTruthy();
+      });
+
+      test('list(Shared) should show only permitted shares', async () => {
+        const list = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(list.map((n) => n.name)).toEqual(['with-alice[rw]-bob[r]']);
+      });
+    });
+
+    describe('Dan', () => {
+      beforeEach(() => {
+        actor.setIdentity(danIdentity);
+      });
+
+      test('list([]) should be empty (no shares)', async () => {
+        const list = await actor.list([]);
+        expect(list).toEqual([]);
+      });
+    });
+  });
+
+  describe('with owner', () => {
     describe('grantPermission (3 users)', async () => {
       beforeEach(async () => {
         await actor.create({

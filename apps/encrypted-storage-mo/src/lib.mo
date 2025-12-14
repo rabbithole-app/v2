@@ -1,5 +1,6 @@
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
+import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Order "mo:core/Order";
 import Option "mo:core/Option";
@@ -8,7 +9,6 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Nat8 "mo:core/Nat8";
-import D "mo:core/Debug";
 
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 import Map "mo:map/Map";
@@ -459,6 +459,41 @@ module EncryptedFileStorage {
     let canRead = switch (FileSystem.getFilterByFromEntry(self.fs, entry)) {
       case (#ok v) Permissions.ensureUserCanRead(self.fs, caller, v) |> Result.isOk(_);
       case (#err message) return #err message;
+    };
+
+    // Special case: when the caller cannot read the root directory,
+    // we still want to show top-level directories leading to permitted resources
+    // (e.g. show `Shared` if the caller has access to something under it).
+    if (entry == null and not canRead) {
+      let nat64hash : Map.HashUtils<Nat64> = (Map.hashNat64, Nat64.equal);
+
+      func findTopLevel(node : T.NodeStore) : T.NodeStore {
+        switch (node.parentId) {
+          case null node;
+          case (?pid) {
+            let parent = Map.find(self.fs.nodes, func(_, value) = value.id == pid);
+            switch (parent) {
+              case (?(_, v)) findTopLevel(v);
+              case null node;
+            };
+          };
+        };
+      };
+
+      let reachableRoots = Vector.new<T.NodeStore>();
+      let seenRootIds = Map.new<Nat64, ()>();
+      for (node in Map.vals(self.fs.nodes)) {
+        if (Permissions.ensureUserCanRead(self.fs, caller, #keyId(node.keyId)) |> Result.isOk(_)) {
+          let rootNode = findTopLevel(node);
+          if (Map.get(seenRootIds, nat64hash, rootNode.id) == null) {
+            ignore Map.put(seenRootIds, nat64hash, rootNode.id, ());
+            Vector.add(reachableRoots, rootNode);
+          };
+        };
+      };
+
+      let sortedRoots = Array.sort(Vector.toArray(reachableRoots), func(a, b) = Text.compare(a.name, b.name));
+      return #ok(Array.map(sortedRoots, Node.getDetails));
     };
 
     let parentId = switch (entry) {
