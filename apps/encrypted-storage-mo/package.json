@@ -15,13 +15,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@dfinity/pic": "^0.13.1",
-    "@dfinity/principal": "^3.2.1",
+    "@dfinity/pic": "^0.17.0",
+    "@dfinity/principal": "^3.4.3",
     "@tanstack/pacer": "^0.15.3"
-  },
-  "overrides": {
-    "@dfinity/pic": {
-      "@dfinity/principal": "$@dfinity/principal"
-    }
   }
 }

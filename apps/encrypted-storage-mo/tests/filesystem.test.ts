@@ -61,7 +61,8 @@ describe('FileSystem', () => {
   beforeEach(async () => {
     const [picInstance, fixture] = await createPic();
     pic = picInstance;
-    const date = new Date('2029-12-31T00:00:00');
+    // Force UTC to avoid TZ-dependent parsing differences (Docker usually runs in UTC)
+    const date = new Date('2029-12-31T00:00:00Z');
     await pic.setCertifiedTime(date);
 
     // Save the actor and canister ID for use in tests
@@ -124,19 +125,19 @@ describe('FileSystem', () => {
         overwrite: false,
       });
       expect(result).toMatchObject({
-        id: 1938799411200000002n,
+        id: 1938810470400000002n,
         name: 'classic',
       });
       const result2 = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/detective'],
         overwrite: false,
       });
-      expect(result2).toMatchObject({ id: 1938799411200000003n });
+      expect(result2).toMatchObject({ id: 1938810470400000003n });
       const result3 = await actor.create({
         entry: [FILE, 'Documents/Photos/1.jpg'],
         overwrite: false,
       });
-      expect(result3).toMatchObject({ id: 1938799411200000005n });
+      expect(result3).toMatchObject({ id: 1938810470400000005n });
     });
 
     test('should return err if entry exists', async () => {
@@ -144,7 +145,7 @@ describe('FileSystem', () => {
         entry: [DIRECTORY, 'Documents/Books/classic'],
         overwrite: false,
       });
-      expect(result).toMatchObject({ id: 1938799411200000002n });
+      expect(result).toMatchObject({ id: 1938810470400000002n });
       await expect(
         actor.create({
           entry: [DIRECTORY, 'Documents/Books/classic'],
@@ -160,7 +161,7 @@ describe('FileSystem', () => {
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
         overwrite: false,
       });
-      expect(result).toMatchObject({ id: 1938799411200000002n });
+      expect(result).toMatchObject({ id: 1938810470400000002n });
       await expect(
         actor.delete({
           entry: [DIRECTORY, 'Documents/WP'],
@@ -188,12 +189,12 @@ describe('FileSystem', () => {
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
         overwrite: false,
       });
-      expect(result).toMatchObject({ id: 1938799411200000002n });
+      expect(result).toMatchObject({ id: 1938810470400000002n });
       const result2 = await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
         overwrite: false,
       });
-      expect(result2).toMatchObject({ id: 1938799411200000004n });
+      expect(result2).toMatchObject({ id: 1938810470400000004n });
 
       // delete directory
       const result3 = await actor.delete({
@@ -256,15 +257,15 @@ describe('FileSystem', () => {
       const treeContent = await actor.showTree([]);
       expect(treeContent).toEqual(
         '\n .\n\
-░└─Shared[5fnzzmqne222g]\n\
-░░░└─Photos[5fnzzmqne222i]\n\
-░░░░░├─Turkey[5fnzzmqne222k]\n\
-░░░░░│░├─1.jpg[5fnzzmqne222m]\n\
-░░░░░│░├─2.jpg[5fnzzmqne222o]\n\
-░░░░░│░└─3.jpg[5fnzzmqne222e]\n\
-░░░░░├─1.jpg[5fnzzmqne2224]\n\
-░░░░░├─2.jpg[5fnzzmqne222q]\n\
-░░░░░└─3.jpg[5fnzzmqne222s]\n',
+░└─Shared[5fo2nqhz2222g]\n\
+░░░└─Photos[5fo2nqhz2222i]\n\
+░░░░░├─Turkey[5fo2nqhz2222k]\n\
+░░░░░│░├─1.jpg[5fo2nqhz2222m]\n\
+░░░░░│░├─2.jpg[5fo2nqhz2222o]\n\
+░░░░░│░└─3.jpg[5fo2nqhz2222e]\n\
+░░░░░├─1.jpg[5fo2nqhz22224]\n\
+░░░░░├─2.jpg[5fo2nqhz2222q]\n\
+░░░░░└─3.jpg[5fo2nqhz2222s]\n',
       );
     });
 

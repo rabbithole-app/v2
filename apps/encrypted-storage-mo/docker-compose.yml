@@ -1,0 +1,29 @@
+name: encrypted-storage
+
+services:
+  replica:
+    image: encrypted-storage-mo-dev:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: true
+    platform: linux/amd64
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    ports:
+      - '4943:4943' # dfx replica API (external access)
+    volumes:
+      - ./:/app:rw
+      - encrypted_storage_node_modules:/app/node_modules
+      - encrypted_storage_dfx_project:/app/.dfx
+    healthcheck:
+      test: ['CMD', 'dfx', 'ping']
+      interval: 10s
+      timeout: 30s
+      retries: 12
+    command: ['bash', '-lc', 'bash ./docker-entrypoint.sh']
+
+volumes:
+  encrypted_storage_node_modules:
+  encrypted_storage_dfx_project:
