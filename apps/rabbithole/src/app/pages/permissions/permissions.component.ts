@@ -11,7 +11,7 @@ import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 import { match, P } from 'ts-pattern';
 
-import { PermissionsTableComponent } from '../../widgets/permissions-table/permissions-table.component';
+import { PermissionsTableComponent } from '@rabbithole/core';
 import { PermissionsService } from './permissions.service';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { type Entry } from '@rabbithole/encrypted-storage';

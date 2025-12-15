@@ -1,1 +1,1 @@
-export * from './principal-cell';
+export * from './table';

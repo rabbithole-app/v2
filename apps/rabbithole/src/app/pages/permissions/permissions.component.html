@@ -4,7 +4,7 @@
   [selected]="permissionsService.rootNode()"
   (selectedChange)="handleSelect($event)"
 />
-<app-permissions-table
+<core-permissions-table
   [data]="permissionsService.listPermitted.value()"
   (grant)="permissionsService.grantPermission($event)"
   (revoke)="permissionsService.revokePermission($event)"

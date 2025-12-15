@@ -15,7 +15,7 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import { ProfileService } from '@rabbithole/core';
-import { AvatarEditorComponent } from '../../widgets/avatar-editor/avatar-editor.component';
+import { AvatarEditorComponent } from '@rabbithole/core';
 
 @Component({
   selector: 'app-profile',
@@ -44,7 +44,9 @@ export class ProfileComponent {
   readonly loading = signal(false);
   readonly #profileService = inject(ProfileService);
   readonly profile = this.#profileService.profile;
-  readonly profileReady = toSignal(this.#profileService.ready$, { initialValue: false });
+  readonly profileReady = toSignal(this.#profileService.ready$, {
+    initialValue: false,
+  });
   readonly #router = inject(Router);
 
   constructor() {

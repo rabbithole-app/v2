@@ -1,0 +1,29 @@
+<rbth-sidebar collapsible="icon">
+  <core-sidebar-header />
+  <div rbthSidebarContent>
+    <router-outlet name="sidebar-1" />
+    <router-outlet name="sidebar-2" />
+  </div>
+  <div rbthSidebarFooter></div>
+  <rbth-sidebar-rail />
+</rbth-sidebar>
+<rbth-sidebar-inset>
+  <div class="flex flex-1 flex-col">
+    <header class="bg-card sticky top-0 z-50 border-b">
+      <div class="flex items-center justify-between gap-6 p-2 sm:px-4">
+        <div class="flex items-center gap-4">
+          <rbth-sidebar-trigger class="-ml-1" />
+          <hlm-separator
+            orientation="vertical"
+            class="mr-2 data-[orientation=vertical]:h-4"
+          />
+        </div>
+        <core-account-menu class="self-end" />
+      </div>
+    </header>
+    <main class="flex-1 px-4 py-6 sm:px-6">
+      <ng-content />
+    </main>
+    <footer></footer>
+  </div>
+</rbth-sidebar-inset>

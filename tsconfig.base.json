@@ -21,7 +21,6 @@
       "@rabbithole/declarations": ["libs/declarations/src/index.ts"],
       "@rabbithole/encrypted-storage": ["libs/encrypted-storage/src/index.ts"],
       "@rabbithole/ui": ["libs/app-ui/src/index.ts"],
-      "@rabbithole/ui/tanstack": ["libs/app-ui/tanstack/src/index.ts"],
       "@rabbithole/utils": ["libs/utils/src/index.ts"],
       "@spartan-ng/helm/accordion": ["libs/ui/accordion/src/index.ts"],
       "@spartan-ng/helm/alert": ["libs/ui/alert/src/index.ts"],

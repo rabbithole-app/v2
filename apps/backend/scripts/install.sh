@@ -1,3 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cleanup() {
+  # Best-effort shutdown
+  dfx stop >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
+
 # Cleanup old dfx local network state
 echo "🧹 Cleaning up old DFX network state..."
 rm -rf /app/.dfx/network/local/pid
@@ -16,10 +25,19 @@ DEFAULT_ACCOUNT_ID=$(dfx ledger account-id)
 
 # Restart local DFX network
 echo "🚀 Starting DFX local network..."
-dfx stop || true
-dfx start --clean --host 0.0.0.0:4943 &> /app/replica.log
+dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 127.0.0.1 --domain 0.0.0.0
+
 echo "⏳ Waiting for DFX to be ready..."
-sleep 10
+for _ in $(seq 1 60); do
+  if dfx ping >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+dfx ping >/dev/null 2>&1 || {
+  echo "❌ dfx replica did not become ready in time"
+  exit 1
+}
 
 # install dependencies
 mops install
@@ -29,7 +47,7 @@ echo "🚀 Deploying canisters..."
 dfx deploy --network local internet-identity
 dfx deploy --network local rabbithole-backend
 dfx deploy --network local encrypted-storage
-dfx deploy --network local rabbithole-frontend
+# dfx deploy --network local rabbithole-frontend
 
 # Deploy ICP Ledger using dedicated script
 bash scripts/deploy-ledger.sh
@@ -37,7 +55,7 @@ bash scripts/deploy-ledger.sh
 # Deploy CMC using dedicated script
 bash scripts/deploy-cmc.sh
 
-dfx generate
+dfx generate || true
 
 # Verify canisters are deployed
 echo "✅ Verifying canisters are deployed..."
@@ -47,4 +65,4 @@ if [ -f .dfx/local/canister_ids.json ]; then
 fi
 
 # keep waiting
-tail -f /app/replica.log
+exec tail -f /dev/null

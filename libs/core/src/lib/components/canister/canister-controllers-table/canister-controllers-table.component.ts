@@ -28,7 +28,7 @@ import {
   PaginationState,
 } from '@tanstack/angular-table';
 
-import { PrincipalCell } from '../../ui/tanstack/principal-cell';
+import { PrincipalCell } from '../../ui/tanstack';
 import { AddControllerDialogComponent } from './add-controller-dialog.component';
 import { RemoveControllerDialogComponent } from './remove-controller-dialog.component';
 

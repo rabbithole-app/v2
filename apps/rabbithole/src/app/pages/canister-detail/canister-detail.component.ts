@@ -23,7 +23,7 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { filter, map, mergeWith } from 'rxjs';
 
-import { AddControllerInstructionsComponent } from '../../widgets/add-controller-instructions/add-controller-instructions.component';
+import { AddControllerInstructionsComponent } from '../../core/components/add-controller-instructions/add-controller-instructions.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   CanisterDataInfo,
@@ -32,8 +32,6 @@ import {
   ICManagementService,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
-} from '@rabbithole/core';
-import {
   CanisterControllersTableComponent,
   CanisterHealthCheckComponent,
   CanisterLoadSnapshotDialogComponent,

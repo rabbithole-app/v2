@@ -6,15 +6,15 @@ import {
 } from '@angular/core';
 import { Params, Router, RouterOutlet } from '@angular/router';
 
-import { SidebarLayoutComponent } from '../../widgets/sidebar/sidebar.component';
+import { SidebarLayoutComponent } from '@rabbithole/core';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
 @Component({
   selector: 'app-dashboard',
   imports: [SidebarLayoutComponent, RouterOutlet],
-  template: `<app-sidebar-layout>
+  template: `<core-sidebar-layout>
     <router-outlet />
-  </app-sidebar-layout>`,
+  </core-sidebar-layout>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {

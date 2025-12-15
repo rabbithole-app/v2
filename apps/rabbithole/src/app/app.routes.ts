@@ -32,9 +32,9 @@ export const appRoutes: Route[] = [
       {
         path: '',
         loadComponent: () =>
-          import('./widgets/main-navigation/main-navigation.component').then(
-            (m) => m.MainNavigationComponent,
-          ),
+          import(
+            './core/components/main-navigation/main-navigation.component'
+          ).then((m) => m.MainNavigationComponent),
         outlet: 'sidebar-2',
       },
       {
@@ -106,7 +106,7 @@ export const appRoutes: Route[] = [
             path: '',
             loadComponent: () =>
               import(
-                './widgets/storage-navigation/storage-navigation.component'
+                './core/components/storage-navigation/storage-navigation.component'
               ).then((m) => m.StorageNavigationComponent),
             outlet: 'sidebar-1',
           },
