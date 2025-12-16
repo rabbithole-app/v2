@@ -31,6 +31,17 @@ export const ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER = {
 export function createEncryptedStorageCanisterProviderFromSnapshot(
   route: ActivatedRouteSnapshot,
 ): Provider {
+  const providedCanisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
+    optional: true,
+  });
+
+  if (providedCanisterId) {
+    return {
+      provide: ENCRYPTED_STORAGE_CANISTER_ID,
+      useValue: providedCanisterId,
+    };
+  }
+
   // Find the 'id' parameter in the parent routes
   let currentRoute: ActivatedRouteSnapshot | null = route;
   let canisterId: string | null = null;
