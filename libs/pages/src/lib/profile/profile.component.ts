@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmFormField, HlmHint } from '@spartan-ng/helm/form-field';
 import { HlmInput } from '@spartan-ng/helm/input';
@@ -18,7 +18,7 @@ import { ProfileService } from '@rabbithole/core';
 import { AvatarEditorComponent } from '@rabbithole/core';
 
 @Component({
-  selector: 'app-profile',
+  selector: 'page-profile',
   standalone: true,
   imports: [
     ReactiveFormsModule,

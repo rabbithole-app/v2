@@ -26,13 +26,8 @@ import { filter, map, mergeWith } from 'rxjs';
 import { AddControllerInstructionsComponent } from '../../core/components/add-controller-instructions/add-controller-instructions.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
-  CanisterDataInfo,
-  ENCRYPTED_STORAGE_CANISTER_ID,
-  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
-  ICManagementService,
-  UPLOAD_ASSETS_SERVICE_PROVIDERS,
-  UPLOAD_SERVICE_TOKEN,
   CanisterControllersTableComponent,
+  CanisterDataInfo,
   CanisterHealthCheckComponent,
   CanisterLoadSnapshotDialogComponent,
   CanisterMemoryComponent,
@@ -40,8 +35,13 @@ import {
   CanisterSnapshotsTableComponent,
   CanisterTakeSnapshotDialogComponent,
   CommitPermissionWarningComponent,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   FrontendUploadDrawerComponent,
   FrontendUploadTriggerDirective,
+  ICManagementService,
+  UPLOAD_ASSETS_SERVICE_PROVIDERS,
+  UPLOAD_SERVICE_TOKEN,
   WasmInstallComponent,
   WasmInstallTriggerDirective,
 } from '@rabbithole/core';

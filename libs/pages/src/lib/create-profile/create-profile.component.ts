@@ -23,12 +23,12 @@ import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
-import { AvatarEditorComponent } from '@rabbithole/core';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { AvatarEditorComponent } from '@rabbithole/core';
 import { ProfileService } from '@rabbithole/core';
 
 @Component({
-  selector: 'app-create-profile',
+  selector: 'page-create-profile',
   standalone: true,
   imports: [
     ReactiveFormsModule,

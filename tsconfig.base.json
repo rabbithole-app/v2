@@ -86,6 +86,21 @@
       ],
       "@rabbithole/features/canisters": [
         "libs/features/src/lib/canisters/index.ts"
+      ],
+      "@rabbithole/pages/dashboard": [
+        "libs/pages/src/lib/dashboard/dashboard.component.ts"
+      ],
+      "@rabbithole/pages/login": [
+        "libs/pages/src/lib/login/login.component.ts"
+      ],
+      "@rabbithole/pages/profile": [
+        "libs/pages/src/lib/profile/profile.component.ts"
+      ],
+      "@rabbithole/pages/create-profile": [
+        "libs/pages/src/lib/create-profile/create-profile.component.ts"
+      ],
+      "@rabbithole/pages/permissions": [
+        "libs/pages/src/lib/permissions/permissions.component.ts"
       ]
     }
   },

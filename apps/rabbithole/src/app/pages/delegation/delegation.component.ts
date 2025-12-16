@@ -5,8 +5,8 @@ import { hexToBytes } from '@noble/hashes/utils';
 import { injectQueryParams } from 'ngxtension/inject-query-params';
 
 import { environment } from '../../../environments/environment';
-import { LoginComponent } from '../login/login.component';
 import { RbthInternetIdentityModule } from '@rabbithole/auth';
+import { LoginComponent } from '@rabbithole/pages/login';
 
 @Component({
   selector: 'app-delegation',

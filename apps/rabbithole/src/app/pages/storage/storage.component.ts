@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
-import { PermissionsService } from '../permissions/permissions.service';
 import {
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
+  PermissionsService,
   provideEncryptedStorage,
 } from '@rabbithole/core';
 

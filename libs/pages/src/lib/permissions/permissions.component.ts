@@ -11,14 +11,16 @@ import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 import { match, P } from 'ts-pattern';
 
-import { PermissionsTableComponent } from '@rabbithole/core';
-import { PermissionsService } from './permissions.service';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import {
+  PermissionsService,
+  PermissionsTableComponent,
+} from '@rabbithole/core';
 import { type Entry } from '@rabbithole/encrypted-storage';
 import { RbthTreeComponent, TreeNode } from '@rabbithole/ui';
 
 @Component({
-  selector: 'app-permissions',
+  selector: 'page-permissions',
   imports: [PermissionsTableComponent, RbthTreeComponent],
   providers: [provideIcons({ lucideLogOut })],
   templateUrl: './permissions.component.html',

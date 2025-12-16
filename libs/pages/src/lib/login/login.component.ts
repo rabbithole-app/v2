@@ -11,12 +11,11 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { isTauri } from '@tauri-apps/api/core';
 
-import { environment } from '../../../environments/environment';
-import { DelegationComponent } from '../delegation/delegation.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { APP_NAME_TOKEN } from '@rabbithole/core';
 
 @Component({
-  selector: 'app-login',
+  selector: 'page-login',
   imports: [NgIcon, HlmButton, HlmIcon],
   providers: [provideIcons({ lucideGithub, lucideDownload })],
   templateUrl: './login.component.html',
@@ -27,17 +26,14 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
   },
 })
 export class LoginComponent {
-  readonly appName = environment.appName;
+  readonly appName = inject(APP_NAME_TOKEN);
   authService = inject(AUTH_SERVICE);
   readonly isTauri = isTauri();
-  #delegationRef = inject(DelegationComponent, {
-    optional: true,
-  });
   #router = inject(Router);
 
   constructor() {
     effect(() => {
-      if (!this.#delegationRef && this.authService.isAuthenticated()) {
+      if (this.authService.isAuthenticated()) {
         this.#router.navigate(['/']);
       }
     });

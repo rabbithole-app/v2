@@ -6,11 +6,11 @@ import {
 } from '@angular/core';
 import { Params, Router, RouterOutlet } from '@angular/router';
 
-import { SidebarLayoutComponent } from '@rabbithole/core';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { SidebarLayoutComponent } from '@rabbithole/core';
 
 @Component({
-  selector: 'app-dashboard',
+  selector: 'page-dashboard',
   imports: [SidebarLayoutComponent, RouterOutlet],
   template: `<core-sidebar-layout>
     <router-outlet />
