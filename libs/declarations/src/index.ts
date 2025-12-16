@@ -1,14 +1,14 @@
-export {
+export type {
   CreateProfileArgs,
   ListOptions,
   Profile,
   _SERVICE as RabbitholeActorService,
-  idlFactory as rabbitholeIdlFactory,
   UpdateProfileArgs,
 } from './backend/rabbithole-backend.did';
-export {
+export { idlFactory as rabbitholeIdlFactory } from './backend/rabbithole-backend.did';
+export type {
   DirectoryColor,
   _SERVICE as EncryptedStorageActorService,
-  idlFactory as encryptedStorageIdlFactory,
   NodeDetails,
 } from './encrypted-storage/encrypted-storage.did';
+export { idlFactory as encryptedStorageIdlFactory } from './encrypted-storage/encrypted-storage.did';
