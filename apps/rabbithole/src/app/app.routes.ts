@@ -1,22 +1,19 @@
 import { Route } from '@angular/router';
 
+import { storageViewGuard } from './core/guards';
+import { canisterListResolver, canisterStatusResolver } from './core/resolvers';
 import {
   createProfileGuard,
   dashboardGuard,
   loginGuard,
-  storageViewGuard,
-} from './core/guards';
-import {
-  canisterListResolver,
-  canisterStatusResolver,
   profileResolver,
-} from './core/resolvers';
-import { DashboardComponent } from './pages/dashboard/dashboard.component';
+} from '@rabbithole/core';
 
 export const appRoutes: Route[] = [
   {
     path: '',
-    component: DashboardComponent,
+    loadComponent: () =>
+      import('@rabbithole/pages/dashboard').then((m) => m.DashboardComponent),
     canActivate: [dashboardGuard],
     resolve: {
       profile: profileResolver,
@@ -70,9 +67,7 @@ export const appRoutes: Route[] = [
       {
         path: 'profile',
         loadComponent: () =>
-          import('./pages/profile/profile.component').then(
-            (m) => m.ProfileComponent,
-          ),
+          import('@rabbithole/pages/profile').then((m) => m.ProfileComponent),
       },
       // Route :id with canMatch - will match only if id is a Principal
       {
@@ -96,7 +91,7 @@ export const appRoutes: Route[] = [
               {
                 path: 'permissions',
                 loadComponent: () =>
-                  import('./pages/permissions/permissions.component').then(
+                  import('@rabbithole/pages/permissions').then(
                     (m) => m.PermissionsComponent,
                   ),
               },
@@ -117,7 +112,7 @@ export const appRoutes: Route[] = [
   {
     path: 'login',
     loadComponent: () =>
-      import('./pages/login/login.component').then((m) => m.LoginComponent),
+      import('@rabbithole/pages/login').then((m) => m.LoginComponent),
     canActivate: [loginGuard],
   },
   {
@@ -131,7 +126,7 @@ export const appRoutes: Route[] = [
     path: 'create-profile',
     canActivate: [dashboardGuard, createProfileGuard],
     loadComponent: () =>
-      import('./pages/create-profile/create-profile.component').then(
+      import('@rabbithole/pages/create-profile').then(
         (m) => m.CreateProfileComponent,
       ),
   },

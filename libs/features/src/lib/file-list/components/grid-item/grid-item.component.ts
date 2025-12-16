@@ -51,7 +51,7 @@ export type GridItemVariants = VariantProps<typeof gridItemVariants>;
   host: {
     '[class]': '_computedClass()',
     '[tabindex]': 'data().disabled ? -1 : 0',
-    '[role]': '"gridcell"',
+    '[attr.role]': '"gridcell"',
     '[attr.aria-selected]': 'selected()',
     '[attr.aria-label]': 'itemName()',
     '[attr.id]': '_itemId()',

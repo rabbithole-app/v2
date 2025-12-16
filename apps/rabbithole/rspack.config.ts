@@ -161,14 +161,15 @@ export default createConfig(
         output: {
           publicPath: '/',
         },
+        watchOptions: {
+          aggregateTimeout: 500, // Wait 500ms after the last change before rebuilding
+        },
         infrastructureLogging: {
           level: 'info',
           debug: ['rspack', 'webpack-dev-server'],
         },
         plugins: [
-          ...(process.env['RSDOCTOR']
-            ? [new RsdoctorRspackPlugin()]
-            : []),
+          ...(process.env['RSDOCTOR'] ? [new RsdoctorRspackPlugin()] : []),
         ],
       },
     },

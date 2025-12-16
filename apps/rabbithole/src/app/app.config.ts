@@ -12,7 +12,7 @@ import { isTauri } from '@tauri-apps/api/core';
 
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
-import { APP_DERIVATION_ORIGIN, AUTH_MAX_TIME_TO_LIVE } from './core/constants';
+import { APP_DERIVATION_ORIGIN } from './core/constants';
 import { isCustomDomain } from './core/utils';
 import {
   AUTH_CONFIG,
@@ -22,6 +22,8 @@ import {
 } from '@rabbithole/auth';
 import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
 import {
+  APP_NAME_TOKEN,
+  AUTH_MAX_TIME_TO_LIVE,
   CYCLES_MINTING_CANISTER_ID_TOKEN,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
@@ -66,7 +68,7 @@ export const appConfig: ApplicationConfig = {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {
         shouldFetchRootKey: !environment.production,
-        host: 'https://localhost',
+        ...(environment.production ? {} : { host: 'https://localhost' }),
       } satisfies HttpAgentOptions,
     },
     FileSystemAccessService,
@@ -83,6 +85,10 @@ export const appConfig: ApplicationConfig = {
       useValue: environment.production
         ? `https://${environment.backendCanisterId}.icp0.io`
         : `https://${environment.backendCanisterId}.localhost`,
+    },
+    {
+      provide: APP_NAME_TOKEN,
+      useValue: environment.appName,
     },
   ],
 };
