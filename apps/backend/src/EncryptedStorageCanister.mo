@@ -12,6 +12,7 @@ import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
 import Sha256 "mo:sha2/Sha256";
+import Json "mo:json";
 
 import EncryptedStorage "mo:encrypted-storage";
 import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
@@ -45,6 +46,26 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
 
   transient var assetStore = HttpAssets.Assets(assetStableData, null);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
+
+  // Initialize info.json asset with canister ID
+  func initInfoJson() : () {
+    let infoJson = Json.obj([
+      ("id", Json.str(Principal.toText(canisterId))),
+    ]);
+    let jsonText = Json.stringify(infoJson, null);
+    let jsonBlob = Text.encodeUtf8(jsonText);
+    let storeArgs : HttpAssets.StoreArgs = {
+      key = "/info.json";
+      content = jsonBlob;
+      sha256 = ?Sha256.fromBlob(#sha256, jsonBlob);
+      content_type = "application/json";
+      content_encoding = "identity";
+      is_aliased = null;
+    };
+    assetCanister.store(owner, storeArgs);
+  };
+
+  initInfoJson();
 
   // Create the HTTP App with middleware
   transient let app = Liminal.App({
