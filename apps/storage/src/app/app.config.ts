@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import {
   ApplicationConfig,
   inject,
+  isDevMode,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
   Provider,
@@ -21,7 +22,7 @@ import {
   AUTH_CONFIG,
   AUTH_SERVICE,
   AuthConfig,
-  AuthService,
+  DelegationAuthService,
 } from '@rabbithole/auth';
 import {
   APP_NAME_TOKEN,
@@ -38,11 +39,11 @@ import {
 
 export const provideAuthService = (): Provider => ({
   provide: AUTH_SERVICE,
-  useClass: AuthService,
+  useClass: DelegationAuthService,
 });
 
 const authConfig: AuthConfig = {
-  appUrl: environment.appUrl,
+  appUrl: isDevMode() ? 'http://localhost:4200' : environment.appUrl,
   scheme: environment.scheme,
   delegationPath: '/delegation',
   loginOptions: {

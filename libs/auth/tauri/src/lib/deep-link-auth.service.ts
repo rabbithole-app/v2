@@ -19,9 +19,13 @@ import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { map } from 'rxjs/operators';
 
-import { waitDelegationExpired } from './operators';
 import { createAuthClient, loadIdentity, saveDelegationChain } from './utils';
-import { assertClient, AUTH_CONFIG, IAuthService } from '@rabbithole/auth';
+import {
+  assertClient,
+  AUTH_CONFIG,
+  IAuthService,
+  waitDelegationExpired,
+} from '@rabbithole/auth';
 
 export type AuthClientInstance = Awaited<ReturnType<typeof AuthClient.create>>;
 export type AuthClientLogoutOptions = Parameters<

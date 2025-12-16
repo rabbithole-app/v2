@@ -3,6 +3,7 @@ import {
   Component,
   effect,
   inject,
+  input,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -12,7 +13,10 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { isTauri } from '@tauri-apps/api/core';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { APP_NAME_TOKEN } from '@rabbithole/core';
+import {
+  APP_NAME_TOKEN,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+} from '@rabbithole/core';
 
 @Component({
   selector: 'page-login',
@@ -29,13 +33,23 @@ export class LoginComponent {
   readonly appName = inject(APP_NAME_TOKEN);
   authService = inject(AUTH_SERVICE);
   readonly isTauri = isTauri();
+  redirect = input(true);
   #router = inject(Router);
+  #storageCanisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
+    optional: true,
+  });
 
   constructor() {
     effect(() => {
-      if (this.authService.isAuthenticated()) {
+      if (this.authService.isAuthenticated() && this.redirect()) {
         this.#router.navigate(['/']);
       }
     });
+  }
+
+  signIn() {
+    this.authService.signIn(
+      this.#storageCanisterId ? { target: this.#storageCanisterId } : undefined,
+    );
   }
 }

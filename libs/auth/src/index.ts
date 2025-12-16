@@ -11,7 +11,9 @@ import {
 
 export * from './lib/asserts';
 export * from './lib/auth.service';
+export { DelegationAuthService } from './lib/delegation-auth.service';
 export * from './lib/internet-identity/internet-identity.component';
+export * from './lib/operators';
 export * from './lib/tokens';
 
 export const RbthInternetIdentityImports = [

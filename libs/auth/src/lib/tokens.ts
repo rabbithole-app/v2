@@ -1,6 +1,7 @@
 import { InjectionToken, Signal } from '@angular/core';
 import { Identity } from '@dfinity/agent';
 import { AuthClient, AuthClientLoginOptions } from '@dfinity/auth-client';
+import { Principal } from '@dfinity/principal';
 import { Observable } from 'rxjs';
 
 export type AuthClientInstance = Awaited<ReturnType<typeof AuthClient.create>>;
@@ -22,7 +23,7 @@ export interface IAuthService {
   isAuthenticated: Signal<boolean>;
   principalId: Signal<string>;
   ready$: Observable<boolean>;
-  signIn(): Promise<void> | void;
+  signIn(options?: { target?: Principal }): Promise<void> | void;
   signOut(): Promise<void> | void;
 }
 

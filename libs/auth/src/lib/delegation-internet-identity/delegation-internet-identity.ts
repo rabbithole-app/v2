@@ -77,7 +77,7 @@ export class RbthDelegationInternetIdentityComponent {
         ...(this.#authConfig.loginOptions ?? {}),
         onError: reject,
         onSuccess: resolve,
-      })
+      }),
     );
     const middleIdentity = client.getIdentity() as DelegationIdentity;
     const expiration = this.expiration();
@@ -90,7 +90,7 @@ export class RbthDelegationInternetIdentityComponent {
       {
         previous: middleIdentity.getDelegation(),
         targets: this.targets(),
-      }
+      },
     );
 
     this.delegate.emit(delegationChainForPublicKey);
