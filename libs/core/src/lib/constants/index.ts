@@ -1,3 +1,4 @@
+export * from './auth';
 export * from './canister';
 export * from './images';
 export * from './ledger';

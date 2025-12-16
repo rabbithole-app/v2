@@ -7,9 +7,11 @@ import {
 } from '@angular/router';
 import { filter, map } from 'rxjs/operators';
 
-import { ProfileService } from '@rabbithole/core';
+import { ProfileService } from '../services/profile.service';
 
-export const createProfileGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
+export const createProfileGuard: CanActivateFn = (
+  route: ActivatedRouteSnapshot,
+) => {
   const router = inject(Router);
   const profileService = inject(ProfileService);
 
@@ -22,6 +24,6 @@ export const createProfileGuard: CanActivateFn = (route: ActivatedRouteSnapshot)
       }
 
       return true;
-    })
+    }),
   );
 };

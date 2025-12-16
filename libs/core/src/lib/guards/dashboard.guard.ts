@@ -17,6 +17,6 @@ export const dashboardGuard: CanActivateFn = () => {
       }
 
       return true;
-    })
+    }),
   );
 };
