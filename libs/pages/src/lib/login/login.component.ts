@@ -3,14 +3,15 @@ import {
   Component,
   effect,
   inject,
-  input,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideDownload, lucideGithub } from '@ng-icons/lucide';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { isTauri } from '@tauri-apps/api/core';
+import { map } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
@@ -32,8 +33,12 @@ import {
 export class LoginComponent {
   readonly appName = inject(APP_NAME_TOKEN);
   authService = inject(AUTH_SERVICE);
+  #route = inject(ActivatedRoute);
+  isDelegation = toSignal(
+    this.#route.url.pipe(map((url) => url[0]?.path === 'delegation')),
+    { requireSync: true },
+  );
   readonly isTauri = isTauri();
-  redirect = input(true);
   #router = inject(Router);
   #storageCanisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
     optional: true,
@@ -41,7 +46,7 @@ export class LoginComponent {
 
   constructor() {
     effect(() => {
-      if (this.authService.isAuthenticated() && this.redirect()) {
+      if (!this.isDelegation() && this.authService.isAuthenticated()) {
         this.#router.navigate(['/']);
       }
     });
