@@ -29,6 +29,10 @@ export default createConfig(
       assets: [
         {
           glob: '**/*',
+          input: '../../libs/shared-assets/public',
+        },
+        {
+          glob: '**/*',
           input: './public',
         },
       ],
