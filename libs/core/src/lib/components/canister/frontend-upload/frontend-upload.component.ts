@@ -1,4 +1,3 @@
-import { DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,12 +18,9 @@ import {
   lucideUpload,
   lucideX,
 } from '@ng-icons/lucide';
-import { BrnProgress } from '@spartan-ng/brain/progress';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { hlm } from '@spartan-ng/helm/utils';
@@ -38,8 +34,13 @@ import {
 } from '../../../services';
 import { UPLOAD_SERVICE_TOKEN } from '../../../tokens';
 import { UploadState } from '../../../types';
-import { FormatBytesPipe } from '../../ui';
 import { UploadDrawerListComponent } from '../../upload/upload-drawer-list/upload-drawer-list.component';
+import { FrontendTakeOwnershipAlertComponent } from '../frontend-take-ownership/frontend-take-ownership-alert.component';
+import { FrontendTakeOwnershipButtonComponent } from '../frontend-take-ownership/frontend-take-ownership-button.component';
+import { FrontendUploadArchivePreviewComponent } from './frontend-upload-archive-preview.component';
+import { FrontendUploadFileSelectionComponent } from './frontend-upload-file-selection.component';
+import { FrontendUploadGithubSelectionComponent } from './frontend-upload-github-selection.component';
+import { FrontendUploadProgressComponent } from './frontend-upload-progress.component';
 import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
 import {
   RbthDrawerComponent,
@@ -53,13 +54,10 @@ import {
 @Component({
   selector: 'core-frontend-upload-drawer',
   imports: [
-    ...HlmButtonImports,
-    ...HlmProgressImports,
-    ...HlmSpinnerImports,
-    ...HlmTabsImports,
-    ...HlmEmptyImports,
+    HlmButtonImports,
+    HlmSpinnerImports,
+    HlmTabsImports,
     BrnSheetContent,
-    BrnProgress,
     RbthDrawerComponent,
     RbthDrawerContentComponent,
     RbthDrawerFooterComponent,
@@ -67,10 +65,14 @@ import {
     RbthDrawerSeparatorDirective,
     RbthDrawerTitleDirective,
     FrontendUploadTriggerDirective,
+    FrontendTakeOwnershipAlertComponent,
+    FrontendTakeOwnershipButtonComponent,
+    FrontendUploadFileSelectionComponent,
+    FrontendUploadGithubSelectionComponent,
+    FrontendUploadArchivePreviewComponent,
+    FrontendUploadProgressComponent,
     NgIcon,
     HlmIcon,
-    DecimalPipe,
-    FormatBytesPipe,
     UploadDrawerListComponent,
   ],
   providers: [
@@ -117,6 +119,7 @@ export class FrontendUploadDrawerComponent {
   readonly failedItems = computed(() =>
     this.files().filter(({ status }) => status === UploadState.FAILED),
   );
+  readonly hasPermission = computed(() => this.#uploadService.hasPermission());
   readonly icons = { fileArchive: lucideFileArchive };
   isProcessing = computed(() => this.#uploadService.state().isProcessing);
   overallProgress = computed(() => this.#uploadService.state().overallProgress);
@@ -160,18 +163,13 @@ export class FrontendUploadDrawerComponent {
     this.archiveFile.set(file);
   }
 
-  handleDrop(event: DragEvent) {
-    event.preventDefault();
-    event.stopPropagation();
-    const file = event.dataTransfer?.files[0];
-    if (file) {
-      this.onFileSelected(file);
-    }
-  }
-
   onCancel() {
     this.archiveFile.set(null);
     this.#uploadService.clear();
+  }
+
+  onFileDropped(file: File) {
+    this.onFileSelected(file);
   }
 
   onFileInputChange(event: Event) {
@@ -205,5 +203,9 @@ export class FrontendUploadDrawerComponent {
         }
       }
     }
+  }
+
+  onOwnershipTaken() {
+    this.#uploadService.reloadPermissions();
   }
 }

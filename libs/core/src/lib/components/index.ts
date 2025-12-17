@@ -25,6 +25,8 @@ export * from './canister/frontend-upload-item/frontend-upload-item.component';
 export * from './canister/frontend-upload-list/frontend-upload-list.component';
 export * from './canister/frontend-upload/frontend-upload-trigger.directive';
 export * from './canister/frontend-upload/frontend-upload.component';
+export * from './canister/frontend-take-ownership/frontend-take-ownership-alert.component';
+export * from './canister/frontend-take-ownership/frontend-take-ownership-button.component';
 export * from './canister/inline-warning/inline-warning.component';
 export * from './canister/link-canister-dialog/link-canister-dialog.component';
 export * from './canister/wasm-install/wasm-install-trigger.directive';

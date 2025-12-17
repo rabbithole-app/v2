@@ -222,4 +222,8 @@ export class AssetManager {
 
     return key;
   }
+
+  async takeOwnership() {
+    return this._actor.take_ownership();
+  }
 }
