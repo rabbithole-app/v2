@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  OnInit,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -40,6 +41,7 @@ import {
   FrontendUploadDrawerComponent,
   FrontendUploadTriggerDirective,
   ICManagementService,
+  injectCoreWorker,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
   WasmInstallComponent,
@@ -88,7 +90,7 @@ import {
     }),
   ],
 })
-export class CanisterDetailComponent {
+export class CanisterDetailComponent implements OnInit {
   #route = inject(ActivatedRoute);
   // List of available canisters from resolver
   readonly canisterList = toSignal(
@@ -99,7 +101,6 @@ export class CanisterDetailComponent {
     ),
     { requireSync: true },
   );
-
   #icManagementService = inject(ICManagementService);
 
   // Combines initial data from resolver with reactive updates from service resource
@@ -118,16 +119,16 @@ export class CanisterDetailComponent {
   controllers = computed(() => this.canisterStatus().settings.controllers);
 
   readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
-  readonly currentCanisterId = computed(() => this.#canisterId.toText());
 
+  readonly currentCanisterId = computed(() => this.#canisterId.toText());
   #authService = inject(AUTH_SERVICE);
+
   currentPrincipalId = computed(() => {
     return this.#authService.principalId();
   });
-
   #uploadService = inject(UPLOAD_SERVICE_TOKEN);
-  hasUploadPermission = computed(() => this.#uploadService.hasPermission());
 
+  hasUploadPermission = computed(() => this.#uploadService.hasPermission());
   isController = computed(() => {
     const controllers = this.controllers();
     const currentPrincipalId = this.currentPrincipalId();
@@ -139,9 +140,10 @@ export class CanisterDetailComponent {
   readonly isLoadingStatus = computed(() =>
     this.#icManagementService.canisterStatus.isLoading(),
   );
-  loadingState = computed(() => this.#icManagementService.state().loading);
 
+  loadingState = computed(() => this.#icManagementService.state().loading);
   snapshots = computed(() => this.#icManagementService.snapshots.value() ?? []);
+
   snapshotsLoadingState = computed(() => {
     const state = this.#icManagementService.state().snapshots;
     const isLoadingSnapshots = this.#icManagementService.snapshots.isLoading();
@@ -151,9 +153,17 @@ export class CanisterDetailComponent {
       loading: isLoadingSnapshots,
     };
   });
+  #coreWorkerService = injectCoreWorker();
 
   #dialogService = inject(HlmDialogService);
   #router = inject(Router);
+
+  ngOnInit() {
+    this.#coreWorkerService.postMessage({
+      action: 'worker:init-storage',
+      payload: this.#canisterId.toText(),
+    });
+  }
 
   protected _handleAddController(principal: Principal) {
     this.#icManagementService.addController(principal);
