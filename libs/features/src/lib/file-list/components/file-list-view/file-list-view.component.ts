@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  isDevMode,
   signal,
 } from '@angular/core';
 import {
@@ -12,12 +13,14 @@ import {
 import { ActivatedRoute } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideFolderOpen,
   lucideFolderPlus,
   lucideFolderUp,
   lucideUpload,
 } from '@ng-icons/lucide';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { filter, map, mergeWith } from 'rxjs';
 
 import { GRAY_ICONS_CONFIG } from '../../constants';
@@ -46,6 +49,7 @@ import {
     NgIcon,
     HlmContextMenuImports,
     HlmDropdownMenuImports,
+    HlmEmptyImports,
   ],
   providers: [
     provideUploadFilesService(),
@@ -55,6 +59,7 @@ import {
       lucideFolderPlus,
       lucideUpload,
       lucideFolderUp,
+      lucideFolderOpen,
     }),
   ],
 })

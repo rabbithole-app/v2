@@ -1,10 +1,22 @@
-<div class="container mx-auto space-y-6">
+<div class="flex justify-between items-center">
   <h1 class="text-2xl font-semibold">Storage</h1>
-  <p class="text-sm text-muted-foreground">
-    Storage: {{ canisterId.toText() }}
-  </p>
   <rbth-feat-file-list-upload-drawer />
+</div>
+@if (items().length === 0) {
+  <div hlmEmpty class="min-h-[400px]">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <ng-icon name="lucideFolderOpen" />
+      </div>
+    </div>
+    <div hlmEmptyTitle>No files or folders</div>
+    <div hlmEmptyDescription>
+      This directory is empty. Upload files or create folders to get started.
+    </div>
+  </div>
+} @else {
   <rbth-feat-file-list-grid-view
+    class="mt-4"
     [hlmContextMenuTrigger]="emptyAreaContextMenu"
     [items]="items()"
     (delete)="_handleDelete($event)"
@@ -12,7 +24,7 @@
     (move)="_handleMove($event)"
     (rename)="_handleRename($event)"
   />
-</div>
+}
 
 <ng-template #emptyAreaContextMenu>
   <hlm-dropdown-menu class="w-52">
