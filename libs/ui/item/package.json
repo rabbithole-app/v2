@@ -2,8 +2,12 @@
   "name": "@spartan-ng/helm/item",
   "version": "0.0.1",
   "peerDependencies": {
-    "@angular/common": "^20.3.0",
-    "@angular/core": "^20.3.0"
+    "@angular/core": "^21.0.0",
+    "@spartan-ng/helm/utils": "0.0.1",
+    "clsx": "^2.1.1",
+    "class-variance-authority": "^0.7.0",
+    "@spartan-ng/brain": "^0.0.1-alpha.584",
+    "@spartan-ng/helm/separator": "0.0.1"
   },
   "sideEffects": false
 }

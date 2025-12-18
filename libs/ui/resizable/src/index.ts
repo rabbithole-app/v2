@@ -6,4 +6,8 @@ export * from './lib/hlm-resizable-group';
 export * from './lib/hlm-resizable-handle';
 export * from './lib/hlm-resizable-panel';
 
-export const HlmResizableImports = [HlmResizableGroup, HlmResizablePanel, HlmResizableHandle] as const;
+export const HlmResizableImports = [
+  HlmResizableGroup,
+  HlmResizablePanel,
+  HlmResizableHandle,
+] as const;

@@ -4,7 +4,6 @@ import {
   type BrnDialogOptions,
   BrnDialogService,
   cssClassesToArray,
-  defaultOptions as DEFAULT_BRN_DIALOG_OPTIONS,
 } from '@spartan-ng/brain/dialog';
 
 import { HlmDialogContent } from './hlm-dialog-content';
@@ -26,8 +25,6 @@ export class HlmDialogService {
     options?: Partial<HlmDialogOptions>,
   ) {
     const mergedOptions = {
-      ...DEFAULT_BRN_DIALOG_OPTIONS,
-
       ...(options ?? {}),
       backdropClass: cssClassesToArray(
         `${hlmDialogOverlayClass} ${options?.backdropClass ?? ''}`,

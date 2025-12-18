@@ -8,4 +8,9 @@ export * from './lib/hlm-alert-description';
 export * from './lib/hlm-alert-icon';
 export * from './lib/hlm-alert-title';
 
-export const HlmAlertImports = [HlmAlert, HlmAlertTitle, HlmAlertDescription, HlmAlertIcon] as const;
+export const HlmAlertImports = [
+  HlmAlert,
+  HlmAlertTitle,
+  HlmAlertDescription,
+  HlmAlertIcon,
+] as const;

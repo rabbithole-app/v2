@@ -22,6 +22,28 @@
       "@rabbithole/encrypted-storage": ["libs/encrypted-storage/src/index.ts"],
       "@rabbithole/ui": ["libs/app-ui/src/index.ts"],
       "@rabbithole/utils": ["libs/utils/src/index.ts"],
+      "@rabbithole/features": ["libs/features/src/index.ts"],
+      "@rabbithole/features/file-list": [
+        "libs/features/src/lib/file-list/index.ts"
+      ],
+      "@rabbithole/features/canisters": [
+        "libs/features/src/lib/canisters/index.ts"
+      ],
+      "@rabbithole/pages/dashboard": [
+        "libs/pages/src/lib/dashboard/dashboard.component.ts"
+      ],
+      "@rabbithole/pages/login": [
+        "libs/pages/src/lib/login/login.component.ts"
+      ],
+      "@rabbithole/pages/profile": [
+        "libs/pages/src/lib/profile/profile.component.ts"
+      ],
+      "@rabbithole/pages/create-profile": [
+        "libs/pages/src/lib/create-profile/create-profile.component.ts"
+      ],
+      "@rabbithole/pages/permissions": [
+        "libs/pages/src/lib/permissions/permissions.component.ts"
+      ],
       "@spartan-ng/helm/accordion": ["libs/ui/accordion/src/index.ts"],
       "@spartan-ng/helm/alert": ["libs/ui/alert/src/index.ts"],
       "@spartan-ng/helm/alert-dialog": ["libs/ui/alert-dialog/src/index.ts"],
@@ -79,29 +101,7 @@
       "@spartan-ng/helm/toggle-group": ["libs/ui/toggle-group/src/index.ts"],
       "@spartan-ng/helm/tooltip": ["libs/ui/tooltip/src/index.ts"],
       "@spartan-ng/helm/typography": ["libs/ui/typography/src/index.ts"],
-      "@spartan-ng/helm/utils": ["libs/ui/utils/src/index.ts"],
-      "@rabbithole/features": ["libs/features/src/index.ts"],
-      "@rabbithole/features/file-list": [
-        "libs/features/src/lib/file-list/index.ts"
-      ],
-      "@rabbithole/features/canisters": [
-        "libs/features/src/lib/canisters/index.ts"
-      ],
-      "@rabbithole/pages/dashboard": [
-        "libs/pages/src/lib/dashboard/dashboard.component.ts"
-      ],
-      "@rabbithole/pages/login": [
-        "libs/pages/src/lib/login/login.component.ts"
-      ],
-      "@rabbithole/pages/profile": [
-        "libs/pages/src/lib/profile/profile.component.ts"
-      ],
-      "@rabbithole/pages/create-profile": [
-        "libs/pages/src/lib/create-profile/create-profile.component.ts"
-      ],
-      "@rabbithole/pages/permissions": [
-        "libs/pages/src/lib/permissions/permissions.component.ts"
-      ]
+      "@spartan-ng/helm/utils": ["libs/ui/utils/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

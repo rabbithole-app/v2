@@ -13,10 +13,10 @@ export * from './hlm-navigation-menu-list';
 export * from './hlm-navigation-menu-trigger';
 
 export const HlmNavigationMenuImports = [
-	HlmNavigationMenu,
-	HlmNavigationMenuContent,
-	HlmNavigationMenuLink,
-	HlmNavigationMenuList,
-	HlmNavigationMenuItem,
-	HlmNavigationMenuTrigger,
+  HlmNavigationMenu,
+  HlmNavigationMenuContent,
+  HlmNavigationMenuLink,
+  HlmNavigationMenuList,
+  HlmNavigationMenuItem,
+  HlmNavigationMenuTrigger,
 ] as const;

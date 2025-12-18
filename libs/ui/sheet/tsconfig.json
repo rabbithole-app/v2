@@ -1,20 +1,19 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "moduleResolution": "bundler",
+    "isolatedModules": true,
     "strict": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "module": "preserve",
-    "lib": ["dom", "es2022"]
+    "emitDecoratorMetadata": false,
+    "module": "preserve"
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true,
-    "typeCheckHostBindings": true,
     "strictTemplates": true
   },
   "files": [],

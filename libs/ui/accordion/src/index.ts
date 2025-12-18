@@ -11,9 +11,9 @@ export * from './lib/hlm-accordion-item';
 export * from './lib/hlm-accordion-trigger';
 
 export const HlmAccordionImports = [
-	HlmAccordion,
-	HlmAccordionItem,
-	HlmAccordionTrigger,
-	HlmAccordionIcon,
-	HlmAccordionContent,
+  HlmAccordion,
+  HlmAccordionItem,
+  HlmAccordionTrigger,
+  HlmAccordionIcon,
+  HlmAccordionContent,
 ] as const;

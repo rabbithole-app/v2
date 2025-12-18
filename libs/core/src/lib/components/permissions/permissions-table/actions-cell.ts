@@ -15,8 +15,8 @@ import {
 import { BrnDialog } from '@spartan-ng/brain/dialog';
 import {
   HlmAlertDialog,
-  HlmAlertDialogActionButton,
-  HlmAlertDialogCancelButton,
+  HlmAlertDialogAction,
+  HlmAlertDialogCancel,
   HlmAlertDialogContent,
   HlmAlertDialogDescription,
   HlmAlertDialogFooter,
@@ -52,8 +52,8 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
     HlmAlertDialogFooter,
     HlmAlertDialogTitle,
     HlmAlertDialogDescription,
-    HlmAlertDialogCancelButton,
-    HlmAlertDialogActionButton,
+    HlmAlertDialogCancel,
+    HlmAlertDialogAction,
     HlmAlertDialogContent,
     EditPermissionFormComponent,
     EditPermissionFormTriggerDirective,

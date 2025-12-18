@@ -6,4 +6,8 @@ export * from './lib/hlm-button-group';
 export * from './lib/hlm-button-group-separator';
 export * from './lib/hlm-button-group-text';
 
-export const HlmButtonGroupImports = [HlmButtonGroup, HlmButtonGroupText, HlmButtonGroupSeparator] as const;
+export const HlmButtonGroupImports = [
+  HlmButtonGroup,
+  HlmButtonGroupText,
+  HlmButtonGroupSeparator,
+] as const;

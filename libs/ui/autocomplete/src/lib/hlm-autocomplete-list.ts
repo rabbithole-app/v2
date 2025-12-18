@@ -1,27 +1,26 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { computed, Directive, input } from '@angular/core';
 import { BrnAutocompleteList } from '@spartan-ng/brain/autocomplete';
 import { hlm } from '@spartan-ng/helm/utils';
+import type { ClassValue } from 'clsx';
 
-@Component({
-	selector: 'hlm-autocomplete-list',
-	changeDetection: ChangeDetectionStrategy.OnPush,
-	hostDirectives: [
-		{
-			directive: BrnAutocompleteList,
-			inputs: ['id'],
-		},
-	],
-	host: {
-		'[class]': '_computedClass()',
-	},
-	template: '<ng-content />',
+@Directive({
+  selector: '[hlmAutocompleteList],hlm-autocomplete-list',
+  hostDirectives: [
+    {
+      directive: BrnAutocompleteList,
+      inputs: ['id'],
+    },
+  ],
+  host: {
+    '[class]': '_computedClass()',
+  },
 })
 export class HlmAutocompleteList {
-	/** The user defined class  */
-	public readonly userClass = input<string>('', { alias: 'class' });
+  /** The user defined class  */
+  public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
-	/** The styles to apply  */
-	protected readonly _computedClass = computed(() =>
-		hlm('block max-h-60 overflow-x-hidden overflow-y-auto', this.userClass()),
-	);
+  /** The styles to apply  */
+  protected readonly _computedClass = computed(() =>
+    hlm('block max-h-60 overflow-x-hidden overflow-y-auto', this.userClass()),
+  );
 }

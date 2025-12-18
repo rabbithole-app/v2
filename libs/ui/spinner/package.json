@@ -2,8 +2,11 @@
   "name": "@spartan-ng/helm/spinner",
   "version": "0.0.1",
   "peerDependencies": {
-    "@angular/common": "^20.3.0",
-    "@angular/core": "^20.3.0"
+    "@angular/core": "^21.0.0",
+    "@ng-icons/core": "^32.4.0",
+    "@ng-icons/lucide": "^32.4.0",
+    "@spartan-ng/helm/utils": "0.0.1",
+    "clsx": "^2.1.1"
   },
   "sideEffects": false
 }

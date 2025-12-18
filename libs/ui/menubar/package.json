@@ -2,8 +2,11 @@
   "name": "@spartan-ng/helm/menubar",
   "version": "0.0.1",
   "peerDependencies": {
-    "@angular/common": "^20.3.0",
-    "@angular/core": "^20.3.0"
+    "@angular/core": "^21.0.0",
+    "@spartan-ng/brain": "^0.0.1-alpha.584",
+    "@angular/cdk": "^21.0.3",
+    "@spartan-ng/helm/utils": "0.0.1",
+    "clsx": "^2.1.1"
   },
   "sideEffects": false
 }
