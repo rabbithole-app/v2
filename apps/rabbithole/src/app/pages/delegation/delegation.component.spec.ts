@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 
 import { DelegationComponent } from './delegation.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { APP_NAME_TOKEN } from '@rabbithole/core';
 
 vi.mock('../../../environments/environment', () => ({
   environment: {
@@ -20,6 +21,7 @@ describe('DelegationComponent', () => {
       providers: [
         provideRouter([]),
         { provide: AUTH_SERVICE, useValue: { isAuthenticated: () => true } },
+        { provide: APP_NAME_TOKEN, useValue: 'rabbithole' },
       ],
     }).compileComponents();
 
