@@ -4,6 +4,9 @@ import { Principal } from '@dfinity/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { match, P } from 'ts-pattern';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import { AssetManager } from '@rabbithole/encrypted-storage';
+
 import {
   injectAssetManager,
   injectCoreWorker,
@@ -12,10 +15,7 @@ import {
 import { messageByAction } from '../operators';
 import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
 import { IUploadService, UploadAsset, UploadId, UploadState } from '../types';
-import { ICManagementService } from './ic-management.service';
 import { UploadBaseService } from './upload-base.service';
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import { AssetManager } from '@rabbithole/encrypted-storage';
 
 @Injectable()
 export class UploadAssetsService implements IUploadService {
@@ -129,7 +129,6 @@ export const [injectUploadAssetsService, provideUploadAssetsService] =
     extraProviders: [
       { provide: UPLOAD_SERVICE_TOKEN, useClass: UploadAssetsService },
       UploadBaseService,
-      ICManagementService,
     ],
   });
 

@@ -1,7 +1,6 @@
 import { Route } from '@angular/router';
 
 import { storageViewGuard } from './core/guards';
-import { canisterListResolver, canisterStatusResolver } from './core/resolvers';
 import {
   createProfileGuard,
   dashboardGuard,
@@ -29,9 +28,9 @@ export const appRoutes: Route[] = [
       {
         path: '',
         loadComponent: () =>
-          import(
-            './core/components/main-navigation/main-navigation.component'
-          ).then((m) => m.MainNavigationComponent),
+          import('./core/components/main-navigation/main-navigation.component').then(
+            (m) => m.MainNavigationComponent,
+          ),
         outlet: 'sidebar-2',
       },
       {
@@ -41,28 +40,10 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'canisters',
-        resolve: {
-          canisterList: canisterListResolver,
-        },
-        children: [
-          {
-            path: '',
-            loadComponent: () =>
-              import('./pages/canisters/canisters.component').then(
-                (m) => m.CanistersComponent,
-              ),
-          },
-          {
-            path: ':id',
-            loadComponent: () =>
-              import('./pages/canister-detail/canister-detail.component').then(
-                (m) => m.CanisterDetailComponent,
-              ),
-            resolve: {
-              canisterStatus: canisterStatusResolver,
-            },
-          },
-        ],
+        loadChildren: () =>
+          import('@rabbithole/features/canisters').then(
+            (m) => m.canistersRoutes,
+          ),
       },
       {
         path: 'profile',
@@ -100,9 +81,9 @@ export const appRoutes: Route[] = [
           {
             path: '',
             loadComponent: () =>
-              import(
-                './core/components/storage-navigation/storage-navigation.component'
-              ).then((m) => m.StorageNavigationComponent),
+              import('./core/components/storage-navigation/storage-navigation.component').then(
+                (m) => m.StorageNavigationComponent,
+              ),
             outlet: 'sidebar-1',
           },
         ],
