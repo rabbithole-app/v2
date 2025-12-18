@@ -61,15 +61,8 @@
     "install-ca": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "apps/backend",
-        "commands": [
-          "docker cp $(docker ps -q --filter \"name=caddy\"):/data/caddy/pki/authorities/local/root.crt ./root.crt",
-          "sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain root.crt"
-        ],
-        "env": {
-          "COMPOSE_PROJECT_NAME": "rabbithole"
-        },
-        "parallel": false
+        "command": "bash scripts/install-ca.sh",
+        "cwd": "apps/backend"
       }
     },
     "serve": {
