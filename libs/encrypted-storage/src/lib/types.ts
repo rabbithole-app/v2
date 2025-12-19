@@ -1,5 +1,5 @@
-import { ActorConfig } from '@dfinity/agent';
-import { Principal } from '@dfinity/principal';
+import { ActorConfig } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 
 import {
   Entry as EntryRaw,

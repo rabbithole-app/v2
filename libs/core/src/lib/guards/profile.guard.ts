@@ -27,3 +27,4 @@ export const profileGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
     }),
   );
 };
+

@@ -6,14 +6,14 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { AnonymousIdentity, SignIdentity } from '@dfinity/agent';
-import { AuthClient } from '@dfinity/auth-client';
+import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
+import { AuthClient } from '@icp-sdk/auth/client';
 import {
   DelegationChain,
   DelegationIdentity,
   Ed25519KeyIdentity,
   JsonnableDelegationChain,
-} from '@dfinity/identity';
+} from '@icp-sdk/core/identity';
 import { bytesToHex } from '@noble/hashes/utils';
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { openUrl } from '@tauri-apps/plugin-opener';

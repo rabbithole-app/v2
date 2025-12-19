@@ -1,5 +1,5 @@
 import { InjectionToken, ResourceRef, Signal } from '@angular/core';
-import { AccountIdentifier } from '@dfinity/ledger-icp';
+import { AccountIdentifier } from '@icp-sdk/canisters/ledger/icp';
 
 export interface LedgerService {
   accountIdentifier: Signal<AccountIdentifier>;

@@ -1,9 +1,8 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import {
-  canister_install_mode,
-  chunk_hash,
-  ICManagementCanister,
+  IcManagementCanister,
+  type IcManagementDid,
   UploadChunkParams,
 } from '@icp-sdk/canisters/ic-management';
 import { sha256 } from '@noble/hashes/sha2';
@@ -38,11 +37,11 @@ export class WasmInstallService {
   #httpAgent = injectHttpAgent();
   #icManagement = computed(() => {
     const agent = this.#httpAgent();
-    return ICManagementCanister.create({ agent });
+    return IcManagementCanister.create({ agent });
   });
   #uploadFile = new Subject<File>();
 
-  async install(wasm: File, mode: canister_install_mode) {
+  async install(wasm: File, mode: IcManagementDid.canister_install_mode) {
     const ab = await wasm.arrayBuffer();
     const u8 = arrayBufferToUint8Array(ab);
     const wasmModuleHash = sha256(u8);
@@ -55,7 +54,7 @@ export class WasmInstallService {
     this.#state.set(initialUploadingState);
     const uploadChunks = this.wasmToChunks(u8);
     const icManagement = this.#icManagement();
-    const chunkHashesList: chunk_hash[] = [];
+    const chunkHashesList: IcManagementDid.chunk_hash[] = [];
 
     try {
       for await (const { chunk } of uploadChunks) {

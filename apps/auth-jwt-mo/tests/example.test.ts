@@ -5,7 +5,7 @@ import {
   PocketIc,
   SubnetStateType,
 } from "@dfinity/pic";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 // jose v5 is being used, as v6 has removed support for ES256K (secp256k1)
 // which is necessary for verifying JWT tokens with an Internet Computer
 import { importJWK, jwtVerify } from "jose";

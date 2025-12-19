@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucideUserPlus } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';

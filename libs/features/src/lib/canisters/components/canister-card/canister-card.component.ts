@@ -7,7 +7,7 @@ import {
   input,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideDatabase, lucideEye, lucideTrash2 } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';

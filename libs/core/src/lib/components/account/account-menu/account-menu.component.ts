@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AccountIdentifier } from '@dfinity/ledger-icp';
+import { AccountIdentifier } from '@icp-sdk/canisters/ledger/icp';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLogOut, lucideUser } from '@ng-icons/lucide';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';

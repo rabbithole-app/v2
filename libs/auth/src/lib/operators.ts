@@ -1,4 +1,4 @@
-import { DelegationChain, isDelegationValid } from '@dfinity/identity';
+import { DelegationChain, isDelegationValid } from '@icp-sdk/core/identity';
 import { Observable, timer } from 'rxjs';
 import { filter, map, switchMap } from 'rxjs/operators';
 

@@ -1,5 +1,5 @@
-import { Actor, ActorSubclass } from '@dfinity/agent';
-import { Principal } from '@dfinity/principal';
+import { Actor, ActorSubclass } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import {
   DerivedKeyMaterial,

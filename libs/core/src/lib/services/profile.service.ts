@@ -5,7 +5,7 @@ import {
   AsyncValidatorFn,
   ValidationErrors,
 } from '@angular/forms';
-import { Actor } from '@dfinity/agent';
+import { Actor } from '@icp-sdk/core/agent';
 import { fromNullable } from '@dfinity/utils';
 import { toast } from 'ngx-sonner';
 import { map } from 'rxjs';
@@ -98,5 +98,6 @@ export class ProfileService {
     }
   }
 }
+
 
 

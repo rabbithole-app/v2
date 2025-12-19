@@ -5,7 +5,7 @@ import {
   Signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import {
   BrnDialogClose,
   BrnDialogRef,

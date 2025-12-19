@@ -1,9 +1,9 @@
-import { DerEncodedPublicKey } from '@dfinity/agent';
+import { DerEncodedPublicKey } from '@icp-sdk/core/agent';
 import {
   Delegation,
   DelegationChain,
   Ed25519KeyIdentity,
-} from '@dfinity/identity';
+} from '@icp-sdk/core/identity';
 import { toBytes } from '@noble/hashes/utils';
 
 export async function factoryDelegationChain(): Promise<DelegationChain> {

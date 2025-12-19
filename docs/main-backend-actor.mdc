@@ -17,7 +17,7 @@ alwaysApply: false
 
 ```typescript
 import { Component, resource } from '@angular/core';
-import { ActorSubclass } from '@dfinity/agent';
+import { ActorSubclass } from '@icp-sdk/core/agent';
 
 import { injectMainActor } from '../../core/injectors'; // relative path to injectMainActor
 import { RabbitholeActorService } from '@rabbithole/declarations';

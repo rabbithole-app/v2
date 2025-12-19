@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, isDevMode, signal } from '@angular/core';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { map } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })

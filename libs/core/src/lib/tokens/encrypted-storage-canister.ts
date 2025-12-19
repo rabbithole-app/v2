@@ -1,6 +1,6 @@
 import { inject, InjectionToken, Provider } from '@angular/core';
 import { ActivatedRoute, ActivatedRouteSnapshot } from '@angular/router';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 
 export const ENCRYPTED_STORAGE_CANISTER_ID = new InjectionToken<Principal>(
   'ENCRYPTED_STORAGE_CANISTER_ID',

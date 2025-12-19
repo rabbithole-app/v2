@@ -5,7 +5,7 @@ import {
   RedirectCommand,
   Router,
 } from '@angular/router';
-import { DelegationIdentity } from '@dfinity/identity';
+import { DelegationIdentity } from '@icp-sdk/core/identity';
 import { filter, map } from 'rxjs/operators';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -33,3 +33,4 @@ export const loginGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
     }),
   );
 };
+

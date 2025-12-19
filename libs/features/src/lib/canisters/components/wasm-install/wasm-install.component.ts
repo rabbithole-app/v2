@@ -11,7 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { toNullable } from '@dfinity/utils';
-import { canister_install_mode } from '@icp-sdk/canisters/ic-management';
+import type { IcManagementDid } from '@icp-sdk/canisters/ic-management';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideBinary,
@@ -204,7 +204,7 @@ export class WasmInstallComponent {
     const file = this.selectedFile();
     if (file) {
       try {
-        let mode: canister_install_mode = { upgrade: [] };
+        let mode: IcManagementDid.canister_install_mode = { upgrade: [] };
         switch (this.installMode()) {
           case 'install':
             mode = { install: null };

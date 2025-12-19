@@ -1,4 +1,4 @@
-import { AuthClientStorage } from '@dfinity/auth-client';
+import { AuthClientStorage } from '@icp-sdk/auth/client';
 import { load, Store, StoreOptions } from '@tauri-apps/plugin-store';
 
 /**

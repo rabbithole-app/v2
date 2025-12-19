@@ -116,3 +116,4 @@ export class FolderColorPickerComponent implements ControlValueAccessor {
     this.#touched.set(true);
   }
 }
+

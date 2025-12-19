@@ -1,6 +1,6 @@
 import { computed, InjectionToken } from '@angular/core';
-import { Principal } from '@dfinity/principal';
-import { CMCCanister } from '@icp-sdk/canisters/cmc';
+import { Principal } from '@icp-sdk/core/principal';
+import { CmcCanister } from '@icp-sdk/canisters/cmc';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import { ExtractInjectionToken } from '../types';
@@ -20,7 +20,7 @@ export const [injectCyclesMintingCanister, provideCyclesMintingCanister] =
       const httpAgent = injectHttpAgent();
 
       return computed(() =>
-        CMCCanister.create({
+        CmcCanister.create({
           agent: httpAgent(),
           canisterId,
         }),

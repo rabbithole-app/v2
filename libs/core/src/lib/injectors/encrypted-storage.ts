@@ -1,5 +1,5 @@
 import { computed } from '@angular/core';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';

@@ -1,5 +1,5 @@
-import { ActorSubclass } from '@dfinity/agent';
-import { Principal } from '@dfinity/principal';
+import { ActorSubclass } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 import { sha256 } from '@noble/hashes/sha2';
 import { Store } from '@tanstack/store';
 

@@ -23,3 +23,4 @@ export const profileResolver: ResolveFn<Profile> = (route) => {
     }),
   );
 };
+

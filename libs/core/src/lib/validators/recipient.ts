@@ -1,5 +1,5 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
-import { isIcpAccountIdentifier } from '@dfinity/ledger-icp';
+import { isIcpAccountIdentifier } from '@icp-sdk/canisters/ledger/icp';
 
 import { isPrincipal } from '../utils';
 

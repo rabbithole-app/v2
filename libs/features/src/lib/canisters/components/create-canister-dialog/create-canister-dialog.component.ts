@@ -10,10 +10,10 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpAgent } from '@dfinity/agent';
-import { Principal } from '@dfinity/principal';
+import { HttpAgent } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 import { principalToSubAccount, toNullable } from '@dfinity/utils';
-import { ICManagementCanister } from '@icp-sdk/canisters/ic-management';
+import { IcManagementCanister } from '@icp-sdk/canisters/ic-management';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideCheck,
@@ -190,7 +190,7 @@ export class CreateCanisterDialogComponent {
   readonly #httpAgentOptions = inject(HTTP_AGENT_OPTIONS_TOKEN);
   readonly #devIcManagement = computed(() => {
     const agent = HttpAgent.createSync(this.#httpAgentOptions);
-    return ICManagementCanister.create({ agent });
+    return IcManagementCanister.create({ agent });
   });
   readonly #dialogRef = inject(BrnDialogRef<boolean | undefined>);
   readonly #router = inject(Router);
@@ -283,6 +283,7 @@ export class CreateCanisterDialogComponent {
             environment_variables: [],
             reserved_cycles_limit: [],
             log_visibility: [],
+            log_memory_limit: [],
             wasm_memory_limit: [],
             memory_allocation: [],
             compute_allocation: [],

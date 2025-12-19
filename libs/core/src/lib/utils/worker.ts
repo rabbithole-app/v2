@@ -1,4 +1,4 @@
-import { Identity } from '@dfinity/agent';
+import { Identity } from '@icp-sdk/core/agent';
 import { isNullish } from 'remeda';
 
 import { createAuthClient } from './create-auth-client';

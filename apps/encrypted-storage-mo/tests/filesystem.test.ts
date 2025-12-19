@@ -1,11 +1,11 @@
-import { IDL } from '@dfinity/candid';
 import {
   type Actor,
   type CanisterFixture,
   createIdentity,
   PocketIc,
 } from '@dfinity/pic';
-import { Principal } from '@dfinity/principal';
+import { IDL } from '@icp-sdk/core/candid';
+import { Principal } from '@icp-sdk/core/principal';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, inject, test } from 'vitest';
 

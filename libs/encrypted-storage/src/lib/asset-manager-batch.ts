@@ -1,4 +1,4 @@
-import { ActorSubclass } from '@dfinity/agent';
+import { ActorSubclass } from '@icp-sdk/core/agent';
 import { sha256 } from '@noble/hashes/sha2';
 import { Derived, Store } from '@tanstack/store';
 import { isMatching, P } from 'ts-pattern';

@@ -1,6 +1,6 @@
 import { computed, InjectionToken } from '@angular/core';
-import { LedgerCanister } from '@dfinity/ledger-icp';
-import { Principal } from '@dfinity/principal';
+import { IcpLedgerCanister } from '@icp-sdk/canisters/ledger/icp';
+import { Principal } from '@icp-sdk/core/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import { ExtractInjectionToken } from '../types';
@@ -16,7 +16,7 @@ export const [injectLedgerCanister, provideLedgerCanister] =
       const httpAgent = injectHttpAgent();
 
       return computed(() =>
-        LedgerCanister.create({
+        IcpLedgerCanister.create({
           agent: httpAgent(),
           canisterId,
         }),

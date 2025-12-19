@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { AnonymousIdentity, HttpAgent, uint8ToBuf } from '@dfinity/agent';
+import { AnonymousIdentity, HttpAgent, uint8ToBuf } from '@icp-sdk/core/agent';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import photonInit, { crop, PhotonImage, resize } from '@silvia-odwyer/photon';
 import { type } from 'arktype';

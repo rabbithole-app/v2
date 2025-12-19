@@ -1,5 +1,5 @@
 import { computed, Injectable, resource, signal } from '@angular/core';
-import { ActorSubclass } from '@dfinity/agent';
+import { ActorSubclass } from '@icp-sdk/core/agent';
 import { isDeepEqual, isNonNullish } from 'remeda';
 
 import { injectMainActor } from '@rabbithole/core';

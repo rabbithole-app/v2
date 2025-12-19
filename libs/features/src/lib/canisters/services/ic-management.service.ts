@@ -1,11 +1,10 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { hexStringToUint8Array, uint8ArrayToHexString } from '@dfinity/utils';
 import {
-  canister_status_result,
-  ICManagementCanister,
+  IcManagementCanister,
+  type IcManagementDid,
   OptionSnapshotParams,
-  snapshot_id,
   SnapshotIdText,
   SnapshotParams,
 } from '@icp-sdk/canisters/ic-management';
@@ -44,9 +43,9 @@ export class ICManagementService {
   #httpAgent = injectHttpAgent();
   #icManagement = computed(() => {
     const agent = this.#httpAgent();
-    return ICManagementCanister.create({ agent });
+    return IcManagementCanister.create({ agent });
   });
-  canisterStatus = resource<CanisterDataInfo, ICManagementCanister>({
+  canisterStatus = resource<CanisterDataInfo, IcManagementCanister>({
     params: () => this.#icManagement(),
     loader: async ({ params: icManagement }) => {
       const pid = this.#authService.identity().getPrincipal();
@@ -55,12 +54,14 @@ export class ICManagementService {
         throw new Error('Anonymous user cannot access IC management');
       }
 
-      const result = await icManagement.canisterStatus(this.#canisterId);
+      const result = await icManagement.canisterStatus({
+        canisterId: this.#canisterId,
+      });
 
-      return canisterStatus(result as canister_status_result);
+      return canisterStatus(result as IcManagementDid.canister_status_result);
     },
   });
-  snapshots = resource<Snapshot[], ICManagementCanister>({
+  snapshots = resource<Snapshot[], IcManagementCanister>({
     params: () => this.#icManagement(),
     loader: async ({ params: icManagement }) => {
       const pid = this.#authService.identity().getPrincipal();
@@ -139,7 +140,9 @@ export class ICManagementService {
     }
   }
 
-  async deleteSnapshot(snapshotId: snapshot_id | SnapshotIdText) {
+  async deleteSnapshot(
+    snapshotId: IcManagementDid.snapshot_id | SnapshotIdText,
+  ) {
     const pid = this.#authService.identity().getPrincipal();
 
     if (pid.isAnonymous()) {
@@ -188,7 +191,7 @@ export class ICManagementService {
     }
   }
 
-  async loadSnapshot(snapshotId: snapshot_id | SnapshotIdText) {
+  async loadSnapshot(snapshotId: IcManagementDid.snapshot_id | SnapshotIdText) {
     const pid = this.#authService.identity().getPrincipal();
 
     if (pid.isAnonymous()) {
@@ -299,7 +302,9 @@ export class ICManagementService {
     }
   }
 
-  async takeSnapshot(snapshotId?: snapshot_id | SnapshotIdText) {
+  async takeSnapshot(
+    snapshotId?: IcManagementDid.snapshot_id | SnapshotIdText,
+  ) {
     const pid = this.#authService.identity().getPrincipal();
 
     if (pid.isAnonymous()) {

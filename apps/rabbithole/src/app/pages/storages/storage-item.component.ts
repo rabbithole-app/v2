@@ -5,7 +5,7 @@ import {
   input,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronRight, lucideDatabase } from '@ng-icons/lucide';
 import { HlmIcon } from '@spartan-ng/helm/icon';

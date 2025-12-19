@@ -1,5 +1,5 @@
 import { computed } from '@angular/core';
-import { Actor } from '@dfinity/agent';
+import { Actor } from '@icp-sdk/core/agent';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import { MAIN_CANISTER_ID_TOKEN } from '../tokens';

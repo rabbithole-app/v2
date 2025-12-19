@@ -1,13 +1,13 @@
-import type { Identity } from "@dfinity/agent";
 import {
   type Actor,
   type CanisterFixture,
   createIdentity,
   PocketIc,
 } from "@dfinity/pic";
-import { Principal } from "@dfinity/principal";
 import { toBigIntNanoSeconds } from "@dfinity/utils";
 import { faker } from "@faker-js/faker";
+import type { Identity } from "@icp-sdk/core/agent";
+import { Principal } from "@icp-sdk/core/principal";
 import { addDays, subDays } from "date-fns";
 import { resolve } from "node:path";
 import { filter, isEmpty, pick, prop, sortBy, splice, take } from "remeda";

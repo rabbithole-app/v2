@@ -1,15 +1,15 @@
-import { type Identity, MANAGEMENT_CANISTER_ID } from '@dfinity/agent';
-import { IDL } from '@dfinity/candid';
-import type { ActorInterface, CanisterFixture, PocketIc } from '@dfinity/pic';
-import { Principal } from '@dfinity/principal';
+import type { ActorInterface, CanisterFixture, PocketIc } from "@dfinity/pic";
 import {
   arrayBufferToUint8Array,
   hexStringToUint8Array,
   nonNullish,
   toNullable,
-} from '@dfinity/utils';
-import { sha256 } from '@noble/hashes/sha2';
-import { readFile } from 'node:fs/promises';
+} from "@dfinity/utils";
+import { type Identity, MANAGEMENT_CANISTER_ID } from "@icp-sdk/core/agent";
+import { IDL } from "@icp-sdk/core/candid";
+import { Principal } from "@icp-sdk/core/principal";
+import { sha256 } from "@noble/hashes/sha2";
+import { readFile } from "node:fs/promises";
 
 const INSTALL_MAX_CHUNK_SIZE = 1_000_000;
 
@@ -110,7 +110,7 @@ interface SetupChunkedCanisterParams extends PicParams {
 
 type UpgradeChunkedCanisterParams = {
   canisterId: Principal;
-} & Omit<SetupChunkedCanisterParams, 'idlFactory'>;
+} & Omit<SetupChunkedCanisterParams, "idlFactory">;
 
 export const setupChunkedCanister = async <
   T extends ActorInterface<T> = ActorInterface,
@@ -148,7 +148,7 @@ export const upgradeChunkedCanister = async (
 
 const sha256ToHex = (hashBuffer: Uint8Array): string => {
   const hashArray = Array.from(hashBuffer);
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 
 const installCanister = async ({
@@ -205,7 +205,7 @@ const clearChunkStoreApi = async ({
   const arg = IDL.encode([clear_chunk_store_args], [payload]);
 
   await pic.updateCall({
-    method: 'clear_chunk_store',
+    method: "clear_chunk_store",
     arg: arg.buffer,
     canisterId: Principal.fromText(MANAGEMENT_CANISTER_ID),
     sender: sender.getPrincipal(),
@@ -296,7 +296,7 @@ const uploadChunkApi = async ({
   chunk,
   pic,
   sender,
-}: { canisterId: Principal } & Pick<UploadChunkParams, 'chunk'> &
+}: { canisterId: Principal } & Pick<UploadChunkParams, "chunk"> &
   PicParams) => {
   const payload: upload_chunk_args = {
     canister_id: canisterId,
@@ -306,16 +306,13 @@ const uploadChunkApi = async ({
   const arg = IDL.encode([upload_chunk_args], [payload]);
 
   const response = await pic.updateCall({
-    method: 'upload_chunk',
+    method: "upload_chunk",
     arg: arg.buffer,
     canisterId: Principal.fromText(MANAGEMENT_CANISTER_ID),
     sender: sender.getPrincipal(),
   });
 
-  const result = IDL.decode(
-    toNullable(upload_chunk_result),
-    arrayBufferToUint8Array(response as ArrayBuffer),
-  );
+  const result = IDL.decode(toNullable(upload_chunk_result), response);
 
   const [hash] = result as unknown as [upload_chunk_result];
 
@@ -335,7 +332,7 @@ const installChunkedCodeApi = async ({
   chunkHashesList: Array<chunk_hash>;
   mode: canister_install_mode;
   wasmModuleHash: string;
-} & Omit<SetupChunkedCanisterParams, 'idlFactory' | 'wasmPath'>) => {
+} & Omit<SetupChunkedCanisterParams, "idlFactory" | "wasmPath">) => {
   const payload: install_chunked_code_args = {
     arg: nonNullish(initArg)
       ? arrayBufferToUint8Array(initArg)
@@ -353,7 +350,7 @@ const installChunkedCodeApi = async ({
   const subnetId = await pic.getCanisterSubnetId(canisterId);
 
   await pic.updateCall({
-    method: 'install_chunked_code',
+    method: "install_chunked_code",
     arg: arg.buffer,
     canisterId: Principal.fromText(MANAGEMENT_CANISTER_ID),
     sender: sender.getPrincipal(),

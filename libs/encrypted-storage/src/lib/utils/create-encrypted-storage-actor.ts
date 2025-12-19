@@ -1,4 +1,4 @@
-import { Actor, ActorConfig, ActorSubclass } from '@dfinity/agent';
+import { Actor, ActorConfig, ActorSubclass } from '@icp-sdk/core/agent';
 
 import { _SERVICE, idlFactory } from './../canisters/encrypted-storage.did';
 

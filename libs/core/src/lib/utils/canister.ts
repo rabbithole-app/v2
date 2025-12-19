@@ -1,4 +1,4 @@
-import type { canister_status_result } from '@dfinity/ic-management';
+import type { IcManagementDid } from '@icp-sdk/canisters/ic-management';
 import { fromNullable, uint8ArrayToHexString } from '@dfinity/utils';
 
 import { ONE_DAY } from '../constants';
@@ -18,7 +18,7 @@ const toStatus = (
       : 'running';
 
 const toLogVisibility = (
-  log_visibility: canister_status_result['settings']['log_visibility'],
+  log_visibility: IcManagementDid.canister_status_result['settings']['log_visibility'],
 ): CanisterLogVisibility =>
   'controllers' in log_visibility ? 'controllers' : 'public';
 
@@ -26,7 +26,7 @@ const toLogVisibility = (
  * Converts canister_status_result to CanisterDataInfo
  */
 export function canisterStatus(
-  response: canister_status_result,
+  response: IcManagementDid.canister_status_result,
 ): CanisterDataInfo {
   const {
     cycles,

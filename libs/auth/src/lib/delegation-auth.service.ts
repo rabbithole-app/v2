@@ -1,21 +1,23 @@
 import {
   computed,
   DestroyRef,
+  effect,
   inject,
   Injectable,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { AnonymousIdentity, SignIdentity } from '@dfinity/agent';
-import { AuthClient, IdbStorage, KEY_STORAGE_KEY } from '@dfinity/auth-client';
+import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
+import { AuthClient, IdbStorage, KEY_STORAGE_KEY } from '@icp-sdk/auth/client';
 import {
   DelegationChain,
   DelegationIdentity,
   Ed25519KeyIdentity,
+  isDelegationValid,
   JsonnableDelegationChain,
-} from '@dfinity/identity';
-import { Principal } from '@dfinity/principal';
+} from '@icp-sdk/core/identity';
+import { Principal } from '@icp-sdk/core/principal';
 import { bytesToHex } from '@noble/hashes/utils';
 import { interval } from 'rxjs';
 import { filter, map, take } from 'rxjs/operators';
@@ -63,9 +65,18 @@ async function loadDelegationChain(): Promise<DelegationChain | null> {
     KEY_STORAGE_DELEGATION,
   );
 
-  return delegationChainJson
-    ? DelegationChain.fromJSON(delegationChainJson)
-    : null;
+  if (!delegationChainJson) {
+    return null;
+  }
+
+  const delegationChain = DelegationChain.fromJSON(delegationChainJson);
+
+  if (!isDelegationValid(delegationChain)) {
+    await db.remove(KEY_STORAGE_DELEGATION);
+    return null;
+  }
+
+  return delegationChain;
 }
 
 async function loadIdentity() {
@@ -133,7 +144,6 @@ export class DelegationAuthService implements IAuthService {
       'width=500,height=600,popup=yes',
     );
 
-    // Check if popup was closed by user using RxJS
     if (this.#popupWindow) {
       interval(500)
         .pipe(

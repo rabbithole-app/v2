@@ -7,8 +7,8 @@ import {
   Router,
   RouterStateSnapshot,
 } from '@angular/router';
-import { AnonymousIdentity } from '@dfinity/agent';
-import { Ed25519KeyIdentity } from '@dfinity/identity';
+import { AnonymousIdentity } from '@icp-sdk/core/agent';
+import { Ed25519KeyIdentity } from '@icp-sdk/core/identity';
 import { Observable, of } from 'rxjs';
 import { TestScheduler } from 'rxjs/testing';
 import { assert, describe, expect, it, vi } from 'vitest';
@@ -119,3 +119,4 @@ describe('loginGuard', () => {
     });
   });
 });
+

@@ -9,8 +9,8 @@ import {
   LookupPathStatus,
   lookupResultToBuffer,
   reconstruct,
-} from '@dfinity/agent';
-import { compare, lebDecode, PipeArrayBuffer } from '@dfinity/candid';
+} from '@icp-sdk/core/agent';
+import { compare, lebDecode, PipeArrayBuffer } from '@icp-sdk/core/candid';
 import { sha256 } from '@noble/hashes/sha2';
 
 import { _SERVICE } from './canisters/encrypted-storage.did';
@@ -113,7 +113,7 @@ export class Asset {
     const cert = await Certificate.create({
       certificate,
       rootKey: agent.rootKey,
-      canisterId,
+      principal: { canisterId },
     }).catch(() => Promise.resolve());
 
     if (!cert) {

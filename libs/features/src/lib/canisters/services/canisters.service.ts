@@ -1,5 +1,5 @@
 import { computed, Injectable, resource, signal } from '@angular/core';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { toast } from 'ngx-sonner';
 
 import { injectMainActor, parseCanisterRejectError } from '@rabbithole/core';

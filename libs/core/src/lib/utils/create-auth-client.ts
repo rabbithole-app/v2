@@ -1,4 +1,4 @@
-import { AuthClient } from '@dfinity/auth-client';
+import { AuthClient } from '@icp-sdk/auth/client';
 
 export const createAuthClient = (): Promise<AuthClient> =>
   AuthClient.create({

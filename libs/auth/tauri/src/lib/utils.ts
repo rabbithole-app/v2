@@ -3,13 +3,13 @@ import {
   AuthClientCreateOptions,
   KEY_STORAGE_DELEGATION,
   KEY_STORAGE_KEY,
-} from '@dfinity/auth-client';
+} from '@icp-sdk/auth/client';
 import {
   DelegationChain,
   Ed25519KeyIdentity,
   isDelegationValid,
   JsonnableDelegationChain,
-} from '@dfinity/identity';
+} from '@icp-sdk/core/identity';
 import { load } from '@tauri-apps/plugin-store';
 
 import { TauriStorage } from './storage';

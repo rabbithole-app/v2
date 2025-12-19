@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { TransferError } from '@dfinity/ledger-icp';
+import { TransferError } from '@icp-sdk/canisters/ledger/icp';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowDown,

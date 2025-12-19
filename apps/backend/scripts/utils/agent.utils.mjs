@@ -1,4 +1,4 @@
-import { HttpAgent } from "@dfinity/agent";
+import { HttpAgent } from "@icp-sdk/core/agent";
 import { fetch } from "undici";
 
 import { initIdentity } from "./identity.utils.mjs";

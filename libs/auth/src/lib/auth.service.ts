@@ -1,7 +1,7 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { AnonymousIdentity, Identity } from '@dfinity/agent';
-import { AuthClient } from '@dfinity/auth-client';
+import { AnonymousIdentity, Identity } from '@icp-sdk/core/agent';
+import { AuthClient } from '@icp-sdk/auth/client';
 import { map } from 'rxjs';
 
 import { assertClient } from './asserts';

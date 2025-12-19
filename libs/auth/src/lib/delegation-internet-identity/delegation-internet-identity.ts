@@ -6,14 +6,14 @@ import {
   input,
   output,
 } from '@angular/core';
-import { AuthClient } from '@dfinity/auth-client';
+import { AuthClient } from '@icp-sdk/auth/client';
 import {
   DelegationChain,
   DelegationIdentity,
   ECDSAKeyIdentity,
   Ed25519PublicKey,
-} from '@dfinity/identity';
-import { Principal } from '@dfinity/principal';
+} from '@icp-sdk/core/identity';
+import { Principal } from '@icp-sdk/core/principal';
 
 import { assertPublicKey } from '../asserts';
 import { AUTH_CONFIG, AUTH_SERVICE } from '../tokens';
@@ -49,6 +49,10 @@ export class RbthDelegationInternetIdentityComponent {
   publicKey = input.required<Ed25519PublicKey>();
   targets = input<Principal[]>([]);
   #authConfig = inject(AUTH_CONFIG);
+
+  constructor() {
+    console.log(this.#authConfig);
+  }
 
   async signInWithDelegation() {
     const publicKey = this.publicKey();

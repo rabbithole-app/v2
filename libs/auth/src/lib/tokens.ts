@@ -1,7 +1,7 @@
 import { InjectionToken, Signal } from '@angular/core';
-import { Identity } from '@dfinity/agent';
-import { AuthClient, AuthClientLoginOptions } from '@dfinity/auth-client';
-import { Principal } from '@dfinity/principal';
+import { Identity } from '@icp-sdk/core/agent';
+import { AuthClient, AuthClientLoginOptions } from '@icp-sdk/auth/client';
+import { Principal } from '@icp-sdk/core/principal';
 import { Observable } from 'rxjs';
 
 export type AuthClientInstance = Awaited<ReturnType<typeof AuthClient.create>>;

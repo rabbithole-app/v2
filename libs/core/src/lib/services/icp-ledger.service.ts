@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
-import { AccountIdentifier, SubAccount } from '@dfinity/ledger-icp';
-import { Principal } from '@dfinity/principal';
+import { AccountIdentifier, SubAccount } from '@icp-sdk/canisters/ledger/icp';
+import { Principal } from '@icp-sdk/core/principal';
 import { bigIntToUint8Array, toNullable } from '@dfinity/utils';
 
 import { injectLedgerCanister } from '../injectors/ledger-canister';

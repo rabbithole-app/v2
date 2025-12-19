@@ -1,5 +1,5 @@
-import { AccountIdentifier } from "@dfinity/ledger-icp";
-import { Principal } from "@dfinity/principal";
+import { AccountIdentifier } from "@icp-sdk/canisters/ledger/icp";
+import { Principal } from "@icp-sdk/core/principal";
 
 const principalText = process.argv[2];
 
@@ -14,7 +14,7 @@ try {
     principal,
     subAccount: undefined,
   });
-  
+
   // Convert blob to hex string for use in dfx canister call
   const hex = Buffer.from(accountId.toUint8Array()).toString("hex");
   console.log(hex);
@@ -22,4 +22,3 @@ try {
   console.error(`Error: ${error.message}`);
   process.exit(1);
 }
-

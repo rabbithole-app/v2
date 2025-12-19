@@ -1,6 +1,6 @@
 import { InjectionToken } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { HttpAgent, HttpAgentOptions } from '@dfinity/agent';
+import { HttpAgent, HttpAgentOptions } from '@icp-sdk/core/agent';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { filter, switchMap } from 'rxjs/operators';
 

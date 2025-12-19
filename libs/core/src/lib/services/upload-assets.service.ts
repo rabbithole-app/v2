@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, resource } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { match, P } from 'ts-pattern';
 

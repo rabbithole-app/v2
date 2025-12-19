@@ -1,6 +1,6 @@
 import { inject, Injector } from '@angular/core';
 import { RedirectCommand, ResolveFn, Router } from '@angular/router';
-import { Principal } from '@dfinity/principal';
+import { Principal } from '@icp-sdk/core/principal';
 import { catchError, of } from 'rxjs';
 
 import { ICManagementService } from '../services';

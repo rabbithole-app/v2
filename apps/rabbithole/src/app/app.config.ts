@@ -6,8 +6,8 @@ import {
   provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
-import { HttpAgentOptions } from '@dfinity/agent';
-import { Principal } from '@dfinity/principal';
+import { HttpAgentOptions } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 import { isTauri } from '@tauri-apps/api/core';
 
 import { environment } from '../environments/environment';

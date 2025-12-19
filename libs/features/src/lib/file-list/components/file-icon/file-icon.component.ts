@@ -59,3 +59,4 @@ export class FileIconComponent {
     return 'unknown';
   });
 }
+

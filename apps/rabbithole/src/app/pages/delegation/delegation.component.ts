@@ -4,8 +4,8 @@ import {
   computed,
   forwardRef,
 } from '@angular/core';
-import { DelegationChain, Ed25519PublicKey } from '@dfinity/identity';
-import { Principal } from '@dfinity/principal';
+import { DelegationChain, Ed25519PublicKey } from '@icp-sdk/core/identity';
+import { Principal } from '@icp-sdk/core/principal';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { linkedQueryParam } from 'ngxtension/linked-query-param';
 
