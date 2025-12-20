@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, isDevMode, signal } from '@angular/core';
 import { Principal } from '@icp-sdk/core/principal';
-import { map } from 'rxjs';
+import { map, retry } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class ConfigService {
@@ -24,7 +24,10 @@ export class ConfigService {
       }>(
         `${isDevMode() ? `https://${import.meta.env.CANISTER_ID_ENCRYPTED_STORAGE}.localhost` : ''}/info.json`,
       )
-      .pipe(map(({ id }) => Principal.fromText(id)));
+      .pipe(
+        retry(3),
+        map(({ id }) => Principal.fromText(id)),
+      );
   }
 
   setCanisterId(id: Principal) {

@@ -14,16 +14,10 @@ import {
   Ed25519PublicKey,
 } from '@icp-sdk/core/identity';
 import { Principal } from '@icp-sdk/core/principal';
+import { addMilliseconds } from 'date-fns';
 
 import { assertPublicKey } from '../asserts';
 import { AUTH_CONFIG, AUTH_SERVICE } from '../tokens';
-
-// expires in 10 minutes
-function getDefaultExpirationDate() {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() + 10);
-  return date;
-}
 
 @Directive({
   selector: '[rbthDelegationInternetIdentityTrigger]',
@@ -45,7 +39,6 @@ export class RbthDelegationInternetIdentityTriggerDirective {
 export class RbthDelegationInternetIdentityComponent {
   authService = inject(AUTH_SERVICE);
   delegate = output<DelegationChain>();
-  expiration = input<Date>(getDefaultExpirationDate());
   publicKey = input.required<Ed25519PublicKey>();
   targets = input<Principal[]>([]);
   #authConfig = inject(AUTH_CONFIG);
@@ -84,7 +77,13 @@ export class RbthDelegationInternetIdentityComponent {
       }),
     );
     const middleIdentity = client.getIdentity() as DelegationIdentity;
-    const expiration = this.expiration();
+    const maxTimeToLive =
+      this.#authConfig.loginOptions?.maxTimeToLive ??
+      BigInt(8 * 60 * 60 * 1000 * 1000 * 1000);
+    const expiration = addMilliseconds(
+      new Date(),
+      Number(maxTimeToLive / 1_000_000n),
+    );
 
     // Create delegation chain from II delegation chain for public key
     const delegationChainForPublicKey = await DelegationChain.create(

@@ -68,7 +68,7 @@ export const appConfig: ApplicationConfig = {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {
         shouldFetchRootKey: !environment.production,
-        ...(environment.production ? {} : { host: 'https://localhost' }),
+        host: environment.httpAgentHost,
       } satisfies HttpAgentOptions,
     },
     FileSystemAccessService,

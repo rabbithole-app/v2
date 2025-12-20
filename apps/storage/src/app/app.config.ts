@@ -2,7 +2,6 @@ import { provideHttpClient } from '@angular/common/http';
 import {
   ApplicationConfig,
   inject,
-  isDevMode,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
   Provider,
@@ -15,9 +14,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
-import { APP_DERIVATION_ORIGIN } from './core/constants';
 import { ConfigService } from './core/services';
-import { isCustomDomain } from './core/utils';
 import {
   AUTH_CONFIG,
   AUTH_SERVICE,
@@ -43,15 +40,12 @@ export const provideAuthService = (): Provider => ({
 });
 
 const authConfig: AuthConfig = {
-  appUrl: isDevMode() ? 'http://localhost:4200' : environment.appUrl,
+  appUrl: environment.appUrl,
   scheme: environment.scheme,
   delegationPath: '/delegation',
   loginOptions: {
     identityProvider: environment.identityProviderUrl,
     maxTimeToLive: AUTH_MAX_TIME_TO_LIVE,
-    ...(isCustomDomain() && {
-      derivationOrigin: APP_DERIVATION_ORIGIN,
-    }),
   },
 };
 
@@ -84,7 +78,7 @@ export const appConfig: ApplicationConfig = {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {
         shouldFetchRootKey: !environment.production,
-        ...(environment.production ? {} : { host: 'https://localhost' }),
+        host: environment.httpAgentHost,
       } satisfies HttpAgentOptions,
     },
     FileSystemAccessService,

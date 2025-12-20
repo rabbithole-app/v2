@@ -2,10 +2,12 @@ export const environment = {
   identityProviderUrl: `https://${
     import.meta.env.CANISTER_ID_INTERNET_IDENTITY
   }.localhost`,
-  appUrl: 'http://localhost:4200',
+  appUrl: `https://${
+    import.meta.env.CANISTER_ID_RABBITHOLE_FRONTEND
+  }.localhost`,
   appName: 'Rabbithole',
   httpAgentHost: 'https://localhost',
-  envName: 'DEV',
+  envName: 'STAGING',
   production: false,
   scheme: 'rabbithole',
   backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,

@@ -1,15 +1,14 @@
 import {
   computed,
   DestroyRef,
-  effect,
   inject,
   Injectable,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import { AuthClient, IdbStorage, KEY_STORAGE_KEY } from '@icp-sdk/auth/client';
+import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import {
   DelegationChain,
   DelegationIdentity,
