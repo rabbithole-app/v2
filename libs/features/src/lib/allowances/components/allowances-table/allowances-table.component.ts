@@ -10,7 +10,6 @@ import {
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronDown,
-  lucideEdit,
   lucideEye,
   lucideEyeOff,
   lucideTrash2,
@@ -52,7 +51,6 @@ interface AllowanceItem {
   ],
   providers: [
     provideIcons({
-      lucideEdit,
       lucideTrash2,
       lucideChevronDown,
       lucideEye,
@@ -67,7 +65,6 @@ interface AllowanceItem {
 })
 export class AllowancesTableComponent {
   allowances = input<AllowanceInfo[]>([]);
-  editAllowance = output<{ fromAccountId: string; toSpenderId: string }>();
   revokeAllowance = output<{ fromAccountId: string; toSpenderId: string }>();
 
   get table(): ReturnType<typeof createAngularTable<AllowanceItem>> {
@@ -137,10 +134,6 @@ export class AllowancesTableComponent {
 
   protected _formatICP(amount: bigint): string {
     return formatICP(amount);
-  }
-
-  protected _onEditAllowance(fromAccountId: string, toSpenderId: string) {
-    this.editAllowance.emit({ fromAccountId, toSpenderId });
   }
 
   protected _onRevokeAllowance(fromAccountId: string, toSpenderId: string) {

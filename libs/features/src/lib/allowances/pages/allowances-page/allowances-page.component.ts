@@ -75,35 +75,6 @@ export class AllowancesPageComponent {
     });
   }
 
-  protected _onEditAllowance(fromAccountId: string, toSpenderId: string) {
-    // Find the allowance to edit
-    const allowances = this._allowances.value() ?? [];
-    const allowanceToEdit = allowances.find(
-      (a) =>
-        a.fromAccountId === fromAccountId && a.toSpenderId === toSpenderId,
-    );
-
-    if (!allowanceToEdit) {
-      console.error('Allowance not found for editing');
-      return;
-    }
-
-    // Open dialog with existing values
-    const dialogRef = this.#dialogService.open(AddAllowanceDialogComponent, {
-      context: {
-        spenderId: allowanceToEdit.toSpenderId,
-        amount: allowanceToEdit.allowance,
-        expiresAt: allowanceToEdit.expiresAt,
-      },
-    });
-
-    dialogRef.closed$.subscribe((data: AddAllowanceData | undefined) => {
-      if (data) {
-        this._handleApprove(data);
-      }
-    });
-  }
-
   protected _onRevokeAllowance(fromAccountId: string, toSpenderId: string) {
     // Open confirmation dialog
     const dialogRef = this.#dialogService.open(RevokeAllowanceDialogComponent, {

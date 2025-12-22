@@ -1,17 +1,7 @@
 <hlm-dialog-header>
-  <h3 hlmDialogTitle>
-    @if (_isEditMode()) {
-      Edit Allowance
-    } @else {
-      Add Allowance
-    }
-  </h3>
+  <h3 hlmDialogTitle>Add Allowance</h3>
   <p hlmDialogDescription>
-    @if (_isEditMode()) {
-      Update the allowance amount or expiration date.
-    } @else {
-      Grant permission to a spender to use your ICP tokens.
-    }
+    Grant permission to a spender to use your ICP tokens.
   </p>
 </hlm-dialog-header>
 
@@ -25,16 +15,14 @@
         id="spenderId"
         [field]="allowanceForm.spenderId"
         [attr.aria-invalid]="spenderIdError()"
-        class="aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
-        placeholder="Enter Principal ID or Account ID"
+        placeholder="Enter Principal ID"
       />
       <hlm-field-description>
-        The Principal ID or Account ID of the canister or user that can spend
-        your ICP tokens.
+        Principal ID of the spender.
       </hlm-field-description>
-      @if (spenderIdError()) {
+      @if (spenderIdError(); as error) {
         <hlm-field-error>
-          {{ spenderIdError() }}
+          {{ error }}
         </hlm-field-error>
       }
     </hlm-field-content>
@@ -50,13 +38,11 @@
         type="number"
         [field]="allowanceForm.amount"
         [attr.aria-invalid]="amountError()"
-        class="aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
         placeholder="0.00"
         step="0.00000001"
       />
       <hlm-field-description>
-        Maximum amount of ICP tokens the spender can use (minimum 0.00000001 ICP
-        = 1 e8s).
+        Maximum amount the spender can use (min: 0.00000001 ICP).
       </hlm-field-description>
       @if (amountError()) {
         <hlm-field-error>
@@ -92,8 +78,7 @@
         }
       </div>
       <hlm-field-description>
-        If set, the allowance will expire at this date. Leave empty for no
-        expiration.
+        Optional expiration date. Leave empty for no expiration.
       </hlm-field-description>
     </hlm-field-content>
   </div>
@@ -102,10 +87,6 @@
 <hlm-dialog-footer class="mt-4">
   <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
   <button hlmBtn [disabled]="isSubmitDisabled()" (click)="_handleAdd()">
-    @if (_isEditMode()) {
-      Update Allowance
-    } @else {
-      Add Allowance
-    }
+    Add Allowance
   </button>
 </hlm-dialog-footer>

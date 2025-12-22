@@ -53,7 +53,6 @@
 
 <rbth-feat-allowances-table
   [allowances]="_allowances.value() ?? []"
-  (editAllowance)="_onEditAllowance($event.fromAccountId, $event.toSpenderId)"
   (revokeAllowance)="
     _onRevokeAllowance($event.fromAccountId, $event.toSpenderId)
   "

@@ -8,11 +8,7 @@ import {
 import { Field, form, required } from '@angular/forms/signals';
 import { provideIcons } from '@ng-icons/core';
 import { lucideX } from '@ng-icons/lucide';
-import {
-  BrnDialogClose,
-  BrnDialogRef,
-  injectBrnDialogContext,
-} from '@spartan-ng/brain/dialog';
+import { BrnDialogClose, BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDatePickerImports } from '@spartan-ng/helm/date-picker';
 import {
@@ -26,7 +22,7 @@ import { HlmIconImports } from '@spartan-ng/helm/icon';
 import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmInputGroupImports } from '@spartan-ng/helm/input-group';
 
-import { isAccountIdentifier, isPrincipal } from '@rabbithole/core';
+import { isPrincipal } from '@rabbithole/core';
 
 export interface AddAllowanceData {
   amount: bigint;
@@ -34,11 +30,6 @@ export interface AddAllowanceData {
   spenderId: string;
 }
 
-export interface AddAllowanceDialogContext {
-  amount?: bigint;
-  expiresAt?: Date;
-  spenderId?: string;
-}
 
 interface AddAllowanceFormModel {
   amount: number | string;
@@ -67,24 +58,12 @@ interface AddAllowanceFormModel {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddAllowanceDialogComponent {
-  readonly #dialogContext = injectBrnDialogContext<AddAllowanceDialogContext>();
+  protected readonly _selectedDate = signal<Date | undefined>(undefined);
 
-  protected readonly _isEditMode = computed(
-    () => !!this.#dialogContext.spenderId,
-  );
-
-  // Initialize with context values if in edit mode
-  protected readonly _selectedDate = signal<Date | undefined>(
-    this.#dialogContext.expiresAt,
-  );
-
-  // Signal Forms - initialize with context values if editing
   protected readonly formModel = signal<AddAllowanceFormModel>({
-    amount: this.#dialogContext.amount !== undefined
-      ? Number(this.#dialogContext.amount) / 100_000_000
-      : '',
+    amount: '',
     expiresAt: '',
-    spenderId: this.#dialogContext.spenderId ?? '',
+    spenderId: '',
   });
 
   protected readonly allowanceForm = form(this.formModel, (schema) => {
@@ -104,7 +83,7 @@ export class AddAllowanceDialogComponent {
     return null;
   });
 
-  // Custom validation for Principal ID or Account ID and amount
+  // Custom validation for Principal ID
   protected readonly spenderIdError = computed(() => {
     const field = this.allowanceForm.spenderId();
     if (!field.touched()) return null;
@@ -112,11 +91,8 @@ export class AddAllowanceDialogComponent {
     const value = field.value();
     if (!value) return 'Spender ID is required.';
 
-    const isValidPrincipal = isPrincipal(value);
-    const isValidAccount = isAccountIdentifier(value);
-
-    if (!isValidPrincipal && !isValidAccount) {
-      return 'Invalid Principal ID or Account ID format.';
+    if (!isPrincipal(value)) {
+      return 'Invalid Principal ID format.';
     }
 
     return null;
@@ -144,11 +120,8 @@ export class AddAllowanceDialogComponent {
 
     if (!spenderIdValue || !amountValue) return;
 
-    // Validate that it's either a valid Principal ID or Account ID
-    const isValidPrincipal = isPrincipal(spenderIdValue);
-    const isValidAccount = isAccountIdentifier(spenderIdValue);
-
-    if (!isValidPrincipal && !isValidAccount) return;
+    // Validate that it's a valid Principal ID
+    if (!isPrincipal(spenderIdValue)) return;
 
     // Convert amount to number
     const amountNum =

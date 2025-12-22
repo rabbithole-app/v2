@@ -51,7 +51,7 @@ export class ICPLedgerService implements LedgerService {
 
   /**
    * Approves a spender to transfer ICP tokens on behalf of the user
-   * @param spender Principal ID of the spender (canister or user)
+   * @param spender Principal ID of the spender (must be Principal, not Account ID)
    * @param amount Amount in e8s that the spender can transfer
    * @param expiresAt Optional expiration date for the approval
    * @returns The block index of the approval transaction
