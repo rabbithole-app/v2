@@ -1,0 +1,111 @@
+<hlm-dialog-header>
+  <h3 hlmDialogTitle>
+    @if (_isEditMode()) {
+      Edit Allowance
+    } @else {
+      Add Allowance
+    }
+  </h3>
+  <p hlmDialogDescription>
+    @if (_isEditMode()) {
+      Update the allowance amount or expiration date.
+    } @else {
+      Grant permission to a spender to use your ICP tokens.
+    }
+  </p>
+</hlm-dialog-header>
+
+<div class="mt-4 space-y-6">
+  <!-- Spender ID Field -->
+  <div hlmField orientation="responsive">
+    <label hlmFieldLabel for="spenderId">Spender ID</label>
+    <hlm-field-content>
+      <input
+        hlmInput
+        id="spenderId"
+        [field]="allowanceForm.spenderId"
+        [attr.aria-invalid]="spenderIdError()"
+        class="aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
+        placeholder="Enter Principal ID or Account ID"
+      />
+      <hlm-field-description>
+        The Principal ID or Account ID of the canister or user that can spend
+        your ICP tokens.
+      </hlm-field-description>
+      @if (spenderIdError()) {
+        <hlm-field-error>
+          {{ spenderIdError() }}
+        </hlm-field-error>
+      }
+    </hlm-field-content>
+  </div>
+
+  <!-- Amount Field -->
+  <div hlmField orientation="responsive">
+    <label hlmFieldLabel for="amount">Amount (ICP)</label>
+    <hlm-field-content>
+      <input
+        hlmInput
+        id="amount"
+        type="number"
+        [field]="allowanceForm.amount"
+        [attr.aria-invalid]="amountError()"
+        class="aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
+        placeholder="0.00"
+        step="0.00000001"
+      />
+      <hlm-field-description>
+        Maximum amount of ICP tokens the spender can use (minimum 0.00000001 ICP
+        = 1 e8s).
+      </hlm-field-description>
+      @if (amountError()) {
+        <hlm-field-error>
+          {{ amountError() }}
+        </hlm-field-error>
+      }
+    </hlm-field-content>
+  </div>
+
+  <!-- Expires At Field (Optional) -->
+  <div hlmField orientation="responsive">
+    <label hlmFieldLabel for="expiresAt">Expires At</label>
+    <hlm-field-content>
+      <div class="flex items-center gap-2">
+        <hlm-date-picker
+          [date]="_selectedDate()"
+          (dateChange)="_onDateChange($event)"
+          [min]="minDate"
+          [autoCloseOnSelect]="true"
+          captionLayout="dropdown"
+        >
+          Select expiration date
+        </hlm-date-picker>
+        @if (_selectedDate()) {
+          <button
+            hlmInputGroupButton
+            size="icon-xs"
+            (click)="_onClearDate()"
+            type="button"
+          >
+            <ng-icon hlm size="xs" name="lucideX" />
+          </button>
+        }
+      </div>
+      <hlm-field-description>
+        If set, the allowance will expire at this date. Leave empty for no
+        expiration.
+      </hlm-field-description>
+    </hlm-field-content>
+  </div>
+</div>
+
+<hlm-dialog-footer class="mt-4">
+  <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+  <button hlmBtn [disabled]="isSubmitDisabled()" (click)="_handleAdd()">
+    @if (_isEditMode()) {
+      Update Allowance
+    } @else {
+      Add Allowance
+    }
+  </button>
+</hlm-dialog-footer>

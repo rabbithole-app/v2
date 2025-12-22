@@ -23,6 +23,9 @@
       "@rabbithole/ui": ["libs/app-ui/src/index.ts"],
       "@rabbithole/utils": ["libs/utils/src/index.ts"],
       "@rabbithole/features": ["libs/features/src/index.ts"],
+      "@rabbithole/features/allowances": [
+        "libs/features/src/lib/allowances/index.ts"
+      ],
       "@rabbithole/features/file-list": [
         "libs/features/src/lib/file-list/index.ts"
       ],

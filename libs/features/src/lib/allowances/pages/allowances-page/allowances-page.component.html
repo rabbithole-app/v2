@@ -1,0 +1,60 @@
+<div class="flex items-center justify-between">
+  <h2 class="text-lg font-semibold">Allowances</h2>
+  <div class="flex items-center gap-2">
+    <!-- Column visibility dropdown -->
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      align="end"
+      [hlmDropdownMenuTrigger]="columnsMenu"
+    >
+      Columns
+      <ng-icon hlmIcon size="sm" name="lucideChevronDown" />
+    </button>
+
+    <button
+      hlmBtn
+      variant="default"
+      [disabled]="_isSubmitting()"
+      (click)="_onAddAllowance()"
+    >
+      @if (_isSubmitting()) {
+        <hlm-spinner size="xs" />
+        Processing...
+      } @else {
+        <ng-icon hlm size="sm" name="lucidePlus" />
+        Add Allowance
+      }
+    </button>
+  </div>
+</div>
+
+<ng-template #columnsMenu>
+  <hlm-dropdown-menu class="w-48">
+    @for (
+      column of _tableComponent().table.getAllLeafColumns();
+      track column.id
+    ) {
+      @if (column.getCanHide()) {
+        <button
+          hlmDropdownMenuCheckbox
+          class="capitalize"
+          [checked]="column.getIsVisible()"
+          (triggered)="column.toggleVisibility()"
+        >
+          <hlm-dropdown-menu-checkbox-indicator />
+          {{ column.id }}
+        </button>
+      }
+    }
+  </hlm-dropdown-menu>
+</ng-template>
+
+<rbth-feat-allowances-table
+  [allowances]="_allowances.value() ?? []"
+  (editAllowance)="_onEditAllowance($event.fromAccountId, $event.toSpenderId)"
+  (revokeAllowance)="
+    _onRevokeAllowance($event.fromAccountId, $event.toSpenderId)
+  "
+/>

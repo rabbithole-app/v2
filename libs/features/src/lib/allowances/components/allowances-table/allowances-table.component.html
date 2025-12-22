@@ -1,0 +1,109 @@
+<div class="border-border w-full overflow-auto rounded-md border">
+  @defer {
+    <table hlmTable class="w-full">
+      <thead hlmTHead>
+        @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+          <tr hlmTr>
+            @for (header of headerGroup.headers; track header.id) {
+              <th hlmTh [attr.colSpan]="header.colSpan">
+                @if (!header.isPlaceholder) {
+                  <ng-container
+                    *flexRender="
+                      header.column.columnDef.header;
+                      props: header.getContext();
+                      let headerText
+                    "
+                  >
+                    <div [innerHTML]="headerText"></div>
+                  </ng-container>
+                }
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+      <tbody hlmTBody class="w-full">
+        @for (
+          row of table.getRowModel().rows;
+          track row.original.allowance.fromAccountId +
+            row.original.allowance.toSpenderId
+        ) {
+          <tr hlmTr [attr.key]="row.id">
+            @for (cell of row.getVisibleCells(); track $index) {
+              <td hlmTd>
+                @if (cell.column.id === 'fromAccountId') {
+                  <core-copy-to-clipboard
+                    [content]="row.original.allowance.fromAccountId"
+                  >
+                    {{ row.original.allowance.fromAccountId }}
+                  </core-copy-to-clipboard>
+                } @else if (cell.column.id === 'toSpenderId') {
+                  <core-copy-to-clipboard
+                    [content]="row.original.allowance.toSpenderId"
+                  >
+                    {{ row.original.allowance.toSpenderId }}
+                  </core-copy-to-clipboard>
+                } @else if (cell.column.id === 'allowance') {
+                  {{ _formatICP(row.original.allowance.allowance) }} ICP
+                } @else if (cell.column.id === 'expiresAt') {
+                  @if (row.original.allowance.expiresAt) {
+                    {{ row.original.allowance.expiresAt | date: 'short' }}
+                  } @else {
+                    <span class="text-muted-foreground">Never</span>
+                  }
+                } @else if (cell.column.id === 'actions') {
+                  @let fromAccountId = row.original.allowance.fromAccountId;
+                  @let toSpenderId = row.original.allowance.toSpenderId;
+                  <div class="flex items-center gap-2">
+                    <button
+                      class="size-8"
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      [rbthTooltipTrigger]="'Edit allowance'"
+                      (click)="_onEditAllowance(fromAccountId, toSpenderId)"
+                    >
+                      <span class="sr-only">Edit</span>
+                      <ng-icon hlmIcon size="sm" name="lucideEdit" />
+                    </button>
+                    <button
+                      class="size-8 text-destructive hover:text-destructive"
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      [rbthTooltipTrigger]="'Revoke allowance'"
+                      (click)="_onRevokeAllowance(fromAccountId, toSpenderId)"
+                    >
+                      <span class="sr-only">Revoke</span>
+                      <ng-icon hlmIcon size="sm" name="lucideTrash2" />
+                    </button>
+                  </div>
+                } @else {
+                  <ng-container
+                    *flexRender="
+                      cell.column.columnDef.cell;
+                      props: cell.getContext();
+                      let cellContent
+                    "
+                  >
+                    <div [innerHTML]="cellContent"></div>
+                  </ng-container>
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td
+              hlmTd
+              class="h-24 text-center"
+              [attr.colspan]="_columns().length"
+            >
+              No allowances found.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>
