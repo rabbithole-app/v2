@@ -39,9 +39,21 @@
         </div>
         <hlm-dropdown-menu-separator />
         <hlm-dropdown-menu-group>
-          <button hlmDropdownMenuItem routerLink="/profile">
+          <button
+            hlmDropdownMenuItem
+            routerLink="/profile"
+            (click)="ctx.close()"
+          >
             <ng-icon hlm name="lucideUser" />
             <span>Profile</span>
+          </button>
+          <button
+            hlmDropdownMenuItem
+            routerLink="/allowances"
+            (click)="ctx.close()"
+          >
+            <ng-icon hlm name="lucideShieldCheck" />
+            <span>Allowances</span>
           </button>
         </hlm-dropdown-menu-group>
         <hlm-dropdown-menu-separator />

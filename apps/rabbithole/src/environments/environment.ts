@@ -4,7 +4,7 @@ export const environment = {
   }.localhost`,
   appUrl: 'http://localhost:4200',
   appName: 'Rabbithole',
-  httpAgentHost: undefined,
+  httpAgentHost: 'https://localhost',
   envName: 'DEV',
   production: false,
   scheme: 'rabbithole',

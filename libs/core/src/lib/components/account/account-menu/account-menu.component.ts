@@ -9,7 +9,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { AccountIdentifier } from '@icp-sdk/canisters/ledger/icp';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideLogOut, lucideUser } from '@ng-icons/lucide';
+import { lucideLogOut, lucideShieldCheck, lucideUser } from '@ng-icons/lucide';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -47,6 +47,7 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
   providers: [
     provideIcons({
       lucideLogOut,
+      lucideShieldCheck,
       lucideUser,
     }),
   ],

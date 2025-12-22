@@ -28,9 +28,9 @@ export const appRoutes: Route[] = [
       {
         path: '',
         loadComponent: () =>
-          import('./core/components/main-navigation/main-navigation.component').then(
-            (m) => m.MainNavigationComponent,
-          ),
+          import(
+            './core/components/main-navigation/main-navigation.component'
+          ).then((m) => m.MainNavigationComponent),
         outlet: 'sidebar-2',
       },
       {
@@ -49,6 +49,13 @@ export const appRoutes: Route[] = [
         path: 'profile',
         loadComponent: () =>
           import('@rabbithole/pages/profile').then((m) => m.ProfileComponent),
+      },
+      {
+        path: 'allowances',
+        loadChildren: () =>
+          import('@rabbithole/features/allowances').then(
+            (m) => m.allowancesRoutes,
+          ),
       },
       // Route :id with canMatch - will match only if id is a Principal
       {
@@ -81,9 +88,9 @@ export const appRoutes: Route[] = [
           {
             path: '',
             loadComponent: () =>
-              import('./core/components/storage-navigation/storage-navigation.component').then(
-                (m) => m.StorageNavigationComponent,
-              ),
+              import(
+                './core/components/storage-navigation/storage-navigation.component'
+              ).then((m) => m.StorageNavigationComponent),
             outlet: 'sidebar-1',
           },
         ],
