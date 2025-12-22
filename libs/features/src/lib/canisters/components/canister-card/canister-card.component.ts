@@ -18,16 +18,15 @@ import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 
+import { CanistersService, ICManagementService } from '../../services';
+import { CoreCanisterStatusComponent } from '../canister-status';
+import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-canister-dialog.component';
 import {
   CopyToClipboardComponent,
   ENCRYPTED_STORAGE_CANISTER_ID,
   formatBytes,
   formatTCycles,
 } from '@rabbithole/core';
-
-import { CanistersService, ICManagementService } from '../../services';
-import { CoreCanisterStatusComponent } from '../canister-status';
-import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-canister-dialog.component';
 
 @Component({
   selector: 'core-canister-card',

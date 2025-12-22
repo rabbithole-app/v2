@@ -25,20 +25,6 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { filter, map, mergeWith } from 'rxjs';
 
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import {
-  CanisterDataInfo,
-  ENCRYPTED_STORAGE_CANISTER_ID,
-  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
-  injectCoreWorker,
-  UPLOAD_ASSETS_SERVICE_PROVIDERS,
-  UPLOAD_SERVICE_TOKEN,
-} from '@rabbithole/core';
-import {
-  RbthTooltipComponent,
-  RbthTooltipTriggerDirective,
-} from '@rabbithole/ui';
-
 import {
   AddControllerInstructionsComponent,
   CanisterControllersTableComponent,
@@ -55,6 +41,19 @@ import {
   WasmInstallTriggerDirective,
 } from '../../components';
 import { ICManagementService } from '../../services';
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import {
+  CanisterDataInfo,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
+  injectCoreWorker,
+  UPLOAD_ASSETS_SERVICE_PROVIDERS,
+  UPLOAD_SERVICE_TOKEN,
+} from '@rabbithole/core';
+import {
+  RbthTooltipComponent,
+  RbthTooltipTriggerDirective,
+} from '@rabbithole/ui';
 
 @Component({
   selector: 'feature-canister-detail',
@@ -95,9 +94,8 @@ import { ICManagementService } from '../../services';
   ],
 })
 export class CanisterDetailComponent implements OnInit {
-  readonly isProduction = input<boolean>(false);
-
   #route = inject(ActivatedRoute);
+
   // List of available canisters from resolver
   readonly canisterList = toSignal(
     this.#route.data.pipe(
@@ -108,7 +106,6 @@ export class CanisterDetailComponent implements OnInit {
     { requireSync: true },
   );
   #icManagementService = inject(ICManagementService);
-
   // Combines initial data from resolver with reactive updates from service resource
   canisterStatus = toSignal(
     this.#route.data.pipe(
@@ -127,14 +124,15 @@ export class CanisterDetailComponent implements OnInit {
   readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
 
   readonly currentCanisterId = computed(() => this.#canisterId.toText());
-  #authService = inject(AUTH_SERVICE);
 
+  #authService = inject(AUTH_SERVICE);
   currentPrincipalId = computed(() => {
     return this.#authService.principalId();
   });
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
 
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
   hasUploadPermission = computed(() => this.#uploadService.hasPermission());
+
   isController = computed(() => {
     const controllers = this.controllers();
     const currentPrincipalId = this.currentPrincipalId();
@@ -142,10 +140,11 @@ export class CanisterDetailComponent implements OnInit {
       (controller) => controller.toText() === currentPrincipalId,
     );
   });
-
   readonly isLoadingStatus = computed(() =>
     this.#icManagementService.canisterStatus.isLoading(),
   );
+
+  readonly isProduction = input<boolean>(false);
 
   loadingState = computed(() => this.#icManagementService.state().loading);
   snapshots = computed(() => this.#icManagementService.snapshots.value() ?? []);

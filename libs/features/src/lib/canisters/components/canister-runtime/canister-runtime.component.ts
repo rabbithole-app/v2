@@ -7,8 +7,8 @@ import {
 import { HlmItem } from '@spartan-ng/helm/item';
 import { HlmItemImports } from '@spartan-ng/helm/item';
 
-import { CanisterDataInfo, formatBytes, formatTCycles } from '@rabbithole/core';
 import { CoreCanisterStatusComponent } from '../canister-status';
+import { CanisterDataInfo, formatBytes, formatTCycles } from '@rabbithole/core';
 
 @Component({
   selector: 'core-canister-runtime',

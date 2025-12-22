@@ -28,13 +28,6 @@ import type { ClassValue } from 'clsx';
 import { unzipSync } from 'fflate';
 import { match, P } from 'ts-pattern';
 
-import {
-  FileSystemAccessService,
-  UPLOAD_ASSETS_SERVICE_PROVIDERS,
-  UploadDrawerListComponent,
-  UPLOAD_SERVICE_TOKEN,
-  UploadState,
-} from '@rabbithole/core';
 import { FrontendTakeOwnershipAlertComponent } from '../frontend-take-ownership/frontend-take-ownership-alert.component';
 import { FrontendTakeOwnershipButtonComponent } from '../frontend-take-ownership/frontend-take-ownership-button.component';
 import { FrontendUploadArchivePreviewComponent } from './frontend-upload-archive-preview.component';
@@ -42,6 +35,13 @@ import { FrontendUploadFileSelectionComponent } from './frontend-upload-file-sel
 import { FrontendUploadGithubSelectionComponent } from './frontend-upload-github-selection.component';
 import { FrontendUploadProgressComponent } from './frontend-upload-progress.component';
 import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
+import {
+  FileSystemAccessService,
+  UPLOAD_ASSETS_SERVICE_PROVIDERS,
+  UPLOAD_SERVICE_TOKEN,
+  UploadDrawerListComponent,
+  UploadState,
+} from '@rabbithole/core';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,

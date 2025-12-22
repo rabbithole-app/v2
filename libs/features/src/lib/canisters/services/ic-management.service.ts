@@ -1,5 +1,4 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
-import { Principal } from '@icp-sdk/core/principal';
 import { hexStringToUint8Array, uint8ArrayToHexString } from '@dfinity/utils';
 import {
   IcManagementCanister,
@@ -8,6 +7,7 @@ import {
   SnapshotIdText,
   SnapshotParams,
 } from '@icp-sdk/canisters/ic-management';
+import { Principal } from '@icp-sdk/core/principal';
 import { toast } from 'ngx-sonner';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';

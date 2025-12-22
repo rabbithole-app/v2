@@ -10,10 +10,10 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HttpAgent } from '@icp-sdk/core/agent';
-import { Principal } from '@icp-sdk/core/principal';
 import { principalToSubAccount, toNullable } from '@dfinity/utils';
 import { IcManagementCanister } from '@icp-sdk/canisters/ic-management';
+import { HttpAgent } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideCheck,
@@ -38,6 +38,9 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { toast } from 'ngx-sonner';
 import { map, startWith } from 'rxjs';
 
+import { CanistersService } from '../../services';
+import { ControllersSelectorComponent } from '../controllers-selector/controllers-selector.component';
+import { CyclesBalanceInputComponent } from '../cycles-balance-input/cycles-balance-input.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   CopyToClipboardComponent,
@@ -51,10 +54,6 @@ import {
   ONE_TRILLION,
   parseCanisterRejectError,
 } from '@rabbithole/core';
-
-import { CanistersService } from '../../services';
-import { ControllersSelectorComponent } from '../controllers-selector/controllers-selector.component';
-import { CyclesBalanceInputComponent } from '../cycles-balance-input/cycles-balance-input.component';
 
 // Generates a random canisterId.
 function generateRandomCanisterId(): Principal {

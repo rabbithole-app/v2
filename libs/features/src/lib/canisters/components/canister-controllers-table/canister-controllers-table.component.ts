@@ -28,9 +28,9 @@ import {
   PaginationState,
 } from '@tanstack/angular-table';
 
-import { PrincipalCell } from '@rabbithole/core';
 import { AddControllerDialogComponent } from './add-controller-dialog.component';
 import { RemoveControllerDialogComponent } from './remove-controller-dialog.component';
+import { PrincipalCell } from '@rabbithole/core';
 
 interface ControllerItem {
   principal: Principal;

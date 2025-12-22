@@ -37,10 +37,9 @@ import type { ClassValue } from 'clsx';
 import { toast } from 'ngx-sonner';
 import { match, P } from 'ts-pattern';
 
-import { FileSystemAccessService, FormatBytesPipe } from '@rabbithole/core';
-
 import { WasmInstallService } from '../../services';
 import { WasmInstallTriggerDirective } from './wasm-install-trigger.directive';
+import { FileSystemAccessService, FormatBytesPipe } from '@rabbithole/core';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
