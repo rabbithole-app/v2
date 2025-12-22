@@ -12,3 +12,6 @@ export type {
   NodeDetails,
 } from './encrypted-storage/encrypted-storage.did';
 export { idlFactory as encryptedStorageIdlFactory } from './encrypted-storage/encrypted-storage.did';
+export type * from './icp-ledger/icp-ledger.did';
+export type { _SERVICE as IcpLedgerActorService } from './icp-ledger/icp-ledger.did';
+export { idlFactory as icpLedgerIdlFactory } from './icp-ledger/icp-ledger.did';
