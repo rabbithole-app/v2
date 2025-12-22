@@ -28,7 +28,7 @@ import { filter, observeOn, pairwise } from 'rxjs/operators';
 type TakeSnapshotStatus = 'idle' | 'starting' | 'stopping' | 'taking';
 
 @Component({
-  selector: 'core-canister-take-snapshot-dialog',
+  selector: 'rbth-feat-canisters-canister-take-snapshot-dialog',
   imports: [
     BrnDialogClose,
     HlmButton,

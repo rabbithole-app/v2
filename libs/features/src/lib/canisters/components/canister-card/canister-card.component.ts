@@ -29,7 +29,7 @@ import {
 } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-canister-card',
+  selector: 'rbth-feat-canisters-canister-card',
   imports: [
     ...HlmButtonImports,
     ...HlmButtonGroupImports,

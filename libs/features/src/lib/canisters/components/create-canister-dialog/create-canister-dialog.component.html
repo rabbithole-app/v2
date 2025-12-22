@@ -63,7 +63,7 @@
     <div hlmField orientation="responsive">
       <div hlmFieldLabel>Who should control this canister?</div>
       <hlm-field-content>
-        <core-controllers-selector
+        <rbth-feat-canisters-controllers-selector
           [formControl]="form.controls.controllers"
           [currentUserPrincipal]="currentUserPrincipal()"
         />
@@ -76,7 +76,7 @@
     <div hlmField orientation="responsive">
       <label hlmFieldLabel for="cyclesBalance">Starting cycles balance</label>
       <hlm-field-content>
-        <core-cycles-balance-input
+        <rbth-feat-canisters-cycles-balance-input
           id="cyclesBalance"
           [formControl]="form.controls.cyclesBalance"
           [min]="0.1"

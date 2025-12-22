@@ -34,7 +34,7 @@
   @if (controllers().length > 0) {
     <div class="space-y-2">
       @for (controller of controllers(); track controller.toText()) {
-        <core-controller-item
+        <rbth-feat-canisters-controller-item
           class="block"
           [controller]="controller"
           [principalText]="controller.toText()"

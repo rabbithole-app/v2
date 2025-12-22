@@ -5,7 +5,7 @@ import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 @Component({
-  selector: 'core-frontend-take-ownership-alert',
+  selector: 'rbth-feat-canisters-frontend-take-ownership-alert',
   imports: [...HlmAlertImports, NgIcon, HlmIcon],
   providers: [provideIcons({ lucideCircleAlert })],
   template: `

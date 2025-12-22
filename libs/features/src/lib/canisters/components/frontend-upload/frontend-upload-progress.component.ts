@@ -4,7 +4,7 @@ import { BrnProgress } from '@spartan-ng/brain/progress';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 
 @Component({
-  selector: 'core-frontend-upload-progress',
+  selector: 'rbth-feat-canisters-frontend-upload-progress',
   imports: [...HlmProgressImports, BrnProgress, DecimalPipe],
   template: `
     <div class="space-y-2 px-4">

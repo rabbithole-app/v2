@@ -11,7 +11,7 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 
 @Component({
-  selector: 'core-controller-item',
+  selector: 'rbth-feat-canisters-controller-item',
   imports: [HlmButtonGroupImports, HlmButton, NgIcon],
   providers: [
     provideIcons({

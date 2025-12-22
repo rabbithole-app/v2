@@ -28,7 +28,7 @@ import { ControllerItemComponent } from './controller-item/controller-item.compo
 import { principalValidator } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-controllers-selector',
+  selector: 'rbth-feat-canisters-controllers-selector',
   imports: [
     ReactiveFormsModule,
     HlmInputGroup,

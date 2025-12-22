@@ -13,7 +13,7 @@ import {
 } from '@spartan-ng/helm/dialog';
 
 @Component({
-  selector: 'core-delete-canister-dialog',
+  selector: 'rbth-feat-canisters-delete-canister-dialog',
   imports: [
     BrnDialogClose,
     HlmButton,

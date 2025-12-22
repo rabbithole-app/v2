@@ -4,7 +4,10 @@
 <div hlmItemContent class="space-y-4">
   <div>
     <div class="text-sm">Status:</div>
-    <core-canister-status variant="outline" [status]="canister().status" />
+    <rbth-feat-canisters-canister-status
+      variant="outline"
+      [status]="canister().status"
+    />
   </div>
 
   <div>
@@ -14,17 +17,26 @@
 
   <div>
     <div class="text-sm">Daily Idle Consumption:</div>
-    <div class="text-sm text-muted-foreground">{{ dailyIdleConsumption() }}</div>
+    <div class="text-sm text-muted-foreground">
+      {{ dailyIdleConsumption() }}
+    </div>
   </div>
 
   <div>
     <div class="text-sm">Queries:</div>
     <div>
-      <div class="text-sm text-muted-foreground">{{ queriesCalls() }} calls</div>
-      <div class="text-sm text-muted-foreground">{{ queriesInstructions() }} instructions</div>
-      <div class="text-sm text-muted-foreground">{{ queriesRequests() }} requests</div>
-      <div class="text-sm text-muted-foreground">{{ queriesResponses() }} responses</div>
+      <div class="text-sm text-muted-foreground">
+        {{ queriesCalls() }} calls
+      </div>
+      <div class="text-sm text-muted-foreground">
+        {{ queriesInstructions() }} instructions
+      </div>
+      <div class="text-sm text-muted-foreground">
+        {{ queriesRequests() }} requests
+      </div>
+      <div class="text-sm text-muted-foreground">
+        {{ queriesResponses() }} responses
+      </div>
     </div>
   </div>
 </div>
-

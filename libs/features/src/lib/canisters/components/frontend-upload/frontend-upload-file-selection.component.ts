@@ -6,7 +6,7 @@ import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 @Component({
-  selector: 'core-frontend-upload-file-selection',
+  selector: 'rbth-feat-canisters-frontend-upload-file-selection',
   imports: [HlmEmptyImports, HlmButtonImports, NgIcon, HlmIcon],
   providers: [provideIcons({ lucideFileArchive, lucideUpload })],
   template: `

@@ -31,7 +31,10 @@
     } @else if (canisterStatus(); as status) {
       <div class="flex items-center justify-between">
         <span class="text-sm text-muted-foreground">Status:</span>
-        <core-canister-status [status]="status.status" variant="outline" />
+        <rbth-feat-canisters-canister-status
+          [status]="status.status"
+          variant="outline"
+        />
       </div>
       <div class="flex items-center justify-between">
         <span class="text-sm text-muted-foreground">Cycles:</span>

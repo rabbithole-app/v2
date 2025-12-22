@@ -43,41 +43,49 @@
       </div>
 
       @if (isController()) {
-        <core-wasm-install>
-          <core-frontend-upload-drawer>
+        <rbth-feat-canisters-wasm-install>
+          <rbth-feat-canisters-frontend-upload-drawer>
             <div hlmButtonGroup>
-              <button hlmBtn variant="outline" coreWasmInstallTrigger>
+              <button
+                hlmBtn
+                variant="outline"
+                rbthFeatCanistersWasmInstallTrigger
+              >
                 <ng-icon hlm size="sm" name="lucideBinary" />
                 Install WASM
               </button>
-              <button hlmBtn variant="outline" coreFrontendUploadTrigger>
+              <button
+                hlmBtn
+                variant="outline"
+                rbthFeatCanistersFrontendUploadTrigger
+              >
                 <ng-icon hlm size="sm" name="lucidePackage" />
                 Install frontend
               </button>
             </div>
-          </core-frontend-upload-drawer>
-        </core-wasm-install>
+          </rbth-feat-canisters-frontend-upload-drawer>
+        </rbth-feat-canisters-wasm-install>
       }
     </div>
 
     <!-- Main content -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
       <!-- Runtime Section -->
-      <core-canister-runtime
+      <rbth-feat-canisters-canister-runtime
         [canister]="status"
         variant="muted"
         class="self-start"
       />
 
       <!-- Memory Section -->
-      <core-canister-memory
+      <rbth-feat-canisters-canister-memory
         [canister]="status"
         variant="muted"
         class="h-full"
       />
 
       <!-- Health Check Section -->
-      <core-canister-health-check
+      <rbth-feat-canisters-canister-health-check
         [canister]="status"
         variant="muted"
         class="self-start"
@@ -86,7 +94,7 @@
 
     <!-- Controllers Section -->
     <div class="col-span-full">
-      <core-canister-controllers-table
+      <rbth-feat-canisters-canister-controllers-table
         [controllers]="controllers()"
         [currentPrincipalId]="currentPrincipalId()"
         [loadingState]="loadingState()"
@@ -97,7 +105,7 @@
 
     <!-- Snapshots Section -->
     <div class="col-span-full">
-      <core-canister-snapshots-table
+      <rbth-feat-canisters-canister-snapshots-table
         [snapshots]="snapshots()"
         [loadingState]="snapshotsLoadingState()"
         (takeSnapshot)="_onTakeSnapshot($event || undefined)"

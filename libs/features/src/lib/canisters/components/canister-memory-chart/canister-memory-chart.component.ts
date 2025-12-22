@@ -7,14 +7,11 @@ import {
 import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 
-import {
-  RadarChartComponent,
-  RadarData,
-} from '@rabbithole/core';
+import { RadarChartComponent, RadarData } from '@rabbithole/core';
 import { CanisterMemoryMetrics } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-canister-memory-chart',
+  selector: 'rbth-feat-canisters-canister-memory-chart',
   imports: [RadarChartComponent],
   templateUrl: './canister-memory-chart.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

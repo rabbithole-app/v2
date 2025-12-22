@@ -16,7 +16,7 @@ import { injectAssetManager } from '@rabbithole/core';
 import { parseCanisterRejectError } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-frontend-take-ownership-button',
+  selector: 'rbth-feat-canisters-frontend-take-ownership-button',
   imports: [HlmButtonImports, HlmSpinnerImports],
   template: `
     <button

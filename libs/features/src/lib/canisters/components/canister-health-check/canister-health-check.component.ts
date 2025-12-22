@@ -12,7 +12,7 @@ import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { CanisterDataInfo, formatTCycles } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-canister-health-check',
+  selector: 'rbth-feat-canisters-canister-health-check',
   hostDirectives: [
     {
       directive: HlmItem,

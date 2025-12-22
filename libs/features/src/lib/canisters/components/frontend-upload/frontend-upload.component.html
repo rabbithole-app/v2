@@ -29,20 +29,20 @@
               </button>
             </hlm-tabs-list>
             <div hlmTabsContent="file">
-              <core-frontend-upload-file-selection
+              <rbth-feat-canisters-frontend-upload-file-selection
                 (fileSelect)="fileOpen()"
                 (fileDrop)="onFileDropped($event)"
               />
             </div>
             <div hlmTabsContent="github">
-              <core-frontend-upload-github-selection />
+              <rbth-feat-canisters-frontend-upload-github-selection />
             </div>
           </hlm-tabs>
         }
 
         <!-- Selected archive preview -->
         @if (archiveFile(); as archive) {
-          <core-frontend-upload-archive-preview
+          <rbth-feat-canisters-frontend-upload-archive-preview
             [archive]="archive"
             [showCancel]="!isProcessing()"
             (archiveCanceled)="onCancel()"
@@ -51,7 +51,7 @@
 
         <!-- Upload progress -->
         @if (isProcessing()) {
-          <core-frontend-upload-progress
+          <rbth-feat-canisters-frontend-upload-progress
             [overallProgress]="overallProgress()"
             [completedFiles]="completedFiles()"
             [totalFiles]="totalFiles()"
@@ -61,20 +61,22 @@
         <!-- File list -->
         @if (activeItems().length) {
           <h3 rbthDrawerSeparator>Active</h3>
-          <core-upload-drawer-list [items]="activeItems()" />
+          <rbth-feat-canisters-frontend-upload-list [items]="activeItems()" />
         }
         @if (completedItems().length) {
           <h3 rbthDrawerSeparator>Completed</h3>
-          <core-upload-drawer-list [items]="completedItems()" />
+          <rbth-feat-canisters-frontend-upload-list
+            [items]="completedItems()"
+          />
         }
         @if (failedItems().length) {
           <h3 rbthDrawerSeparator>Failed</h3>
-          <core-upload-drawer-list [items]="failedItems()" />
+          <rbth-feat-canisters-frontend-upload-list [items]="failedItems()" />
         }
       } @else {
         <!-- Take ownership alert -->
         <div class="px-4">
-          <core-frontend-take-ownership-alert />
+          <rbth-feat-canisters-frontend-take-ownership-alert />
         </div>
       }
     </div>
@@ -96,7 +98,7 @@
           {{ statusText() }}
         </button>
       } @else {
-        <core-frontend-take-ownership-button
+        <rbth-feat-canisters-frontend-take-ownership-button
           class="ml-auto"
           (ownershipTaken)="onOwnershipTaken()"
         />

@@ -18,7 +18,7 @@ import { parseCanisterRejectError } from '@rabbithole/core';
 import { UPLOAD_SERVICE_TOKEN } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-commit-permission-warning',
+  selector: 'rbth-feat-canisters-commit-permission-warning',
   imports: [
     ...HlmAlertImports,
     ...HlmButtonImports,

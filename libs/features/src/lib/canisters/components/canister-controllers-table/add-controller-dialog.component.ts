@@ -20,7 +20,7 @@ import { isNonNull } from 'remeda';
 import { principalValidator } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-add-controller-dialog',
+  selector: 'rbth-feat-canisters-add-controller-dialog',
   imports: [
     ReactiveFormsModule,
     BrnDialogClose,

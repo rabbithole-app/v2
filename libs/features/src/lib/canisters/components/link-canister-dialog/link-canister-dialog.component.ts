@@ -26,7 +26,7 @@ import { isNonNull } from 'remeda';
 import { principalValidator } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-link-canister-dialog',
+  selector: 'rbth-feat-canisters-link-canister-dialog',
   imports: [
     ReactiveFormsModule,
     BrnDialogClose,

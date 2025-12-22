@@ -35,7 +35,7 @@ interface SnapshotItem {
 }
 
 @Component({
-  selector: 'core-canister-snapshots-table',
+  selector: 'rbth-feat-canisters-canister-snapshots-table',
   imports: [
     FlexRenderDirective,
     NgIcon,

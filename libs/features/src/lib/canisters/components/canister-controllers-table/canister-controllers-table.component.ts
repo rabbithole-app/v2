@@ -37,7 +37,7 @@ interface ControllerItem {
 }
 
 @Component({
-  selector: 'core-canister-controllers-table',
+  selector: 'rbth-feat-canisters-canister-controllers-table',
   imports: [
     FlexRenderDirective,
     FormsModule,

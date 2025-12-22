@@ -16,7 +16,7 @@ import {
 } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-canister-memory',
+  selector: 'rbth-feat-canisters-canister-memory',
   hostDirectives: [
     {
       directive: HlmItem,

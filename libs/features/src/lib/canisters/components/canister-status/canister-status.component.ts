@@ -25,7 +25,7 @@ export const canisterStatusColorVariants = cva('size-1.5 rounded-full', {
 });
 
 @Component({
-  selector: 'core-canister-status',
+  selector: 'rbth-feat-canisters-canister-status',
   hostDirectives: [
     {
       directive: HlmBadge,

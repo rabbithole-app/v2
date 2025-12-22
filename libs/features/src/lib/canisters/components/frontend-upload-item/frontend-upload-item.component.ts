@@ -19,7 +19,7 @@ import { FormatBytesPipe, FormatRangeBytesPipe } from '@rabbithole/core';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 
 @Component({
-  selector: 'core-frontend-upload-item',
+  selector: 'rbth-feat-canisters-frontend-upload-item',
   imports: [
     HlmSpinner,
     NgIcon,

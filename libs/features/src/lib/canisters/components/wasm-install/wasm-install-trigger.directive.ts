@@ -3,7 +3,7 @@ import { Directive } from '@angular/core';
 import { RbthDrawerComponent } from '@rabbithole/ui';
 
 @Directive({
-  selector: '[coreWasmInstallTrigger]',
+  selector: '[rbthFeatCanistersWasmInstallTrigger]',
   host: {
     '(click)': 'open()',
   },

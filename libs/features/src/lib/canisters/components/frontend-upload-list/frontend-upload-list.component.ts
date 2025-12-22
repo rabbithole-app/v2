@@ -4,13 +4,13 @@ import { FrontendUploadItemComponent } from '../frontend-upload-item/frontend-up
 import { FileUploadWithStatus } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-frontend-upload-list',
+  selector: 'rbth-feat-canisters-frontend-upload-list',
   imports: [FrontendUploadItemComponent],
   template: `
     <h3 class="text-sm font-medium">Files to upload</h3>
     <div class="snap-y snap-mandatory max-h-96 overflow-y-auto">
       @for (item of items(); track item.id) {
-        <core-frontend-upload-item [data]="item" />
+        <rbth-feat-canisters-frontend-upload-item [data]="item" />
       }
     </div>
   `,

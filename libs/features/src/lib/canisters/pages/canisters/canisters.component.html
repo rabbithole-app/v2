@@ -14,7 +14,7 @@
 @if (canisterIds().length > 0) {
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     @for (canisterId of canisterIds(); track canisterId) {
-      <core-canister-card [canisterId]="canisterId" />
+      <rbth-feat-canisters-canister-card [canisterId]="canisterId" />
     }
   </div>
 } @else {

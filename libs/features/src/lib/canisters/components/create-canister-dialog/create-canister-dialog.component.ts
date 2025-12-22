@@ -83,7 +83,7 @@ type State =
     };
 
 @Component({
-  selector: 'core-create-canister-dialog',
+  selector: 'rbth-feat-canisters-create-canister-dialog',
   imports: [
     ReactiveFormsModule,
     BrnDialogClose,

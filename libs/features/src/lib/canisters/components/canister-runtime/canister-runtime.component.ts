@@ -11,7 +11,7 @@ import { CoreCanisterStatusComponent } from '../canister-status';
 import { CanisterDataInfo, formatBytes, formatTCycles } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-canister-runtime',
+  selector: 'rbth-feat-canisters-canister-runtime',
   hostDirectives: [
     {
       directive: HlmItem,

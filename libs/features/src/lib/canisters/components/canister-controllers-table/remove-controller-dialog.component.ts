@@ -9,7 +9,7 @@ import {
 } from '@spartan-ng/helm/dialog';
 
 @Component({
-  selector: 'core-remove-controller-dialog',
+  selector: 'rbth-feat-canisters-remove-controller-dialog',
   imports: [
     BrnDialogClose,
     HlmButton,

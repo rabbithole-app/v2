@@ -28,7 +28,7 @@ import { filter, observeOn, pairwise } from 'rxjs/operators';
 type RestoreSnapshotStatus = 'idle' | 'restoring' | 'starting' | 'stopping';
 
 @Component({
-  selector: 'core-canister-load-snapshot-dialog',
+  selector: 'rbth-feat-canisters-canister-load-snapshot-dialog',
   imports: [
     BrnDialogClose,
     HlmButton,

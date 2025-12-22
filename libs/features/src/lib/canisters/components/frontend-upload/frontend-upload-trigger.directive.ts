@@ -3,7 +3,7 @@ import { Directive } from '@angular/core';
 import { RbthDrawerComponent } from '@rabbithole/ui';
 
 @Directive({
-  selector: '[coreFrontendUploadTrigger]',
+  selector: '[rbthFeatCanistersFrontendUploadTrigger]',
   host: {
     '(click)': 'open()',
   },
@@ -19,4 +19,3 @@ export class FrontendUploadTriggerDirective {
     this._drawer = drawer;
   }
 }
-

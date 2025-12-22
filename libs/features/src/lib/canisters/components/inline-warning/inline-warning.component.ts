@@ -4,7 +4,7 @@ import { lucideAlertTriangle } from '@ng-icons/lucide';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 @Component({
-  selector: 'core-inline-warning',
+  selector: 'rbth-feat-canisters-inline-warning',
   imports: [NgIcon, HlmIcon],
   providers: [provideIcons({ lucideAlertTriangle })],
   template: `

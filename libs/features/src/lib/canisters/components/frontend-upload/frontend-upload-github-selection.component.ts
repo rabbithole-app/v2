@@ -4,7 +4,7 @@ import { lucideGithub } from '@ng-icons/lucide';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 @Component({
-  selector: 'core-frontend-upload-github-selection',
+  selector: 'rbth-feat-canisters-frontend-upload-github-selection',
   imports: [NgIcon, HlmIcon],
   providers: [provideIcons({ lucideGithub })],
   template: `

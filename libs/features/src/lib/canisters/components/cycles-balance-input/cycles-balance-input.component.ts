@@ -21,7 +21,7 @@ import {
 } from '@spartan-ng/helm/input-group';
 
 @Component({
-  selector: 'core-cycles-balance-input',
+  selector: 'rbth-feat-canisters-cycles-balance-input',
   imports: [
     FormsModule,
     HlmInputGroup,

@@ -50,7 +50,7 @@ import {
 } from '@rabbithole/ui';
 
 @Component({
-  selector: 'core-wasm-install',
+  selector: 'rbth-feat-canisters-wasm-install',
   imports: [
     ...HlmAlertImports,
     ...HlmButtonImports,

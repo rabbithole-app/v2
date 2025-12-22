@@ -12,7 +12,7 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { FormatBytesPipe } from '@rabbithole/core';
 
 @Component({
-  selector: 'core-frontend-upload-archive-preview',
+  selector: 'rbth-feat-canisters-frontend-upload-archive-preview',
   imports: [...HlmButtonImports, NgIcon, HlmIcon, FormatBytesPipe],
   providers: [provideIcons({ lucideFileArchive, lucideX })],
   template: `
