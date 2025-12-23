@@ -33,6 +33,30 @@ jobs:
       - name: Install mops
         run: npm install -g ic-mops@1.12.0
 
+      # Import DFX identity from GitHub Secret for IC network deployment
+      - name: Import DFX Identity
+        working-directory: apps/backend
+        run: |
+          echo "${{ secrets.DFX_IDENTITY_PEM }}" > identity.pem
+          dfx identity import --storage-mode plaintext --force release-identity identity.pem || true
+          dfx identity use release-identity
+          rm -f identity.pem
+          echo "✅ Identity imported and activated"
+
+      # Verify identity and canister configuration
+      - name: Verify DFX configuration
+        working-directory: apps/backend
+        run: |
+          echo "Current identity: $(dfx identity whoami)"
+          echo "Principal: $(dfx identity get-principal)"
+          if [ -f canister_ids.json ]; then
+            echo "Canister IDs configuration:"
+            cat canister_ids.json
+          else
+            echo "⚠️  canister_ids.json not found"
+            exit 1
+          fi
+
       # Build encrypted-storage JS library
       - name: Build encrypted-storage library
         run: npx nx build encrypted-storage
