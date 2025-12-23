@@ -1,0 +1,137 @@
+name: Release Storage
+
+on:
+  push:
+    tags:
+      - 'storage-v*' # Trigger on tags like storage-v1.0.0
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: write # Required to create releases
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      # Install dependencies
+      - run: npm ci --legacy-peer-deps
+
+      # Setup DFX for Motoko compilation
+      - name: Setup DFX
+        uses: dfinity/setup-dfx@main
+        with:
+          dfx-version: latest
+
+      # Install mops (required for Motoko dependencies)
+      - name: Install mops
+        run: npm install -g ic-mops@1.12.0
+
+      # Build encrypted-storage JS library
+      - name: Build encrypted-storage library
+        run: npx nx build encrypted-storage
+
+      # Build storage frontend
+      - name: Build storage frontend
+        run: npx nx build storage --configuration=production
+
+      # Build EncryptedStorageCanister WASM
+      # NOTE: For local testing, use: docker compose exec backend dfx build encrypted-storage --network local
+      - name: Build EncryptedStorageCanister WASM
+        working-directory: apps/backend
+        run: |
+          mops install
+          dfx build encrypted-storage --network ic
+
+      # Generate DID file
+      - name: Generate DID file
+        working-directory: apps/backend
+        run: |
+          dfx generate encrypted-storage --network ic
+
+      # Calculate WASM SHA256 hash
+      - name: Calculate WASM SHA256
+        id: wasm_sha256
+        working-directory: apps/backend
+        run: |
+          WASM_PATH=".dfx/ic/canisters/encrypted-storage/encrypted-storage.wasm"
+          if [ -f "$WASM_PATH" ]; then
+            SHA256=$(sha256sum "$WASM_PATH" | cut -d' ' -f1)
+            echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+            echo "WASM SHA256: $SHA256"
+          else
+            echo "❌ WASM file not found at $WASM_PATH"
+            exit 1
+          fi
+
+      # Create frontend zip archive (root in dist/apps/storage/browser)
+      - name: Create frontend zip archive
+        run: |
+          cd dist/apps/storage/browser
+          zip -r ../../../../storage-frontend.zip .
+          cd ../../../../..
+          echo "✅ Created storage-frontend.zip"
+
+      # Create JS library archive
+      - name: Create library archive
+        run: |
+          cd dist/libs/encrypted-storage
+          zip -r ../../../encrypted-storage-lib.zip .
+          cd ../../../
+          echo "✅ Created encrypted-storage-lib.zip"
+
+      # Copy artifacts to single directory
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p release-artifacts
+          # WASM file
+          cp apps/backend/.dfx/ic/canisters/encrypted-storage/encrypted-storage.wasm release-artifacts/encrypted-storage.wasm
+          # DID file
+          cp apps/backend/src/declarations/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did || \
+          cp apps/backend/.dfx/ic/canisters/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did
+          # Zip archives
+          cp storage-frontend.zip release-artifacts/
+          cp encrypted-storage-lib.zip release-artifacts/
+          # Create checksums.txt
+          cd release-artifacts
+          sha256sum * > checksums.txt
+          echo "✅ Prepared release artifacts"
+
+      # Create GitHub Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-artifacts/*
+          tag_name: ${{ github.ref_name }}
+          name: Storage Release ${{ github.ref_name }}
+          body: |
+            ## Storage Release ${{ github.ref_name }}
+
+            ### Artifacts:
+            - **encrypted-storage.wasm** - WASM canister module
+            - **encrypted-storage.did** - Candid interface
+            - **storage-frontend.zip** - Frontend application (root in dist/apps/storage/browser)
+            - **encrypted-storage-lib.zip** - JS library @rabbithole/encrypted-storage
+            - **checksums.txt** - SHA256 hashes of all artifacts
+
+            ### WASM SHA256:
+            ```
+            ${{ steps.wasm_sha256.outputs.sha256 }}
+            ```
+
+            ### Verification:
+            To verify the installed module matches:
+            ```bash
+            sha256sum encrypted-storage.wasm
+            # Should match the hash above
+            ```
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
