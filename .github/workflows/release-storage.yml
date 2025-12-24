@@ -94,13 +94,26 @@ jobs:
             exit 1
           fi
 
-      # Create frontend zip archive (root in dist/apps/storage/browser)
-      - name: Create frontend zip archive
+      # Create WASM gzip archive
+      - name: Create WASM gzip archive
+        working-directory: apps/backend
+        run: |
+          WASM_PATH=".dfx/ic/canisters/encrypted-storage/encrypted-storage.wasm"
+          if [ -f "$WASM_PATH" ]; then
+            gzip -c "$WASM_PATH" > ../../encrypted-storage.wasm.gz
+            echo "✅ Created encrypted-storage.wasm.gz"
+          else
+            echo "❌ WASM file not found at $WASM_PATH"
+            exit 1
+          fi
+
+      # Create frontend tar.gz archive (root in dist/apps/storage/browser)
+      - name: Create frontend tar.gz archive
         run: |
           cd dist/apps/storage/browser
-          zip -r ../../../../storage-frontend.zip .
-          cd ../../../../..
-          echo "✅ Created storage-frontend.zip"
+          tar -czf ../../../../storage-frontend.tar.gz .
+          cd ../../../../
+          echo "✅ Created storage-frontend.tar.gz"
 
       # Create JS library archive
       - name: Create library archive
@@ -114,13 +127,14 @@ jobs:
       - name: Prepare release artifacts
         run: |
           mkdir -p release-artifacts
-          # WASM file
+          # WASM files (both raw and gzipped)
           cp apps/backend/.dfx/ic/canisters/encrypted-storage/encrypted-storage.wasm release-artifacts/encrypted-storage.wasm
+          cp encrypted-storage.wasm.gz release-artifacts/encrypted-storage.wasm.gz
           # DID file
           cp apps/backend/src/declarations/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did || \
           cp apps/backend/.dfx/ic/canisters/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did
-          # Zip archives
-          cp storage-frontend.zip release-artifacts/
+          # Archives
+          cp storage-frontend.tar.gz release-artifacts/
           cp encrypted-storage-lib.zip release-artifacts/
           # Create checksums.txt
           cd release-artifacts
@@ -138,9 +152,10 @@ jobs:
             ## Storage Release ${{ github.ref_name }}
 
             ### Artifacts:
-            - **encrypted-storage.wasm** - WASM canister module
+            - **encrypted-storage.wasm** - WASM canister module (uncompressed)
+            - **encrypted-storage.wasm.gz** - WASM canister module (gzip compressed, for backend download)
             - **encrypted-storage.did** - Candid interface
-            - **storage-frontend.zip** - Frontend application (root in dist/apps/storage/browser)
+            - **storage-frontend.tar.gz** - Frontend application (tar+gzip compressed)
             - **encrypted-storage-lib.zip** - JS library @rabbithole/encrypted-storage
             - **checksums.txt** - SHA256 hashes of all artifacts
 
