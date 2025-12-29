@@ -2,6 +2,8 @@ import Error "mo:core/Error";
 import Iter "mo:core/Iter";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
+import Timer "mo:core/Timer";
+import Queue "mo:core/Queue";
 
 import Liminal "mo:liminal";
 import ZenDB "mo:zendb";
@@ -12,6 +14,8 @@ import AssetCanister "mo:liminal/AssetCanister";
 import Sha256 "mo:sha2/Sha256";
 import Profiles "Profiles";
 import Canisters "Canisters";
+import HttpDownloader "HttpDownloader";
+import GitHubReleases "GitHubReleases";
 
 shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   let zendb = ZenDB.newStableStore(null);
@@ -126,6 +130,105 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
       case (#err message) throw Error.reject(message);
     };
   };
+
+  /* -------------------------------------------------------------------------- */
+  /*                           Github Release Download                          */
+  /* -------------------------------------------------------------------------- */
+
+  let githubReleasesStore = GitHubReleases.new({
+    owner = "rabbithole-app";
+    repo = "v2";
+    githubToken = null;
+    assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar.gz")])];
+  });
+
+  public shared ({ caller }) func listGithubReleases() : async [GitHubReleases.Release] {
+    assert Principal.isController(caller);
+    switch (await GitHubReleases.listReleases(githubReleasesStore)) {
+      case (#ok(releases)) releases;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /*                               Lifecycle hooks                              */
+  /* -------------------------------------------------------------------------- */
+
+  transient var downloaderTimerId : ?Timer.TimerId = null;
+  transient var githubTimerId : ?Timer.TimerId = null;
+
+  func cancelDownloaderTimer() {
+    switch (downloaderTimerId) {
+      case (?id) {
+        Timer.cancelTimer(id);
+        downloaderTimerId := null;
+      };
+      case null {};
+    };
+  };
+
+  func startDownloaderTimer<system>() {
+    cancelDownloaderTimer();
+    downloaderTimerId := ?Timer.recurringTimer<system>(
+      #milliseconds 100,
+      func() : async () {
+        await HttpDownloader.runRequests(githubReleasesStore.downloaderStore);
+        ensureDownloaderTimer<system>();
+      },
+    );
+  };
+
+  func ensureDownloaderTimer<system>() {
+    if (Queue.isEmpty(githubReleasesStore.downloaderStore.requests)) {
+      cancelDownloaderTimer();
+    } else if (downloaderTimerId == null) {
+      startDownloaderTimer<system>();
+    };
+  };
+
+  func runGitHubTimer<system>() {
+    if (githubTimerId == null) {
+      githubTimerId := ?Timer.recurringTimer<system>(
+        #days 1,
+        githubListReleases,
+      );
+    };
+  };
+
+  func githubListReleases() : async () {
+    switch (await GitHubReleases.listReleases(githubReleasesStore)) {
+      case (#ok(_)) {
+        ensureDownloaderTimer<system>();
+      };
+      case (#err(_)) {};
+    };
+  };
+
+  func cancelGitHubTimer() {
+    switch (githubTimerId) {
+      case (?id) {
+        Timer.cancelTimer(id);
+        githubTimerId := null;
+      };
+      case null {};
+    };
+  };
+
+  system func preupgrade() {
+    cancelGitHubTimer();
+    cancelDownloaderTimer();
+  };
+
+  func initGitHubReleases() : async () {
+    await githubListReleases();
+    runGitHubTimer<system>();
+  };
+
+  system func postupgrade() {
+    ensureDownloaderTimer<system>();
+  };
+
+  ignore Timer.setTimer<system>(#seconds 0, initGitHubReleases);
 
   /* -------------------------------------------------------------------------- */
   /*                               User canisters                               */
