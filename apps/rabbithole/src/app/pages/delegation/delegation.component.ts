@@ -11,7 +11,11 @@ import { linkedQueryParam } from 'ngxtension/linked-query-param';
 
 import { environment } from '../../../environments/environment';
 import { RbthInternetIdentityModule } from '@rabbithole/auth';
-import { isPrincipal } from '@rabbithole/core';
+import {
+  CYCLES_MINTING_CANISTER_ID,
+  isPrincipal,
+  LEDGER_CANISTER_ID,
+} from '@rabbithole/core';
 import { LoginComponent } from '@rabbithole/pages/login';
 
 @Component({
@@ -45,14 +49,10 @@ export class DelegationComponent {
   readonly targets = computed(() => {
     const storageCanisterId = this.target();
     const backendCanisterId = Principal.fromText(environment.backendCanisterId);
-    const ledgerCanisterId = Principal.fromText(environment.ledgerCanisterId);
-    const cyclesMintingCanisterId = Principal.fromText(
-      environment.cyclesMintingCanisterId,
-    );
     return [
       backendCanisterId,
-      ledgerCanisterId,
-      cyclesMintingCanisterId,
+      Principal.fromText(LEDGER_CANISTER_ID),
+      Principal.fromText(CYCLES_MINTING_CANISTER_ID),
       ...(storageCanisterId ? [storageCanisterId] : []),
     ];
   });

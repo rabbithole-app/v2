@@ -4,15 +4,12 @@ import {
   Component,
   computed,
   inject,
-  isDevMode,
   signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { principalToSubAccount, toNullable } from '@dfinity/utils';
-import { IcManagementCanister } from '@icp-sdk/canisters/ic-management';
-import { HttpAgent } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -44,24 +41,14 @@ import { CyclesBalanceInputComponent } from '../cycles-balance-input/cycles-bala
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   CopyToClipboardComponent,
-  CYCLES_MINTING_CANISTER_ID_TOKEN,
+  CYCLES_MINTING_CANISTER_ID,
   CyclesMintingCanisterService,
   E8S_PER_ICP,
-  HTTP_AGENT_OPTIONS_TOKEN,
   ICPLedgerService,
   injectCyclesMintingCanister,
   MEMO_CANISTER_CREATE,
-  ONE_TRILLION,
   parseCanisterRejectError,
 } from '@rabbithole/core';
-
-// Generates a random canisterId.
-function generateRandomCanisterId(): Principal {
-  const bytes = Uint8Array.from(Array(10).fill(0));
-  const randomBytes = crypto.getRandomValues(new Uint8Array(3));
-  bytes.set(randomBytes, bytes.length - 3);
-  return Principal.fromUint8Array(bytes);
-}
 
 const CANISTER_CREATION_COST_TC = 0.5; // Fixed cost for canister creation
 
@@ -185,12 +172,6 @@ export class CreateCanisterDialogComponent {
   readonly #canistersService = inject(CanistersService);
   readonly #cmcCanister = injectCyclesMintingCanister();
 
-  readonly #cmcCanisterId = inject(CYCLES_MINTING_CANISTER_ID_TOKEN);
-  readonly #httpAgentOptions = inject(HTTP_AGENT_OPTIONS_TOKEN);
-  readonly #devIcManagement = computed(() => {
-    const agent = HttpAgent.createSync(this.#httpAgentOptions);
-    return IcManagementCanister.create({ agent });
-  });
   readonly #dialogRef = inject(BrnDialogRef<boolean | undefined>);
   readonly #router = inject(Router);
 
@@ -208,18 +189,14 @@ export class CreateCanisterDialogComponent {
     }
 
     try {
-      let canisterId: Principal;
-      if (isDevMode()) {
-        this.#state.set({ status: 'loading', step: 'creating-canister' });
-        canisterId = await this.#devCreateCanister();
-      } else {
-        this.#state.set({ status: 'loading', step: 'transferring-icp' });
-        // Step 1: Transfer ICP to CMC
-        const blockIndex = await this.#transferICP();
-        // Step 2: Notify CMC to create canister
-        this.#state.set({ status: 'loading', step: 'creating-canister' });
-        canisterId = await this.#createCanister(blockIndex);
-      }
+      this.#state.set({ status: 'loading', step: 'transferring-icp' });
+
+      // Step 1: Transfer ICP to CMC
+      const blockIndex = await this.#transferICP();
+
+      // Step 2: Notify CMC to create canister
+      this.#state.set({ status: 'loading', step: 'creating-canister' });
+      const canisterId = await this.#createCanister(blockIndex);
 
       // Step 3: Link canister to user
       this.#state.set({ status: 'loading', step: 'linking-canister' });
@@ -293,22 +270,6 @@ export class CreateCanisterDialogComponent {
     });
   }
 
-  #devCreateCanister() {
-    const icManagement = this.#devIcManagement();
-    const cyclesBalance = this.cyclesBalance();
-    console.log('cyclesBalance', cyclesBalance);
-    const amountE8s = (BigInt(cyclesBalance * 10) * ONE_TRILLION) / 10n;
-    return icManagement.provisionalCreateCanisterWithCycles({
-      amount: amountE8s,
-      canisterId: generateRandomCanisterId(),
-      settings: {
-        controllers: this.form.controls.controllers.value.map((p) =>
-          p.toText(),
-        ),
-      },
-    });
-  }
-
   #transferICP() {
     const currentUserPrincipal = this.currentUserPrincipal();
     const principalSubaccount = principalToSubAccount(currentUserPrincipal);
@@ -317,7 +278,7 @@ export class CreateCanisterDialogComponent {
     const amountE8s = BigInt(Math.ceil(totalCost * Number(E8S_PER_ICP)));
 
     return this.#ledgerService.transfer({
-      to: this.#cmcCanisterId.toText(),
+      to: CYCLES_MINTING_CANISTER_ID,
       amount: amountE8s,
       memo: MEMO_CANISTER_CREATE,
       subaccount: principalSubaccount,

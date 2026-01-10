@@ -1,7 +1,7 @@
+import { INTERNET_IDENTITY_CANISTER_ID } from '@rabbithole/core';
+
 export const environment = {
-  identityProviderUrl: `https://${
-    import.meta.env.CANISTER_ID_INTERNET_IDENTITY
-  }.localhost`,
+  identityProviderUrl: `https://${INTERNET_IDENTITY_CANISTER_ID}.localhost`,
   appUrl: 'http://localhost:4200',
   appName: 'Rabbithole',
   httpAgentHost: 'https://localhost',
@@ -10,6 +10,4 @@ export const environment = {
   scheme: 'rabbithole',
   backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
   encryptedStorageCanisterId: import.meta.env.CANISTER_ID_ENCRYPTED_STORAGE,
-  ledgerCanisterId: import.meta.env.CANISTER_ID_ICP_LEDGER,
-  cyclesMintingCanisterId: import.meta.env.CANISTER_ID_CMC,
 };

@@ -36,30 +36,6 @@
         }
       },
       "frontend": {}
-    },
-    "icp-ledger": {
-      "declarations": {
-        "bindings": ["js", "ts"],
-        "node_compatibility": true
-      },
-      "type": "custom",
-      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icp-2025-08-29/ledger.did",
-      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icp-2025-08-29/ledger-canister_notify-method.wasm.gz",
-      "remote": {
-        "id": {
-          "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
-        }
-      }
-    },
-    "cmc": {
-      "type": "custom",
-      "candid": "canisters/cmc/cycles-minting-canister.did",
-      "wasm": "canisters/cmc/cycles-minting-canister-custom.wasm",
-      "remote": {
-        "id": {
-          "ic": "rkp4c-7iaaa-aaaaa-aaaca-cai"
-        }
-      }
     }
   },
   "defaults": {

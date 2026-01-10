@@ -12,20 +12,32 @@ echo "🧹 Cleaning up old DFX network state..."
 rm -rf /app/.dfx/network/local/pid
 rm -rf /app/.dfx/network/local/pocket-ic-pid
 
-# create identity
-echo "👤 Setting up minter identity..."
-dfx identity new --storage-mode=plaintext minter || echo "ℹ️ Identity 'minter' already exists."
+# create minter identity
+if (dfx identity list | grep minter 2>&1 >/dev/null) ; then
+    echo "ℹ️ Identity minter already exists" >&2
+else
+    dfx identity import minter --storage-mode plaintext <(cat <<EOF
+-----BEGIN EC PRIVATE KEY-----
+MHQCAQEEICJxApEbuZznKFpV+VKACRK30i6+7u5Z13/DOl18cIC+oAcGBSuBBAAK
+oUQDQgAEPas6Iag4TUx+Uop+3NhE6s3FlayFtbwdhRVjvOar0kPTfE/N8N6btRnd
+74ly5xXEBNSXiENyxhEuzOZrIWMCNQ==
+-----END EC PRIVATE KEY-----
+EOF
+    )
+fi
+
+# echo "👤 Setting up DFX identity..."
+# dfx identity new --storage-mode=plaintext docker-identity || echo "ℹ️ Identity 'docker-identity' already exists."
+# dfx identity use docker-identity -q
+# DEFAULT_ACCOUNT_ID=$(dfx ledger account-id)
+
 dfx identity use minter -q
 MINTER_ACCOUNT_ID=$(dfx ledger account-id)
-
-echo "👤 Setting up DFX identity..."
-dfx identity new --storage-mode=plaintext docker-identity || echo "ℹ️ Identity 'docker-identity' already exists."
-dfx identity use docker-identity -q
-DEFAULT_ACCOUNT_ID=$(dfx ledger account-id)
+echo "📋 Minter account: $MINTER_ACCOUNT_ID"
 
 # Restart local DFX network
 echo "🚀 Starting DFX local network..."
-dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 127.0.0.1 --domain 0.0.0.0
+dfx start --system-canisters --clean --background --host 0.0.0.0:4943 --domain localhost --domain 127.0.0.1 --domain 0.0.0.0
 
 echo "⏳ Waiting for DFX to be ready..."
 for _ in $(seq 1 60); do
@@ -40,20 +52,21 @@ dfx ping >/dev/null 2>&1 || {
 }
 
 # install dependencies
+echo "🔧 Initializing mops toolchain..."
+mops toolchain init || echo "ℹ️ Mops toolchain already initialized."
+
+# Source bashrc to apply toolchain changes
+if [ -f ~/.bashrc ]; then
+  source ~/.bashrc
+fi
+
+# install dependencies
 mops install
 
 echo "🚀 Deploying canisters..."
-# Deploy all canisters except icp-ledger and cmc first
-dfx deploy --network local internet-identity
 dfx deploy --network local rabbithole-backend
 dfx deploy --network local encrypted-storage
 # dfx deploy --network local rabbithole-frontend
-
-# Deploy ICP Ledger using dedicated script
-bash scripts/deploy-ledger.sh
-
-# Deploy CMC using dedicated script
-bash scripts/deploy-cmc.sh
 
 dfx generate || true
 

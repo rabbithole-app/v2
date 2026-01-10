@@ -8,6 +8,4 @@ export const environment = {
   production: true,
   scheme: 'rabbithole',
   backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
-  ledgerCanisterId: import.meta.env.CANISTER_ID_ICP_LEDGER,
-  cyclesMintingCanisterId: import.meta.env.CANISTER_ID_CMC,
 };

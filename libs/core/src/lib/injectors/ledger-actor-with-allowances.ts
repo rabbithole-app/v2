@@ -3,9 +3,8 @@ import { Actor } from '@icp-sdk/core/agent';
 import { IDL } from '@icp-sdk/core/candid';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
-import { ExtractInjectionToken } from '../types';
+import { LEDGER_CANISTER_ID } from '../constants';
 import { injectHttpAgent } from './http-agent';
-import { LEDGER_CANISTER_ID_TOKEN } from './ledger-canister';
 import {
   IcpLedgerActorService,
   icpLedgerIdlFactory,
@@ -14,19 +13,16 @@ import {
 export const [
   injectLedgerActorWithAllowances,
   provideLedgerActorWithAllowances,
-] = createInjectionToken(
-  (canisterId: ExtractInjectionToken<typeof LEDGER_CANISTER_ID_TOKEN>) => {
-    const httpAgent = injectHttpAgent();
+] = createInjectionToken(() => {
+  const httpAgent = injectHttpAgent();
 
-    return computed(() =>
-      Actor.createActor<IcpLedgerActorService>(
-        icpLedgerIdlFactory as unknown as IDL.InterfaceFactory,
-        {
-          agent: httpAgent(),
-          canisterId,
-        },
-      ),
-    );
-  },
-  { deps: [LEDGER_CANISTER_ID_TOKEN] },
-);
+  return computed(() =>
+    Actor.createActor<IcpLedgerActorService>(
+      icpLedgerIdlFactory as unknown as IDL.InterfaceFactory,
+      {
+        agent: httpAgent(),
+        canisterId: LEDGER_CANISTER_ID,
+      },
+    ),
+  );
+});

@@ -1,30 +1,19 @@
-import { computed, InjectionToken } from '@angular/core';
-import { Principal } from '@icp-sdk/core/principal';
+import { computed } from '@angular/core';
 import { CmcCanister } from '@icp-sdk/canisters/cmc';
+import { Principal } from '@icp-sdk/core/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
-import { ExtractInjectionToken } from '../types';
+import { CYCLES_MINTING_CANISTER_ID } from '../constants';
 import { injectHttpAgent } from './http-agent';
 
-export const CYCLES_MINTING_CANISTER_ID_TOKEN = new InjectionToken<Principal>(
-  'CYCLES_MINTING_CANISTER_ID_TOKEN',
-);
-
 export const [injectCyclesMintingCanister, provideCyclesMintingCanister] =
-  createInjectionToken(
-    (
-      canisterId: ExtractInjectionToken<
-        typeof CYCLES_MINTING_CANISTER_ID_TOKEN
-      >,
-    ) => {
-      const httpAgent = injectHttpAgent();
+  createInjectionToken(() => {
+    const httpAgent = injectHttpAgent();
 
-      return computed(() =>
-        CmcCanister.create({
-          agent: httpAgent(),
-          canisterId,
-        }),
-      );
-    },
-    { deps: [CYCLES_MINTING_CANISTER_ID_TOKEN] },
-  );
+    return computed(() =>
+      CmcCanister.create({
+        agent: httpAgent(),
+        canisterId: Principal.fromText(CYCLES_MINTING_CANISTER_ID),
+      }),
+    );
+  });

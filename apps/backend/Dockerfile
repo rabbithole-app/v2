@@ -1,15 +1,15 @@
-FROM --platform=linux/amd64 rust:1.89-slim-bookworm
+FROM rust:1.92-slim-bookworm
 
 ENV NVM_DIR=/root/.nvm
-ENV NVM_VERSION=v0.40.1
-ENV NODE_VERSION=22.10.0
+ENV NVM_VERSION=v0.40.3
+ENV NODE_VERSION=22.21.1
 ENV POCKET_IC_PYTHON_VERSION=3.1.1
 ENV IC_MOPS_VERSION=1.12.0
-ENV DFX_VERSION=0.30.1-beta.1
+ENV DFX_VERSION=0.30.2-beta.2
 ENV POCKETIC_VERSION=11.0.0
 
 RUN apt -yq update
-RUN apt -yqq install --no-install-recommends curl ca-certificates libunwind-dev git python3 python3-pip ssh
+RUN apt -yqq install --no-install-recommends curl ca-certificates libunwind-dev git python3 python3-pip ssh xz-utils
 
 # Install Node.js using nvm
 ENV PATH="/root/.nvm/versions/node/v${NODE_VERSION}/bin:${PATH}"
@@ -18,7 +18,7 @@ RUN . "${NVM_DIR}/nvm.sh" && nvm install ${NODE_VERSION}
 RUN . "${NVM_DIR}/nvm.sh" && nvm use v${NODE_VERSION}
 RUN . "${NVM_DIR}/nvm.sh" && nvm alias default v${NODE_VERSION}
 
-# Install ic-mops
+# Install ic-mops (provides `mops`)
 RUN npm install -g ic-mops@${IC_MOPS_VERSION}
 
 # Install dfx
@@ -35,11 +35,14 @@ RUN rustup target add wasm32-unknown-unknown
 RUN pip3 install pocket-ic==${POCKET_IC_PYTHON_VERSION} --break-system-packages
 
 # Install PocketIC server binary (for @dfinity/pic / PocketIcServer)
-RUN curl -fLsS "https://github.com/dfinity/pocketic/releases/download/${POCKETIC_VERSION}/pocket-ic-x86_64-linux.gz" -o pocket-ic-x86_64-linux.gz && \
-    gzip -d pocket-ic-x86_64-linux.gz && \
-    chmod +x pocket-ic-x86_64-linux && \
-    mv pocket-ic-x86_64-linux /usr/local/bin/pocket-ic
+# Using x86_64 version for linux/amd64 container
+RUN curl -fLsS "https://github.com/dfinity/pocketic/releases/download/${POCKETIC_VERSION}/pocket-ic-arm64-linux.gz" -o pocket-ic.gz && \
+    gzip -d pocket-ic.gz && \
+    chmod +x pocket-ic && \
+    mv pocket-ic /usr/local/bin/pocket-ic
 
+# Set PocketIC binary path environment variable
+ENV POCKET_IC_BIN=/usr/local/bin/pocket-ic
 
 # Clean apt
 RUN apt-get autoremove && apt-get clean
