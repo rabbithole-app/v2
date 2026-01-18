@@ -2,7 +2,24 @@
   "permissions": {
     "allow": [
       "Bash(cat:*)",
-      "Bash(npx nx build:*)"
+      "Bash(npx nx build:*)",
+      "Bash(npx eslint:*)",
+      "Bash(nvm use:*)",
+      "Bash(npx nx lint:*)",
+      "Bash(docker compose exec backend bash -c \"cd /app && mops install && dfx build rabbithole-backend --network local\")",
+      "Bash(docker compose exec:*)",
+      "Bash(git -C /Users/khalik/Documents/projects/nx-rabbithole status --short)",
+      "Bash(git -C /Users/khalik/Documents/projects/nx-rabbithole ls-files --others apps/backend/src/)",
+      "Bash(ls:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker exec:*)",
+      "Bash(/usr/local/bin/docker compose exec replica bash -c \"cd /app && cat node_modules/@dfinity/pic/dist/pocket-ic.js | grep -B 5 -A 5 ''Http2Client\\\\|processingTimeoutMs'' | head -60\")",
+      "Bash(/usr/local/bin/docker compose exec replica bash -c \"cd /app && grep -r ''new Http2Client'' node_modules/@dfinity/pic/dist/ | head -5\")",
+      "Bash(/usr/local/bin/docker compose exec replica bash -c \"cd /app && cat node_modules/@dfinity/pic/dist/pocket-ic.d.ts | grep -A 30 ''class PocketIc'' | head -50\")",
+      "Bash(/usr/local/bin/docker compose exec replica bash -c \"cd /app && cat node_modules/@dfinity/pic/dist/pocket-ic.d.ts | grep -A 50 ''CreateInstanceOptions'' | head -80\")",
+      "Bash(/usr/local/bin/docker compose exec replica bash -c \"cd /app && cat node_modules/@dfinity/pic/dist/pocket-ic-types.d.ts | grep -A 30 ''export type CreateInstanceOptions'' | head -50\")",
+      "Bash(/usr/local/bin/docker compose exec replica bash -c \"cd /app && npx vitest run tests/nns-ledger-direct.test.ts --testNamePattern=''should get ledger symbol''\")",
+      "Bash(/usr/local/bin/docker compose exec replica bash -c \"cd /app && timeout 400 npx vitest run tests/nns-ledger-direct.test.ts --testNamePattern=''should get ledger symbol''\")"
     ],
     "deny": [],
     "ask": []
