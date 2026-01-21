@@ -2,7 +2,8 @@
 @import 'tailwindcss';
 @import '@spartan-ng/brain/hlm-tailwind-preset.css';
 
-@source "../../../libs/**/*.{ts,html}";
+@source '../../../libs/**/*.{ts,html}';
+@source './**/*.{ts,html}';
 
 @custom-variant dark (&:is(.dark *));
 

@@ -1,16 +1,17 @@
 import nx from '@nx/eslint-plugin';
+import eslintPluginJsonc from 'eslint-plugin-jsonc';
 import perfectionist from 'eslint-plugin-perfectionist';
 
 export default [
   ...nx.configs['flat/base'],
   ...nx.configs['flat/typescript'],
   ...nx.configs['flat/javascript'],
+  ...eslintPluginJsonc.configs['flat/recommended-with-jsonc'],
   {
     ignores: [
-      '**/dist',
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
-      'apps/backend/src/declarations',
+      '**/{.dfx,.mops,declarations,dist}',
     ],
   },
   {
