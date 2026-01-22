@@ -24,19 +24,20 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { BrnProgress, BrnProgressIndicator } from '@spartan-ng/brain/progress';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 
-import { FileUploadWithStatus, UploadState } from '../../../types';
-import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
 import {
   RbthProgressDirective,
   RbthProgressIndicatorDirective,
 } from '@rabbithole/ui';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { hlm } from '@spartan-ng/helm/utils';
+
+import { FileUploadWithStatus, UploadState } from '../../../types';
+import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
 
 @Component({
   selector: 'core-upload-item',

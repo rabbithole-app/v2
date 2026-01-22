@@ -10,8 +10,9 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { Observable, Subject } from 'rxjs';
 import { filter, map, mergeWith } from 'rxjs/operators';
 
-import { assertWorker } from '../asserts';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+
+import { assertWorker } from '../asserts';
 
 @Injectable({
   providedIn: 'root',

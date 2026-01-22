@@ -1,6 +1,7 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { BrnProgress } from '@spartan-ng/brain/progress';
+
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 
 @Component({

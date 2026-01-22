@@ -4,8 +4,9 @@ import { HttpAgent, HttpAgentOptions } from '@icp-sdk/core/agent';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { filter, switchMap } from 'rxjs/operators';
 
-import { ExtractInjectionToken } from '../types';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+
+import { ExtractInjectionToken } from '../types';
 
 export const HTTP_AGENT_OPTIONS_TOKEN = new InjectionToken<
   Omit<HttpAgentOptions, 'identity'>

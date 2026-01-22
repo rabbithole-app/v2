@@ -5,64 +5,63 @@
         "vtsls",
         "tailwindcss-language-server",
         "eslint",
-        "!typescript-language-server"
+        "!typescript-language-server",
       ],
       "formatter": [
         { "code_action": "source.fixAll.eslint" },
-        { "code_action": "source.organizeImports" },
         {
           "external": {
             "command": "prettier",
-            "arguments": ["--stdin-filepath", "{buffer_path}"]
-          }
-        }
-      ]
+            "arguments": ["--stdin-filepath", "{buffer_path}"],
+          },
+        },
+      ],
     },
     "HTML": {
       "language_servers": [
         "tailwindcss-language-server",
         "angular",
         "eslint",
-        "..."
-      ]
+        "...",
+      ],
     },
     "CSS": {
       "language_servers": [
         "tailwindcss-intellisense-css",
         "!vscode-css-language-server",
-        "..."
-      ]
+        "...",
+      ],
     },
     "Motoko": {
-      "language_servers": ["motoko-language-server"]
-    }
+      "language_servers": ["motoko-language-server"],
+    },
   },
   "lsp": {
     "eslint": {
       "settings": {
         "experimental": {
-          "useFlatConfig": true
-        }
-      }
+          "useFlatConfig": true,
+        },
+      },
     },
     "motoko-language-server": {
       "initialization_options": {
         "formatter": "none",
-        "maxMemory": 8192
+        "maxMemory": 8192,
       },
       "binary": {
         "env": {
-          "NODE_OPTIONS": "--max-old-space-size=8192"
-        }
-      }
+          "NODE_OPTIONS": "--max-old-space-size=8192",
+        },
+      },
     },
     "vtsls": {
       "initialization_options": {
         "typescript": {
           "tsdk": "./node_modules/typescript/lib",
-          "enablePromptUseWorkspaceTsdk": true
-        }
-      }
+          "enablePromptUseWorkspaceTsdk": true,
+        },
+      },
     },
     "angular": {
       "binary": {
@@ -73,20 +72,20 @@
           "--tsProbeLocations",
           "./node_modules",
           "--ngProbeLocations",
-          "./node_modules"
-        ]
+          "./node_modules",
+        ],
       },
       "settings": {
         "angular": {
-          "log": "verbose"
-        }
-      }
+          "log": "verbose",
+        },
+      },
     },
     "tailwindcss-language-server": {
       "settings": {
         "classFunctions": ["cva", "hlm"],
-        "classAttributes": ["class", "ngClass", "[class]", "[ngClass]"]
-      }
-    }
-  }
+        "classAttributes": ["class", "ngClass", "[class]", "[ngClass]"],
+      },
+    },
+  },
 }

@@ -9,8 +9,9 @@ import {
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { COLOR_KEYS, FOLDER_COLORS } from '../../constants';
 import { DirectoryColor } from '../../types';

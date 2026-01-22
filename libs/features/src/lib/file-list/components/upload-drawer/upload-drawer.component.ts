@@ -13,11 +13,8 @@ import {
   lucideTriangleAlert,
 } from '@ng-icons/lucide';
 import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
 import { distinctUntilChanged, map } from 'rxjs';
 
-import { FileListService } from '../../services';
 import {
   CoreFileUploadDropzoneComponent,
   ENCRYPTED_STORAGE_TOKEN,
@@ -32,6 +29,10 @@ import {
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+
+import { FileListService } from '../../services';
 
 @Component({
   selector: 'rbth-feat-file-list-upload-drawer',

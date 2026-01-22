@@ -2,25 +2,25 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  forwardRef,
 } from '@angular/core';
 import { DelegationChain, Ed25519PublicKey } from '@icp-sdk/core/identity';
 import { Principal } from '@icp-sdk/core/principal';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { linkedQueryParam } from 'ngxtension/linked-query-param';
 
-import { environment } from '../../../environments/environment';
 import { RbthInternetIdentityModule } from '@rabbithole/auth';
 import {
   CYCLES_MINTING_CANISTER_ID,
   isPrincipal,
   LEDGER_CANISTER_ID,
+  LoginWrapperComponent,
 } from '@rabbithole/core';
-import { LoginComponent } from '@rabbithole/pages/login';
+
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-delegation',
-  imports: [RbthInternetIdentityModule, forwardRef(() => LoginComponent)],
+  imports: [RbthInternetIdentityModule, LoginWrapperComponent],
   templateUrl: './delegation.component.html',
   host: {
     class: 'squared-layout',

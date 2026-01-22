@@ -1,6 +1,7 @@
 import { Component, computed, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'rbth-sidebar-inset',

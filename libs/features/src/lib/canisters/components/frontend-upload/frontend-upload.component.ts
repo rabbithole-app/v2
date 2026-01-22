@@ -19,23 +19,10 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
-import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
-import { HlmTabsImports } from '@spartan-ng/helm/tabs';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 import { unzipSync } from 'fflate';
 import { match, P } from 'ts-pattern';
 
-import { FrontendTakeOwnershipAlertComponent } from '../frontend-take-ownership/frontend-take-ownership-alert.component';
-import { FrontendTakeOwnershipButtonComponent } from '../frontend-take-ownership/frontend-take-ownership-button.component';
-import { FrontendUploadArchivePreviewComponent } from './frontend-upload-archive-preview.component';
-import { FrontendUploadFileSelectionComponent } from './frontend-upload-file-selection.component';
-import { FrontendUploadGithubSelectionComponent } from './frontend-upload-github-selection.component';
-import { FrontendUploadListComponent } from '../frontend-upload-list/frontend-upload-list.component';
-import { FrontendUploadProgressComponent } from './frontend-upload-progress.component';
-import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
 import {
   FileSystemAccessService,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
@@ -51,6 +38,20 @@ import {
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
+import { HlmTabsImports } from '@spartan-ng/helm/tabs';
+import { hlm } from '@spartan-ng/helm/utils';
+
+import { FrontendTakeOwnershipAlertComponent } from '../frontend-take-ownership/frontend-take-ownership-alert.component';
+import { FrontendTakeOwnershipButtonComponent } from '../frontend-take-ownership/frontend-take-ownership-button.component';
+import { FrontendUploadListComponent } from '../frontend-upload-list/frontend-upload-list.component';
+import { FrontendUploadArchivePreviewComponent } from './frontend-upload-archive-preview.component';
+import { FrontendUploadFileSelectionComponent } from './frontend-upload-file-selection.component';
+import { FrontendUploadGithubSelectionComponent } from './frontend-upload-github-selection.component';
+import { FrontendUploadProgressComponent } from './frontend-upload-progress.component';
+import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.directive';
 
 @Component({
   selector: 'rbth-feat-canisters-frontend-upload-drawer',

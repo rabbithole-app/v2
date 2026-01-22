@@ -12,6 +12,14 @@
         "parallel": false
       }
     },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/auth-jwt-mo",
+        "command": "lintoko",
+        "parallel": false
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

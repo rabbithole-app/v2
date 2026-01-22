@@ -1,5 +1,3 @@
-import { Actor, ActorSubclass } from '@icp-sdk/core/agent';
-import { Principal } from '@icp-sdk/core/principal';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import {
   DerivedKeyMaterial,
@@ -7,6 +5,8 @@ import {
   EncryptedVetKey,
   TransportSecretKey,
 } from '@dfinity/vetkeys';
+import { Actor, ActorSubclass } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 import { sha256 } from '@noble/hashes/sha2';
 import { Derived, Store } from '@tanstack/store';
 import { get, set } from 'idb-keyval';
@@ -26,7 +26,6 @@ import {
   StoragePermissionItem,
   StoragePermissionRaw,
   StoreArgs,
-  StoreBlobArgs,
   StorePathArgs,
   StoreReadableArgs,
   UploadState,

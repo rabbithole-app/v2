@@ -8,14 +8,14 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+
+import { ProfileService } from '@rabbithole/core';
+import { AvatarEditorComponent } from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmFormField, HlmHint } from '@spartan-ng/helm/form-field';
 import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-
-import { ProfileService } from '@rabbithole/core';
-import { AvatarEditorComponent } from '@rabbithole/core';
 
 @Component({
   selector: 'page-profile',

@@ -10,14 +10,14 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { IconName, NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideClipboard, lucideClipboardCheck } from '@ng-icons/lucide';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 import { of, Subject, timer } from 'rxjs';
 import { map, mergeWith, switchMap } from 'rxjs/operators';
 
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'core-copy-to-clipboard',

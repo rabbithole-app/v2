@@ -17,15 +17,16 @@ import {
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePlus, lucideTriangleAlert } from '@ng-icons/lucide';
+import { isNonNull } from 'remeda';
+
+import { principalValidator } from '@rabbithole/core';
 import {
   HlmInputGroup,
   HlmInputGroupImports,
 } from '@spartan-ng/helm/input-group';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
-import { isNonNull } from 'remeda';
 
 import { ControllerItemComponent } from './controller-item/controller-item.component';
-import { principalValidator } from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-feat-canisters-controllers-selector',

@@ -1,70 +1,71 @@
 /// <reference lib="webworker" />
 
-import { AnonymousIdentity, HttpAgent, uint8ToBuf } from '@icp-sdk/core/agent';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
+import { AnonymousIdentity, HttpAgent, uint8ToBuf } from '@icp-sdk/core/agent';
 import photonInit, { crop, PhotonImage, resize } from '@silvia-odwyer/photon';
 import { type } from 'arktype';
 import { isNonNull } from 'remeda';
 import {
-  defer,
-  EMPTY,
-  from,
-  Observable,
-  of,
-  ReplaySubject,
-  Subject,
-  Subscription,
+    defer,
+    EMPTY,
+    from,
+    Observable,
+    of,
+    ReplaySubject,
+    Subject,
+    Subscription,
 } from 'rxjs';
 import {
-  audit,
-  catchError,
-  combineLatestWith,
-  filter,
-  map,
-  mergeMap,
-  retry,
-  scan,
-  shareReplay,
-  switchMap,
-  withLatestFrom,
+    audit,
+    catchError,
+    combineLatestWith,
+    filter,
+    map,
+    mergeMap,
+    retry,
+    scan,
+    shareReplay,
+    switchMap,
+    withLatestFrom,
 } from 'rxjs/operators';
 import { match, P } from 'ts-pattern';
 
 import {
-  MAX_AVATAR_HEIGHT,
-  MAX_AVATAR_WIDTH,
-  MAX_THUMBNAIL_HEIGHT,
-  MAX_THUMBNAIL_WIDTH,
+    AssetManager,
+    EncryptedStorage,
+    Entry,
+} from '@rabbithole/encrypted-storage';
+
+import {
+    MAX_AVATAR_HEIGHT,
+    MAX_AVATAR_WIDTH,
+    MAX_THUMBNAIL_HEIGHT,
+    MAX_THUMBNAIL_WIDTH,
 } from '../constants/images';
 import { customRepeatWhen } from '../operators';
 import {
-  CoreWorkerMessageIn,
-  CoreWorkerMessageOut,
-  fileIdSchema,
-  ImageCropPayload,
-  imageCropSchema,
-  principalSchema,
-  PrincipalString,
-  UploadAsset,
-  uploadAssetSchema,
-  UploadFile,
-  uploadFileSchema,
-  UploadId,
-  UploadState,
-  UploadStatus,
-  WorkerConfig,
-  workerConfigSchema,
+    CoreWorkerMessageIn,
+    CoreWorkerMessageOut,
+    fileIdSchema,
+    ImageCropPayload,
+    imageCropSchema,
+    principalSchema,
+    PrincipalString,
+    UploadAsset,
+    uploadAssetSchema,
+    UploadFile,
+    uploadFileSchema,
+    UploadId,
+    UploadState,
+    UploadStatus,
+    WorkerConfig,
+    workerConfigSchema,
 } from '../types';
 import {
-  isPhotonSupportedMimeType,
-  loadIdentity,
-  parseCanisterRejectError,
+    isPhotonSupportedMimeType,
+    loadIdentity,
+    parseCanisterRejectError,
 } from '../utils';
-import {
-  AssetManager,
-  EncryptedStorage,
-  Entry,
-} from '@rabbithole/encrypted-storage';
 
 const postMessage = (message: CoreWorkerMessageOut) =>
   self.postMessage(message);

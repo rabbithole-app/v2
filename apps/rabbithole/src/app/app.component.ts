@@ -1,15 +1,15 @@
 import { Component, computed, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import { RbthToaster } from '@rabbithole/ui';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 @Component({
   imports: [RouterModule, RbthToaster, HlmSpinner],
   selector: 'app-root',
   template: `
     @if (isNavigating()) {
-      <div class="flex items-center h-dvh w-full justify-center">
+      <div class="flex h-dvh w-full items-center justify-center">
         <hlm-spinner class="text-[2rem]" />
       </div>
     } @else {

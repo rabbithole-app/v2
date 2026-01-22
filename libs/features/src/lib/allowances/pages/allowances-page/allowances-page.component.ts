@@ -8,12 +8,18 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucidePlus } from '@ng-icons/lucide';
+import { toast } from 'ngx-sonner';
+
+import {
+  ICPLedgerService,
+  parseCanisterRejectError,
+  provideLedgerActorWithAllowances,
+} from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { toast } from 'ngx-sonner';
 
 import {
   AddAllowanceData,
@@ -21,11 +27,6 @@ import {
 } from '../../components/add-allowance-dialog/add-allowance-dialog.component';
 import { AllowancesTableComponent } from '../../components/allowances-table/allowances-table.component';
 import { RevokeAllowanceDialogComponent } from '../../components/revoke-allowance-dialog/revoke-allowance-dialog.component';
-import {
-  ICPLedgerService,
-  parseCanisterRejectError,
-  provideLedgerActorWithAllowances,
-} from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-feat-allowances-page',
@@ -75,7 +76,7 @@ export class AllowancesPageComponent {
     });
   }
 
-  protected _onRevokeAllowance(fromAccountId: string, toSpenderId: string) {
+  protected _onRevokeAllowance(_fromAccountId: string, toSpenderId: string) {
     // Open confirmation dialog
     const dialogRef = this.#dialogService.open(RevokeAllowanceDialogComponent, {
       context: {},

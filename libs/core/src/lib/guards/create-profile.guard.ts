@@ -10,7 +10,7 @@ import { filter, map } from 'rxjs/operators';
 import { ProfileService } from '../services/profile.service';
 
 export const createProfileGuard: CanActivateFn = (
-  route: ActivatedRouteSnapshot,
+  _route: ActivatedRouteSnapshot,
 ) => {
   const router = inject(Router);
   const profileService = inject(ProfileService);
@@ -27,4 +27,3 @@ export const createProfileGuard: CanActivateFn = (
     }),
   );
 };
-

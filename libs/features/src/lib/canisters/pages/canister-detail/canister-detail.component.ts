@@ -17,13 +17,27 @@ import {
   lucideUpload,
 } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
+import { filter, map, mergeWith } from 'rxjs';
+
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import {
+  CanisterDataInfo,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
+  injectCoreWorker,
+  UPLOAD_ASSETS_SERVICE_PROVIDERS,
+  UPLOAD_SERVICE_TOKEN,
+} from '@rabbithole/core';
+import {
+  RbthTooltipComponent,
+  RbthTooltipTriggerDirective,
+} from '@rabbithole/ui';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
-import { filter, map, mergeWith } from 'rxjs';
 
 import {
   AddControllerInstructionsComponent,
@@ -41,22 +55,9 @@ import {
   WasmInstallTriggerDirective,
 } from '../../components';
 import { ICManagementService } from '../../services';
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import {
-  CanisterDataInfo,
-  ENCRYPTED_STORAGE_CANISTER_ID,
-  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
-  injectCoreWorker,
-  UPLOAD_ASSETS_SERVICE_PROVIDERS,
-  UPLOAD_SERVICE_TOKEN,
-} from '@rabbithole/core';
-import {
-  RbthTooltipComponent,
-  RbthTooltipTriggerDirective,
-} from '@rabbithole/ui';
 
 @Component({
-  selector: 'feature-canister-detail',
+  selector: 'rbth-feat-canisters-canister-detail',
   templateUrl: './canister-detail.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [

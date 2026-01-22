@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { HlmCheckbox } from '@spartan-ng/helm/checkbox';
 import {
   CellContext,
   HeaderContext,
   injectFlexRenderContext,
 } from '@tanstack/angular-table';
+
+import { HlmCheckbox } from '@spartan-ng/helm/checkbox';
 
 @Component({
   imports: [HlmCheckbox],

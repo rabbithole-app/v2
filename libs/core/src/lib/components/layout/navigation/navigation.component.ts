@@ -8,7 +8,6 @@ import {
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
-import { HlmIcon } from '@spartan-ng/helm/icon';
 import { combineLatestWith, map } from 'rxjs/operators';
 
 import {
@@ -19,6 +18,7 @@ import {
   SidebarService,
 } from '@rabbithole/ui';
 import { MOBILE_BREAKPOINT } from '@rabbithole/ui';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 
 export type NavItem = {
   icon: string;

@@ -4,12 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucideEye, lucideEyeOff } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { HlmTableImports } from '@spartan-ng/helm/table';
-import { hlmMuted } from '@spartan-ng/helm/typography';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -21,6 +15,13 @@ import {
   PaginationState,
   SortingState,
 } from '@tanstack/angular-table';
+
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmTableImports } from '@spartan-ng/helm/table';
+import { hlmMuted } from '@spartan-ng/helm/typography';
 
 import { CopyToClipboardComponent } from '../../ui/copy-to-clipboard';
 import { Profile } from './users-table.service';

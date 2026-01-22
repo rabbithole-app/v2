@@ -7,7 +7,6 @@ import {
 } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
 import { lucideLogOut } from '@ng-icons/lucide';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 import { match, P } from 'ts-pattern';
 
@@ -18,6 +17,7 @@ import {
 } from '@rabbithole/core';
 import { type Entry } from '@rabbithole/encrypted-storage';
 import { RbthTreeComponent, TreeNode } from '@rabbithole/ui';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'page-permissions',

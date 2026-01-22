@@ -6,14 +6,14 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 import { toast } from 'ngx-sonner';
 
 import { injectAssetManager } from '@rabbithole/core';
 import { parseCanisterRejectError } from '@rabbithole/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'rbth-feat-canisters-frontend-take-ownership-button',

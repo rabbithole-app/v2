@@ -1,8 +1,9 @@
 import { computed, Directive, input } from '@angular/core';
 import { injectBrnProgress } from '@spartan-ng/brain/progress';
-import { hlm } from '@spartan-ng/helm/utils';
 import { cva } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 export const indicatorVariants = cva(
   'flex bg-primary h-full w-full flex-1 transition-all',

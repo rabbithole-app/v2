@@ -11,6 +11,9 @@ import {
   BrnDialogRef,
   injectBrnDialogContext,
 } from '@spartan-ng/brain/dialog';
+import { isNonNull } from 'remeda';
+
+import { principalValidator } from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmDialogDescription,
@@ -21,9 +24,6 @@ import {
 import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { isNonNull } from 'remeda';
-
-import { principalValidator } from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-feat-canisters-link-canister-dialog',

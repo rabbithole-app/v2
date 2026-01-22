@@ -3,12 +3,13 @@ import { RedirectCommand, ResolveFn, Router } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { catchError, of } from 'rxjs';
 
-import { ICManagementService } from '../services';
 import {
   CanisterDataInfo,
   ENCRYPTED_STORAGE_CANISTER_ID,
   resourceToObservable,
 } from '@rabbithole/core';
+
+import { ICManagementService } from '../services';
 
 export const canisterStatusResolver: ResolveFn<
   CanisterDataInfo | RedirectCommand

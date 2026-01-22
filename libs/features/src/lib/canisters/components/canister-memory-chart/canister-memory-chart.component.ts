@@ -4,11 +4,11 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 
 import { RadarChartComponent, RadarData } from '@rabbithole/core';
 import { CanisterMemoryMetrics } from '@rabbithole/core';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'rbth-feat-canisters-canister-memory-chart',

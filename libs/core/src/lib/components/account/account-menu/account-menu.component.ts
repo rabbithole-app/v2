@@ -11,6 +11,8 @@ import { AccountIdentifier } from '@icp-sdk/canisters/ledger/icp';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLogOut, lucideShieldCheck, lucideUser } from '@ng-icons/lucide';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
+
+import { AUTH_SERVICE } from '@rabbithole/auth';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
@@ -23,7 +25,6 @@ import { ProfileService } from '../../../services';
 import { CopyToClipboardComponent } from '../../ui';
 import { AccountMenuTriggerContentComponent } from '../account-menu-trigger-content/account-menu-trigger-content.component';
 import { IcpWalletCardComponent } from '../icp-wallet-card/icp-wallet-card.component';
-import { AUTH_SERVICE } from '@rabbithole/auth';
 
 @Component({
   selector: 'core-account-menu',

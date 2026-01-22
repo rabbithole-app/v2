@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "start": "nx run-many -t serve -p rabbithole storage --output-style=stream",
-    "lint": "nx run-many -t lint -p rabbithole storage app-ui auth core app-utils encrypted-storage encrypted-storage-mo auth-jwt-mo",
+    "lint": "nx run-many -t lint -p rabbithole storage app-ui auth core app-utils encrypted-storage pages features utils encrypted-storage-mo auth-jwt-mo",
     "build:frontend": "nx run-many -t build -p rabbithole storage",
     "build:frontend-rsdoctor": "RSDOCTOR=1 nx run-many -t build -p rabbithole storage",
     "tauri": "nx run tauri-app:tauri",

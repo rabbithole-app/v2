@@ -7,8 +7,6 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucideChevronUp } from '@ng-icons/lucide';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { hlm } from '@spartan-ng/helm/utils';
 import {
   HeaderContext,
   injectFlexRenderContext,
@@ -16,6 +14,9 @@ import {
 } from '@tanstack/angular-table';
 import { ClassValue } from 'clsx';
 import { asyncScheduler } from 'rxjs';
+
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   imports: [NgIcon, HlmIcon],

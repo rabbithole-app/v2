@@ -4,9 +4,10 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { FOLDER_COLORS } from '../../constants';
 import { DirectoryColor } from '../../types';

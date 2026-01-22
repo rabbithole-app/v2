@@ -1,10 +1,11 @@
 import { computed } from '@angular/core';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
+import { createEncryptedStorageActor } from '@rabbithole/encrypted-storage';
+
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
 import { ExtractInjectionToken } from '../types';
 import { HTTP_AGENT_TOKEN, provideHttpAgent } from './http-agent';
-import { createEncryptedStorageActor } from '@rabbithole/encrypted-storage';
 
 export type EncryptedStorageActor = ReturnType<
   typeof createEncryptedStorageActor

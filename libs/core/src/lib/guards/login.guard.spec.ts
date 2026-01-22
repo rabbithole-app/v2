@@ -13,9 +13,10 @@ import { Observable, of } from 'rxjs';
 import { TestScheduler } from 'rxjs/testing';
 import { assert, describe, expect, it, vi } from 'vitest';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
+
 import { factoryDelegationIdentity } from '../testing/factory-delegation-identity';
 import { loginGuard } from './login.guard';
-import { AUTH_SERVICE } from '@rabbithole/auth';
 
 function provideMockAuthService(value: Record<string, unknown>) {
   return { provide: AUTH_SERVICE, useValue: value };

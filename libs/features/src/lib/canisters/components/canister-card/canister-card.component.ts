@@ -10,6 +10,13 @@ import { Router } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideDatabase, lucideEye, lucideTrash2 } from '@ng-icons/lucide';
+
+import {
+  CopyToClipboardComponent,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  formatBytes,
+  formatTCycles,
+} from '@rabbithole/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
@@ -21,12 +28,6 @@ import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { CanistersService, ICManagementService } from '../../services';
 import { CoreCanisterStatusComponent } from '../canister-status';
 import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-canister-dialog.component';
-import {
-  CopyToClipboardComponent,
-  ENCRYPTED_STORAGE_CANISTER_ID,
-  formatBytes,
-  formatTCycles,
-} from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-feat-canisters-canister-card',

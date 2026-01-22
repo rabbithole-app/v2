@@ -10,6 +10,12 @@ import {
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { BrnDialogContent } from '@spartan-ng/brain/dialog';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
+import { isNonNull, isNonNullish } from 'remeda';
+
+import type {
+  GrantStoragePermission,
+  StoragePermission,
+} from '@rabbithole/encrypted-storage';
 import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmDialog,
@@ -22,13 +28,8 @@ import {
 import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { isNonNull, isNonNullish } from 'remeda';
 
-import { principalValidator } from '@rabbithole/core';
-import type {
-  GrantStoragePermission,
-  StoragePermission,
-} from '@rabbithole/encrypted-storage';
+import { principalValidator } from '../../../validators';
 
 @Component({
   selector: 'core-edit-permission-form',

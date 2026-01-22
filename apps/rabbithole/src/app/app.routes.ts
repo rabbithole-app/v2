@@ -1,12 +1,13 @@
 import { Route } from '@angular/router';
 
-import { storageViewGuard } from './core/guards';
 import {
   createProfileGuard,
   dashboardGuard,
   loginGuard,
   profileResolver,
 } from '@rabbithole/core';
+
+import { storageViewGuard } from './core/guards';
 
 export const appRoutes: Route[] = [
   {

@@ -1,6 +1,6 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
 
-import { isPrincipal } from '@rabbithole/core';
+import { isPrincipal } from '../utils';
 
 export function principalValidator(
   control: AbstractControl,

@@ -4,11 +4,12 @@ import {
   computed,
   input,
 } from '@angular/core';
+
+import { CanisterDataInfo, formatBytes, formatTCycles } from '@rabbithole/core';
 import { HlmItem } from '@spartan-ng/helm/item';
 import { HlmItemImports } from '@spartan-ng/helm/item';
 
 import { CoreCanisterStatusComponent } from '../canister-status';
-import { CanisterDataInfo, formatBytes, formatTCycles } from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-feat-canisters-canister-runtime',

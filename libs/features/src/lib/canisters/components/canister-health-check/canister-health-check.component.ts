@@ -5,11 +5,11 @@ import {
   input,
 } from '@angular/core';
 import { BrnProgress } from '@spartan-ng/brain/progress';
+
+import { CanisterDataInfo, formatTCycles } from '@rabbithole/core';
 import { HlmItem } from '@spartan-ng/helm/item';
 import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
-
-import { CanisterDataInfo, formatTCycles } from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-feat-canisters-canister-health-check',

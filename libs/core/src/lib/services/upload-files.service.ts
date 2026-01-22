@@ -3,6 +3,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { isDeepEqual, isNonNullish } from 'remeda';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import {
+  EncryptedStorage,
+  StoragePermissionItem,
+} from '@rabbithole/encrypted-storage';
+
 import { MAX_THUMBNAIL_HEIGHT, MAX_THUMBNAIL_WIDTH } from '../constants';
 import { injectCoreWorker, injectEncryptedStorage } from '../injectors';
 import { messageByAction } from '../operators';
@@ -10,11 +16,6 @@ import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
 import { IUploadService, UploadFile, UploadId, UploadState } from '../types';
 import { isPhotonSupportedMimeType } from '../utils';
 import { UploadBaseService } from './upload-base.service';
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import {
-  EncryptedStorage,
-  StoragePermissionItem,
-} from '@rabbithole/encrypted-storage';
 
 @Injectable()
 export class UploadFilesService implements IUploadService {

@@ -1,6 +1,10 @@
 import { fromNullable, uint8ArrayToHexString } from '@dfinity/utils';
 import { match, P } from 'ts-pattern';
 
+import { timeInNanosToDate } from '@rabbithole/core';
+import { NodeDetails } from '@rabbithole/declarations';
+import { StoragePermission } from '@rabbithole/encrypted-storage';
+
 import {
   CommonAttrs,
   DirectoryColor,
@@ -8,9 +12,6 @@ import {
   FileNode,
   NodeItem,
 } from '../types';
-import { timeInNanosToDate } from '@rabbithole/core';
-import { NodeDetails } from '@rabbithole/declarations';
-import { StoragePermission } from '@rabbithole/encrypted-storage';
 
 export function convertToNodeItem(
   node: NodeDetails,

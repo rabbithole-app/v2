@@ -1,14 +1,10 @@
-import { Component, computed, inject, Signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { Component } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
 import {
-  lucideDatabase,
   lucideFolder,
   lucideHardDrive,
   lucideUserCog,
 } from '@ng-icons/lucide';
-import { map } from 'rxjs/operators';
 
 import { NavigationComponent, NavItem } from '@rabbithole/core';
 import {

@@ -10,10 +10,6 @@ import { HttpAgentOptions } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { isTauri } from '@tauri-apps/api/core';
 
-import { environment } from '../environments/environment';
-import { appRoutes } from './app.routes';
-import { APP_DERIVATION_ORIGIN } from './core/constants';
-import { isCustomDomain } from './core/utils';
 import {
   AUTH_CONFIG,
   AUTH_SERVICE,
@@ -30,6 +26,11 @@ import {
   MAIN_CANISTER_ID_TOKEN,
   provideCoreWorker,
 } from '@rabbithole/core';
+
+import { environment } from '../environments/environment';
+import { appRoutes } from './app.routes';
+import { APP_DERIVATION_ORIGIN } from './core/constants';
+import { isCustomDomain } from './core/utils';
 
 export const provideAuthService = (): Provider => ({
   provide: AUTH_SERVICE,

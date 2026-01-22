@@ -14,10 +14,6 @@ import {
   lucideEyeOff,
   lucideTrash2,
 } from '@ng-icons/lucide';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmTableImports } from '@spartan-ng/helm/table';
 import {
   ColumnDef,
   createAngularTable,
@@ -31,6 +27,10 @@ import {
   formatICP,
 } from '@rabbithole/core';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmTableImports } from '@spartan-ng/helm/table';
 
 interface AllowanceItem {
   allowance: AllowanceInfo;

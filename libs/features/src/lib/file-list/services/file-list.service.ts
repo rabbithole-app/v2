@@ -2,20 +2,20 @@ import { computed, inject, Injectable, resource, signal } from '@angular/core';
 import { AsyncQueuer, AsyncQueuerState } from '@tanstack/pacer';
 import { saveAs } from 'file-saver';
 import { toast } from 'ngx-sonner';
-import { partition } from 'remeda';
-import { intersectionWith } from 'remeda';
+import { intersectionWith, partition } from 'remeda';
 import { map, mergeAll, Subject } from 'rxjs';
 import { match, P } from 'ts-pattern';
 
-import { NodeItem } from '../types';
-import { convertToNodeItem } from '../utils';
 import {
-  FileSystemAccessService,
-  FileSystemDirectoryItem,
-  FileSystemFileItem,
-  injectEncryptedStorage,
+    FileSystemAccessService,
+    FileSystemDirectoryItem,
+    FileSystemFileItem,
+    injectEncryptedStorage,
 } from '@rabbithole/core';
 import { EncryptedStorage, Entry } from '@rabbithole/encrypted-storage';
+
+import { NodeItem } from '../types';
+import { convertToNodeItem } from '../utils';
 
 type State = {
   deleting: { ids: bigint[]; toastId: number | null };
@@ -96,7 +96,7 @@ export class FileListService {
       (item, id) => item.id === id,
     );
     const toastId = toast.loading(`Deleting ${items.length} items...`);
-    const queuer = new AsyncQueuer<{
+    const _queuer = new AsyncQueuer<{
       item: NodeItem;
       toastId: number | string;
     }>(
@@ -128,7 +128,7 @@ export class FileListService {
       selected,
       (item, id) => item.id === id,
     );
-    const queuer = new AsyncQueuer<NodeItem>(
+    const _queuer = new AsyncQueuer<NodeItem>(
       async (item) => {
         const blob = await this.encryptedStorage().get(item.keyId);
         saveAs(blob, item.name);

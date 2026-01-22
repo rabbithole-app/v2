@@ -7,9 +7,10 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { SidebarService } from './sidebar.service';
 import { injectSidebarConfig, SidebarConfig } from './sidebar.token';

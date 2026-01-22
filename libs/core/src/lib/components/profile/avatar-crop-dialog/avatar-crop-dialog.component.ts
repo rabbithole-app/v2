@@ -9,13 +9,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
-import { HlmButton } from '@spartan-ng/helm/button';
-import {
-  HlmDialogFooter,
-  HlmDialogHeader,
-  HlmDialogTitle,
-} from '@spartan-ng/helm/dialog';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import mime from 'mime/lite';
 import { nanoid } from 'nanoid';
 import {
@@ -38,15 +31,19 @@ import {
   throwError,
 } from 'rxjs';
 
+import { HlmButton } from '@spartan-ng/helm/button';
 import {
-  injectMainActor,
-  injectCoreWorker,
-  isPhotonSupportedMimeType,
-  messageByAction,
-  ImageCropPayload,
-  MAX_AVATAR_HEIGHT,
-  MAX_AVATAR_WIDTH,
-} from '@rabbithole/core';
+  HlmDialogFooter,
+  HlmDialogHeader,
+  HlmDialogTitle,
+} from '@spartan-ng/helm/dialog';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
+
+import { MAX_AVATAR_HEIGHT, MAX_AVATAR_WIDTH } from '../../../constants';
+import { injectCoreWorker, injectMainActor } from '../../../injectors';
+import { messageByAction } from '../../../operators';
+import { ImageCropPayload } from '../../../types';
+import { isPhotonSupportedMimeType } from '../../../utils';
 
 @Component({
   // eslint-disable-next-line @angular-eslint/component-selector

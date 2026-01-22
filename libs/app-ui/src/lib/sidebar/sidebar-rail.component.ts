@@ -1,6 +1,7 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { SidebarService } from './sidebar.service';
 
@@ -21,7 +22,6 @@ import { SidebarService } from './sidebar.service';
   </button>`,
 })
 export class RbthSidebarRailComponent {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly buttonClass = computed(() =>

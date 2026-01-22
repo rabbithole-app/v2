@@ -22,6 +22,19 @@ import {
 } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
+import type { ClassValue } from 'clsx';
+import { toast } from 'ngx-sonner';
+import { match, P } from 'ts-pattern';
+
+import { FileSystemAccessService, FormatBytesPipe } from '@rabbithole/core';
+import {
+  RbthDrawerComponent,
+  RbthDrawerContentComponent,
+  RbthDrawerFooterComponent,
+  RbthDrawerHeaderComponent,
+  RbthDrawerSeparatorDirective,
+  RbthDrawerTitleDirective,
+} from '@rabbithole/ui';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -33,21 +46,9 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
-import { toast } from 'ngx-sonner';
-import { match, P } from 'ts-pattern';
 
 import { WasmInstallService } from '../../services';
 import { WasmInstallTriggerDirective } from './wasm-install-trigger.directive';
-import { FileSystemAccessService, FormatBytesPipe } from '@rabbithole/core';
-import {
-  RbthDrawerComponent,
-  RbthDrawerContentComponent,
-  RbthDrawerFooterComponent,
-  RbthDrawerHeaderComponent,
-  RbthDrawerSeparatorDirective,
-  RbthDrawerTitleDirective,
-} from '@rabbithole/ui';
 
 @Component({
   selector: 'rbth-feat-canisters-wasm-install',

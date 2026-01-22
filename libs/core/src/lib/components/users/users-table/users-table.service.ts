@@ -3,12 +3,13 @@ import { toBigIntNanoSeconds } from '@dfinity/utils';
 import { endOfMonth, startOfMonth, subDays } from 'date-fns';
 import { isNonNullish } from 'remeda';
 
-import { timeInNanosToDate } from '../../../utils';
 import {
   ListOptions,
   Profile as ProfileRaw,
   RabbitholeActorService,
 } from '@rabbithole/declarations';
+
+import { timeInNanosToDate } from '../../../utils';
 
 export interface DateFilter {
   max?: Date;

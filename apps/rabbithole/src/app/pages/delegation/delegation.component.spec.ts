@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
-import { DelegationComponent } from './delegation.component';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { APP_NAME_TOKEN } from '@rabbithole/core';
+
+import { DelegationComponent } from './delegation.component';
 
 vi.mock('../../../environments/environment', () => ({
   environment: {

@@ -9,8 +9,9 @@ import {
 } from '@angular/core';
 import { BrnDialogState } from '@spartan-ng/brain/dialog';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
-import { HlmSheet, HlmSheetContent } from '@spartan-ng/helm/sheet';
 import { ClassValue } from 'clsx';
+
+import { HlmSheet, HlmSheetContent } from '@spartan-ng/helm/sheet';
 
 import {
   RbthSidebarBaseComponent,

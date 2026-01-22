@@ -11,13 +11,6 @@ import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucideUserPlus } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmInput } from '@spartan-ng/helm/input';
-import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { HlmTableImports } from '@spartan-ng/helm/table';
-import { hlmMuted } from '@spartan-ng/helm/typography';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -35,6 +28,20 @@ import {
   SortingState,
 } from '@tanstack/angular-table';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import type {
+  GrantStoragePermission,
+  RevokeStoragePermission,
+  StoragePermissionItem,
+} from '@rabbithole/encrypted-storage';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmInput } from '@spartan-ng/helm/input';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmTableImports } from '@spartan-ng/helm/table';
+import { hlmMuted } from '@spartan-ng/helm/typography';
+
 import {
   PermissionCell,
   PrincipalCell,
@@ -45,12 +52,6 @@ import {
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
 import { ActionsCellComponent } from './actions-cell';
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import type {
-  GrantStoragePermission,
-  RevokeStoragePermission,
-  StoragePermissionItem,
-} from '@rabbithole/encrypted-storage';
 
 const permissionSortingFn: SortingFn<StoragePermissionItem> = (
   rowA: Row<StoragePermissionItem>,

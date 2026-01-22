@@ -12,12 +12,6 @@ import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLoader2, lucidePlus, lucideTrash2 } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmDialogService } from '@spartan-ng/helm/dialog';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { HlmTableImports } from '@spartan-ng/helm/table';
 import {
   ColumnDef,
   createAngularTable,
@@ -28,9 +22,16 @@ import {
   PaginationState,
 } from '@tanstack/angular-table';
 
+import { PrincipalCell } from '@rabbithole/core';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { HlmTableImports } from '@spartan-ng/helm/table';
+
 import { AddControllerDialogComponent } from './add-controller-dialog.component';
 import { RemoveControllerDialogComponent } from './remove-controller-dialog.component';
-import { PrincipalCell } from '@rabbithole/core';
 
 interface ControllerItem {
   principal: Principal;

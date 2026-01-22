@@ -4,12 +4,13 @@ import { ActivatedRoute } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideDatabase, lucideInbox, lucideLink } from '@ng-icons/lucide';
+import { filter, map, mergeWith } from 'rxjs';
+
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { filter, map, mergeWith } from 'rxjs';
 
 import {
   CanisterCardComponent,
@@ -19,7 +20,7 @@ import {
 import { CanistersService } from '../../services';
 
 @Component({
-  selector: 'feature-canisters',
+  selector: 'rbth-feat-canisters',
   imports: [
     CanisterCardComponent,
     HlmButtonImports,

@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { NgxSonnerToaster } from 'ngx-sonner';
+
 import { HlmToaster } from '@spartan-ng/helm/sonner';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { NgxSonnerToaster } from 'ngx-sonner';
 
 @Component({
 	selector: 'rbth-toaster',

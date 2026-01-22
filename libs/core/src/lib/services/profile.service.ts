@@ -5,14 +5,15 @@ import {
   AsyncValidatorFn,
   ValidationErrors,
 } from '@angular/forms';
-import { Actor } from '@icp-sdk/core/agent';
 import { fromNullable } from '@dfinity/utils';
+import { Actor } from '@icp-sdk/core/agent';
 import { toast } from 'ngx-sonner';
 import { map } from 'rxjs';
 
+import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
+
 import { injectMainActor } from '../injectors';
 import { parseCanisterRejectError } from '../utils';
-import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
 
 @Injectable({ providedIn: 'root' })
 export class ProfileService {

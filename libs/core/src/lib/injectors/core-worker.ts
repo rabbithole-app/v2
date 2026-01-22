@@ -2,6 +2,8 @@ import { effect, inject, Provider } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
+
 import { assertWorker } from '../asserts';
 import { messageByAction } from '../operators';
 // Direct import to avoid circular dependency with services/index.ts
@@ -16,7 +18,6 @@ import {
   WorkerConfigIn,
 } from '../types';
 import { HTTP_AGENT_OPTIONS_TOKEN } from './http-agent';
-import { AUTH_SERVICE } from '@rabbithole/auth';
 
 export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
   (

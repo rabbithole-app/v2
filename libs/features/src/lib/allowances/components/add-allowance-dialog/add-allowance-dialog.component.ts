@@ -9,6 +9,8 @@ import { Field, form, required } from '@angular/forms/signals';
 import { provideIcons } from '@ng-icons/core';
 import { lucideX } from '@ng-icons/lucide';
 import { BrnDialogClose, BrnDialogRef } from '@spartan-ng/brain/dialog';
+
+import { isPrincipal } from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDatePickerImports } from '@spartan-ng/helm/date-picker';
 import {
@@ -21,8 +23,6 @@ import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmIconImports } from '@spartan-ng/helm/icon';
 import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmInputGroupImports } from '@spartan-ng/helm/input-group';
-
-import { isPrincipal } from '@rabbithole/core';
 
 export interface AddAllowanceData {
   amount: bigint;

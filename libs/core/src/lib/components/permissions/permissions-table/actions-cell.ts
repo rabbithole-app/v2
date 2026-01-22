@@ -13,6 +13,15 @@ import {
   BrnAlertDialogTrigger,
 } from '@spartan-ng/brain/alert-dialog';
 import { BrnDialog } from '@spartan-ng/brain/dialog';
+import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
+import { ClassValue } from 'clsx';
+
+import {
+  GrantStoragePermission,
+  StoragePermission,
+  StoragePermissionItem,
+} from '@rabbithole/encrypted-storage';
+import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import {
   HlmAlertDialog,
   HlmAlertDialogAction,
@@ -26,20 +35,12 @@ import {
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
-import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
-import { ClassValue } from 'clsx';
 
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
-import {
-  GrantStoragePermission,
-  StoragePermission,
-  StoragePermissionItem,
-} from '@rabbithole/encrypted-storage';
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 
 @Component({
-  selector: 'app-actions-cell',
+  selector: 'core-actions-cell',
   imports: [
     HlmButton,
     NgIcon,
@@ -70,7 +71,7 @@ import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
         variant="ghost"
         size="icon"
         rbthTooltipTrigger="Edit permission"
-        appEditPermissionFormTrigger
+        coreEditPermissionFormTrigger
       >
         <ng-icon hlmIcon name="lucideUserPen" size="sm" />
         <span class="sr-only">Edit</span>

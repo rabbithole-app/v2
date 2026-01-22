@@ -4,11 +4,12 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { HlmBadge } from '@spartan-ng/helm/badge';
-import { hlm } from '@spartan-ng/helm/utils';
 import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
 import { cva } from 'class-variance-authority';
 import { ClassValue } from 'clsx';
+
+import { HlmBadge } from '@spartan-ng/helm/badge';
+import { hlm } from '@spartan-ng/helm/utils';
 
 export const permissionVariants = cva('ring-1 ring-inset', {
   variants: {

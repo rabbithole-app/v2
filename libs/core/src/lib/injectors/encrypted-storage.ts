@@ -1,11 +1,11 @@
 import { computed } from '@angular/core';
-import { Principal } from '@icp-sdk/core/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
+
+import { EncryptedStorage } from '@rabbithole/encrypted-storage';
 
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
 import { ExtractInjectionToken } from '../types';
 import { injectHttpAgent } from './http-agent';
-import { EncryptedStorage } from '@rabbithole/encrypted-storage';
 
 export function assertEncryptedStorage(
   encryptedStorage: EncryptedStorage | null,

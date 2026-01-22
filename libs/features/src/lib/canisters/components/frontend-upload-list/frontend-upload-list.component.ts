@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-import { FrontendUploadItemComponent } from '../frontend-upload-item/frontend-upload-item.component';
 import { FileUploadWithStatus } from '@rabbithole/core';
+
+import { FrontendUploadItemComponent } from '../frontend-upload-item/frontend-upload-item.component';
 
 @Component({
   selector: 'rbth-feat-canisters-frontend-upload-list',

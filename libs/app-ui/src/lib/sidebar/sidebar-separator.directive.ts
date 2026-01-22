@@ -1,7 +1,8 @@
 import { computed, Directive, input } from '@angular/core';
+import { ClassValue } from 'clsx';
+
 import { HlmSeparator } from '@spartan-ng/helm/separator';
 import { hlm } from '@spartan-ng/helm/utils';
-import { ClassValue } from 'clsx';
 
 @Directive({
   selector: '[rbthSidebarSeparator]',

@@ -10,6 +10,10 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLogOut } from '@ng-icons/lucide';
+
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import { AvatarEditorComponent } from '@rabbithole/core';
+import { ProfileService } from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmCard,
@@ -22,10 +26,6 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmInput } from '@spartan-ng/helm/input';
 import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import { AvatarEditorComponent } from '@rabbithole/core';
-import { ProfileService } from '@rabbithole/core';
 
 @Component({
   selector: 'page-create-profile',

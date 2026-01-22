@@ -3,11 +3,12 @@ import { toNullable } from '@dfinity/utils';
 import { AccountIdentifier, SubAccount } from '@icp-sdk/canisters/ledger/icp';
 import { Principal } from '@icp-sdk/core/principal';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
+
 import { injectLedgerActorWithAllowances } from '../injectors';
 import { injectLedgerCanister } from '../injectors/ledger-canister';
 import { LedgerService, TransferParams } from '../tokens';
 import { isPrincipal, timeInNanosToDate } from '../utils';
-import { AUTH_SERVICE } from '@rabbithole/auth';
 
 // ICP transaction fee: 0.0001 ICP = 10_000 e8s
 const ICP_TRANSACTION_FEE = BigInt(10_000);

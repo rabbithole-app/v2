@@ -15,9 +15,10 @@ import {
   lucideFolder,
   lucideFolderOpen,
 } from '@ng-icons/lucide';
+import { ClassValue } from 'clsx';
+
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
-import { ClassValue } from 'clsx';
 
 import { RbthTreeLabelDirective } from './tree-item-label.directive';
 import { RbthTreeDirective } from './tree-item.directive';
@@ -98,7 +99,7 @@ export class RbthTreeComponent {
     return true;
   }
 
-  trackBy = (index: number, node: TreeNode) => this.expansionKey(node);
+  trackBy = (_index: number, node: TreeNode) => this.expansionKey(node);
 
   #expandNodesToLevel(
     nodes: TreeNode[],

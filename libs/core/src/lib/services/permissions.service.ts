@@ -5,16 +5,16 @@ import { isDeepEqual } from 'remeda';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
 import {
-  injectEncryptedStorage,
-  parseCanisterRejectError,
-} from '@rabbithole/core';
-import {
+  EncryptedStorage,
   Entry,
   GrantStoragePermission,
   RevokeStoragePermission,
   StoragePermissionItem,
+  type TreeNode,
 } from '@rabbithole/encrypted-storage';
-import { EncryptedStorage, type TreeNode } from '@rabbithole/encrypted-storage';
+
+import { injectEncryptedStorage } from '../injectors';
+import { parseCanisterRejectError } from '../utils';
 
 type State = {
   entry: Entry | null;

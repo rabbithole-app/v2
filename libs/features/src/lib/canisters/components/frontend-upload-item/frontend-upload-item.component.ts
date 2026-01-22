@@ -8,15 +8,15 @@ import {
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck, lucideFile, lucideTriangleAlert } from '@ng-icons/lucide';
 import { BrnProgress, BrnProgressIndicator } from '@spartan-ng/brain/progress';
-import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 
 import { FileUploadWithStatus, UploadState } from '@rabbithole/core';
 import { FormatBytesPipe, FormatRangeBytesPipe } from '@rabbithole/core';
 import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'rbth-feat-canisters-frontend-upload-item',

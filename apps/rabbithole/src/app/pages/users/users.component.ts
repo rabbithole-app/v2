@@ -6,8 +6,9 @@ import {
   signal,
 } from '@angular/core';
 
-import { UsersService } from './users.service';
 import { UsersTableComponent } from '@rabbithole/core';
+
+import { UsersService } from './users.service';
 
 @Component({
   selector: 'app-users',
@@ -34,7 +35,7 @@ export class UsersComponent {
     // Update local state
     this.currentPageIndex.set(event.pageIndex);
     this.currentPageSize.set(event.pageSize);
-    
+
     // Update pagination options in the service
     const currentOptions = this.usersService.state().options;
     const newOptions = {

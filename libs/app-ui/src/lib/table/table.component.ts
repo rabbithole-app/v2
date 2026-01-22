@@ -5,8 +5,9 @@ import {
   input,
   ViewEncapsulation,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'rbth-table',

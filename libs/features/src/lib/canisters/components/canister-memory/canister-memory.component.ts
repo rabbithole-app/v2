@@ -4,16 +4,17 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { HlmItem } from '@spartan-ng/helm/item';
-import { HlmItemImports } from '@spartan-ng/helm/item';
 
-import { CanisterMemoryChartComponent } from '../canister-memory-chart/canister-memory-chart.component';
-import { InlineWarningComponent } from '../inline-warning/inline-warning.component';
 import {
   CanisterDataInfo,
   CanisterSyncStatus,
   formatBytes,
 } from '@rabbithole/core';
+import { HlmItem } from '@spartan-ng/helm/item';
+import { HlmItemImports } from '@spartan-ng/helm/item';
+
+import { CanisterMemoryChartComponent } from '../canister-memory-chart/canister-memory-chart.component';
+import { InlineWarningComponent } from '../inline-warning/inline-warning.component';
 
 @Component({
   selector: 'rbth-feat-canisters-canister-memory',

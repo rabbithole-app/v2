@@ -1,5 +1,5 @@
-import type { IcManagementDid } from '@icp-sdk/canisters/ic-management';
 import { fromNullable, uint8ArrayToHexString } from '@dfinity/utils';
+import type { IcManagementDid } from '@icp-sdk/canisters/ic-management';
 
 import { ONE_DAY } from '../constants';
 import {

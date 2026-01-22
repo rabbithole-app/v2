@@ -5,12 +5,13 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
-import { hlm } from '@spartan-ng/helm/utils';
 import { ClassValue } from 'clsx';
 
-import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens';
 import { Profile } from '@rabbithole/declarations';
+import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
+import { hlm } from '@spartan-ng/helm/utils';
+
+import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens';
 
 @Component({
   selector: 'core-account-menu-trigger-content',

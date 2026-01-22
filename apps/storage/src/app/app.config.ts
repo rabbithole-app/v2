@@ -12,9 +12,6 @@ import { HttpAgentOptions } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { firstValueFrom } from 'rxjs';
 
-import { environment } from '../environments/environment';
-import { appRoutes } from './app.routes';
-import { ConfigService } from './core/services';
 import {
   AUTH_CONFIG,
   AUTH_SERVICE,
@@ -31,6 +28,10 @@ import {
   MAIN_CANISTER_ID_TOKEN,
   provideCoreWorker,
 } from '@rabbithole/core';
+
+import { environment } from '../environments/environment';
+import { appRoutes } from './app.routes';
+import { ConfigService } from './core/services';
 
 export const provideAuthService = (): Provider => ({
   provide: AUTH_SERVICE,

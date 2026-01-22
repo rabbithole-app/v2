@@ -1,8 +1,8 @@
 export const formatNumber = (
   value: number,
-  options?: { minFraction?: number; maxFraction?: number } & Pick<
+  options?: { maxFraction?: number; minFraction?: number; } & Pick<
     Intl.NumberFormatOptions,
-    'notation' | 'unit' | 'style' | 'unitDisplay'
+    'notation' | 'style' | 'unit' | 'unitDisplay'
   >,
 ): string => {
   const { minFraction = 2, maxFraction = 2, ...rest } = options ?? {};

@@ -12,8 +12,9 @@ import {
   provideNgIconsConfig,
   withCaching,
 } from '@ng-icons/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { FILE_LIST_ICONS_CONFIG } from '../../tokens';
 

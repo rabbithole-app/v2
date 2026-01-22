@@ -7,14 +7,15 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
+import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { isDirectory, isFile, NodeItem } from '../../types';
 import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
 import { FileIconComponent } from '../file-icon/file-icon.component';
-import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
 
 export const gridItemVariants = cva(
   'grid gap-y-2 grid-rows-[1fr_36px] items-start p-3 select-none transition-colors duration-100 ease-in-out rounded-lg cursor-pointer hover:bg-muted focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',

@@ -5,17 +5,18 @@ import {
   RouterStateSnapshot,
 } from '@angular/router';
 
-import { NodeItem } from '../types';
-import { convertToNodeItem } from '../utils';
 import {
   createEncryptedStorageCanisterProviderFromSnapshot,
   injectEncryptedStorage,
   provideEncryptedStorage,
 } from '@rabbithole/core';
 
+import { NodeItem } from '../types';
+import { convertToNodeItem } from '../utils';
+
 export const fileListResolver: ResolveFn<NodeItem[]> = (
   route: ActivatedRouteSnapshot,
-  state: RouterStateSnapshot,
+  _state: RouterStateSnapshot,
 ) => {
   const segments = route.url.map((segment) => segment.path);
   const injector = inject(Injector);
@@ -28,16 +29,14 @@ export const fileListResolver: ResolveFn<NodeItem[]> = (
       ],
       parent: injector,
     }),
-    () => {
+    async () => {
       const encryptedStorage = injectEncryptedStorage();
       const encryptedStorageInstance = encryptedStorage();
       const path = segments.length > 0 ? segments.join('/') : null;
+      const nodes = await encryptedStorageInstance
+        .list(path ? ['Directory', path] : undefined);
 
-      return encryptedStorageInstance
-        .list(path ? ['Directory', path] : undefined)
-        .then((nodes) =>
-          nodes.map((v) => convertToNodeItem(v, path ?? undefined)),
-        );
+      return nodes.map((v) => convertToNodeItem(v, path ?? undefined));
     },
   );
 };

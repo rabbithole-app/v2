@@ -2,10 +2,11 @@ import { inject } from '@angular/core';
 import { RedirectCommand, ResolveFn, Router } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { ProfileService } from '@rabbithole/core';
 import { Profile } from '@rabbithole/declarations';
 
-export const profileResolver: ResolveFn<Profile> = (route) => {
+import { ProfileService } from '../services';
+
+export const profileResolver: ResolveFn<Profile> = () => {
   const profileService = inject(ProfileService);
   const router = inject(Router);
 
@@ -23,4 +24,3 @@ export const profileResolver: ResolveFn<Profile> = (route) => {
     }),
   );
 };
-

@@ -25,14 +25,15 @@ import {
   lucideTrash2,
   lucideUpload,
 } from '@ng-icons/lucide';
+import type { ClassValue } from 'clsx';
+import { NgClickOutsideDirective } from 'ng-click-outside2';
+import * as R from 'remeda';
+
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
-import { NgClickOutsideDirective } from 'ng-click-outside2';
-import * as R from 'remeda';
 
 import { DirectoryColor, isDirectory, NodeItem } from '../../types';
 import { FolderColorPickerComponent } from '../folder-color-picker/folder-color-picker.component';
@@ -157,7 +158,7 @@ export class GridViewComponent implements OnDestroy {
     this.#init();
   }
 
-  _handleClickOutside(event: Event) {
+  _handleClickOutside(_event: Event) {
     // Clear selection when clicking outside the component
     this.state.update((state) => ({
       ...state,
@@ -169,7 +170,7 @@ export class GridViewComponent implements OnDestroy {
     }));
   }
 
-  _handleHostClick(event: MouseEvent) {
+  _handleHostClick(_event: MouseEvent) {
     // Clear selection when clicking on host (but not on items, as they use stopPropagation)
     this.state.update((state) => ({
       ...state,
@@ -286,13 +287,13 @@ export class GridViewComponent implements OnDestroy {
     }
   }
 
-  _handleItemDblClick(event: MouseEvent, item: NodeItem) {
+  _handleItemDblClick(_event: MouseEvent, item: NodeItem) {
     if (isDirectory(item)) {
       this.#router.navigate([item.name], { relativeTo: this.#route });
     }
   }
 
-  _handleItemFocus(event: FocusEvent, item: NodeItem) {
+  _handleItemFocus(_event: FocusEvent, item: NodeItem) {
     const keyManager = this.#keyManager();
     if (!keyManager) {
       return;

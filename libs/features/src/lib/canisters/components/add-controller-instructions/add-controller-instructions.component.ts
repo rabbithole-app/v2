@@ -7,15 +7,15 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCircleAlert } from '@ng-icons/lucide';
-import { HlmAlertImports } from '@spartan-ng/helm/alert';
-import { HlmIcon } from '@spartan-ng/helm/icon';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
 import { TerminalComponent, TerminalSpanDirective } from '@rabbithole/ui';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
+import { HlmIcon } from '@spartan-ng/helm/icon';
 
 @Component({
-  selector: 'feature-add-controller-instructions',
+  selector: 'rbth-feat-canisters-add-controller-instructions',
   imports: [
     ...HlmAlertImports,
     NgIcon,

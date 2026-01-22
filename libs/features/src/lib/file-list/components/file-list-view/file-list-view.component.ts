@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
-  isDevMode,
   signal,
 } from '@angular/core';
 import {
@@ -18,10 +17,16 @@ import {
   lucideFolderUp,
   lucideUpload,
 } from '@ng-icons/lucide';
+import { filter, map, mergeWith } from 'rxjs';
+
+import {
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  injectCoreWorker,
+  provideUploadFilesService,
+} from '@rabbithole/core';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
-import { filter, map, mergeWith } from 'rxjs';
 
 import { GRAY_ICONS_CONFIG } from '../../constants';
 import { FileListService } from '../../services';
@@ -31,11 +36,6 @@ import { AnimatedFolderComponent } from '../animated-folder/animated-folder.comp
 import { FileIconComponent } from '../file-icon/file-icon.component';
 import { GridViewComponent } from '../grid-view/grid-view.component';
 import { UploadDrawerComponent } from '../upload-drawer/upload-drawer.component';
-import {
-  ENCRYPTED_STORAGE_CANISTER_ID,
-  injectCoreWorker,
-  provideUploadFilesService,
-} from '@rabbithole/core';
 
 @Component({
   selector: 'rbth-feat-file-list-view',

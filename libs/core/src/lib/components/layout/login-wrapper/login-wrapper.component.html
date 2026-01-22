@@ -1,0 +1,49 @@
+<div class="mx-auto max-w-[85rem] px-4 sm:px-6 lg:px-8">
+  <div class="flex justify-center gap-x-2">
+    <a
+      hlmBtn
+      class="rounded-full"
+      target="_blank"
+      variant="ghost"
+      href="https://github.com/rabbithole-app/v2"
+    >
+      <ng-icon hlmIcon size="sm" name="lucideGithub" />
+      Github
+    </a>
+    @if (!isTauri) {
+      <a
+        hlmBtn
+        class="rounded-full"
+        target="_blank"
+        variant="ghost"
+        href="https://github.com/rabbithole-app/v2/releases"
+      >
+        <ng-icon hlmIcon size="sm" name="lucideDownload" />
+        Download desktop app
+      </a>
+    }
+  </div>
+
+  <div class="mx-auto mt-5 max-w-xl text-center">
+    <h1
+      class="block text-4xl font-bold text-gray-800 md:text-5xl lg:text-6xl dark:text-neutral-700"
+    >
+      {{ appName }}
+    </h1>
+  </div>
+
+  <div class="mx-auto mt-5 max-w-3xl text-center">
+    <p class="text-lg text-gray-600 dark:text-neutral-400">
+      Create secure, end-to-end encrypted file storage with a decentralized and
+      reliable solution. Your data is protected thanks to the
+      <a
+        class="text-blue-600 decoration-2 hover:underline focus:underline focus:outline-none dark:text-blue-500"
+        href="https://internetcomputer.org/"
+        >Internet Computer</a
+      >.
+    </p>
+  </div>
+  <div class="mt-8 flex flex-col items-center justify-center gap-3">
+    <ng-content />
+  </div>
+</div>

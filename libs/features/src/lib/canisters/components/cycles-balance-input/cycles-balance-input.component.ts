@@ -15,6 +15,7 @@ import {
 import { provideIcons } from '@ng-icons/core';
 import { NgIcon as NgIconComponent } from '@ng-icons/core';
 import { lucideMinus, lucidePlus } from '@ng-icons/lucide';
+
 import {
   HlmInputGroup,
   HlmInputGroupImports,

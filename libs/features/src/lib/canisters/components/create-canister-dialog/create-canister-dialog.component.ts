@@ -20,6 +20,20 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { BrnDialogClose, BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { toast } from 'ngx-sonner';
+import { map, startWith } from 'rxjs';
+
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import {
+  CopyToClipboardComponent,
+  CYCLES_MINTING_CANISTER_ID,
+  CyclesMintingCanisterService,
+  E8S_PER_ICP,
+  ICPLedgerService,
+  injectCyclesMintingCanister,
+  MEMO_CANISTER_CREATE,
+  parseCanisterRejectError,
+} from '@rabbithole/core';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButton } from '@spartan-ng/helm/button';
@@ -32,23 +46,10 @@ import {
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { toast } from 'ngx-sonner';
-import { map, startWith } from 'rxjs';
 
 import { CanistersService } from '../../services';
 import { ControllersSelectorComponent } from '../controllers-selector/controllers-selector.component';
 import { CyclesBalanceInputComponent } from '../cycles-balance-input/cycles-balance-input.component';
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import {
-  CopyToClipboardComponent,
-  CYCLES_MINTING_CANISTER_ID,
-  CyclesMintingCanisterService,
-  E8S_PER_ICP,
-  ICPLedgerService,
-  injectCyclesMintingCanister,
-  MEMO_CANISTER_CREATE,
-  parseCanisterRejectError,
-} from '@rabbithole/core';
 
 const CANISTER_CREATION_COST_TC = 0.5; // Fixed cost for canister creation
 
