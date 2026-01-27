@@ -108,10 +108,13 @@ jobs:
           fi
 
       # Create frontend tar.gz archive (root in dist/apps/storage/browser)
+      # Previously 'tar -czf' was used, which caused issues when decoding inside the canister with mo:compression.
+      # Removing the 'z' flag and creating the gzip archive with a separate command solves the decoding issue.
+      # COPYFILE_DISABLE=1 prevents macOS resource forks (._ files) from being included
       - name: Create frontend tar.gz archive
         run: |
           cd dist/apps/storage/browser
-          tar -czf ../../../../storage-frontend.tar.gz .
+          COPYFILE_DISABLE=1 tar -cf - . | gzip -6 > ../../../../storage-frontend.tar.gz
           cd ../../../../
           echo "✅ Created storage-frontend.tar.gz"
 
