@@ -210,48 +210,153 @@ Automatically applies modern Angular development standards:
 - **Reactive Forms** - stable, proven approach
 - **Signal Forms** (Angular 21+ - experimental) - schema-based validation with `form()` and `schema()`
 
-**Includes:**
-- Comprehensive documentation
-- 120+ code examples
-- Detailed guides on components, signals, templates, Reactive Forms, and Signal Forms
-- Migration patterns between approaches
-- Best practices for both form types
-
 The skill activates automatically when working with Angular code. Supports both stable and experimental Angular features.
+
+### angular-component
+
+Create modern Angular standalone components following v20+ best practices.
+
+**Covers:**
+- Signal-based inputs/outputs (`input()`, `output()`)
+- OnPush change detection
+- Host bindings via `host` object (not decorators)
+- Content projection with `ng-content`
+- Lifecycle hooks and `afterNextRender()`
+- Accessibility requirements (ARIA, keyboard navigation)
+- Template syntax (`@if`, `@for`, `@switch`)
+- `NgOptimizedImage` for images
+
+### angular-signals
+
+Signal-based reactive state management in Angular v20+.
+
+**Core APIs:**
+- `signal()` - writable state
+- `computed()` - derived state
+- `linkedSignal()` - dependent state with reset
+- `effect()` - side effects
+
+**Patterns:**
+- Component state management
+- Service state with read-only signals
+- RxJS interop (`toSignal()`, `toObservable()`)
+- Signal equality and untracked reads
+
+### angular-di
+
+Dependency injection patterns for Angular v20+.
+
+**Covers:**
+- `inject()` function (preferred over constructor injection)
+- Provider scopes (root, component, route)
+- Injection tokens with factories
+- Provider types (useClass, useValue, useFactory, useExisting)
+- Multi providers for collections
+- `APP_INITIALIZER` for async startup
+- `runInInjectionContext()` for dynamic DI
+
+### angular-directives
+
+Custom directives for DOM manipulation and behavior extension.
+
+**Types:**
+- Attribute directives (modify element behavior/appearance)
+- Structural directives (portals, overlays, lazy render)
+- Host directives for composition
+
+**Patterns:**
+- Host property usage (not decorators)
+- Event handling and keyboard shortcuts
+- Directive Composition API
+
+### angular-forms
+
+Signal-based forms with Angular's Signal Forms API (experimental in v21+).
+
+**Features:**
+- Automatic two-way binding with `[formField]`
+- Schema-based validation (`required`, `email`, `min`, `max`, etc.)
+- Field state signals (valid, touched, dirty, errors)
+- Conditional fields (hidden, disabled, readonly)
+- Cross-field validation
+- Async validation with `validateHttp()`
+- Array/dynamic fields support
+
+**Note:** For production stability, Reactive Forms patterns available in references.
+
+### angular-http
+
+HTTP data fetching with signals and HttpClient.
+
+**APIs:**
+- `httpResource()` - signal-based HTTP with automatic state
+- `resource()` - generic async data loading
+- `HttpClient` - traditional Observable approach
+
+**Covers:**
+- Request options and methods
+- Functional interceptors
+- Error handling patterns
+- Loading states management
+
+### angular-routing
+
+Routing configuration for Angular v20+ applications.
+
+**Features:**
+- Lazy loading (`loadChildren`, `loadComponent`)
+- Route parameters as signal inputs
+- Functional guards (auth, role, canDeactivate)
+- Resolvers for data prefetching
+- Nested routes
+- Programmatic navigation
+- Router events
+
+**Requires:** `withComponentInputBinding()` for signal inputs.
+
+### angular-testing
+
+Unit and integration testing for Angular v21+ with Vitest or Jasmine.
+
+**Testing Targets:**
+- Signal-based components
+- OnPush change detection
+- Services with `inject()`
+- HTTP interactions
+
+**Vitest Setup:**
+- Faster than Jasmine/Karma
+- `vi.fn()` and `vi.mock()` for mocking
+- Built-in UI mode
+
+**Patterns:**
+- `fakeAsync`/`tick` for async
+- `HttpTestingController` for HTTP
+- Mock signal-based services
 
 ### angular-spartan-styling
 
-Comprehensive skill for creating beautiful, accessible UIs in Angular using Spartan UI components (Angular adaptation of shadcn/ui), Tailwind CSS 4, and modern Angular patterns.
+Spartan UI components (Angular adaptation of shadcn/ui) with Tailwind CSS 4.
 
 **Key Features:**
-- **Spartan UI Components**: 60+ accessible components (directive-based)
-- **Tailwind CSS 4**: Utility-first styling with @theme directive
-- **hlm utility**: Class composition (equivalent to shadcn's cn)
-- **Component catalog**: Complete reference with Angular usage patterns
-- **Responsive design**: Mobile-first patterns with Tailwind
-- **Dark mode**: Built-in theme support
-- **Accessibility**: ARIA patterns and keyboard navigation
-- **Visual design**: Canvas-based design system philosophy
+- **60+ accessible components** (directive-based)
+- **Tailwind CSS 4** with @theme directive
+- **`hlm()` utility** for class composition
+- **Dark mode** support
+- **Accessibility** built-in
 
-**Differences from React/shadcn:**
-- Uses `hlm()` instead of `cn()`
-- Directive-based: `<button hlmBtn>` instead of `<Button>`
+**Angular-specific:**
+- `<button hlmBtn>` instead of `<Button>`
 - Imports from `@spartan-ng/helm/*`
-- Signal-based reactivity instead of React hooks
-- Native Angular patterns (@if, @for, computed)
-
-**Resources:**
-- Main skill file with quick start and navigation
-- Component reference (spartan-components.md)
-- Tailwind utilities, responsive, and customization guides
-- Canvas design system for visual compositions
+- Signal-based reactivity
+- Native Angular patterns
 
 ### angular-cdk-integration
 
-Angular CDK integration patterns and best practices for advanced UI behavior.
+Angular CDK integration patterns for advanced UI behavior.
 
 **Covers:**
-- Accessibility features
+- Accessibility (a11y) features
 - Layout utilities
 - Overlay positioning
 - Drag and drop
@@ -281,6 +386,23 @@ Advanced RxJS patterns and expert-level techniques.
 - Memory leak prevention
 - Advanced composition patterns
 - Performance optimization techniques
+
+### frontend-design
+
+Create distinctive, production-grade frontend interfaces with high design quality.
+
+**Design Principles:**
+- Bold aesthetic direction (minimalist, maximalist, retro-futuristic, etc.)
+- Distinctive typography (avoid generic fonts like Inter, Arial)
+- Cohesive color themes with CSS variables
+- Motion and micro-interactions
+- Unexpected layouts, asymmetry, grid-breaking
+
+**Avoid:**
+- Generic "AI slop" aesthetics
+- Overused font families
+- Cliched purple gradients
+- Cookie-cutter design patterns
 
 ### scrollytelling
 
