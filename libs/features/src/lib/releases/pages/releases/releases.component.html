@@ -1,0 +1,54 @@
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-semibold">Releases</h1>
+
+  @if (!isPolling()) {
+    <ng-container [ngTemplateOutlet]="refreshButton" />
+  }
+</div>
+
+@if (releases().length > 0) {
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    @for (release of releases(); track release.tagName) {
+      <rbth-feat-releases-release-card [release]="release" />
+    }
+  </div>
+} @else if (isLoading()) {
+  <div hlmEmpty class="min-h-[400px]">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <hlm-spinner />
+      </div>
+      <div hlmEmptyTitle>Loading releases</div>
+      <div hlmEmptyDescription>
+        Fetching releases from the backend...
+      </div>
+    </div>
+  </div>
+} @else {
+  <div hlmEmpty class="min-h-[400px]">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <ng-icon name="lucideInbox" />
+      </div>
+      <div hlmEmptyTitle>No releases found</div>
+      <div hlmEmptyDescription>
+        No GitHub releases are available yet. Check back later or refresh to try
+        again.
+      </div>
+    </div>
+  </div>
+}
+
+<ng-template #refreshButton>
+  @if (isLoading()) {
+  <button hlmBtn variant="ghost" disabled>
+    <hlm-spinner size="xs" />
+    Loading...
+  </button>
+  } @else {
+    <button hlmBtn variant="outline" (click)="refresh()">
+      <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+      Refresh
+    </button>
+  }
+</ng-template>
