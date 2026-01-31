@@ -24,28 +24,31 @@
       "@rabbithole/utils": ["libs/utils/src/index.ts"],
       "@rabbithole/features": ["libs/features/src/index.ts"],
       "@rabbithole/features/allowances": [
-        "libs/features/src/lib/allowances/index.ts"
+        "libs/features/src/lib/allowances/index.ts",
       ],
       "@rabbithole/features/file-list": [
-        "libs/features/src/lib/file-list/index.ts"
+        "libs/features/src/lib/file-list/index.ts",
       ],
       "@rabbithole/features/canisters": [
-        "libs/features/src/lib/canisters/index.ts"
+        "libs/features/src/lib/canisters/index.ts",
+      ],
+      "@rabbithole/features/releases": [
+        "libs/features/src/lib/releases/index.ts",
       ],
       "@rabbithole/pages/dashboard": [
-        "libs/pages/src/lib/dashboard/dashboard.component.ts"
+        "libs/pages/src/lib/dashboard/dashboard.component.ts",
       ],
       "@rabbithole/pages/login": [
-        "libs/pages/src/lib/login/login.component.ts"
+        "libs/pages/src/lib/login/login.component.ts",
       ],
       "@rabbithole/pages/profile": [
-        "libs/pages/src/lib/profile/profile.component.ts"
+        "libs/pages/src/lib/profile/profile.component.ts",
       ],
       "@rabbithole/pages/create-profile": [
-        "libs/pages/src/lib/create-profile/create-profile.component.ts"
+        "libs/pages/src/lib/create-profile/create-profile.component.ts",
       ],
       "@rabbithole/pages/permissions": [
-        "libs/pages/src/lib/permissions/permissions.component.ts"
+        "libs/pages/src/lib/permissions/permissions.component.ts",
       ],
       "@spartan-ng/helm/accordion": ["libs/ui/accordion/src/index.ts"],
       "@spartan-ng/helm/alert": ["libs/ui/alert/src/index.ts"],
@@ -80,7 +83,7 @@
       "@spartan-ng/helm/label": ["libs/ui/label/src/index.ts"],
       "@spartan-ng/helm/menubar": ["libs/ui/menubar/src/index.ts"],
       "@spartan-ng/helm/navigation-menu": [
-        "libs/ui/navigation-menu/src/index.ts"
+        "libs/ui/navigation-menu/src/index.ts",
       ],
       "@spartan-ng/helm/pagination": ["libs/ui/pagination/src/index.ts"],
       "@spartan-ng/helm/popover": ["libs/ui/popover/src/index.ts"],
@@ -104,8 +107,8 @@
       "@spartan-ng/helm/toggle-group": ["libs/ui/toggle-group/src/index.ts"],
       "@spartan-ng/helm/tooltip": ["libs/ui/tooltip/src/index.ts"],
       "@spartan-ng/helm/typography": ["libs/ui/typography/src/index.ts"],
-      "@spartan-ng/helm/utils": ["libs/ui/utils/src/index.ts"]
-    }
+      "@spartan-ng/helm/utils": ["libs/ui/utils/src/index.ts"],
+    },
   },
-  "exclude": ["node_modules", "tmp"]
+  "exclude": ["node_modules", "tmp"],
 }
