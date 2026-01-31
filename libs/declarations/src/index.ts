@@ -4,6 +4,19 @@ export type {
   Profile,
   _SERVICE as RabbitholeActorService,
   UpdateProfileArgs,
+  // Storage deployer types
+  CreateStorageOptions,
+  CreateStorageError,
+  CreationStatus,
+  StorageCreationRecord,
+  ReleaseSelector,
+  Progress,
+  // Releases types
+  ReleasesFullStatus,
+  ReleaseFullStatus,
+  AssetFullStatus,
+  AssetDownloadStatus,
+  ExtractionStatus,
 } from './backend/rabbithole-backend.did';
 export { idlFactory as rabbitholeIdlFactory } from './backend/rabbithole-backend.did';
 export type {
@@ -15,3 +28,11 @@ export { idlFactory as encryptedStorageIdlFactory } from './encrypted-storage/en
 export type * from './icp-ledger/icp-ledger.did';
 export type { _SERVICE as IcpLedgerActorService } from './icp-ledger/icp-ledger.did';
 export { idlFactory as icpLedgerIdlFactory } from './icp-ledger/icp-ledger.did';
+export type { _SERVICE as CMCActorService } from './cmc/cmc';
+export { idlFactory as cmcIdlFactory } from './cmc/cmc.idl';
+export type {
+  _SERVICE as ICManagementActorService,
+  chunk_hash as ChunkHash,
+  install_chunked_code_args as InstallChunkedCodeArgs
+} from './ic-management/ic-management';
+export { idlFactory as icManagementIdlFactory } from './ic-management/ic-management.idl';
