@@ -12,7 +12,11 @@ url-kit = "4.0.1"
 base-x-encoder = "2.1.0"
 xtended-numbers = "2.1.0"
 candid = "2.1.0"
+core = "https://github.com/dfinity/motoko-core#moc-1.0.0"
 
 [package]
 name = "encrypted-storage"
 version = "0.1.0"
+
+[toolchain]
+moc = "1.0.0-nullc-2"

@@ -7,7 +7,7 @@ module Path {
   public func dirname(path : Text) : Text {
     let parts = Text.split(path, #text("/")) |> Vector.fromIter<Text>(_);
     ignore Vector.removeLast(parts);
-    Text.join("/", Vector.vals(parts));
+    Text.join(Vector.vals(parts), "/");
   };
 
   public func basename(path : Text) : Text {
@@ -25,7 +25,7 @@ module Path {
       if (Text.notEqual(name, "")) ?name else null;
     },
   )
-  |> Text.join("/", _);
+  |> Text.join(_, "/");
 
   public func validateName(name : Text) : Bool {
     for (c : Char in name.chars()) {

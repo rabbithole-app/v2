@@ -141,7 +141,7 @@ module EncryptedFileStorage {
 
   func endpoint(keyId : T.KeyId, hash : Blob) : CertifiedAssets.Endpoint {
     let ?tid = Text.decodeUtf8(keyId.1) else Runtime.unreachable();
-    let key = "/" # Text.join("/", Iter.fromArray(["encrypted", Principal.toText(keyId.0), tid]));
+    let key = "/" # Text.join(Iter.fromArray(["encrypted", Principal.toText(keyId.0), tid]), "/");
     CertifiedAssets.Endpoint(key, null)
     // request certification is not supported in this context
     .no_request_certification()

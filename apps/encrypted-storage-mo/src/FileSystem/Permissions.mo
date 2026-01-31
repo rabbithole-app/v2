@@ -77,9 +77,11 @@ module Permissions {
       case ((?v1, null, null) or (null, ?v1, null) or (null, null, ?v1)) [v1];
       case _ [];
     };
-    let list = List.fromArray<T.Permission>(rights);
-    List.sort(list, permissionCompare);
-    let permission = List.last(list);
+    let sortedRights = Array.sort(rights, permissionCompare);
+    let permission = switch(sortedRights.size()) {
+      case (0) null;
+      case (size) ?sortedRights[size - 1];
+    };
     let hasOwnerPermission = permission == ?#ReadWriteManage;
     switch (hasOwnerPermission, parentId, root) {
       case (false, ?id, _) {
