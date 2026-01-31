@@ -3,7 +3,7 @@ import Iter "mo:core/Iter";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import Timer "mo:core/Timer";
-import Queue "mo:core/Queue";
+import Result "mo:core/Result";
 
 import Liminal "mo:liminal";
 import ZenDB "mo:zendb";
@@ -12,9 +12,11 @@ import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
 import Sha256 "mo:sha2/Sha256";
+
 import Profiles "Profiles";
 import Canisters "Canisters";
-import HttpDownloader "HttpDownloader";
+import StorageDeployerOrchestrator "StorageDeployer";
+import StorageDeployer "StorageDeployer/StorageDeployer";
 import GitHubReleases "GitHubReleases";
 
 shared ({ caller = installer }) persistent actor class Rabbithole() = self {
@@ -71,7 +73,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   public shared ({ caller }) func saveAvatar({ filename; content; contentType } : Profiles.CreateProfileAvatarArgs) : async Text {
     assert not Principal.isAnonymous(caller);
     let args : HttpAssets.StoreArgs = {
-      key = "/" # Text.join("/", Iter.fromArray(["static", Principal.toText(caller), filename]));
+      key = "/" # Text.join(Iter.fromArray(["static", Principal.toText(caller), filename]), "/");
       content;
       sha256 = ?Sha256.fromBlob(#sha256, content);
       content_type = contentType;
@@ -84,7 +86,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
 
   public shared ({ caller }) func removeAvatar(filename : Text) : async () {
     assert not Principal.isAnonymous(caller);
-    let key = "/" # Text.join("/", Iter.fromArray(["static", Principal.toText(caller), filename]));
+    let key = "/" # Text.join(Iter.fromArray(["static", Principal.toText(caller), filename]), "/");
     assetCanister.delete_asset(canisterId, { key });
   };
 
@@ -132,103 +134,41 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   };
 
   /* -------------------------------------------------------------------------- */
-  /*                           Github Release Download                          */
+  /*                      Storage Deployer Orchestrator                         */
   /* -------------------------------------------------------------------------- */
 
-  let githubReleasesStore = GitHubReleases.new({
+  let storageOrchestrator = StorageDeployerOrchestrator.new({
     owner = "rabbithole-app";
     repo = "v2";
     githubToken = null;
     assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar.gz")])];
   });
-
-  public shared ({ caller }) func listGithubReleases() : async [GitHubReleases.Release] {
-    assert Principal.isController(caller);
-    switch (await GitHubReleases.listReleases(githubReleasesStore)) {
-      case (#ok(releases)) releases;
-      case (#err(message)) throw Error.reject(message);
-    };
-  };
+  storageOrchestrator.canisterId := ?canisterId;
 
   /* -------------------------------------------------------------------------- */
   /*                               Lifecycle hooks                              */
   /* -------------------------------------------------------------------------- */
 
-  transient var downloaderTimerId : ?Timer.TimerId = null;
-  transient var githubTimerId : ?Timer.TimerId = null;
-
-  func cancelDownloaderTimer() {
-    switch (downloaderTimerId) {
-      case (?id) {
-        Timer.cancelTimer(id);
-        downloaderTimerId := null;
-      };
-      case null {};
-    };
+  system func preupgrade() {
+    StorageDeployerOrchestrator.stop<system>(storageOrchestrator);
   };
 
-  func startDownloaderTimer<system>() {
-    cancelDownloaderTimer();
-    downloaderTimerId := ?Timer.recurringTimer<system>(
-      #milliseconds 100,
+  system func postupgrade() {
+    ignore Timer.setTimer<system>(
+      #seconds 0,
       func() : async () {
-        await HttpDownloader.runRequests(githubReleasesStore.downloaderStore);
-        ensureDownloaderTimer<system>();
+        await StorageDeployerOrchestrator.start<system>(storageOrchestrator);
       },
     );
   };
 
-  func ensureDownloaderTimer<system>() {
-    if (Queue.isEmpty(githubReleasesStore.downloaderStore.requests)) {
-      cancelDownloaderTimer();
-    } else if (downloaderTimerId == null) {
-      startDownloaderTimer<system>();
-    };
-  };
-
-  func runGitHubTimer<system>() {
-    if (githubTimerId == null) {
-      githubTimerId := ?Timer.recurringTimer<system>(
-        #days 1,
-        githubListReleases,
-      );
-    };
-  };
-
-  func githubListReleases() : async () {
-    switch (await GitHubReleases.listReleases(githubReleasesStore)) {
-      case (#ok(_)) {
-        ensureDownloaderTimer<system>();
-      };
-      case (#err(_)) {};
-    };
-  };
-
-  func cancelGitHubTimer() {
-    switch (githubTimerId) {
-      case (?id) {
-        Timer.cancelTimer(id);
-        githubTimerId := null;
-      };
-      case null {};
-    };
-  };
-
-  system func preupgrade() {
-    cancelGitHubTimer();
-    cancelDownloaderTimer();
-  };
-
-  func initGitHubReleases() : async () {
-    await githubListReleases();
-    runGitHubTimer<system>();
-  };
-
-  system func postupgrade() {
-    ensureDownloaderTimer<system>();
-  };
-
-  ignore Timer.setTimer<system>(#seconds 0, initGitHubReleases);
+  // Initialize on first deploy
+  ignore Timer.setTimer<system>(
+    #seconds 0,
+    func() : async () {
+      await StorageDeployerOrchestrator.start<system>(storageOrchestrator);
+    },
+  );
 
   /* -------------------------------------------------------------------------- */
   /*                               User canisters                               */
@@ -249,5 +189,59 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   public shared ({ caller }) func deleteCanister(canisterId : Principal) : async () {
     assert not Principal.isAnonymous(caller);
     Canisters.delete(canisters, caller, canisterId);
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /*                              Storage Deployer                              */
+  /* -------------------------------------------------------------------------- */
+
+  // Create a new storage canister for the caller
+  public shared ({ caller }) func createStorage(
+    options : StorageDeployerOrchestrator.CreateStorageOptions
+  ) : async Result.Result<(), StorageDeployerOrchestrator.CreateStorageError> {
+    assert not Principal.isAnonymous(caller);
+    StorageDeployerOrchestrator.createStorage<system>(storageOrchestrator, caller, options);
+  };
+
+  // Get current status of storage creation for the caller
+  public query ({ caller }) func getStorageCreationStatus() : async ?StorageDeployerOrchestrator.CreationStatus {
+    StorageDeployerOrchestrator.getCreationStatus(storageOrchestrator, caller);
+  };
+
+  // List all storages for the caller (includes history)
+  public query ({ caller }) func listStorages() : async [StorageDeployerOrchestrator.StorageCreationRecord] {
+    assert not Principal.isAnonymous(caller);
+    StorageDeployerOrchestrator.listStorages(storageOrchestrator, caller);
+  };
+
+  // Admin: Start storage deployer (if not already running)
+  public shared ({ caller }) func startStorageDeployer() : async () {
+    assert caller == installer;
+    await StorageDeployerOrchestrator.start<system>(storageOrchestrator);
+  };
+
+  // Admin: Stop storage deployer
+  public shared ({ caller }) func stopStorageDeployer() : async () {
+    assert caller == installer;
+    StorageDeployerOrchestrator.stop<system>(storageOrchestrator);
+  };
+
+  // Check if storage deployer is running
+  public query func isStorageDeployerRunning() : async Bool {
+    StorageDeployerOrchestrator.isRunning(storageOrchestrator);
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /*                               Releases API                                 */
+  /* -------------------------------------------------------------------------- */
+
+  // Get comprehensive status of all releases including download and extraction progress
+  public query func getReleasesFullStatus() : async GitHubReleases.ReleasesFullStatus {
+    StorageDeployerOrchestrator.getReleasesFullStatus(storageOrchestrator);
+  };
+
+  // Utility: Convert cycles to ICP e8s
+  public shared func cyclesToE8s(cycles : Nat) : async Nat {
+    await StorageDeployer.cyclesToICPE8s(cycles);
   };
 };

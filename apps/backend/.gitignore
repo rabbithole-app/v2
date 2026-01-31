@@ -3,7 +3,9 @@
 .mops
 deps
 dist
-src/declarations
+declarations
+!tests/declarations
+tests/state/nns_state
 
 # other
 replica.log

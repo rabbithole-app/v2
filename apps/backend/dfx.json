@@ -3,10 +3,12 @@
     "rabbithole-backend": {
       "declarations": {
         "bindings": ["js", "ts"],
-        "node_compatibility": true
+        "node_compatibility": true,
+        "output": "declarations/rabbithole-backend"
       },
       "main": "src/main.mo",
-      "type": "motoko"
+      "type": "motoko",
+      "gzip": true
     },
     "rabbithole-frontend": {
       "dependencies": [],
@@ -20,22 +22,13 @@
     "encrypted-storage": {
       "declarations": {
         "bindings": ["js", "ts"],
-        "node_compatibility": true
+        "node_compatibility": true,
+        "output": "declarations/encrypted-storage"
       },
       "main": "src/EncryptedStorageCanister.mo",
       "type": "motoko",
-      "args": "--max-stable-pages 3276800"
-    },
-    "internet-identity": {
-      "type": "custom",
-      "candid": "https://github.com/dfinity/internet-identity/releases/download/release-2025-11-21/internet_identity.did",
-      "wasm": "https://github.com/dfinity/internet-identity/releases/download/release-2025-11-21/internet_identity_dev.wasm.gz",
-      "remote": {
-        "id": {
-          "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
-        }
-      },
-      "frontend": {}
+      "args": "--max-stable-pages 3276800",
+      "gzip": true
     }
   },
   "defaults": {

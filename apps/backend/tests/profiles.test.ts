@@ -19,8 +19,8 @@ import {
   type CreateProfileArgs,
   idlFactory,
   type ListOptions,
-} from "../src/declarations/rabbithole-backend/rabbithole-backend.did.js";
-import { setupChunkedCanister } from "./ic-management.utils";
+} from "../declarations/rabbithole-backend/rabbithole-backend.did.js";
+import { setupChunkedCanister } from "./setup/utils.js";
 
 // Define the path to your canister's WASM file
 export const WASM_PATH = resolve(

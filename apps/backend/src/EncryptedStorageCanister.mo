@@ -381,7 +381,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
           case null node.name;
         };
         let storeArgs : HttpAssets.StoreArgs = {
-          key = "/" # Text.join("/", Iter.fromArray(["static", "thumbnails", Principal.toText(node.keyId.0), filename]));
+          key = "/" # Text.join(Iter.fromArray(["static", "thumbnails", Principal.toText(node.keyId.0), filename]), "/");
           content = args.thumbnail.content;
           sha256 = ?Sha256.fromBlob(#sha256, args.thumbnail.content);
           content_type = args.thumbnail.contentType;

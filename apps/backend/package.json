@@ -3,18 +3,26 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "vitest"
-  },
-  "devDependencies": {
-    "@types/node": "^24.8.1",
-    "vitest": "^3.2.4"
+    "test": "vitest run"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
-    "@dfinity/pic": "^0.17.0",
+    "@dfinity/pic": "^0.18.0",
+    "@dfinity/utils": "^4.1.0",
+    "@faker-js/faker": "^10.1.0",
+    "@icp-sdk/canisters": "^3.3.0",
+    "@icp-sdk/core": "^5.0.0",
+    "@noble/hashes": "^1.8.0",
+    "@types/node": "^24.8.1",
+    "date-fns": "^4.1.0",
+    "header-range-parser": "^1.1.3",
     "pem-file": "^1.0.1",
-    "undici": "^7.16.0"
+    "remeda": "^2.33.0",
+    "tar": "^7.0.0",
+    "undici": "^7.16.0",
+    "vite-tsconfig-paths": "^6.0.4",
+    "vitest": "^4.0.16"
   }
 }
