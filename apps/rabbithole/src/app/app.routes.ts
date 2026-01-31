@@ -40,6 +40,13 @@ export const appRoutes: Route[] = [
           import('./pages/users/users.component').then((m) => m.UsersComponent),
       },
       {
+        path: 'releases',
+        loadChildren: () =>
+          import('@rabbithole/features/releases').then(
+            (m) => m.releasesRoutes,
+          ),
+      },
+      {
         path: 'canisters',
         loadChildren: () =>
           import('@rabbithole/features/canisters').then(

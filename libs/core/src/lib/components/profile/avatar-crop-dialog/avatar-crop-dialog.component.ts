@@ -46,8 +46,7 @@ import { ImageCropPayload } from '../../../types';
 import { isPhotonSupportedMimeType } from '../../../utils';
 
 @Component({
-  // eslint-disable-next-line @angular-eslint/component-selector
-  selector: 'avatar-crop-dialog',
+  selector: 'core-avatar-crop-dialog',
   standalone: true,
   templateUrl: './avatar-crop-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

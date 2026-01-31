@@ -3,6 +3,7 @@ export * from './lib/components';
 export * from './lib/constants';
 export * from './lib/guards';
 export * from './lib/injectors';
+// export * from './lib/interceptors';
 export * from './lib/operators';
 export * from './lib/resolvers';
 export * from './lib/services';

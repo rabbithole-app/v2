@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
-import { lucideDatabase, lucideHardDrive, lucideUsers } from '@ng-icons/lucide';
+import { lucideDatabase, lucideHardDrive, lucideTags, lucideUsers } from '@ng-icons/lucide';
 
 import { NavigationComponent, NavItem } from '@rabbithole/core';
 import {
@@ -28,6 +28,7 @@ import {
       lucideDatabase,
       lucideHardDrive,
       lucideUsers,
+      lucideTags
     }),
   ],
   hostDirectives: [RbthSidebarGroupDirective],
@@ -48,6 +49,11 @@ export class MainNavigationComponent {
       title: 'Users',
       url: '/users',
       icon: 'lucideUsers',
+    },
+    {
+      title: 'Releases',
+      url: '/releases',
+      icon: 'lucideTags',
     },
   ];
 }

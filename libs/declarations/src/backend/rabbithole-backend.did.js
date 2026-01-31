@@ -5,6 +5,64 @@ export const idlFactory = ({ IDL }) => {
     'inviter' : IDL.Opt(IDL.Principal),
     'avatarUrl' : IDL.Opt(IDL.Text),
   });
+  const ReleaseSelector = IDL.Variant({
+    'LatestPrerelease' : IDL.Null,
+    'Version' : IDL.Text,
+    'Latest' : IDL.Null,
+    'LatestDraft' : IDL.Null,
+  });
+  const CreateStorageOptions = IDL.Record({
+    'initialCycles' : IDL.Nat,
+    'subnetId' : IDL.Opt(IDL.Principal),
+    'releaseSelector' : ReleaseSelector,
+    'initArg' : IDL.Vec(IDL.Nat8),
+    'canisterId' : IDL.Opt(IDL.Principal),
+  });
+  const BlockIndex = IDL.Nat64;
+  const NotifyError = IDL.Variant({
+    'Refunded' : IDL.Record({
+      'block_index' : IDL.Opt(BlockIndex),
+      'reason' : IDL.Text,
+    }),
+    'InvalidTransaction' : IDL.Text,
+    'Other' : IDL.Record({
+      'error_message' : IDL.Text,
+      'error_code' : IDL.Nat64,
+    }),
+    'Processing' : IDL.Null,
+    'TransactionTooOld' : BlockIndex,
+  });
+  const Icrc1Tokens = IDL.Nat;
+  const Icrc1BlockIndex = IDL.Nat;
+  const Icrc1Timestamp = IDL.Nat64;
+  const TransferFromError = IDL.Variant({
+    'GenericError' : IDL.Record({
+      'message' : IDL.Text,
+      'error_code' : IDL.Nat,
+    }),
+    'TemporarilyUnavailable' : IDL.Null,
+    'InsufficientAllowance' : IDL.Record({ 'allowance' : Icrc1Tokens }),
+    'BadBurn' : IDL.Record({ 'min_burn_amount' : Icrc1Tokens }),
+    'Duplicate' : IDL.Record({ 'duplicate_of' : Icrc1BlockIndex }),
+    'BadFee' : IDL.Record({ 'expected_fee' : Icrc1Tokens }),
+    'CreatedInFuture' : IDL.Record({ 'ledger_time' : Icrc1Timestamp }),
+    'TooOld' : IDL.Null,
+    'InsufficientFunds' : IDL.Record({ 'balance' : Icrc1Tokens }),
+  });
+  const CreateStorageError = IDL.Variant({
+    'NotifyFailed' : NotifyError,
+    'FrontendInstallFailed' : IDL.Text,
+    'InsufficientAllowance' : IDL.Record({
+      'available' : IDL.Nat,
+      'required' : IDL.Nat,
+    }),
+    'AlreadyInProgress' : IDL.Null,
+    'UpdateControllersFailed' : IDL.Text,
+    'WasmInstallFailed' : IDL.Text,
+    'ReleaseNotFound' : IDL.Null,
+    'TransferFailed' : TransferFromError,
+  });
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
   const Time = IDL.Int;
   const Profile = IDL.Record({
     'id' : IDL.Principal,
@@ -14,6 +72,73 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Time,
     'updatedAt' : Time,
     'avatarUrl' : IDL.Opt(IDL.Text),
+  });
+  const AssetDownloadStatus = IDL.Variant({
+    'Error' : IDL.Text,
+    'Downloading' : IDL.Record({
+      'chunksCompleted' : IDL.Nat,
+      'chunksError' : IDL.Nat,
+      'chunksTotal' : IDL.Nat,
+    }),
+    'Completed' : IDL.Record({ 'size' : IDL.Nat }),
+    'NotStarted' : IDL.Null,
+  });
+  const FileMetadata = IDL.Record({
+    'key' : IDL.Text,
+    'sha256' : IDL.Vec(IDL.Nat8),
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+  });
+  const ExtractionStatus = IDL.Variant({
+    'Idle' : IDL.Null,
+    'Complete' : IDL.Vec(FileMetadata),
+    'Decoding' : IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat }),
+  });
+  const AssetFullStatus = IDL.Record({
+    'contentType' : IDL.Text,
+    'name' : IDL.Text,
+    'size' : IDL.Nat,
+    'downloadStatus' : AssetDownloadStatus,
+    'extractionStatus' : IDL.Opt(ExtractionStatus),
+  });
+  const ReleaseFullStatus = IDL.Record({
+    'tagName' : IDL.Text,
+    'isDownloaded' : IDL.Bool,
+    'name' : IDL.Text,
+    'createdAt' : Time,
+    'assets' : IDL.Vec(AssetFullStatus),
+    'publishedAt' : IDL.Opt(Time),
+    'isDeploymentReady' : IDL.Bool,
+    'draft' : IDL.Bool,
+    'prerelease' : IDL.Bool,
+  });
+  const ReleasesFullStatus = IDL.Record({
+    'defaultVersionKey' : IDL.Text,
+    'releasesCount' : IDL.Nat,
+    'pendingDownloads' : IDL.Nat,
+    'hasDeploymentReadyRelease' : IDL.Bool,
+    'hasDownloadedRelease' : IDL.Bool,
+    'releases' : IDL.Vec(ReleaseFullStatus),
+    'completedDownloads' : IDL.Nat,
+  });
+  const Progress = IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat });
+  const CreationStatus = IDL.Variant({
+    'Failed' : IDL.Text,
+    'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'CheckingAllowance' : IDL.Null,
+    'UploadingFrontend' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
+    'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
+    'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'InstallingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'Pending' : IDL.Null,
   });
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
   const RawQueryHttpRequest = IDL.Record({
@@ -83,6 +208,17 @@ export const idlFactory = ({ IDL }) => {
     'data' : IDL.Vec(Profile),
     'instructions' : IDL.Nat,
   });
+  const StorageCreationRecord = IDL.Record({
+    'status' : CreationStatus,
+    'completedAt' : IDL.Opt(Time),
+    'owner' : IDL.Principal,
+    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'createdAt' : Time,
+    'releaseTag' : IDL.Text,
+    'frontendHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'initArg' : IDL.Vec(IDL.Nat8),
+    'canisterId' : IDL.Opt(IDL.Principal),
+  });
   const CreateProfileAvatarArgs = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
     'contentType' : IDL.Text,
@@ -95,9 +231,17 @@ export const idlFactory = ({ IDL }) => {
   const Rabbithole = IDL.Service({
     'addCanister' : IDL.Func([IDL.Principal], [], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
+    'createStorage' : IDL.Func([CreateStorageOptions], [Result], []),
+    'cyclesToE8s' : IDL.Func([IDL.Nat], [IDL.Nat], []),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteProfile' : IDL.Func([], [], []),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
+    'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
+    'getStorageCreationStatus' : IDL.Func(
+        [],
+        [IDL.Opt(CreationStatus)],
+        ['query'],
+      ),
     'http_request' : IDL.Func(
         [RawQueryHttpRequest],
         [RawQueryHttpResponse],
@@ -113,10 +257,14 @@ export const idlFactory = ({ IDL }) => {
         [RawUpdateHttpResponse],
         [],
       ),
+    'isStorageDeployerRunning' : IDL.Func([], [IDL.Bool], ['query']),
     'listCanisters' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
+    'listStorages' : IDL.Func([], [IDL.Vec(StorageCreationRecord)], ['query']),
     'removeAvatar' : IDL.Func([IDL.Text], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
+    'startStorageDeployer' : IDL.Func([], [], []),
+    'stopStorageDeployer' : IDL.Func([], [], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'whoami' : IDL.Func([], [IDL.Text], ['query']),
