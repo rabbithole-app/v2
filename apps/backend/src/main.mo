@@ -90,10 +90,6 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
     assetCanister.delete_asset(canisterId, { key });
   };
 
-  public query ({ caller }) func whoami() : async Text {
-    Principal.toText(caller);
-  };
-
   public shared ({ caller }) func createProfile(args : Profiles.CreateProfileArgs) : async Nat {
     assert not Principal.isAnonymous(caller);
 
@@ -238,10 +234,5 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   // Get comprehensive status of all releases including download and extraction progress
   public query func getReleasesFullStatus() : async GitHubReleases.ReleasesFullStatus {
     StorageDeployerOrchestrator.getReleasesFullStatus(storageOrchestrator);
-  };
-
-  // Utility: Convert cycles to ICP e8s
-  public shared func cyclesToE8s(cycles : Nat) : async Nat {
-    await StorageDeployer.cyclesToICPE8s(cycles);
   };
 };

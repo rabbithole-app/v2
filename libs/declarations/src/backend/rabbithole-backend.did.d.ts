@@ -44,11 +44,9 @@ export type CreateStorageError = { 'NotifyFailed' : NotifyError } |
   { 'ReleaseNotFound' : null } |
   { 'TransferFailed' : TransferFromError };
 export interface CreateStorageOptions {
-  'initialCycles' : bigint,
-  'subnetId' : [] | [Principal],
   'releaseSelector' : ReleaseSelector,
+  'target' : TargetCanister,
   'initArg' : Uint8Array | number[],
-  'canisterId' : [] | [Principal],
 }
 export type CreationStatus = { 'Failed' : string } |
   { 'UpdatingControllers' : { 'canisterId' : Principal } } |
@@ -114,7 +112,6 @@ export interface Rabbithole {
   'addCanister' : ActorMethod<[Principal], undefined>,
   'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
   'createStorage' : ActorMethod<[CreateStorageOptions], Result>,
-  'cyclesToE8s' : ActorMethod<[bigint], bigint>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
   'deleteProfile' : ActorMethod<[], undefined>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
@@ -134,12 +131,12 @@ export interface Rabbithole {
   'listProfiles' : ActorMethod<[ListOptions], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageCreationRecord>>,
   'removeAvatar' : ActorMethod<[string], undefined>,
+  'resetStorageDeployer' : ActorMethod<[], undefined>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
   'usernameExists' : ActorMethod<[string], boolean>,
-  'whoami' : ActorMethod<[], string>,
 }
 export interface RawQueryHttpRequest {
   'url' : string,
@@ -216,6 +213,8 @@ export interface StreamingCallbackResponse {
 }
 export type StreamingStrategy = { 'Callback' : CallbackStreamingStrategy };
 export type StreamingToken = Uint8Array | number[];
+export type TargetCanister = { 'Existing' : Principal } |
+  { 'Create' : { 'initialCycles' : bigint, 'subnetId' : [] | [Principal] } };
 export type Time = bigint;
 export type TransferFromError = {
     'GenericError' : { 'message' : string, 'error_code' : bigint }

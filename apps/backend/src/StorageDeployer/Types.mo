@@ -41,22 +41,41 @@ module {
 
   // -- Creation Options & Errors --
 
+  /// Target canister specification for storage deployment
+  public type TargetCanister = {
+    /// Create a new canister with specified cycles
+    #Create : {
+      initialCycles : Nat;
+      subnetId : ?Principal;
+    };
+    /// Use an existing canister
+    #Existing : Principal;
+  };
+
   /// Options for creating a new storage canister
   ///
-  /// Example:
+  /// Example (create new):
   /// ```motoko
   /// let options : CreateStorageOptions = {
-  ///   initialCycles = 1_000_000_000_000;
-  ///   canisterId = null;
-  ///   subnetId = null;
+  ///   target = #Create({
+  ///     initialCycles = 1_000_000_000_000;
+  ///     subnetId = null;
+  ///   });
+  ///   releaseSelector = #Latest;
+  ///   initArg = to_candid({});
+  /// };
+  /// ```
+  ///
+  /// Example (use existing):
+  /// ```motoko
+  /// let options : CreateStorageOptions = {
+  ///   target = #Existing(existingCanisterId);
   ///   releaseSelector = #Latest;
   ///   initArg = to_candid({});
   /// };
   /// ```
   public type CreateStorageOptions = {
-    initialCycles : Nat;
-    canisterId : ?Principal;
-    subnetId : ?Principal;
+    target : TargetCanister;
     releaseSelector : ReleaseSelector;
     initArg : Blob;
   };

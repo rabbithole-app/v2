@@ -22,6 +22,7 @@ import ByteUtils "mo:byte-utils";
 import CMCTypes "CMCTypes";
 import LedgerTypes "LedgerTypes";
 import Account "Utils/Account";
+import Types "Types";
 
 module {
   let CYCLE_MINTING_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
@@ -64,11 +65,8 @@ module {
     #TransferFailed : LedgerTypes.TransferFromError;
   };
 
-  public type CreateStorageOptions = {
-    initialCycles : Nat;
-    canisterId : ?Principal; // If provided, link existing canister instead of creating new
-    subnetId : ?Principal; // Target subnet for canister creation (required in test environments)
-  };
+  public type CreateStorageOptions = Types.CreateStorageOptions;
+  public type TargetCanister = Types.TargetCanister;
 
   public type CreateStorageError = {
     #InsufficientAllowance : { required : Nat; available : Nat };
@@ -125,9 +123,13 @@ module {
     };
 
     let now = Time.now();
+    let existingCanisterId = switch (options.target) {
+      case (#Existing(id)) ?id;
+      case (#Create(_)) null;
+    };
     let creation : StorageCreation = {
       owner = caller;
-      var canisterId = options.canisterId;
+      var canisterId = existingCanisterId;
       var status = #Pending;
       createdAt = now;
       var updatedAt = now;
@@ -152,20 +154,20 @@ module {
       case null return #err(#TransferFailed(#GenericError({ error_code = 0; message = "Deployer canister ID not set" })));
     };
 
-    // If canisterId is provided, skip ICP transfer and CMC notification
-    let canisterId = switch (options.canisterId) {
-      case (?existingCanisterId) {
+    // Handle based on target type
+    let canisterId = switch (options.target) {
+      case (#Existing(existingCanisterId)) {
         // User is linking existing canister
         updateStatus(creation, #CanisterCreated({ canisterId = existingCanisterId }));
         existingCanisterId;
       };
-      case null {
+      case (#Create({ initialCycles; subnetId })) {
         // Need to create new canister via ICP transfer and CMC
 
         // Step 1: Check allowance and transfer ICP
         updateStatus(creation, #CheckingAllowance);
 
-        let transferResult = await transferICP(store, caller, options.initialCycles);
+        let transferResult = await transferICP(store, caller, initialCycles);
         switch (transferResult) {
           case (#err err) {
             updateStatus(creation, #Failed("Transfer failed"));
@@ -178,7 +180,7 @@ module {
             updateStatus(creation, #NotifyingCMC({ blockIndex }));
 
             // Step 2: Notify CMC to create canister with user as controller
-            let createResult = await notifyCreateCanister(deployerCanisterId, caller, blockIndex, options.subnetId);
+            let createResult = await notifyCreateCanister(deployerCanisterId, caller, blockIndex, subnetId);
             switch (createResult) {
               case (#err err) {
                 updateStatus(creation, #Failed("CMC notification failed"));
@@ -360,7 +362,7 @@ module {
   // Converts cycles to ICP e8s using the current XDR/ICP exchange rate
   // Formula: ICP_e8s = (cycles / CYCLES_PER_XDR) * (PERMYRIAD / xdr_permyriad_per_icp) * E8S_PER_ICP
   // Where: CYCLES_PER_XDR = 1 trillion (10^12), PERMYRIAD = 10,000
-  public func cyclesToICPE8s(cycles : Nat) : async Nat {
+  func cyclesToICPE8s(cycles : Nat) : async Nat {
     let cmc = actor (CYCLE_MINTING_CANISTER_ID) : CMCTypes.Self;
     let rateResponse = await cmc.get_icp_xdr_conversion_rate();
     let xdrPermyriadPerIcp = Nat64.toNat(rateResponse.data.xdr_permyriad_per_icp);

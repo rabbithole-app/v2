@@ -163,21 +163,6 @@ describe("StorageDeployer", () => {
     expect(balance).toBe(BigInt(1_000_000) * E8S_PER_ICP);
   });
 
-  test("should convert cycles to E8s", async () => {
-    const result = await backendFixture.actor.cyclesToE8s(ONE_TRILLION);
-    console.log("1 TC in e8s:", result);
-
-    expect(typeof result).toBe("bigint");
-    expect(result).toBeGreaterThan(0n);
-
-    const rate = await manager.cmcActor.get_icp_xdr_conversion_rate();
-    const expectedE8s = (10_000n * E8S_PER_ICP) / rate.data.xdr_permyriad_per_icp;
-
-    // Result should be within 1% of expected
-    expect(result).toBeGreaterThanOrEqual((expectedE8s * 99n) / 100n);
-    expect(result).toBeLessThanOrEqual((expectedE8s * 101n) / 100n);
-  });
-
   // ═══════════════════════════════════════════════════════════════
   // ICRC2 TRANSFER TESTS
   // ═══════════════════════════════════════════════════════════════
@@ -410,11 +395,13 @@ describe("StorageDeployer", () => {
 
     // Start creation
     console.log("\n=== Starting Storage Creation ===");
-    // Empty Candid argument for canister init
     const options: CreateStorageOptions = {
-      initialCycles,
-      subnetId: [manager.applicationSubnetId],
-      canisterId: [],
+      target: {
+        Create: {
+          initialCycles,
+          subnetId: [manager.applicationSubnetId],
+        },
+      },
       releaseSelector: { LatestDraft: null },
       initArg: IDL.encode([], []),
     };
@@ -466,9 +453,12 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(duplicateTestIdentity);
 
     const options: CreateStorageOptions = {
-      initialCycles: ONE_TRILLION,
-      subnetId: [manager.applicationSubnetId],
-      canisterId: [],
+      target: {
+        Create: {
+          initialCycles: ONE_TRILLION,
+          subnetId: [manager.applicationSubnetId],
+        },
+      },
       releaseSelector: { LatestDraft: null },
       initArg: IDL.encode([], []),
     };
@@ -508,9 +498,9 @@ describe("StorageDeployer", () => {
 
 
     const options: CreateStorageOptions = {
-      initialCycles: 0n,
-      subnetId: [],
-      canisterId: [preCreatedCanisterId],
+      target: {
+        Existing: preCreatedCanisterId,
+      },
       releaseSelector: { LatestDraft: null },
       initArg: IDL.encode([], []),
     };

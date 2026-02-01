@@ -11,6 +11,7 @@ export type {
   StorageCreationRecord,
   ReleaseSelector,
   Progress,
+  TargetCanister,
   // Releases types
   ReleasesFullStatus,
   ReleaseFullStatus,

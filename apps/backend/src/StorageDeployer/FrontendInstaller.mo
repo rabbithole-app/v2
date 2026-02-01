@@ -19,7 +19,19 @@ module FrontendInstaller {
   /// Re-export TarExtractor.Status for external use
   public type ExtractionStatus = TarExtractor.Status;
 
-  let MAX_INTEROP_CHUNKS_SIZE : Nat = 2_000_000; // 2MB
+  let MAX_INTEROP_CHUNKS_SIZE : Nat = 1_900_000; // 1.9MB
+
+  /// Maximum number of files per batch to prevent output queue overflow.
+  /// The http-assets library creates parallel async self-calls for each file in create_chunks,
+  /// which can overflow the output queue when too many files are processed at once.
+  /// Keeping this at 5 prevents "could not perform self call" errors in real IC environment
+  /// where parallel message processing (interleaved execution) can cause output queue overflow.
+  /// Note: 10 files works in PocketIC tests but fails in dfx/mainnet due to different scheduling.
+  let MAX_FILES_PER_BATCH : Nat = 5;
+
+  /// Delay between operations in milliseconds.
+  /// This gives the system time to process pending messages and prevents output queue overflow.
+  let OPERATION_DELAY_MS : Nat = 100;
 
   type Operation = (
     Principal,
@@ -111,6 +123,7 @@ module FrontendInstaller {
     switch (Map.get(store.versions, Text.compare, key)) {
       case (?extractor) {
         let assets = TarExtractor.getFiles(extractor);
+
         // Create status FIRST, before adding tasks to queue
         // This ensures status is available immediately after install call
         let status : StatusMutable = #Uploading({
@@ -129,7 +142,11 @@ module FrontendInstaller {
         while (not Queue.isEmpty(assetsQueue)) {
           switch (Queue.popFront(assetsQueue)) {
             case (?asset) {
-              if (collectedSize + asset.size > MAX_INTEROP_CHUNKS_SIZE and Vector.size(partition) > 0) {
+              // Check both size limit AND file count limit to prevent output queue overflow
+              let shouldFlush = (collectedSize + asset.size > MAX_INTEROP_CHUNKS_SIZE or Vector.size(partition) >= MAX_FILES_PER_BATCH)
+                and Vector.size(partition) > 0;
+
+              if (shouldFlush) {
                 Queue.pushBack(store.queue, (targetCanisterId, #UploadChunks(Vector.toArray(partition))));
                 Vector.clear(partition);
                 collectedSize := 0;
@@ -201,63 +218,65 @@ module FrontendInstaller {
             return;
           };
         };
+
         let assetsCanister = actor (Principal.toText(canisterId)) : HttpAssetsTypes.AssetsInterface;
-        switch (operation) {
-          case (#CreateBatch) {
-            let { batch_id } = await assetsCanister.create_batch({});
-            ignore Map.insert(store.batches, Principal.compare, canisterId, batch_id);
-          };
-          case (#UploadChunks(assets)) {
-            let ?batchId = Map.get(store.batches, Principal.compare, canisterId) else return;
-            let { chunk_ids } = await assetsCanister.create_chunks({
-              batch_id = batchId;
-              content = assets.vals() |> Iter.map(_, func({ content }) = content) |> Iter.toArray(_);
-            });
-            switch (status) {
-              case (#Uploading(uploading)) {
-                uploading.processed += assets.vals() |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
-                uploading.processedFilesCount += assets.size();
-              };
-              case _ {};
+
+        try {
+          switch (operation) {
+            case (#CreateBatch) {
+              let { batch_id } = await assetsCanister.create_batch({});
+              ignore Map.insert(store.batches, Principal.compare, canisterId, batch_id);
             };
-            let operations = Iter.zip(assets.vals(), chunk_ids.vals()) |> Iter.flatMap<(Types.File, Nat), HttpAssetsTypes.BatchOperationKind>(
-              _,
-              func((file, chunkId)) {
-                let encoding = if (Text.endsWith(file.key, #text ".gz")) "gzip" else if (Text.endsWith(file.key, #text ".br")) "br" else "identity";
-                Iter.fromArray<HttpAssetsTypes.BatchOperationKind>([
-                  #CreateAsset({
-                    key = file.key;
-                    content_type = file.contentType;
-                    headers = ?[];
-                    allow_raw_access = ?false;
-                    max_age = null;
-                    enable_aliasing = ?Text.endsWith(file.key, #text "index.html");
-                  }),
-                  #SetAssetContent({
-                    key = file.key;
-                    sha256 = ?file.sha256;
-                    chunk_ids = [chunkId];
-                    content_encoding = encoding;
-                  }),
-                ]);
-              },
-            ) |> Iter.toArray(_);
-            switch (Map.get(store.operations, Principal.compare, canisterId)) {
-              case (?vector) {
-                for (operation in operations.vals()) {
-                  Vector.add(vector, operation);
+            case (#UploadChunks(assets)) {
+              let ?batchId = Map.get(store.batches, Principal.compare, canisterId) else return;
+              let { chunk_ids } = await assetsCanister.create_chunks({
+                batch_id = batchId;
+                content = assets.vals() |> Iter.map(_, func({ content }) = content) |> Iter.toArray(_);
+              });
+              switch (status) {
+                case (#Uploading(uploading)) {
+                  uploading.processed += assets.vals() |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
+                  uploading.processedFilesCount += assets.size();
+                };
+                case _ {};
+              };
+              let operations = Iter.zip(assets.vals(), chunk_ids.vals()) |> Iter.flatMap<(Types.File, Nat), HttpAssetsTypes.BatchOperationKind>(
+                _,
+                func((file, chunkId)) {
+                  let encoding = if (Text.endsWith(file.key, #text ".gz")) "gzip" else if (Text.endsWith(file.key, #text ".br")) "br" else "identity";
+                  Iter.fromArray<HttpAssetsTypes.BatchOperationKind>([
+                    #CreateAsset({
+                      key = file.key;
+                      content_type = file.contentType;
+                      headers = ?[];
+                      allow_raw_access = ?false;
+                      max_age = null;
+                      enable_aliasing = ?Text.endsWith(file.key, #text "index.html");
+                    }),
+                    #SetAssetContent({
+                      key = file.key;
+                      sha256 = ?file.sha256;
+                      chunk_ids = [chunkId];
+                      content_encoding = encoding;
+                    }),
+                  ]);
+                },
+              ) |> Iter.toArray(_);
+              switch (Map.get(store.operations, Principal.compare, canisterId)) {
+                case (?vector) {
+                  for (op in operations.vals()) {
+                    Vector.add(vector, op);
+                  };
+                };
+                case null {
+                  let vector = Vector.fromArray<HttpAssetsTypes.BatchOperationKind>(operations);
+                  Map.add(store.operations, Principal.compare, canisterId, vector);
                 };
               };
-              case null {
-                let vector = Vector.fromArray<HttpAssetsTypes.BatchOperationKind>(operations);
-                Map.add(store.operations, Principal.compare, canisterId, vector);
-              };
             };
-          };
-          case (#CommitBatch) {
-            let ?batchId = Map.get(store.batches, Principal.compare, canisterId) else return;
-            let ?operations = Map.get(store.operations, Principal.compare, canisterId) else return;
-            try {
+            case (#CommitBatch) {
+              let ?batchId = Map.get(store.batches, Principal.compare, canisterId) else return;
+              let ?operations = Map.get(store.operations, Principal.compare, canisterId) else return;
               ignore Map.insert(store.statuses, Principal.compare, canisterId, #Committing);
               await assetsCanister.commit_batch({
                 batch_id = batchId;
@@ -266,12 +285,17 @@ module FrontendInstaller {
               ignore Map.insert(store.statuses, Principal.compare, canisterId, #Completed);
               Map.remove(store.operations, Principal.compare, canisterId);
               Map.remove(store.batches, Principal.compare, canisterId);
-            } catch (error) {
-              ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(Error.message(error)));
             };
           };
+
+          // Schedule next iteration with delay to prevent output queue overflow
+          store.timerId := ?Timer.setTimer<system>(#milliseconds OPERATION_DELAY_MS, func() : async () { await runProcessor<system>(store) });
+        } catch (error) {
+          let errorMsg = Error.message(error);
+          ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errorMsg));
+          // Don't schedule next iteration - stop processing for this canister
+          store.timerId := null;
         };
-        store.timerId := ?Timer.setTimer<system>(#milliseconds 0, func() : async () { await runProcessor<system>(store) });
       };
       case null {
         cancel<system>(store);

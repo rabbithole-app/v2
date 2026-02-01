@@ -31,6 +31,7 @@ module StorageDeployerOrchestrator {
   public type File = Types.File;
   public type FileMetadata = Types.FileMetadata;
   public type ReleaseSelector = Types.ReleaseSelector;
+  public type TargetCanister = Types.TargetCanister;
   public type CreateStorageOptions = Types.CreateStorageOptions;
   public type CreateStorageError = Types.CreateStorageError;
   public type CreationStatus = Types.CreationStatus;
@@ -276,9 +277,14 @@ module StorageDeployerOrchestrator {
     };
 
     // 3. Create history record
+    let existingCanisterId = switch (options.target) {
+      case (#Existing(id)) ?id;
+      case (#Create(_)) null;
+    };
+
     let record : StorageCreationRecordMutable = {
       owner = caller;
-      var canisterId = options.canisterId;
+      var canisterId = existingCanisterId;
       releaseTag;
       initArg = options.initArg;
       var wasmHash = null;
@@ -290,12 +296,12 @@ module StorageDeployerOrchestrator {
     ignore Map.insert(store.creations, Principal.compare, caller, record);
 
     // 4. Add tasks to queue
-    switch (options.canisterId) {
-      case (?existingId) {
+    switch (options.target) {
+      case (#Existing(existingId)) {
         // Link existing canister
         Queue.pushBack(store.taskQueue, { owner = caller; taskType = #LinkCanister({ canisterId = existingId }) });
       };
-      case null {
+      case (#Create(_)) {
         // Create new canister
         Queue.pushBack(store.taskQueue, { owner = caller; taskType = #CreateCanister({ options }) });
       };
@@ -371,11 +377,7 @@ module StorageDeployerOrchestrator {
               await StorageDeployer.createStorage(
                 store.storageDeployer,
                 task.owner,
-                {
-                  initialCycles = options.initialCycles;
-                  canisterId = null;
-                  subnetId = options.subnetId;
-                },
+                options,
               )
             ) {
               case (#ok(canisterId)) {
@@ -529,7 +531,8 @@ module StorageDeployerOrchestrator {
           };
 
           case (#WaitForFrontend({ canisterId })) {
-            switch (FrontendInstaller.getInstallationStatus(store.frontendInstaller, canisterId)) {
+            let installStatus = FrontendInstaller.getInstallationStatus(store.frontendInstaller, canisterId);
+            switch (installStatus) {
               case (?#Completed) {
                 Queue.pushBack(
                   store.taskQueue,
@@ -542,6 +545,23 @@ module StorageDeployerOrchestrator {
               case (?#Failed(e)) {
                 record.status := #Failed("Frontend installation failed: " # e);
               };
+              case (?#Committing) {
+                // Committing is in progress - just wait with delay
+                store.orchestratorTimerId := ?Timer.setTimer<system>(
+                  #milliseconds 500,
+                  func() : async () {
+                    Queue.pushBack(
+                      store.taskQueue,
+                      {
+                        owner = task.owner;
+                        taskType = #WaitForFrontend({ canisterId });
+                      },
+                    );
+                    await processOrchestratorQueue<system>(store);
+                  },
+                );
+                return; // Don't schedule default iteration
+              };
               case (?#Uploading(progress)) {
                 record.status := #UploadingFrontend({
                   canisterId;
@@ -550,22 +570,39 @@ module StorageDeployerOrchestrator {
                     total = progress.total;
                   };
                 });
-                Queue.pushBack(
-                  store.taskQueue,
-                  {
-                    owner = task.owner;
-                    taskType = #WaitForFrontend({ canisterId });
+                // Use longer delay (500ms) before re-checking to avoid competing with FrontendInstaller
+                // This prevents output queue overflow from parallel message processing
+                store.orchestratorTimerId := ?Timer.setTimer<system>(
+                  #milliseconds 500,
+                  func() : async () {
+                    Queue.pushBack(
+                      store.taskQueue,
+                      {
+                        owner = task.owner;
+                        taskType = #WaitForFrontend({ canisterId });
+                      },
+                    );
+                    await processOrchestratorQueue<system>(store);
                   },
                 );
+                return; // Don't schedule default iteration
               };
               case _ {
-                Queue.pushBack(
-                  store.taskQueue,
-                  {
-                    owner = task.owner;
-                    taskType = #WaitForFrontend({ canisterId });
+                // Use longer delay for unknown states too
+                store.orchestratorTimerId := ?Timer.setTimer<system>(
+                  #milliseconds 500,
+                  func() : async () {
+                    Queue.pushBack(
+                      store.taskQueue,
+                      {
+                        owner = task.owner;
+                        taskType = #WaitForFrontend({ canisterId });
+                      },
+                    );
+                    await processOrchestratorQueue<system>(store);
                   },
                 );
+                return; // Don't schedule default iteration
               };
             };
           };
@@ -597,7 +634,7 @@ module StorageDeployerOrchestrator {
 
         // Schedule next iteration
         store.orchestratorTimerId := ?Timer.setTimer<system>(
-          #milliseconds 0,
+          #milliseconds 100,
           func() : async () { await processOrchestratorQueue<system>(store) },
         );
       };

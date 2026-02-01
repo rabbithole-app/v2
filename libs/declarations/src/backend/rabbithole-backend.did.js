@@ -11,12 +11,17 @@ export const idlFactory = ({ IDL }) => {
     'Latest' : IDL.Null,
     'LatestDraft' : IDL.Null,
   });
+  const TargetCanister = IDL.Variant({
+    'Existing' : IDL.Principal,
+    'Create' : IDL.Record({
+      'initialCycles' : IDL.Nat,
+      'subnetId' : IDL.Opt(IDL.Principal),
+    }),
+  });
   const CreateStorageOptions = IDL.Record({
-    'initialCycles' : IDL.Nat,
-    'subnetId' : IDL.Opt(IDL.Principal),
     'releaseSelector' : ReleaseSelector,
+    'target' : TargetCanister,
     'initArg' : IDL.Vec(IDL.Nat8),
-    'canisterId' : IDL.Opt(IDL.Principal),
   });
   const BlockIndex = IDL.Nat64;
   const NotifyError = IDL.Variant({
@@ -232,7 +237,6 @@ export const idlFactory = ({ IDL }) => {
     'addCanister' : IDL.Func([IDL.Principal], [], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
     'createStorage' : IDL.Func([CreateStorageOptions], [Result], []),
-    'cyclesToE8s' : IDL.Func([IDL.Nat], [IDL.Nat], []),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteProfile' : IDL.Func([], [], []),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
@@ -262,12 +266,12 @@ export const idlFactory = ({ IDL }) => {
     'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
     'listStorages' : IDL.Func([], [IDL.Vec(StorageCreationRecord)], ['query']),
     'removeAvatar' : IDL.Func([IDL.Text], [], []),
+    'resetStorageDeployer' : IDL.Func([], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
-    'whoami' : IDL.Func([], [IDL.Text], ['query']),
   });
   return Rabbithole;
 };
