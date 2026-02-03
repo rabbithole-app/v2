@@ -57,6 +57,7 @@ export const idlFactory = ({ IDL }) => {
   const CreateStorageError = IDL.Variant({
     'NotifyFailed' : NotifyError,
     'FrontendInstallFailed' : IDL.Text,
+    'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InsufficientAllowance' : IDL.Record({
       'available' : IDL.Nat,
       'required' : IDL.Nat,
@@ -67,7 +68,13 @@ export const idlFactory = ({ IDL }) => {
     'ReleaseNotFound' : IDL.Null,
     'TransferFailed' : TransferFromError,
   });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
+  const DeleteStorageError = IDL.Variant({
+    'NotFailed' : IDL.Null,
+    'NotFound' : IDL.Null,
+    'NotOwner' : IDL.Null,
+  });
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
   const Time = IDL.Int;
   const Profile = IDL.Record({
     'id' : IDL.Principal,
@@ -125,25 +132,6 @@ export const idlFactory = ({ IDL }) => {
     'hasDownloadedRelease' : IDL.Bool,
     'releases' : IDL.Vec(ReleaseFullStatus),
     'completedDownloads' : IDL.Nat,
-  });
-  const Progress = IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat });
-  const CreationStatus = IDL.Variant({
-    'Failed' : IDL.Text,
-    'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'CheckingAllowance' : IDL.Null,
-    'UploadingFrontend' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
-    'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
-    'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'InstallingWasm' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'Pending' : IDL.Null,
   });
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
   const RawQueryHttpRequest = IDL.Record({
@@ -213,15 +201,31 @@ export const idlFactory = ({ IDL }) => {
     'data' : IDL.Vec(Profile),
     'instructions' : IDL.Nat,
   });
-  const StorageCreationRecord = IDL.Record({
+  const Progress = IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat });
+  const CreationStatus = IDL.Variant({
+    'Failed' : IDL.Text,
+    'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'CheckingAllowance' : IDL.Null,
+    'UploadingFrontend' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
+    'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
+    'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'InstallingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'Pending' : IDL.Null,
+  });
+  const StorageInfo = IDL.Record({
+    'id' : IDL.Nat,
     'status' : CreationStatus,
     'completedAt' : IDL.Opt(Time),
-    'owner' : IDL.Principal,
-    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'createdAt' : Time,
     'releaseTag' : IDL.Text,
-    'frontendHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'initArg' : IDL.Vec(IDL.Nat8),
     'canisterId' : IDL.Opt(IDL.Principal),
   });
   const CreateProfileAvatarArgs = IDL.Record({
@@ -236,16 +240,12 @@ export const idlFactory = ({ IDL }) => {
   const Rabbithole = IDL.Service({
     'addCanister' : IDL.Func([IDL.Principal], [], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
-    'createStorage' : IDL.Func([CreateStorageOptions], [Result], []),
+    'createStorage' : IDL.Func([CreateStorageOptions], [Result_1], []),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteProfile' : IDL.Func([], [], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result], []),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
-    'getStorageCreationStatus' : IDL.Func(
-        [],
-        [IDL.Opt(CreationStatus)],
-        ['query'],
-      ),
     'http_request' : IDL.Func(
         [RawQueryHttpRequest],
         [RawQueryHttpResponse],
@@ -264,9 +264,8 @@ export const idlFactory = ({ IDL }) => {
     'isStorageDeployerRunning' : IDL.Func([], [IDL.Bool], ['query']),
     'listCanisters' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
-    'listStorages' : IDL.Func([], [IDL.Vec(StorageCreationRecord)], ['query']),
+    'listStorages' : IDL.Func([], [IDL.Vec(StorageInfo)], ['query']),
     'removeAvatar' : IDL.Func([IDL.Text], [], []),
-    'resetStorageDeployer' : IDL.Func([], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),

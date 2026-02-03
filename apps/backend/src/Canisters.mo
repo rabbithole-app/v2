@@ -3,10 +3,6 @@ import Set "mo:map/Set";
 import Principal "mo:core/Principal";
 
 module {
-  public type Item = {
-    canisterId : Principal;
-    name : ?Text;
-  };
   public type Store = Map.Map<Principal, Set.Set<Principal>>;
   let { phash } = Map;
 

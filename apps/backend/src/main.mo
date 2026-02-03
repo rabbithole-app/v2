@@ -199,15 +199,16 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
     StorageDeployerOrchestrator.createStorage<system>(storageOrchestrator, caller, options);
   };
 
-  // Get current status of storage creation for the caller
-  public query ({ caller }) func getStorageCreationStatus() : async ?StorageDeployerOrchestrator.CreationStatus {
-    StorageDeployerOrchestrator.getCreationStatus(storageOrchestrator, caller);
-  };
-
-  // List all storages for the caller (includes history)
-  public query ({ caller }) func listStorages() : async [StorageDeployerOrchestrator.StorageCreationRecord] {
+  // List all storages for the caller with their current status
+  public query ({ caller }) func listStorages() : async [StorageDeployerOrchestrator.StorageInfo] {
     assert not Principal.isAnonymous(caller);
     StorageDeployerOrchestrator.listStorages(storageOrchestrator, caller);
+  };
+
+  // Delete a failed storage record
+  public shared ({ caller }) func deleteStorage(storageId : Nat) : async Result.Result<(), StorageDeployerOrchestrator.DeleteStorageError> {
+    assert not Principal.isAnonymous(caller);
+    StorageDeployerOrchestrator.deleteStorage(storageOrchestrator, caller, storageId);
   };
 
   // Admin: Start storage deployer (if not already running)

@@ -37,6 +37,7 @@ export interface CreateProfileAvatarArgs {
 }
 export type CreateStorageError = { 'NotifyFailed' : NotifyError } |
   { 'FrontendInstallFailed' : string } |
+  { 'CanisterAlreadyUsed' : { 'canisterId' : Principal } } |
   { 'InsufficientAllowance' : { 'available' : bigint, 'required' : bigint } } |
   { 'AlreadyInProgress' : null } |
   { 'UpdateControllersFailed' : string } |
@@ -60,6 +61,9 @@ export type CreationStatus = { 'Failed' : string } |
   { 'Completed' : { 'canisterId' : Principal } } |
   { 'InstallingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
   { 'Pending' : null };
+export type DeleteStorageError = { 'NotFailed' : null } |
+  { 'NotFound' : null } |
+  { 'NotOwner' : null };
 export type ExtractionStatus = { 'Idle' : null } |
   { 'Complete' : Array<FileMetadata> } |
   { 'Decoding' : { 'total' : bigint, 'processed' : bigint } };
@@ -111,12 +115,12 @@ export interface Progress { 'total' : bigint, 'processed' : bigint }
 export interface Rabbithole {
   'addCanister' : ActorMethod<[Principal], undefined>,
   'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
-  'createStorage' : ActorMethod<[CreateStorageOptions], Result>,
+  'createStorage' : ActorMethod<[CreateStorageOptions], Result_1>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
   'deleteProfile' : ActorMethod<[], undefined>,
+  'deleteStorage' : ActorMethod<[bigint], Result>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
-  'getStorageCreationStatus' : ActorMethod<[], [] | [CreationStatus]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
   'http_request_streaming_callback' : ActorMethod<
     [StreamingToken],
@@ -129,9 +133,8 @@ export interface Rabbithole {
   'isStorageDeployerRunning' : ActorMethod<[], boolean>,
   'listCanisters' : ActorMethod<[], Array<Principal>>,
   'listProfiles' : ActorMethod<[ListOptions], GetProfilesResponse>,
-  'listStorages' : ActorMethod<[], Array<StorageCreationRecord>>,
+  'listStorages' : ActorMethod<[], Array<StorageInfo>>,
   'removeAvatar' : ActorMethod<[string], undefined>,
-  'resetStorageDeployer' : ActorMethod<[], undefined>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
@@ -189,18 +192,17 @@ export interface ReleasesFullStatus {
   'completedDownloads' : bigint,
 }
 export type Result = { 'ok' : null } |
+  { 'err' : DeleteStorageError };
+export type Result_1 = { 'ok' : null } |
   { 'err' : CreateStorageError };
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
-export interface StorageCreationRecord {
+export interface StorageInfo {
+  'id' : bigint,
   'status' : CreationStatus,
   'completedAt' : [] | [Time],
-  'owner' : Principal,
-  'wasmHash' : [] | [Uint8Array | number[]],
   'createdAt' : Time,
   'releaseTag' : string,
-  'frontendHash' : [] | [Uint8Array | number[]],
-  'initArg' : Uint8Array | number[],
   'canisterId' : [] | [Principal],
 }
 export type StreamingCallback = ActorMethod<

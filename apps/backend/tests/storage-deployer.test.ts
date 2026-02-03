@@ -9,12 +9,25 @@ import type {
   CreateStorageOptions,
   CreationStatus,
   RabbitholeActorService,
-  StorageCreationRecord
+  StorageInfo
 } from "@rabbithole/declarations";
 
 import { CMC_CANISTER_ID, E8S_PER_ICP, ONE_TRILLION } from "./setup/constants";
 import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 import { Manager } from "./setup/manager";
+
+/**
+ * Helper to find active (in-progress) storage from list
+ */
+function findActiveStorage(storages: StorageInfo[]): StorageInfo | null {
+  for (const storage of storages) {
+    const status = storage.status;
+    if (!("Completed" in status) && !("Failed" in status)) {
+      return storage;
+    }
+  }
+  return null;
+}
 
 /**
  * Helper to format creation status for logging
@@ -40,9 +53,10 @@ function formatCreationStatus(status: CreationStatus): string {
 }
 
 /**
- * Helper to poll creation status until completion or failure
+ * Helper to poll storage status until completion or failure
+ * Uses listStorages to get current status
  */
-async function pollCreationStatus(
+async function pollStorageStatus(
   manager: Manager,
   backendFixture: CanisterFixture<RabbitholeActorService>,
   maxAttempts = 120,
@@ -54,14 +68,25 @@ async function pollCreationStatus(
     await manager.pic.advanceTime(100);
     await manager.pic.tick(5);
 
-    const statusResult = await backendFixture.actor.getStorageCreationStatus();
+    const storages = await backendFixture.actor.listStorages();
+    const activeStorage = findActiveStorage(storages);
 
-    if (statusResult.length === 0) {
+    if (!activeStorage) {
+      // No active storage, check if we have any completed/failed
+      if (storages.length > 0) {
+        const latestStorage = storages[storages.length - 1];
+        const status = latestStorage.status;
+        if ("Completed" in status || "Failed" in status) {
+          finalStatus = status;
+          console.log(`  Status: ${formatCreationStatus(status)}`);
+          break;
+        }
+      }
       attempts++;
       continue;
     }
 
-    const status = statusResult[0] as CreationStatus;
+    const status = activeStorage.status;
 
     if (attempts % 10 === 0 || "Completed" in status || "Failed" in status) {
       console.log(`  Status: ${formatCreationStatus(status)}`);
@@ -306,16 +331,7 @@ describe("StorageDeployer", () => {
 
     const storages = await backendFixture.actor.listStorages();
     expect(Array.isArray(storages)).toBe(true);
-
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
-
-  test("should return null creation status initially for new user", async () => {
-    const newIdentity = createIdentity("newUserForStatusTest");
-    backendFixture.actor.setIdentity(newIdentity);
-
-    const status = await backendFixture.actor.getStorageCreationStatus();
-    expect(status.length).toBe(0);
+    expect(storages.length).toBe(0);
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
@@ -410,9 +426,9 @@ describe("StorageDeployer", () => {
     console.log("Create result:", createResult);
     expect(createResult).toHaveProperty("ok");
 
-    // Poll for completion
+    // Poll for completion using listStorages
     console.log("\n=== Polling Creation Status ===");
-    const finalStatus = await pollCreationStatus(manager, backendFixture);
+    const finalStatus = await pollStorageStatus(manager, backendFixture);
 
     expect(finalStatus).not.toBeNull();
     expect(finalStatus).toHaveProperty("Completed");
@@ -421,9 +437,6 @@ describe("StorageDeployer", () => {
       console.log("\n✓ E2E Storage Creation Completed!");
       const canisterId = finalStatus.Completed.canisterId;
       console.log("  Canister ID:", canisterId.toText());
-      // const storageActor = manager.pic.createActor<EncryptedStorageActorService>(encryptedStorageIdlFactory, canisterId);
-      // const tree = await storageActor.list({});
-      // console.log(tree);
     }
 
     // Verify storage is listed
@@ -432,14 +445,12 @@ describe("StorageDeployer", () => {
     console.log("Number of storages:", storages.length);
     expect(storages.length).toBeGreaterThan(0);
 
-    const storage = storages[0] as StorageCreationRecord;
-    console.log("Storage record:", {
-      owner: storage.owner.toText(),
+    const storage = storages[0] as StorageInfo;
+    console.log("Storage info:", {
+      id: storage.id,
       canisterId: storage.canisterId.length > 0 ? storage.canisterId[0].toText() : "none",
       releaseTag: storage.releaseTag,
       status: Object.keys(storage.status)[0],
-      wasmHash: storage.wasmHash.length > 0 ? "present" : "none",
-      frontendHash: storage.frontendHash.length > 0 ? "present" : "none",
     });
 
     expect(storage.status).toHaveProperty("Completed");
@@ -452,7 +463,7 @@ describe("StorageDeployer", () => {
     const duplicateTestIdentity = createIdentity("duplicateTestUser");
     backendFixture.actor.setIdentity(duplicateTestIdentity);
 
-    const options: CreateStorageOptions = {
+    const duplicateOptions: CreateStorageOptions = {
       target: {
         Create: {
           initialCycles: ONE_TRILLION,
@@ -463,21 +474,20 @@ describe("StorageDeployer", () => {
       initArg: IDL.encode([], []),
     };
 
-    const result1 = await backendFixture.actor.createStorage(options);
+    const result1 = await backendFixture.actor.createStorage(duplicateOptions);
 
     if ("ok" in result1) {
-      const status = await backendFixture.actor.getStorageCreationStatus();
-      if (status.length > 0) {
-        const statusKey = Object.keys(status[0])[0];
+      // Check if there's an active creation using listStorages
+      const storages = await backendFixture.actor.listStorages();
+      const activeStorage = findActiveStorage(storages);
 
-        if (!["Completed", "Failed"].includes(statusKey)) {
-          const result2 = await backendFixture.actor.createStorage(options);
-          console.log("Duplicate create result:", result2);
+      if (activeStorage) {
+        const result2 = await backendFixture.actor.createStorage(duplicateOptions);
+        console.log("Duplicate create result:", result2);
 
-          expect(result2).toHaveProperty("err");
-          if ("err" in result2) {
-            expect(result2.err).toHaveProperty("AlreadyInProgress");
-          }
+        expect(result2).toHaveProperty("err");
+        if ("err" in result2) {
+          expect(result2.err).toHaveProperty("AlreadyInProgress");
         }
       }
     }
@@ -497,7 +507,7 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(linkTestIdentity);
 
 
-    const options: CreateStorageOptions = {
+    const linkOptions: CreateStorageOptions = {
       target: {
         Existing: preCreatedCanisterId,
       },
@@ -505,12 +515,12 @@ describe("StorageDeployer", () => {
       initArg: IDL.encode([], []),
     };
 
-    const result = await backendFixture.actor.createStorage(options);
+    const result = await backendFixture.actor.createStorage(linkOptions);
     console.log("Link mode result:", result);
     expect(result).toHaveProperty("ok");
 
-    // Poll for completion
-    const finalStatus = await pollCreationStatus(manager, backendFixture, 60);
+    // Poll for completion using listStorages
+    const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
 
     console.log("Link mode final status:", finalStatus ? formatCreationStatus(finalStatus) : "null");
 
@@ -520,6 +530,10 @@ describe("StorageDeployer", () => {
     if (finalStatus && "Completed" in finalStatus) {
       expect(finalStatus.Completed.canisterId.toText()).toBe(preCreatedCanisterId.toText());
     }
+
+    // Verify storage is listed
+    const storages = await backendFixture.actor.listStorages();
+    expect(storages.length).toBeGreaterThan(0);
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
