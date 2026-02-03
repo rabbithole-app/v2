@@ -1,0 +1,62 @@
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-semibold">Storages</h1>
+  <div hlmButtonGroup>
+    <button
+      hlmBtn
+      variant="outline"
+      size="icon"
+      [disabled]="isLoading()"
+      (click)="refresh()"
+    >
+      @if (isLoading()) {
+        <hlm-spinner size="xs" />
+      } @else {
+        <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+      }
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      [disabled]="isCreating() || hasActiveCreation()"
+      (click)="openCreateDialog()"
+    >
+      <ng-icon hlmIcon name="lucidePlus" size="sm" />
+      Create Storage
+    </button>
+  </div>
+</div>
+
+<!-- Storages List -->
+@if (storages().length > 0) {
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    @for (storage of storages(); track storage.id) {
+      <rbth-feat-storages-storage-card [storage]="storage" />
+    }
+  </div>
+} @else if (isLoading()) {
+  <div hlmEmpty class="min-h-[400px]">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <hlm-spinner />
+      </div>
+      <div hlmEmptyTitle>Loading storages</div>
+      <div hlmEmptyDescription>
+        Fetching your storages from the backend...
+      </div>
+    </div>
+  </div>
+} @else {
+  <div hlmEmpty class="min-h-[400px]">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <ng-icon name="lucideInbox" />
+      </div>
+      <div hlmEmptyTitle>No storages found</div>
+      <div hlmEmptyDescription>
+        Get started by creating a new encrypted storage canister using the
+        button above.
+      </div>
+    </div>
+  </div>
+}
+

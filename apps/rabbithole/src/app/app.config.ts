@@ -22,6 +22,7 @@ import {
   AUTH_MAX_TIME_TO_LIVE,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
+  IS_PRODUCTION_TOKEN,
   MAIN_BACKEND_URL_TOKEN,
   MAIN_CANISTER_ID_TOKEN,
   provideCoreWorker,
@@ -80,6 +81,10 @@ export const appConfig: ApplicationConfig = {
     {
       provide: APP_NAME_TOKEN,
       useValue: environment.appName,
+    },
+    {
+      provide: IS_PRODUCTION_TOKEN,
+      useValue: environment.production,
     },
   ],
 };

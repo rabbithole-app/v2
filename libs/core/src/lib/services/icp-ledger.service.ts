@@ -1,6 +1,10 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
 import { toNullable } from '@dfinity/utils';
-import { AccountIdentifier, SubAccount } from '@icp-sdk/canisters/ledger/icp';
+import {
+  AccountIdentifier,
+  Icrc2ApproveRequest,
+  SubAccount,
+} from '@icp-sdk/canisters/ledger/icp';
 import { Principal } from '@icp-sdk/core/principal';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -52,32 +56,12 @@ export class ICPLedgerService implements LedgerService {
 
   /**
    * Approves a spender to transfer ICP tokens on behalf of the user
-   * @param spender Principal ID of the spender (must be Principal, not Account ID)
-   * @param amount Amount in e8s that the spender can transfer
-   * @param expiresAt Optional expiration date for the approval
+   * @param params Approval parameters matching Icrc2ApproveRequest
    * @returns The block index of the approval transaction
    */
-  async approve(
-    spender: string,
-    amount: bigint,
-    expiresAt?: Date,
-  ): Promise<bigint> {
+  async approve(params: Icrc2ApproveRequest): Promise<bigint> {
     const ledger = this.#ledgerCanister();
-    const spenderPrincipal = Principal.fromText(spender);
-
-    // Convert Date to nanoseconds if provided
-    const expiresAtNanos = expiresAt
-      ? BigInt(expiresAt.getTime()) * BigInt(1_000_000)
-      : undefined;
-
-    return await ledger.icrc2Approve({
-      spender: {
-        owner: spenderPrincipal,
-        subaccount: [],
-      },
-      amount,
-      expires_at: expiresAtNanos,
-    });
+    return await ledger.icrc2Approve(params);
   }
 
   /**

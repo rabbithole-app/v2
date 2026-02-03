@@ -21,9 +21,9 @@ export const appRoutes: Route[] = [
     children: [
       {
         path: '',
-        loadComponent: () =>
-          import('./pages/storages/storages.component').then(
-            (m) => m.StoragesComponent,
+        loadChildren: () =>
+          import('@rabbithole/features/storages').then(
+            (m) => m.storagesRoutes,
           ),
       },
       {

@@ -1,0 +1,127 @@
+<div hlmItem variant="outline" class="w-full">
+  <div hlmItemMedia variant="icon">
+    <ng-icon hlmIcon name="lucideHardDrive" />
+  </div>
+  <div hlmItemContent>
+    <div class="flex flex-wrap items-center gap-2">
+      @if (canisterIdText(); as id) {
+        <core-copy-to-clipboard hlmItemTitle [content]="id">
+          {{ id }}
+        </core-copy-to-clipboard>
+      } @else {
+        <span hlmItemTitle class="text-muted-foreground">Creating...</span>
+      }
+
+      @switch (displayStatus()) {
+        @case ('completed') {
+          <span hlmBadge variant="outline" class="text-xs text-green-600">
+            <ng-icon hlmIcon name="lucideCircleCheck" size="xs" />
+            Ready
+          </span>
+        }
+        @case ('in-progress') {
+          <span
+            hlmBadge
+            variant="secondary"
+            class="text-xs cursor-help"
+            hlmTooltipTrigger
+            [hlmTooltipTrigger]="statusTooltip()"
+          >
+            <hlm-spinner size="text-xs" icon="lucideLoader2" />
+            In Progress
+          </span>
+        }
+        @case ('failed') {
+          <span
+            hlmBadge
+            variant="destructive"
+            class="text-xs cursor-help"
+            hlmTooltipTrigger
+            [hlmTooltipTrigger]="errorMessage() ?? 'Unknown error'"
+          >
+            <ng-icon name="lucideCircleX" />
+            Error
+          </span>
+        }
+        @case ('pending') {
+          <span
+            hlmBadge
+            variant="outline"
+            class="text-xs cursor-help"
+            hlmTooltipTrigger
+            hlmTooltipTrigger="Waiting to start..."
+          >
+            <ng-icon hlmIcon name="lucideCircleDashed" size="xs" />
+            Pending
+          </span>
+        }
+      }
+    </div>
+  </div>
+
+  @if (canisterIdText() && displayStatus() === 'completed') {
+    <div hlmItemActions>
+      <div hlmButtonGroup>
+        <a
+          hlmBtn
+          variant="outline"
+          size="sm"
+          [routerLink]="['/', canisterIdText(), 'drive']"
+        >
+          Open
+          <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
+        </a>
+        <button
+          hlmBtn
+          variant="outline"
+          size="icon-sm"
+          [hlmDropdownMenuTrigger]="actionsMenu"
+        >
+          <ng-icon hlmIcon name="lucideEllipsisVertical" size="sm" />
+        </button>
+      </div>
+
+      <ng-template #actionsMenu>
+        <hlm-dropdown-menu class="w-48">
+          <hlm-dropdown-menu-group>
+            <button hlmDropdownMenuItem (click)="openCanisterFrontend()">
+              <ng-icon hlm name="lucideExternalLink" hlmMenuIcon size="sm" />
+              Open App
+            </button>
+            <button hlmDropdownMenuItem (click)="navigateToCanisterManagement()">
+              <ng-icon hlm name="lucideSettings" hlmMenuIcon size="sm" />
+              Manage Canister
+            </button>
+          </hlm-dropdown-menu-group>
+        </hlm-dropdown-menu>
+      </ng-template>
+    </div>
+  }
+
+  @if (displayStatus() === 'failed') {
+    <div hlmItemActions>
+      @if (isDeleting()) {
+        <button
+          hlmBtn
+          variant="ghost"
+          size="sm"
+          disabled
+        >
+          <hlm-spinner icon="lucideLoader2" size="xs" />
+          Deleting...
+        </button>
+      } @else {
+        <button
+          class="text-destructive hover:text-destructive"
+          hlmBtn
+          variant="outline"
+          size="sm"
+          (click)="deleteStorage()"
+        >
+          <ng-icon hlmIcon name="lucideTrash2" size="sm" />
+          Delete
+        </button>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,242 @@
+@let currentStep = step();
+
+<hlm-dialog-header>
+  <h3 hlmDialogTitle>Create Storage</h3>
+  <p hlmDialogDescription>
+    @switch (currentStep) {
+      @case ('select-mode') {
+        Choose how you want to deploy your encrypted storage.
+      }
+      @case ('configure') {
+        @if (deploymentMode() === 'existing') {
+          Link your existing canister to deploy storage.
+        } @else {
+          Configure your new storage canister settings.
+        }
+      }
+      @case ('creating') {
+        Please wait while your storage is being created...
+      }
+      @case ('error') {
+        Something went wrong during storage creation.
+      }
+    }
+  </p>
+</hlm-dialog-header>
+
+@switch (currentStep) {
+  @case ('select-mode') {
+    <ng-container [ngTemplateOutlet]="selectModeTemplate" />
+  }
+  @case ('configure') {
+    @if (deploymentMode() === 'existing') {
+      <ng-container [ngTemplateOutlet]="existingCanisterTemplate" />
+    } @else {
+      <ng-container [ngTemplateOutlet]="newCanisterTemplate" />
+    }
+  }
+  @case ('creating') {
+    <ng-container [ngTemplateOutlet]="creatingTemplate" />
+  }
+  @case ('error') {
+    <ng-container [ngTemplateOutlet]="errorTemplate" />
+  }
+}
+
+@if (currentStep !== 'creating' || creationStatus()?.type === 'Completed') {
+  <hlm-dialog-footer class="mt-4">
+    @switch (currentStep) {
+      @case ('select-mode') {
+        <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+        <button hlmBtn (click)="goToNextStep()">Next</button>
+      }
+      @case ('configure') {
+        <button hlmBtn variant="outline" (click)="goBack()">
+          <ng-icon hlmIcon name="lucideArrowLeft" size="sm" />
+          Back
+        </button>
+        <button hlmBtn [disabled]="!isFormValid()" (click)="createStorage()">
+          <ng-icon hlmIcon name="lucideRocket" size="sm" />
+          Create Storage
+        </button>
+      }
+      @case ('creating') {
+        @if (creationStatus()?.type === 'Completed') {
+          <button hlmBtn variant="outline" (click)="createAnother()">
+            <ng-icon hlmIcon name="lucidePlus" size="sm" />
+            Create Another
+          </button>
+          <button hlmBtn (click)="viewStorage()">
+            <ng-icon hlmIcon name="lucideExternalLink" size="sm" />
+            View Storage
+          </button>
+        }
+      }
+      @case ('error') {
+        <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+        <button hlmBtn (click)="tryAgain()">Try Again</button>
+      }
+    }
+  </hlm-dialog-footer>
+}
+
+<!-- Step 1: Select Deployment Mode -->
+<ng-template #selectModeTemplate>
+  <div class="mt-4 space-y-3">
+    <hlm-radio-group [value]="deploymentMode()" (valueChange)="selectMode($event)">
+      <!-- Create New Canister Option -->
+      <div
+        class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+        [attr.data-checked]="deploymentMode() === 'new'"
+        role="button"
+        tabindex="0"
+        (click)="selectMode('new')"
+        (keydown.enter)="selectMode('new')"
+        (keydown.space)="selectMode('new'); $event.preventDefault()"
+      >
+        <hlm-radio value="new" class="mt-0.5">
+          <hlm-radio-indicator />
+        </hlm-radio>
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <ng-icon hlmIcon name="lucidePlus" size="sm" />
+            <span class="font-medium">Create new canister</span>
+          </div>
+          <div class="text-muted-foreground text-sm mt-1">
+            Create a brand new canister with ICP and deploy storage to it
+          </div>
+        </div>
+      </div>
+
+      <!-- Use Existing Canister Option -->
+      <div
+        class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+        [attr.data-checked]="deploymentMode() === 'existing'"
+        role="button"
+        tabindex="0"
+        (click)="selectMode('existing')"
+        (keydown.enter)="selectMode('existing')"
+        (keydown.space)="selectMode('existing'); $event.preventDefault()"
+      >
+        <hlm-radio value="existing" class="mt-0.5">
+          <hlm-radio-indicator />
+        </hlm-radio>
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <ng-icon hlmIcon name="lucideLink" size="sm" />
+            <span class="font-medium">Use existing canister</span>
+          </div>
+          <div class="text-muted-foreground text-sm mt-1">
+            Install storage on a canister you already own
+          </div>
+        </div>
+      </div>
+    </hlm-radio-group>
+  </div>
+</ng-template>
+
+<!-- Step 2a: Existing Canister Form -->
+<ng-template #existingCanisterTemplate>
+  <div class="mt-4 space-y-4">
+    <div hlmField>
+      <label hlmFieldLabel for="canisterId">Canister ID</label>
+      <hlm-field-content>
+        <input
+          hlmInput
+          id="canisterId"
+          type="text"
+          placeholder="ryjl3-tyaaa-aaaaa-aaaba-cai"
+          [field]="existingForm.canisterId"
+          [attr.aria-invalid]="canisterIdError()"
+          class="w-full"
+        />
+        @if (canisterIdError(); as error) {
+          <hlm-field-error>{{ error }}</hlm-field-error>
+        }
+      </hlm-field-content>
+    </div>
+
+    <div hlmAlert>
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>Important: Add Backend as Controller</h4>
+      <p hlmAlertDesc>
+        Before proceeding, you must add the backend canister as a controller of
+        your canister. Copy the backend canister ID below and add it to your
+        canister's controllers:
+        <core-copy-to-clipboard [content]="backendCanisterId.toText()">
+          {{ backendCanisterId.toText() }}
+        </core-copy-to-clipboard>
+      </p>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Step 2b: New Canister Form -->
+<ng-template #newCanisterTemplate>
+  <div class="mt-4 space-y-4">
+    <div hlmField orientation="responsive">
+      <label hlmFieldLabel for="cyclesBalance">Starting cycles balance</label>
+      <hlm-field-content>
+        <rbth-feat-canisters-cycles-balance-input
+          id="cyclesBalance"
+          [ngModel]="newFormModel().cyclesBalance"
+          (ngModelChange)="onCyclesBalanceChange($event)"
+          [min]="0.1"
+          [step]="0.1"
+          [max]="100"
+        />
+        <hlm-field-description>
+          Canister creation cost: {{ CANISTER_CREATION_COST_TC }} TC
+        </hlm-field-description>
+      </hlm-field-content>
+    </div>
+
+    <div hlmAlert [variant]="insufficientBalance() ? 'destructive' : 'default'">
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>Cost Summary</h4>
+      <div hlmAlertDesc class="space-y-1">
+        <div class="flex justify-between">
+          <span>Total cost:</span>
+          <span class="font-medium">{{ totalCostICP() }} ICP ({{ totalCyclesTC() }} TC)</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Your balance:</span>
+          <span class="font-medium">{{ walletBalanceICP() }} ICP</span>
+        </div>
+        @if (insufficientBalance()) {
+          <p class="mt-2">
+            Insufficient balance. Please top up your wallet.
+          </p>
+        }
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Creating State -->
+<ng-template #creatingTemplate>
+  <div class="mt-4">
+    @if (creationStatus(); as status) {
+      <rbth-feat-storages-creation-progress [status]="status" />
+    } @else {
+      <hlm-empty>
+        <hlm-empty-header>
+          <hlm-empty-media variant="icon">
+            <hlm-spinner />
+          </hlm-empty-media>
+          <h4 hlmEmptyTitle>Initializing...</h4>
+          <p hlmEmptyDescription>Preparing to create your storage...</p>
+        </hlm-empty-header>
+      </hlm-empty>
+    }
+  </div>
+</ng-template>
+
+<!-- Error State -->
+<ng-template #errorTemplate>
+  <div hlmAlert variant="destructive" class="mt-4">
+    <ng-icon hlm hlmAlertIcon name="lucideCircleAlert" />
+    <h4 hlmAlertTitle>Creation Failed</h4>
+    <p hlmAlertDescription>{{ errorMessage() }}</p>
+  </div>
+</ng-template>

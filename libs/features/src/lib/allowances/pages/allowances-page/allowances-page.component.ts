@@ -6,11 +6,13 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown, lucidePlus } from '@ng-icons/lucide';
 import { toast } from 'ngx-sonner';
 
 import {
+  dateToTimeInNanos,
   ICPLedgerService,
   parseCanisterRejectError,
   provideLedgerActorWithAllowances,
@@ -46,7 +48,7 @@ import { RevokeAllowanceDialogComponent } from '../../components/revoke-allowanc
   templateUrl: './allowances-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    class: 'w-full space-y-4 p-6',
+    class: 'w-full space-y-4',
   },
 })
 export class AllowancesPageComponent {
@@ -117,11 +119,14 @@ export class AllowancesPageComponent {
     const toastId = toast.loading('Approving allowance...');
 
     try {
-      const blockIndex = await this.#ledgerService.approve(
-        data.spenderId,
-        data.amount,
-        data.expiresAt,
-      );
+      const blockIndex = await this.#ledgerService.approve({
+        spender: {
+          owner: Principal.fromText(data.spenderId),
+          subaccount: [],
+        },
+        amount: data.amount,
+        expires_at: data.expiresAt ? dateToTimeInNanos(data.expiresAt) : undefined,
+      });
 
       toast.success(`Allowance approved at block index: ${blockIndex}`, {
         id: toastId,

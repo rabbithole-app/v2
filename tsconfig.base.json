@@ -35,6 +35,9 @@
       "@rabbithole/features/releases": [
         "libs/features/src/lib/releases/index.ts",
       ],
+      "@rabbithole/features/storages": [
+        "libs/features/src/lib/storages/index.ts",
+      ],
       "@rabbithole/pages/dashboard": [
         "libs/pages/src/lib/dashboard/dashboard.component.ts",
       ],

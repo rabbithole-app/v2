@@ -8,7 +8,7 @@ export type {
   CreateStorageOptions,
   CreateStorageError,
   CreationStatus,
-  StorageCreationRecord,
+  StorageInfo,
   ReleaseSelector,
   Progress,
   TargetCanister,

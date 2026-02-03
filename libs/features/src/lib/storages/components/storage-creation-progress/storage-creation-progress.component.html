@@ -1,0 +1,53 @@
+@let info = stageInfo();
+
+<hlm-empty>
+  <hlm-empty-header>
+    <hlm-empty-media variant="icon">
+      @switch (info.stage) {
+        @case ('completed') {
+          <ng-icon name="lucideCheck" class="text-green-500" />
+        }
+        @case ('failed') {
+          <ng-icon name="lucideCircleX" class="text-destructive" />
+        }
+        @default {
+          <hlm-spinner />
+        }
+      }
+    </hlm-empty-media>
+    <h4 hlmEmptyTitle>{{ info.title }}</h4>
+    <p hlmEmptyDescription>{{ info.description }}</p>
+    @if (info.canisterId) {
+      <div class="mt-2">
+        <core-copy-to-clipboard [content]="info.canisterId">
+          {{ info.canisterId }}
+        </core-copy-to-clipboard>
+      </div>
+    }
+  </hlm-empty-header>
+
+  <!-- Progress bar for WASM/Frontend stages -->
+  @if (info.progress !== undefined && info.stage !== 'completed' && info.stage !== 'failed') {
+    <div class="mt-3 w-full max-w-xs mx-auto">
+      <div hlmProgress [value]="info.progress" class="h-2">
+        <hlm-progress-indicator />
+      </div>
+      <p class="mt-1 text-xs text-muted-foreground text-center">
+        {{ info.progress }}%
+      </p>
+    </div>
+  }
+
+  <!-- Stage indicators (dots) -->
+  @if (info.stage !== 'completed' && info.stage !== 'failed') {
+    <div class="mt-3 flex items-center justify-center gap-2">
+      @for (stage of stages; track stage; let i = $index) {
+        <div
+          class="h-1.5 w-8 rounded-full transition-colors"
+          [class.bg-primary]="i <= currentStageIndex()"
+          [class.bg-muted]="i > currentStageIndex()"
+        ></div>
+      }
+    </div>
+  }
+</hlm-empty>
