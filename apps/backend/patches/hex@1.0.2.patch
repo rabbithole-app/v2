@@ -1,0 +1,27 @@
+--- a/.mops/hex@1.0.2/src/lib.mo
++++ b/.mops/hex@1.0.2/src/lib.mo
+@@ -200,13 +200,13 @@
+     if (bytes == []) return options.empty;
+     let encoder = if (options.upper) encodeByteUpper else encodeByte;
+     let texts = Array.map<Nat8, Text>(bytes, func(b) { return options.preItem # encoder(b) });
+-    return options.pre # Text.join(options.sep, texts.vals()) # options.post;
++    return options.pre # Text.join(texts.vals(), options.sep) # options.post;
+   };
+
+   /// Convert an array of byte arrays to hex Text.
+   public func toText2D(bytess : [[Nat8]]) : Text {
+     let texts = Array.map<[Nat8], Text>(bytess, func(bs) { if (bs == []) "0" else toText(bs) });
+-    return "[" # Text.join(", ", texts.vals()) # "]";
++    return "[" # Text.join(texts.vals(), ", ") # "]";
+   };
+
+   /// Convert an array of byte arrays to hex Text with custom separator.
+@@ -221,7 +221,7 @@
+   ) : Text {
+     if (bytess == []) return options.outer.empty;
+     let texts = Array.map<[Nat8], Text>(bytess, func(bs) = toTextFormat(bs, options.inner));
+-    return options.outer.pre # Text.join(options.outer.sep, texts.vals()) # options.outer.post;
++    return options.outer.pre # Text.join(texts.vals(), options.outer.sep) # options.outer.post;
+   };
+
+   /// Convert hex Text into a byte array.

@@ -3,7 +3,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "mops:install": "mops install && ./scripts/apply-patches.sh",
+    "postinstall:mops": "echo 'Run npm run mops:install to install mops dependencies with patches'"
   },
   "peerDependencies": {
     "typescript": "^5"

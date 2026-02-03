@@ -76,6 +76,15 @@ jobs:
         working-directory: apps/backend
         run: |
           mops install
+          # Apply patches for mo:core compatibility
+          if [ -d patches ]; then
+            for patch_file in patches/*.patch; do
+              if [ -f "$patch_file" ]; then
+                echo "Applying patch: $patch_file"
+                patch -p1 < "$patch_file"
+              fi
+            done
+          fi
           dfx build encrypted-storage --network ic
 
       # Generate DID file
