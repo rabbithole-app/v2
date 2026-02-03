@@ -23,6 +23,11 @@ jobs:
       # Install dependencies
       - run: npm ci --legacy-peer-deps
 
+      # Install backend dependencies (required for Nx graph processing)
+      - name: Install backend dependencies
+        working-directory: apps/backend
+        run: npm ci --legacy-peer-deps
+
       # Setup DFX for Motoko compilation
       - name: Setup DFX
         uses: dfinity/setup-dfx@main
