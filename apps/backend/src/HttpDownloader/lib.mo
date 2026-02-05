@@ -28,8 +28,7 @@ module {
   public type Store = Types.Store;
 
   let HTTP_OUTCALL_CYCLES : Nat = 50_000_000_000; // 50B cycles per HTTP request
-  let MAX_RESPONSE_BYTES : Nat64 = 1_500_000; // 1.5MB response limit (buffer for headers)
-  let MAX_CHUNK_SIZE : Nat = 1_000_000; // 1MB per HTTP outcall
+  let MAX_CHUNK_SIZE : Nat = 1_950_000; // 1.95MB per HTTP outcall (50KB buffer for headers)
   let MAX_HTTP_REQUEST_ATTEMPTS : Nat = 3;
 
   func compareHeaders(a : IC.HttpHeader, b : IC.HttpHeader) : Order.Order = Text.compare(a.name, b.name);
@@ -67,7 +66,7 @@ module {
       Set.add(headers, compareHeaders, { name = "Range"; value = rangeHeader });
       let request : IC.HttpRequestArgs = {
         url = args.url;
-        max_response_bytes = ?MAX_RESPONSE_BYTES;
+        max_response_bytes = null;
         headers = Set.values(headers) |> Iter.toArray(_);
         body = null;
         method = #get;
@@ -264,12 +263,12 @@ module {
   func checkDownloads(store : Store) : () {
     for (download in Set.values(store.downloads)) {
       let isEmpty = Map.isEmpty(download.chunkStatuses);
-      let isDownloaded = not isEmpty and Map.all(download.chunkStatuses, func(k, v) = switch (v) { case (#Downloaded _) true; case _ false });
+      let isDownloaded = not isEmpty and Map.all(download.chunkStatuses, func(k : Nat, v : ChunkStatus) : Bool = switch (v) { case (#Downloaded _) true; case _ false });
       if (isDownloaded) {
         // get pointers for downloaded chunks
-        let pointers = Map.entries(download.chunkStatuses) |> Iter.filterMap(_, func(k, v) = switch (k, v) { case (chunkId, #Downloaded(pointer)) ?(chunkId, pointer); case _ null }) |> Iter.toArray(_);
+        let pointers = Map.entries(download.chunkStatuses) |> Iter.filterMap<(Nat, ChunkStatus), (Nat, SizedPointer)>(_, func(k : Nat, v : ChunkStatus) : ?(Nat, SizedPointer) = switch (k, v) { case (chunkId, #Downloaded(pointer)) ?(chunkId, pointer); case _ null }) |> Iter.toArray(_);
         // load chunks from memory region
-        let chunks = pointers.vals() |> Iter.sort(_, func(a, b) = Nat.compare(a.0, b.0)) |> Iter.map<(Nat, SizedPointer), Blob>(_, func((_, (address, size))) : Blob = MemoryRegion.loadBlob(store.region, address, size));
+        let chunks = pointers.vals() |> Iter.sort<(Nat, SizedPointer)>(_, func(a : (Nat, SizedPointer), b : (Nat, SizedPointer)) : Order.Order = Nat.compare(a.0, b.0)) |> Iter.map<(Nat, SizedPointer), Blob>(_, func((_, (address, size))) : Blob = MemoryRegion.loadBlob(store.region, address, size));
         // deallocate old chunks
         var totalLength : Nat = 0;
         for ((_, (address, size)) in pointers.vals()) {

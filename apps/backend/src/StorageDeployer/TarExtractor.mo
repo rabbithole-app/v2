@@ -46,13 +46,15 @@ module TarExtractor {
     pointer : Types.SizedPointer;
     region : MemoryRegion.MemoryRegion;
     gzipDecoder : IncGzipDecoder.Store;
+    isGzipped : Bool;
     var status : Status;
   };
 
-  public func new({ region; pointer } : { region : MemoryRegion.MemoryRegion; pointer : Types.SizedPointer }) : Store {
+  public func new({ region; pointer; isGzipped } : { region : MemoryRegion.MemoryRegion; pointer : Types.SizedPointer; isGzipped : Bool }) : Store {
     {
       region;
       pointer;
+      isGzipped;
       files = Set.empty();
       gzipDecoder = IncGzipDecoder.new(region);
       var status = #Idle;
@@ -61,37 +63,49 @@ module TarExtractor {
 
   public func extract<system>(store : Store) : () {
     store.status := #Decoding({ processed = 0; total = store.pointer.1 });
-    IncGzipDecoder.decode<system>(
-      store.gzipDecoder,
-      {
-        pointer = store.pointer;
-        offset = 0;
-        onProgress = ?(
-          func(progress) {
-            store.status := #Decoding(progress);
-          }
-        );
-        onFinish = ?(
-          func(pointer) {
-            // Gzip decompression complete, now extract tar entries
-            let blob = MemoryRegion.loadBlob(store.region, pointer.0, pointer.1);
-            for (entry in Tar.entries(blob)) {
-              if (entry.typ == #file) {
-                let file = {
-                  key = Text.trimStart(entry.name, #char('.'));
-                  content = entry.content;
-                  contentType = inferContentType(entry.name);
-                  size = entry.size;
-                  sha256 = Sha256.fromBlob(#sha256, entry.content);
-                };
-                Set.add(store.files, compareFiles, file);
-              };
-            };
-            store.status := #Complete;
-          }
-        );
-      },
-    );
+
+    if (store.isGzipped) {
+      // Gzipped tar - use incremental decoder
+      IncGzipDecoder.decode<system>(
+        store.gzipDecoder,
+        {
+          pointer = store.pointer;
+          offset = 0;
+          onProgress = ?(
+            func(progress) {
+              store.status := #Decoding(progress);
+            }
+          );
+          onFinish = ?(
+            func(pointer) {
+              // Gzip decompression complete, now extract tar entries
+              extractTarEntries(store, pointer);
+            }
+          );
+        },
+      );
+    } else {
+      // Plain tar - extract directly without gzip decompression
+      extractTarEntries(store, store.pointer);
+    };
+  };
+
+  // Extract tar entries from blob at given pointer
+  func extractTarEntries(store : Store, pointer : Types.SizedPointer) : () {
+    let blob = MemoryRegion.loadBlob(store.region, pointer.0, pointer.1);
+    for (entry in Tar.entries(blob)) {
+      if (entry.typ == #file) {
+        let file = {
+          key = Text.trimStart(entry.name, #char('.'));
+          content = entry.content;
+          contentType = inferContentType(entry.name);
+          size = entry.size;
+          sha256 = Sha256.fromBlob(#sha256, entry.content);
+        };
+        Set.add(store.files, compareFiles, file);
+      };
+    };
+    store.status := #Complete;
   };
 
   public func cancel<system>(store : Store) : () {

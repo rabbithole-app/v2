@@ -94,10 +94,10 @@ async function extractAndCalculateHashes(
 function getExtractionStatusFromFullStatus(
   status: Awaited<ReturnType<RabbitholeActorService["getReleasesFullStatus"]>>,
 ): ExtractionResult {
-  // Find the first release with a .tar.gz asset
+  // Find the first release with a .tar asset (plain or gzipped)
   for (const release of status.releases) {
     for (const asset of release.assets) {
-      if (asset.name.endsWith(".tar.gz") && asset.extractionStatus.length > 0) {
+      if ((asset.name.endsWith(".tar") || asset.name.endsWith(".tar.gz")) && asset.extractionStatus.length > 0) {
         const extractionStatus = asset.extractionStatus[0];
 
         if ("Complete" in extractionStatus) {

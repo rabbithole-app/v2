@@ -160,8 +160,8 @@ module {
       let response = profilesCollection.update(
         profileToUpdateQuery,
         [
-          ("displayName", Option.map(args.displayName, func v = #Text(v)) |> Option.get(_, #Null) |> #Option _),
-          ("avatarUrl", Option.map(args.avatarUrl, func v = #Text(v)) |> Option.get(_, #Null) |> #Option _),
+          ("displayName", Option.map<Text, ZenDB.Types.Candid>(args.displayName, func(v : Text) : ZenDB.Types.Candid = #Text(v)) |> Option.get(_, #Null) |> #Option _),
+          ("avatarUrl", Option.map<Text, ZenDB.Types.Candid>(args.avatarUrl, func(v : Text) : ZenDB.Types.Candid = #Text(v)) |> Option.get(_, #Null) |> #Option _),
           ("updatedAt", #Int(Time.now())),
         ],
       );

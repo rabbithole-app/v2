@@ -1,7 +1,7 @@
 import type { CanisterFixture } from "@dfinity/pic";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-import type { RabbitholeActorService } from "@rabbithole/declarations";
+import type { ExtractionStatus, RabbitholeActorService } from "@rabbithole/declarations";
 
 import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 import { Manager } from "./setup/manager";
@@ -25,7 +25,7 @@ function formatDownloadStatus(downloadStatus: { Completed: { size: bigint } } | 
 /**
  * Helper to format extraction status for logging
  */
-function formatExtractionStatus(extractionStatus: [] | [{ Complete: Array<{ contentType: string; key: string; sha256: Uint8Array; size: bigint; }> } | { Decoding: { processed: bigint; total: bigint } } | { Idle: null }]): string {
+function formatExtractionStatus(extractionStatus: [] | [ExtractionStatus]): string {
   if (extractionStatus.length === 0) {
     return "N/A";
   }
@@ -137,9 +137,9 @@ describe("GitHub Releases", () => {
       const allDownloaded = firstRelease.assets.every(
         asset => "Completed" in asset.downloadStatus,
       );
-      // Check if all .tar.gz assets are extracted
+      // Check if all .tar/.tar.gz assets are extracted
       const allExtracted = firstRelease.assets.every(asset => {
-        // If no extraction status, it's not a .tar.gz asset
+        // If no extraction status, it's not a tar asset
         if (asset.extractionStatus.length === 0) return true;
         const status = asset.extractionStatus[0];
         return "Complete" in status;

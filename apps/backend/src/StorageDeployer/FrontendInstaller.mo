@@ -75,11 +75,13 @@ module FrontendInstaller {
     };
   };
 
-  /// Add a new version for extraction (still uses timer for gzip decompression)
-  public func add<system>(store : Store, args : { versionKey : Text; hash : Blob; contentPointer : Types.SizedPointer }) : () {
+  /// Add a new version for extraction
+  /// If isGzipped is true, will decompress gzip before parsing tar
+  public func add<system>(store : Store, args : { versionKey : Text; hash : Blob; contentPointer : Types.SizedPointer; isGzipped : Bool }) : () {
     let extractor = TarExtractor.new({
       region = store.region;
       pointer = args.contentPointer;
+      isGzipped = args.isGzipped;
     });
     TarExtractor.extract<system>(extractor);
     Map.add(store.versions, Text.compare, args.versionKey, extractor);
