@@ -121,23 +121,13 @@ jobs:
             exit 1
           fi
 
-      # Create frontend tar.gz archive (root in dist/apps/storage/browser)
-      # IMPORTANT: GNU gzip creates deflate streams that mo:compression library cannot fully decode.
-      # Node.js zlib (based on reference zlib implementation) creates compatible streams.
-      - name: Create frontend tar.gz archive
+      # Create frontend tar archive (without gzip - saves cycles on canister decoding)
+      - name: Create frontend tar archive
         run: |
           cd dist/apps/storage/browser
-          tar -cf - . > ../../../../storage-frontend.tar
+          tar -cf ../../../../storage-frontend.tar .
           cd ../../../../
-          node -e "
-            const fs = require('fs');
-            const zlib = require('zlib');
-            const input = fs.readFileSync('storage-frontend.tar');
-            const output = zlib.gzipSync(input, { level: 6 });
-            fs.writeFileSync('storage-frontend.tar.gz', output);
-          "
-          rm storage-frontend.tar
-          echo "✅ Created storage-frontend.tar.gz (using Node.js zlib)"
+          echo "✅ Created storage-frontend.tar"
 
       # Create JS library archive
       - name: Create library archive
@@ -158,7 +148,7 @@ jobs:
           cp apps/backend/src/declarations/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did || \
           cp apps/backend/.dfx/ic/canisters/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did
           # Archives
-          cp storage-frontend.tar.gz release-artifacts/
+          cp storage-frontend.tar release-artifacts/
           cp encrypted-storage-lib.zip release-artifacts/
           # Create checksums.txt
           cd release-artifacts
@@ -179,7 +169,7 @@ jobs:
             - **encrypted-storage.wasm** - WASM canister module (uncompressed)
             - **encrypted-storage.wasm.gz** - WASM canister module (gzip compressed, for backend download)
             - **encrypted-storage.did** - Candid interface
-            - **storage-frontend.tar.gz** - Frontend application (tar+gzip compressed)
+            - **storage-frontend.tar** - Frontend application (tar archive, no gzip for faster canister processing)
             - **encrypted-storage-lib.zip** - JS library @rabbithole/encrypted-storage
             - **checksums.txt** - SHA256 hashes of all artifacts
 
