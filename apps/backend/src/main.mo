@@ -1,5 +1,6 @@
 import Error "mo:core/Error";
 import Iter "mo:core/Iter";
+import Option "mo:core/Option";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import Timer "mo:core/Timer";
@@ -16,10 +17,11 @@ import Sha256 "mo:sha2/Sha256";
 import Profiles "Profiles";
 import Canisters "Canisters";
 import StorageDeployerOrchestrator "StorageDeployer";
-import StorageDeployer "StorageDeployer/StorageDeployer";
-import GitHubReleases "GitHubReleases";
 
-shared ({ caller = installer }) persistent actor class Rabbithole() = self {
+import GitHubReleases "GitHubReleases";
+import Types "Types";
+
+shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let zendb = ZenDB.newStableStore(null);
   transient let db = ZenDB.launchDefaultDB(zendb);
   transient let profiles = Profiles.Profiles(db);
@@ -133,11 +135,17 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   /*                      Storage Deployer Orchestrator                         */
   /* -------------------------------------------------------------------------- */
 
-  let storageOrchestrator = StorageDeployerOrchestrator.new({
+
+  let defaultGithub : Types.GithubOptions = {
+    apiUrl = "https://api.github.com";
     owner = "rabbithole-app";
     repo = "v2";
-    githubToken = null;
-    assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar.gz")])];
+    token = null;
+  };
+
+  let storageOrchestrator = StorageDeployerOrchestrator.new({
+    github = Option.get(initArgs.github, defaultGithub);
+    assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar")])];
   });
   storageOrchestrator.canisterId := ?canisterId;
 
@@ -149,16 +157,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
     StorageDeployerOrchestrator.stop<system>(storageOrchestrator);
   };
 
-  system func postupgrade() {
-    ignore Timer.setTimer<system>(
-      #seconds 0,
-      func() : async () {
-        await StorageDeployerOrchestrator.start<system>(storageOrchestrator);
-      },
-    );
-  };
-
-  // Initialize on first deploy
+  // Initialize on deploy/upgrade
   ignore Timer.setTimer<system>(
     #seconds 0,
     func() : async () {
@@ -235,5 +234,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole() = self {
   // Get comprehensive status of all releases including download and extraction progress
   public query func getReleasesFullStatus() : async GitHubReleases.ReleasesFullStatus {
     StorageDeployerOrchestrator.getReleasesFullStatus(storageOrchestrator);
+  };
+
+  // Admin: Manually trigger a refresh of releases
+  public shared ({ caller }) func refreshReleases() : async () {
+    assert caller == installer;
+    await StorageDeployerOrchestrator.refreshReleases<system>(storageOrchestrator);
   };
 };

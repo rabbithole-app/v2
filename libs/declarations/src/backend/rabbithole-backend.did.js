@@ -1,4 +1,11 @@
 export const idlFactory = ({ IDL }) => {
+  const GithubOptions = IDL.Record({
+    'token' : IDL.Opt(IDL.Text),
+    'owner' : IDL.Text,
+    'repo' : IDL.Text,
+    'apiUrl' : IDL.Text,
+  });
+  const InitArgs = IDL.Record({ 'github' : IDL.Opt(GithubOptions) });
   const CreateProfileArgs = IDL.Record({
     'username' : IDL.Text,
     'displayName' : IDL.Opt(IDL.Text),
@@ -265,6 +272,7 @@ export const idlFactory = ({ IDL }) => {
     'listCanisters' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
     'listStorages' : IDL.Func([], [IDL.Vec(StorageInfo)], ['query']),
+    'refreshReleases' : IDL.Func([], [], []),
     'removeAvatar' : IDL.Func([IDL.Text], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'startStorageDeployer' : IDL.Func([], [], []),
@@ -274,4 +282,13 @@ export const idlFactory = ({ IDL }) => {
   });
   return Rabbithole;
 };
-export const init = ({ IDL }) => { return []; };
+export const init = ({ IDL }) => {
+  const GithubOptions = IDL.Record({
+    'token' : IDL.Opt(IDL.Text),
+    'owner' : IDL.Text,
+    'repo' : IDL.Text,
+    'apiUrl' : IDL.Text,
+  });
+  const InitArgs = IDL.Record({ 'github' : IDL.Opt(GithubOptions) });
+  return [InitArgs];
+};

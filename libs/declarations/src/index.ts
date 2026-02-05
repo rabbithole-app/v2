@@ -19,7 +19,7 @@ export type {
   AssetDownloadStatus,
   ExtractionStatus,
 } from './backend/rabbithole-backend.did';
-export { idlFactory as rabbitholeIdlFactory } from './backend/rabbithole-backend.did';
+export { idlFactory as rabbitholeIdlFactory, init as initBackend } from './backend/rabbithole-backend.did';
 export type {
   DirectoryColor,
   _SERVICE as EncryptedStorageActorService,

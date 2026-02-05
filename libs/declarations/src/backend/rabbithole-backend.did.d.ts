@@ -78,10 +78,17 @@ export interface GetProfilesResponse {
   'data' : Array<Profile>,
   'instructions' : bigint,
 }
+export interface GithubOptions {
+  'token' : [] | [string],
+  'owner' : string,
+  'repo' : string,
+  'apiUrl' : string,
+}
 export type Header = [string, string];
 export type Icrc1BlockIndex = bigint;
 export type Icrc1Timestamp = bigint;
 export type Icrc1Tokens = bigint;
+export interface InitArgs { 'github' : [] | [GithubOptions] }
 export interface ListOptions {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
   'count' : boolean,
@@ -134,6 +141,7 @@ export interface Rabbithole {
   'listCanisters' : ActorMethod<[], Array<Principal>>,
   'listProfiles' : ActorMethod<[ListOptions], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
+  'refreshReleases' : ActorMethod<[], undefined>,
   'removeAvatar' : ActorMethod<[string], undefined>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,

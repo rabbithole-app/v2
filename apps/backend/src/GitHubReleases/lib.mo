@@ -24,7 +24,6 @@ import Types "Types";
 import HttpDownloader "../HttpDownloader";
 
 module {
-  let GITHUB_API_BASE = "https://api.github.com";
   let HTTP_OUTCALL_CYCLES : Nat = 50_000_000_000; // 50B cycles per HTTP request
   let MAX_RESPONSE_BYTES : Nat64 = 1_500_000; // 1.5MB response limit (buffer for headers)
   let ISO_8601_FORMAT = "YYYY-MM-DDTHH:mm:ssZ";
@@ -39,6 +38,7 @@ module {
   public type Asset = Types.Asset;
   public type GithubAssetKind = Types.GithubAssetKind;
   public type GithubAsset = Types.GithubAsset;
+  public type GithubOptions = Types.GithubOptions;
   public type ReleaseSelector = Types.ReleaseSelector;
   public type AssetDownloadStatus = Types.AssetDownloadStatus;
   public type AssetInfo = Types.AssetInfo;
@@ -55,26 +55,24 @@ module {
 
   /// GitHub releases store containing release data and download state
   public type Store = {
-    owner : Text;
-    repo : Text;
+    github : GithubOptions;
     releases : Set.Set<Types.Release>;
     assets : [(ReleaseSelector, [GithubAsset])]; // (release selector, (storage wasm asset, storage frontend asset))
     downloaderStore : HttpDownloader.Store;
-    var githubToken : ?Text;
   };
 
   // -- Helper Functions --
 
   func findRelease(releases : Set.Set<Types.Release>, draft : Bool, prerelease : Bool) : ?Types.Release {
-    Set.values(releases) |> Iter.filterMap(
+    Set.values(releases) |> Iter.filterMap<Types.Release, Types.Release>(
       _,
-      func release = if (release.draft == draft and release.prerelease == prerelease) ?release else null,
+      func(release : Types.Release) : ?Types.Release = if (release.draft == draft and release.prerelease == prerelease) ?release else null,
     ) |> Iter.sort(_, comparePublishedAt) |> Iter.reverse(_) |> _.next();
   };
 
   // Find release by specific tag
   func findReleaseByTag(releases : Set.Set<Types.Release>, tagName : Text) : ?Types.Release {
-    Set.values(releases) |> Iter.find(_, func release = release.tagName == tagName);
+    Set.values(releases) |> Iter.find<Types.Release>(_, func(release : Types.Release) : Bool = release.tagName == tagName);
   };
 
   // Find release by selector
@@ -94,31 +92,32 @@ module {
   /// Example:
   /// ```motoko
   /// let store = GitHubReleases.new({
-  ///   owner = "my-org";
-  ///   repo = "my-repo";
-  ///   githubToken = ?"ghp_xxx";
+  ///   github = {
+  ///     apiUrl = "https://api.github.com"
+  ///     owner = "my-org";
+  ///     repo = "my-repo";
+  ///     token = ?"ghp_xxx";
+  ///   };
   ///   assets = [(#Latest, [#StorageWASM("app.wasm")])];
   ///   region = null;
   /// });
   /// ```
-  public func new({ owner; repo; githubToken; assets; region } : { owner : Text; repo : Text; githubToken : ?Text; assets : [(ReleaseSelector, [GithubAsset])]; region : ?MemoryRegion.MemoryRegion }) : Store {
+  public func new({ github; assets; region } : Types.Options) : Store {
     {
-      owner;
-      repo;
+      github;
       releases = Set.empty();
       downloaderStore = HttpDownloader.new({
-        httpHeaders = getHeaders(githubToken) |> Set.values(_) |> Iter.toArray(_);
+        httpHeaders = getHeaders(github.token) |> Set.values(_) |> Iter.toArray(_);
         region;
       });
       assets;
-      var githubToken = githubToken;
     };
   };
 
   /// Fetch releases from GitHub API and start downloading configured assets
   public func listReleases(store : Store) : async Result.Result<[Types.Release], Text> {
-    let url = GITHUB_API_BASE # "/repos/" # store.owner # "/" # store.repo # "/releases";
-    let headers = getHeaders(store.githubToken) |> Set.values(_) |> Iter.toArray(_);
+    let url = store.github.apiUrl # "/repos/" # store.github.owner # "/" # store.github.repo # "/releases";
+    let headers = getHeaders(store.github.token) |> Set.values(_) |> Iter.toArray(_);
 
     // Make HTTP request
     let request : IC.HttpRequestArgs = {
@@ -143,8 +142,14 @@ module {
         case (#ok(releases)) releases;
         case (#err(message)) return #err(message);
       };
-      let allReleases = releases.vals() |> Set.fromIter(_, compareReleases);
-      Set.addAll(store.releases, compareReleases, Set.values(allReleases));
+
+      // Replace releases with fresh data from GitHub API
+      // Note: Downloads are keyed by tagName/assetName, existing downloads remain valid
+      // and won't be re-downloaded (checked via HttpDownloader.has)
+      Set.clear(store.releases);
+      for (release in releases.vals()) {
+        Set.add(store.releases, compareReleases, release);
+      };
       for ((selector, assets) in store.assets.vals()) {
         switch (findReleaseBySelector(store.releases, selector)) {
           case (?release) {
@@ -182,7 +187,7 @@ module {
   /// Returns the tag for `#Latest` selector, or the first available selector's release
   public func getLatestReleaseTagName(store : Store) : ?Text {
     // First, try to find #Latest selector
-    let optRelease = switch (Iter.fromArray(store.assets) |> Iter.find(_, func(sel, _) = switch (sel) { case (#Latest) true; case _ false })) {
+    let optRelease = switch (Iter.fromArray(store.assets) |> Iter.find<(ReleaseSelector, [GithubAsset])>(_, func(sel : ReleaseSelector, _ : [GithubAsset]) : Bool = switch (sel) { case (#Latest) true; case _ false })) {
       case (?(_selector, _assets)) findReleaseBySelector(store.releases, #Latest);
       case null {
         // If #Latest not found, take the first available selector
@@ -492,9 +497,9 @@ module {
 
   func latestReleaseAsset(store : Store, kind : GithubAssetKind) : Result.Result<HttpDownloader.DownloadDetails, Text> {
     // Find the first selector that has the requested asset kind
-    let ?(selector, assets) = Iter.fromArray(store.assets) |> Iter.find(
+    let ?(selector, assets) = Iter.fromArray(store.assets) |> Iter.find<(ReleaseSelector, [GithubAsset])>(
       _,
-      func(_, assets : [GithubAsset]) : Bool {
+      func(_ : ReleaseSelector, assets : [GithubAsset]) : Bool {
         for (asset in assets.vals()) {
           switch (kind, asset) {
             case (#StorageWASM, #StorageWASM(_)) return true;

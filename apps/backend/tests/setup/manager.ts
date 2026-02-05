@@ -25,6 +25,7 @@ import {
   cmcIdlFactory,
   type IcpLedgerActorService,
   icpLedgerIdlFactory,
+  initBackend,
   type InstallChunkedCodeArgs,
   type RabbitholeActorService,
   rabbitholeIdlFactory,
@@ -206,6 +207,9 @@ export class Manager {
       wasm: RABBITHOLE_BACKEND_WASM_PATH,
       sender: this.ownerIdentity.getPrincipal(),
       targetSubnetId: this.applicationSubnetId,
+      arg: IDL.encode(initBackend({ IDL }), [{
+        github: []
+      }]),
     });
     const actor = this.pic.createActor<RabbitholeActorService>(
       rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,

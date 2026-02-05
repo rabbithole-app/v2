@@ -3,16 +3,21 @@ import { sha256 } from "@noble/hashes/sha2";
 import { parseRange, Ranges } from 'header-range-parser';
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 
 import { STORAGE_FRONTEND_ARCHIVE_PATH, STORAGE_WASM_PATH } from "./constants";
 
 // GitHub API mock data
 const MOCK_RELEASE_TAG = "v0.1.0-test";
 const MOCK_WASM_ASSET_NAME = "encrypted-storage.wasm.gz";
-const MOCK_FRONTEND_ASSET_NAME = "storage-frontend.tar.gz";
+const MOCK_FRONTEND_ASSET_NAME = "storage-frontend.tar";
 
 const wasmContent = loadFileContent(STORAGE_WASM_PATH);
-const frontendContent = loadFileContent(STORAGE_FRONTEND_ARCHIVE_PATH);
+// Load gzipped file and decompress to get plain tar for mock
+const frontendContentGzipped = loadFileContent(STORAGE_FRONTEND_ARCHIVE_PATH);
+const frontendContent = frontendContentGzipped.length > 0
+  ? new Uint8Array(gunzipSync(frontendContentGzipped))
+  : frontendContentGzipped;
 
 type Asset = {
   contentType: string;
@@ -135,7 +140,7 @@ function mockGithubReleasesResponse(wasmContent: Uint8Array, frontendContent: Ui
       hash: frontendSha256,
       name: MOCK_FRONTEND_ASSET_NAME,
       url: `https://github.com/test/repo/releases/download/${MOCK_RELEASE_TAG}/${MOCK_FRONTEND_ASSET_NAME}`,
-      contentType: 'application/gzip'
+      contentType: 'application/tar'
     }
   ]);
 

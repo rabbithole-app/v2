@@ -8,7 +8,8 @@
       },
       "main": "src/main.mo",
       "type": "motoko",
-      "gzip": true
+      "gzip": true,
+      "init_arg" : "(record { github = opt record { apiUrl = \"http://mock-server:8080\"; owner = \"user\"; repo = \"repo\"; token = null : opt text } })"
     },
     "rabbithole-frontend": {
       "dependencies": [],

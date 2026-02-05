@@ -2,6 +2,7 @@ import Array "mo:core/Array";
 import Map "mo:core/Map";
 import Queue "mo:core/Queue";
 import Principal "mo:core/Principal";
+import Text "mo:core/Text";
 import Timer "mo:core/Timer";
 import Time "mo:core/Time";
 import Option "mo:core/Option";
@@ -49,6 +50,12 @@ module StorageDeployerOrchestrator {
   /// Delay between unified queue operations (ms)
   let UNIFIED_QUEUE_DELAY_MS : Nat = 100;
 
+  /// Maximum retry attempts for GitHub API calls
+  let MAX_GITHUB_RETRY_ATTEMPTS : Nat = 3;
+
+  /// Initial delay for retry backoff (seconds)
+  let INITIAL_RETRY_DELAY_SECONDS : Nat = 5;
+
   // -- Internal Types --
 
   type StorageCreationRecordMutable = {
@@ -85,7 +92,13 @@ module StorageDeployerOrchestrator {
     var githubTimerId : ?Timer.TimerId;
     var downloaderTimerId : ?Timer.TimerId;
     var unifiedTimerId : ?Timer.TimerId;
+    var retryTimerId : ?Timer.TimerId;
     var running : Bool;
+
+    // GitHub fetch status tracking
+    var lastFetchError : ?Text;
+    var lastFetchTime : ?Time.Time;
+    var fetchRetryCount : Nat;
 
     // Task ID counter
     var nextTaskId : Nat;
@@ -115,9 +128,7 @@ module StorageDeployerOrchestrator {
   /// ```
   public func new(
     config : {
-      owner : Text;
-      repo : Text;
-      githubToken : ?Text;
+      github : GitHubReleases.GithubOptions;
       assets : [(GitHubReleases.ReleaseSelector, [GitHubReleases.GithubAsset])];
     }
   ) : Store {
@@ -126,9 +137,7 @@ module StorageDeployerOrchestrator {
       var canisterId = null;
       region;
       githubReleases = GitHubReleases.new({
-        owner = config.owner;
-        repo = config.repo;
-        githubToken = config.githubToken;
+        github = config.github;
         assets = config.assets;
         region = ?region;
       });
@@ -139,7 +148,11 @@ module StorageDeployerOrchestrator {
       var githubTimerId = null;
       var downloaderTimerId = null;
       var unifiedTimerId = null;
+      var retryTimerId = null;
       var running = false;
+      var lastFetchError = null;
+      var lastFetchTime = null;
+      var fetchRetryCount = 0;
       var nextTaskId = 0;
       var nextCreationId = 0;
       creations = Map.empty();
@@ -171,7 +184,11 @@ module StorageDeployerOrchestrator {
     await checkAndDownloadReleases<system>(store);
     store.githubTimerId := ?Timer.recurringTimer<system>(
       #days 1,
-      func() : async () { await checkAndDownloadReleases<system>(store) },
+      func() : async () {
+        // Reset retry count for daily check to allow fresh retry attempts
+        store.fetchRetryCount := 0;
+        await checkAndDownloadReleases<system>(store);
+      },
     );
 
     // 2. Downloader timer (activates when queue has items)
@@ -194,6 +211,12 @@ module StorageDeployerOrchestrator {
 
     cancelTimer(store.unifiedTimerId);
     store.unifiedTimerId := null;
+
+    cancelTimer(store.retryTimerId);
+    store.retryTimerId := null;
+
+    // Reset retry state
+    store.fetchRetryCount := 0;
   };
 
   /// Check if the orchestrator is currently running
@@ -206,8 +229,20 @@ module StorageDeployerOrchestrator {
     if (Queue.isEmpty(store.githubReleases.downloaderStore.requests)) {
       cancelTimer(store.downloaderTimerId);
       store.downloaderTimerId := null;
+
       // Downloads completed - trigger extraction if frontend is ready
       tryStartFrontendExtraction<system>(store);
+
+      // CRITICAL: Recheck queue after extraction - new downloads might have been queued
+      if (not Queue.isEmpty(store.githubReleases.downloaderStore.requests) and Option.isNull(store.downloaderTimerId)) {
+        store.downloaderTimerId := ?Timer.recurringTimer<system>(
+          #milliseconds 100,
+          func() : async () {
+            await HttpDownloader.runRequests(store.githubReleases.downloaderStore);
+            ensureDownloaderTimer<system>(store);
+          },
+        );
+      };
     } else if (Option.isNull(store.downloaderTimerId)) {
       store.downloaderTimerId := ?Timer.recurringTimer<system>(
         #milliseconds 100,
@@ -232,6 +267,7 @@ module StorageDeployerOrchestrator {
                 versionKey;
                 hash = details.sha256;
                 contentPointer = (MemoryRegion.addBlob(store.region, details.content), details.size);
+                isGzipped = Text.endsWith(details.name, #text ".gz");
               },
             );
           };
@@ -255,13 +291,48 @@ module StorageDeployerOrchestrator {
     };
   };
 
-  // Check and download releases from GitHub
+  // Check and download releases from GitHub with retry logic
   func checkAndDownloadReleases<system>(store : Store) : async () {
+    // Cancel any pending retry timer
+    cancelTimer(store.retryTimerId);
+    store.retryTimerId := null;
+
     switch (await GitHubReleases.listReleases(store.githubReleases)) {
       case (#ok(_releases)) {
+        // Success - reset retry state and record success
+        store.fetchRetryCount := 0;
+        store.lastFetchError := null;
+        store.lastFetchTime := ?Time.now();
+
+        // Ensure downloader timer is running for any queued downloads
+        ensureDownloaderTimer<system>(store);
+
+        // Try to start frontend extraction if downloads are complete
         tryStartFrontendExtraction<system>(store);
       };
-      case (#err(_)) {};
+      case (#err(errorMsg)) {
+        // Record error
+        store.lastFetchError := ?errorMsg;
+        store.lastFetchTime := ?Time.now();
+
+        // Schedule retry with exponential backoff if within retry limits
+        if (store.fetchRetryCount < MAX_GITHUB_RETRY_ATTEMPTS) {
+          store.fetchRetryCount += 1;
+
+          // Exponential backoff: 5s, 10s, 20s, 40s, 80s
+          let delaySeconds = INITIAL_RETRY_DELAY_SECONDS * Nat.pow(2, store.fetchRetryCount - 1);
+
+          store.retryTimerId := ?Timer.setTimer<system>(
+            #seconds delaySeconds,
+            func() : async () {
+              if (store.running) {
+                await checkAndDownloadReleases<system>(store);
+              };
+            },
+          );
+        };
+        // After MAX_GITHUB_RETRY_ATTEMPTS, wait for daily timer
+      };
     };
   };
 
@@ -924,5 +995,21 @@ module StorageDeployerOrchestrator {
   public func getReleasesFullStatus(store : Store) : GitHubReleases.ReleasesFullStatus {
     let extractionProvider = createExtractionInfoProvider(store);
     GitHubReleases.getFullStatus(store.githubReleases, extractionProvider);
+  };
+
+  /// Manually trigger a refresh of releases (for debugging/recovery)
+  public func refreshReleases<system>(store : Store) : async () {
+    if (not store.running) return;
+
+    // Reset retry count to allow fresh retries
+    store.fetchRetryCount := 0;
+    store.lastFetchError := null;
+
+    // Cancel any pending retry
+    cancelTimer(store.retryTimerId);
+    store.retryTimerId := null;
+
+    // Trigger fetch
+    await checkAndDownloadReleases<system>(store);
   };
 };

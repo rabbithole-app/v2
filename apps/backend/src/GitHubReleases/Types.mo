@@ -1,7 +1,16 @@
 import Time "mo:core/Time";
 
+import MemoryRegion "mo:memory-region/MemoryRegion";
+
 module {
   // -- Core Types --
+
+  public type GithubOptions = {
+    apiUrl : Text;
+    owner : Text;
+    repo : Text;
+    token : ?Text;
+  };
 
   /// GitHub release information
   public type Release = {
@@ -162,5 +171,11 @@ module {
     getExtractionStatus : (Text) -> ExtractionStatus;
     getDefaultVersionKey : () -> Text;
     getLatestReleaseTagName : () -> ?Text;
+  };
+
+  public type Options = {
+    github : GithubOptions;
+    assets : [(ReleaseSelector, [GithubAsset])];
+    region : ?MemoryRegion.MemoryRegion
   };
 };
