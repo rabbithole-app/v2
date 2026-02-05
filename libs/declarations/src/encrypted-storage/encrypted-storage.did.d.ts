@@ -184,6 +184,10 @@ export interface EncryptedStorageCanister {
   'validate_revoke_permission' : ActorMethod<[RevokePermission], Result>,
   'validate_take_ownership' : ActorMethod<[], Result>,
 }
+export interface EncryptedStorageInitArgs {
+  'vetKeyName' : string,
+  'owner' : Principal,
+}
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
   'sha256' : [] | [Uint8Array | number[]],

@@ -3,6 +3,7 @@ import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Result "mo:core/Result";
+import Timer "mo:core/Timer";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
@@ -19,10 +20,12 @@ import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
 import T "mo:encrypted-storage/Types";
 import Types "Types";
 
-shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = this {
+shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : Types.EncryptedStorageInitArgs) = this {
+  let owner = initArgs.owner;
+
   let keyId : ManagementCanister.VetKdKeyid = {
     curve = #bls12_381_g2;
-    name = "dfx_test_key";
+    name = initArgs.vetKeyName;
   };
   let canisterId = Principal.fromActor(this);
 
@@ -66,6 +69,19 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   };
 
   initInfoJson();
+
+  // Grant installer Commit permission on assets (if installer != owner)
+  // This allows the deployer to upload frontend assets
+  func grantInstallerCommitPermission() : async () {
+    await* assetCanister.grant_permission(owner, {
+      to_principal = installer;
+      permission = #Commit;
+    });
+  };
+
+  if (installer != owner) {
+    ignore Timer.setTimer<system>(#seconds 0, grantInstallerCommitPermission);
+  };
 
   // Create the HTTP App with middleware
   transient let app = Liminal.App({

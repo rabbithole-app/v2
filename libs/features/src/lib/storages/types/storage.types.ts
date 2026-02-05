@@ -21,6 +21,7 @@ export type StorageCreationStatus =
   | { canisterId: Principal; progress: Progress; type: 'UploadingFrontend'; }
   | { canisterId: Principal; type: 'CanisterCreated'; }
   | { canisterId: Principal; type: 'Completed'; }
+  | { canisterId: Principal; type: 'RevokingInstallerPermission'; }
   | { canisterId: Principal; type: 'UpdatingControllers'; }
   | { message: string; type: 'Failed'; }
   | { type: 'CheckingAllowance' }
@@ -34,6 +35,7 @@ export type StorageCreationStatusType =
   | 'InstallingWasm'
   | 'NotifyingCMC'
   | 'Pending'
+  | 'RevokingInstallerPermission'
   | 'TransferringICP'
   | 'UpdatingControllers'
   | 'UploadingFrontend';

@@ -1,5 +1,9 @@
 export const idlFactory = ({ IDL }) => {
   const TreeNode = IDL.Rec();
+  const EncryptedStorageInitArgs = IDL.Record({
+    'vetKeyName' : IDL.Text,
+    'owner' : IDL.Principal,
+  });
   const CertifiedTree = IDL.Record({
     'certificate' : IDL.Vec(IDL.Nat8),
     'tree' : IDL.Vec(IDL.Nat8),
@@ -392,4 +396,10 @@ export const idlFactory = ({ IDL }) => {
   });
   return EncryptedStorageCanister;
 };
-export const init = ({ IDL }) => { return []; };
+export const init = ({ IDL }) => {
+  const EncryptedStorageInitArgs = IDL.Record({
+    'vetKeyName' : IDL.Text,
+    'owner' : IDL.Principal,
+  });
+  return [EncryptedStorageInitArgs];
+};

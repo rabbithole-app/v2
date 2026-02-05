@@ -41,7 +41,11 @@ export class WasmInstallService {
   });
   #uploadFile = new Subject<File>();
 
-  async install(wasm: File, mode: IcManagementDid.canister_install_mode) {
+  async install(
+    wasm: File,
+    mode: IcManagementDid.canister_install_mode,
+    initArg: Uint8Array = new Uint8Array(),
+  ) {
     const ab = await wasm.arrayBuffer();
     const u8 = arrayBufferToUint8Array(ab);
     const wasmModuleHash = sha256(u8);
@@ -82,7 +86,7 @@ export class WasmInstallService {
         wasmModuleHash,
         targetCanisterId: this.#canisterId,
         mode,
-        arg: new Uint8Array(),
+        arg: initArg,
       });
 
       this.#state.set({ status: 'completed' });

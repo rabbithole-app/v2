@@ -24,6 +24,7 @@ import FrontendInstaller "FrontendInstaller";
 import Types "Types";
 import LedgerTypes "LedgerTypes";
 import CMCTypes "CMCTypes";
+import HttpAssetsTypes "mo:http-assets/BaseAssets/Types";
 
 module StorageDeployerOrchestrator {
 
@@ -592,13 +593,43 @@ module StorageDeployerOrchestrator {
             case (#FrontendCommitBatch(args)) {
               switch (await FrontendInstaller.executeCommitBatch(store.frontendInstaller, args.canisterId)) {
                 case (#ok()) {
-                  // Frontend complete - queue controller update
-                  queueUpdateControllers(store, task.creationId, args.canisterId);
+                  // Frontend complete - revoke installer permission, then update controllers
+                  queueRevokeInstallerPermission(store, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
                   handleTaskFailure(store, task.creationId, "Frontend commit failed: " # e);
                 };
               };
+            };
+            case (#RevokeInstallerPermission(args)) {
+              let ?deployerCanisterId = store.canisterId else {
+                handleTaskFailure(store, task.creationId, "Deployer canister ID not set");
+                return;
+              };
+
+              // Update status
+              switch (getCreationById(store, task.creationId)) {
+                case (?record) {
+                  record.status := #RevokingInstallerPermission({ canisterId = args.canisterId });
+                };
+                case null {};
+              };
+
+              // Use http-assets interface to revoke permission
+              let assetsCanister = actor (Principal.toText(args.canisterId)) : HttpAssetsTypes.AssetsInterface;
+
+              try {
+                await assetsCanister.revoke_permission({
+                  of_principal = deployerCanisterId;
+                  permission = #Commit;
+                });
+              } catch (error) {
+                // Log but don't fail - permission might already be revoked
+                // Or installer might not have had permission (owner == installer case)
+              };
+
+              // After revoke - queue controller update
+              queueUpdateControllers(store, task.creationId, args.canisterId);
             };
           };
         } catch (error) {
@@ -786,6 +817,21 @@ module StorageDeployerOrchestrator {
         owner = record.owner;
         taskType = #UpdateControllers({ canisterId });
       });
+      var attempts = 0;
+    };
+    store.nextTaskId += 1;
+    Queue.pushBack(store.unifiedQueue, task);
+  };
+
+  /// Queue task to revoke installer's Commit permission
+  func queueRevokeInstallerPermission(store : Store, creationId : Nat, canisterId : Principal) {
+    let ?record = getCreationById(store, creationId) else return;
+
+    let task : UnifiedTask = {
+      id = store.nextTaskId;
+      creationId;
+      owner = record.owner;
+      taskType = #RevokeInstallerPermission({ canisterId });
       var attempts = 0;
     };
     store.nextTaskId += 1;

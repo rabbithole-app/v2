@@ -151,6 +151,7 @@ export class StorageCreationProgressComponent {
       case 'InstallingWasm':
         return 'installing-wasm';
 
+      case 'RevokingInstallerPermission':
       case 'UpdatingControllers':
         return 'finalizing';
 

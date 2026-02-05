@@ -270,6 +270,22 @@
             </div>
           </hlm-radio-group>
       </div>
+
+      <!-- Init Argument -->
+      <h3 rbthDrawerSeparator>Init Argument (hex)</h3>
+      <div class="px-4">
+        <textarea
+          hlmTextarea
+          class="font-mono text-xs min-h-24"
+          placeholder="Hex-encoded init argument"
+          [value]="initArgHex()"
+          (input)="initArgHex.set($any($event.target).value)"
+        ></textarea>
+        <p class="text-muted-foreground text-xs mt-2">
+          Candid-encoded initialization argument in hexadecimal format.
+          Default value is generated for the current user.
+        </p>
+      </div>
     }
 
       <!-- Progress -->
@@ -306,4 +322,3 @@
     </rbth-drawer-footer>
   </rbth-drawer-content>
 </rbth-drawer>
-

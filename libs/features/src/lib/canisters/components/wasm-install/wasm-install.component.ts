@@ -10,7 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { toNullable } from '@dfinity/utils';
+import { hexStringToUint8Array, toNullable, uint8ArrayToHexString } from '@dfinity/utils';
 import type { IcManagementDid } from '@icp-sdk/canisters/ic-management';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -26,7 +26,13 @@ import type { ClassValue } from 'clsx';
 import { toast } from 'ngx-sonner';
 import { match, P } from 'ts-pattern';
 
-import { FileSystemAccessService, FormatBytesPipe } from '@rabbithole/core';
+import { AUTH_SERVICE } from '@rabbithole/auth';
+import {
+  encodeStorageInitArgs,
+  FileSystemAccessService,
+  FormatBytesPipe,
+  IS_PRODUCTION_TOKEN,
+} from '@rabbithole/core';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -45,6 +51,7 @@ import { HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
+import { HlmTextarea } from '@spartan-ng/helm/textarea';
 import { hlm } from '@spartan-ng/helm/utils';
 
 import { WasmInstallService } from '../../services';
@@ -63,6 +70,7 @@ import { WasmInstallTriggerDirective } from './wasm-install-trigger.directive';
     ...HlmSelectImports,
     ...HlmSpinnerImports,
     ...HlmTabsImports,
+    HlmTextarea,
     BrnSheetContent,
     RbthDrawerComponent,
     RbthDrawerContentComponent,
@@ -103,6 +111,7 @@ export class WasmInstallComponent {
     }
     return null;
   });
+  readonly initArgHex = signal<string>('');
   readonly installMode = signal<'install' | 'reinstall' | 'upgrade'>('upgrade');
   readonly selectedFile = signal<File | null>(null);
   readonly isButtonDisabled = computed(() => {
@@ -147,7 +156,9 @@ export class WasmInstallComponent {
   protected readonly _computedClass = computed(() =>
     hlm('flex flex-col gap-y-4', this.userClass()),
   );
+  readonly #authService = inject(AUTH_SERVICE);
   #fileSystemAccessService = inject(FileSystemAccessService);
+  readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
 
   constructor() {
     // Connect the directive to the drawer via effect
@@ -158,6 +169,9 @@ export class WasmInstallComponent {
         trigger.setDrawer(drawer);
       }
     });
+
+    // Generate default initArg on initialization
+    this.#generateDefaultInitArg();
   }
 
   async fileOpen() {
@@ -244,7 +258,10 @@ export class WasmInstallComponent {
           default:
             throw new Error('Invalid install mode');
         }
-        await this.#wasmInstallService.install(file, mode);
+        // Convert hex initArg to Uint8Array
+        const initArg = hexStringToUint8Array(this.initArgHex());
+
+        await this.#wasmInstallService.install(file, mode, initArg);
         this.selectedFile.set(null);
         toast.success('WASM installed successfully');
       } catch {
@@ -265,5 +282,13 @@ export class WasmInstallComponent {
     if (value && !Array.isArray(value)) {
       this.wasmMemoryPersistence.set(value);
     }
+  }
+
+  #generateDefaultInitArg(): void {
+    const owner = this.#authService.identity().getPrincipal();
+    const vetKeyName = this.#isProduction ? 'key_1' : 'dfx_test_key';
+    const initArgBytes = encodeStorageInitArgs({ owner, vetKeyName });
+    const hex = uint8ArrayToHexString(initArgBytes);
+    this.initArgHex.set(hex);
   }
 }

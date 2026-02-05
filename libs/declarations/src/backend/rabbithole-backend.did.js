@@ -213,6 +213,9 @@ export const idlFactory = ({ IDL }) => {
     'Failed' : IDL.Text,
     'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'RevokingInstallerPermission' : IDL.Record({
+      'canisterId' : IDL.Principal,
+    }),
     'CheckingAllowance' : IDL.Null,
     'UploadingFrontend' : IDL.Record({
       'progress' : Progress,

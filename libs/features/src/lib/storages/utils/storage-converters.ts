@@ -46,6 +46,10 @@ export function convertCreationStatus(
       progress: convertProgress(progress),
       type: 'UploadingFrontend',
     }))
+    .with({ RevokingInstallerPermission: P.select() }, ({ canisterId }) => ({
+      canisterId,
+      type: 'RevokingInstallerPermission',
+    }))
     .with({ UpdatingControllers: P.select() }, ({ canisterId }) => ({
       canisterId,
       type: 'UpdatingControllers',
@@ -106,6 +110,7 @@ export function getStorageCanisterId(
     status.type === 'CanisterCreated' ||
     status.type === 'InstallingWasm' ||
     status.type === 'UploadingFrontend' ||
+    status.type === 'RevokingInstallerPermission' ||
     status.type === 'UpdatingControllers' ||
     status.type === 'Completed'
   ) {

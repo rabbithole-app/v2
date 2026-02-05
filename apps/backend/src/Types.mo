@@ -75,4 +75,13 @@ module {
   public type InitArgs = {
     github : ?GithubOptions;
   };
+
+  /* -------------------------------------------------------------------------- */
+  /*                    EncryptedStorageCanister Init Args                      */
+  /* -------------------------------------------------------------------------- */
+
+  public type EncryptedStorageInitArgs = {
+    owner : Principal;
+    vetKeyName : Text;
+  };
 };

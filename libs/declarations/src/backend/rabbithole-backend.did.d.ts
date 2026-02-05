@@ -52,6 +52,7 @@ export interface CreateStorageOptions {
 export type CreationStatus = { 'Failed' : string } |
   { 'UpdatingControllers' : { 'canisterId' : Principal } } |
   { 'CanisterCreated' : { 'canisterId' : Principal } } |
+  { 'RevokingInstallerPermission' : { 'canisterId' : Principal } } |
   { 'CheckingAllowance' : null } |
   {
     'UploadingFrontend' : { 'progress' : Progress, 'canisterId' : Principal }
