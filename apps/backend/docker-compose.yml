@@ -11,6 +11,22 @@ services:
       - caddy_data:/data
       - caddy_config:/config
 
+  mock-server:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./mock/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./mock/assets:/usr/share/nginx/html/assets:ro
+      - ./mock/api:/usr/share/nginx/html/api:ro
+    expose:
+      - 8080
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+
   backend:
     build:
       context: .
@@ -32,6 +48,8 @@ services:
     stdin_open: true
     expose:
       - 4943
+    depends_on:
+      - mock-server
 
 volumes:
   caddy_data:

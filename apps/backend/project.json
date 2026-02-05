@@ -77,6 +77,23 @@
         },
         "parallel": false
       }
+    },
+    "generate-mock-assets": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "cp apps/backend/.dfx/local/canisters/encrypted-storage/encrypted-storage.wasm.gz apps/backend/mock/assets/",
+          "tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
+          "node apps/backend/mock/update-sizes.mjs"
+        ],
+        "parallel": false
+      },
+      "dependsOn": [
+        {
+          "target": "build",
+          "projects": ["storage"]
+        }
+      ]
     }
   }
 }

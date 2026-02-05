@@ -1,0 +1,70 @@
+[
+  {
+    "url": "http://mock-server:8080/repos/mock/releases/releases/1",
+    "html_url": "http://mock-server:8080/releases/tag/v0.1.0",
+    "id": 1,
+    "tag_name": "v0.1.0",
+    "name": "Storage v0.1.0",
+    "body": "## Changes\n- Initial release\n- Basic storage functionality",
+    "draft": true,
+    "prerelease": false,
+    "created_at": "2024-01-15T10:00:00Z",
+    "published_at": "2024-01-15T12:00:00Z",
+    "assets": [
+      {
+        "url": "http://mock-server:8080/assets/encrypted-storage.wasm.gz",
+        "id": 101,
+        "name": "encrypted-storage.wasm.gz",
+        "label": "",
+        "content_type": "application/gzip",
+        "size": 621475,
+        "created_at": "2024-01-15T10:00:00Z",
+        "updated_at": "2024-01-15T10:00:00Z"
+      },
+      {
+        "url": "http://mock-server:8080/assets/storage-frontend.tar",
+        "id": 102,
+        "name": "storage-frontend.tar",
+        "label": "",
+        "content_type": "application/x-tar",
+        "size": 6763008,
+        "created_at": "2024-01-15T10:00:00Z",
+        "updated_at": "2024-01-15T10:00:00Z"
+      }
+    ]
+  },
+  {
+    "url": "http://mock-server:8080/repos/mock/releases/releases/2",
+    "html_url": "http://mock-server:8080/releases/tag/v0.0.1-alpha",
+    "id": 2,
+    "tag_name": "v0.0.1-alpha",
+    "name": "Storage v0.0.1 Alpha",
+    "body": "## Alpha Release\n- Early testing version",
+    "draft": false,
+    "prerelease": true,
+    "created_at": "2024-01-01T10:00:00Z",
+    "published_at": "2024-01-01T12:00:00Z",
+    "assets": [
+      {
+        "url": "http://mock-server:8080/assets/encrypted-storage.wasm.gz",
+        "id": 201,
+        "name": "encrypted-storage.wasm.gz",
+        "label": "",
+        "content_type": "application/gzip",
+        "size": 621475,
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z"
+      },
+      {
+        "url": "http://mock-server:8080/assets/storage-frontend.tar",
+        "id": 202,
+        "name": "storage-frontend.tar",
+        "label": "",
+        "content_type": "application/x-tar",
+        "size": 6763008,
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z"
+      }
+    ]
+  }
+]
