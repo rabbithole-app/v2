@@ -84,7 +84,7 @@
         "commands": [
           "cp apps/backend/.dfx/local/canisters/encrypted-storage/encrypted-storage.wasm.gz apps/backend/mock/assets/",
           "tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
-          "node apps/backend/mock/update-sizes.mjs"
+          "node apps/backend/mock/sync-release-metadata.mjs"
         ],
         "parallel": false
       },
