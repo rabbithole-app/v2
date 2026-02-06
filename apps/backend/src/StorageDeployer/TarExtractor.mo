@@ -48,6 +48,7 @@ module TarExtractor {
     gzipDecoder : IncGzipDecoder.Store;
     isGzipped : Bool;
     var status : Status;
+    var decompressedPointer : ?Types.SizedPointer; // Pointer to decompressed tar data (if gzipped)
   };
 
   public func new({ region; pointer; isGzipped } : { region : MemoryRegion.MemoryRegion; pointer : Types.SizedPointer; isGzipped : Bool }) : Store {
@@ -58,6 +59,7 @@ module TarExtractor {
       files = Set.empty();
       gzipDecoder = IncGzipDecoder.new(region);
       var status = #Idle;
+      var decompressedPointer = null;
     };
   };
 
@@ -78,7 +80,9 @@ module TarExtractor {
           );
           onFinish = ?(
             func(pointer) {
-              // Gzip decompression complete, now extract tar entries
+              // Gzip decompression complete, save pointer for later deallocation
+              store.decompressedPointer := ?pointer;
+              // Now extract tar entries
               extractTarEntries(store, pointer);
             }
           );
@@ -110,6 +114,28 @@ module TarExtractor {
 
   public func cancel<system>(store : Store) : () {
     IncGzipDecoder.cancel<system>(store.gzipDecoder);
+  };
+
+  /// Clear all extracted files and deallocate memory
+  /// Call this before removing the store to free memory region resources
+  public func clear<system>(store : Store) : () {
+    // Cancel any ongoing decoding
+    IncGzipDecoder.cancel<system>(store.gzipDecoder);
+
+    // Deallocate the decompressed tar data from memory region
+    switch (store.decompressedPointer) {
+      case (?(address, size)) {
+        MemoryRegion.deallocate(store.region, address, size);
+        store.decompressedPointer := null;
+      };
+      case null {};
+    };
+
+    // Clear the files set - Blob content will be garbage collected
+    Set.clear(store.files);
+
+    // Reset status
+    store.status := #Idle;
   };
 
   public func getStatus(store : Store) : Status {

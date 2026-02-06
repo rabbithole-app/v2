@@ -50,6 +50,8 @@ module {
   public type ReleaseFullStatus = Types.ReleaseFullStatus;
   public type ReleasesFullStatus = Types.ReleasesFullStatus;
   public type ExtractionInfoProvider = Types.ExtractionInfoProvider;
+  public type InvalidatedAsset = Types.InvalidatedAsset;
+  public type ListReleasesResult = Types.ListReleasesResult;
 
   // -- Store --
 
@@ -115,7 +117,10 @@ module {
   };
 
   /// Fetch releases from GitHub API and start downloading configured assets
-  public func listReleases(store : Store) : async Result.Result<[Types.Release], Text> {
+  ///
+  /// Returns releases and a list of invalidated assets (assets whose hash changed).
+  /// The caller should handle invalidation (e.g., clear extracted frontend files).
+  public func listReleases(store : Store) : async Result.Result<ListReleasesResult, Text> {
     let url = store.github.apiUrl # "/repos/" # store.github.owner # "/" # store.github.repo # "/releases";
     let headers = getHeaders(store.github.token) |> Set.values(_) |> Iter.toArray(_);
 
@@ -144,29 +149,62 @@ module {
       };
 
       // Replace releases with fresh data from GitHub API
-      // Note: Downloads are keyed by tagName/assetName, existing downloads remain valid
-      // and won't be re-downloaded (checked via HttpDownloader.has)
       Set.clear(store.releases);
       for (release in releases.vals()) {
         Set.add(store.releases, compareReleases, release);
       };
+
+      // Track invalidated assets (hash changed)
+      let invalidated = Vector.new<InvalidatedAsset>();
+
+      // Process configured assets - check for invalidation and start downloads
       for ((selector, assets) in store.assets.vals()) {
         switch (findReleaseBySelector(store.releases, selector)) {
           case (?release) {
             for (asset in assets.vals()) {
-              let assetName = switch (asset) {
-                case (#StorageWASM name or #StorageFrontend name) name;
+              let (assetName, assetKind) : (Text, Types.GithubAssetKind) = switch (asset) {
+                case (#StorageWASM name) (name, #StorageWASM);
+                case (#StorageFrontend name) (name, #StorageFrontend);
               };
               let key = release.tagName # "/" # assetName;
-              if (not HttpDownloader.has(store.downloaderStore, key)) {
-                ignore downloadAsset(store, release.tagName, assetName);
+
+              // Find new asset info from release
+              let newAssetInfo = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName);
+
+              switch (HttpDownloader.find(store.downloaderStore, key), newAssetInfo) {
+                // Case 1: Existing download AND new asset has sha256 - check for invalidation
+                case (?existingDownload, ?newAsset) {
+                  switch (existingDownload.sha256, newAsset.sha256) {
+                    // Both have hashes - compare them
+                    case (?oldHash, ?newHash) {
+                      if (oldHash != newHash) {
+                        // Hash changed - invalidate and re-download
+                        Vector.add(invalidated, { key; kind = assetKind });
+                        HttpDownloader.remove(store.downloaderStore, key);
+                        ignore downloadAsset(store, release.tagName, assetName);
+                      };
+                      // else: hashes match, keep existing download
+                    };
+                    // Old download has no hash (legacy) - don't invalidate
+                    case (null, _) {};
+                    // New asset has no hash - don't invalidate
+                    case (_, null) {};
+                  };
+                };
+                // Case 2: No existing download - start new download
+                case (null, ?_newAsset) {
+                  ignore downloadAsset(store, release.tagName, assetName);
+                };
+                // Case 3: Asset not found in release - skip
+                case (_, null) {};
               };
             };
           };
           case null {};
         };
       };
-      #ok(releases);
+
+      #ok({ releases; invalidated = Vector.toArray(invalidated) });
     } catch (error) {
       #err("HTTP request failed: " # Error.message(error));
     };
@@ -446,6 +484,12 @@ module {
               case null "application/octet-stream";
             };
 
+            // Get sha256 hash from completed download
+            let sha256 : ?Blob = switch (HttpDownloader.find(store.downloaderStore, key)) {
+              case (?download) download.hash;
+              case null null;
+            };
+
             Vector.add(
               assetInfos,
               {
@@ -454,6 +498,7 @@ module {
                 contentType;
                 downloadStatus;
                 extractionStatus;
+                sha256;
               },
             );
           };

@@ -299,11 +299,25 @@ module StorageDeployerOrchestrator {
     store.retryTimerId := null;
 
     switch (await GitHubReleases.listReleases(store.githubReleases)) {
-      case (#ok(_releases)) {
+      case (#ok({ releases = _; invalidated })) {
         // Success - reset retry state and record success
         store.fetchRetryCount := 0;
         store.lastFetchError := null;
         store.lastFetchTime := ?Time.now();
+
+        // Handle invalidated assets - clear extracted data for frontend assets
+        for ({ key = _; kind } in invalidated.vals()) {
+          switch (kind) {
+            case (#StorageFrontend) {
+              // Invalidate extracted frontend files
+              let versionKey = "storage-frontend@latest";
+              FrontendInstaller.invalidateVersion<system>(store.frontendInstaller, versionKey);
+            };
+            case (#StorageWASM) {
+              // WASM doesn't need additional cleanup - already removed from HttpDownloader
+            };
+          };
+        };
 
         // Ensure downloader timer is running for any queued downloads
         ensureDownloaderTimer<system>(store);

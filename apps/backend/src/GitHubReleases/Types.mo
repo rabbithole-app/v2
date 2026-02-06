@@ -138,6 +138,7 @@ module {
     contentType : Text;
     downloadStatus : AssetDownloadStatus;
     extractionStatus : ?ExtractionStatus;
+    sha256 : ?Blob; // Hash of the downloaded content (null if not yet downloaded)
   };
 
   /// Full status of a release with all asset details
@@ -162,6 +163,20 @@ module {
     defaultVersionKey : Text;
     hasDownloadedRelease : Bool;
     hasDeploymentReadyRelease : Bool;
+  };
+
+  // -- Asset Invalidation --
+
+  /// Information about an invalidated asset (hash changed, re-download required)
+  public type InvalidatedAsset = {
+    key : Text;
+    kind : GithubAssetKind;
+  };
+
+  /// Result of listing releases, includes any invalidated assets
+  public type ListReleasesResult = {
+    releases : [Release];
+    invalidated : [InvalidatedAsset];
   };
 
   // -- Extraction Provider --

@@ -114,6 +114,7 @@ export const idlFactory = ({ IDL }) => {
     'Decoding' : IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat }),
   });
   const AssetFullStatus = IDL.Record({
+    'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'contentType' : IDL.Text,
     'name' : IDL.Text,
     'size' : IDL.Nat,

@@ -91,6 +91,20 @@ module FrontendInstaller {
     Map.remove(store.versions, Text.compare, key);
   };
 
+  /// Invalidate a version: clear extracted files, deallocate memory, and remove from store
+  /// Use this when the source asset has changed (e.g., hash mismatch detected)
+  public func invalidateVersion<system>(store : Store, key : Text) : () {
+    switch (Map.get(store.versions, Text.compare, key)) {
+      case (?extractor) {
+        // Clear and deallocate all resources
+        TarExtractor.clear<system>(extractor);
+      };
+      case null {};
+    };
+    // Remove from versions map
+    Map.remove(store.versions, Text.compare, key);
+  };
+
   public func getFiles(store : Store, key : Text) : [Types.File] {
     switch (Map.get(store.versions, Text.compare, key)) {
       case (?extractor) TarExtractor.getFiles(extractor);

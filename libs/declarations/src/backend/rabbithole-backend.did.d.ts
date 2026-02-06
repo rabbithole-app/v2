@@ -13,6 +13,7 @@ export type AssetDownloadStatus = { 'Error' : string } |
   { 'Completed' : { 'size' : bigint } } |
   { 'NotStarted' : null };
 export interface AssetFullStatus {
+  'sha256' : [] | [Uint8Array | number[]],
   'contentType' : string,
   'name' : string,
   'size' : bigint,
