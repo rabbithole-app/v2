@@ -31,6 +31,9 @@ npx nx build backend
 
 ```
 tests/
+├── fixtures/
+│   ├── minimal-frontend.tar      # Test frontend archive (v1)
+│   └── minimal-frontend-v2.tar   # Test frontend archive (v2, for invalidation tests)
 ├── setup/
 │   ├── constants.ts          # Canister IDs, paths, and constants
 │   ├── github-outcalls.ts    # HTTP outcall mocking for GitHub API
@@ -40,7 +43,7 @@ tests/
 ├── state/
 │   ├── nns_state/            # Unpacked NNS state (after extraction)
 │   └── nns_state.tar.xz      # NNS state archive (must be unpacked!)
-├── github-releases.test.ts   # Tests for GitHub releases download
+├── github-releases.test.ts   # Tests for GitHub releases download and invalidation
 ├── profiles.test.ts          # Tests for user profiles CRUD operations
 ├── storage-deployer.test.ts  # Tests for storage canister deployment with ICP/CMC
 ├── tar-extractor.test.ts     # Tests for tar.gz extraction functionality
@@ -135,14 +138,27 @@ Tests use a pre-saved NNS state that includes:
 For tests that require external HTTP calls (e.g., GitHub API), use the mocking utilities in `setup/github-outcalls.ts`:
 
 ```typescript
-import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
+import { runHttpDownloaderQueueProcessor, frontendV2Content } from "./setup/github-outcalls";
 
+// Basic usage - waits until condition is met while processing HTTP outcalls
 await runHttpDownloaderQueueProcessor(
   manager.pic,
   async () => {
     const status = await backendFixture.actor.getReleasesFullStatus();
     return status.hasDownloadedRelease;
   }
+);
+
+// With custom assets - useful for testing asset invalidation
+await runHttpDownloaderQueueProcessor(
+  manager.pic,
+  async () => {
+    // Wait for hash to change (invalidation + re-download)
+    const status = await backendFixture.actor.getReleasesFullStatus();
+    const frontendAsset = status.releases[0]?.assets.find(a => a.name.includes("frontend"));
+    return frontendAsset?.sha256?.[0] !== originalHash;
+  },
+  { frontend: frontendV2Content }  // Override frontend asset content
 );
 ```
 

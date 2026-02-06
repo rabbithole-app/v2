@@ -4,12 +4,13 @@ import { principalToSubAccount, toNullable } from "@dfinity/utils";
 import { IDL } from "@icp-sdk/core/candid";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-import type {
-  Account,
-  CreateStorageOptions,
-  CreationStatus,
-  RabbitholeActorService,
-  StorageInfo
+import {
+  type Account,
+  type CreateStorageOptions,
+  type CreationStatus,
+  initEncryptedStorage,
+  type RabbitholeActorService,
+  type StorageInfo
 } from "@rabbithole/declarations";
 
 import { CMC_CANISTER_ID, E8S_PER_ICP, ONE_TRILLION } from "./setup/constants";
@@ -419,7 +420,10 @@ describe("StorageDeployer", () => {
         },
       },
       releaseSelector: { LatestDraft: null },
-      initArg: IDL.encode([], []),
+      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
+        owner: e2eTestIdentity.getPrincipal(),
+        vetKeyName: 'dfx_test_key'
+      }]),
     };
 
     const createResult = await backendFixture.actor.createStorage(options);
@@ -471,7 +475,10 @@ describe("StorageDeployer", () => {
         },
       },
       releaseSelector: { LatestDraft: null },
-      initArg: IDL.encode([], []),
+      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
+        owner: duplicateTestIdentity.getPrincipal(),
+        vetKeyName: 'dfx_test_key'
+      }]),
     };
 
     const result1 = await backendFixture.actor.createStorage(duplicateOptions);
@@ -498,21 +505,23 @@ describe("StorageDeployer", () => {
   test("should allow creation with pre-existing canister (link mode)", { timeout: 120000 }, async () => {
     console.log("\n=== Testing Link Mode ===");
 
+    const linkTestIdentity = createIdentity("linkModeTestUser");
     const preCreatedCanisterId = await manager.createCanister({
-      controllers: [backendFixture.canisterId]
+      controllers: [backendFixture.canisterId, linkTestIdentity.getPrincipal()]
     });
     console.log("Pre-created canister:", preCreatedCanisterId.toText());
 
-    const linkTestIdentity = createIdentity("linkModeTestUser");
     backendFixture.actor.setIdentity(linkTestIdentity);
-
 
     const linkOptions: CreateStorageOptions = {
       target: {
         Existing: preCreatedCanisterId,
       },
       releaseSelector: { LatestDraft: null },
-      initArg: IDL.encode([], []),
+      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
+        owner: linkTestIdentity.getPrincipal(),
+        vetKeyName: 'dfx_test_key'
+      }]),
     };
 
     const result = await backendFixture.actor.createStorage(linkOptions);

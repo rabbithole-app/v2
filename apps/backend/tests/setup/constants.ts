@@ -52,7 +52,15 @@ export const STORAGE_WASM_PATH = resolve(
 export const STORAGE_FRONTEND_ARCHIVE_PATH = resolve(
   import.meta.dirname,
   "..",
-  "minimal-frontend-assets.tar.gz",
+  "fixtures",
+  "minimal-frontend.tar",
+);
+
+export const STORAGE_FRONTEND_V2_ARCHIVE_PATH = resolve(
+  import.meta.dirname,
+  "..",
+  "fixtures",
+  "minimal-frontend-v2.tar",
 );
 
 export const ONE_TRILLION = 1_000_000_000_000n;
