@@ -63,6 +63,13 @@ fi
 # install dependencies
 mops install
 
+# Apply mops patches (e.g. hex@1.0.2 Text.join argument order fix)
+if [ -x /mops-patches/apply.sh ]; then
+  /mops-patches/apply.sh /app
+elif [ -x /workspace/mops-patches/apply.sh ]; then
+  /workspace/mops-patches/apply.sh /app
+fi
+
 echo "🚀 Deploying canisters..."
 dfx deploy --network local rabbithole-backend
 dfx deploy --network local encrypted-storage

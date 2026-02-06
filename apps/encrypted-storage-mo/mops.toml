@@ -13,6 +13,7 @@ base-x-encoder = "2.1.0"
 xtended-numbers = "2.1.0"
 candid = "2.1.0"
 core = "https://github.com/dfinity/motoko-core#moc-1.0.0"
+hex = "1.0.2"
 
 [package]
 name = "encrypted-storage"

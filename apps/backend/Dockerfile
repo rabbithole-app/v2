@@ -9,7 +9,7 @@ ENV DFX_VERSION=0.31.0-beta.0
 ENV POCKETIC_VERSION=11.0.0
 
 RUN apt -yq update
-RUN apt -yqq install --no-install-recommends curl ca-certificates libunwind-dev git python3 python3-pip ssh xz-utils
+RUN apt -yqq install --no-install-recommends curl ca-certificates libunwind-dev git python3 python3-pip ssh xz-utils patch
 
 # Install Node.js using nvm
 ENV PATH="/root/.nvm/versions/node/v${NODE_VERSION}/bin:${PATH}"

@@ -19,13 +19,22 @@ npm ci || npm install
 # Make sure global npm binaries (mops) are on PATH even with nvm-y setups
 export PATH="$(npm bin -g):${PATH}"
 
-command -v mops >/dev/null 2>&1 || {
-  echo "❌ mops not found in PATH. Rebuild the image."
-  echo "PATH=${PATH}"
-  exit 127
-}
+# install dependencies
+echo "🔧 Initializing mops toolchain..."
+mops toolchain init || echo "ℹ️ Mops toolchain already initialized."
 
+# Source bashrc to apply toolchain changes
+if [ -f ~/.bashrc ]; then
+  source ~/.bashrc
+fi
+
+# install dependencies
 mops install
+
+# Apply mops patches (e.g. hex@1.0.2 Text.join argument order fix)
+if [ -x /mops-patches/apply.sh ]; then
+  /mops-patches/apply.sh /app
+fi
 
 dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 127.0.0.1 --domain 0.0.0.0
 

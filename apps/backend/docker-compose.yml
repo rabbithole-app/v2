@@ -37,6 +37,7 @@ services:
       - ./:/app:rw
       - ../../:/workspace:rw
       - ../encrypted-storage-mo:/encrypted-storage-mo:ro
+      - ../../mops-patches:/mops-patches:ro
       - backend_node_modules:/app/node_modules
     entrypoint: ["bash", "-lc", "scripts/install.sh"]
     healthcheck:
