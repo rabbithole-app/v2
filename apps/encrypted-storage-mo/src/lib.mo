@@ -18,6 +18,7 @@ import Vector "mo:vector";
 import CertifiedAssets "mo:certified-assets/Stable";
 
 import T "Types";
+import Migrations "Migrations/lib";
 import Utils "Utils";
 import FileSystem "FileSystem";
 import Upload "Upload";
@@ -30,33 +31,33 @@ import Http "Http";
 
 module EncryptedFileStorage {
   public type StableStore = T.StableStore;
+  public type VersionedStableStore = T.VersionedStableStore;
 
-  /// Create a new stable EncryptedStorage instance on the heap.
-  /// This instance is stable and will not be cleared on canister upgrade.
+  /// Creates a new versioned stable store. Called once during initial canister deployment.
+  /// On subsequent upgrades, the existing stable variable is preserved and migrated
+  /// via `upgradeStableStore`.
   ///
   /// Example:
   /// ```motoko
-  /// let keyId : ManagementCanister.VetKdKeyid = {
-  ///   curve = #bls12_381_g2;
-  ///   name = "dfx_test_key";
-  /// };
-  /// let canisterId = Principal.fromActor(this);
-  /// let storage = EncryptedStorage.new({
+  /// stable var versionedStore = EncryptedStorage.initStableStore({
   ///   canisterId;
   ///   vetKdKeyId = keyId;
   ///   domainSeparator = "file_storage_dapp";
   ///   region = MemoryRegion.new();
   ///   rootPermissions = [(owner, #ReadWriteManage), (canisterId, #ReadWriteManage)];
+  ///   certs = null;
   /// });
+  /// versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
+  /// let storage = EncryptedStorage.fromVersion(versionedStore);
   /// ```
-  public func new({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs } : T.EncryptedStorageInitArgs) : T.StableStore {
+  public func initStableStore({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
     let fs = FileSystem.new({
       region;
       rootPermissions;
     });
     let upload = Upload.new(region);
 
-    {
+    #v1({
       canisterId;
       region;
       fs;
@@ -65,7 +66,19 @@ module EncryptedFileStorage {
       vetKdKeyId;
       domainSeparatorBytes = Text.encodeUtf8(domainSeparator);
       var streamingCallback = null;
-    };
+    });
+  };
+
+  /// Migrates the versioned store to the current version.
+  /// Safe to call on every upgrade — if already at the latest version, returns as-is.
+  public func upgradeStableStore(store : T.VersionedStableStore) : T.VersionedStableStore {
+    Migrations.upgrade(store);
+  };
+
+  /// Extracts the current-version StableStore from a VersionedStableStore.
+  /// Must be called after `upgradeStableStore`.
+  public func fromVersion(store : T.VersionedStableStore) : T.StableStore {
+    Migrations.getCurrentState(store);
   };
 
   /// Handles HTTP requests.

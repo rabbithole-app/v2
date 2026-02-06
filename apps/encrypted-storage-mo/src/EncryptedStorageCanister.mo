@@ -1,6 +1,5 @@
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
-import Array "mo:core/Array";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
@@ -9,12 +8,13 @@ import EncryptedStorage "";
 import T "Types";
 
 shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = this {
-  let keyId : ManagementCanister.VetKdKeyid = {
+  transient let keyId : ManagementCanister.VetKdKeyid = {
     curve = #bls12_381_g2;
     name = "dfx_test_key";
   };
-  let canisterId = Principal.fromActor(this);
-  let storage = EncryptedStorage.new({
+  transient let canisterId = Principal.fromActor(this);
+
+  var versionedStore = EncryptedStorage.initStableStore({
     canisterId;
     vetKdKeyId = keyId;
     domainSeparator = "file_storage_dapp";
@@ -31,6 +31,8 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     // Otherwise, use null.
     certs = null;
   });
+  versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
+  transient let storage = EncryptedStorage.fromVersion(versionedStore);
 
   public query ({ caller }) func list(entry : ?T.Entry) : async [T.NodeDetails] {
     switch (EncryptedStorage.list(storage, caller, entry)) {

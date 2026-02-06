@@ -38,7 +38,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   let httpAssetsState = HttpAssets.from_version(assetStableData);
 
   // Use shared certificate store from HttpAssets for EncryptedStorage
-  let storage = EncryptedStorage.new({
+  var versionedStorage = EncryptedStorage.initStableStore({
     canisterId;
     vetKdKeyId = keyId;
     domainSeparator = "file_storage_dapp";
@@ -46,6 +46,8 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     rootPermissions = [(owner, #ReadWriteManage), (canisterId, #ReadWriteManage)];
     certs = ?httpAssetsState.fs.certs;
   });
+  versionedStorage := EncryptedStorage.upgradeStableStore(versionedStorage);
+  transient let storage = EncryptedStorage.fromVersion(versionedStorage);
 
   transient var assetStore = HttpAssets.Assets(assetStableData, null);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
