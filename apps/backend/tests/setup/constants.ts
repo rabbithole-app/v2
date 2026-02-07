@@ -46,7 +46,7 @@ export const STORAGE_WASM_PATH = resolve(
   "local",
   "canisters",
   "encrypted-storage",
-  "encrypted-storage.wasm",
+  "encrypted-storage.wasm.gz",
 );
 
 export const STORAGE_FRONTEND_ARCHIVE_PATH = resolve(

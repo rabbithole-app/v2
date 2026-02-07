@@ -1,4 +1,5 @@
 import type { CanisterFixture } from "@dfinity/pic";
+import { fromDefinedNullable, fromNullable, uint8ArrayToHexString } from "@dfinity/utils";
 import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
@@ -164,29 +165,23 @@ describe("GitHub Releases", () => {
   test("should invalidate and re-download assets when hash changes", async () => {
     console.log("\n=== Testing Asset Invalidation ===");
 
-    // Helper to format hash for logging
-    const formatHash = (hash: [] | [Uint8Array]): string => {
-      if (hash.length === 0) return "null";
-      return Buffer.from(hash[0]).toString("hex").slice(0, 16) + "...";
-    };
-
     // Get status before invalidation
     const statusBefore = await backendFixture.actor.getReleasesFullStatus();
     expect(statusBefore.hasDownloadedRelease).toBe(true);
 
     const releaseBefore = statusBefore.releases[0];
     const frontendAssetBefore = releaseBefore?.assets.find(a => a.name.includes("frontend"));
-    const hashBefore = frontendAssetBefore?.sha256 ?? [];
+    // const hashBefore = frontendAssetBefore?.sha256 ?? [];
 
     console.log("Status before invalidation:");
     console.log("  Has downloaded release:", statusBefore.hasDownloadedRelease);
     console.log("  Completed downloads:", statusBefore.completedDownloads);
-    console.log("  Frontend hash before:", formatHash(hashBefore));
+    const hashBefore = frontendAssetBefore?.sha256 ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetBefore?.sha256)) : undefined;
+    console.log("  Frontend hash before:", hashBefore);
     console.log("  Frontend extraction:", formatExtractionStatus(frontendAssetBefore?.extractionStatus ?? []));
 
     // Verify we have a hash before invalidation
-    expect(hashBefore.length).toBe(1);
-    const originalHash = Buffer.from(hashBefore[0]).toString("hex");
+    expect(hashBefore).toBeDefined();
 
     console.log("\nTriggering refreshReleases with v2 frontend (different content)...");
 
@@ -205,8 +200,8 @@ describe("GitHub Releases", () => {
         const frontendAsset = release?.assets.find(a => a.name.includes("frontend"));
         // Check if hash changed from original (invalidation + re-download completed)
         if (frontendAsset?.sha256?.length !== 1) return false;
-        const currentHash = Buffer.from(frontendAsset.sha256[0]).toString("hex");
-        return currentHash !== originalHash;
+        const currentHash = uint8ArrayToHexString(fromDefinedNullable(frontendAsset.sha256));
+        return currentHash !== hashBefore;
       },
       { frontend: frontendV2Content },
     );
@@ -219,28 +214,27 @@ describe("GitHub Releases", () => {
     const statusAfter = await backendFixture.actor.getReleasesFullStatus();
     const releaseAfter = statusAfter.releases[0];
     const frontendAssetAfter = releaseAfter?.assets.find(a => a.name.includes("frontend"));
-    const hashAfter = frontendAssetAfter?.sha256 ?? [];
+    const hashAfter = frontendAssetAfter?.sha256 ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetAfter?.sha256)) : undefined;
 
     console.log("\nStatus after invalidation:");
     console.log("  Has downloaded release:", statusAfter.hasDownloadedRelease);
     console.log("  Completed downloads:", statusAfter.completedDownloads);
-    console.log("  Frontend hash after:", formatHash(hashAfter));
+    console.log("  Frontend hash after:", hashAfter);
     console.log("  Frontend extraction:", formatExtractionStatus(frontendAssetAfter?.extractionStatus ?? []));
 
     // Verify the release is still downloaded
     expect(statusAfter.hasDownloadedRelease).toBe(true);
 
     // Verify we have a new hash after re-download
-    expect(hashAfter.length).toBe(1);
-    const newHash = Buffer.from(hashAfter[0]).toString("hex");
+    expect(hashAfter).toBeDefined();
 
     // The hash should be DIFFERENT because we downloaded v2 content
     console.log("\nHash comparison:");
-    console.log("  Original hash (v1):", originalHash.slice(0, 16) + "...");
-    console.log("  New hash (v2):     ", newHash.slice(0, 16) + "...");
+    console.log("  Original hash (v1):", hashBefore);
+    console.log("  New hash (v2):     ", hashAfter);
 
     // Verify the hash changed - this proves invalidation and re-download happened
-    expect(newHash).not.toBe(originalHash);
+    expect(hashAfter).not.toBe(hashBefore);
 
     console.log("\n=== Asset Invalidation Test Complete ===");
   });

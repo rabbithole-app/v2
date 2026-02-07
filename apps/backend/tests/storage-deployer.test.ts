@@ -1,20 +1,24 @@
 import type { CanisterFixture } from "@dfinity/pic";
 import { createIdentity } from "@dfinity/pic";
-import { principalToSubAccount, toNullable } from "@dfinity/utils";
+import { principalToSubAccount, toNullable, uint8ArrayToHexString } from "@dfinity/utils";
 import { IDL } from "@icp-sdk/core/candid";
+import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import {
   type Account,
   type CreateStorageOptions,
   type CreationStatus,
+  type EncryptedStorageActorService,
+  encryptedStorageIdlFactory,
   initEncryptedStorage,
   type RabbitholeActorService,
-  type StorageInfo
+  type StorageInfo,
+  UpdateInfo,
 } from "@rabbithole/declarations";
 
 import { CMC_CANISTER_ID, E8S_PER_ICP, ONE_TRILLION } from "./setup/constants";
-import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
+import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 import { Manager } from "./setup/manager";
 
 /**
@@ -48,9 +52,48 @@ function formatCreationStatus(status: CreationStatus): string {
     return `UploadingFrontend (${processed}/${total})`;
   }
   if ("UpdatingControllers" in status) return `UpdatingControllers (${status.UpdatingControllers.canisterId.toText()})`;
+  if ("UpgradingWasm" in status) {
+    const { processed, total } = status.UpgradingWasm.progress;
+    return `UpgradingWasm (${processed}/${total})`;
+  }
+  if ("UpgradingFrontend" in status) {
+    const { processed, total } = status.UpgradingFrontend.progress;
+    return `UpgradingFrontend (${processed}/${total})`;
+  }
   if ("Completed" in status) return `Completed (${status.Completed.canisterId.toText()})`;
   if ("Failed" in status) return `Failed: ${status.Failed}`;
   return "Unknown";
+}
+
+/**
+ * Format a Candid optional hash (Uint8Array) as hex string or "none"
+ */
+function formatOptionalHash(opt: [] | [number[] | Uint8Array]): string {
+  const value = fromOptional(opt);
+  if (!value) return "none";
+  const hex = uint8ArrayToHexString(value);
+  return hex.length > 16 ? `${hex.slice(0, 16)}...` : hex;
+}
+
+/**
+ * Format UpdateInfo for human-readable console output
+ */
+function formatUpdateInfo(info: UpdateInfo): Record<string, unknown> {
+  return {
+    currentWasmHash: formatOptionalHash(info.currentWasmHash),
+    availableWasmHash: formatOptionalHash(info.availableWasmHash),
+    currentReleaseTag: fromOptional(info.currentReleaseTag) ?? "none",
+    availableReleaseTag: fromOptional(info.availableReleaseTag) ?? "none",
+    wasmUpdateAvailable: info.wasmUpdateAvailable,
+    frontendUpdateAvailable: info.frontendUpdateAvailable,
+  };
+}
+
+/**
+ * Unwrap Candid optional: [] → undefined, [value] → value
+ */
+function fromOptional<T>(opt: [] | [T]): T | undefined {
+  return opt.length > 0 ? opt[0] : undefined;
 }
 
 /**
@@ -452,7 +495,7 @@ describe("StorageDeployer", () => {
     const storage = storages[0] as StorageInfo;
     console.log("Storage info:", {
       id: storage.id,
-      canisterId: storage.canisterId.length > 0 ? storage.canisterId[0].toText() : "none",
+      canisterId: fromOptional(storage.canisterId)?.toText() ?? "none",
       releaseTag: storage.releaseTag,
       status: Object.keys(storage.status)[0],
     });
@@ -543,6 +586,302 @@ describe("StorageDeployer", () => {
     // Verify storage is listed
     const storages = await backendFixture.actor.listStorages();
     expect(storages.length).toBeGreaterThan(0);
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // STORAGE UPGRADE TESTS
+  // ═══════════════════════════════════════════════════════════════
+
+  test("should report no update available when assets haven't changed", async () => {
+    // Use e2e identity that already has a completed storage
+    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+
+    const storages = await backendFixture.actor.listStorages();
+    expect(storages.length).toBeGreaterThan(0);
+
+    const completedStorage = storages.find(s => "Completed" in s.status);
+    expect(completedStorage).toBeDefined();
+    if (!completedStorage) return;
+
+    // updateAvailable should be empty since assets haven't changed
+    expect(completedStorage.updateAvailable).toEqual([]);
+
+    // checkStorageUpdate should also return empty
+    const canisterId = fromOptional(completedStorage.canisterId);
+    expect(canisterId).toBeDefined();
+    if (!canisterId) return;
+
+    const updateInfo = await backendFixture.actor.checkStorageUpdate(canisterId);
+    expect(updateInfo).toEqual([]);
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("should reject upgrade when no update available", async () => {
+    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+
+    const storages = await backendFixture.actor.listStorages();
+    const completedStorage = storages.find(s => "Completed" in s.status);
+    expect(completedStorage).toBeDefined();
+    if (!completedStorage) return;
+
+    const canisterId = fromOptional(completedStorage.canisterId);
+    expect(canisterId).toBeDefined();
+    if (!canisterId) return;
+
+    const result = await backendFixture.actor.upgradeStorage(canisterId, { All: null });
+
+    expect(result).toHaveProperty("err");
+    if ("err" in result) {
+      expect(result.err).toHaveProperty("NoUpdateAvailable");
+    }
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("should reject upgrade from non-owner", async () => {
+    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+
+    const storages = await backendFixture.actor.listStorages();
+    const completedStorage = storages.find(s => "Completed" in s.status);
+    expect(completedStorage).toBeDefined();
+    if (!completedStorage) return;
+
+    const canisterId = fromOptional(completedStorage.canisterId);
+    expect(canisterId).toBeDefined();
+    if (!canisterId) return;
+
+    // Switch to different user
+    const otherIdentity = createIdentity("otherUserForUpgrade");
+    backendFixture.actor.setIdentity(otherIdentity);
+
+    const result = await backendFixture.actor.upgradeStorage(canisterId, { All: null });
+    expect(result).toHaveProperty("err");
+    if ("err" in result) {
+      expect(result.err).toHaveProperty("NotFound");
+    }
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("should detect update available after assets change", { timeout: 360000 }, async () => {
+    console.log("\n=== Testing Update Detection ===");
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+
+    // Remember original frontend hash before refresh
+    const statusBefore = await backendFixture.actor.getReleasesFullStatus();
+    const frontendAssetBefore = statusBefore.releases[0]?.assets.find(a => a.name.includes("frontend"));
+    const originalHash = frontendAssetBefore?.sha256?.length === 1
+      ? Buffer.from(frontendAssetBefore.sha256[0]).toString("hex")
+      : "";
+    console.log("Original frontend hash:", originalHash.slice(0, 16) + "...");
+
+    // Call refreshReleases and mock HTTP outcalls concurrently
+    // (same pattern as github-releases.test.ts)
+    const refreshPromise = backendFixture.actor.refreshReleases();
+
+    await runHttpDownloaderQueueProcessor(
+      manager.pic,
+      async () => {
+        const status = await backendFixture.actor.getReleasesFullStatus();
+        const frontendAsset = status.releases[0]?.assets.find(a => a.name.includes("frontend"));
+        if (frontendAsset?.sha256?.length !== 1) return false;
+        const currentHash = Buffer.from(frontendAsset.sha256[0]).toString("hex");
+        return currentHash !== originalHash;
+      },
+      { frontend: frontendV2Content },
+    );
+
+    await refreshPromise;
+    await manager.pic.tick();
+
+    // Wait for frontend extraction
+    let extractionAttempts = 0;
+    while (extractionAttempts < 50) {
+      await manager.pic.tick(20);
+      const status = await backendFixture.actor.getReleasesFullStatus();
+      if (status.hasDeploymentReadyRelease) break;
+      extractionAttempts++;
+    }
+
+    const statusAfter = await backendFixture.actor.getReleasesFullStatus();
+    console.log("Deployment ready:", statusAfter.hasDeploymentReadyRelease);
+
+    // Now check update availability
+    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+
+    const storages = await backendFixture.actor.listStorages();
+    const completedStorage = storages.find(s => "Completed" in s.status);
+    expect(completedStorage).toBeDefined();
+    if (!completedStorage) return;
+
+    // Should have update available (at least frontend changed)
+    expect(completedStorage.updateAvailable.length).toBe(1);
+
+    const updateInfo = fromOptional(completedStorage.updateAvailable);
+    expect(updateInfo).toBeDefined();
+    if (!updateInfo) return;
+
+    console.log("Update available:", formatUpdateInfo(updateInfo));
+    expect(updateInfo.frontendUpdateAvailable).toBe(true);
+
+    // checkStorageUpdate (public query) should also work
+    const canisterId = fromOptional(completedStorage.canisterId);
+    expect(canisterId).toBeDefined();
+    if (!canisterId) return;
+
+    const queryUpdateInfo = fromOptional(await backendFixture.actor.checkStorageUpdate(canisterId));
+    expect(queryUpdateInfo).toBeDefined();
+    if (!queryUpdateInfo) return;
+
+    expect(queryUpdateInfo.frontendUpdateAvailable).toBe(true);
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("should allow checkStorageUpdate from any caller (public query)", async () => {
+    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+
+    const storages = await backendFixture.actor.listStorages();
+    const completedStorage = storages.find(s => "Completed" in s.status);
+    expect(completedStorage).toBeDefined();
+    if (!completedStorage) return;
+
+    const canisterId = fromOptional(completedStorage.canisterId);
+    expect(canisterId).toBeDefined();
+    if (!canisterId) return;
+
+    // Call from anonymous/other user
+    const anonymousIdentity = createIdentity("anonymousUpgradeChecker");
+    backendFixture.actor.setIdentity(anonymousIdentity);
+
+    const updateInfo = await backendFixture.actor.checkStorageUpdate(canisterId);
+    // Should still return update info (public query)
+    expect(updateInfo.length).toBe(1);
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("should upgrade storage frontend only", { timeout: 360000 }, async () => {
+    console.log("\n=== Testing Frontend-Only Upgrade ===");
+
+    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+
+    const storages = await backendFixture.actor.listStorages();
+    const completedStorage = storages.find(s => "Completed" in s.status);
+    expect(completedStorage).toBeDefined();
+    if (!completedStorage) return;
+
+    const canisterId = fromOptional(completedStorage.canisterId);
+    expect(canisterId).toBeDefined();
+    if (!canisterId) return;
+
+    // Step 1: Add backend as controller (simulates what frontend does)
+    await manager.pic.updateCanisterSettings({
+      canisterId,
+      sender: e2eTestIdentity.getPrincipal(),
+      controllers: [e2eTestIdentity.getPrincipal(), backendFixture.canisterId],
+    });
+
+    // Step 2: Grant backend Commit permission on assets
+    const storageActor = manager.pic.createActor<EncryptedStorageActorService>(
+      encryptedStorageIdlFactory,
+      canisterId,
+    );
+    storageActor.setIdentity(e2eTestIdentity);
+    await storageActor.grant_permission({
+      to_principal: backendFixture.canisterId,
+      permission: { Commit: null },
+    });
+
+    // Step 3: Call upgradeStorage
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+    const upgradeResult = await backendFixture.actor.upgradeStorage(canisterId, { FrontendOnly: null });
+    console.log("Upgrade result:", upgradeResult);
+    expect(upgradeResult).toHaveProperty("ok");
+
+    // Step 4: Poll for completion
+    const finalStatus = await pollStorageStatus(manager, backendFixture);
+    console.log("Final status:", finalStatus ? formatCreationStatus(finalStatus) : "null");
+
+    expect(finalStatus).not.toBeNull();
+    expect(finalStatus).toHaveProperty("Completed");
+
+    // Step 5: Verify no more update available
+    const storagesAfter = await backendFixture.actor.listStorages();
+    const updatedStorage = storagesAfter.find(s =>
+      "Completed" in s.status
+      && fromOptional(s.canisterId)?.toText() === canisterId.toText()
+    );
+    expect(updatedStorage).toBeDefined();
+
+    // Frontend was updated, but WASM may still show an update since we didn't change WASM assets
+    // The frontendUpdateAvailable should be false now
+    const updateAfter = fromOptional(await backendFixture.actor.checkStorageUpdate(canisterId));
+    if (updateAfter) {
+      console.log("Update after upgrade:", formatUpdateInfo(updateAfter));
+      expect(updateAfter.frontendUpdateAvailable).toBe(false);
+    }
+
+    // Step 6: Verify controllers — backend should have removed itself
+    const controllers = await manager.pic.getControllers(canisterId);
+    console.log("Controllers after upgrade:", controllers.map(c => c.toText()));
+    expect(controllers.map(c => c.toText())).toContain(e2eTestIdentity.getPrincipal().toText());
+    expect(controllers.map(c => c.toText())).not.toContain(backendFixture.canisterId.toText());
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("should return update info in listStorages", async () => {
+    // Create a new storage for this test using link mode
+    const updateInfoTestIdentity = createIdentity("updateInfoTestUser");
+    const preCreatedCanisterId = await manager.createCanister({
+      controllers: [backendFixture.canisterId, updateInfoTestIdentity.getPrincipal()]
+    });
+
+    backendFixture.actor.setIdentity(updateInfoTestIdentity);
+
+    const linkOptions: CreateStorageOptions = {
+      target: { Existing: preCreatedCanisterId },
+      releaseSelector: { LatestDraft: null },
+      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
+        owner: updateInfoTestIdentity.getPrincipal(),
+        vetKeyName: 'dfx_test_key'
+      }]),
+    };
+
+    const result = await backendFixture.actor.createStorage(linkOptions);
+    expect(result).toHaveProperty("ok");
+
+    // Poll for completion
+    const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
+    expect(finalStatus).toHaveProperty("Completed");
+
+    // listStorages should include updateAvailable field
+    const storages = await backendFixture.actor.listStorages();
+    const newStorage = storages.find(s =>
+      fromOptional(s.canisterId)?.toText() === preCreatedCanisterId.toText()
+    );
+    expect(newStorage).toBeDefined();
+    if (!newStorage) return;
+
+    // Since this was just created with current assets, there may or may not be an update
+    // (depends on whether the v2 frontend is still the "latest" from the refresh above)
+    // The important thing is that the field exists
+    expect(newStorage).toHaveProperty("updateAvailable");
+
+    const updateInfo = fromOptional(newStorage.updateAvailable);
+    if (updateInfo) {
+      console.log("Update info in listStorages:", formatUpdateInfo(updateInfo));
+    }
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });

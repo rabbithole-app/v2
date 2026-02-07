@@ -1,6 +1,7 @@
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 
+import IC "mo:ic";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 
@@ -153,5 +154,12 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
       case (#ok node) node;
       case (#err message) throw Error.reject(message);
     };
+  };
+
+  /// Get canister module_hash via canister_status.
+  /// Only accessible by canister controllers.
+  public shared func getModuleHash() : async ?Blob {
+    let status = await IC.ic.canister_status({ canister_id = canisterId });
+    status.module_hash;
   };
 };

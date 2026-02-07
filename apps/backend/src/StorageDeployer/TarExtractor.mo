@@ -94,11 +94,16 @@ module TarExtractor {
     };
   };
 
+  // Check if a tar entry is a macOS Apple Double resource fork file (._*)
+  func isAppleDoubleFile(name : Text) : Bool {
+    Text.contains(name, #text "/._") or Text.startsWith(name, #text "._");
+  };
+
   // Extract tar entries from blob at given pointer
   func extractTarEntries(store : Store, pointer : Types.SizedPointer) : () {
     let blob = MemoryRegion.loadBlob(store.region, pointer.0, pointer.1);
     for (entry in Tar.entries(blob)) {
-      if (entry.typ == #file) {
+      if (entry.typ == #file and not isAppleDoubleFile(entry.name)) {
         let file = {
           key = Text.trimStart(entry.name, #char('.'));
           content = entry.content;

@@ -6,6 +6,14 @@ export const idlFactory = ({ IDL }) => {
     'apiUrl' : IDL.Text,
   });
   const InitArgs = IDL.Record({ 'github' : IDL.Opt(GithubOptions) });
+  const UpdateInfo = IDL.Record({
+    'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'wasmUpdateAvailable' : IDL.Bool,
+    'availableReleaseTag' : IDL.Opt(IDL.Text),
+    'currentReleaseTag' : IDL.Opt(IDL.Text),
+    'frontendUpdateAvailable' : IDL.Bool,
+    'availableWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+  });
   const CreateProfileArgs = IDL.Record({
     'username' : IDL.Text,
     'displayName' : IDL.Opt(IDL.Text),
@@ -75,13 +83,13 @@ export const idlFactory = ({ IDL }) => {
     'ReleaseNotFound' : IDL.Null,
     'TransferFailed' : TransferFromError,
   });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
   const DeleteStorageError = IDL.Variant({
     'NotFailed' : IDL.Null,
     'NotFound' : IDL.Null,
     'NotOwner' : IDL.Null,
   });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
   const Time = IDL.Int;
   const Profile = IDL.Record({
     'id' : IDL.Principal,
@@ -213,6 +221,10 @@ export const idlFactory = ({ IDL }) => {
   const CreationStatus = IDL.Variant({
     'Failed' : IDL.Text,
     'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'UpgradingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
     'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'RevokingInstallerPermission' : IDL.Record({
       'canisterId' : IDL.Principal,
@@ -224,6 +236,10 @@ export const idlFactory = ({ IDL }) => {
     }),
     'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
     'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
+    'UpgradingFrontend' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
     'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InstallingWasm' : IDL.Record({
       'progress' : Progress,
@@ -237,6 +253,7 @@ export const idlFactory = ({ IDL }) => {
     'completedAt' : IDL.Opt(Time),
     'createdAt' : Time,
     'releaseTag' : IDL.Text,
+    'updateAvailable' : IDL.Opt(UpdateInfo),
     'canisterId' : IDL.Opt(IDL.Principal),
   });
   const CreateProfileAvatarArgs = IDL.Record({
@@ -248,13 +265,32 @@ export const idlFactory = ({ IDL }) => {
     'displayName' : IDL.Opt(IDL.Text),
     'avatarUrl' : IDL.Opt(IDL.Text),
   });
+  const UpgradeScope = IDL.Variant({
+    'All' : IDL.Null,
+    'WasmOnly' : IDL.Null,
+    'FrontendOnly' : IDL.Null,
+  });
+  const UpgradeStorageError = IDL.Variant({
+    'AlreadyUpgrading' : IDL.Null,
+    'NoUpdateAvailable' : IDL.Null,
+    'NotFound' : IDL.Null,
+    'NotOwner' : IDL.Null,
+    'ReleaseNotReady' : IDL.Null,
+    'NotCompleted' : IDL.Null,
+  });
+  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : UpgradeStorageError });
   const Rabbithole = IDL.Service({
     'addCanister' : IDL.Func([IDL.Principal], [], []),
+    'checkStorageUpdate' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UpdateInfo)],
+        ['query'],
+      ),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
-    'createStorage' : IDL.Func([CreateStorageOptions], [Result_1], []),
+    'createStorage' : IDL.Func([CreateStorageOptions], [Result_2], []),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteProfile' : IDL.Func([], [], []),
-    'deleteStorage' : IDL.Func([IDL.Nat], [Result], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result_1], []),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
     'http_request' : IDL.Func(
@@ -282,6 +318,7 @@ export const idlFactory = ({ IDL }) => {
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
+    'upgradeStorage' : IDL.Func([IDL.Principal, UpgradeScope], [Result], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
   });
   return Rabbithole;

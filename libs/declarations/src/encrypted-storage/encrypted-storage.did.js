@@ -330,6 +330,7 @@ export const idlFactory = ({ IDL }) => {
     'fsTree' : IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     'get' : IDL.Func([GetArgs], [EncodedAsset], ['query']),
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
+    'getModuleHash' : IDL.Func([], [IDL.Opt(IDL.Vec(IDL.Nat8))], []),
     'getStorageChunk' : IDL.Func(
         [GetChunkArguments],
         [ChunkContent],

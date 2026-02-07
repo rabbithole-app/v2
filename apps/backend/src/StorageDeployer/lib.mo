@@ -1,4 +1,5 @@
 import Array "mo:core/Array";
+import Blob "mo:core/Blob";
 import Map "mo:core/Map";
 import Queue "mo:core/Queue";
 import Principal "mo:core/Principal";
@@ -16,8 +17,8 @@ import Sha256 "mo:sha2/Sha256";
 import IC "mo:ic";
 import Vector "mo:vector";
 
-import GitHubReleases "../GitHubReleases";
-import HttpDownloader "../HttpDownloader";
+import GitHubReleases "GitHubReleases";
+import HttpDownloader "HttpDownloader";
 import StorageDeployer "StorageDeployer";
 import WasmInstaller "WasmInstaller";
 import FrontendInstaller "FrontendInstaller";
@@ -47,6 +48,9 @@ module StorageDeployerOrchestrator {
   public type UnifiedTaskType = Types.UnifiedTaskType;
   public type StorageInfo = Types.StorageInfo;
   public type DeleteStorageError = Types.DeleteStorageError;
+  public type UpdateInfo = Types.UpdateInfo;
+  public type UpgradeScope = Types.UpgradeScope;
+  public type UpgradeStorageError = Types.UpgradeStorageError;
 
   /// Delay between unified queue operations (ms)
   let UNIFIED_QUEUE_DELAY_MS : Nat = 100;
@@ -69,8 +73,11 @@ module StorageDeployerOrchestrator {
     var canisterId : ?Principal;
     var wasmHash : ?Blob;
     var frontendHash : ?Blob;
+    var installedReleaseTag : ?Text;
     var status : CreationStatus;
     var completedAt : ?Time.Time;
+    /// Current upgrade scope (null = full installation during creation)
+    var upgradeScope : ?UpgradeScope;
   };
 
   // -- Store --
@@ -440,9 +447,11 @@ module StorageDeployerOrchestrator {
       initArg = options.initArg;
       var wasmHash = null;
       var frontendHash = null;
+      var installedReleaseTag = null;
       var status = #Pending;
       createdAt = Time.now();
       var completedAt = null;
+      var upgradeScope = null;
     };
 
     // Store record
@@ -477,7 +486,7 @@ module StorageDeployerOrchestrator {
     // 6. Start queue processing
     ensureUnifiedTimer<system>(store);
 
-    #ok();
+    #ok;
   };
 
   func findReleaseTag(_store : Store, selector : ReleaseSelector) : ?Text {
@@ -540,7 +549,7 @@ module StorageDeployerOrchestrator {
               await processOrchestratorTask<system>(store, task.creationId, orchTask);
             };
             case (#WasmUploadChunk(args)) {
-              switch (await WasmInstaller.executeUploadChunk(store.wasmInstaller, args.canisterId, args.chunkIndex, args.chunk, args.totalChunks)) {
+              switch (await WasmInstaller.executeUploadChunk(store.wasmInstaller, args)) {
                 case (#ok(_)) {};
                 case (#err(e)) {
                   handleTaskFailure(store, task.creationId, "WASM chunk upload failed: " # e);
@@ -548,10 +557,9 @@ module StorageDeployerOrchestrator {
               };
             };
             case (#WasmInstallCode(args)) {
-              switch (await WasmInstaller.executeInstallCode(store.wasmInstaller, args.canisterId, args.wasmModule, args.initArg, args.mode)) {
-                case (#ok()) {
-                  // WASM installed - queue frontend tasks
-                  queueFrontendTasks<system>(store, task.creationId, args.canisterId);
+              switch (await WasmInstaller.executeInstallCode(store.wasmInstaller, args)) {
+                case (#ok) {
+                  queuePostWasmTasks<system>(store, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
                   handleTaskFailure(store, task.creationId, "WASM install failed: " # e);
@@ -559,10 +567,9 @@ module StorageDeployerOrchestrator {
               };
             };
             case (#WasmInstallChunked(args)) {
-              switch (await WasmInstaller.executeInstallChunked(store.wasmInstaller, args.canisterId, args.wasmHash, args.initArg)) {
-                case (#ok()) {
-                  // WASM installed - queue frontend tasks
-                  queueFrontendTasks<system>(store, task.creationId, args.canisterId);
+              switch (await WasmInstaller.executeInstallChunked(store.wasmInstaller, args)) {
+                case (#ok) {
+                  queuePostWasmTasks<system>(store, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
                   handleTaskFailure(store, task.creationId, "WASM chunked install failed: " # e);
@@ -579,19 +586,27 @@ module StorageDeployerOrchestrator {
             };
             case (#FrontendUploadChunks(args)) {
               switch (await FrontendInstaller.executeUploadChunks(store.frontendInstaller, args.canisterId, args.files)) {
-                case (#ok()) {
+                case (#ok) {
                   // Update status
                   switch (getCreationById(store, task.creationId)) {
                     case (?record) {
                       switch (FrontendInstaller.getInstallationStatus(store.frontendInstaller, args.canisterId)) {
                         case (?#Uploading(progress)) {
-                          record.status := #UploadingFrontend({
-                            canisterId = args.canisterId;
-                            progress = {
-                              processed = progress.processed;
-                              total = progress.total;
-                            };
-                          });
+                          let progressInfo = {
+                            processed = progress.processed;
+                            total = progress.total;
+                          };
+                          record.status := if (Option.isSome(record.upgradeScope)) {
+                            #UpgradingFrontend({
+                              canisterId = args.canisterId;
+                              progress = progressInfo;
+                            });
+                          } else {
+                            #UploadingFrontend({
+                              canisterId = args.canisterId;
+                              progress = progressInfo;
+                            });
+                          };
                         };
                         case _ {};
                       };
@@ -606,7 +621,7 @@ module StorageDeployerOrchestrator {
             };
             case (#FrontendCommitBatch(args)) {
               switch (await FrontendInstaller.executeCommitBatch(store.frontendInstaller, args.canisterId)) {
-                case (#ok()) {
+                case (#ok) {
                   // Frontend complete - revoke installer permission, then update controllers
                   queueRevokeInstallerPermission(store, task.creationId, args.canisterId);
                 };
@@ -685,7 +700,7 @@ module StorageDeployerOrchestrator {
             record.status := #CanisterCreated({ canisterId });
 
             // Queue WASM installation tasks
-            queueWasmTasks(store, creationId, canisterId, record.releaseTag, record.initArg);
+            queueWasmTasks(store, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
           };
           case (#err(e)) {
             let errorMsg = switch (e) {
@@ -706,12 +721,12 @@ module StorageDeployerOrchestrator {
         record.status := #CanisterCreated({ canisterId });
 
         // Queue WASM installation tasks
-        queueWasmTasks(store, creationId, canisterId, record.releaseTag, record.initArg);
+        queueWasmTasks(store, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
       };
 
       case (#InstallWasm({ canisterId; releaseTag; initArg })) {
         // This case handles legacy flow - shouldn't be reached in new architecture
-        queueWasmTasks(store, creationId, canisterId, releaseTag, initArg);
+        queueWasmTasks(store, { creationId; canisterId; releaseTag; initArg; mode = #install });
       };
 
       case (#InstallFrontend({ canisterId; releaseTag = _ })) {
@@ -723,9 +738,8 @@ module StorageDeployerOrchestrator {
         record.status := #UpdatingControllers({ canisterId });
 
         switch (await updateCanisterSettings(canisterId, task.owner)) {
-          case (#ok()) {
-            record.status := #Completed({ canisterId });
-            record.completedAt := ?Time.now();
+          case (#ok) {
+            finalizeCompletion(store, record, canisterId);
           };
           case (#err(e)) {
             record.status := #Failed("Controller update failed: " # e);
@@ -734,20 +748,27 @@ module StorageDeployerOrchestrator {
       };
 
       case (#Complete({ canisterId })) {
-        record.status := #Completed({ canisterId });
-        record.completedAt := ?Time.now();
+        finalizeCompletion(store, record, canisterId);
       };
     };
   };
 
   /// Queue WASM installation tasks
-  func queueWasmTasks(store : Store, creationId : Nat, canisterId : Principal, releaseTag : Text, initArg : Blob) {
+  func queueWasmTasks(store : Store, args : { creationId : Nat; canisterId : Principal; releaseTag : Text; initArg : Blob; mode : IC.CanisterInstallMode }) {
+    let { creationId; canisterId; releaseTag; initArg; mode } = args;
     let ?record = getCreationById(store, creationId) else return;
 
-    record.status := #InstallingWasm({
-      canisterId;
-      progress = { processed = 0; total = 100 };
-    });
+    let statusVariant = switch (mode) {
+      case (#install or #reinstall) #InstallingWasm({
+        canisterId;
+        progress = { processed = 0; total = 100 };
+      });
+      case (#upgrade(_)) #UpgradingWasm({
+        canisterId;
+        progress = { processed = 0; total = 100 };
+      });
+    };
+    record.status := statusVariant;
 
     switch (getWasmBlob(store, releaseTag)) {
       case (#ok(wasmBlob)) {
@@ -761,7 +782,7 @@ module StorageDeployerOrchestrator {
             targetCanister = canisterId;
             wasmModule = wasmBlob;
             wasmHash;
-            mode = #install;
+            mode;
             initArg;
           },
           record.owner,
@@ -787,18 +808,33 @@ module StorageDeployerOrchestrator {
     };
   };
 
+  /// Decide what to do after WASM install — frontend or finalize directly
+  func queuePostWasmTasks<system>(store : Store, creationId : Nat, canisterId : Principal) {
+    let ?record = getCreationById(store, creationId) else return;
+
+    switch (record.upgradeScope) {
+      case (?#WasmOnly) {
+        // WASM only — skip frontend, proceed to revoke + controllers
+        queueRevokeInstallerPermission(store, creationId, canisterId);
+      };
+      case _ {
+        // Full installation or #All — queue frontend
+        queueFrontendTasks<system>(store, creationId, canisterId);
+      };
+    };
+  };
+
   /// Queue frontend installation tasks
   func queueFrontendTasks<system>(store : Store, creationId : Nat, canisterId : Principal) {
     let ?record = getCreationById(store, creationId) else return;
 
-    record.status := #UploadingFrontend({
-      canisterId;
-      progress = { processed = 0; total = 100 };
-    });
+    let isUpgrade = Option.isSome(record.upgradeScope);
+    let value = { canisterId; progress = { processed = 0; total = 100 } };
+    record.status := if (isUpgrade) #UpgradingFrontend(value) else #UploadingFrontend(value);
 
     let versionKey = "storage-frontend@latest";
 
-    switch (FrontendInstaller.generateTasks(store.frontendInstaller, versionKey, canisterId, record.owner, store.nextTaskId)) {
+    switch (FrontendInstaller.generateTasks(store.frontendInstaller, versionKey, canisterId, record.owner, store.nextTaskId, isUpgrade)) {
       case (#ok(frontendTasks)) {
         // Add to unified queue with creationId
         for (t in frontendTasks.vals()) {
@@ -863,6 +899,175 @@ module StorageDeployerOrchestrator {
   };
 
   // ═══════════════════════════════════════════════════════════════
+  // COMPLETION & UPDATE LOGIC
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Finalize creation/upgrade process — update hashes and status
+  func finalizeCompletion(store : Store, record : StorageCreationRecordMutable, canisterId : Principal) {
+    // Update frontendHash if frontend was installed (not #WasmOnly)
+    // wasmHash is updated in queueWasmTasks — not touched here
+    let skipFrontendHash = switch (record.upgradeScope) {
+      case (?#WasmOnly) true;
+      case _ false;
+    };
+
+    if (not skipFrontendHash) {
+      switch (GitHubReleases.latestStorageFrontend(store.githubReleases)) {
+        case (#ok(details)) { record.frontendHash := ?details.sha256 };
+        case (#err(_)) {};
+      };
+    };
+
+    // Update installedReleaseTag
+    record.installedReleaseTag := GitHubReleases.getLatestReleaseTagName(store.githubReleases);
+
+    // Reset upgradeScope
+    record.upgradeScope := null;
+
+    record.status := #Completed({ canisterId });
+    record.completedAt := ?Time.now();
+  };
+
+  /// Get update info for a storage record
+  func getUpdateInfo(store : Store, record : StorageCreationRecordMutable) : ?UpdateInfo {
+    // Updates are only available for completed storages
+    switch (record.status) {
+      case (#Completed(_)) {};
+      case _ return null;
+    };
+
+    let availableWasmHash = switch (GitHubReleases.latestStorageWasm(store.githubReleases)) {
+      case (#ok(details)) ?details.sha256;
+      case (#err(_)) return null;
+    };
+
+    let availableFrontendHash = switch (GitHubReleases.latestStorageFrontend(store.githubReleases)) {
+      case (#ok(details)) ?details.sha256;
+      case (#err(_)) return null;
+    };
+
+    let wasmUpdateAvailable = switch (record.wasmHash, availableWasmHash) {
+      case (?current, ?available) not Blob.equal(current, available);
+      case (null, ?_) true; // No hash — first install didn't record it
+      case _ false;
+    };
+
+    let frontendUpdateAvailable = switch (record.frontendHash, availableFrontendHash) {
+      case (?current, ?available) not Blob.equal(current, available);
+      case (null, ?_) true;
+      case _ false;
+    };
+
+    if (not wasmUpdateAvailable and not frontendUpdateAvailable) return null;
+
+    let availableReleaseTag = GitHubReleases.getLatestReleaseTagName(store.githubReleases);
+
+    ?{
+      currentWasmHash = record.wasmHash;
+      availableWasmHash;
+      currentReleaseTag = record.installedReleaseTag;
+      availableReleaseTag;
+      wasmUpdateAvailable;
+      frontendUpdateAvailable;
+    };
+  };
+
+  /// Public query — check for available updates by canisterId.
+  /// Accessible from any frontend without authorization.
+  public func checkStorageUpdate(store : Store, canisterId : Principal) : ?UpdateInfo {
+    // Find record by canisterId
+    for ((_, record) in Map.entries(store.creations)) {
+      switch (record.canisterId) {
+        case (?id) {
+          if (Principal.equal(id, canisterId)) {
+            return getUpdateInfo(store, record);
+          };
+        };
+        case null {};
+      };
+    };
+    null;
+  };
+
+  /// Find record by canisterId and owner
+  func findRecordByCanisterAndOwner(store : Store, canisterId : Principal, owner : Principal) : ?(Nat, StorageCreationRecordMutable) {
+    for ((creationId, record) in Map.entries(store.creations)) {
+      switch (record.canisterId) {
+        case (?id) {
+          if (Principal.equal(id, canisterId) and Principal.equal(record.owner, owner)) {
+            return ?(creationId, record);
+          };
+        };
+        case null {};
+      };
+    };
+    null;
+  };
+
+  /// Start storage upgrade
+  public func upgradeStorage<system>(
+    store : Store,
+    caller : Principal,
+    canisterId : Principal,
+    scope : UpgradeScope,
+  ) : Result.Result<(), UpgradeStorageError> {
+    // 1. Find record
+    let ?(creationId, record) = findRecordByCanisterAndOwner(store, canisterId, caller) else {
+      return #err(#NotFound);
+    };
+
+    // 2. Check status — only completed storages can be upgraded
+    switch (record.status) {
+      case (#Completed(_)) {};
+      case (#UpgradingWasm(_) or #UpgradingFrontend(_)) return #err(#AlreadyUpgrading);
+      case _ return #err(#NotCompleted);
+    };
+
+    // 3. Check for available updates
+    let ?updateInfo = getUpdateInfo(store, record) else {
+      return #err(#NoUpdateAvailable);
+    };
+
+    // 4. Verify requested scope has updates
+    switch (scope) {
+      case (#WasmOnly) { if (not updateInfo.wasmUpdateAvailable) return #err(#NoUpdateAvailable) };
+      case (#FrontendOnly) { if (not updateInfo.frontendUpdateAvailable) return #err(#NoUpdateAvailable) };
+      case (#All) {}; // At least one update exists (getUpdateInfo returned non-null)
+    };
+
+    // 5. Set upgrade scope
+    record.upgradeScope := ?scope;
+
+    // 6. Queue tasks
+    let needsWasm = switch (scope) {
+      case (#All) updateInfo.wasmUpdateAvailable;
+      case (#WasmOnly) true;
+      case (#FrontendOnly) false;
+    };
+
+    let needsFrontend = switch (scope) {
+      case (#All) updateInfo.frontendUpdateAvailable;
+      case (#WasmOnly) false;
+      case (#FrontendOnly) true;
+    };
+
+    if (needsWasm) {
+      // WASM upgrade — mode = #upgrade, empty initArg
+      queueWasmTasks(store, { creationId; canisterId; releaseTag = record.releaseTag; initArg = to_candid (); mode = #upgrade(null) });
+      // If frontend also needed, it will be queued after WASM completes
+      // (processUnifiedQueue handles this after #WasmInstallCode/#WasmInstallChunked)
+    } else if (needsFrontend) {
+      // Frontend only
+      queueFrontendTasks<system>(store, creationId, canisterId);
+    };
+
+    // Start queue processing
+    ensureUnifiedTimer<system>(store);
+
+    #ok;
+  };
+
+  // ═══════════════════════════════════════════════════════════════
   // QUERIES
   // ═══════════════════════════════════════════════════════════════
 
@@ -876,12 +1081,13 @@ module StorageDeployerOrchestrator {
       canisterId = record.canisterId;
       wasmHash = record.wasmHash;
       frontendHash = record.frontendHash;
+      installedReleaseTag = record.installedReleaseTag;
       status = record.status;
       completedAt = record.completedAt;
     };
   };
 
-  func mapToStorageInfo(record : StorageCreationRecordMutable) : StorageInfo {
+  func mapToStorageInfo(store : Store, record : StorageCreationRecordMutable) : StorageInfo {
     {
       id = record.id;
       canisterId = record.canisterId;
@@ -889,6 +1095,7 @@ module StorageDeployerOrchestrator {
       releaseTag = record.releaseTag;
       createdAt = record.createdAt;
       completedAt = record.completedAt;
+      updateAvailable = getUpdateInfo(store, record);
     };
   };
 
@@ -901,7 +1108,7 @@ module StorageDeployerOrchestrator {
           _,
           func(creationId) {
             switch (Map.get(store.creations, Nat.compare, creationId)) {
-              case (?record) ?mapToStorageInfo(record);
+              case (?record) ?mapToStorageInfo(store, record);
               case null null;
             };
           },
@@ -951,7 +1158,7 @@ module StorageDeployerOrchestrator {
       case null {};
     };
 
-    #ok();
+    #ok;
   };
 
   /// Get current active creation status for a user (in-progress creation)
@@ -978,6 +1185,7 @@ module StorageDeployerOrchestrator {
   // -- Extraction Status --
 
   public type ExtractionStatus = GitHubReleases.ExtractionStatus;
+  public type ReleasesFullStatus = GitHubReleases.ReleasesFullStatus;
 
   /// Get extraction status for a specific version key
   public func getExtractionStatus(store : Store, versionKey : Text) : ExtractionStatus {

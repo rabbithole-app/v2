@@ -5,7 +5,7 @@ import IC "mo:ic";
 
 import LedgerTypes "LedgerTypes";
 import CMCTypes "CMCTypes";
-import GitHubReleasesTypes "../GitHubReleases/Types";
+import GitHubReleasesTypes "GitHubReleasesTypes";
 
 module {
   // -- Basic Types --
@@ -102,6 +102,35 @@ module {
     #NotFailed; // Can only delete Failed records
   };
 
+  // -- Update Types --
+
+  /// Information about available updates for a storage canister
+  public type UpdateInfo = {
+    currentWasmHash : ?Blob;
+    availableWasmHash : ?Blob;
+    currentReleaseTag : ?Text;
+    availableReleaseTag : ?Text;
+    wasmUpdateAvailable : Bool;
+    frontendUpdateAvailable : Bool;
+  };
+
+  /// Scope of an upgrade operation
+  public type UpgradeScope = {
+    #All;
+    #WasmOnly;
+    #FrontendOnly;
+  };
+
+  /// Errors that can occur during storage upgrade
+  public type UpgradeStorageError = {
+    #NotFound;
+    #NotOwner;
+    #NotCompleted;
+    #NoUpdateAvailable;
+    #ReleaseNotReady;
+    #AlreadyUpgrading;
+  };
+
   // -- Creation Status --
 
   /// Current status of a storage creation process
@@ -115,6 +144,8 @@ module {
     #UploadingFrontend : { canisterId : Principal; progress : Progress };
     #RevokingInstallerPermission : { canisterId : Principal };
     #UpdatingControllers : { canisterId : Principal };
+    #UpgradingWasm : { canisterId : Principal; progress : Progress };
+    #UpgradingFrontend : { canisterId : Principal; progress : Progress };
     #Completed : { canisterId : Principal };
     #Failed : Text;
   };
@@ -132,6 +163,7 @@ module {
     canisterId : ?Principal;
     wasmHash : ?Blob;
     frontendHash : ?Blob;
+    installedReleaseTag : ?Text;
     status : CreationStatus;
     completedAt : ?Time.Time;
   };
@@ -144,6 +176,7 @@ module {
     releaseTag : Text;
     createdAt : Time.Time;
     completedAt : ?Time.Time;
+    updateAvailable : ?UpdateInfo;
   };
 
   // -- Task Types --
@@ -195,6 +228,7 @@ module {
       canisterId : Principal;
       wasmHash : Blob;
       initArg : Blob;
+      mode : IC.CanisterInstallMode;
     };
 
     // -- Frontend Installation --

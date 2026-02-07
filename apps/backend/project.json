@@ -35,9 +35,8 @@
         "cwd": "apps/backend",
         "commands": [
           "docker compose exec backend dfx generate",
-          "cp -r src/declarations/rabbithole-backend ../../libs/declarations/src/backend",
-          "cp -r src/declarations/encrypted-storage ../../libs/declarations/src/encrypted-storage",
-          "cp -r src/declarations/icp-ledger ../../libs/declarations/src/icp-ledger"
+          "cp -r declarations/rabbithole-backend ../../libs/declarations/src/backend",
+          "cp -r declarations/encrypted-storage ../../libs/declarations/src/encrypted-storage"
         ],
         "env": {
           "COMPOSE_PROJECT_NAME": "rabbithole"
@@ -83,7 +82,7 @@
       "options": {
         "commands": [
           "cp apps/backend/.dfx/local/canisters/encrypted-storage/encrypted-storage.wasm.gz apps/backend/mock/assets/",
-          "tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
+          "COPYFILE_DISABLE=1 tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
           "node apps/backend/mock/sync-release-metadata.mjs"
         ],
         "parallel": false

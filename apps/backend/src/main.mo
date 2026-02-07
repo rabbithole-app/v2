@@ -18,7 +18,6 @@ import Profiles "Profiles";
 import Canisters "Canisters";
 import StorageDeployerOrchestrator "StorageDeployer";
 
-import GitHubReleases "GitHubReleases";
 import Types "Types";
 
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
@@ -210,6 +209,20 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     StorageDeployerOrchestrator.deleteStorage(storageOrchestrator, caller, storageId);
   };
 
+  // Upgrade an existing storage canister (WASM and/or frontend)
+  public shared ({ caller }) func upgradeStorage(
+    canisterId : Principal,
+    scope : StorageDeployerOrchestrator.UpgradeScope,
+  ) : async Result.Result<(), StorageDeployerOrchestrator.UpgradeStorageError> {
+    assert not Principal.isAnonymous(caller);
+    StorageDeployerOrchestrator.upgradeStorage<system>(storageOrchestrator, caller, canisterId, scope);
+  };
+
+  // Check if an update is available for a storage canister (public query)
+  public query func checkStorageUpdate(canisterId : Principal) : async ?StorageDeployerOrchestrator.UpdateInfo {
+    StorageDeployerOrchestrator.checkStorageUpdate(storageOrchestrator, canisterId);
+  };
+
   // Admin: Start storage deployer (if not already running)
   public shared ({ caller }) func startStorageDeployer() : async () {
     assert caller == installer;
@@ -232,7 +245,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /* -------------------------------------------------------------------------- */
 
   // Get comprehensive status of all releases including download and extraction progress
-  public query func getReleasesFullStatus() : async GitHubReleases.ReleasesFullStatus {
+  public query func getReleasesFullStatus() : async StorageDeployerOrchestrator.ReleasesFullStatus {
     StorageDeployerOrchestrator.getReleasesFullStatus(storageOrchestrator);
   };
 

@@ -142,6 +142,7 @@ module WasmInstaller {
             canisterId = task.targetCanister;
             wasmHash = task.wasmHash;
             initArg = task.initArg;
+            mode = task.mode;
           });
           var attempts = 0;
         },
@@ -162,14 +163,16 @@ module WasmInstaller {
   // TASK EXECUTION
   // ═══════════════════════════════════════════════════════════════
 
+  public type UploadChunkArgs = {
+    canisterId : Principal;
+    chunkIndex : Nat;
+    chunk : Blob;
+    totalChunks : Nat;
+  };
+
   /// Execute a single chunk upload
-  public func executeUploadChunk(
-    store : Store,
-    canisterId : Principal,
-    chunkIndex : Nat,
-    chunk : Blob,
-    totalChunks : Nat,
-  ) : async Result.Result<IC.ChunkHash, Text> {
+  public func executeUploadChunk(store : Store, args : UploadChunkArgs) : async Result.Result<IC.ChunkHash, Text> {
+    let { canisterId; chunkIndex; chunk } = args;
     try {
       let chunkHash = await IC.ic.upload_chunk({
         canister_id = canisterId;
@@ -212,14 +215,16 @@ module WasmInstaller {
     };
   };
 
+  public type InstallCodeArgs = {
+    canisterId : Principal;
+    wasmModule : Blob;
+    initArg : Blob;
+    mode : IC.CanisterInstallMode;
+  };
+
   /// Execute direct WASM installation (for small modules)
-  public func executeInstallCode(
-    store : Store,
-    canisterId : Principal,
-    wasmModule : Blob,
-    initArg : Blob,
-    mode : IC.CanisterInstallMode,
-  ) : async Result.Result<(), Text> {
+  public func executeInstallCode(store : Store, args : InstallCodeArgs) : async Result.Result<(), Text> {
+    let { canisterId; wasmModule; initArg; mode } = args;
     ignore Map.insert(store.statuses, Principal.compare, canisterId, #Installing);
 
     try {
@@ -232,7 +237,7 @@ module WasmInstaller {
       });
 
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Completed);
-      #ok(());
+      #ok;
     } catch (error) {
       let errMsg = "Install code failed: " # Error.message(error);
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errMsg));
@@ -240,13 +245,16 @@ module WasmInstaller {
     };
   };
 
+  public type InstallChunkedArgs = {
+    canisterId : Principal;
+    wasmHash : Blob;
+    initArg : Blob;
+    mode : IC.CanisterInstallMode;
+  };
+
   /// Execute chunked WASM installation
-  public func executeInstallChunked(
-    store : Store,
-    canisterId : Principal,
-    wasmHash : Blob,
-    initArg : Blob,
-  ) : async Result.Result<(), Text> {
+  public func executeInstallChunked(store : Store, args : InstallChunkedArgs) : async Result.Result<(), Text> {
+    let { canisterId; wasmHash; initArg; mode } = args;
     ignore Map.insert(store.statuses, Principal.compare, canisterId, #Installing);
 
     let ?hashes = Map.get(store.chunkHashes, Principal.compare, canisterId) else {
@@ -257,7 +265,7 @@ module WasmInstaller {
 
     try {
       await IC.ic.install_chunked_code({
-        mode = #install;
+        mode;
         target_canister = canisterId;
         wasm_module_hash = wasmHash;
         chunk_hashes_list = Vector.toArray(hashes);
@@ -269,7 +277,7 @@ module WasmInstaller {
       // Cleanup chunk hashes
       Map.remove(store.chunkHashes, Principal.compare, canisterId);
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Completed);
-      #ok(());
+      #ok;
     } catch (error) {
       let errMsg = "Install chunked code failed: " # Error.message(error);
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errMsg));

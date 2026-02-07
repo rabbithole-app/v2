@@ -134,6 +134,11 @@ export interface EncryptedStorageCanister {
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'get' : ActorMethod<[GetArgs], EncodedAsset>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
+  /**
+   * / Get canister module_hash via canister_status.
+   * / Only accessible by canister controllers.
+   */
+  'getModuleHash' : ActorMethod<[], [] | [Uint8Array | number[]]>,
   'getStorageChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'get_chunk' : ActorMethod<[GetChunkArgs], ChunkContent>,

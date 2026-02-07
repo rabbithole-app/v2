@@ -52,6 +52,7 @@ export interface CreateStorageOptions {
 }
 export type CreationStatus = { 'Failed' : string } |
   { 'UpdatingControllers' : { 'canisterId' : Principal } } |
+  { 'UpgradingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
   { 'CanisterCreated' : { 'canisterId' : Principal } } |
   { 'RevokingInstallerPermission' : { 'canisterId' : Principal } } |
   { 'CheckingAllowance' : null } |
@@ -60,6 +61,9 @@ export type CreationStatus = { 'Failed' : string } |
   } |
   { 'TransferringICP' : { 'amount' : bigint } } |
   { 'NotifyingCMC' : { 'blockIndex' : bigint } } |
+  {
+    'UpgradingFrontend' : { 'progress' : Progress, 'canisterId' : Principal }
+  } |
   { 'Completed' : { 'canisterId' : Principal } } |
   { 'InstallingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
   { 'Pending' : null };
@@ -123,11 +127,12 @@ export interface Profile {
 export interface Progress { 'total' : bigint, 'processed' : bigint }
 export interface Rabbithole {
   'addCanister' : ActorMethod<[Principal], undefined>,
+  'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
-  'createStorage' : ActorMethod<[CreateStorageOptions], Result_1>,
+  'createStorage' : ActorMethod<[CreateStorageOptions], Result_2>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result>,
+  'deleteStorage' : ActorMethod<[bigint], Result_1>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
@@ -149,6 +154,7 @@ export interface Rabbithole {
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
+  'upgradeStorage' : ActorMethod<[Principal, UpgradeScope], Result>,
   'usernameExists' : ActorMethod<[string], boolean>,
 }
 export interface RawQueryHttpRequest {
@@ -202,8 +208,10 @@ export interface ReleasesFullStatus {
   'completedDownloads' : bigint,
 }
 export type Result = { 'ok' : null } |
-  { 'err' : DeleteStorageError };
+  { 'err' : UpgradeStorageError };
 export type Result_1 = { 'ok' : null } |
+  { 'err' : DeleteStorageError };
+export type Result_2 = { 'ok' : null } |
   { 'err' : CreateStorageError };
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
@@ -213,6 +221,7 @@ export interface StorageInfo {
   'completedAt' : [] | [Time],
   'createdAt' : Time,
   'releaseTag' : string,
+  'updateAvailable' : [] | [UpdateInfo],
   'canisterId' : [] | [Principal],
 }
 export type StreamingCallback = ActorMethod<
@@ -239,10 +248,27 @@ export type TransferFromError = {
   { 'CreatedInFuture' : { 'ledger_time' : Icrc1Timestamp } } |
   { 'TooOld' : null } |
   { 'InsufficientFunds' : { 'balance' : Icrc1Tokens } };
+export interface UpdateInfo {
+  'currentWasmHash' : [] | [Uint8Array | number[]],
+  'wasmUpdateAvailable' : boolean,
+  'availableReleaseTag' : [] | [string],
+  'currentReleaseTag' : [] | [string],
+  'frontendUpdateAvailable' : boolean,
+  'availableWasmHash' : [] | [Uint8Array | number[]],
+}
 export interface UpdateProfileArgs {
   'displayName' : [] | [string],
   'avatarUrl' : [] | [string],
 }
+export type UpgradeScope = { 'All' : null } |
+  { 'WasmOnly' : null } |
+  { 'FrontendOnly' : null };
+export type UpgradeStorageError = { 'AlreadyUpgrading' : null } |
+  { 'NoUpdateAvailable' : null } |
+  { 'NotFound' : null } |
+  { 'NotOwner' : null } |
+  { 'ReleaseNotReady' : null } |
+  { 'NotCompleted' : null };
 export interface _SERVICE extends Rabbithole {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
