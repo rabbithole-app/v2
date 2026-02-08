@@ -47,6 +47,14 @@ export const appRoutes: Route[] = [
         outlet: 'sidebar-2',
       },
       {
+        path: '',
+        loadComponent: () =>
+          import(
+            './core/components/update-banner/update-banner.component'
+          ).then((m) => m.UpdateBannerComponent),
+        outlet: 'banner',
+      },
+      {
         path: 'profile',
         loadComponent: () =>
           import('@rabbithole/pages/profile').then((m) => m.ProfileComponent),
