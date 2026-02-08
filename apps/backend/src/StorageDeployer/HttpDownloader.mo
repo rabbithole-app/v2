@@ -8,6 +8,7 @@ import Nat "mo:core/Nat";
 import Iter "mo:core/Iter";
 import Error "mo:core/Error";
 import Option "mo:core/Option";
+import Array "mo:core/Array";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import IC "mo:ic";
@@ -260,26 +261,46 @@ module {
     Queue.clear(store.requests);
   };
 
+  /// Reset transient state after canister upgrade.
+  /// Preserves completed downloads (hash != null) and region.
+  /// Removes incomplete downloads and clears request queue.
+  public func resetTransient(store : Store) {
+    clearRequests(store);
+    Set.clear(store.httpHeaders);
+    store.nextChunkId := 0;
+    // Remove incomplete downloads (no computed hash = in-progress when upgrade happened)
+    let toRemove = Set.values(store.downloads)
+      |> Iter.filter(_, func(d : DownloadState) : Bool = Option.isNull(d.hash))
+      |> Iter.toArray(_);
+    for (download in toRemove.vals()) {
+      deallocate(store.region, download);
+      Set.remove(store.downloads, compareDownloads, download);
+    };
+  };
+
   func checkDownloads(store : Store) : () {
     for (download in Set.values(store.downloads)) {
       let isEmpty = Map.isEmpty(download.chunkStatuses);
       let isDownloaded = not isEmpty and Map.all(download.chunkStatuses, func(k : Nat, v : ChunkStatus) : Bool = switch (v) { case (#Downloaded _) true; case _ false });
       if (isDownloaded) {
-        // get pointers for downloaded chunks
-        let pointers = Map.entries(download.chunkStatuses) |> Iter.filterMap<(Nat, ChunkStatus), (Nat, SizedPointer)>(_, func(k : Nat, v : ChunkStatus) : ?(Nat, SizedPointer) = switch (k, v) { case (chunkId, #Downloaded(pointer)) ?(chunkId, pointer); case _ null }) |> Iter.toArray(_);
-        // load chunks from memory region
-        let chunks = pointers.vals() |> Iter.sort<(Nat, SizedPointer)>(_, func(a : (Nat, SizedPointer), b : (Nat, SizedPointer)) : Order.Order = Nat.compare(a.0, b.0)) |> Iter.map<(Nat, SizedPointer), Blob>(_, func((_, (address, size))) : Blob = MemoryRegion.loadBlob(store.region, address, size));
+        // get pointers for downloaded chunks, sorted by chunkId (preserves byte order)
+        let pointers = Map.entries(download.chunkStatuses)
+          |> Iter.filterMap<(Nat, ChunkStatus), (Nat, SizedPointer)>(_, func(k : Nat, v : ChunkStatus) : ?(Nat, SizedPointer) = switch (k, v) { case (chunkId, #Downloaded(pointer)) ?(chunkId, pointer); case _ null })
+          |> Iter.toArray(_);
+        let sortedPointers = Array.sort<(Nat, SizedPointer)>(pointers, func(a, b) = Nat.compare(a.0, b.0));
+        // load chunks from memory region BEFORE deallocating (must materialize eagerly)
+        let chunks = Array.map<(Nat, SizedPointer), Blob>(sortedPointers, func((_, (address, size))) = MemoryRegion.loadBlob(store.region, address, size));
         // deallocate old chunks
         var totalLength : Nat = 0;
-        for ((_, (address, size)) in pointers.vals()) {
+        for ((_, (address, size)) in sortedPointers.vals()) {
           MemoryRegion.deallocate(store.region, address, size);
           totalLength += size;
         };
-        // allocate new space for the new content
+        // allocate new space and write merged content
         let newContentAddress = MemoryRegion.allocate(store.region, totalLength);
         var offset = 0;
         let sha256 = Sha256.Digest(#sha256);
-        for (chunk in chunks) {
+        for (chunk in chunks.vals()) {
           MemoryRegion.storeBlob(store.region, newContentAddress + offset, chunk);
           offset += chunk.size();
           sha256.writeBlob(chunk);

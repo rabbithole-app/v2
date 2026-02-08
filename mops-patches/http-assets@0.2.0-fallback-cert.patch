@@ -1,0 +1,24 @@
+--- a/.mops/http-assets@0.2.0/src/BaseAssets/Http.mo
++++ b/.mops/http-assets@0.2.0/src/BaseAssets/Http.mo
+@@ -84,10 +84,15 @@
+     };
+
+     let certified_headers_result = switch (opt_fallback_key) {
+-      case (?fallback_key) CertifiedAssets.get_fallback_certificate(
+-        self.fs.certs,
+-        http_req,
+-        fallback_key,
++      case (?fallback_key) {
++        let cert_fallback_path = switch (CertifiedAssets.get_fallback_path(self.fs.certs, key)) {
++          case (?path) path;
++          case (null) fallback_key;
++        };
++        CertifiedAssets.get_fallback_certificate(
++          self.fs.certs,
++          http_req,
++          cert_fallback_path,
+         http_res,
+         opt_body_hash,
+-      );
++      )};
+       case (null) CertifiedAssets.get_certificate(

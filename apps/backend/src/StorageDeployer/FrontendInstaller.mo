@@ -85,6 +85,17 @@ module FrontendInstaller {
     };
   };
 
+  /// Reset transient per-operation state after canister upgrade.
+  /// Preserves `versions` (extracted tar data) and `region`.
+  public func resetTransient(store : Store) {
+    Map.clear(store.batches);
+    Map.clear(store.operations);
+    Map.clear(store.statuses);
+    Map.clear(store.upgrading);
+    Map.clear(store.existingAssets);
+    Map.clear(store.newFrontendKeys);
+  };
+
   /// Add a new version for extraction
   /// If isGzipped is true, will decompress gzip before parsing tar
   public func add<system>(store : Store, args : { versionKey : Text; hash : Blob; contentPointer : Types.SizedPointer; isGzipped : Bool }) : () {
@@ -275,13 +286,16 @@ module FrontendInstaller {
         let assetDetails = await assetsCanister.list({});
         let hashMap = Map.empty<Text, Blob>();
         for ({ key; encodings } in assetDetails.vals()) {
-          // Use sha256 from "identity" encoding (primary content)
-          for ({ content_encoding; sha256 } in encodings.vals()) {
-            if (content_encoding == "identity") {
-              switch (sha256) {
-                case (?hash) { ignore Map.insert(hashMap, Text.compare, key, hash) };
-                case null {};
+          // Use sha256 from any encoding — pre-compressed files (.br, .gz) don't have
+          // "identity" encoding, only "br" or "gzip". We need all keys in the map
+          // so that delete_asset works correctly for changed/stale assets.
+          label findHash for ({ sha256 } in encodings.vals()) {
+            switch (sha256) {
+              case (?hash) {
+                ignore Map.insert(hashMap, Text.compare, key, hash);
+                break findHash;
               };
+              case null {};
             };
           };
         };
