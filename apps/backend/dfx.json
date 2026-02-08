@@ -29,7 +29,8 @@
       "main": "src/EncryptedStorageCanister.mo",
       "type": "motoko",
       "args": "--max-stable-pages 3276800",
-      "gzip": true
+      "gzip": true,
+      "init_arg" : "(record { vetKeyName = \"dfx_test_key\"; owner = principal \"hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe\" })"
     }
   },
   "defaults": {

@@ -10,7 +10,6 @@ export type {
   CreationStatus,
   StorageInfo,
   UpdateInfo,
-  UpgradeScope,
   UpgradeStorageError,
   ReleaseSelector,
   Progress,

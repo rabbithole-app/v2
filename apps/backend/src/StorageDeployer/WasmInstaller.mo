@@ -59,6 +59,13 @@ module WasmInstaller {
     };
   };
 
+  /// Reset transient state after canister upgrade.
+  /// All WasmInstaller state is per-operation and meaningless after upgrade.
+  public func resetTransient(store : Store) {
+    Map.clear(store.statuses);
+    Map.clear(store.chunkHashes);
+  };
+
   // Split blob into chunks of specified size
   public func splitIntoChunks(blob : Blob, chunkSize : Nat) : [Blob] {
     let bytes = Blob.toArray(blob);

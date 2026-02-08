@@ -154,7 +154,7 @@ export interface Rabbithole {
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
-  'upgradeStorage' : ActorMethod<[Principal, UpgradeScope], Result>,
+  'upgradeStorage' : ActorMethod<[Principal], Result>,
   'usernameExists' : ActorMethod<[string], boolean>,
 }
 export interface RawQueryHttpRequest {
@@ -260,9 +260,6 @@ export interface UpdateProfileArgs {
   'displayName' : [] | [string],
   'avatarUrl' : [] | [string],
 }
-export type UpgradeScope = { 'All' : null } |
-  { 'WasmOnly' : null } |
-  { 'FrontendOnly' : null };
 export type UpgradeStorageError = { 'AlreadyUpgrading' : null } |
   { 'NoUpdateAvailable' : null } |
   { 'NotFound' : null } |

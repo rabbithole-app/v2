@@ -114,13 +114,6 @@ module {
     frontendUpdateAvailable : Bool;
   };
 
-  /// Scope of an upgrade operation
-  public type UpgradeScope = {
-    #All;
-    #WasmOnly;
-    #FrontendOnly;
-  };
-
   /// Errors that can occur during storage upgrade
   public type UpgradeStorageError = {
     #NotFound;

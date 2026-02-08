@@ -265,11 +265,6 @@ export const idlFactory = ({ IDL }) => {
     'displayName' : IDL.Opt(IDL.Text),
     'avatarUrl' : IDL.Opt(IDL.Text),
   });
-  const UpgradeScope = IDL.Variant({
-    'All' : IDL.Null,
-    'WasmOnly' : IDL.Null,
-    'FrontendOnly' : IDL.Null,
-  });
   const UpgradeStorageError = IDL.Variant({
     'AlreadyUpgrading' : IDL.Null,
     'NoUpdateAvailable' : IDL.Null,
@@ -318,7 +313,7 @@ export const idlFactory = ({ IDL }) => {
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
-    'upgradeStorage' : IDL.Func([IDL.Principal, UpgradeScope], [Result], []),
+    'upgradeStorage' : IDL.Func([IDL.Principal], [Result], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
   });
   return Rabbithole;

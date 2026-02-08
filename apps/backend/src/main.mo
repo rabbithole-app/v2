@@ -212,10 +212,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // Upgrade an existing storage canister (WASM and/or frontend)
   public shared ({ caller }) func upgradeStorage(
     canisterId : Principal,
-    scope : StorageDeployerOrchestrator.UpgradeScope,
   ) : async Result.Result<(), StorageDeployerOrchestrator.UpgradeStorageError> {
     assert not Principal.isAnonymous(caller);
-    StorageDeployerOrchestrator.upgradeStorage<system>(storageOrchestrator, caller, canisterId, scope);
+    StorageDeployerOrchestrator.upgradeStorage<system>(storageOrchestrator, caller, canisterId);
   };
 
   // Check if an update is available for a storage canister (public query)
