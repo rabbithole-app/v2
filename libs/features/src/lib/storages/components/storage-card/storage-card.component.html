@@ -18,6 +18,17 @@
             <ng-icon hlmIcon name="lucideCircleCheck" size="xs" />
             Ready
           </span>
+          @if (hasUpdate()) {
+            <button
+              hlmBadge
+              variant="outline"
+              class="text-xs text-blue-600 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950"
+              (click)="openUpgradeDialog()"
+            >
+              <ng-icon hlmIcon name="lucideArrowUpCircle" size="xs" />
+              Update: {{ updateSummary() }}
+            </button>
+          }
         }
         @case ('in-progress') {
           <span
@@ -66,7 +77,10 @@
           hlmBtn
           variant="outline"
           size="sm"
-          [routerLink]="['/', canisterIdText(), 'drive']"
+          [routerLink]="hasWasmUpdate() ? null : ['/', canisterIdText(), 'drive']"
+          [class.pointer-events-none]="hasWasmUpdate()"
+          [class.opacity-50]="hasWasmUpdate()"
+          [hlmTooltipTrigger]="hasWasmUpdate() ? 'Update required — storage module is outdated' : ''"
         >
           Open
           <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
@@ -92,6 +106,12 @@
               <ng-icon hlm name="lucideSettings" hlmMenuIcon size="sm" />
               Manage Canister
             </button>
+            @if (hasUpdate()) {
+              <button hlmDropdownMenuItem (click)="openUpgradeDialog()">
+                <ng-icon hlm name="lucideArrowUpCircle" hlmMenuIcon size="sm" />
+                Upgrade Storage
+              </button>
+            }
           </hlm-dropdown-menu-group>
         </hlm-dropdown-menu>
       </ng-template>

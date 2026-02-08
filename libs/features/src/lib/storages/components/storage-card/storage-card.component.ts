@@ -9,7 +9,9 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideArrowUpCircle,
   lucideChevronRight,
+  lucideCircleAlert,
   lucideCircleCheck,
   lucideCircleDashed,
   lucideCircleX,
@@ -25,6 +27,7 @@ import { CopyToClipboardComponent, IS_PRODUCTION_TOKEN } from '@rabbithole/core'
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmItemImports } from '@spartan-ng/helm/item';
@@ -39,6 +42,7 @@ import type {
 } from '../../types';
 import { getStorageDisplayStatus } from '../../types';
 import { getStorageCanisterId } from '../../utils';
+import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade-storage-dialog.component';
 
 @Component({
   selector: 'rbth-feat-storages-storage-card',
@@ -57,13 +61,15 @@ import { getStorageCanisterId } from '../../utils';
   ],
   providers: [
     provideIcons({
-      lucideHardDrive,
+      lucideArrowUpCircle,
       lucideChevronRight,
+      lucideCircleAlert,
       lucideCircleCheck,
       lucideCircleDashed,
       lucideCircleX,
       lucideEllipsisVertical,
       lucideExternalLink,
+      lucideHardDrive,
       lucideLoader2,
       lucideSettings,
       lucideTrash2,
@@ -98,7 +104,12 @@ export class StorageCardComponent {
     return status.type === 'Failed' ? status.message : null;
   });
 
+  readonly hasUpdate = computed(() => !!this.storage().updateAvailable);
+  readonly hasWasmUpdate = computed(
+    () => !!this.storage().updateAvailable?.wasmUpdateAvailable,
+  );
   readonly isDeleting = signal(false);
+
   readonly statusTooltip = computed<string>(() => {
     const status = this.storage().status;
     const label = getUserFriendlyLabel(status);
@@ -106,6 +117,14 @@ export class StorageCardComponent {
 
     return progress ? `${label} (${progress})` : label;
   });
+  readonly updateSummary = computed(() => {
+    const info = this.storage().updateAvailable;
+    if (!info) return '';
+    if (info.wasmUpdateAvailable && info.frontendUpdateAvailable) return 'WASM + Frontend';
+    if (info.wasmUpdateAvailable) return 'WASM';
+    return 'Frontend';
+  });
+  readonly #dialogService = inject(HlmDialogService);
   readonly #router = inject(Router);
 
   readonly #storagesService = inject(StoragesService);
@@ -135,8 +154,25 @@ export class StorageCardComponent {
     }
   }
 
+  openUpgradeDialog(): void {
+    const dialogRef = this.#dialogService.open(UpgradeStorageDialogComponent, {
+      contentClass: 'min-w-[500px] sm:max-w-[600px]',
+      context: { storage: this.storage() },
+    });
+
+    dialogRef.closed$.subscribe(() => {
+      this.#storagesService.clearTrackedUpgrade();
+      this.#storagesService.reload();
+    });
+  }
+
   #getProgressText(status: StorageCreationStatus): string | null {
-    if (status.type === 'InstallingWasm' || status.type === 'UploadingFrontend') {
+    if (
+      status.type === 'InstallingWasm' ||
+      status.type === 'UploadingFrontend' ||
+      status.type === 'UpgradingWasm' ||
+      status.type === 'UpgradingFrontend'
+    ) {
       const { processed, total } = status.progress;
       if (total > 0) {
         const percent = Math.round((processed * 100) / total);
@@ -170,6 +206,12 @@ function getUserFriendlyLabel(status: StorageCreationStatus): string {
 
     case 'UpdatingControllers':
       return 'Finalizing setup...';
+
+    case 'UpgradingFrontend':
+      return 'Upgrading interface...';
+
+    case 'UpgradingWasm':
+      return 'Upgrading storage module...';
 
     case 'UploadingFrontend':
       return 'Setting up interface...';

@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { principalToSubAccount, toNullable } from '@dfinity/utils';
+import type { Principal } from '@icp-sdk/core/principal';
 import { toast } from 'ngx-sonner';
 import { connect } from 'ngxtension/connect';
 import {
@@ -100,7 +101,7 @@ export class StoragesService {
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // STORAGES LIST RESOURCE
+  // UPGRADE TRACKING
   // ═══════════════════════════════════════════════════════════════
 
   readonly hasActiveCreation = computed(() => {
@@ -109,22 +110,42 @@ export class StoragesService {
 
   readonly #isCreating = signal(false);
 
+  readonly isCreating = this.#isCreating.asReadonly();
+  readonly #isLoading = signal(false);
+
+  // ═══════════════════════════════════════════════════════════════
+  // STORAGES LIST RESOURCE
+  // ═══════════════════════════════════════════════════════════════
+
+  readonly isLoading = this.#isLoading.asReadonly();
+
+  readonly #isPolling = signal(false);
+
   // ═══════════════════════════════════════════════════════════════
   // COMPUTED FROM STORAGES
   // ═══════════════════════════════════════════════════════════════
 
-  readonly isCreating = this.#isCreating.asReadonly();
+  readonly isPolling = this.#isPolling.asReadonly();
 
-  readonly #isLoading = signal(false);
+  readonly #isUpgrading = signal(false);
 
-  readonly isLoading = this.#isLoading.asReadonly();
+  readonly isUpgrading = this.#isUpgrading.asReadonly();
 
   // ═══════════════════════════════════════════════════════════════
   // STATE
   // ═══════════════════════════════════════════════════════════════
 
-  readonly #isPolling = signal(false);
-  readonly isPolling = this.#isPolling.asReadonly();
+  readonly #lastUpgradeId = signal<bigint | null>(null);
+  /** Current upgrade status - tracks both in-progress and recently completed */
+  readonly upgradeStatus = computed<StorageCreationStatus | null>(() => {
+    const lastId = this.#lastUpgradeId();
+    if (lastId === null) return null;
+
+    const tracked = this.storages().find((s) => s.id === lastId);
+    if (!tracked) return null;
+
+    return tracked.status;
+  });
 
   readonly #authService = inject(AUTH_SERVICE);
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
@@ -185,6 +206,13 @@ export class StoragesService {
    */
   clearTrackedCreation(): void {
     this.#lastCreationId.set(null);
+  }
+
+  /**
+   * Clear the tracked upgrade (call when dialog is closed)
+   */
+  clearTrackedUpgrade(): void {
+    this.#lastUpgradeId.set(null);
   }
 
   /**
@@ -279,6 +307,54 @@ export class StoragesService {
    */
   reload(): void {
     this.storagesResource.reload();
+  }
+
+  /**
+   * Upgrade an existing storage canister.
+   * Backend determines what to update (WASM, frontend, or both) automatically.
+   * @param storageId ID of the storage record
+   * @param canisterId Principal of the canister to upgrade
+   */
+  async upgradeStorage(
+    storageId: bigint,
+    canisterId: Principal,
+  ): Promise<void> {
+    if (this.#isUpgrading()) {
+      throw new Error('Upgrade already in progress');
+    }
+
+    this.#isUpgrading.set(true);
+    this.#lastUpgradeId.set(storageId);
+    const actor = this.#actor();
+
+    try {
+      const result = await actor.upgradeStorage(canisterId);
+
+      if ('err' in result) {
+        const errorKey = Object.keys(result.err)[0];
+        const errorMessages: Record<string, string> = {
+          AlreadyUpgrading: 'An upgrade is already in progress',
+          NotFound: 'Storage not found',
+          NotOwner: 'You are not the owner of this storage',
+          NoUpdateAvailable: 'No update available',
+          UpToDate: 'Storage is already up to date',
+        };
+        const message = errorMessages[errorKey] ?? errorKey;
+        toast.error(`Upgrade failed: ${message}`);
+        throw new Error(errorKey);
+      }
+
+      toast.success('Storage upgrade started');
+      this.storagesResource.reload();
+    } catch (error) {
+      console.error(error);
+      const errorMessage =
+        parseCanisterRejectError(error) ?? 'An error has occurred';
+      toast.error(`Upgrade failed: ${errorMessage}`);
+      throw error;
+    } finally {
+      this.#isUpgrading.set(false);
+    }
   }
 
   /**

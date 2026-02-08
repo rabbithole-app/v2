@@ -1,3 +1,4 @@
+import { fromNullable } from '@dfinity/utils';
 import { Principal } from '@icp-sdk/core/principal';
 import { match, P } from 'ts-pattern';
 
@@ -6,12 +7,14 @@ import type {
   CreationStatus,
   Progress as ProgressCandid,
   StorageInfo as StorageInfoCandid,
+  UpdateInfo as UpdateInfoCandid,
 } from '@rabbithole/declarations';
 
 import type {
   Progress,
   StorageCreationStatus,
   StorageInfo,
+  UpdateInfo,
 } from '../types';
 
 /**
@@ -46,6 +49,16 @@ export function convertCreationStatus(
       progress: convertProgress(progress),
       type: 'UploadingFrontend',
     }))
+    .with({ UpgradingWasm: P.select() }, ({ canisterId, progress }) => ({
+      canisterId,
+      progress: convertProgress(progress),
+      type: 'UpgradingWasm',
+    }))
+    .with({ UpgradingFrontend: P.select() }, ({ canisterId, progress }) => ({
+      canisterId,
+      progress: convertProgress(progress),
+      type: 'UpgradingFrontend',
+    }))
     .with({ RevokingInstallerPermission: P.select() }, ({ canisterId }) => ({
       canisterId,
       type: 'RevokingInstallerPermission',
@@ -71,8 +84,9 @@ export function convertCreationStatus(
 export function convertStorageInfo(
   record: StorageInfoCandid,
 ): StorageInfo {
-  const canisterId = record.canisterId.length > 0 ? record.canisterId[0] : undefined;
-  const completedAt = record.completedAt.length > 0 ? record.completedAt[0] : undefined;
+  const canisterId = fromNullable(record.canisterId);
+  const completedAt = fromNullable(record.completedAt);
+  const updateInfo = fromNullable(record.updateAvailable);
 
   return {
     id: record.id,
@@ -81,6 +95,7 @@ export function convertStorageInfo(
     releaseTag: record.releaseTag,
     createdAt: timeInNanosToDate(record.createdAt),
     completedAt: completedAt ? timeInNanosToDate(completedAt) : undefined,
+    updateAvailable: updateInfo ? convertUpdateInfo(updateInfo) : undefined,
   };
 }
 
@@ -109,7 +124,9 @@ export function getStorageCanisterId(
   if (
     status.type === 'CanisterCreated' ||
     status.type === 'InstallingWasm' ||
+    status.type === 'UpgradingWasm' ||
     status.type === 'UploadingFrontend' ||
+    status.type === 'UpgradingFrontend' ||
     status.type === 'RevokingInstallerPermission' ||
     status.type === 'UpdatingControllers' ||
     status.type === 'Completed'
@@ -127,5 +144,19 @@ function convertProgress(progress: ProgressCandid): Progress {
   return {
     processed: Number(progress.processed),
     total: Number(progress.total),
+  };
+}
+
+/**
+ * Convert Candid UpdateInfo to TypeScript-friendly UpdateInfo
+ */
+function convertUpdateInfo(info: UpdateInfoCandid): UpdateInfo {
+  return {
+    currentWasmHash: fromNullable(info.currentWasmHash) as Uint8Array | undefined,
+    availableWasmHash: fromNullable(info.availableWasmHash) as Uint8Array | undefined,
+    currentReleaseTag: fromNullable(info.currentReleaseTag),
+    availableReleaseTag: fromNullable(info.availableReleaseTag),
+    wasmUpdateAvailable: info.wasmUpdateAvailable,
+    frontendUpdateAvailable: info.frontendUpdateAvailable,
   };
 }

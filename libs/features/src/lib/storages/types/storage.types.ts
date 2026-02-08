@@ -18,6 +18,8 @@ export type StorageCreationStatus =
   | { amount: bigint; type: 'TransferringICP'; }
   | { blockIndex: bigint; type: 'NotifyingCMC'; }
   | { canisterId: Principal; progress: Progress; type: 'InstallingWasm'; }
+  | { canisterId: Principal; progress: Progress; type: 'UpgradingFrontend'; }
+  | { canisterId: Principal; progress: Progress; type: 'UpgradingWasm'; }
   | { canisterId: Principal; progress: Progress; type: 'UploadingFrontend'; }
   | { canisterId: Principal; type: 'CanisterCreated'; }
   | { canisterId: Principal; type: 'Completed'; }
@@ -38,6 +40,8 @@ export type StorageCreationStatusType =
   | 'RevokingInstallerPermission'
   | 'TransferringICP'
   | 'UpdatingControllers'
+  | 'UpgradingFrontend'
+  | 'UpgradingWasm'
   | 'UploadingFrontend';
 
 // ═══════════════════════════════════════════════════════════════
@@ -51,7 +55,7 @@ export type StorageDisplayStatus =
   | 'pending';
 
 // ═══════════════════════════════════════════════════════════════
-// STORAGE INFO TYPE (matches Candid StorageInfo)
+// UPDATE INFO TYPE
 // ═══════════════════════════════════════════════════════════════
 
 export interface StorageInfo {
@@ -62,6 +66,20 @@ export interface StorageInfo {
   id: bigint;
   releaseTag: string;
   status: StorageCreationStatus;
+  updateAvailable?: UpdateInfo;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STORAGE INFO TYPE (matches Candid StorageInfo)
+// ═══════════════════════════════════════════════════════════════
+
+export interface UpdateInfo {
+  availableReleaseTag?: string;
+  availableWasmHash?: Uint8Array;
+  currentReleaseTag?: string;
+  currentWasmHash?: Uint8Array;
+  frontendUpdateAvailable: boolean;
+  wasmUpdateAvailable: boolean;
 }
 
 export function getStorageDisplayStatus(

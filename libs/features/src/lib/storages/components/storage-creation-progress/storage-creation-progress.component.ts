@@ -17,6 +17,8 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import type { StorageCreationStatus } from '../../types';
 
+type ProgressMode = 'create' | 'upgrade';
+
 interface StageInfo {
   canisterId?: string;
   description: string;
@@ -26,7 +28,7 @@ interface StageInfo {
 }
 
 /**
- * Simplified user-facing stages for storage creation
+ * Simplified user-facing stages for storage creation and upgrade
  */
 type UserStage =
   | 'completed'
@@ -34,6 +36,8 @@ type UserStage =
   | 'failed'
   | 'finalizing'
   | 'installing-wasm'
+  | 'upgrading-frontend'
+  | 'upgrading-wasm'
   | 'uploading-frontend';
 
 @Component({
@@ -55,20 +59,22 @@ type UserStage =
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StorageCreationProgressComponent {
-  readonly stages: UserStage[] = [
-    'creating-canister',
-    'installing-wasm',
-    'uploading-frontend',
-    'finalizing',
-  ];
+  readonly stages = computed<UserStage[]>(() => {
+    if (this.mode() === 'upgrade') {
+      return ['upgrading-wasm', 'upgrading-frontend', 'finalizing'];
+    }
+    return ['creating-canister', 'installing-wasm', 'uploading-frontend', 'finalizing'];
+  });
 
   readonly status = input.required<StorageCreationStatus>();
 
   readonly currentStageIndex = computed(() => {
     const stage = this.#getUserStage(this.status());
-    const index = this.stages.indexOf(stage);
+    const index = this.stages().indexOf(stage);
     return index >= 0 ? index : 0;
   });
+
+  readonly mode = input<ProgressMode>('create');
 
   readonly stageInfo = computed<StageInfo>(() => {
     const status = this.status();
@@ -112,6 +118,22 @@ export class StorageCreationProgressComponent {
           progress: this.#getProgress(status),
         };
 
+      case 'upgrading-frontend':
+        return {
+          stage,
+          title: 'Upgrading Interface',
+          description: 'Uploading updated interface assets...',
+          progress: this.#getProgress(status),
+        };
+
+      case 'upgrading-wasm':
+        return {
+          stage,
+          title: 'Upgrading Storage Module',
+          description: 'Installing the updated storage module...',
+          progress: this.#getProgress(status),
+        };
+
       case 'uploading-frontend':
         return {
           stage,
@@ -123,7 +145,12 @@ export class StorageCreationProgressComponent {
   });
 
   #getProgress(status: StorageCreationStatus): number | undefined {
-    if (status.type === 'InstallingWasm' || status.type === 'UploadingFrontend') {
+    if (
+      status.type === 'InstallingWasm' ||
+      status.type === 'UploadingFrontend' ||
+      status.type === 'UpgradingWasm' ||
+      status.type === 'UpgradingFrontend'
+    ) {
       const { processed, total } = status.progress;
       if (total > 0) {
         return Math.round((processed * 100) / total);
@@ -154,6 +181,12 @@ export class StorageCreationProgressComponent {
       case 'RevokingInstallerPermission':
       case 'UpdatingControllers':
         return 'finalizing';
+
+      case 'UpgradingFrontend':
+        return 'upgrading-frontend';
+
+      case 'UpgradingWasm':
+        return 'upgrading-wasm';
 
       case 'UploadingFrontend':
         return 'uploading-frontend';

@@ -41,7 +41,7 @@
   <!-- Stage indicators (dots) -->
   @if (info.stage !== 'completed' && info.stage !== 'failed') {
     <div class="mt-3 flex items-center justify-center gap-2">
-      @for (stage of stages; track stage; let i = $index) {
+      @for (stage of stages(); track stage; let i = $index) {
         <div
           class="h-1.5 w-8 rounded-full transition-colors"
           [class.bg-primary]="i <= currentStageIndex()"

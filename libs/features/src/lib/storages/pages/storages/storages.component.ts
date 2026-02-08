@@ -54,6 +54,10 @@ export class StoragesComponent {
   readonly storages = this.#storagesService.storages;
   readonly #dialogService = inject(HlmDialogService);
 
+  constructor() {
+    this.#storagesService.reload();
+  }
+
   openCreateDialog(): void {
     const dialogRef = this.#dialogService.open(CreateStorageDialogComponent, {
       contentClass: 'min-w-[500px] sm:max-w-[600px]',
