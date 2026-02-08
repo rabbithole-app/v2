@@ -1,6 +1,5 @@
 import type { CanisterFixture } from "@dfinity/pic";
-import { fromDefinedNullable, fromNullable, uint8ArrayToHexString } from "@dfinity/utils";
-import { Buffer } from "node:buffer";
+import { fromDefinedNullable, uint8ArrayToHexString } from "@dfinity/utils";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import type { ExtractionStatus, RabbitholeActorService } from "@rabbithole/declarations";

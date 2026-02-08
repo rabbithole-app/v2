@@ -323,6 +323,39 @@ export class Manager {
     });
   }
 
+  async upgradeBackendCanister(
+    fixture: CanisterFixture<RabbitholeActorService>,
+  ): Promise<void> {
+    const wasmBytes = await readFile(RABBITHOLE_BACKEND_WASM_PATH);
+    await this.clearChunkStore(fixture.canisterId);
+    const chunks = await this.wasmToChunks(wasmBytes);
+    const chunkIds: UploadChunkResult[] = [];
+    for await (const { chunk, orderId } of chunks) {
+      const chunkHash = await this.uploadChunk(fixture.canisterId, chunk);
+      chunkIds.push({ chunkHash, orderId });
+    }
+    const chunkHashesList = chunkIds
+      .sort((a, b) => a.orderId - b.orderId)
+      .map(({ chunkHash }) => chunkHash);
+
+    await this.installChunkedCode({
+      arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
+      target_canister: fixture.canisterId as any,
+      chunk_hashes_list: chunkHashesList as Array<ChunkHash>,
+      wasm_module_hash: sha256(wasmBytes),
+      mode: {
+        upgrade: [
+          {
+            wasm_memory_persistence: [{ keep: null }],
+            skip_pre_upgrade: [false],
+          },
+        ],
+      },
+      sender_canister_version: [],
+      store_canister: [],
+    });
+  }
+
   private async clearChunkStore(canisterId: Principal): Promise<void> {
     await this.pic.updateCall({
       method: "clear_chunk_store",

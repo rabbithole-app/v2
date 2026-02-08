@@ -1,6 +1,6 @@
 import type { CanisterFixture } from "@dfinity/pic";
 import { createIdentity } from "@dfinity/pic";
-import { principalToSubAccount, toNullable, uint8ArrayToHexString } from "@dfinity/utils";
+import { fromNullable, principalToSubAccount, toNullable, uint8ArrayToHexString } from "@dfinity/utils";
 import { IDL } from "@icp-sdk/core/candid";
 import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -68,8 +68,8 @@ function formatCreationStatus(status: CreationStatus): string {
 /**
  * Format a Candid optional hash (Uint8Array) as hex string or "none"
  */
-function formatOptionalHash(opt: [] | [number[] | Uint8Array]): string {
-  const value = fromOptional(opt);
+function formatNullableHash(opt: [] | [number[] | Uint8Array]): string {
+  const value = fromNullable(opt);
   if (!value) return "none";
   const hex = uint8ArrayToHexString(value);
   return hex.length > 16 ? `${hex.slice(0, 16)}...` : hex;
@@ -80,20 +80,13 @@ function formatOptionalHash(opt: [] | [number[] | Uint8Array]): string {
  */
 function formatUpdateInfo(info: UpdateInfo): Record<string, unknown> {
   return {
-    currentWasmHash: formatOptionalHash(info.currentWasmHash),
-    availableWasmHash: formatOptionalHash(info.availableWasmHash),
-    currentReleaseTag: fromOptional(info.currentReleaseTag) ?? "none",
-    availableReleaseTag: fromOptional(info.availableReleaseTag) ?? "none",
+    currentWasmHash: formatNullableHash(info.currentWasmHash),
+    availableWasmHash: formatNullableHash(info.availableWasmHash),
+    currentReleaseTag: fromNullable(info.currentReleaseTag) ?? "none",
+    availableReleaseTag: fromNullable(info.availableReleaseTag) ?? "none",
     wasmUpdateAvailable: info.wasmUpdateAvailable,
     frontendUpdateAvailable: info.frontendUpdateAvailable,
   };
-}
-
-/**
- * Unwrap Candid optional: [] → undefined, [value] → value
- */
-function fromOptional<T>(opt: [] | [T]): T | undefined {
-  return opt.length > 0 ? opt[0] : undefined;
 }
 
 /**
@@ -495,7 +488,7 @@ describe("StorageDeployer", () => {
     const storage = storages[0] as StorageInfo;
     console.log("Storage info:", {
       id: storage.id,
-      canisterId: fromOptional(storage.canisterId)?.toText() ?? "none",
+      canisterId: fromNullable(storage.canisterId)?.toText() ?? "none",
       releaseTag: storage.releaseTag,
       status: Object.keys(storage.status)[0],
     });
@@ -610,7 +603,7 @@ describe("StorageDeployer", () => {
     expect(completedStorage.updateAvailable).toEqual([]);
 
     // checkStorageUpdate should also return empty
-    const canisterId = fromOptional(completedStorage.canisterId);
+    const canisterId = fromNullable(completedStorage.canisterId);
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
@@ -629,11 +622,11 @@ describe("StorageDeployer", () => {
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
-    const canisterId = fromOptional(completedStorage.canisterId);
+    const canisterId = fromNullable(completedStorage.canisterId);
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
-    const result = await backendFixture.actor.upgradeStorage(canisterId, { All: null });
+    const result = await backendFixture.actor.upgradeStorage(canisterId);
 
     expect(result).toHaveProperty("err");
     if ("err" in result) {
@@ -652,7 +645,7 @@ describe("StorageDeployer", () => {
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
-    const canisterId = fromOptional(completedStorage.canisterId);
+    const canisterId = fromNullable(completedStorage.canisterId);
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
@@ -660,7 +653,7 @@ describe("StorageDeployer", () => {
     const otherIdentity = createIdentity("otherUserForUpgrade");
     backendFixture.actor.setIdentity(otherIdentity);
 
-    const result = await backendFixture.actor.upgradeStorage(canisterId, { All: null });
+    const result = await backendFixture.actor.upgradeStorage(canisterId);
     expect(result).toHaveProperty("err");
     if ("err" in result) {
       expect(result.err).toHaveProperty("NotFound");
@@ -724,7 +717,7 @@ describe("StorageDeployer", () => {
     // Should have update available (at least frontend changed)
     expect(completedStorage.updateAvailable.length).toBe(1);
 
-    const updateInfo = fromOptional(completedStorage.updateAvailable);
+    const updateInfo = fromNullable(completedStorage.updateAvailable);
     expect(updateInfo).toBeDefined();
     if (!updateInfo) return;
 
@@ -732,11 +725,11 @@ describe("StorageDeployer", () => {
     expect(updateInfo.frontendUpdateAvailable).toBe(true);
 
     // checkStorageUpdate (public query) should also work
-    const canisterId = fromOptional(completedStorage.canisterId);
+    const canisterId = fromNullable(completedStorage.canisterId);
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
-    const queryUpdateInfo = fromOptional(await backendFixture.actor.checkStorageUpdate(canisterId));
+    const queryUpdateInfo = fromNullable(await backendFixture.actor.checkStorageUpdate(canisterId));
     expect(queryUpdateInfo).toBeDefined();
     if (!queryUpdateInfo) return;
 
@@ -754,7 +747,7 @@ describe("StorageDeployer", () => {
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
-    const canisterId = fromOptional(completedStorage.canisterId);
+    const canisterId = fromNullable(completedStorage.canisterId);
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
@@ -780,7 +773,7 @@ describe("StorageDeployer", () => {
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
-    const canisterId = fromOptional(completedStorage.canisterId);
+    const canisterId = fromNullable(completedStorage.canisterId);
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
@@ -804,7 +797,7 @@ describe("StorageDeployer", () => {
 
     // Step 3: Call upgradeStorage
     backendFixture.actor.setIdentity(e2eTestIdentity);
-    const upgradeResult = await backendFixture.actor.upgradeStorage(canisterId, { FrontendOnly: null });
+    const upgradeResult = await backendFixture.actor.upgradeStorage(canisterId);
     console.log("Upgrade result:", upgradeResult);
     expect(upgradeResult).toHaveProperty("ok");
 
@@ -819,13 +812,13 @@ describe("StorageDeployer", () => {
     const storagesAfter = await backendFixture.actor.listStorages();
     const updatedStorage = storagesAfter.find(s =>
       "Completed" in s.status
-      && fromOptional(s.canisterId)?.toText() === canisterId.toText()
+      && fromNullable(s.canisterId)?.toText() === canisterId.toText()
     );
     expect(updatedStorage).toBeDefined();
 
     // Frontend was updated, but WASM may still show an update since we didn't change WASM assets
     // The frontendUpdateAvailable should be false now
-    const updateAfter = fromOptional(await backendFixture.actor.checkStorageUpdate(canisterId));
+    const updateAfter = fromNullable(await backendFixture.actor.checkStorageUpdate(canisterId));
     if (updateAfter) {
       console.log("Update after upgrade:", formatUpdateInfo(updateAfter));
       expect(updateAfter.frontendUpdateAvailable).toBe(false);
@@ -868,7 +861,7 @@ describe("StorageDeployer", () => {
     // listStorages should include updateAvailable field
     const storages = await backendFixture.actor.listStorages();
     const newStorage = storages.find(s =>
-      fromOptional(s.canisterId)?.toText() === preCreatedCanisterId.toText()
+      fromNullable(s.canisterId)?.toText() === preCreatedCanisterId.toText()
     );
     expect(newStorage).toBeDefined();
     if (!newStorage) return;
@@ -878,10 +871,58 @@ describe("StorageDeployer", () => {
     // The important thing is that the field exists
     expect(newStorage).toHaveProperty("updateAvailable");
 
-    const updateInfo = fromOptional(newStorage.updateAvailable);
+    const updateInfo = fromNullable(newStorage.updateAvailable);
     if (updateInfo) {
       console.log("Update info in listStorages:", formatUpdateInfo(updateInfo));
     }
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // BACKEND CANISTER UPGRADE TESTS
+  // ═══════════════════════════════════════════════════════════════
+
+  test("should preserve storages after backend canister upgrade", { timeout: 120000 }, async () => {
+    console.log("\n=== Testing Backend Canister Upgrade ===");
+
+    // Step 1: Capture storages before upgrade
+    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+    const storagesBefore = await backendFixture.actor.listStorages();
+    const completedBefore = storagesBefore.filter(s => "Completed" in s.status);
+    console.log("Storages before upgrade:", storagesBefore.length, "completed:", completedBefore.length);
+    expect(completedBefore.length).toBeGreaterThan(0);
+
+    // Step 2: Upgrade backend canister
+    console.log("Upgrading backend canister...");
+    await manager.upgradeBackendCanister(backendFixture);
+
+    // Wait for start() timer to fire (Timer.setTimer #seconds 0 in main.mo)
+    await manager.pic.advanceTime(2000);
+    await manager.pic.tick(10);
+    console.log("Backend canister upgraded");
+
+    // Step 3: Verify storages are preserved
+    backendFixture.actor.setIdentity(e2eTestIdentity);
+    const storagesAfter = await backendFixture.actor.listStorages();
+    console.log("Storages after upgrade:", storagesAfter.length);
+    expect(storagesAfter.length).toBe(storagesBefore.length);
+
+    for (const before of completedBefore) {
+      const after = storagesAfter.find(s => s.id === before.id);
+      expect(after).toBeDefined();
+      if (!after) continue;
+      expect(after.status).toHaveProperty("Completed");
+      expect(fromNullable(after.canisterId)?.toText()).toBe(
+        fromNullable(before.canisterId)?.toText()
+      );
+    }
+
+    // Step 4: Verify deployer is running again
+    const isRunning = await backendFixture.actor.isStorageDeployerRunning();
+    expect(isRunning).toBe(true);
+    console.log("Deployer is running:", isRunning);
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });

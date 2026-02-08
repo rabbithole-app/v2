@@ -17,10 +17,10 @@
         "name": "encrypted-storage.wasm.gz",
         "label": "",
         "content_type": "application/gzip",
-        "size": 628111,
+        "size": 628399,
         "created_at": "2024-01-15T10:00:00Z",
         "updated_at": "2024-01-15T10:00:00Z",
-        "digest": "sha256:b9c12c8a3b56dbab8d49d9c776886fa9184f93afd40d8678e8023f8646d56466"
+        "digest": "sha256:4d679b4e1bff8ea578bd5fc0b71b52cb32fa88a7d5ad09c8e396854a29314d46"
       },
       {
         "url": "http://mock-server:8080/assets/storage-frontend.tar",
@@ -28,10 +28,10 @@
         "name": "storage-frontend.tar",
         "label": "",
         "content_type": "application/x-tar",
-        "size": 6699520,
+        "size": 6706688,
         "created_at": "2024-01-15T10:00:00Z",
         "updated_at": "2024-01-15T10:00:00Z",
-        "digest": "sha256:8e70e6ebe9175eea96276bf792f5412228965c923c032b5676275085b43237af"
+        "digest": "sha256:238c3455202861658929e26d0f4edbbd6e95514fe5845cf354081aa39e933cc6"
       }
     ]
   },
@@ -53,10 +53,10 @@
         "name": "encrypted-storage.wasm.gz",
         "label": "",
         "content_type": "application/gzip",
-        "size": 628111,
+        "size": 628399,
         "created_at": "2024-01-01T10:00:00Z",
         "updated_at": "2024-01-01T10:00:00Z",
-        "digest": "sha256:b9c12c8a3b56dbab8d49d9c776886fa9184f93afd40d8678e8023f8646d56466"
+        "digest": "sha256:4d679b4e1bff8ea578bd5fc0b71b52cb32fa88a7d5ad09c8e396854a29314d46"
       },
       {
         "url": "http://mock-server:8080/assets/storage-frontend.tar",
@@ -64,10 +64,10 @@
         "name": "storage-frontend.tar",
         "label": "",
         "content_type": "application/x-tar",
-        "size": 6699520,
+        "size": 6706688,
         "created_at": "2024-01-01T10:00:00Z",
         "updated_at": "2024-01-01T10:00:00Z",
-        "digest": "sha256:8e70e6ebe9175eea96276bf792f5412228965c923c032b5676275085b43237af"
+        "digest": "sha256:238c3455202861658929e26d0f4edbbd6e95514fe5845cf354081aa39e933cc6"
       }
     ]
   }
