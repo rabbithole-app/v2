@@ -59,7 +59,10 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
         provide: WORKER,
         useFactory: () =>
           typeof Worker !== 'undefined'
-            ? new Worker(new URL('../workers/core.worker', import.meta.url))
+            ? new Worker(
+                new URL('../workers/core.worker', import.meta.url),
+                { type: 'module' },
+              )
             : null,
       } satisfies Provider,
       WorkerService,
