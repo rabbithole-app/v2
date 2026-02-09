@@ -1,0 +1,140 @@
+@let currentStep = updateCheckService.upgradeStep();
+
+<hlm-dialog-header>
+  <h3 hlmDialogTitle>Upgrade Storage</h3>
+  <p hlmDialogDescription>
+    @switch (currentStep) {
+      @case ('idle') { Review the available updates for your storage. }
+      @case ('preparing') { Preparing your storage for the upgrade... }
+      @case ('upgrading') { Please wait while your storage is being upgraded... }
+      @case ('completed') { Your storage has been upgraded successfully. }
+      @case ('error') { Something went wrong during the upgrade. }
+    }
+  </p>
+</hlm-dialog-header>
+
+@switch (currentStep) {
+  @case ('idle') {
+    <div class="mt-4 space-y-4">
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-muted-foreground">Version:</span>
+        <span class="font-mono">{{ updateCheckService.currentReleaseTag() ?? 'unknown' }}</span>
+        <span class="text-muted-foreground">&rarr;</span>
+        <span class="font-mono font-medium">{{ updateCheckService.availableReleaseTag() ?? 'unknown' }}</span>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        @if (updateCheckService.updateInfo(); as info) {
+          @if (info.wasmUpdateAvailable) {
+            <span hlmBadge variant="outline" class="text-xs">
+              <ng-icon hlmIcon name="lucidePackage" size="xs" />
+              WASM Module
+            </span>
+          }
+          @if (info.frontendUpdateAvailable) {
+            <span hlmBadge variant="outline" class="text-xs">
+              <ng-icon hlmIcon name="lucideGlobe" size="xs" />
+              Frontend
+            </span>
+          }
+        }
+      </div>
+
+      <div hlmAlert>
+        <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+        <h4 hlmAlertTitle>Temporary permissions required</h4>
+        <p hlmAlertDesc>
+          The backend canister will be temporarily added as a controller of your storage
+          to install updates. It will be automatically removed after the upgrade completes.
+        </p>
+      </div>
+
+      @if (updateCheckService.hasWasmUpdate()) {
+        <div hlmAlert variant="destructive">
+          <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+          <h4 hlmAlertTitle>Storage will be temporarily unavailable</h4>
+          <p hlmAlertDesc>
+            During the WASM update, this storage will not be accessible.
+            Do not close this tab until the update is complete.
+          </p>
+        </div>
+      }
+    </div>
+  }
+
+  @case ('preparing') {
+    <div class="mt-4">
+      <hlm-empty>
+        <hlm-empty-header>
+          <hlm-empty-media variant="icon">
+            <hlm-spinner />
+          </hlm-empty-media>
+          <h4 hlmEmptyTitle>Granting permissions...</h4>
+          <p hlmEmptyDescription>Preparing your storage for the upgrade...</p>
+        </hlm-empty-header>
+      </hlm-empty>
+    </div>
+  }
+
+  @case ('upgrading') {
+    <div class="mt-4">
+      <hlm-empty>
+        <hlm-empty-header>
+          <hlm-empty-media variant="icon">
+            <hlm-spinner />
+          </hlm-empty-media>
+          <h4 hlmEmptyTitle>Upgrading storage...</h4>
+          <p hlmEmptyDescription>
+            Do not close this tab. The page will reload automatically when complete.
+          </p>
+        </hlm-empty-header>
+      </hlm-empty>
+    </div>
+  }
+
+  @case ('completed') {
+    <div class="mt-4">
+      <hlm-empty>
+        <hlm-empty-header>
+          <hlm-empty-media variant="icon">
+            <ng-icon hlmIcon name="lucideCheck" class="text-green-600" />
+          </hlm-empty-media>
+          <h4 hlmEmptyTitle>Update complete!</h4>
+          <p hlmEmptyDescription>Reloading page...</p>
+        </hlm-empty-header>
+      </hlm-empty>
+    </div>
+  }
+
+  @case ('error') {
+    <div hlmAlert variant="destructive" class="mt-4">
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>Upgrade Failed</h4>
+      <p hlmAlertDesc>{{ updateCheckService.errorMessage() }}</p>
+    </div>
+  }
+}
+
+@if (!isInProgress()) {
+  <hlm-dialog-footer class="mt-4">
+    @switch (currentStep) {
+      @case ('idle') {
+        <button hlmBtn variant="outline" (click)="closeDialog()">Cancel</button>
+        <button hlmBtn (click)="startUpgrade()">
+          <ng-icon hlmIcon name="lucideArrowUpCircle" size="sm" />
+          Start Upgrade
+        </button>
+      }
+      @case ('completed') {
+        <button hlmBtn (click)="closeDialog()">
+          <ng-icon hlmIcon name="lucideCheck" size="sm" />
+          Done
+        </button>
+      }
+      @case ('error') {
+        <button hlmBtn variant="outline" (click)="closeDialog()">Close</button>
+        <button hlmBtn (click)="tryAgain()">Try Again</button>
+      }
+    }
+  </hlm-dialog-footer>
+}
