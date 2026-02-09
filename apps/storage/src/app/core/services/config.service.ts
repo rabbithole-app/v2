@@ -22,7 +22,7 @@ export class ConfigService {
       .get<{
         id: string;
       }>(
-        `${isDevMode() ? `https://${import.meta.env.CANISTER_ID_ENCRYPTED_STORAGE}.localhost` : ''}/info.json`,
+        `${isDevMode() ? `https://${this.canisterId()}.localhost` : ''}/info.json`,
       )
       .pipe(
         retry(3),

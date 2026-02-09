@@ -9,5 +9,4 @@ export const environment = {
   production: false,
   scheme: 'rabbithole',
   backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
-  encryptedStorageCanisterId: import.meta.env.CANISTER_ID_ENCRYPTED_STORAGE,
 };

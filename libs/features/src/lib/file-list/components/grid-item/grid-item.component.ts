@@ -1,5 +1,5 @@
 import { FocusableOption, Highlightable } from '@angular/cdk/a11y';
-import { booleanAttribute, ElementRef, isDevMode, signal } from '@angular/core';
+import { booleanAttribute, ElementRef, signal } from '@angular/core';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,7 +10,7 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
-import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
+import { ENCRYPTED_STORAGE_CANISTER_ID, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import { hlm } from '@spartan-ng/helm/utils';
 
 import { isDirectory, isFile, NodeItem } from '../../types';
@@ -79,7 +79,6 @@ export type GridItemVariants = VariantProps<typeof gridItemVariants>;
   ],
 })
 export class GridItemComponent implements FocusableOption, Highlightable {
-  // eslint-disable-next-line @angular-eslint/no-input-rename
   _disabled = input(false, { transform: booleanAttribute, alias: 'disabled' });
   active = input(false, { transform: booleanAttribute });
   data = input.required<NodeItem>();
@@ -87,7 +86,6 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   loading = input(false, { transform: booleanAttribute });
   selected = input(false, { transform: booleanAttribute });
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
   protected readonly highlighted = signal(false);
 
   protected readonly _computedClass = computed(() =>
@@ -124,8 +122,8 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     const item = this.data();
     return isFile(item) && !!item.thumbnailKey;
   });
-  protected readonly isDirectoryNode = computed(() => isDirectory(this.data()));
 
+  protected readonly isDirectoryNode = computed(() => isDirectory(this.data()));
   protected readonly isFileNode = computed(() => isFile(this.data()));
 
   protected readonly itemName = computed(() => this.data().name);
@@ -133,9 +131,9 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   protected readonly thumbnailUrl = computed(() => {
     const item = this.data();
     if (isFile(item) && item.thumbnailKey) {
-      const storageUrl = isDevMode()
-        ? `https://${this.#canisterId.toText()}.localhost`
-        : `https://${this.#canisterId.toText()}.icp0.io`;
+      const storageUrl = this.#isProduction
+        ? `https://${this.#canisterId.toText()}.icp0.io`
+        : `https://${this.#canisterId.toText()}.localhost`;
       return `${storageUrl}${item.thumbnailKey}`;
     }
     return null;
@@ -144,6 +142,8 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
 
   #elementRef = inject(ElementRef<HTMLElement>);
+
+  readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
 
   focus(): void {
     this.#elementRef.nativeElement.focus();

@@ -53,6 +53,7 @@ export class DelegationComponent {
       backendCanisterId,
       Principal.fromText(LEDGER_CANISTER_ID),
       Principal.fromText(CYCLES_MINTING_CANISTER_ID),
+      Principal.fromText('aaaaa-aa'),
       ...(storageCanisterId ? [storageCanisterId] : []),
     ];
   });
