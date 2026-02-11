@@ -28,10 +28,6 @@ import {
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
 } from '@rabbithole/core';
-import {
-  RbthTooltipComponent,
-  RbthTooltipTriggerDirective,
-} from '@rabbithole/ui';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
@@ -68,8 +64,6 @@ import { ICManagementService } from '../../services';
     ...HlmSpinnerImports,
     HlmIcon,
     NgIcon,
-    RbthTooltipComponent,
-    RbthTooltipTriggerDirective,
     CanisterMemoryComponent,
     CanisterRuntimeComponent,
     CanisterHealthCheckComponent,

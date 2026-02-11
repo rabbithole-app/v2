@@ -30,11 +30,11 @@ import {
   RbthProgressDirective,
   RbthProgressIndicatorDirective,
 } from '@rabbithole/ui';
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { hlm } from '@spartan-ng/helm/utils';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { FileUploadWithStatus, UploadState } from '../../../types';
 import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
@@ -53,8 +53,8 @@ import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
     RbthProgressDirective,
     RbthProgressIndicatorDirective,
     NgTemplateOutlet,
-    RbthTooltipTriggerDirective,
     FormatRangeBytesPipe,
+    ...HlmTooltipImports,
   ],
   templateUrl: './upload-item.component.html',
   providers: [

@@ -9,7 +9,7 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Field, form, required, validate } from '@angular/forms/signals';
+import { FormField, form, required, validate } from '@angular/forms/signals';
 import { Router } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -75,7 +75,7 @@ interface NewCanisterFormModel {
   selector: 'rbth-feat-storages-create-storage-dialog',
   standalone: true,
   imports: [
-    Field,
+    FormField,
     FormsModule,
     NgTemplateOutlet,
     NgIcon,

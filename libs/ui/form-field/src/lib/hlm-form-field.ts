@@ -5,20 +5,16 @@ import {
   contentChild,
   contentChildren,
   effect,
-  input,
 } from '@angular/core';
 import { BrnFormFieldControl } from '@spartan-ng/brain/form-field';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 import { HlmError } from './hlm-error';
 
 @Component({
   selector: 'hlm-form-field',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: {
-    '[class]': '_computedClass()',
-  },
   template: `
     <ng-content />
 
@@ -34,12 +30,8 @@ import { HlmError } from './hlm-error';
 })
 export class HlmFormField {
   public readonly control = contentChild(BrnFormFieldControl);
-  public readonly errorChildren = contentChildren(HlmError);
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
-  protected readonly _computedClass = computed(() =>
-    hlm('block space-y-2', this.userClass()),
-  );
+  public readonly errorChildren = contentChildren(HlmError);
 
   protected readonly _hasDisplayedMessage = computed<'error' | 'hint'>(() =>
     this.errorChildren() &&
@@ -50,6 +42,7 @@ export class HlmFormField {
   );
 
   constructor() {
+    classes(() => 'block space-y-2');
     effect(() => {
       if (!this.control()) {
         throw new Error('hlm-form-field must contain a BrnFormFieldControl.');

@@ -62,34 +62,37 @@ export default [
       'perfectionist/sort-imports': [
         'warn',
         {
-          customGroups: {
-            type: {
-              angular: '^@angular/.+',
-              dfinity: ['^@dfinity/.+', '^@icp-sdk/.+'],
-              spartan: [
+          customGroups: [
+            {
+              groupName: 'angular',
+              elementNamePattern: '^@angular/.+',
+            },
+            {
+              groupName: 'dfinity',
+              elementNamePattern: ['^@dfinity/.+', '^@icp-sdk/.+'],
+            },
+            {
+              groupName: 'spartan',
+              elementNamePattern: [
                 '^@spartan-ng/brain/.+',
                 '^@ng-icons/.+',
-                'clsx',
-                'class-variance-authority',
+                '^clsx$',
+                '^class-variance-authority$',
               ],
-              tauri: '^@tauri-apps/.+',
-              libs: ['^@spartan-ng/helm/.+', '^@rabbithole/.+'],
             },
-            value: {
-              angular: '^@angular/.+',
-              dfinity: ['^@dfinity/.+', '^@icp-sdk/.+'],
-              rxjs: ['^rxjs$', '^rxjs/.+', '^ngxtension/.+'],
-              spartan: [
-                '^@spartan-ng/brain/.+',
-                '^@ng-icons/.+',
-                'clsx',
-                'class-variance-authority',
-              ],
-              tauri: '^@tauri-apps/.+',
-              libs: ['^@spartan-ng/helm/.+', '^@rabbithole/.+'],
+            {
+              groupName: 'tauri',
+              elementNamePattern: '^@tauri-apps/.+',
             },
-          },
-          environment: 'node',
+            {
+              groupName: 'rxjs',
+              elementNamePattern: ['^rxjs$', '^rxjs/.+', '^ngxtension/.+'],
+            },
+            {
+              groupName: 'libs',
+              elementNamePattern: ['^@spartan-ng/helm/.+', '^@rabbithole/.+'],
+            },
+          ],
           groups: [
             [
               'angular',
@@ -97,22 +100,27 @@ export default [
               'spartan',
               'tauri',
               'rxjs',
-              'type',
-              ...['builtin', 'external'],
+              'type-import',
+              'value-builtin',
+              'value-external',
             ],
             'libs',
             [
-              'internal-type',
-              'internal',
-              ...['parent-type', 'sibling-type', 'index-type'],
-              ...['parent', 'sibling', 'index'],
-              'object',
+              'type-internal',
+              'value-internal',
+              'type-parent',
+              'type-sibling',
+              'type-index',
+              'value-parent',
+              'value-sibling',
+              'value-index',
+              'ts-equals-import',
               'unknown',
             ],
           ],
           internalPattern: ['^~/.*'],
-          maxLineLength: undefined,
-          newlinesBetween: 'always',
+          newlinesBetween: 1,
+          environment: 'node',
           order: 'asc',
           type: 'alphabetical',
         },

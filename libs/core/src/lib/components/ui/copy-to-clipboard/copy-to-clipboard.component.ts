@@ -14,10 +14,10 @@ import { ClassValue } from 'clsx';
 import { of, Subject, timer } from 'rxjs';
 import { map, mergeWith, switchMap } from 'rxjs/operators';
 
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 @Component({
   selector: 'core-copy-to-clipboard',
@@ -29,7 +29,7 @@ import { hlm } from '@spartan-ng/helm/utils';
       variant="ghost"
       size="icon"
       class="shrink-0 size-6"
-      [rbthTooltipTrigger]="'Copy to clipboard'"
+      [hlmTooltip]="'Copy to clipboard'"
       (click)="handleCopy($event)"
     >
       <ng-icon hlm [name]="iconName()" size="sm" />
@@ -39,8 +39,8 @@ import { hlm } from '@spartan-ng/helm/utils';
     NgIcon,
     HlmButton,
     HlmIcon,
-    RbthTooltipTriggerDirective,
     ClipboardModule,
+    ...HlmTooltipImports,
   ],
   providers: [
     provideIcons({

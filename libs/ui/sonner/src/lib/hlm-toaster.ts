@@ -6,9 +6,10 @@ import {
   input,
   numberAttribute,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 import { NgxSonnerToaster, type ToasterProps } from 'ngx-sonner';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'hlm-toaster',

@@ -1,18 +1,14 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { BrnAvatar } from '@spartan-ng/brain/avatar';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'hlm-avatar',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '[class]': '_computedClass()',
+    'data-slot': 'avatar',
+    '[attr.data-size]': 'size()',
   },
   template: `
     @if (_image()?.canShow()) {
@@ -20,15 +16,17 @@ import type { ClassValue } from 'clsx';
     } @else {
       <ng-content select="[hlmAvatarFallback],[brnAvatarFallback]" />
     }
+    <ng-content />
   `,
 })
 export class HlmAvatar extends BrnAvatar {
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
+  public readonly size = input<'default' | 'lg' | 'sm'>('default');
 
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'relative flex size-8 shrink-0 overflow-hidden rounded-full',
-      this.userClass(),
-    ),
-  );
+  constructor() {
+    super();
+    classes(
+      () =>
+        'after:border-border group/avatar relative flex size-8 shrink-0 rounded-full select-none after:absolute after:inset-0 after:rounded-full after:border after:mix-blend-darken data-[size=lg]:size-10 data-[size=sm]:size-6 dark:after:mix-blend-lighten',
+    );
+  }
 }

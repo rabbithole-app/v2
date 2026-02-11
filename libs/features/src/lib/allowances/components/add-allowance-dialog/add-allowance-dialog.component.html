@@ -13,7 +13,7 @@
       <input
         hlmInput
         id="spenderId"
-        [field]="allowanceForm.spenderId"
+        [formField]="allowanceForm.spenderId"
         [attr.aria-invalid]="spenderIdError()"
         placeholder="Enter Principal ID"
       />
@@ -36,7 +36,7 @@
         hlmInput
         id="amount"
         type="number"
-        [field]="allowanceForm.amount"
+        [formField]="allowanceForm.amount"
         [attr.aria-invalid]="amountError()"
         placeholder="0.00"
         step="0.00000001"

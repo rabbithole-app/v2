@@ -9,10 +9,10 @@ import {
 import type { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronRight } from '@ng-icons/lucide';
+
 import type { ButtonVariants } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+import { classes } from '@spartan-ng/helm/utils';
 
 import { HlmPaginationLink } from './hlm-pagination-link';
 
@@ -23,7 +23,6 @@ import { HlmPaginationLink } from './hlm-pagination-link';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a
-      [class]="_computedClass()"
       hlmPaginationLink
       [link]="link()"
       [queryParams]="queryParams()"
@@ -41,6 +40,7 @@ export class HlmPaginationNext {
   public readonly ariaLabel = input<string>('Go to next page', {
     alias: 'aria-label',
   });
+
   /** Whether the button should only display the icon. */
   public readonly iconOnly = input<boolean, BooleanInput>(false, {
     transform: booleanAttribute,
@@ -55,16 +55,14 @@ export class HlmPaginationNext {
     input<RouterLink['queryParamsHandling']>();
   /** The text to display for the next page link. */
   public readonly text = input<string>('Next');
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm('gap-1 px-2.5', !this.iconOnly() ? 'sm:pr-2.5' : '', this.userClass()),
-  );
-
   protected readonly _labelClass = computed(() =>
     this.iconOnly() ? 'sr-only' : 'hidden sm:block',
   );
-
   protected readonly _size = computed<ButtonVariants['size']>(() =>
     this.iconOnly() ? 'icon' : 'default',
   );
+
+  constructor() {
+    classes(() => ['gap-1 px-2.5', !this.iconOnly() ? 'sm:pr-2.5' : '']);
+  }
 }

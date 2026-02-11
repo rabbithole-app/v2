@@ -1,9 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import {
   BrnSlider,
   BrnSliderRange,
@@ -12,8 +7,8 @@ import {
   BrnSliderTrack,
   injectBrnSlider,
 } from '@spartan-ng/brain/slider';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'hlm-slider, brn-slider [hlm]',
@@ -26,9 +21,6 @@ import type { ClassValue } from 'clsx';
       outputs: ['valueChange'],
     },
   ],
-  host: {
-    '[class]': '_computedClass()',
-  },
   template: `
     <div
       brnSliderTrack
@@ -58,13 +50,8 @@ import type { ClassValue } from 'clsx';
   `,
 })
 export class HlmSlider {
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
   protected readonly _slider = injectBrnSlider();
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'relative flex w-full touch-none items-center select-none',
-      this._slider.mutableDisabled() ? 'opacity-40' : '',
-      this.userClass(),
-    ),
-  );
+  constructor() {
+    classes(() => 'relative flex w-full touch-none items-center select-none');
+  }
 }

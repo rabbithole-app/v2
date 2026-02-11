@@ -4,15 +4,14 @@ import {
   computed,
   effect,
   inject,
-  input,
   untracked,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowRight } from '@ng-icons/lucide';
+
 import { HlmButton, provideBrnButtonConfig } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
 
 import { HlmCarousel } from './hlm-carousel';
 
@@ -36,7 +35,6 @@ import { HlmCarousel } from './hlm-carousel';
   `,
 })
 export class HlmCarouselNext {
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
   protected readonly _carousel = inject(HlmCarousel);
   private readonly _button = inject(HlmButton);
   private readonly _computedClass = computed(() =>
@@ -45,7 +43,6 @@ export class HlmCarouselNext {
       this._carousel.orientation() === 'horizontal'
         ? 'top-1/2 -right-12 -translate-y-1/2'
         : '-bottom-12 left-1/2 -translate-x-1/2 rotate-90',
-      this.userClass(),
     ),
   );
   constructor() {

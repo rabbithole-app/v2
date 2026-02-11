@@ -15,8 +15,9 @@ import {
   Renderer2,
 } from '@angular/core';
 import { BrnRadio, type BrnRadioChange } from '@spartan-ng/brain/radio-group';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
+
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'hlm-radio',
@@ -87,7 +88,7 @@ export class HlmRadio<T = unknown> {
 
   protected readonly _computedClass = computed(() =>
     hlm(
-      'group flex items-center gap-x-3',
+      'group relative flex items-center gap-x-3',
       'data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50',
       this.userClass(),
     ),

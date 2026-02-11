@@ -12,12 +12,11 @@
         />
         @if (controllerControl.invalid && controllerControl.touched) {
           <ng-icon
-            hlmTooltipTrigger
-            [hlmTooltipTrigger]="'Invalid Principal format.'"
+            hlmTooltip
+            [hlmTooltip]="'Invalid Principal format.'"
             name="lucideTriangleAlert"
             class="size-4 text-destructive"
           />
-          <hlm-tooltip />
         }
         <button
           hlmInputGroupButton

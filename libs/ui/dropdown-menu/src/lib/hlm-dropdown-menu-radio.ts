@@ -1,14 +1,8 @@
 import { type BooleanInput } from '@angular/cdk/coercion';
 import { CdkMenuItemRadio } from '@angular/cdk/menu';
-import {
-  booleanAttribute,
-  computed,
-  Directive,
-  inject,
-  input,
-} from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+import { booleanAttribute, Directive, inject, input } from '@angular/core';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 @Directive({
   selector: '[hlmDropdownMenuRadio]',
@@ -23,12 +17,10 @@ import type { ClassValue } from 'clsx';
     'data-slot': 'dropdown-menu-radio-item',
     '[attr.data-disabled]': 'disabled() ? "" : null',
     '[attr.data-checked]': 'checked() ? "" : null',
-    '[class]': '_computedClass()',
   },
 })
 export class HlmDropdownMenuRadio {
   private readonly _cdkMenuItem = inject(CdkMenuItemRadio);
-
   public readonly checked = input<boolean, BooleanInput>(
     this._cdkMenuItem.checked,
     { transform: booleanAttribute },
@@ -38,11 +30,10 @@ export class HlmDropdownMenuRadio {
     { transform: booleanAttribute },
   );
 
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground group relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-2 pl-8 text-sm transition-colors outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-      this.userClass(),
-    ),
-  );
+  constructor() {
+    classes(
+      () =>
+        'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground group relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-2 pl-8 text-sm transition-colors outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+    );
+  }
 }

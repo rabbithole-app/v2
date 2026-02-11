@@ -23,12 +23,12 @@ import {
 
 import { Snapshot } from '@rabbithole/core';
 import { CopyToClipboardComponent, FormatBytesPipe } from '@rabbithole/core';
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTableImports } from '@spartan-ng/helm/table';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 interface SnapshotItem {
   snapshot: Snapshot;
@@ -47,7 +47,7 @@ interface SnapshotItem {
     CopyToClipboardComponent,
     DatePipe,
     FormatBytesPipe,
-    RbthTooltipTriggerDirective,
+    ...HlmTooltipImports,
   ],
   providers: [
     provideIcons({

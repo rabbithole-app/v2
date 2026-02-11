@@ -8,8 +8,6 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
 import {
   EmblaCarouselDirective,
   type EmblaEventType,
@@ -17,13 +15,14 @@ import {
   type EmblaPluginType,
 } from 'embla-carousel-angular';
 
+import { classes } from '@spartan-ng/helm/utils';
+
 @Component({
   selector: 'hlm-carousel',
   imports: [EmblaCarouselDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     'data-slot': 'carousel',
-    '[class]': '_computedClass()',
     role: 'region',
     'aria-roledescription': 'carousel',
     '(keydown)': 'onKeydown($event)',
@@ -47,26 +46,21 @@ export class HlmCarousel {
 
   public readonly canScrollNext = this._canScrollNext.asReadonly();
   private readonly _canScrollPrev = signal(false);
-
   public readonly canScrollPrev = this._canScrollPrev.asReadonly();
-  private readonly _currentSlide = signal(0);
-  public readonly currentSlide = this._currentSlide.asReadonly();
 
+  private readonly _currentSlide = signal(0);
+
+  public readonly currentSlide = this._currentSlide.asReadonly();
   public readonly options: InputSignal<
     Omit<EmblaOptionsType, 'axis'> | undefined
   > = input<Omit<EmblaOptionsType, 'axis'>>();
-
   public readonly orientation = input<'horizontal' | 'vertical'>('horizontal');
   public readonly plugins: InputSignal<EmblaPluginType[]> = input<
     EmblaPluginType[]
   >([]);
+
   private readonly _slideCount = signal(0);
   public readonly slideCount = this._slideCount.asReadonly();
-
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm('relative', this.userClass()),
-  );
   protected readonly _emblaCarousel = viewChild.required(
     EmblaCarouselDirective,
   );
@@ -74,6 +68,10 @@ export class HlmCarousel {
     ...this.options(),
     axis: this.orientation() === 'horizontal' ? 'x' : 'y',
   }));
+
+  constructor() {
+    classes(() => 'relative');
+  }
 
   scrollNext() {
     this._emblaCarousel().scrollNext();

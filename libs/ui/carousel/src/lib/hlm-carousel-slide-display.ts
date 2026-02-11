@@ -5,7 +5,6 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 
 import { HlmCarousel } from './hlm-carousel';
@@ -15,7 +14,6 @@ import { HlmCarousel } from './hlm-carousel';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     'data-slot': 'carousel-slide-display',
-    '[class]': '_computedClass()',
   },
   template: `
     <span class="sr-only">{{ _labelContent() }}</span>
@@ -32,10 +30,7 @@ export class HlmCarouselSlideDisplay {
     'text-muted-foreground text-sm',
   );
 
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
   protected readonly _carousel = inject(HlmCarousel);
-
-  protected readonly _computedClass = computed(() => hlm('', this.userClass()));
 
   protected readonly _currentSlide = computed(
     () => this._carousel.currentSlide() + 1,

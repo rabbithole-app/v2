@@ -1,12 +1,7 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+
 import { HlmSeparator } from '@spartan-ng/helm/separator';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+import { classes } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'hlm-field-separator',
@@ -14,7 +9,6 @@ import type { ClassValue } from 'clsx';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     'data-slot': 'field-separator',
-    '[class]': '_computedClass()',
   },
   template: `
     <hlm-separator class="absolute inset-0 top-1/2" />
@@ -27,12 +21,10 @@ import type { ClassValue } from 'clsx';
   `,
 })
 export class HlmFieldSeparator {
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'relative -my-2 h-5 text-sm group-data-[variant=outline]/field-group:-mb-2',
-      this.userClass(),
-    ),
-  );
+  constructor() {
+    classes(
+      () =>
+        'relative -my-2 h-5 text-sm group-data-[variant=outline]/field-group:-mb-2',
+    );
+  }
 }

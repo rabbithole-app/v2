@@ -21,7 +21,7 @@ import { InlineWarningComponent } from '../inline-warning/inline-warning.compone
   hostDirectives: [
     {
       directive: HlmItem,
-      inputs: ['variant', 'size', 'class'],
+      inputs: ['variant', 'size'],
     },
   ],
   imports: [

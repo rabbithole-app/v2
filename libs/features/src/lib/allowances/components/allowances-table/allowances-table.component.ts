@@ -26,11 +26,11 @@ import {
   CopyToClipboardComponent,
   formatICP,
 } from '@rabbithole/core';
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTableImports } from '@spartan-ng/helm/table';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 interface AllowanceItem {
   allowance: AllowanceInfo;
@@ -47,7 +47,7 @@ interface AllowanceItem {
     ...HlmDropdownMenuImports,
     CopyToClipboardComponent,
     DatePipe,
-    RbthTooltipTriggerDirective,
+    ...HlmTooltipImports,
   ],
   providers: [
     provideIcons({

@@ -1,37 +1,24 @@
 import {
-  computed,
   Directive,
   effect,
   ElementRef,
   inject,
-  input,
   Renderer2,
   signal,
 } from '@angular/core';
 import { injectExposesStateProvider } from '@spartan-ng/brain/core';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 @Directive({
-  selector: '[hlmPopoverContent],[brnPopoverContent][hlm]',
-  host: {
-    '[class]': '_computedClass()',
-  },
+  selector: '[hlmPopoverContent],hlm-popover-content',
 })
 export class HlmPopoverContent {
   private readonly _stateProvider = injectExposesStateProvider({ host: true });
   public state = this._stateProvider.state ?? signal('closed');
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'border-border bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative w-72 rounded-md border p-4 shadow-md outline-none',
-      this.userClass(),
-    ),
-  );
-
   private readonly _element = inject(ElementRef);
-
   private readonly _renderer = inject(Renderer2);
+
   constructor() {
     effect(() => {
       this._renderer.setAttribute(
@@ -40,5 +27,10 @@ export class HlmPopoverContent {
         this.state(),
       );
     });
+
+    classes(
+      () =>
+        'border-border bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative flex w-72 flex-col rounded-md border p-4 shadow-md outline-none',
+    );
   }
 }

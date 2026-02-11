@@ -1,21 +1,23 @@
-import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
+import { Directive, input } from '@angular/core';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 const badgeVariants = cva(
-  'focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] [&_ng-icon]:pointer-events-none [&_ng-icon]:size-3',
+  'focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:ring-[3px] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&>ng-icon]:pointer-events-none [&>ng-icon]:text-xs',
   {
     variants: {
       variant: {
-        default:
-          'bg-primary text-primary-foreground [a&]:hover:bg-primary/90 border-transparent',
+        default: 'bg-primary text-primary-foreground [a]:hover:bg-primary/80',
         secondary:
-          'bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90 border-transparent',
+          'bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80',
         destructive:
-          'bg-destructive [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60 border-transparent text-white',
+          'bg-destructive/10 [a]:hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 text-destructive dark:bg-destructive/20',
         outline:
-          'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
+          'border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground',
+        ghost:
+          'hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50',
+        link: 'text-primary underline-offset-4 hover:underline',
       },
     },
     defaultVariants: {
@@ -27,17 +29,16 @@ const badgeVariants = cva(
 export type BadgeVariants = VariantProps<typeof badgeVariants>;
 
 @Directive({
-  selector: '[hlmBadge]',
+  selector: '[hlmBadge],hlm-badge',
   host: {
     'data-slot': 'badge',
-    '[class]': '_computedClass()',
+    '[attr.data-variant]': 'variant()',
   },
 })
 export class HlmBadge {
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
   public readonly variant = input<BadgeVariants['variant']>('default');
-  protected readonly _computedClass = computed(() =>
-    hlm(badgeVariants({ variant: this.variant() }), this.userClass()),
-  );
+
+  constructor() {
+    classes(() => badgeVariants({ variant: this.variant() }));
+  }
 }

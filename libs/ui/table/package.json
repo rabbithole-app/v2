@@ -2,9 +2,8 @@
   "name": "@spartan-ng/helm/table",
   "version": "0.0.1",
   "peerDependencies": {
-    "@angular/core": "^21.0.0",
-    "@spartan-ng/helm/utils": "0.0.1",
-    "clsx": "^2.1.1"
+    "@angular/common": "^21.1.0",
+    "@angular/core": "^21.1.0"
   },
   "sideEffects": false
 }

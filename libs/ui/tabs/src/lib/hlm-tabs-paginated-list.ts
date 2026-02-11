@@ -16,11 +16,12 @@ import {
   BrnTabsPaginatedList,
   BrnTabsTrigger,
 } from '@spartan-ng/brain/tabs';
-import { buttonVariants } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
-import { hlm } from '@spartan-ng/helm/utils';
 import type { ClassValue } from 'clsx';
 import type { Observable } from 'rxjs';
+
+import { buttonVariants } from '@spartan-ng/helm/button';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import { classes, hlm } from '@spartan-ng/helm/utils';
 
 import { listVariants } from './hlm-tabs-list';
 
@@ -31,7 +32,6 @@ import { listVariants } from './hlm-tabs-list';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     'data-slot': 'tabs-paginated-list',
-    '[class]': '_computedClass()',
   },
   template: `
     <button
@@ -90,13 +90,14 @@ export class HlmTabsPaginatedList extends BrnTabsPaginatedList {
   public readonly items = contentChildren(BrnTabsTrigger, {
     descendants: false,
   });
+
   /** Explicitly annotating type to avoid non-portable inferred type */
   public readonly itemsChanges: Observable<
     ReadonlyArray<BrnPaginatedTabHeaderItem>
   > = toObservable(this.items);
-
   public readonly nextPaginator =
     viewChild.required<ElementRef<HTMLElement>>('nextPaginator');
+
   public readonly paginationButtonClass = input<ClassValue>('', {
     alias: 'paginationButtonClass',
   });
@@ -107,17 +108,11 @@ export class HlmTabsPaginatedList extends BrnTabsPaginatedList {
   public readonly tabListClass = input<ClassValue>('', {
     alias: 'tabListClass',
   });
-
   public readonly tabListContainer =
     viewChild.required<ElementRef<HTMLElement>>('tabListContainer');
+
   public readonly tabListInner =
     viewChild.required<ElementRef<HTMLElement>>('tabListInner');
-
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm('relative flex flex-shrink-0 gap-1 overflow-hidden', this.userClass()),
-  );
-
   protected readonly _paginationButtonClass = computed(() =>
     hlm(
       'relative z-[2] select-none disabled:cursor-default',
@@ -125,9 +120,14 @@ export class HlmTabsPaginatedList extends BrnTabsPaginatedList {
       this.paginationButtonClass(),
     ),
   );
+
   protected readonly _tabListClass = computed(() =>
     hlm(listVariants(), this.tabListClass()),
   );
+  constructor() {
+    super();
+    classes(() => 'relative flex flex-shrink-0 gap-1 overflow-hidden');
+  }
 
   protected _itemSelected(event: KeyboardEvent) {
     event.preventDefault();

@@ -35,8 +35,8 @@
             hlmBadge
             variant="secondary"
             class="text-xs cursor-help"
-            hlmTooltipTrigger
-            [hlmTooltipTrigger]="statusTooltip()"
+            hlmTooltip
+            [hlmTooltip]="statusTooltip()"
           >
             <hlm-spinner size="text-xs" icon="lucideLoader2" />
             In Progress
@@ -47,8 +47,8 @@
             hlmBadge
             variant="destructive"
             class="text-xs cursor-help"
-            hlmTooltipTrigger
-            [hlmTooltipTrigger]="errorMessage() ?? 'Unknown error'"
+            hlmTooltip
+            [hlmTooltip]="errorMessage() ?? 'Unknown error'"
           >
             <ng-icon name="lucideCircleX" />
             Error
@@ -59,8 +59,8 @@
             hlmBadge
             variant="outline"
             class="text-xs cursor-help"
-            hlmTooltipTrigger
-            hlmTooltipTrigger="Waiting to start..."
+            hlmTooltip
+            hlmTooltip="Waiting to start..."
           >
             <ng-icon hlmIcon name="lucideCircleDashed" size="xs" />
             Pending
@@ -80,7 +80,7 @@
           [routerLink]="hasWasmUpdate() ? null : ['/', canisterIdText(), 'drive']"
           [class.pointer-events-none]="hasWasmUpdate()"
           [class.opacity-50]="hasWasmUpdate()"
-          [hlmTooltipTrigger]="hasWasmUpdate() ? 'Update required — storage module is outdated' : ''"
+          [hlmTooltip]="hasWasmUpdate() ? 'Update required — storage module is outdated' : ''"
         >
           Open
           <ng-icon hlmIcon name="lucideChevronRight" size="sm" />

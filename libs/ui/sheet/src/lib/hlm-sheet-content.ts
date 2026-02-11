@@ -1,7 +1,8 @@
+import type { BooleanInput } from '@angular/cdk/coercion';
 import {
+  booleanAttribute,
   ChangeDetectionStrategy,
   Component,
-  computed,
   effect,
   ElementRef,
   inject,
@@ -15,10 +16,11 @@ import {
   injectExposedSideProvider,
   injectExposesStateProvider,
 } from '@spartan-ng/brain/core';
-import { HlmIconImports } from '@spartan-ng/helm/icon';
-import { hlm } from '@spartan-ng/helm/utils';
 import { cva } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
+
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmIconImports } from '@spartan-ng/helm/icon';
+import { classes } from '@spartan-ng/helm/utils';
 
 import { HlmSheetClose } from './hlm-sheet-close';
 
@@ -43,35 +45,43 @@ export const sheetVariants = cva(
 
 @Component({
   selector: 'hlm-sheet-content',
-  imports: [HlmSheetClose, HlmIconImports],
+  imports: [HlmIconImports, HlmButton, HlmSheetClose],
   providers: [provideIcons({ lucideX })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     'data-slot': 'sheet-content',
-    '[class]': '_computedClass()',
     '[attr.data-state]': 'state()',
   },
   template: `
     <ng-content />
-    <button hlmSheetClose>
-      <span class="sr-only">Close</span>
-      <ng-icon hlm size="sm" name="lucideX" />
-    </button>
+
+    @if (showCloseButton()) {
+      <button
+        hlmBtn
+        variant="ghost"
+        size="icon-sm"
+        class="absolute end-4 top-4"
+        hlmSheetClose
+      >
+        <span class="sr-only">Close</span>
+        <ng-icon hlm size="sm" name="lucideX" />
+      </button>
+    }
   `,
 })
 export class HlmSheetContent {
+  public readonly showCloseButton = input<boolean, BooleanInput>(true, {
+    transform: booleanAttribute,
+  });
   private readonly _stateProvider = injectExposesStateProvider({ host: true });
   public readonly state = this._stateProvider.state ?? signal('closed');
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  private readonly _sideProvider = injectExposedSideProvider({ host: true });
-  protected readonly _computedClass = computed(() =>
-    hlm(sheetVariants({ side: this._sideProvider.side() }), this.userClass()),
-  );
-
   private readonly _element = inject(ElementRef);
-
   private readonly _renderer = inject(Renderer2);
+
+  private readonly _sideProvider = injectExposedSideProvider({ host: true });
+
   constructor() {
+    classes(() => sheetVariants({ side: this._sideProvider.side() }));
     effect(() => {
       this._renderer.setAttribute(
         this._element.nativeElement,

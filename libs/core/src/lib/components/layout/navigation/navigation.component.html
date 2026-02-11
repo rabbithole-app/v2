@@ -9,8 +9,8 @@
         [routerLink]="item.url"
         routerLinkActive
         #rla="routerLinkActive"
-        [rbthTooltipTrigger]="item.title"
-        [rbthTooltipDisabled]="tooltipDisabled()"
+        [hlmTooltip]="item.title"
+        [tooltipDisabled]="tooltipDisabled()"
         [aria-describedby]="item.title"
         position="right"
         [routerLinkActiveOptions]="{ exact: item.url === exact() }"

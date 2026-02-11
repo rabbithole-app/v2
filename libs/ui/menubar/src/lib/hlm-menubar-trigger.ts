@@ -14,8 +14,8 @@ import {
   type MenuAlign,
   type MenuSide,
 } from '@spartan-ng/brain/core';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 import { injectHlmMenubarConfig } from './hlm-menubar-token';
 
@@ -42,7 +42,6 @@ import { injectHlmMenubarConfig } from './hlm-menubar-token';
     'data-slot': 'menubar-trigger',
     '[disabled]': 'disabled() ',
     '[attr.data-disabled]': 'disabled() ? "" : null',
-    '[class]': '_computedClass()',
   },
 })
 export class HlmMenubarTrigger {
@@ -52,16 +51,8 @@ export class HlmMenubarTrigger {
   public readonly disabled = input<boolean, BooleanInput>(false, {
     transform: booleanAttribute,
   });
+
   public readonly side = input<MenuSide>(this._config.side);
-
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex items-center rounded-sm px-2 py-1 text-sm font-medium outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-      this.userClass(),
-    ),
-  );
   private readonly _cdkTrigger = inject(CdkMenuTrigger, { host: true });
 
   private readonly _menuPosition = computed(() =>
@@ -86,5 +77,10 @@ export class HlmMenubarTrigger {
     effect(() => {
       this._cdkTrigger.menuPosition = this._menuPosition();
     });
+
+    classes(
+      () =>
+        'focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex items-center rounded-sm px-2 py-1 text-sm font-medium outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+    );
   }
 }

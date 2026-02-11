@@ -16,7 +16,7 @@ import { HlmProgressImports } from '@spartan-ng/helm/progress';
   hostDirectives: [
     {
       directive: HlmItem,
-      inputs: ['variant', 'size', 'class'],
+      inputs: ['variant', 'size'],
     },
   ],
   imports: [...HlmItemImports, ...HlmProgressImports, BrnProgress],

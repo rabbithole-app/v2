@@ -1,7 +1,7 @@
-import { computed, Directive, input } from '@angular/core';
+import { Directive, input } from '@angular/core';
 import { BrnTabsContent } from '@spartan-ng/brain/tabs';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 @Directive({
   selector: '[hlmTabsContent]',
@@ -10,7 +10,6 @@ import type { ClassValue } from 'clsx';
   ],
   host: {
     'data-slot': 'tabs-content',
-    '[class]': '_computedClass()',
   },
 })
 export class HlmTabsContent {
@@ -18,11 +17,7 @@ export class HlmTabsContent {
     alias: 'hlmTabsContent',
   });
 
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
-      this.userClass(),
-    ),
-  );
+  constructor() {
+    classes(() => 'flex-1 text-sm outline-none');
+  }
 }

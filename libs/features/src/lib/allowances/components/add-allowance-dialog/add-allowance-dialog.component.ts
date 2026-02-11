@@ -5,7 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Field, form, required } from '@angular/forms/signals';
+import { FormField, form, required } from '@angular/forms/signals';
 import { provideIcons } from '@ng-icons/core';
 import { lucideX } from '@ng-icons/lucide';
 import { BrnDialogClose, BrnDialogRef } from '@spartan-ng/brain/dialog';
@@ -40,7 +40,7 @@ interface AddAllowanceFormModel {
 @Component({
   selector: 'rbth-feat-add-allowance-dialog',
   imports: [
-    Field,
+    FormField,
     BrnDialogClose,
     HlmButton,
     HlmInput,

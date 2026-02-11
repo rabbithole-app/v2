@@ -2,12 +2,8 @@
   "name": "@spartan-ng/helm/toggle-group",
   "version": "0.0.1",
   "peerDependencies": {
-    "@angular/core": "^21.0.0",
-    "@spartan-ng/brain": "^0.0.1-alpha.584",
-    "@spartan-ng/helm/toggle": "0.0.1",
-    "@spartan-ng/helm/utils": "0.0.1",
-    "clsx": "^2.1.1",
-    "@angular/cdk": "^21.0.3"
+    "@angular/common": "^21.1.0",
+    "@angular/core": "^21.1.0"
   },
   "sideEffects": false
 }

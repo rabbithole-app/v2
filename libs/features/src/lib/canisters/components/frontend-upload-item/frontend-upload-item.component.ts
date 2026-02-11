@@ -12,11 +12,11 @@ import { ClassValue } from 'clsx';
 
 import { FileUploadWithStatus, UploadState } from '@rabbithole/core';
 import { FormatBytesPipe, FormatRangeBytesPipe } from '@rabbithole/core';
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { hlm } from '@spartan-ng/helm/utils';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 @Component({
   selector: 'rbth-feat-canisters-frontend-upload-item',
@@ -29,8 +29,8 @@ import { hlm } from '@spartan-ng/helm/utils';
     BrnProgress,
     BrnProgressIndicator,
     NgTemplateOutlet,
-    RbthTooltipTriggerDirective,
     FormatRangeBytesPipe,
+    ...HlmTooltipImports,
   ],
   templateUrl: './frontend-upload-item.component.html',
   providers: [

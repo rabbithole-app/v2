@@ -7,13 +7,13 @@ import {
   input,
 } from '@angular/core';
 import {
-  BrnTooltipTrigger,
+  BrnTooltip,
   provideBrnTooltipDefaultOptions,
 } from '@spartan-ng/brain/tooltip';
-import { DEFAULT_TOOLTIP_CONTENT_CLASSES } from '@spartan-ng/helm/tooltip';
-import { hlm } from '@spartan-ng/helm/utils';
 import { cva } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
+
+import { DEFAULT_TOOLTIP_CONTENT_CLASSES } from '@spartan-ng/helm/tooltip';
+import { classes } from '@spartan-ng/helm/utils';
 
 import { HlmSidebarService } from './hlm-sidebar.service';
 
@@ -45,15 +45,14 @@ const sidebarMenuButtonVariants = cva(
     provideBrnTooltipDefaultOptions({
       showDelay: 150,
       hideDelay: 0,
-      exitAnimationDuration: 150,
       tooltipContentClasses: DEFAULT_TOOLTIP_CONTENT_CLASSES,
       position: 'left',
     }),
   ],
   hostDirectives: [
     {
-      directive: BrnTooltipTrigger,
-      inputs: ['brnTooltipTrigger: tooltip', 'aria-describedby'],
+      directive: BrnTooltip,
+      inputs: ['brnTooltip: tooltip'],
     },
   ],
   host: {
@@ -61,7 +60,6 @@ const sidebarMenuButtonVariants = cva(
     'data-sidebar': 'menu-button',
     '[attr.data-size]': 'size()',
     '[attr.data-active]': 'isActive()',
-    '[class]': '_computedClass()',
   },
 })
 export class HlmSidebarMenuButton {
@@ -70,19 +68,18 @@ export class HlmSidebarMenuButton {
   });
 
   public readonly size = input<'default' | 'lg' | 'sm'>('default');
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
   public readonly variant = input<'default' | 'outline'>('default');
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      sidebarMenuButtonVariants({ variant: this.variant(), size: this.size() }),
-      this.userClass(),
-    ),
-  );
-
   private readonly _sidebarService = inject(HlmSidebarService);
+
   protected readonly _isTooltipHidden = computed(
     () =>
       this._sidebarService.state() !== 'collapsed' ||
       this._sidebarService.isMobile(),
   );
+
+  constructor() {
+    classes(() =>
+      sidebarMenuButtonVariants({ variant: this.variant(), size: this.size() }),
+    );
+  }
 }

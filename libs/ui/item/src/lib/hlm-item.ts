@@ -1,7 +1,7 @@
-import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
+import { Directive, input } from '@angular/core';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 import { injectHlmItemConfig } from './hlm-item-token';
 
@@ -34,22 +34,16 @@ export type ItemVariants = VariantProps<typeof itemVariants>;
     'data-slot': 'item',
     '[attr.data-variant]': 'variant()',
     '[attr.data-size]': 'size()',
-    '[class]': '_computedClass()',
   },
 })
 export class HlmItem {
   private readonly _config = injectHlmItemConfig();
-
   public readonly size = input<ItemVariants['size']>(this._config.size);
-
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
   public readonly variant = input<ItemVariants['variant']>(
     this._config.variant,
   );
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      itemVariants({ variant: this.variant(), size: this.size() }),
-      this.userClass(),
-    ),
-  );
+
+  constructor() {
+    classes(() => itemVariants({ variant: this.variant(), size: this.size() }));
+  }
 }

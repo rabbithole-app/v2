@@ -49,5 +49,4 @@ export * from './lib/progress';
 export * from './lib/sidebar';
 export * from './lib/terminal';
 export * from './lib/toaster';
-export * from './lib/tooltip';
 export * from './lib/tree';

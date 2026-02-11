@@ -14,9 +14,10 @@ import {
 import { FormGroupDirective, NgControl, NgForm } from '@angular/forms';
 import { BrnFormFieldControl } from '@spartan-ng/brain/form-field';
 import { ErrorStateMatcher, ErrorStateTracker } from '@spartan-ng/brain/forms';
-import { hlm } from '@spartan-ng/helm/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 export const inputVariants = cva(
   'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
@@ -42,9 +43,6 @@ type InputVariants = VariantProps<typeof inputVariants>;
       useExisting: forwardRef(() => HlmInput),
     },
   ],
-  host: {
-    '[class]': '_computedClass()',
-  },
 })
 export class HlmInput implements BrnFormFieldControl, DoCheck {
   public readonly error = input<InputVariants['error']>('auto');
@@ -59,18 +57,9 @@ export class HlmInput implements BrnFormFieldControl, DoCheck {
     NgControl,
     null,
   );
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
   protected readonly _state = linkedSignal(() => ({ error: this.error() }));
-  private readonly _additionalClasses = signal<ClassValue>('');
 
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      inputVariants({ error: this._state().error }),
-      this.userClass(),
-      this._additionalClasses(),
-    ),
-  );
+  private readonly _additionalClasses = signal<ClassValue>('');
 
   private readonly _defaultErrorStateMatcher = inject(ErrorStateMatcher);
 
@@ -87,6 +76,11 @@ export class HlmInput implements BrnFormFieldControl, DoCheck {
       this._parentFormGroup,
       this._parentForm,
     );
+
+    classes(() => [
+      inputVariants({ error: this._state().error }),
+      this._additionalClasses(),
+    ]);
 
     effect(() => {
       const error = this._errorStateTracker.errorState();

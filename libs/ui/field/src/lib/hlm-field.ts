@@ -1,7 +1,7 @@
-import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
+import { Directive, input } from '@angular/core';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 const fieldVariants = cva(
   'group/field data-[invalid=true]:text-destructive flex w-full gap-3',
@@ -35,14 +35,11 @@ export type FieldVariants = VariantProps<typeof fieldVariants>;
     role: 'group',
     'data-slot': 'field',
     '[attr.data-orientation]': 'orientation()',
-    '[class]': '_computedClass()',
   },
 })
 export class HlmField {
   public readonly orientation = input<FieldVariants['orientation']>('vertical');
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
-  protected readonly _computedClass = computed(() =>
-    hlm(fieldVariants({ orientation: this.orientation() }), this.userClass()),
-  );
+  constructor() {
+    classes(() => fieldVariants({ orientation: this.orientation() }));
+  }
 }

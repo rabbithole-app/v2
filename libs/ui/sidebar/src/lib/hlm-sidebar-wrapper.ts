@@ -1,6 +1,6 @@
-import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+import { Directive, input } from '@angular/core';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 import { injectHlmSidebarConfig } from './hlm-sidebar.token';
 
@@ -8,7 +8,6 @@ import { injectHlmSidebarConfig } from './hlm-sidebar.token';
   selector: '[hlmSidebarWrapper],hlm-sidebar-wrapper',
   host: {
     'data-slot': 'sidebar-wrapper',
-    '[class]': '_computedClass()',
     '[style.--sidebar-width]': 'sidebarWidth()',
     '[style.--sidebar-width-icon]': 'sidebarWidthIcon()',
   },
@@ -21,11 +20,10 @@ export class HlmSidebarWrapper {
     this._config.sidebarWidthIcon,
   );
 
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'group/sidebar-wrapper has-[[data-variant=inset]]:bg-sidebar flex min-h-svh w-full',
-      this.userClass(),
-    ),
-  );
+  constructor() {
+    classes(
+      () =>
+        'group/sidebar-wrapper has-[[data-variant=inset]]:bg-sidebar flex min-h-svh w-full',
+    );
+  }
 }

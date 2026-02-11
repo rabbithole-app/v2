@@ -1,8 +1,8 @@
-import { computed, Directive, effect, inject, input } from '@angular/core';
-import { HlmButton, provideBrnButtonConfig } from '@spartan-ng/helm/button';
-import { hlm } from '@spartan-ng/helm/utils';
+import { Directive, input } from '@angular/core';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
+
+import { HlmButton, provideBrnButtonConfig } from '@spartan-ng/helm/button';
+import { classes } from '@spartan-ng/helm/utils';
 
 const inputGroupAddonVariants = cva(
   'flex items-center gap-2 text-sm shadow-none',
@@ -45,16 +45,8 @@ type InputGroupAddonVariants = VariantProps<typeof inputGroupAddonVariants>;
 export class HlmInputGroupButton {
   public readonly size = input<InputGroupAddonVariants['size']>('xs');
   public readonly type = input<'button' | 'reset' | 'submit'>('button');
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly _computedClass = computed(() =>
-    hlm(inputGroupAddonVariants({ size: this.size() }), this.userClass()),
-  );
-
-  private readonly _hlmButton = inject(HlmButton);
 
   constructor() {
-    effect(() => {
-      this._hlmButton.setClass(this._computedClass());
-    });
+    classes(() => inputGroupAddonVariants({ size: this.size() }));
   }
 }

@@ -1,7 +1,7 @@
-import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
+import { Directive, input } from '@angular/core';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 const alertVariants = cva(
   'relative w-full items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>[hlmAlertIcon]]:grid has-[>[hlmAlertIcon]]:grid-cols-[calc(theme(spacing.1)*4)_1fr] has-[>[hlmAlertIcon]]:gap-x-3 [&>[hlmAlertIcon]]:size-4 [&>[hlmAlertIcon]]:translate-y-0.5 [&>[hlmAlertIcon]]:text-current',
@@ -25,14 +25,12 @@ export type AlertVariants = VariantProps<typeof alertVariants>;
   selector: '[hlmAlert]',
   host: {
     role: 'alert',
-    '[class]': '_computedClass()',
   },
 })
 export class HlmAlert {
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
   public readonly variant = input<AlertVariants['variant']>('default');
 
-  protected readonly _computedClass = computed(() =>
-    hlm(alertVariants({ variant: this.variant() }), this.userClass()),
-  );
+  constructor() {
+    classes(() => alertVariants({ variant: this.variant() }));
+  }
 }

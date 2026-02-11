@@ -16,7 +16,7 @@ import { CoreCanisterStatusComponent } from '../canister-status';
   hostDirectives: [
     {
       directive: HlmItem,
-      inputs: ['variant', 'size', 'class'],
+      inputs: ['variant', 'size'],
     },
   ],
   imports: [...HlmItemImports, CoreCanisterStatusComponent],

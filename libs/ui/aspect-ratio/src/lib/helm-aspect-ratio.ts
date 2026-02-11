@@ -1,7 +1,7 @@
 import { coerceNumberProperty, type NumberInput } from '@angular/cdk/coercion';
-import { computed, Directive, input } from '@angular/core';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+import { Directive, input } from '@angular/core';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 const parseDividedString = (value: NumberInput): NumberInput => {
   if (typeof value !== 'string' || !value.includes('/')) return value;
@@ -13,10 +13,7 @@ const parseDividedString = (value: NumberInput): NumberInput => {
 
 @Directive({
   selector: '[hlmAspectRatio]',
-  host: {
-    '[class]': '_computedClass()',
-    '[style.padding-bottom.%]': '100 / ratio()',
-  },
+  host: { '[style.padding-bottom.%]': '100 / ratio()' },
 })
 export class HlmAspectRatio {
   /**
@@ -30,12 +27,10 @@ export class HlmAspectRatio {
     },
   });
 
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      'relative w-full [&>*:first-child]:absolute [&>*:first-child]:h-full [&>*:first-child]:w-full [&>*:first-child]:object-cover',
-      this.userClass(),
-    ),
-  );
+  constructor() {
+    classes(
+      () =>
+        'relative w-full [&>*:first-child]:absolute [&>*:first-child]:h-full [&>*:first-child]:w-full [&>*:first-child]:object-cover',
+    );
+  }
 }

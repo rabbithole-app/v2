@@ -1,7 +1,7 @@
-import { computed, Directive, input } from '@angular/core';
+import { Directive, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
+
+import { classes } from '@spartan-ng/helm/utils';
 
 @Directive({
   selector: '[hlmBreadcrumbLink]',
@@ -23,16 +23,12 @@ import type { ClassValue } from 'clsx';
       ],
     },
   ],
-  host: {
-    '[class]': '_computedClass()',
-  },
 })
 export class HlmBreadcrumbLink {
   /** The link to navigate to the page. */
   public readonly link = input<RouterLink['routerLink']>();
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
-  protected readonly _computedClass = computed(() =>
-    hlm('hover:text-foreground transition-colors', this.userClass()),
-  );
+  constructor() {
+    classes(() => 'hover:text-foreground transition-colors');
+  }
 }

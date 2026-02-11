@@ -6,9 +6,10 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideEllipsis } from '@ng-icons/lucide';
+import type { ClassValue } from 'clsx';
+
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
-import type { ClassValue } from 'clsx';
 
 @Component({
   selector: 'hlm-breadcrumb-ellipsis',

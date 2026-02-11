@@ -82,7 +82,7 @@
                       variant="ghost"
                       size="icon"
                       [disabled]="isRestoreDisabled"
-                      [rbthTooltipTrigger]="'Restore snapshot'"
+                      [hlmTooltip]="'Restore snapshot'"
                       (click)="_onRestoreSnapshot(snapshotId)"
                     >
                       <span class="sr-only">Restore</span>
@@ -98,7 +98,7 @@
                       variant="ghost"
                       size="icon"
                       [disabled]="isReplaceDisabled"
-                      [rbthTooltipTrigger]="'Replace snapshot'"
+                      [hlmTooltip]="'Replace snapshot'"
                       (click)="_onReplaceSnapshot(snapshotId)"
                     >
                       <span class="sr-only">Replace</span>
@@ -114,7 +114,7 @@
                       variant="ghost"
                       size="icon"
                       [disabled]="isDeleteDisabled"
-                      [rbthTooltipTrigger]="'Delete snapshot'"
+                      [hlmTooltip]="'Delete snapshot'"
                       (click)="_onDeleteSnapshot(snapshotId)"
                     >
                       <span class="sr-only">Delete</span>

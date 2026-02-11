@@ -11,14 +11,14 @@ import { NgIcon } from '@ng-icons/core';
 import { combineLatestWith, map } from 'rxjs/operators';
 
 import {
+  MOBILE_BREAKPOINT,
   RbthSidebarMenuButtonDirective,
   RbthSidebarMenuDirective,
   RbthSidebarMenuItemDirective,
-  RbthTooltipTriggerDirective,
   SidebarService,
 } from '@rabbithole/ui';
-import { MOBILE_BREAKPOINT } from '@rabbithole/ui';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 export type NavItem = {
   icon: string;
@@ -36,7 +36,7 @@ export type NavItem = {
     RbthSidebarMenuItemDirective,
     RbthSidebarMenuButtonDirective,
     HlmIcon,
-    RbthTooltipTriggerDirective,
+    ...HlmTooltipImports,
   ],
   templateUrl: './navigation.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,5 +55,6 @@ export class NavigationComponent {
       ),
       map(([state, isOpen]) => !state.matches || isOpen),
     ),
+    { initialValue: false },
   );
 }

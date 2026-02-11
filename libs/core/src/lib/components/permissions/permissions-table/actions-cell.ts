@@ -21,7 +21,6 @@ import {
   StoragePermission,
   StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import {
   HlmAlertDialog,
   HlmAlertDialogAction,
@@ -35,6 +34,7 @@ import {
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { hlm } from '@spartan-ng/helm/utils';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
@@ -45,7 +45,7 @@ import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit
     HlmButton,
     NgIcon,
     HlmIcon,
-    RbthTooltipTriggerDirective,
+    ...HlmTooltipImports,
     BrnAlertDialogTrigger,
     BrnAlertDialogContent,
     HlmAlertDialog,
@@ -70,7 +70,7 @@ import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit
         class="size-8"
         variant="ghost"
         size="icon"
-        rbthTooltipTrigger="Edit permission"
+        hlmTooltip="Edit permission"
         coreEditPermissionFormTrigger
       >
         <ng-icon hlmIcon name="lucideUserPen" size="sm" />
@@ -83,7 +83,7 @@ import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit
         hlmBtn
         variant="ghost"
         size="icon"
-        rbthTooltipTrigger="Revoke permission"
+        hlmTooltip="Revoke permission"
         brnAlertDialogTrigger
       >
         <span class="sr-only">Revoke</span>

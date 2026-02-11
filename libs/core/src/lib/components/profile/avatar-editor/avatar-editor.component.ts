@@ -14,7 +14,6 @@ import { lucidePencil, lucideTrash } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { match, P } from 'ts-pattern';
 
-import { RbthTooltipTriggerDirective } from '@rabbithole/ui';
 import {
   HlmAvatar,
   HlmAvatarFallback,
@@ -24,6 +23,7 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { injectMainActor } from '../../../injectors/main-actor';
 import { FileSystemAccessService } from '../../../services/file-system-access.service';
@@ -40,8 +40,8 @@ import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dia
     HlmButton,
     HlmIcon,
     NgIcon,
-    RbthTooltipTriggerDirective,
     HlmSpinner,
+    ...HlmTooltipImports,
   ],
   providers: [
     {

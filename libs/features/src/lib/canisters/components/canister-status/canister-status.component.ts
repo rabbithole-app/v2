@@ -29,7 +29,7 @@ export const canisterStatusColorVariants = cva('size-1.5 rounded-full', {
   hostDirectives: [
     {
       directive: HlmBadge,
-      inputs: ['variant', 'class'],
+      inputs: ['variant'],
     },
   ],
   template: `

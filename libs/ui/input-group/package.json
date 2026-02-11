@@ -2,12 +2,8 @@
   "name": "@spartan-ng/helm/input-group",
   "version": "0.0.1",
   "peerDependencies": {
-    "@angular/core": "^21.0.0",
-    "@spartan-ng/helm/utils": "0.0.1",
-    "class-variance-authority": "^0.7.0",
-    "clsx": "^2.1.1",
-    "@spartan-ng/helm/input": "0.0.1",
-    "@spartan-ng/helm/textarea": "0.0.1"
+    "@angular/common": "^21.1.0",
+    "@angular/core": "^21.1.0"
   },
   "sideEffects": false
 }

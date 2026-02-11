@@ -38,7 +38,7 @@
   @switch (d.status) {
     @case (uploadState.FAILED) {
       <ng-icon
-        [rbthTooltipTrigger]="d.errorMessage"
+        [hlmTooltip]="d.errorMessage"
         hlm
         size="sm"
         name="lucideTriangleAlert"
@@ -114,7 +114,7 @@
     size="icon"
     variant="ghost"
     aria-label="Retry upload"
-    [rbthTooltipTrigger]="'Retry'"
+    [hlmTooltip]="'Retry'"
     (click)="retryUpload.emit()"
   >
     <ng-icon hlm size="sm" name="lucideRotateCcw" aria-hidden="true" />
@@ -126,7 +126,7 @@
     class="size-6! px-0!"
     size="icon"
     variant="ghost"
-    [rbthTooltipTrigger]="'Cancel'"
+    [hlmTooltip]="'Cancel'"
     aria-label="Cancel upload"
     (click)="cancelUpload.emit()"
   >
@@ -140,7 +140,7 @@
     size="icon"
     variant="ghost"
     aria-label="Remove upload"
-    [rbthTooltipTrigger]="'Remove'"
+    [hlmTooltip]="'Remove'"
     (click)="removeUpload.emit()"
   >
     <ng-icon hlm size="sm" name="lucideTrash2" aria-hidden="true" />
