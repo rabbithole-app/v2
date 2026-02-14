@@ -1,0 +1,18 @@
+[package]
+name = "icpay-webhooks"
+version = "0.1.0"
+
+[dependencies]
+liminal = "3.1.0"
+hmac = "1.1.0"
+json = "1.4.0"
+core = "https://github.com/dfinity/motoko-core#moc-1.0.0"
+hex = "1.0.2"
+xtended-numbers = "2.1.0"
+candid = "2.1.0"
+url-kit = "4.0.1"
+base-x-encoder = "2.1.0"
+datetime = "1.1.0"
+
+[toolchain]
+moc = "1.0.0-nullc-2"

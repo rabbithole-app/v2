@@ -1,0 +1,54 @@
+name: icpay-webhooks
+
+services:
+  replica:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: true
+    platform: linux/amd64
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    ports:
+      - 4943
+    volumes:
+      - ./:/app:rw
+      - ../../mops-patches:/mops-patches:ro
+      - icpay_webhooks_node_modules:/app/node_modules
+      - icpay_webhooks_dfx_project:/app/.dfx
+      - nginx_config:/nginx-config:rw
+    environment:
+      - ICPAY_SECRET_KEY=***REDACTED***
+    healthcheck:
+      test: ['CMD', 'dfx', 'ping']
+      interval: 10s
+      timeout: 30s
+      retries: 12
+    command: ['bash', '-lc', 'bash ./docker-entrypoint.sh']
+
+  proxy:
+    image: nginx:alpine
+    volumes:
+      - nginx_config:/etc/nginx/conf.d:ro
+    depends_on:
+      replica:
+        condition: service_healthy
+    command: >
+      sh -c '
+        echo "Waiting for nginx config..."
+        while [ ! -f /etc/nginx/conf.d/.ready ]; do sleep 2; done
+        echo "Config ready, starting nginx"
+        nginx -g "daemon off;"
+      '
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --url http://proxy:80 --protocol http2
+    depends_on:
+      - proxy
+
+volumes:
+  icpay_webhooks_node_modules:
+  icpay_webhooks_dfx_project:
+  nginx_config:

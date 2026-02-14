@@ -1,0 +1,19 @@
+{
+  "name": "icpay-webhooks-mo",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.4",
+    "vitest": "^3.2.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@dfinity/pic": "^0.17.0",
+    "@dfinity/utils": "^3.2.0"
+  }
+}

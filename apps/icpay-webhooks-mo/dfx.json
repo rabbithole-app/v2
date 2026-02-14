@@ -1,0 +1,20 @@
+{
+  "canisters": {
+    "example": {
+      "main": "src/main.mo",
+      "type": "motoko",
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "node_compatibility": true,
+        "output": "declarations/example"
+      }
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
