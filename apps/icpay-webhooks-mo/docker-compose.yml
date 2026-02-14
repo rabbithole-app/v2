@@ -19,7 +19,7 @@ services:
       - icpay_webhooks_dfx_project:/app/.dfx
       - nginx_config:/nginx-config:rw
     environment:
-      - ICPAY_SECRET_KEY=***REDACTED***
+      - ICPAY_SECRET_KEY=${ICPAY_SECRET_KEY:?ICPAY_SECRET_KEY is not set — create .env file}
     healthcheck:
       test: ['CMD', 'dfx', 'ping']
       interval: 10s
