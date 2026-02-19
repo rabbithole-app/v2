@@ -1,23 +1,20 @@
-import { BreakpointObserver } from '@angular/cdk/layout';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
-import { combineLatestWith, map } from 'rxjs/operators';
 
-import {
-  MOBILE_BREAKPOINT,
-  RbthSidebarMenuButtonDirective,
-  RbthSidebarMenuDirective,
-  RbthSidebarMenuItemDirective,
-  SidebarService,
-} from '@rabbithole/ui';
+import { RbthSidebarMenuButton } from '@rabbithole/ui';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import {
+  HlmSidebarMenu,
+  HlmSidebarMenuItem,
+  HlmSidebarService
+} from '@spartan-ng/helm/sidebar';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 export type NavItem = {
@@ -32,9 +29,9 @@ export type NavItem = {
     RouterLink,
     RouterLinkActive,
     NgIcon,
-    RbthSidebarMenuDirective,
-    RbthSidebarMenuItemDirective,
-    RbthSidebarMenuButtonDirective,
+    HlmSidebarMenu,
+    HlmSidebarMenuItem,
+    RbthSidebarMenuButton,
     HlmIcon,
     ...HlmTooltipImports,
   ],
@@ -42,19 +39,13 @@ export type NavItem = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NavigationComponent {
-  breakpointObserver = inject(BreakpointObserver);
   data = input.required<NavItem[]>();
   exact = input('/');
-  #sidebarService = inject(SidebarService);
-  tooltipDisabled = toSignal(
-    this.breakpointObserver.observe(`(min-width: ${MOBILE_BREAKPOINT}px)`).pipe(
-      combineLatestWith(
-        toObservable(this.#sidebarService.state).pipe(
-          map((state) => state.isOpen),
-        ),
-      ),
-      map(([state, isOpen]) => !state.matches || isOpen),
-    ),
-    { initialValue: false },
+
+  #sidebarService = inject(HlmSidebarService);
+  tooltipDisabled = computed(
+    () =>
+      this.#sidebarService.state() !== 'collapsed' ||
+      this.#sidebarService.isMobile(),
   );
 }
