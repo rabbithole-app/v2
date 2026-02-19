@@ -1,80 +1,82 @@
 <div class="mx-auto max-w-2xl space-y-6">
-  <h1 class="text-2xl font-semibold">Edit Profile</h1>
+  <h1 class="text-2xl font-semibold">
+    {{ isEditMode() ? 'Edit Profile' : 'Set Up Profile' }}
+  </h1>
 
-  <form [formGroup]="form" class="space-y-6">
-    <!-- Avatar Editor -->
+  <form (submit)="handleSubmit($event)" class="space-y-6">
+    <!-- Avatar -->
     <div class="flex justify-center">
-      <core-avatar-editor formControlName="avatarUrl" />
+      <core-avatar-editor [formField]="profileForm.avatarUrl" />
     </div>
 
-    <!-- Username (read-only) -->
+    <!-- Username -->
     <hlm-form-field>
       <label hlmLabel for="username">Username</label>
-      <input
-        hlmInput
-        id="username"
-        [value]="profile()?.username ?? ''"
-        readonly
-        disabled
-        class="bg-muted"
-      />
-      <hlm-hint>Username cannot be changed</hlm-hint>
+      @if (isEditMode()) {
+        <input
+          hlmInput
+          id="username"
+          [value]="profile()?.username ?? ''"
+          readonly
+          disabled
+          class="bg-muted"
+        />
+        <hlm-hint>Username cannot be changed</hlm-hint>
+      } @else {
+        <input
+          hlmInput
+          id="username"
+          [formField]="profileForm.username"
+          placeholder="Enter your username"
+        />
+        @if (profileForm.username().touched() && profileForm.username().invalid()) {
+          @for (error of profileForm.username().errors(); track error.kind) {
+            <p class="text-destructive text-sm">{{ error.message }}</p>
+          }
+        }
+        @if (usernameChecking()) {
+          <p class="text-muted-foreground text-sm">Checking availability...</p>
+        }
+        @if (
+          profileForm.username().touched() &&
+          profileForm.username().valid() &&
+          !usernameChecking()
+        ) {
+          <hlm-hint>Choose a unique username</hlm-hint>
+        }
+      }
     </hlm-form-field>
 
-    <!-- Display Name Field -->
+    <!-- Display Name -->
     <hlm-form-field>
       <label hlmLabel for="displayName">Display Name (Optional)</label>
       <input
         hlmInput
         id="displayName"
-        formControlName="displayName"
+        [value]="profileForm.displayName().value() ?? ''"
+        (input)="profileForm.displayName().value.set($any($event.target).value || null)"
         placeholder="Enter your display name"
       />
       <hlm-hint>This name will be visible to other users</hlm-hint>
     </hlm-form-field>
 
-    <!-- Action Buttons -->
-    <div class="flex items-center justify-between gap-4">
-      <button
-        hlmBtn
-        type="button"
-        variant="destructive"
-        (click)="handleDelete()"
-        [disabled]="deleting()"
-        class="w-full sm:w-auto"
-      >
-        @if (deleting()) {
+    <!-- Actions -->
+    <div class="flex justify-end">
+      @if (loading()) {
+        <button hlmBtn type="button" variant="outline" disabled class="w-full sm:w-auto">
           <hlm-spinner class="size-4 mr-0.5" />
-          Deleting...
-        } @else {
-          Delete Profile
-        }
-      </button>
-
-      <div class="flex gap-2">
-        @if (loading()) {
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            disabled
-            class="w-full sm:w-auto"
-          >
-            <hlm-spinner class="size-4 mr-0.5" />
-            Saving...
-          </button>
-        } @else {
-          <button
-            hlmBtn
-            type="button"
-            (click)="handleSubmit()"
-            [disabled]="form.invalid"
-            class="w-full sm:w-auto"
-          >
-            Save Changes
-          </button>
-        }
-      </div>
+          {{ isEditMode() ? 'Saving...' : 'Creating...' }}
+        </button>
+      } @else {
+        <button
+          hlmBtn
+          type="submit"
+          [disabled]="profileForm().invalid() || usernameChecking()"
+          class="w-full sm:w-auto"
+        >
+          {{ isEditMode() ? 'Save Changes' : 'Create Profile' }}
+        </button>
+      }
     </div>
   </form>
 </div>

@@ -2,13 +2,11 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
-  forwardRef,
   inject,
   model,
   signal,
 } from '@angular/core';
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { FormValueControl } from '@angular/forms/signals';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePencil, lucideTrash } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
@@ -22,10 +20,8 @@ import {
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import { injectMainActor } from '../../../injectors/main-actor';
 import { FileSystemAccessService } from '../../../services/file-system-access.service';
 import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens/main';
 import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dialog.component';
@@ -40,59 +36,37 @@ import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dia
     HlmButton,
     HlmIcon,
     NgIcon,
-    HlmSpinner,
     ...HlmTooltipImports,
   ],
-  providers: [
-    {
-      provide: NG_VALUE_ACCESSOR,
-      useExisting: forwardRef(() => AvatarEditorComponent),
-      multi: true,
-    },
-    provideIcons({ lucidePencil, lucideTrash }),
-  ],
+  providers: [provideIcons({ lucidePencil, lucideTrash })],
   templateUrl: './avatar-editor.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class]': '"relative inline-block"',
   },
 })
-export class AvatarEditorComponent implements ControlValueAccessor {
+export class AvatarEditorComponent implements FormValueControl<string | null> {
   readonly backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
+
+  /** FormValueControl contract — Signal Forms binds this automatically via [formField]. */
   readonly value = model<string | null>(null);
-  avatarSrc = computed(() => {
+  readonly avatarSrc = computed(() => {
     const avatarKey = this.value();
     return avatarKey ? `${this.backendUrl}${avatarKey}` : null;
   });
-  deleting = signal(false);
-
   readonly disabled = model(false);
-  hasValue = computed(() => this.value() !== null);
+
+  readonly hasValue = computed(() => this.value() !== null);
   #isHovered = signal(false);
-  showControls = computed(() => this.#isHovered() && !this.disabled());
-  readonly touched = signal(false);
-  private readonly _hlmDialogService = inject(HlmDialogService);
-  #fsAccessService = inject(FileSystemAccessService);
-  #mainActor = injectMainActor();
 
-  constructor() {
-    effect(() => this.onChanged(this.value()));
-  }
+  readonly showControls = computed(() => this.#isHovered() && !this.disabled());
+  readonly touched = model(false);
 
-  async handleDelete() {
+  readonly #fsAccessService = inject(FileSystemAccessService);
+  readonly #hlmDialogService = inject(HlmDialogService);
+
+  handleDelete() {
     if (this.disabled()) return;
-    const avatarKey = this.value();
-    const actor = this.#mainActor();
-    if (avatarKey) {
-      const filename = avatarKey.split('/').pop() as string;
-      try {
-        this.deleting.set(true);
-        await actor.removeAvatar(filename);
-      } finally {
-        this.deleting.set(false);
-      }
-    }
-
     this.value.set(null);
     this.touched.set(true);
   }
@@ -113,15 +87,11 @@ export class AvatarEditorComponent implements ControlValueAccessor {
         this.openCropDialog(file);
       }
     } catch (error) {
-      // The user cancelled the file picker dialog
       if ((error as Error).name !== 'AbortError') {
         console.error('Error selecting file:', error);
       }
     }
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
-  onChanged = (value: string | null) => {};
 
   onMouseEnter() {
     this.#isHovered.set(true);
@@ -131,11 +101,8 @@ export class AvatarEditorComponent implements ControlValueAccessor {
     this.#isHovered.set(false);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  onTouched = () => {};
-
   openCropDialog(file: File) {
-    const dialogRef = this._hlmDialogService.open(AvatarCropDialogComponent, {
+    const dialogRef = this.#hlmDialogService.open(AvatarCropDialogComponent, {
       context: {
         image: file,
       },
@@ -144,23 +111,10 @@ export class AvatarEditorComponent implements ControlValueAccessor {
     }) as BrnDialogRef<string | undefined>;
 
     dialogRef.closed$.subscribe((avatarKey) => {
-      this.value.set(avatarKey ?? null);
+      if (avatarKey !== undefined) {
+        this.value.set(avatarKey ?? null);
+        this.touched.set(true);
+      }
     });
-  }
-
-  registerOnChange(fn: () => void): void {
-    this.onChanged = fn;
-  }
-
-  registerOnTouched(fn: () => void): void {
-    this.onTouched = fn;
-  }
-
-  setDisabledState?(isDisabled: boolean): void {
-    this.disabled.set(isDisabled);
-  }
-
-  writeValue(value: string | null): void {
-    this.value.set(value ?? null);
   }
 }
