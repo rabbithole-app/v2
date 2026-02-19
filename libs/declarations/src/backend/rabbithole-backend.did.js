@@ -308,7 +308,6 @@ export const idlFactory = ({ IDL }) => {
     'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
     'listStorages' : IDL.Func([], [IDL.Vec(StorageInfo)], ['query']),
     'refreshReleases' : IDL.Func([], [], []),
-    'removeAvatar' : IDL.Func([IDL.Text], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),

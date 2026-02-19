@@ -1,5 +1,9 @@
 export const idlFactory = ({ IDL }) => {
   const TreeNode = IDL.Rec();
+  const EncryptedStorageInitArgs = IDL.Record({
+    'vetKeyName' : IDL.Text,
+    'owner' : IDL.Principal,
+  });
   const CertifiedTree = IDL.Record({
     'certificate' : IDL.Vec(IDL.Nat8),
     'tree' : IDL.Vec(IDL.Nat8),
@@ -325,7 +329,13 @@ export const idlFactory = ({ IDL }) => {
     'delete_batch' : IDL.Func([DeleteBatchArguments], [], []),
     'fsTree' : IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     'get' : IDL.Func([GetArgs], [EncodedAsset], ['query']),
+    'getCyclesBalance' : IDL.Func(
+        [],
+        [IDL.Record({ 'balance' : IDL.Nat })],
+        ['query'],
+      ),
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
+    'getModuleHash' : IDL.Func([], [IDL.Opt(IDL.Vec(IDL.Nat8))], []),
     'getStorageChunk' : IDL.Func(
         [GetChunkArguments],
         [ChunkContent],
@@ -392,4 +402,10 @@ export const idlFactory = ({ IDL }) => {
   });
   return EncryptedStorageCanister;
 };
-export const init = ({ IDL }) => { return []; };
+export const init = ({ IDL }) => {
+  const EncryptedStorageInitArgs = IDL.Record({
+    'vetKeyName' : IDL.Text,
+    'owner' : IDL.Principal,
+  });
+  return [EncryptedStorageInitArgs];
+};

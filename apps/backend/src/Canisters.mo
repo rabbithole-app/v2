@@ -1,6 +1,6 @@
 import Map "mo:map/Map";
-import Set "mo:map/Set";
 import Principal "mo:core/Principal";
+import Set "mo:core/Set";
 
 module {
   public type Store = Map.Map<Principal, Set.Set<Principal>>;
@@ -14,12 +14,12 @@ module {
     let set = switch (Map.get(store, phash, caller)) {
       case (?set) set;
       case (null) {
-        let set = Set.new<Principal>();
+        let set = Set.empty<Principal>();
         ignore Map.put(store, phash, caller, set);
         set;
       };
     };
-    Set.add(set, phash, canisterId);
+    Set.add(set, Principal.compare, canisterId);
   };
 
   public func list(store : Store, caller : Principal) : [Principal] {
@@ -31,6 +31,6 @@ module {
 
   public func delete(store : Store, caller : Principal, canisterId : Principal) {
     let ?set = Map.get(store, phash, caller) else return;
-    Set.delete(set, phash, canisterId);
+    ignore Set.delete(set, Principal.compare, canisterId);
   };
 };

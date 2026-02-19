@@ -149,7 +149,6 @@ export interface Rabbithole {
   'listProfiles' : ActorMethod<[ListOptions], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
   'refreshReleases' : ActorMethod<[], undefined>,
-  'removeAvatar' : ActorMethod<[string], undefined>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,

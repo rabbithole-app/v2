@@ -21,15 +21,19 @@ import StorageDeployerOrchestrator "StorageDeployer";
 import Types "Types";
 
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
-  let zendb = ZenDB.newStableStore(null);
-  transient let db = ZenDB.launchDefaultDB(zendb);
-  transient let profiles = Profiles.Profiles(db);
   let canisterId = Principal.fromActor(self);
   var assetStableData = HttpAssets.init_stable_store(canisterId, installer);
   assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
 
   transient var assetStore = HttpAssets.Assets(assetStableData, null);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
+
+  let zendb = ZenDB.newStableStore(null);
+  transient let db = ZenDB.launchDefaultDB(zendb);
+  transient let profiles = Profiles.Profiles(
+    db,
+    func(key : Text) { assetCanister.delete_asset(canisterId, { key }) },
+  );
 
   // Create the HTTP App with middleware
   transient let app = Liminal.App({
@@ -82,13 +86,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       is_aliased = null;
     };
     assetCanister.store(installer, args);
+    profiles.trackAvatar(caller, args.key);
     args.key;
-  };
-
-  public shared ({ caller }) func removeAvatar(filename : Text) : async () {
-    assert not Principal.isAnonymous(caller);
-    let key = "/" # Text.join(Iter.fromArray(["static", Principal.toText(caller), filename]), "/");
-    assetCanister.delete_asset(canisterId, { key });
   };
 
   public shared ({ caller }) func createProfile(args : Profiles.CreateProfileArgs) : async Nat {
@@ -121,13 +120,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public shared ({ caller }) func deleteProfile() : async () {
     assert not Principal.isAnonymous(caller);
-    switch (profiles.delete(caller)) {
-      case (#ok profile) {
-        let ?key = profile.avatarUrl else return;
-        assetCanister.delete_asset(canisterId, { key });
-      };
-      case (#err message) throw Error.reject(message);
-    };
+    let #err(message) = profiles.delete(caller) else return;
+    throw Error.reject(message);
   };
 
   /* -------------------------------------------------------------------------- */

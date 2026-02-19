@@ -1,6 +1,6 @@
+import type { Principal } from '@icp-sdk/core/principal';
 import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
-import type { Principal } from '@icp-sdk/core/principal';
 
 export interface AssetDetails {
   'key' : Key,
@@ -133,7 +133,13 @@ export interface EncryptedStorageCanister {
   'delete_batch' : ActorMethod<[DeleteBatchArguments], undefined>,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'get' : ActorMethod<[GetArgs], EncodedAsset>,
+  'getCyclesBalance' : ActorMethod<[], { 'balance' : bigint }>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
+  /**
+   * / Get canister module_hash via canister_status.
+   * / Only accessible by canister controllers.
+   */
+  'getModuleHash' : ActorMethod<[], [] | [Uint8Array | number[]]>,
   'getStorageChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'get_chunk' : ActorMethod<[GetChunkArgs], ChunkContent>,
@@ -183,6 +189,10 @@ export interface EncryptedStorageCanister {
   'validate_grant_permission' : ActorMethod<[GrantPermission], Result>,
   'validate_revoke_permission' : ActorMethod<[RevokePermission], Result>,
   'validate_take_ownership' : ActorMethod<[], Result>,
+}
+export interface EncryptedStorageInitArgs {
+  'vetKeyName' : string,
+  'owner' : Principal,
 }
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {

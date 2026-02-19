@@ -1,8 +1,7 @@
 import Array "mo:core/Array";
 import IC "mo:core/InternetComputer";
-import Iter "mo:core/Iter";
 import List "mo:core/List";
-import Nat "mo:core/Nat";
+import Map "mo:core/Map";
 import Nat64 "mo:core/Nat64";
 import Option "mo:core/Option";
 import Principal "mo:core/Principal";
@@ -143,8 +142,28 @@ module {
     dbQuery;
   };
 
-  public class Profiles(db : ZenDB.Database) {
+  public class Profiles(db : ZenDB.Database, deleteAsset : (Text) -> ()) {
     let #ok(profilesCollection) = db.createCollection<Profile>("profiles", ProfileSchema, candifyProfiles, ?{ schemaConstraints }) else Runtime.unreachable();
+
+    // Tracks the last uploaded (but not yet saved) avatar asset key per user.
+    // On each trackAvatar call the previous pending avatar is deleted.
+    let pendingAvatars : Map.Map<Principal, Text> = Map.empty();
+
+    /// Delete asset key if it exists and differs from the one being kept.
+    func deleteIfDifferent(key : ?Text, keep : ?Text) {
+      switch key {
+        case (?k) { if (?k != keep) deleteAsset(k) };
+        case null {};
+      };
+    };
+
+    /// Track a newly uploaded avatar. Deletes the previous pending avatar if any.
+    public func trackAvatar(caller : Principal, key : Text) {
+      switch (Map.swap(pendingAvatars, Principal.compare, caller, key)) {
+        case (?prevKey) deleteAsset(prevKey);
+        case null {};
+      };
+    };
 
     public func create(caller : Principal, args : CreateProfileArgs) : ZenDB.Types.Result<Nat, Text> {
       let now = Time.now();
@@ -155,47 +174,56 @@ module {
     };
 
     public func update(caller : Principal, args : UpdateProfileArgs) : ZenDB.Types.Result<(), Text> {
-      let profileToUpdateQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
+      let callerQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
-      let response = profilesCollection.update(
-        profileToUpdateQuery,
+      // Get prevAvatarUrl before update
+      let prevAvatarUrl : ?Text = switch (profilesCollection.search(callerQuery)) {
+        case (#ok(results)) {
+          switch (List.fromArray<ZenDB.Types.WrapId<Profile>>(results) |> List.first(_)) {
+            case (?(_, profile)) profile.avatarUrl;
+            case null return #err("Profile not found");
+          };
+        };
+        case (#err message) return #err(message);
+      };
+
+      let #ok(updated) = profilesCollection.update(
+        callerQuery,
         [
           ("displayName", Option.map<Text, ZenDB.Types.Candid>(args.displayName, func(v : Text) : ZenDB.Types.Candid = #Text(v)) |> Option.get(_, #Null) |> #Option _),
           ("avatarUrl", Option.map<Text, ZenDB.Types.Candid>(args.avatarUrl, func(v : Text) : ZenDB.Types.Candid = #Text(v)) |> Option.get(_, #Null) |> #Option _),
           ("updatedAt", #Int(Time.now())),
         ],
-      );
+      ) else return #err("Failed to update profile");
 
-      switch (response) {
-        case (#ok(updated)) {
-          if (updated == 0) {
-            return #err("Profile not found");
-          };
-
-          #ok();
-        };
-        case (#err message) #err message;
+      if (updated == 0) {
+        return #err("Profile not found");
       };
+
+      deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), args.avatarUrl);
+      deleteIfDifferent(prevAvatarUrl, args.avatarUrl);
+
+      #ok();
     };
 
     public func get(caller : Principal) : ?Profile {
-      let profileToGetQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
+      let callerQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
-      let #ok(profiles) = profilesCollection.search(profileToGetQuery) else return null;
+      let #ok(profiles) = profilesCollection.search(callerQuery) else return null;
       let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(profiles) |> List.first(_) else return null;
       ?profile;
     };
 
     public func delete(caller : Principal) : ZenDB.Types.Result<Profile, Text> {
-      let profileToDeleteQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
+      let callerQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
-      switch (profilesCollection.delete(profileToDeleteQuery)) {
-        case (#ok(deletedProfiles)) {
-          let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(deletedProfiles) |> List.first(_) else return #err("Profile not found");
-          #ok(profile);
-        };
-        case (#err message) #err message;
-      };
+      let #ok(deletedProfiles) = profilesCollection.delete(callerQuery) else return #err("Failed to delete profile");
+      let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(deletedProfiles) |> List.first(_) else return #err("Profile not found");
+
+      deleteIfDifferent(profile.avatarUrl, null); // always delete saved avatar
+      deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), profile.avatarUrl);
+
+      #ok(profile);
     };
 
     public func usernameExists(username : Text) : Bool {
