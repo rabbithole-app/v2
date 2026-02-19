@@ -9,7 +9,7 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { FormField, form, required, validate } from '@angular/forms/signals';
+import { form, FormField, required, validate } from '@angular/forms/signals';
 import { Router } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -38,6 +38,7 @@ import {
   MAIN_CANISTER_ID_TOKEN,
   parseCanisterRejectError,
 } from '@rabbithole/core';
+import { StoragesService } from '@rabbithole/core';
 import { type TargetCanister } from '@rabbithole/declarations';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -55,7 +56,6 @@ import { HlmRadioGroup, HlmRadioGroupImports } from '@spartan-ng/helm/radio-grou
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import { CyclesBalanceInputComponent } from '../../../canisters/components';
-import { StoragesService } from '../../services';
 import { StorageCreationProgressComponent } from '../storage-creation-progress/storage-creation-progress.component';
 
 type DeploymentMode = 'existing' | 'new';

@@ -24,6 +24,14 @@ import {
 } from '@ng-icons/lucide';
 
 import { CopyToClipboardComponent, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
+import {
+  getStorageCanisterId,
+  getStorageDisplayStatus,
+  type StorageCreationStatus,
+  type StorageDisplayStatus,
+  type StorageInfo,
+  StoragesService,
+} from '@rabbithole/core';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
@@ -34,14 +42,6 @@ import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import { StoragesService } from '../../services';
-import type {
-  StorageCreationStatus,
-  StorageDisplayStatus,
-  StorageInfo,
-} from '../../types';
-import { getStorageDisplayStatus } from '../../types';
-import { getStorageCanisterId } from '../../utils';
 import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade-storage-dialog.component';
 
 @Component({

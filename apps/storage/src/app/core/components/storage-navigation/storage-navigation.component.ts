@@ -8,22 +8,22 @@ import {
 
 import { NavigationComponent, NavItem } from '@rabbithole/core';
 import {
-  RbthSidebarGroupContentDirective,
-  RbthSidebarGroupDirective,
-  RbthSidebarGroupLabelDirective,
-} from '@rabbithole/ui';
+  HlmSidebarGroup,
+  HlmSidebarGroupContent,
+  HlmSidebarGroupLabel,
+} from '@spartan-ng/helm/sidebar';
 
 @Component({
   selector: 'app-storage-navigation',
-  template: `<div rbthSidebarGroupLabel>Storage</div>
-    <div rbthSidebarGroupContent>
+  template: `<div hlmSidebarGroupLabel>Storage</div>
+    <div hlmSidebarGroupContent>
       <core-navigation [data]="data" />
     </div> `,
   standalone: true,
   imports: [
     NavigationComponent,
-    RbthSidebarGroupLabelDirective,
-    RbthSidebarGroupContentDirective,
+    HlmSidebarGroupLabel,
+    HlmSidebarGroupContent,
   ],
   providers: [
     provideIcons({
@@ -32,7 +32,7 @@ import {
       lucideFolder,
     }),
   ],
-  hostDirectives: [RbthSidebarGroupDirective],
+  hostDirectives: [HlmSidebarGroup],
 })
 export class StorageNavigationComponent {
   data: NavItem[] = [

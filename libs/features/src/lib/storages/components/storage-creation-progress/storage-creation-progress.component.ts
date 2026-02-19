@@ -11,11 +11,10 @@ import {
 } from '@ng-icons/lucide';
 
 import { CopyToClipboardComponent } from '@rabbithole/core';
+import type { StorageCreationStatus } from '@rabbithole/core';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-
-import type { StorageCreationStatus } from '../../types';
 
 type ProgressMode = 'create' | 'upgrade';
 
@@ -59,6 +58,8 @@ type UserStage =
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StorageCreationProgressComponent {
+  readonly mode = input<ProgressMode>('create');
+
   readonly stages = computed<UserStage[]>(() => {
     if (this.mode() === 'upgrade') {
       return ['upgrading-wasm', 'upgrading-frontend', 'finalizing'];
@@ -73,8 +74,6 @@ export class StorageCreationProgressComponent {
     const index = this.stages().indexOf(stage);
     return index >= 0 ? index : 0;
   });
-
-  readonly mode = input<ProgressMode>('create');
 
   readonly stageInfo = computed<StageInfo>(() => {
     const status = this.status();

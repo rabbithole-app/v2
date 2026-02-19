@@ -25,6 +25,11 @@ import {
   MAIN_CANISTER_ID_TOKEN,
   parseCanisterRejectError,
 } from '@rabbithole/core';
+import {
+  type StorageInfo,
+  StoragesService,
+  type UpdateInfo,
+} from '@rabbithole/core';
 import { AssetManager } from '@rabbithole/encrypted-storage';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmBadge } from '@spartan-ng/helm/badge';
@@ -39,8 +44,6 @@ import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
-import { StoragesService } from '../../services';
-import type { StorageInfo, UpdateInfo } from '../../types';
 import { StorageCreationProgressComponent } from '../storage-creation-progress/storage-creation-progress.component';
 
 type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
@@ -105,6 +108,10 @@ export class UpgradeStorageDialogComponent {
   });
   readonly #storagesService = inject(StoragesService);
   readonly #rawUpgradeStatus = computed(() => this.#storagesService.upgradeStatus());
+  // Track whether we've seen an in-progress status from the backend.
+  // This prevents false "upgrade failed" and UI flicker when the effect/template
+  // fires before the first poll returns the new upgrading status.
+  readonly #sawUpgrading = signal(false);
   // Filtered status that hides stale Completed before upgrade actually starts on backend
   readonly upgradeStatus = computed(() => {
     const status = this.#rawUpgradeStatus();
@@ -114,10 +121,6 @@ export class UpgradeStorageDialogComponent {
   });
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
   readonly #httpAgent = injectHttpAgent();
-  // Track whether we've seen an in-progress status from the backend.
-  // This prevents false "upgrade failed" and UI flicker when the effect/template
-  // fires before the first poll returns the new upgrading status.
-  readonly #sawUpgrading = signal(false);
 
   constructor() {
     // Watch upgrade status for completion/failure

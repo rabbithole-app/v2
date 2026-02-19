@@ -1,7 +1,6 @@
 import { Route } from '@angular/router';
 
 import {
-  createProfileGuard,
   dashboardGuard,
   loginGuard,
   profileResolver,
@@ -44,7 +43,7 @@ export const appRoutes: Route[] = [
           import(
             './core/components/storage-navigation/storage-navigation.component'
           ).then((m) => m.StorageNavigationComponent),
-        outlet: 'sidebar-2',
+        outlet: 'sidebar',
       },
       {
         path: '',
@@ -66,14 +65,6 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('@rabbithole/pages/login').then((m) => m.LoginComponent),
     canActivate: [loginGuard],
-  },
-  {
-    path: 'create-profile',
-    canActivate: [dashboardGuard, createProfileGuard],
-    loadComponent: () =>
-      import('@rabbithole/pages/create-profile').then(
-        (m) => m.CreateProfileComponent,
-      ),
   },
   { path: '**', pathMatch: 'full', redirectTo: '' },
 ];

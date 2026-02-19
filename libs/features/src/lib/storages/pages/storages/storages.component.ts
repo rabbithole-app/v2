@@ -7,6 +7,7 @@ import {
   lucideRefreshCw,
 } from '@ng-icons/lucide';
 
+import { StoragesService } from '@rabbithole/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
@@ -18,7 +19,6 @@ import {
   CreateStorageDialogComponent,
   StorageCardComponent,
 } from '../../components';
-import { StoragesService } from '../../services';
 
 @Component({
   selector: 'rbth-feat-storages',
