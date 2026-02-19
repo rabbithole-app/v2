@@ -1,0 +1,75 @@
+<!-- Expanded sidebar: collapsible -->
+<hlm-sidebar-separator class="mx-0 group-data-[collapsible=icon]:hidden" />
+<hlm-collapsible
+  [expanded]="advancedExpanded()"
+  (expandedChange)="advancedExpanded.set($event)"
+  class="group/collapsible group-data-[collapsible=icon]:hidden"
+>
+  <div hlmSidebarGroup>
+    <button
+      hlmCollapsibleTrigger
+      hlmSidebarGroupLabel
+      class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm"
+    >
+      Advanced
+      <ng-icon
+        hlm
+        name="lucideChevronDown"
+        size="sm"
+        class="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180"
+      />
+    </button>
+    <hlm-collapsible-content>
+      <div hlmSidebarGroupContent>
+        <ul hlmSidebarMenu>
+          @for (item of advancedNavItems; track item.route) {
+            <li hlmSidebarMenuItem>
+              <a
+                hlmSidebarMenuButton
+                [routerLink]="item.route"
+                routerLinkActive
+                #rla="routerLinkActive"
+                [isActive]="rla.isActive"
+              >
+                <ng-icon hlmIcon [name]="item.icon" size="sm" hlmMenuIcon />
+                <span>{{ item.label }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      </div>
+    </hlm-collapsible-content>
+  </div>
+</hlm-collapsible>
+
+<!-- Collapsed sidebar: icon with dropdown -->
+<div hlmSidebarGroup class="hidden group-data-[collapsible=icon]:flex">
+  <div hlmSidebarGroupContent>
+    <ul hlmSidebarMenu>
+      <li hlmSidebarMenuItem [class]="menuItemClass">
+        <button
+          hlmSidebarMenuButton
+          [hlmDropdownMenuTrigger]="advancedDropdown"
+          class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+        >
+          <ng-icon hlmIcon name="lucideEllipsis" size="sm" hlmMenuIcon />
+        </button>
+
+        <ng-template #advancedDropdown>
+          <hlm-dropdown-menu class="min-w-48">
+            <hlm-dropdown-menu-label>Advanced</hlm-dropdown-menu-label>
+            <hlm-dropdown-menu-separator />
+            <hlm-dropdown-menu-group>
+              @for (item of advancedNavItems; track item.route) {
+                <a hlmDropdownMenuItem [routerLink]="item.route">
+                  <ng-icon hlm [name]="item.icon" hlmMenuIcon size="sm" />
+                  <span>{{ item.label }}</span>
+                </a>
+              }
+            </hlm-dropdown-menu-group>
+          </hlm-dropdown-menu>
+        </ng-template>
+      </li>
+    </ul>
+  </div>
+</div>

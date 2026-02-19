@@ -1,11 +1,6 @@
 import { Route } from '@angular/router';
 
-import {
-  createProfileGuard,
-  dashboardGuard,
-  loginGuard,
-  profileResolver,
-} from '@rabbithole/core';
+import { dashboardGuard, loginGuard, profileResolver } from '@rabbithole/core';
 
 import { storageViewGuard } from './core/guards';
 
@@ -13,7 +8,9 @@ export const appRoutes: Route[] = [
   {
     path: '',
     loadComponent: () =>
-      import('@rabbithole/pages/dashboard').then((m) => m.DashboardComponent),
+      import('./pages/dashboard/dashboard.component').then(
+        (m) => m.DashboardComponent,
+      ),
     canActivate: [dashboardGuard],
     resolve: {
       profile: profileResolver,
@@ -26,14 +23,7 @@ export const appRoutes: Route[] = [
             (m) => m.storagesRoutes,
           ),
       },
-      {
-        path: '',
-        loadComponent: () =>
-          import(
-            './core/components/main-navigation/main-navigation.component'
-          ).then((m) => m.MainNavigationComponent),
-        outlet: 'sidebar-2',
-      },
+
       {
         path: 'users',
         loadComponent: () =>
@@ -72,6 +62,11 @@ export const appRoutes: Route[] = [
         children: [
           {
             path: '',
+            redirectTo: 'drive',
+            pathMatch: 'full',
+          },
+          {
+            path: '',
             loadComponent: () =>
               import('./pages/storage/storage.component').then(
                 (m) => m.StorageComponent,
@@ -99,7 +94,7 @@ export const appRoutes: Route[] = [
               import(
                 './core/components/storage-navigation/storage-navigation.component'
               ).then((m) => m.StorageNavigationComponent),
-            outlet: 'sidebar-1',
+            outlet: 'sidebar',
           },
         ],
       },
@@ -116,14 +111,6 @@ export const appRoutes: Route[] = [
     loadComponent: () =>
       import('./pages/delegation/delegation.component').then(
         (m) => m.DelegationComponent,
-      ),
-  },
-  {
-    path: 'create-profile',
-    canActivate: [dashboardGuard, createProfileGuard],
-    loadComponent: () =>
-      import('@rabbithole/pages/create-profile').then(
-        (m) => m.CreateProfileComponent,
       ),
   },
   { path: '**', pathMatch: 'full', redirectTo: '' },

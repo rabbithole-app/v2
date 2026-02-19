@@ -1,69 +1,47 @@
-@if (profile(); as p) {
-  <brn-popover
-    sideOffset="5"
-    align="end"
-    [state]="popoverState()"
-    (stateChanged)="popoverState.set($event)"
-  >
-    <button class="h-auto px-3 py-2" variant="ghost" hlmBtn brnPopoverTrigger>
-      <core-account-menu-trigger-content [profile]="p">
-        <!-- <p coreAccountMenuTriggerContentDescription>
-          {{ principalId() }}
-        </p> -->
-      </core-account-menu-trigger-content>
-    </button>
-    <div hlmPopoverContent *brnPopoverContent="let ctx" class="p-0 w-[300px]">
-      <div class="p-1" cdkMenu>
-        <div class="space-y-2 p-3">
-          <h4 class="leading-none text-sm font-medium">Principal ID</h4>
-          <core-copy-to-clipboard
-            [content]="principalId()"
-            class="text-muted-foreground"
-          >
-            <span class="break-all whitespace-normal">
-              {{ principalId() }}
-            </span>
-          </core-copy-to-clipboard>
-          <h4 class="leading-none text-sm font-medium">Account ID</h4>
-          <core-copy-to-clipboard
-            [content]="accountIdentifier()"
-            class="text-muted-foreground"
-          >
-            <span class="break-all whitespace-normal">
-              {{ accountIdentifier() }}
-            </span>
-          </core-copy-to-clipboard>
-        </div>
-        <div class="p-3">
-          <core-icp-wallet-card />
-        </div>
-        <hlm-dropdown-menu-separator />
-        <hlm-dropdown-menu-group>
-          <button
-            hlmDropdownMenuItem
-            routerLink="/profile"
-            (click)="ctx.close()"
-          >
-            <ng-icon hlm name="lucideUser" />
-            <span>Profile</span>
-          </button>
-          <button
-            hlmDropdownMenuItem
-            routerLink="/allowances"
-            (click)="ctx.close()"
-          >
-            <ng-icon hlm name="lucideShieldCheck" />
-            <span>Allowances</span>
-          </button>
-        </hlm-dropdown-menu-group>
-        <hlm-dropdown-menu-separator />
-        <hlm-dropdown-menu-group>
-          <button hlmDropdownMenuItem (triggered)="handleLogout()">
-            <ng-icon hlm name="lucideLogOut" />
-            <span>Logout</span>
-          </button>
-        </hlm-dropdown-menu-group>
+<brn-popover
+  sideOffset="5"
+  align="end"
+  [state]="popoverState()"
+  (stateChanged)="popoverState.set($event)"
+>
+  <button class="h-auto px-3 py-2" variant="ghost" hlmBtn brnPopoverTrigger>
+    @if (profile(); as p) {
+      <core-account-menu-trigger-content [profile]="p" />
+    } @else {
+      <span class="text-sm truncate max-w-[160px]">{{ truncatedPrincipal() }}</span>
+    }
+  </button>
+  <div hlmPopoverContent *brnPopoverContent="let ctx" class="p-0 w-[300px]">
+    <div class="p-1" cdkMenu>
+      <div class="space-y-2 p-3">
+        <h4 class="leading-none text-sm font-medium">Principal ID</h4>
+        <core-copy-to-clipboard
+          [content]="principalId()"
+          class="text-muted-foreground"
+        >
+          <span class="break-all whitespace-normal">
+            {{ principalId() }}
+          </span>
+        </core-copy-to-clipboard>
       </div>
+      <hlm-dropdown-menu-separator />
+      <hlm-dropdown-menu-group>
+        <button
+          hlmDropdownMenuItem
+          routerLink="/profile"
+          (click)="ctx.close()"
+        >
+          <ng-icon hlm name="lucideUser" />
+          <span>{{ profile() ? 'Profile' : 'Set up profile' }}</span>
+        </button>
+      </hlm-dropdown-menu-group>
+      <hlm-dropdown-menu-separator />
+      <hlm-dropdown-menu-group>
+        <button hlmDropdownMenuItem (triggered)="handleLogout()">
+          <ng-icon hlm name="lucideLogOut" />
+          <span>Logout</span>
+        </button>
+      </hlm-dropdown-menu-group>
     </div>
-  </brn-popover>
-}
+  </div>
+</brn-popover>

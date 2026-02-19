@@ -12,22 +12,22 @@ import { map } from 'rxjs/operators';
 
 import { NavigationComponent, NavItem } from '@rabbithole/core';
 import {
-  RbthSidebarGroupContentDirective,
-  RbthSidebarGroupDirective,
-  RbthSidebarGroupLabelDirective,
-} from '@rabbithole/ui';
+  HlmSidebarGroup,
+  HlmSidebarGroupContent,
+  HlmSidebarGroupLabel,
+} from '@spartan-ng/helm/sidebar';
 
 @Component({
   selector: 'app-storage-navigation',
-  template: `<div rbthSidebarGroupLabel>Storage {{ canisterId() }}</div>
-    <div rbthSidebarGroupContent>
+  template: `<div hlmSidebarGroupLabel>Navigation</div>
+    <div hlmSidebarGroupContent>
       <core-navigation [data]="data()" [exact]="'/' + canisterId()" />
     </div> `,
   standalone: true,
   imports: [
     NavigationComponent,
-    RbthSidebarGroupLabelDirective,
-    RbthSidebarGroupContentDirective,
+    HlmSidebarGroupLabel,
+    HlmSidebarGroupContent,
   ],
   providers: [
     provideIcons({
@@ -37,7 +37,7 @@ import {
       lucideFolder,
     }),
   ],
-  hostDirectives: [RbthSidebarGroupDirective],
+  hostDirectives: [HlmSidebarGroup],
 })
 export class StorageNavigationComponent {
   #route = inject(ActivatedRoute);

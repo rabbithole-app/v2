@@ -1,0 +1,58 @@
+<div hlmSidebarGroup>
+  <div hlmSidebarGroupLabel>Storage</div>
+  <div hlmSidebarGroupContent>
+    <ul hlmSidebarMenu>
+      @if (completedStorages().length > 0) {
+        <li hlmSidebarMenuItem [class]="menuItemClass">
+          <button
+            hlmSidebarMenuButton
+            [hlmDropdownMenuTrigger]="storageDropdown"
+            class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+          >
+            <ng-icon hlmIcon name="lucideHardDrive" size="sm" hlmMenuIcon />
+            <span class="truncate group-data-[collapsible=icon]:hidden">
+              {{ activeCanisterId() ?? 'Select Storage' }}
+            </span>
+            <ng-icon
+              hlmIcon
+              name="lucideChevronsUpDown"
+              size="sm"
+              class="ml-auto group-data-[collapsible=icon]:hidden!"
+            />
+          </button>
+
+          <ng-template #storageDropdown>
+            <hlm-dropdown-menu class="w-[--radix-popper-anchor-width] min-w-56">
+              <hlm-dropdown-menu-group>
+                @for (storage of completedStorages(); track storage.id) {
+                  <button
+                    hlmDropdownMenuCheckbox
+                    [checked]="storage.canisterId?.toText() === activeCanisterId()"
+                    (triggered)="navigateToStorage(storage.canisterId!.toText())"
+                  >
+                    <hlm-dropdown-menu-checkbox-indicator />
+                    <span class="truncate">{{ storage.canisterId?.toText() }}</span>
+                  </button>
+                }
+              </hlm-dropdown-menu-group>
+              <hlm-dropdown-menu-separator />
+              <hlm-dropdown-menu-group>
+                <button hlmDropdownMenuItem (click)="openCreateStorageDialog()">
+                  <ng-icon hlm name="lucidePlus" hlmMenuIcon size="sm" />
+                  <span>New Storage</span>
+                </button>
+              </hlm-dropdown-menu-group>
+            </hlm-dropdown-menu>
+          </ng-template>
+        </li>
+      } @else {
+        <li hlmSidebarMenuItem [class]="menuItemClass">
+          <button hlmSidebarMenuButton (click)="openCreateStorageDialog()">
+            <ng-icon hlmIcon name="lucidePlus" size="sm" hlmMenuIcon />
+            <span class="group-data-[collapsible=icon]:hidden">Create Storage</span>
+          </button>
+        </li>
+      }
+    </ul>
+  </div>
+</div>
