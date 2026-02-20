@@ -7,20 +7,15 @@ import {
 import { toBigIntNanoSeconds } from "@dfinity/utils";
 import { faker } from "@faker-js/faker";
 import type { Identity } from "@icp-sdk/core/agent";
+import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
 import { addDays, subDays } from "date-fns";
 import { resolve } from "node:path";
 import { filter, isEmpty, pick, prop, sortBy, splice, take } from "remeda";
 import { afterEach, beforeEach, describe, expect, inject, test } from "vitest";
 
-// Import generated types for your canister
-import {
-  type _SERVICE,
-  type CreateProfileArgs,
-  idlFactory,
-  type ListOptions,
-} from "../declarations/rabbithole-backend/rabbithole-backend.did.js";
-import { setupChunkedCanister } from "./setup/utils.js";
+import { CreateProfileArgs, initBackend, ListOptions, RabbitholeActorService, rabbitholeIdlFactory } from "@rabbithole/declarations";
+import { setupChunkedCanister } from "@rabbithole/testing";
 
 // Define the path to your canister's WASM file
 export const WASM_PATH = resolve(
@@ -35,16 +30,17 @@ export const WASM_PATH = resolve(
 
 const ownerIdentity = createIdentity("owner");
 
-async function createPic(): Promise<[PocketIc, CanisterFixture<_SERVICE>]> {
+async function createPic(): Promise<[PocketIc, CanisterFixture<RabbitholeActorService>]> {
   // create a new PocketIC instance
   const pic = await PocketIc.create(inject("PIC_URL"));
 
   // Setup the canister and actor
-  const fixture = await setupChunkedCanister<_SERVICE>({
+  const fixture = await setupChunkedCanister<RabbitholeActorService>({
     pic,
     wasmPath: WASM_PATH,
     sender: ownerIdentity,
-    idlFactory,
+    idlFactory: rabbitholeIdlFactory,
+    arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
   });
 
   // next block to init ecdsa keypair in the canister
@@ -77,7 +73,7 @@ const USERS = faker.helpers.multiple(createRandomUser, {
 describe("Profiles", () => {
   let pic: PocketIc;
   let canisterId: Principal;
-  let actor: Actor<_SERVICE>;
+  let actor: Actor<RabbitholeActorService>;
 
   beforeEach(async () => {
     const [picInstance, fixture] = await createPic();

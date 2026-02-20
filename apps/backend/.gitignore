@@ -5,7 +5,6 @@ deps
 dist
 declarations
 !tests/declarations
-tests/state/nns_state
 
 # other
 replica.log

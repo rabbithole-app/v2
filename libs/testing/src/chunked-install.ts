@@ -110,6 +110,7 @@ interface SetupChunkedCanisterParams extends PicParams {
 
 type UpgradeChunkedCanisterParams = {
   canisterId: Principal;
+  mode?: canister_install_mode;
 } & Omit<SetupChunkedCanisterParams, "idlFactory">;
 
 export const setupChunkedCanister = async <
@@ -137,12 +138,20 @@ export const setupChunkedCanister = async <
   return { canisterId, actor };
 };
 
-export const upgradeChunkedCanister = async (
-  params: UpgradeChunkedCanisterParams,
-) => {
+export const upgradeChunkedCanister = async ({
+  mode,
+  ...params
+}: UpgradeChunkedCanisterParams) => {
   await installCanister({
     ...params,
-    mode: { upgrade: [] },
+    mode: mode ?? {
+      upgrade: [
+        {
+          wasm_memory_persistence: [{ keep: null }],
+          skip_pre_upgrade: [false],
+        },
+      ],
+    },
   });
 };
 
@@ -177,7 +186,7 @@ const installCanister = async ({
   }
 
   // Install the chunked code.
-  // ⚠️ The order of the chunks is really important! ⚠️
+  // The order of the chunks is really important!
   await installChunkedCodeApi({
     pic,
     sender,

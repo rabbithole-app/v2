@@ -4,17 +4,6 @@ This directory contains integration tests for the Rabbithole backend canisters u
 
 ## Prerequisites
 
-### Unpack NNS State
-
-Before running tests, you **must** unpack the NNS state archive:
-
-```bash
-cd apps/backend/tests/state
-tar -xJf nns_state.tar.xz
-```
-
-This archive contains the pre-configured state of NNS canisters (ICP Ledger, CMC, Governance, etc.) required for testing.
-
 ### Build Canisters
 
 Ensure all canisters are built before running tests:
@@ -35,20 +24,27 @@ tests/
 │   ├── minimal-frontend.tar      # Test frontend archive (v1)
 │   └── minimal-frontend-v2.tar   # Test frontend archive (v2, for invalidation tests)
 ├── setup/
-│   ├── constants.ts          # Canister IDs, paths, and constants
+│   ├── backend-manager.ts    # BackendManager — extends BaseManager with backend-specific logic
+│   ├── constants.ts          # Backend-specific paths + re-exports from @rabbithole/testing
 │   ├── github-outcalls.ts    # HTTP outcall mocking for GitHub API
-│   ├── manager.ts            # Test manager class for PocketIC setup
-│   ├── nns/                   # NNS-related utilities and identities
-│   └── utils.ts              # Chunked canister installation utilities
-├── state/
-│   ├── nns_state/            # Unpacked NNS state (after extraction)
-│   └── nns_state.tar.xz      # NNS state archive (must be unpacked!)
+│   ├── manager.ts            # Re-exports BackendManager as Manager (backwards compatibility)
+│   └── utils.ts              # Re-exports chunked install utilities from @rabbithole/testing
 ├── github-releases.test.ts   # Tests for GitHub releases download and invalidation
 ├── profiles.test.ts          # Tests for user profiles CRUD operations
 ├── storage-deployer.test.ts  # Tests for storage canister deployment with ICP/CMC
 ├── tar-extractor.test.ts     # Tests for tar.gz extraction functionality
 └── README.md                 # This file
 ```
+
+## Shared Testing Infrastructure
+
+Common test utilities live in `libs/testing` (`@rabbithole/testing`):
+
+- **`BaseManager`** — base class for PocketIC test setup (NNS state, ICP ledger, CMC, time/block control)
+- **`setupChunkedCanister` / `upgradeChunkedCanister`** — chunked WASM installation for large canisters
+- **`minterIdentity`** — pre-configured NNS minter identity
+- **Constants** — NNS canister IDs, fees, conversion rates
+- **NNS state** — pre-configured state at `libs/testing/state/nns_state/`
 
 ## Test Files Overview
 
@@ -58,6 +54,8 @@ Tests for user profile management:
 - Create, read, update, delete profiles
 - Username validation
 - Profile listing with pagination, sorting, and filtering
+
+Uses `setupChunkedCanister` directly (no Manager).
 
 ### `github-releases.test.ts`
 
@@ -103,11 +101,31 @@ npx nx test backend -- --reporter=verbose
 
 ## Key Concepts
 
-### Manager Class
+### Manager Hierarchy
 
-The `Manager` class (`setup/manager.ts`) handles PocketIC instance setup:
+```
+BaseManager (libs/testing)           — NNS/PocketIC infrastructure
+└── BackendManager (tests/setup/)    — backend-specific setup
+```
+
+**`BaseManager`** (`@rabbithole/testing`) handles:
+- PocketIC instance with NNS subnet (from saved state)
+- Application subnet creation
+- Pre-configured ICP Ledger and CMC actors
+- ICP minting and transfers
+- Time and block advancement
+
+**`BackendManager`** (`tests/setup/backend-manager.ts`) adds:
+- System subnet for CMC operations
+- Chrono router advancement (240 min warmup)
+- `initBackendCanister()` — deploy rabbithole-backend + CMC authorization
+- `upgradeBackendCanister()` — upgrade via chunked code (with `wasm_memory_persistence: keep`)
+
+Usage:
 
 ```typescript
+import { Manager } from "./setup/manager.ts";
+
 const manager = await Manager.create();
 const backendFixture = await manager.initBackendCanister();
 
@@ -118,21 +136,6 @@ const result = await backendFixture.actor.someMethod();
 await manager.afterAll();
 ```
 
-Features:
-- Initializes PocketIC with NNS subnet (from saved state)
-- Creates application and system subnets
-- Provides pre-configured ICP Ledger and CMC actors
-- Handles chunked WASM installation for large canisters
-- Mints initial ICP tokens for testing
-
-### NNS State
-
-Tests use a pre-saved NNS state that includes:
-- **ICP Ledger** (`ryjl3-tyaaa-aaaaa-aaaba-cai`)
-- **Cycles Minting Canister (CMC)** (`rkp4c-7iaaa-aaaaa-aaaca-cai`)
-- **Governance** (`rrkah-fqaaa-aaaaa-aaaaq-cai`)
-- **NNS Root** (`r7inp-6aaaa-aaaaa-aaabq-cai`)
-
 ### HTTP Outcall Mocking
 
 For tests that require external HTTP calls (e.g., GitHub API), use the mocking utilities in `setup/github-outcalls.ts`:
@@ -140,7 +143,6 @@ For tests that require external HTTP calls (e.g., GitHub API), use the mocking u
 ```typescript
 import { runHttpDownloaderQueueProcessor, frontendV2Content } from "./setup/github-outcalls";
 
-// Basic usage - waits until condition is met while processing HTTP outcalls
 await runHttpDownloaderQueueProcessor(
   manager.pic,
   async () => {
@@ -148,23 +150,11 @@ await runHttpDownloaderQueueProcessor(
     return status.hasDownloadedRelease;
   }
 );
-
-// With custom assets - useful for testing asset invalidation
-await runHttpDownloaderQueueProcessor(
-  manager.pic,
-  async () => {
-    // Wait for hash to change (invalidation + re-download)
-    const status = await backendFixture.actor.getReleasesFullStatus();
-    const frontendAsset = status.releases[0]?.assets.find(a => a.name.includes("frontend"));
-    return frontendAsset?.sha256?.[0] !== originalHash;
-  },
-  { frontend: frontendV2Content }  // Override frontend asset content
-);
 ```
 
 ### Chunked WASM Installation
 
-Large WASM files (>2MB) are automatically installed in chunks via the management canister. This is handled transparently by `Manager.installCode()` and utilities in `setup/utils.ts`.
+Large WASM files (>1MB) are automatically installed in chunks via the management canister. This is handled by `setupChunkedCanister` and `upgradeChunkedCanister` from `@rabbithole/testing`.
 
 ## Configuration
 
@@ -172,11 +162,12 @@ Test configuration is in `vitest.config.ts`:
 
 ```typescript
 export default defineConfig({
+  plugins: [tsconfigPaths({ root: "../../" })],
   test: {
     include: ["tests/**.test.ts"],
     globalSetup: "./global-setup.ts",
     testTimeout: 30_000,
-    hookTimeout: 300_000,  // Extended timeout for slow operations like gzip decoding
+    hookTimeout: 300_000,
     watch: false,
     pool: "forks",
   },
@@ -193,11 +184,7 @@ The `global-setup.ts` starts a PocketIC server before tests and provides the URL
 
 **Problem**: Tests fail with "state path not found" error.
 
-**Solution**: Unpack the NNS state archive:
-```bash
-cd apps/backend/tests/state
-tar -xJf nns_state.tar.xz
-```
+**Solution**: NNS state lives in `libs/testing/state/nns_state/`. Ensure it exists (copied during `libs/testing` setup).
 
 ### Error: WASM file not found
 
@@ -221,7 +208,7 @@ npx nx build backend
 
 **Problem**: Operations fail due to insufficient cycles.
 
-**Solution**: The Manager class mints 1,000,000 ICP to the test identity by default. For operations requiring more, use `manager.sendIcp()` to transfer additional funds.
+**Solution**: BaseManager mints 1,000,000 ICP to the test identity by default. For operations requiring more, use `manager.sendIcp()` to transfer additional funds.
 
 ## Resources
 

@@ -20,6 +20,7 @@
       "@rabbithole/core": ["libs/core/src/index.ts"],
       "@rabbithole/declarations": ["libs/declarations/src/index.ts"],
       "@rabbithole/encrypted-storage": ["libs/encrypted-storage/src/index.ts"],
+      "@rabbithole/testing": ["libs/testing/src/index.ts"],
       "@rabbithole/ui": ["libs/app-ui/src/index.ts"],
       "@rabbithole/utils": ["libs/utils/src/index.ts"],
       "@rabbithole/features": ["libs/features/src/index.ts"],

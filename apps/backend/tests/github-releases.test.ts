@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import type { ExtractionStatus, RabbitholeActorService } from "@rabbithole/declarations";
 
+import { BackendManager } from "./setup/backend-manager";
 import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
-import { Manager } from "./setup/manager";
 
 /**
  * Helper to format asset download status for logging
@@ -44,11 +44,11 @@ function formatExtractionStatus(extractionStatus: [] | [ExtractionStatus]): stri
 }
 
 describe("GitHub Releases", () => {
-  let manager: Manager;
+  let manager: BackendManager;
   let backendFixture: CanisterFixture<RabbitholeActorService>;
 
   beforeAll(async () => {
-    manager = await Manager.create();
+    manager = await BackendManager.create();
     backendFixture = await manager.initBackendCanister();
   });
 

@@ -17,9 +17,9 @@ import {
   UpdateInfo,
 } from "@rabbithole/declarations";
 
+import { BackendManager } from "./setup/backend-manager";
 import { CMC_CANISTER_ID, E8S_PER_ICP, ONE_TRILLION } from "./setup/constants";
 import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
-import { Manager } from "./setup/manager";
 
 /**
  * Helper to find active (in-progress) storage from list
@@ -94,7 +94,7 @@ function formatUpdateInfo(info: UpdateInfo): Record<string, unknown> {
  * Uses listStorages to get current status
  */
 async function pollStorageStatus(
-  manager: Manager,
+  manager: BackendManager,
   backendFixture: CanisterFixture<RabbitholeActorService>,
   maxAttempts = 120,
 ): Promise<CreationStatus | null> {
@@ -144,7 +144,7 @@ async function pollStorageStatus(
  * Helper to wait for releases to be downloaded and ready for deployment
  */
 async function waitForReleasesReady(
-  manager: Manager,
+  manager: BackendManager,
   backendFixture: CanisterFixture<RabbitholeActorService>,
 ): Promise<void> {
   console.log("\n=== Waiting for GitHub Releases Download ===");
@@ -197,11 +197,11 @@ async function waitForReleasesReady(
 }
 
 describe("StorageDeployer", () => {
-  let manager: Manager;
+  let manager: BackendManager;
   let backendFixture: CanisterFixture<RabbitholeActorService>;
 
   beforeAll(async () => {
-    manager = await Manager.create();
+    manager = await BackendManager.create();
     backendFixture = await manager.initBackendCanister();
   });
 

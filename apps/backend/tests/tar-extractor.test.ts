@@ -9,9 +9,9 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import type { RabbitholeActorService } from "@rabbithole/declarations";
 
+import { BackendManager } from "./setup/backend-manager";
 import { STORAGE_FRONTEND_ARCHIVE_PATH } from "./setup/constants";
 import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
-import { Manager } from "./setup/manager";
 
 const normalizeKey = (key: string) => key
   .split('/')
@@ -119,11 +119,11 @@ function getExtractionStatusFromFullStatus(
 }
 
 describe("Tar Extractor", () => {
-  let manager: Manager;
+  let manager: BackendManager;
   let backendFixture: CanisterFixture<RabbitholeActorService>;
 
   beforeAll(async () => {
-    manager = await Manager.create();
+    manager = await BackendManager.create();
     backendFixture = await manager.initBackendCanister();
   });
 
