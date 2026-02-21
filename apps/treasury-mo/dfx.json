@@ -1,0 +1,21 @@
+{
+  "canisters": {
+    "treasury": {
+      "main": "src/main.mo",
+      "type": "motoko",
+      "gzip": true,
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "node_compatibility": true,
+        "output": "declarations/treasury"
+      }
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

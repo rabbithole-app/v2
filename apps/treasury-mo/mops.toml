@@ -1,0 +1,12 @@
+[package]
+name = "treasury"
+version = "0.1.0"
+
+[dependencies]
+core = "https://github.com/dfinity/motoko-core#moc-1.0.0"
+base = "0.16.0"
+vector = "0.4.3"
+ic = "3.2.0"
+
+[toolchain]
+moc = "1.0.0-nullc-2"

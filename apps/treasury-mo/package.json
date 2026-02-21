@@ -1,0 +1,21 @@
+{
+  "name": "treasury-mo",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.8.1",
+    "vite-tsconfig-paths": "^6.0.4",
+    "vitest": "^4.0.16"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@dfinity/pic": "^0.18.0",
+    "@dfinity/utils": "^4.1.0",
+    "@icp-sdk/core": "^5.0.0"
+  }
+}
