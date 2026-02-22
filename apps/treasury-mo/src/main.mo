@@ -65,6 +65,17 @@ shared ({ caller = installer }) persistent actor class TreasuryCanister(initArgs
     await* Treasury.getTreasurySigningAddress(treasury);
   };
 
+  /// Get caller's Solana address (derived via threshold Schnorr Ed25519, cached).
+  public shared ({ caller }) func getSolAddress() : async ?Text {
+    await* Treasury.getOrDeriveSolAddress(treasury, caller);
+  };
+
+  /// Get the treasury canister's own Solana signing address.
+  /// This is the address used to sign SOL/SPL transfers in distributePayment.
+  public shared func getTreasurySolSigningAddress() : async ?Text {
+    await* Treasury.getTreasurySolSigningAddress(treasury);
+  };
+
   /// Verify on-chain status of EVM transfers for a distribution.
   /// Admin only. Checks eth_getTransactionReceipt for each transfer with a txHash.
   public shared ({ caller }) func verifyDistribution(paymentId : Text) : async Types.VerifyDistributionResult {

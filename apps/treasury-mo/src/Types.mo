@@ -12,6 +12,10 @@ module {
     #BaseETH;
     #BaseUSDC;
     #BaseUSDT;
+    // Phase 3: Solana
+    #SOL;
+    #SolUSDC;
+    #SolUSDT;
   };
 
   /// Distribution and withdrawal configuration.
@@ -32,6 +36,9 @@ module {
     baseEth : Nat;
     baseUsdc : Nat;
     baseUsdt : Nat;
+    sol : Nat;
+    solUsdc : Nat;
+    solUsdt : Nat;
   };
 
   /// EVM chain configuration, provided at deploy time via InitArgs.
@@ -46,10 +53,22 @@ module {
     rpcUrls : [Text];
   };
 
+  /// Solana configuration, provided at deploy time via InitArgs.
+  public type SolConfig = {
+    schnorrKeyName : Text;
+    solRpcCanisterId : Text;
+    usdcMint : Text;
+    usdtMint : Text;
+    /// Custom RPC URL. If empty, built-in sol_rpc providers are used.
+    /// Required for devnet/testnet when sol_rpc API keys are not configured.
+    rpcUrl : ?Text;
+  };
+
   /// Init args for the Treasury canister.
   public type InitArgs = {
     admin : Principal;
     evmConfig : ?EvmConfig;
+    solConfig : ?SolConfig;
     distributionConfig : ?DistributionConfig;
   };
 
@@ -73,6 +92,7 @@ module {
     #TransferFailed : { recipient : Text; error : Text };
     #PartiallyCompleted : DistributionRecord;
     #EvmNotConfigured;
+    #SolNotConfigured;
     #Unauthorized;
   };
 
@@ -87,10 +107,12 @@ module {
     recipient : Principal;
     subaccount : ?Blob;
     evmAddress : ?Text;
+    solAddress : ?Text;
     amount : Nat;
     tokenId : TokenId;
     blockIndex : ?Nat;
     txHash : ?Text;
+    solSignature : ?Text;
     error : ?Text;
   };
 
@@ -111,10 +133,11 @@ module {
     status : DistributionStatus;
   };
 
-  /// Withdraw destination — IC (ICRC-1) or EVM address.
+  /// Withdraw destination — IC (ICRC-1), EVM, or Solana address.
   public type WithdrawDestination = {
     #IC : { owner : Principal; subaccount : ?Blob };
     #EVM : { address : Text };
+    #SOL : { address : Text };
   };
 
   /// Withdraw request.
@@ -132,6 +155,7 @@ module {
     #TransferFailed : Text;
     #BelowMinimum : { minimum : Nat };
     #EvmNotConfigured;
+    #SolNotConfigured;
   };
 
   /// Balance entry for a single token.

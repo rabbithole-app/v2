@@ -1,4 +1,11 @@
 export const idlFactory = ({ IDL }) => {
+  const SolConfig = IDL.Record({
+    'usdcMint' : IDL.Text,
+    'solRpcCanisterId' : IDL.Text,
+    'rpcUrl' : IDL.Opt(IDL.Text),
+    'schnorrKeyName' : IDL.Text,
+    'usdtMint' : IDL.Text,
+  });
   const EvmConfig = IDL.Record({
     'evmRpcCanisterId' : IDL.Text,
     'rpcUrls' : IDL.Vec(IDL.Text),
@@ -9,12 +16,15 @@ export const idlFactory = ({ IDL }) => {
   });
   const MinWithdrawConfig = IDL.Record({
     'icp' : IDL.Nat,
+    'sol' : IDL.Nat,
     'baseUsdc' : IDL.Nat,
     'baseUsdt' : IDL.Nat,
     'baseEth' : IDL.Nat,
     'ckEth' : IDL.Nat,
     'ckUsdc' : IDL.Nat,
     'ckUsdt' : IDL.Nat,
+    'solUsdc' : IDL.Nat,
+    'solUsdt' : IDL.Nat,
   });
   const DistributionConfig = IDL.Record({
     'l1Bps' : IDL.Nat,
@@ -22,12 +32,16 @@ export const idlFactory = ({ IDL }) => {
     'minWithdraw' : MinWithdrawConfig,
   });
   const InitArgs = IDL.Record({
+    'solConfig' : IDL.Opt(SolConfig),
     'admin' : IDL.Principal,
     'evmConfig' : IDL.Opt(EvmConfig),
     'distributionConfig' : IDL.Opt(DistributionConfig),
   });
   const TokenId = IDL.Variant({
     'ICP' : IDL.Null,
+    'SOL' : IDL.Null,
+    'SolUSDC' : IDL.Null,
+    'SolUSDT' : IDL.Null,
     'ckETH' : IDL.Null,
     'ckUSDC' : IDL.Null,
     'ckUSDT' : IDL.Null,
@@ -50,8 +64,10 @@ export const idlFactory = ({ IDL }) => {
   });
   const TransferRecord = IDL.Record({
     'tokenId' : TokenId,
+    'solSignature' : IDL.Opt(IDL.Text),
     'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'recipient' : IDL.Principal,
+    'solAddress' : IDL.Opt(IDL.Text),
     'error' : IDL.Opt(IDL.Text),
     'blockIndex' : IDL.Opt(IDL.Nat),
     'txHash' : IDL.Opt(IDL.Text),
@@ -83,6 +99,7 @@ export const idlFactory = ({ IDL }) => {
       'error' : IDL.Text,
     }),
     'EvmNotConfigured' : IDL.Null,
+    'SolNotConfigured' : IDL.Null,
   });
   const DistributePaymentResult = IDL.Variant({
     'ok' : DistributionRecord,
@@ -119,6 +136,7 @@ export const idlFactory = ({ IDL }) => {
       'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     }),
     'EVM' : IDL.Record({ 'address' : IDL.Text }),
+    'SOL' : IDL.Record({ 'address' : IDL.Text }),
   });
   const WithdrawArgs = IDL.Record({
     'to' : WithdrawDestination,
@@ -130,6 +148,7 @@ export const idlFactory = ({ IDL }) => {
     'InsufficientBalance' : IDL.Record({ 'available' : IDL.Nat }),
     'TransferFailed' : IDL.Text,
     'EvmNotConfigured' : IDL.Null,
+    'SolNotConfigured' : IDL.Null,
   });
   const WithdrawResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : WithdrawError });
   const TreasuryCanister = IDL.Service({
@@ -146,8 +165,10 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getEvmAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
+    'getSolAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'getTreasuryBalances' : IDL.Func([], [IDL.Vec(BalanceEntry)], []),
     'getTreasurySigningAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
+    'getTreasurySolSigningAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'getUserDistributions' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(DistributionRecord)],
@@ -159,6 +180,13 @@ export const idlFactory = ({ IDL }) => {
   return TreasuryCanister;
 };
 export const init = ({ IDL }) => {
+  const SolConfig = IDL.Record({
+    'usdcMint' : IDL.Text,
+    'solRpcCanisterId' : IDL.Text,
+    'rpcUrl' : IDL.Opt(IDL.Text),
+    'schnorrKeyName' : IDL.Text,
+    'usdtMint' : IDL.Text,
+  });
   const EvmConfig = IDL.Record({
     'evmRpcCanisterId' : IDL.Text,
     'rpcUrls' : IDL.Vec(IDL.Text),
@@ -169,12 +197,15 @@ export const init = ({ IDL }) => {
   });
   const MinWithdrawConfig = IDL.Record({
     'icp' : IDL.Nat,
+    'sol' : IDL.Nat,
     'baseUsdc' : IDL.Nat,
     'baseUsdt' : IDL.Nat,
     'baseEth' : IDL.Nat,
     'ckEth' : IDL.Nat,
     'ckUsdc' : IDL.Nat,
     'ckUsdt' : IDL.Nat,
+    'solUsdc' : IDL.Nat,
+    'solUsdt' : IDL.Nat,
   });
   const DistributionConfig = IDL.Record({
     'l1Bps' : IDL.Nat,
@@ -182,6 +213,7 @@ export const init = ({ IDL }) => {
     'minWithdraw' : MinWithdrawConfig,
   });
   const InitArgs = IDL.Record({
+    'solConfig' : IDL.Opt(SolConfig),
     'admin' : IDL.Principal,
     'evmConfig' : IDL.Opt(EvmConfig),
     'distributionConfig' : IDL.Opt(DistributionConfig),

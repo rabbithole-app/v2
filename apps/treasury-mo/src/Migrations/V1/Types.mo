@@ -11,6 +11,7 @@ module {
     var nextDistributionId : Nat;
     admin : Principal;
     evmConfig : ?Types.EvmConfig;
+    solConfig : ?Types.SolConfig;
     distributionConfig : Types.DistributionConfig;
     walletCache : Map.Map<Principal, WalletAddresses>;
   };

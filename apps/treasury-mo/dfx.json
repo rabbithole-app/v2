@@ -4,11 +4,27 @@
       "main": "src/main.mo",
       "type": "motoko",
       "gzip": true,
-      "init_arg": "(record { admin = principal \"hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe\"; evmConfig = null; distributionConfig = null })",
+      "init_arg": "(record { admin = principal \"hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe\"; evmConfig = null; solConfig = null; distributionConfig = null })",
       "declarations": {
         "bindings": ["js", "ts"],
         "node_compatibility": true,
         "output": "declarations/treasury"
+      }
+    },
+    "sol_rpc": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/sol-rpc-canister/releases/latest/download/sol_rpc_canister.did",
+      "wasm": "https://github.com/dfinity/sol-rpc-canister/releases/latest/download/sol_rpc_canister.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "tghme-zyaaa-aaaar-qarca-cai"
+        }
+      },
+      "init_arg": "(record {})",
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "node_compatibility": true,
+        "output": "declarations/sol_rpc"
       }
     },
     "evm_rpc": {

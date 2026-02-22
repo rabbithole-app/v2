@@ -11,11 +11,15 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Vector "mo:vector";
 
-import Account "Account";
+import BaseX "mo:base-x-encoder";
+
+import Account "common/Account";
 import Const "Const";
-import EvmRpc "EvmRpc";
-import LedgerTypes "LedgerTypes";
+import EvmRpc "evm/EvmRpc";
+import LedgerTypes "common/LedgerTypes";
 import Migrations "Migrations/lib";
+import SolRpc "sol/SolRpc";
+import SolTx "sol/SolTx";
 import V1Types "Migrations/V1/Types";
 import Types "Types";
 
@@ -35,6 +39,9 @@ module Treasury {
       baseEth = Const.MIN_WITHDRAW_BASE_ETH;
       baseUsdc = Const.MIN_WITHDRAW_BASE_USDC;
       baseUsdt = Const.MIN_WITHDRAW_BASE_USDT;
+      sol = Const.MIN_WITHDRAW_SOL;
+      solUsdc = Const.MIN_WITHDRAW_SOL_USDC;
+      solUsdt = Const.MIN_WITHDRAW_SOL_USDT;
     };
   };
 
@@ -49,6 +56,7 @@ module Treasury {
       var nextDistributionId = 0;
       admin = args.admin;
       evmConfig = args.evmConfig;
+      solConfig = args.solConfig;
       distributionConfig = config;
       walletCache = Map.empty<Principal, V1Types.WalletAddresses>();
     });
@@ -63,6 +71,7 @@ module Treasury {
     canisterId : Principal;
     var ecCtx : ?Ecmult.ECMultContext;
     ecdsaApi : EvmRpc.IcEcdsaApi;
+    schnorrApi : SolRpc.IcSchnorrApi;
     /// Last known nonce for the treasury signing address.
     /// Used to avoid NonceTooLow when pending txs haven't propagated yet.
     var lastNonce : ?Nat;
@@ -82,7 +91,7 @@ module Treasury {
 
   public func fromVersion(versionedStore : StableStore, canisterId : Principal) : Treasury {
     let store = Migrations.getCurrentState(versionedStore);
-    { store; canisterId; var ecCtx = null; ecdsaApi = EvmRpc.createEcdsaApi(); var lastNonce = null };
+    { store; canisterId; var ecCtx = null; ecdsaApi = EvmRpc.createEcdsaApi(); schnorrApi = SolRpc.createSchnorrApi(); var lastNonce = null };
   };
 
   // ---- Token classification ----
@@ -90,7 +99,14 @@ module Treasury {
   func isIcToken(tokenId : Types.TokenId) : Bool {
     switch (tokenId) {
       case (#ICP or #ckUSDC or #ckUSDT or #ckETH) true;
-      case (#BaseETH or #BaseUSDC or #BaseUSDT) false;
+      case _ false;
+    };
+  };
+
+  func isSolToken(tokenId : Types.TokenId) : Bool {
+    switch (tokenId) {
+      case (#SOL or #SolUSDC or #SolUSDT) true;
+      case _ false;
     };
   };
 
@@ -125,6 +141,9 @@ module Treasury {
       case (#BaseETH) config.minWithdraw.baseEth;
       case (#BaseUSDC) config.minWithdraw.baseUsdc;
       case (#BaseUSDT) config.minWithdraw.baseUsdt;
+      case (#SOL) config.minWithdraw.sol;
+      case (#SolUSDC) config.minWithdraw.solUsdc;
+      case (#SolUSDT) config.minWithdraw.solUsdt;
     };
   };
 
@@ -280,6 +299,104 @@ module Treasury {
     };
   };
 
+  // ---- Solana helpers ----
+
+  /// Get SPL mint address for a Solana token.
+  func getSolMintAddress(tokenId : Types.TokenId, solConfig : Types.SolConfig) : ?Text {
+    switch (tokenId) {
+      case (#SolUSDC) ?solConfig.usdcMint;
+      case (#SolUSDT) ?solConfig.usdtMint;
+      case (#SOL) null;
+      case _ Runtime.trap("Not a SOL token");
+    };
+  };
+
+  /// Get SPL token decimals.
+  func getSolTokenDecimals(tokenId : Types.TokenId) : Nat8 {
+    switch (tokenId) {
+      case (#SOL) 9; // not used for SPL, but consistent
+      case (#SolUSDC) 6;
+      case (#SolUSDT) 6;
+      case _ Runtime.trap("Not a SOL token");
+    };
+  };
+
+  /// Build RPC sources for SOL RPC canister.
+  func buildSolRpcSources(solConfig : Types.SolConfig) : SolRpc.RpcSources {
+    // If custom RPC URL is provided, always use #Custom
+    switch (solConfig.rpcUrl) {
+      case (?url) {
+        return #Custom([#Custom({ url; headers = null })]);
+      };
+      case null {};
+    };
+    // Otherwise use built-in sol_rpc provider sets
+    if (solConfig.schnorrKeyName == "dfx_test_key") {
+      #Default(#Devnet);
+    } else {
+      #Default(#Mainnet);
+    };
+  };
+
+  /// Resolve Solana address for a principal, using cache.
+  func resolveSolAddress(
+    treasury : Treasury,
+    principal : Principal,
+    solConfig : Types.SolConfig,
+    api : SolRpc.IcSchnorrApi,
+  ) : async* ?Text {
+    // Check cache
+    switch (Map.get(treasury.store.walletCache, Principal.compare, principal)) {
+      case (?wallet) {
+        switch (wallet.solAddress) {
+          case (?addr) return ?addr;
+          case null {};
+        };
+      };
+      case null {};
+    };
+
+    // Derive
+    let result = await* SolRpc.deriveSolAddress(solConfig.schnorrKeyName, principal, api);
+    switch (result) {
+      case (#ok((address, _publicKey))) {
+        // Update existing cache entry or create new one
+        let existing = Map.get(treasury.store.walletCache, Principal.compare, principal);
+        let wallet : V1Types.WalletAddresses = switch (existing) {
+          case (?w) { { icSubaccount = w.icSubaccount; evmAddress = w.evmAddress; solAddress = ?address } };
+          case null { { icSubaccount = Account.principalToSubaccount(principal); evmAddress = null; solAddress = ?address } };
+        };
+        Map.add(treasury.store.walletCache, Principal.compare, principal, wallet);
+        ?address;
+      };
+      case (#err(_)) null;
+    };
+  };
+
+  /// Get SOL or SPL token balance for an address.
+  func getSolTokenBalance(
+    solConfig : Types.SolConfig,
+    tokenId : Types.TokenId,
+    address : Text,
+  ) : async* Result.Result<Nat, Text> {
+    let rpcSources = buildSolRpcSources(solConfig);
+    switch (getSolMintAddress(tokenId, solConfig)) {
+      case (?mintAddress) {
+        // SPL token — need to derive ATA and query token balance
+        let walletBytes = SolTx.addressToBytes(address);
+        let mintBytes = SolTx.addressToBytes(mintAddress);
+        let ataBytes = SolTx.deriveAta(walletBytes, mintBytes);
+        let ataAddress = BaseX.toBase58(ataBytes.vals());
+        await* SolRpc.getTokenAccountBalance(solConfig.solRpcCanisterId, rpcSources, ataAddress);
+      };
+      case null {
+        // Native SOL
+        let result = await* SolRpc.getBalance(solConfig.solRpcCanisterId, rpcSources, address);
+        Result.mapOk<Nat64, Nat, Text>(result, func(lamports : Nat64) : Nat { Nat64.toNat(lamports) });
+      };
+    };
+  };
+
   // ---- Distribution ----
 
   /// Distribute a payment to treasury + ambassadors.
@@ -303,6 +420,8 @@ module Treasury {
 
     if (isIcToken(args.tokenId)) {
       await* distributeIc(treasury, args);
+    } else if (isSolToken(args.tokenId)) {
+      await* distributeSol(treasury, args);
     } else {
       await* distributeEvm(treasury, args);
     };
@@ -480,6 +599,127 @@ module Treasury {
     finalizeDistribution(treasury, args, treasuryAmount, l1Amount, l2Amount, transfers);
   };
 
+  func distributeSol(
+    treasury : Treasury,
+    args : Types.DistributePaymentArgs,
+  ) : async* Types.DistributePaymentResult {
+    let solConfig = switch (treasury.store.solConfig) {
+      case (?cfg) cfg;
+      case null return #err(#SolNotConfigured);
+    };
+
+    let (treasuryAmount, l1Amount, l2Amount) = calculateSplit(args.amount, args.ambassadorL1, args.ambassadorL2, treasury.store.distributionConfig);
+
+    let api = treasury.schnorrApi;
+    let rpcSources = buildSolRpcSources(solConfig);
+
+    // Derive treasury Solana address + public key (sender of all SOL transfers)
+    let (treasurySolAddr, treasuryPubKey) = switch (await* SolRpc.deriveTreasurySolAddress(solConfig.schnorrKeyName, api)) {
+      case (#ok(pair)) pair;
+      case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
+    };
+    ignore treasurySolAddr; // used implicitly as the signer
+
+    var transfers = Vector.new<Types.TransferRecord>();
+
+    // Resolve Solana addresses for all recipients
+    let adminSolAddr = await* resolveSolAddress(treasury, treasury.store.admin, solConfig, api);
+    let l1SolAddr = switch (args.ambassadorL1) {
+      case (?l1) await* resolveSolAddress(treasury, l1, solConfig, api);
+      case null null;
+    };
+    let l2SolAddr = switch (args.ambassadorL2) {
+      case (?l2) await* resolveSolAddress(treasury, l2, solConfig, api);
+      case null null;
+    };
+
+    // Force a commit point between Schnorr/address resolution and SOL RPC calls.
+    await async ();
+
+    // Helper to send a SOL/SPL transfer
+    func sendSolOrSplTransfer(toAddr : Text, amount : Nat) : async* Result.Result<Text, Text> {
+      switch (getSolMintAddress(args.tokenId, solConfig)) {
+        case (?mintAddress) {
+          // SPL transfer
+          await* SolRpc.sendSplTransfer(
+            {
+              solRpcCanisterId = solConfig.solRpcCanisterId;
+              rpcSources;
+              schnorrKeyName = solConfig.schnorrKeyName;
+              derivationPath = [];
+              senderPubKey = treasuryPubKey;
+              mintAddress;
+              toAddress = toAddr;
+              amount = Nat64.fromNat(amount);
+              decimals = getSolTokenDecimals(args.tokenId);
+            },
+            api,
+          );
+        };
+        case null {
+          // Native SOL transfer
+          await* SolRpc.sendSolTransfer(
+            {
+              solRpcCanisterId = solConfig.solRpcCanisterId;
+              rpcSources;
+              schnorrKeyName = solConfig.schnorrKeyName;
+              derivationPath = [];
+              senderPubKey = treasuryPubKey;
+              toAddress = toAddr;
+              lamports = Nat64.fromNat(amount);
+            },
+            api,
+          );
+        };
+      };
+    };
+
+    // Transfer treasury share
+    switch (adminSolAddr) {
+      case (?addr) {
+        if (treasuryAmount > 0) {
+          let result = await* sendSolOrSplTransfer(addr, treasuryAmount);
+          Vector.add(transfers, makeSolTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
+        };
+      };
+      case null return #err(#TransferFailed({ recipient = "admin"; error = "Failed to derive SOL address" }));
+    };
+
+    // Transfer L1 share
+    switch (args.ambassadorL1) {
+      case (?l1) {
+        switch (l1SolAddr) {
+          case (?addr) {
+            if (l1Amount > 0) {
+              let result = await* sendSolOrSplTransfer(addr, l1Amount);
+              Vector.add(transfers, makeSolTransferRecord(l1, addr, l1Amount, args.tokenId, result));
+            };
+          };
+          case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive SOL address" }));
+        };
+      };
+      case null {};
+    };
+
+    // Transfer L2 share
+    switch (args.ambassadorL2) {
+      case (?l2) {
+        switch (l2SolAddr) {
+          case (?addr) {
+            if (l2Amount > 0) {
+              let result = await* sendSolOrSplTransfer(addr, l2Amount);
+              Vector.add(transfers, makeSolTransferRecord(l2, addr, l2Amount, args.tokenId, result));
+            };
+          };
+          case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive SOL address" }));
+        };
+      };
+      case null {};
+    };
+
+    finalizeDistribution(treasury, args, treasuryAmount, l1Amount, l2Amount, transfers);
+  };
+
   func finalizeDistribution(
     treasury : Treasury,
     args : Types.DistributePaymentArgs,
@@ -545,6 +785,8 @@ module Treasury {
 
     if (isIcToken(args.tokenId)) {
       await* withdrawIc(treasury, caller, args);
+    } else if (isSolToken(args.tokenId)) {
+      await* withdrawSol(treasury, caller, args);
     } else {
       await* withdrawEvm(treasury, caller, args);
     };
@@ -559,6 +801,7 @@ module Treasury {
     let (toOwner, toSubaccount) = switch (args.to) {
       case (#IC({ owner; subaccount })) (owner, subaccount);
       case (#EVM(_)) return #err(#TransferFailed("IC token cannot be withdrawn to EVM address"));
+      case (#SOL(_)) return #err(#TransferFailed("IC token cannot be withdrawn to SOL address"));
     };
 
     let ledger = getIcLedger(args.tokenId);
@@ -602,6 +845,7 @@ module Treasury {
     let toAddress = switch (args.to) {
       case (#EVM({ address })) address;
       case (#IC(_)) return #err(#TransferFailed("EVM token cannot be withdrawn to IC address"));
+      case (#SOL(_)) return #err(#TransferFailed("EVM token cannot be withdrawn to SOL address"));
     };
 
     let api = treasury.ecdsaApi;
@@ -648,6 +892,90 @@ module Treasury {
     };
   };
 
+  func withdrawSol(
+    treasury : Treasury,
+    caller : Principal,
+    args : Types.WithdrawArgs,
+  ) : async* Types.WithdrawResult {
+    let solConfig = switch (treasury.store.solConfig) {
+      case (?cfg) cfg;
+      case null return #err(#SolNotConfigured);
+    };
+
+    let toAddress = switch (args.to) {
+      case (#SOL({ address })) address;
+      case (#IC(_)) return #err(#TransferFailed("SOL token cannot be withdrawn to IC address"));
+      case (#EVM(_)) return #err(#TransferFailed("SOL token cannot be withdrawn to EVM address"));
+    };
+
+    let api = treasury.schnorrApi;
+    let rpcSources = buildSolRpcSources(solConfig);
+
+    // Derive caller's Solana address (source of the transfer)
+    let callerSolAddr = switch (await* resolveSolAddress(treasury, caller, solConfig, api)) {
+      case (?addr) addr;
+      case null return #err(#TransferFailed("Failed to derive caller SOL address"));
+    };
+
+    // Get caller's Solana public key for signing
+    let callerPubKeyResult = await* SolRpc.deriveSolAddress(solConfig.schnorrKeyName, caller, api);
+    let callerPubKey = switch (callerPubKeyResult) {
+      case (#ok((_addr, pubKey))) pubKey;
+      case (#err(e)) return #err(#TransferFailed("Failed to derive caller public key: " # e));
+    };
+
+    // Force a commit point between Schnorr/address resolution and SOL RPC calls.
+    await async ();
+
+    // Check balance
+    let balance = switch (await* getSolTokenBalance(solConfig, args.tokenId, callerSolAddr)) {
+      case (#ok(b)) b;
+      case (#err(e)) return #err(#TransferFailed(e));
+    };
+    if (balance < args.amount) {
+      return #err(#InsufficientBalance({ available = balance }));
+    };
+
+    // Send transfer (from caller's derived address to destination)
+    let result = switch (getSolMintAddress(args.tokenId, solConfig)) {
+      case (?mintAddress) {
+        await* SolRpc.sendSplTransfer(
+          {
+            solRpcCanisterId = solConfig.solRpcCanisterId;
+            rpcSources;
+            schnorrKeyName = solConfig.schnorrKeyName;
+            derivationPath = [Principal.toBlob(caller)];
+            senderPubKey = callerPubKey;
+            mintAddress;
+            toAddress;
+            amount = Nat64.fromNat(args.amount);
+            decimals = getSolTokenDecimals(args.tokenId);
+          },
+          api,
+        );
+      };
+      case null {
+        await* SolRpc.sendSolTransfer(
+          {
+            solRpcCanisterId = solConfig.solRpcCanisterId;
+            rpcSources;
+            schnorrKeyName = solConfig.schnorrKeyName;
+            derivationPath = [Principal.toBlob(caller)];
+            senderPubKey = callerPubKey;
+            toAddress;
+            lamports = Nat64.fromNat(args.amount);
+          },
+          api,
+        );
+      };
+    };
+
+    switch (result) {
+      case (#ok(_sig)) #ok(0);
+      case (#err(e)) #err(#TransferFailed(e));
+    };
+  };
+
   // ---- Balance queries ----
 
   /// Get balance for a specific token.
@@ -663,6 +991,20 @@ module Treasury {
         owner = treasury.canisterId;
         subaccount = ?subaccount;
       });
+    } else if (isSolToken(tokenId)) {
+      let solConfig = switch (treasury.store.solConfig) {
+        case (?cfg) cfg;
+        case null return 0;
+      };
+      let callerSolAddr = switch (await* resolveSolAddress(treasury, caller, solConfig, treasury.schnorrApi)) {
+        case (?addr) addr;
+        case null return 0;
+      };
+      await async ();
+      switch (await* getSolTokenBalance(solConfig, tokenId, callerSolAddr)) {
+        case (#ok(b)) b;
+        case (#err(_)) 0;
+      };
     } else {
       let evmConfig = switch (treasury.store.evmConfig) {
         case (?cfg) cfg;
@@ -740,6 +1082,36 @@ module Treasury {
       case null return null;
     };
     let result = await* EvmRpc.deriveTreasuryAddress(evmConfig.ecdsaKeyName, treasury.ecdsaApi);
+    switch (result) {
+      case (#ok((address, _publicKey))) ?address;
+      case (#err(_)) null;
+    };
+  };
+
+  // ---- SOL address management ----
+
+  /// Get or derive Solana address for a principal. Caches result.
+  public func getOrDeriveSolAddress(
+    treasury : Treasury,
+    principal : Principal,
+  ) : async* ?Text {
+    let solConfig = switch (treasury.store.solConfig) {
+      case (?cfg) cfg;
+      case null return null;
+    };
+    await* resolveSolAddress(treasury, principal, solConfig, treasury.schnorrApi);
+  };
+
+  /// Get the treasury canister's own Solana signing address (empty derivation path).
+  /// This is the address that signs `distributePayment` SOL/SPL transfers.
+  public func getTreasurySolSigningAddress(
+    treasury : Treasury,
+  ) : async* ?Text {
+    let solConfig = switch (treasury.store.solConfig) {
+      case (?cfg) cfg;
+      case null return null;
+    };
+    let result = await* SolRpc.deriveTreasurySolAddress(solConfig.schnorrKeyName, treasury.schnorrApi);
     switch (result) {
       case (#ok((address, _publicKey))) ?address;
       case (#err(_)) null;
@@ -891,10 +1263,10 @@ module Treasury {
   ) : Types.TransferRecord {
     switch (result) {
       case (#Ok(blockIndex)) {
-        { recipient; subaccount; evmAddress = null; amount; tokenId; blockIndex = ?blockIndex; txHash = null; error = null };
+        { recipient; subaccount; evmAddress = null; solAddress = null; amount; tokenId; blockIndex = ?blockIndex; txHash = null; solSignature = null; error = null };
       };
       case (#Err(err)) {
-        { recipient; subaccount; evmAddress = null; amount; tokenId; blockIndex = null; txHash = null; error = ?(debug_show (err)) };
+        { recipient; subaccount; evmAddress = null; solAddress = null; amount; tokenId; blockIndex = null; txHash = null; solSignature = null; error = ?(debug_show (err)) };
       };
     };
   };
@@ -908,10 +1280,27 @@ module Treasury {
   ) : Types.TransferRecord {
     switch (result) {
       case (#ok(txHash)) {
-        { recipient; subaccount = null; evmAddress = ?evmAddr; amount; tokenId; blockIndex = null; txHash = ?txHash; error = null };
+        { recipient; subaccount = null; evmAddress = ?evmAddr; solAddress = null; amount; tokenId; blockIndex = null; txHash = ?txHash; solSignature = null; error = null };
       };
       case (#err(err)) {
-        { recipient; subaccount = null; evmAddress = ?evmAddr; amount; tokenId; blockIndex = null; txHash = null; error = ?err };
+        { recipient; subaccount = null; evmAddress = ?evmAddr; solAddress = null; amount; tokenId; blockIndex = null; txHash = null; solSignature = null; error = ?err };
+      };
+    };
+  };
+
+  func makeSolTransferRecord(
+    recipient : Principal,
+    solAddr : Text,
+    amount : Nat,
+    tokenId : Types.TokenId,
+    result : Result.Result<Text, Text>,
+  ) : Types.TransferRecord {
+    switch (result) {
+      case (#ok(signature)) {
+        { recipient; subaccount = null; evmAddress = null; solAddress = ?solAddr; amount; tokenId; blockIndex = null; txHash = null; solSignature = ?signature; error = null };
+      };
+      case (#err(err)) {
+        { recipient; subaccount = null; evmAddress = null; solAddress = ?solAddr; amount; tokenId; blockIndex = null; txHash = null; solSignature = null; error = ?err };
       };
     };
   };

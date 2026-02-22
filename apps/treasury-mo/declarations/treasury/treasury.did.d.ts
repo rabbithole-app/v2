@@ -17,7 +17,8 @@ export type DistributePaymentError = { 'InvalidAmount' : null } |
   { 'Unauthorized' : null } |
   { 'PartiallyCompleted' : DistributionRecord } |
   { 'TransferFailed' : { 'recipient' : string, 'error' : string } } |
-  { 'EvmNotConfigured' : null };
+  { 'EvmNotConfigured' : null } |
+  { 'SolNotConfigured' : null };
 export type DistributePaymentResult = { 'ok' : DistributionRecord } |
   { 'err' : DistributePaymentError };
 export interface DistributionConfig {
@@ -52,20 +53,34 @@ export interface EvmConfig {
   'chainId' : bigint,
 }
 export interface InitArgs {
+  'solConfig' : [] | [SolConfig],
   'admin' : Principal,
   'evmConfig' : [] | [EvmConfig],
   'distributionConfig' : [] | [DistributionConfig],
 }
 export interface MinWithdrawConfig {
   'icp' : bigint,
+  'sol' : bigint,
   'baseUsdc' : bigint,
   'baseUsdt' : bigint,
   'baseEth' : bigint,
   'ckEth' : bigint,
   'ckUsdc' : bigint,
   'ckUsdt' : bigint,
+  'solUsdc' : bigint,
+  'solUsdt' : bigint,
+}
+export interface SolConfig {
+  'usdcMint' : string,
+  'solRpcCanisterId' : string,
+  'rpcUrl' : [] | [string],
+  'schnorrKeyName' : string,
+  'usdtMint' : string,
 }
 export type TokenId = { 'ICP' : null } |
+  { 'SOL' : null } |
+  { 'SolUSDC' : null } |
+  { 'SolUSDT' : null } |
   { 'ckETH' : null } |
   { 'ckUSDC' : null } |
   { 'ckUSDT' : null } |
@@ -79,8 +94,10 @@ export type TransferOnChainStatus = { 'pending' : null } |
   { 'notApplicable' : null };
 export interface TransferRecord {
   'tokenId' : TokenId,
+  'solSignature' : [] | [string],
   'subaccount' : [] | [Uint8Array | number[]],
   'recipient' : Principal,
+  'solAddress' : [] | [string],
   'error' : [] | [string],
   'blockIndex' : [] | [bigint],
   'txHash' : [] | [string],
@@ -120,6 +137,10 @@ export interface TreasuryCanister {
    */
   'getEvmAddress' : ActorMethod<[], [] | [string]>,
   /**
+   * / Get caller's Solana address (derived via threshold Schnorr Ed25519, cached).
+   */
+  'getSolAddress' : ActorMethod<[], [] | [string]>,
+  /**
    * / Get treasury operations account balances. Admin only.
    */
   'getTreasuryBalances' : ActorMethod<[], Array<BalanceEntry>>,
@@ -128,6 +149,11 @@ export interface TreasuryCanister {
    * / This is the address used to sign ERC-20 transfers in distributePayment.
    */
   'getTreasurySigningAddress' : ActorMethod<[], [] | [string]>,
+  /**
+   * / Get the treasury canister's own Solana signing address.
+   * / This is the address used to sign SOL/SPL transfers in distributePayment.
+   */
+  'getTreasurySolSigningAddress' : ActorMethod<[], [] | [string]>,
   /**
    * / Get distributions related to a specific user. Admin only.
    */
@@ -155,11 +181,13 @@ export interface WithdrawArgs {
 export type WithdrawDestination = {
     'IC' : { 'owner' : Principal, 'subaccount' : [] | [Uint8Array | number[]] }
   } |
-  { 'EVM' : { 'address' : string } };
+  { 'EVM' : { 'address' : string } } |
+  { 'SOL' : { 'address' : string } };
 export type WithdrawError = { 'BelowMinimum' : { 'minimum' : bigint } } |
   { 'InsufficientBalance' : { 'available' : bigint } } |
   { 'TransferFailed' : string } |
-  { 'EvmNotConfigured' : null };
+  { 'EvmNotConfigured' : null } |
+  { 'SolNotConfigured' : null };
 export type WithdrawResult = { 'ok' : bigint } |
   { 'err' : WithdrawError };
 export interface _SERVICE extends TreasuryCanister {}

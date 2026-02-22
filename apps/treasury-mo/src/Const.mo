@@ -35,6 +35,21 @@ module {
   public let MIN_WITHDRAW_BASE_USDT : Nat = 100_000;
   public let MIN_WITHDRAW_BASE_ETH  : Nat = 10_000_000_000_000;
 
+  // ---- Phase 3: Solana ----
+
+  public let SOL_DECIMALS : Nat = 9;
+  public let SOL_USDC_DECIMALS : Nat = 6;
+  public let SOL_USDT_DECIMALS : Nat = 6;
+
+  // Solana rent-exempt minimum for a basic account (~0.00089 SOL)
+  public let SOL_RENT_EXEMPT_MIN : Nat = 890_880;
+
+  // Solana minimum withdrawal amounts (in smallest unit)
+  // SOL min must exceed rent-exempt minimum to avoid InsufficientFundsForRent errors
+  public let MIN_WITHDRAW_SOL      : Nat = 1_000_000;   // 0.001 SOL (> rent-exempt 890_880)
+  public let MIN_WITHDRAW_SOL_USDC : Nat = 1_000;       // $0.001
+  public let MIN_WITHDRAW_SOL_USDT : Nat = 1_000;       // $0.001
+
   // ---- Distribution (all tokens) ----
 
   // Distribution percentages (basis points, 10000 = 100%)
