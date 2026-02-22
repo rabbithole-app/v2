@@ -5,8 +5,8 @@ import {
   createIdentity,
   PocketIc,
   type SetupCanisterOptions,
-  type SubnetConfig,
   SubnetStateType,
+  type SystemSubnetConfig,
 } from "@dfinity/pic";
 import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
@@ -30,12 +30,16 @@ import {
 import { minterIdentity } from "./nns-identity.ts";
 
 export interface CreateManagerOptions {
+  /** Enable II subnet (provides threshold ECDSA keys like dfx_test_key) */
+  ii?: boolean;
+  /** Max rounds for awaitCall() in DeferredActor (default: 100, increase for multi-step EVM calls) */
+  ingressMaxRetries?: number;
   /** Initial ICP balance for owner in e8s (default: 1_000_000 * E8S_PER_ICP) */
   initialIcpBalance?: bigint;
   /** Owner identity (default: generated from "superSecretAlicePassword") */
   ownerIdentity?: ReturnType<typeof createIdentity>;
   /** Additional system subnets (default: none) */
-  system?: SubnetConfig[];
+  system?: SystemSubnetConfig[];
 }
 
 export class BaseManager {
@@ -60,7 +64,7 @@ export class BaseManager {
   }
 
   static async create(opts?: CreateManagerOptions): Promise<BaseManager> {
-    const pic = await PocketIc.create(inject("PIC_URL"), {
+    const pic = await PocketIc.create(inject("PIC_URL" as never) as string, {
       nns: {
         state: {
           type: SubnetStateType.FromPath,
@@ -68,7 +72,12 @@ export class BaseManager {
         },
       },
       ...(opts?.system ? { system: opts.system } : {}),
+      ...(opts?.ii ? { ii: { state: { type: SubnetStateType.New } } } : {}),
       application: [{ state: { type: SubnetStateType.New } }],
+      processingTimeoutMs: 120_000,
+      ...(opts?.ingressMaxRetries
+        ? { ingressMaxRetries: opts.ingressMaxRetries }
+        : {}),
     });
 
     const applicationSubnets = await pic.getApplicationSubnets();

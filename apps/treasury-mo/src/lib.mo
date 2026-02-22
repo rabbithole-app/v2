@@ -1,7 +1,11 @@
 import Array "mo:core/Array";
+import Runtime "mo:core/Runtime";
+import Ecmult "mo:libsecp256k1/core/ecmult";
 import Int "mo:core/Int";
+import Map "mo:core/Map";
 import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
+import Result "mo:core/Result";
 import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
@@ -9,6 +13,7 @@ import Vector "mo:vector";
 
 import Account "Account";
 import Const "Const";
+import EvmRpc "EvmRpc";
 import LedgerTypes "LedgerTypes";
 import Migrations "Migrations/lib";
 import V1Types "Migrations/V1/Types";
@@ -19,12 +24,33 @@ module Treasury {
 
   // ---- Init / Upgrade / FromVersion ----
 
+  public let defaultDistributionConfig : Types.DistributionConfig = {
+    l1Bps = Const.L1_BPS;
+    l2Bps = Const.L2_BPS;
+    minWithdraw = {
+      icp = Const.MIN_WITHDRAW_ICP;
+      ckUsdc = Const.MIN_WITHDRAW_CKUSDC;
+      ckUsdt = Const.MIN_WITHDRAW_CKUSDT;
+      ckEth = Const.MIN_WITHDRAW_CKETH;
+      baseEth = Const.MIN_WITHDRAW_BASE_ETH;
+      baseUsdc = Const.MIN_WITHDRAW_BASE_USDC;
+      baseUsdt = Const.MIN_WITHDRAW_BASE_USDT;
+    };
+  };
+
   public func initStableStore(args : Types.InitArgs) : StableStore {
+    let config = switch (args.distributionConfig) {
+      case (?c) c;
+      case null defaultDistributionConfig;
+    };
     #v1({
       processedPayments = Set.empty<Text>();
       distributions = Vector.new<Types.DistributionRecord>();
       var nextDistributionId = 0;
       admin = args.admin;
+      evmConfig = args.evmConfig;
+      distributionConfig = config;
+      walletCache = Map.empty<Principal, V1Types.WalletAddresses>();
     });
   };
 
@@ -35,61 +61,238 @@ module Treasury {
   public type Treasury = {
     store : V1Types.StableStore;
     canisterId : Principal;
+    var ecCtx : ?Ecmult.ECMultContext;
+    ecdsaApi : EvmRpc.IcEcdsaApi;
+    /// Last known nonce for the treasury signing address.
+    /// Used to avoid NonceTooLow when pending txs haven't propagated yet.
+    var lastNonce : ?Nat;
+  };
+
+  /// Get or lazily allocate ECMultContext (heavy secp256k1 precomputation).
+  func getEcCtx(treasury : Treasury) : Ecmult.ECMultContext {
+    switch (treasury.ecCtx) {
+      case (?ctx) ctx;
+      case null {
+        let ctx = EvmRpc.createEcCtx();
+        treasury.ecCtx := ?ctx;
+        ctx;
+      };
+    };
   };
 
   public func fromVersion(versionedStore : StableStore, canisterId : Principal) : Treasury {
     let store = Migrations.getCurrentState(versionedStore);
-    { store; canisterId };
+    { store; canisterId; var ecCtx = null; ecdsaApi = EvmRpc.createEcdsaApi(); var lastNonce = null };
   };
 
-  // ---- Ledger resolution ----
+  // ---- Token classification ----
 
-  func getLedgerCanisterId(tokenId : Types.TokenId) : Text {
+  func isIcToken(tokenId : Types.TokenId) : Bool {
+    switch (tokenId) {
+      case (#ICP or #ckUSDC or #ckUSDT or #ckETH) true;
+      case (#BaseETH or #BaseUSDC or #BaseUSDT) false;
+    };
+  };
+
+  // ---- IC Ledger resolution ----
+
+  func getIcLedgerCanisterId(tokenId : Types.TokenId) : Text {
     switch (tokenId) {
       case (#ICP) Const.ICP_LEDGER;
       case (#ckUSDC) Const.CKUSDC_LEDGER;
       case (#ckUSDT) Const.CKUSDT_LEDGER;
       case (#ckETH) Const.CKETH_LEDGER;
+      case _ Runtime.trap("Not an IC token");
     };
   };
 
-  func getFee(tokenId : Types.TokenId) : Nat {
+  func getIcFee(tokenId : Types.TokenId) : Nat {
     switch (tokenId) {
       case (#ICP) Const.ICP_FEE;
       case (#ckUSDC) Const.CKUSDC_FEE;
       case (#ckUSDT) Const.CKUSDT_FEE;
       case (#ckETH) Const.CKETH_FEE;
+      case _ Runtime.trap("Not an IC token");
     };
   };
 
-  func getMinWithdraw(tokenId : Types.TokenId) : Nat {
+  func getMinWithdraw(tokenId : Types.TokenId, config : Types.DistributionConfig) : Nat {
     switch (tokenId) {
-      case (#ICP) Const.MIN_WITHDRAW_ICP;
-      case (#ckUSDC) Const.MIN_WITHDRAW_CKUSDC;
-      case (#ckUSDT) Const.MIN_WITHDRAW_CKUSDT;
-      case (#ckETH) Const.MIN_WITHDRAW_CKETH;
+      case (#ICP) config.minWithdraw.icp;
+      case (#ckUSDC) config.minWithdraw.ckUsdc;
+      case (#ckUSDT) config.minWithdraw.ckUsdt;
+      case (#ckETH) config.minWithdraw.ckEth;
+      case (#BaseETH) config.minWithdraw.baseEth;
+      case (#BaseUSDC) config.minWithdraw.baseUsdc;
+      case (#BaseUSDT) config.minWithdraw.baseUsdt;
     };
   };
 
-  func getLedger(tokenId : Types.TokenId) : LedgerTypes.Self {
-    actor (getLedgerCanisterId(tokenId)) : LedgerTypes.Self;
+  func getIcLedger(tokenId : Types.TokenId) : LedgerTypes.Self {
+    actor (getIcLedgerCanisterId(tokenId)) : LedgerTypes.Self;
+  };
+
+  // ---- EVM helpers ----
+
+  func getEvmContract(tokenId : Types.TokenId, evmConfig : Types.EvmConfig) : ?Text {
+    switch (tokenId) {
+      case (#BaseUSDC) ?evmConfig.usdcContract;
+      case (#BaseUSDT) ?evmConfig.usdtContract;
+      case (#BaseETH) null;
+      case _ Runtime.trap("Not an EVM token");
+    };
+  };
+
+  func getEvmGasLimit(tokenId : Types.TokenId) : Nat {
+    switch (tokenId) {
+      case (#BaseETH) Const.EVM_ETH_GAS_LIMIT;
+      case (#BaseUSDC or #BaseUSDT) Const.EVM_ERC20_GAS_LIMIT;
+      case _ Runtime.trap("Not an EVM token");
+    };
+  };
+
+  func buildRpcServices(evmConfig : Types.EvmConfig) : EvmRpc.RpcServices {
+    // If custom RPC URLs are provided, always use #Custom
+    if (evmConfig.rpcUrls.size() > 0) {
+      return #Custom({
+        chainId = Nat64.fromNat(evmConfig.chainId);
+        services = Array.map<Text, EvmRpc.RpcApi>(
+          evmConfig.rpcUrls,
+          func(url : Text) : EvmRpc.RpcApi { { url; headers = null } },
+        );
+      });
+    };
+    // Otherwise use built-in evm_rpc provider sets
+    switch (evmConfig.chainId) {
+      case 8453 #BaseMainnet(null);
+      case 1 #EthMainnet(null);
+      case 11155111 #EthSepolia(null);
+      case _ #Custom({
+        chainId = Nat64.fromNat(evmConfig.chainId);
+        services = [];
+      });
+    };
+  };
+
+  /// Resolve EVM address for a principal, using cache.
+  func resolveEvmAddress(
+    treasury : Treasury,
+    principal : Principal,
+    evmConfig : Types.EvmConfig,
+    api : EvmRpc.IcEcdsaApi,
+  ) : async* ?Text {
+    // Check cache
+    switch (Map.get(treasury.store.walletCache, Principal.compare, principal)) {
+      case (?wallet) return wallet.evmAddress;
+      case null {};
+    };
+
+    // Derive
+    let result = await* EvmRpc.deriveEvmAddress(evmConfig.ecdsaKeyName, principal, api);
+    switch (result) {
+      case (#ok((address, _publicKey))) {
+        let wallet : V1Types.WalletAddresses = {
+          icSubaccount = Account.principalToSubaccount(principal);
+          evmAddress = ?address;
+          solAddress = null;
+        };
+        Map.add(treasury.store.walletCache, Principal.compare, principal, wallet);
+        ?address;
+      };
+      case (#err(_)) null;
+    };
+  };
+
+  /// Get cached public key for a principal. Must be resolved first via resolveEvmAddress.
+  func getCachedPublicKey(
+    _treasury : Treasury,
+    principal : Principal,
+    evmConfig : Types.EvmConfig,
+    api : EvmRpc.IcEcdsaApi,
+  ) : async* ?[Nat8] {
+    // We need the public key for signing. Re-derive (ecdsa_public_key is free).
+    let result = await* EvmRpc.deriveEvmAddress(evmConfig.ecdsaKeyName, principal, api);
+    switch (result) {
+      case (#ok((_address, publicKey))) ?publicKey;
+      case (#err(_)) null;
+    };
+  };
+
+  /// Send an EVM transfer (ERC-20 or native ETH).
+  func sendEvmTransfer(
+    evmConfig : Types.EvmConfig,
+    rpcServices : EvmRpc.RpcServices,
+    tokenId : Types.TokenId,
+    derivationPath : [Blob],
+    senderPubKey : [Nat8],
+    toAddress : Text,
+    amount : Nat,
+    nonce : Nat,
+    maxFeePerGas : Nat,
+    maxPriorityFeePerGas : Nat,
+    ecCtx : Ecmult.ECMultContext,
+    api : EvmRpc.IcEcdsaApi,
+  ) : async* Result.Result<Text, Text> {
+    let gasLimit = getEvmGasLimit(tokenId);
+
+    switch (getEvmContract(tokenId, evmConfig)) {
+      case (?contract) {
+        await* EvmRpc.sendErc20Transfer(
+          {
+            ecdsaKeyName = evmConfig.ecdsaKeyName;
+            evmRpcCanisterId = evmConfig.evmRpcCanisterId;
+            rpcServices;
+            chainId = evmConfig.chainId;
+            contract;
+            derivationPath;
+            publicKey = senderPubKey;
+            to = toAddress;
+            amount;
+            nonce;
+            gasLimit;
+            maxFeePerGas;
+            maxPriorityFeePerGas;
+          },
+          ecCtx,
+          api,
+        );
+      };
+      case null {
+        await* EvmRpc.sendEthTransfer(
+          {
+            ecdsaKeyName = evmConfig.ecdsaKeyName;
+            evmRpcCanisterId = evmConfig.evmRpcCanisterId;
+            rpcServices;
+            chainId = evmConfig.chainId;
+            derivationPath;
+            publicKey = senderPubKey;
+            to = toAddress;
+            amount;
+            nonce;
+            gasLimit;
+            maxFeePerGas;
+            maxPriorityFeePerGas;
+          },
+          ecCtx,
+          api,
+        );
+      };
+    };
   };
 
   // ---- Distribution ----
 
   /// Distribute a payment to treasury + ambassadors.
-  /// All inter-canister calls are inlined to avoid nested self-calls.
+  /// Supports both IC (ICRC-1) and EVM (Base) tokens.
   public func distributePayment(
     treasury : Treasury,
     caller : Principal,
     args : Types.DistributePaymentArgs,
-  ) : async Types.DistributePaymentResult {
-    // Auth check
+  ) : async* Types.DistributePaymentResult {
     if (not Principal.equal(caller, treasury.store.admin)) {
       return #err(#Unauthorized);
     };
 
-    // Idempotency check
     if (Set.contains(treasury.store.processedPayments, Text.compare, args.paymentId)) {
       return #err(#AlreadyProcessed);
     };
@@ -98,20 +301,26 @@ module Treasury {
       return #err(#InvalidAmount);
     };
 
-    // Calculate split
-    let (treasuryAmount, l1Amount, l2Amount) = calculateSplit(args.amount, args.ambassadorL1, args.ambassadorL2);
+    if (isIcToken(args.tokenId)) {
+      await* distributeIc(treasury, args);
+    } else {
+      await* distributeEvm(treasury, args);
+    };
+  };
 
-    let ledger = getLedger(args.tokenId);
-    let fee = getFee(args.tokenId);
+  func distributeIc(
+    treasury : Treasury,
+    args : Types.DistributePaymentArgs,
+  ) : async* Types.DistributePaymentResult {
+    let (treasuryAmount, l1Amount, l2Amount) = calculateSplit(args.amount, args.ambassadorL1, args.ambassadorL2, treasury.store.distributionConfig);
+
+    let ledger = getIcLedger(args.tokenId);
+    let fee = getIcFee(args.tokenId);
     let now = Time.now();
 
     var transfers = Vector.new<Types.TransferRecord>();
 
-    // Each recipient pays the transfer fee from their share.
-    // Transfer net amount = share - fee. The ledger charges fee on top,
-    // so total deducted from default account = (share - fee) + fee = share.
-
-    // Transfer treasury share (share - fee)
+    // Transfer treasury share
     let treasurySubaccount = Account.principalToSubaccount(treasury.store.admin);
     let treasuryNet = if (treasuryAmount > fee) { treasuryAmount - fee } else { 0 };
     let treasuryResult = await ledger.icrc1_transfer({
@@ -122,12 +331,9 @@ module Treasury {
       created_at_time = ?Nat64.fromNat(Int.abs(now));
       amount = treasuryNet;
     });
-    Vector.add(
-      transfers,
-      makeTransferRecord(treasury.store.admin, ?treasurySubaccount, treasuryNet, args.tokenId, treasuryResult),
-    );
+    Vector.add(transfers, makeIcTransferRecord(treasury.store.admin, ?treasurySubaccount, treasuryNet, args.tokenId, treasuryResult));
 
-    // Transfer L1 ambassador share (share - fee)
+    // Transfer L1 ambassador share
     switch (args.ambassadorL1) {
       case (?l1) {
         if (l1Amount > fee) {
@@ -141,16 +347,13 @@ module Treasury {
             created_at_time = ?Nat64.fromNat(Int.abs(now) + 1);
             amount = l1Net;
           });
-          Vector.add(
-            transfers,
-            makeTransferRecord(l1, ?l1Subaccount, l1Net, args.tokenId, l1Result),
-          );
+          Vector.add(transfers, makeIcTransferRecord(l1, ?l1Subaccount, l1Net, args.tokenId, l1Result));
         };
       };
       case null {};
     };
 
-    // Transfer L2 ambassador share (share - fee)
+    // Transfer L2 ambassador share
     switch (args.ambassadorL2) {
       case (?l2) {
         if (l2Amount > fee) {
@@ -164,27 +367,139 @@ module Treasury {
             created_at_time = ?Nat64.fromNat(Int.abs(now) + 2);
             amount = l2Net;
           });
-          Vector.add(
-            transfers,
-            makeTransferRecord(l2, ?l2Subaccount, l2Net, args.tokenId, l2Result),
-          );
+          Vector.add(transfers, makeIcTransferRecord(l2, ?l2Subaccount, l2Net, args.tokenId, l2Result));
         };
       };
       case null {};
     };
 
-    // Check if any transfer failed
+    finalizeDistribution(treasury, args, treasuryAmount, l1Amount, l2Amount, transfers);
+  };
+
+  func distributeEvm(
+    treasury : Treasury,
+    args : Types.DistributePaymentArgs,
+  ) : async* Types.DistributePaymentResult {
+    let evmConfig = switch (treasury.store.evmConfig) {
+      case (?cfg) cfg;
+      case null return #err(#EvmNotConfigured);
+    };
+
+    let (treasuryAmount, l1Amount, l2Amount) = calculateSplit(args.amount, args.ambassadorL1, args.ambassadorL2, treasury.store.distributionConfig);
+
+    let api = treasury.ecdsaApi;
+    let ecCtx = getEcCtx(treasury);
+    let rpcServices = buildRpcServices(evmConfig);
+
+    // Derive treasury EVM address + public key (sender of all EVM transfers)
+    let (treasuryEvmAddr, treasuryPubKey) = switch (await* EvmRpc.deriveTreasuryAddress(evmConfig.ecdsaKeyName, api)) {
+      case (#ok(pair)) pair;
+      case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
+    };
+
+    var transfers = Vector.new<Types.TransferRecord>();
+
+    // Resolve EVM addresses for all recipients
+    let adminEvmAddr = await* resolveEvmAddress(treasury, treasury.store.admin, evmConfig, api);
+    let l1EvmAddr = switch (args.ambassadorL1) {
+      case (?l1) await* resolveEvmAddress(treasury, l1, evmConfig, api);
+      case null null;
+    };
+    let l2EvmAddr = switch (args.ambassadorL2) {
+      case (?l2) await* resolveEvmAddress(treasury, l2, evmConfig, api);
+      case null null;
+    };
+
+    // Force a commit point between ECDSA/address resolution and EVM RPC calls.
+    // Ensures HTTPS outcalls happen in a separate tick from ECDSA callbacks.
+    await async ();
+
+    let remoteNonce = switch (await* EvmRpc.getNonce(evmConfig.evmRpcCanisterId, rpcServices, treasuryEvmAddr)) {
+      case (#ok(n)) n;
+      case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
+    };
+    // Use the higher of remote nonce and locally tracked nonce to avoid NonceTooLow
+    // when a previous tx is still pending in the mempool.
+    var nonce = switch (treasury.lastNonce) {
+      case (?local) if (local > remoteNonce) local else remoteNonce;
+      case null remoteNonce;
+    };
+    // TODO: fetch gas prices dynamically; for now use reasonable defaults
+    let maxFeePerGas = 1_000_000_000; // 1 gwei
+    let maxPriorityFeePerGas = 100_000_000; // 0.1 gwei
+
+    // Transfer treasury share
+    switch (adminEvmAddr) {
+      case (?addr) {
+        if (treasuryAmount > 0) {
+          let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+          Vector.add(transfers, makeEvmTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
+          nonce += 1;
+        };
+      };
+      case null return #err(#TransferFailed({ recipient = "admin"; error = "Failed to derive EVM address" }));
+    };
+
+    // Transfer L1 share
+    switch (args.ambassadorL1) {
+      case (?l1) {
+        switch (l1EvmAddr) {
+          case (?addr) {
+            if (l1Amount > 0) {
+              let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, l1Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+              Vector.add(transfers, makeEvmTransferRecord(l1, addr, l1Amount, args.tokenId, result));
+              nonce += 1;
+            };
+          };
+          case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive EVM address" }));
+        };
+      };
+      case null {};
+    };
+
+    // Transfer L2 share
+    switch (args.ambassadorL2) {
+      case (?l2) {
+        switch (l2EvmAddr) {
+          case (?addr) {
+            if (l2Amount > 0) {
+              let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, l2Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+              Vector.add(transfers, makeEvmTransferRecord(l2, addr, l2Amount, args.tokenId, result));
+            };
+          };
+          case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive EVM address" }));
+        };
+      };
+      case null {};
+    };
+
+    // Track the next expected nonce so subsequent calls don't get NonceTooLow
+    // when a previous pending tx hasn't propagated to the RPC node yet.
+    treasury.lastNonce := ?nonce;
+
+    finalizeDistribution(treasury, args, treasuryAmount, l1Amount, l2Amount, transfers);
+  };
+
+  func finalizeDistribution(
+    treasury : Treasury,
+    args : Types.DistributePaymentArgs,
+    treasuryAmount : Nat,
+    l1Amount : Nat,
+    l2Amount : Nat,
+    transfers : Vector.Vector<Types.TransferRecord>,
+  ) : Types.DistributePaymentResult {
     let transfersArray = Vector.toArray(transfers);
+
+    // Determine status: #partial if any transfer failed, #completed otherwise.
+    var hasError = false;
     for (t in transfersArray.vals()) {
       switch (t.error) {
-        case (?err) {
-          return #err(#TransferFailed({ recipient = Principal.toText(t.recipient); error = err }));
-        };
+        case (?_) { hasError := true };
         case null {};
       };
     };
+    let status : Types.DistributionStatus = if (hasError) #partial else #completed;
 
-    // Record in audit log
     let record : Types.DistributionRecord = {
       id = treasury.store.nextDistributionId;
       paymentId = args.paymentId;
@@ -196,35 +511,59 @@ module Treasury {
       l2Amount;
       ambassadorL1 = args.ambassadorL1;
       ambassadorL2 = args.ambassadorL2;
-      timestamp = now;
+      timestamp = Time.now();
       transfers = transfersArray;
+      status;
     };
+
+    // Always persist the record and mark paymentId as processed,
+    // even on partial failure — prevents double-sends on retry.
     Vector.add(treasury.store.distributions, record);
     treasury.store.nextDistributionId += 1;
-
-    // Mark as processed
     Set.add(treasury.store.processedPayments, Text.compare, args.paymentId);
 
-    #ok(record);
+    if (hasError) {
+      #err(#PartiallyCompleted(record));
+    } else {
+      #ok(record);
+    };
   };
 
   // ---- Withdraw ----
 
-  /// Withdraw funds from user's subaccount to an external ICRC account.
+  /// Withdraw funds from user's subaccount (IC) or EVM wallet.
   public func withdraw(
     treasury : Treasury,
     caller : Principal,
     args : Types.WithdrawArgs,
-  ) : async Types.WithdrawResult {
-    let ledger = getLedger(args.tokenId);
-    let fee = getFee(args.tokenId);
-    let minAmount = getMinWithdraw(args.tokenId);
+  ) : async* Types.WithdrawResult {
+    let minAmount = getMinWithdraw(args.tokenId, treasury.store.distributionConfig);
 
     if (args.amount < minAmount) {
       return #err(#BelowMinimum({ minimum = minAmount }));
     };
 
-    // Check balance
+    if (isIcToken(args.tokenId)) {
+      await* withdrawIc(treasury, caller, args);
+    } else {
+      await* withdrawEvm(treasury, caller, args);
+    };
+  };
+
+  func withdrawIc(
+    treasury : Treasury,
+    caller : Principal,
+    args : Types.WithdrawArgs,
+  ) : async* Types.WithdrawResult {
+    // Check destination first — IC tokens can only go to IC addresses
+    let (toOwner, toSubaccount) = switch (args.to) {
+      case (#IC({ owner; subaccount })) (owner, subaccount);
+      case (#EVM(_)) return #err(#TransferFailed("IC token cannot be withdrawn to EVM address"));
+    };
+
+    let ledger = getIcLedger(args.tokenId);
+    let fee = getIcFee(args.tokenId);
+
     let callerSubaccount = Account.principalToSubaccount(caller);
     let balance = await ledger.icrc1_balance_of({
       owner = treasury.canisterId;
@@ -235,9 +574,8 @@ module Treasury {
       return #err(#InsufficientBalance({ available = balance }));
     };
 
-    // Execute transfer
     let result = await ledger.icrc1_transfer({
-      to = { owner = args.to.owner; subaccount = args.to.subaccount };
+      to = { owner = toOwner; subaccount = toSubaccount };
       fee = ?fee;
       memo = null;
       from_subaccount = ?callerSubaccount;
@@ -251,6 +589,65 @@ module Treasury {
     };
   };
 
+  func withdrawEvm(
+    treasury : Treasury,
+    caller : Principal,
+    args : Types.WithdrawArgs,
+  ) : async* Types.WithdrawResult {
+    let evmConfig = switch (treasury.store.evmConfig) {
+      case (?cfg) cfg;
+      case null return #err(#EvmNotConfigured);
+    };
+
+    let toAddress = switch (args.to) {
+      case (#EVM({ address })) address;
+      case (#IC(_)) return #err(#TransferFailed("EVM token cannot be withdrawn to IC address"));
+    };
+
+    let api = treasury.ecdsaApi;
+    let ecCtx = getEcCtx(treasury);
+    let rpcServices = buildRpcServices(evmConfig);
+
+    let callerPubKey = switch (await* getCachedPublicKey(treasury, caller, evmConfig, api)) {
+      case (?pk) pk;
+      case null return #err(#TransferFailed("Failed to derive caller public key"));
+    };
+
+    let callerEvmAddr = switch (await* resolveEvmAddress(treasury, caller, evmConfig, api)) {
+      case (?addr) addr;
+      case null return #err(#TransferFailed("Failed to derive caller EVM address"));
+    };
+
+    // Force a commit point so that the ECDSA callback (which may resolve
+    // instantly when the key is cached) and the EVM RPC call (which creates
+    // an HTTPS outcall) happen in **different** PocketIC ticks.
+    // Without this, both can land in the same tick causing a deadlock:
+    // tick waits for mock → mock can only be provided after tick returns.
+    await async ();
+
+    let balance = switch (await* getEvmTokenBalance(evmConfig, rpcServices, args.tokenId, callerEvmAddr)) {
+      case (#ok(b)) b;
+      case (#err(e)) return #err(#TransferFailed(e));
+    };
+    if (balance < args.amount) {
+      return #err(#InsufficientBalance({ available = balance }));
+    };
+
+    let nonce = switch (await* EvmRpc.getNonce(evmConfig.evmRpcCanisterId, rpcServices, callerEvmAddr)) {
+      case (#ok(n)) n;
+      case (#err(e)) return #err(#TransferFailed(e));
+    };
+    let maxFeePerGas = 1_000_000_000;
+    let maxPriorityFeePerGas = 100_000_000;
+
+    let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [Principal.toBlob(caller)], callerPubKey, toAddress, args.amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+
+    switch (result) {
+      case (#ok(_txHash)) #ok(0);
+      case (#err(e)) #err(#TransferFailed(e));
+    };
+  };
+
   // ---- Balance queries ----
 
   /// Get balance for a specific token.
@@ -258,26 +655,44 @@ module Treasury {
     treasury : Treasury,
     caller : Principal,
     tokenId : Types.TokenId,
-  ) : async Nat {
-    let ledger = getLedger(tokenId);
-    let subaccount = Account.principalToSubaccount(caller);
-    await ledger.icrc1_balance_of({
-      owner = treasury.canisterId;
-      subaccount = ?subaccount;
-    });
+  ) : async* Nat {
+    if (isIcToken(tokenId)) {
+      let ledger = getIcLedger(tokenId);
+      let subaccount = Account.principalToSubaccount(caller);
+      await ledger.icrc1_balance_of({
+        owner = treasury.canisterId;
+        subaccount = ?subaccount;
+      });
+    } else {
+      let evmConfig = switch (treasury.store.evmConfig) {
+        case (?cfg) cfg;
+        case null return 0;
+      };
+      let rpcServices = buildRpcServices(evmConfig);
+      let callerEvmAddr = switch (await* resolveEvmAddress(treasury, caller, evmConfig, treasury.ecdsaApi)) {
+        case (?addr) addr;
+        case null return 0;
+      };
+      // Force commit point between ECDSA/address resolution and EVM RPC call.
+      await async ();
+      switch (await* getEvmTokenBalance(evmConfig, rpcServices, tokenId, callerEvmAddr)) {
+        case (#ok(b)) b;
+        case (#err(_)) 0;
+      };
+    };
   };
 
-  /// Get balances across all supported tokens.
+  /// Get balances across all supported IC tokens.
   public func getBalances(
     treasury : Treasury,
     caller : Principal,
-  ) : async [Types.BalanceEntry] {
+  ) : async* [Types.BalanceEntry] {
     let subaccount = Account.principalToSubaccount(caller);
     let tokens : [Types.TokenId] = [#ICP, #ckUSDC, #ckUSDT, #ckETH];
     var results = Vector.new<Types.BalanceEntry>();
 
     for (tokenId in tokens.vals()) {
-      let ledger = getLedger(tokenId);
+      let ledger = getIcLedger(tokenId);
       let balance = await ledger.icrc1_balance_of({
         owner = treasury.canisterId;
         subaccount = ?subaccount;
@@ -286,6 +701,49 @@ module Treasury {
     };
 
     Vector.toArray(results);
+  };
+
+  /// Get EVM token balance for an address.
+  func getEvmTokenBalance(
+    evmConfig : Types.EvmConfig,
+    rpcServices : EvmRpc.RpcServices,
+    tokenId : Types.TokenId,
+    address : Text,
+  ) : async* Result.Result<Nat, Text> {
+    switch (getEvmContract(tokenId, evmConfig)) {
+      case (?contract) await* EvmRpc.getErc20Balance(evmConfig.evmRpcCanisterId, rpcServices, contract, address);
+      case null await* EvmRpc.getEthBalance(evmConfig.evmRpcCanisterId, rpcServices, address);
+    };
+  };
+
+  // ---- EVM address management ----
+
+  /// Get or derive EVM address for a principal. Caches result.
+  public func getOrDeriveEvmAddress(
+    treasury : Treasury,
+    principal : Principal,
+  ) : async* ?Text {
+    let evmConfig = switch (treasury.store.evmConfig) {
+      case (?cfg) cfg;
+      case null return null;
+    };
+    await* resolveEvmAddress(treasury, principal, evmConfig, treasury.ecdsaApi);
+  };
+
+  /// Get the treasury canister's own EVM signing address (empty derivation path).
+  /// This is the address that signs `distributePayment` ERC-20 transfers.
+  public func getTreasurySigningAddress(
+    treasury : Treasury,
+  ) : async* ?Text {
+    let evmConfig = switch (treasury.store.evmConfig) {
+      case (?cfg) cfg;
+      case null return null;
+    };
+    let result = await* EvmRpc.deriveTreasuryAddress(evmConfig.ecdsaKeyName, treasury.ecdsaApi);
+    switch (result) {
+      case (#ok((address, _publicKey))) ?address;
+      case (#err(_)) null;
+    };
   };
 
   // ---- Admin queries ----
@@ -333,9 +791,71 @@ module Treasury {
     Vector.toArray(results);
   };
 
+  /// Verify on-chain status of EVM transfers in a distribution.
+  /// Checks `eth_getTransactionReceipt` for each transfer that has a txHash.
+  public func verifyDistribution(
+    treasury : Treasury,
+    caller : Principal,
+    paymentId : Text,
+  ) : async* Types.VerifyDistributionResult {
+    if (not Principal.equal(caller, treasury.store.admin)) {
+      return #err(#Unauthorized);
+    };
+
+    let evmConfig = switch (treasury.store.evmConfig) {
+      case (?cfg) cfg;
+      case null return #err(#EvmNotConfigured);
+    };
+
+    // Find the distribution record
+    let total = Vector.size(treasury.store.distributions);
+    var record : ?Types.DistributionRecord = null;
+    var i = total;
+    while (i > 0) {
+      i -= 1;
+      let r = Vector.get(treasury.store.distributions, i);
+      if (Text.equal(r.paymentId, paymentId)) {
+        record := ?r;
+        i := 0; // break
+      };
+    };
+
+    let dist = switch (record) {
+      case (?r) r;
+      case null return #err(#NotFound);
+    };
+
+    let rpcServices = buildRpcServices(evmConfig);
+    var verifications = Vector.new<Types.TransferVerification>();
+
+    for (transfer in dist.transfers.vals()) {
+      switch (transfer.txHash) {
+        case (?hash) {
+          let status = switch (await* EvmRpc.getTransactionReceipt(evmConfig.evmRpcCanisterId, rpcServices, hash)) {
+            case (#ok(?receipt)) {
+              switch (receipt.status) {
+                case (?1) #confirmed;
+                case (?0) #reverted;
+                case _ #pending;
+              };
+            };
+            case (#ok(null)) #pending;
+            case (#err(e)) #error(e);
+          };
+          Vector.add(verifications, { txHash = hash; status });
+        };
+        case null {
+          Vector.add(verifications, { txHash = ""; status = #notApplicable });
+        };
+      };
+    };
+
+    #ok(Vector.toArray(verifications));
+  };
+
   /// Get treasury operations account balances.
-  public func getTreasuryBalances(treasury : Treasury) : async [Types.BalanceEntry] {
-    await getBalances(treasury, treasury.store.admin);
+  public func getTreasuryBalances(treasury : Treasury) : async* [Types.BalanceEntry] {
+    await* getBalances(treasury, treasury.store.admin);
   };
 
   // ---- Helpers ----
@@ -344,16 +864,17 @@ module Treasury {
     amount : Nat,
     l1 : ?Principal,
     l2 : ?Principal,
+    config : Types.DistributionConfig,
   ) : (Nat, Nat, Nat) {
     switch (l1, l2) {
       case (?_, ?_) {
-        let l1Amount = amount * Const.L1_BPS / Const.BPS_BASE;
-        let l2Amount = amount * Const.L2_BPS / Const.BPS_BASE;
+        let l1Amount = amount * config.l1Bps / Const.BPS_BASE;
+        let l2Amount = amount * config.l2Bps / Const.BPS_BASE;
         let treasuryAmount = amount - l1Amount - l2Amount;
         (treasuryAmount, l1Amount, l2Amount);
       };
       case (?_, null) {
-        let l1Amount = amount * Const.L1_BPS / Const.BPS_BASE;
+        let l1Amount = amount * config.l1Bps / Const.BPS_BASE;
         let treasuryAmount = amount - l1Amount;
         (treasuryAmount, l1Amount, 0);
       };
@@ -361,7 +882,7 @@ module Treasury {
     };
   };
 
-  func makeTransferRecord(
+  func makeIcTransferRecord(
     recipient : Principal,
     subaccount : ?Blob,
     amount : Nat,
@@ -370,10 +891,27 @@ module Treasury {
   ) : Types.TransferRecord {
     switch (result) {
       case (#Ok(blockIndex)) {
-        { recipient; subaccount; amount; tokenId; blockIndex = ?blockIndex; error = null };
+        { recipient; subaccount; evmAddress = null; amount; tokenId; blockIndex = ?blockIndex; txHash = null; error = null };
       };
       case (#Err(err)) {
-        { recipient; subaccount; amount; tokenId; blockIndex = null; error = ?(debug_show (err)) };
+        { recipient; subaccount; evmAddress = null; amount; tokenId; blockIndex = null; txHash = null; error = ?(debug_show (err)) };
+      };
+    };
+  };
+
+  func makeEvmTransferRecord(
+    recipient : Principal,
+    evmAddr : Text,
+    amount : Nat,
+    tokenId : Types.TokenId,
+    result : Result.Result<Text, Text>,
+  ) : Types.TransferRecord {
+    switch (result) {
+      case (#ok(txHash)) {
+        { recipient; subaccount = null; evmAddress = ?evmAddr; amount; tokenId; blockIndex = null; txHash = ?txHash; error = null };
+      };
+      case (#err(err)) {
+        { recipient; subaccount = null; evmAddress = ?evmAddr; amount; tokenId; blockIndex = null; txHash = null; error = ?err };
       };
     };
   };

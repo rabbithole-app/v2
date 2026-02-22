@@ -1,3 +1,4 @@
+import Map "mo:core/Map";
 import Set "mo:core/Set";
 import Vector "mo:vector";
 
@@ -9,5 +10,14 @@ module {
     distributions : Vector.Vector<Types.DistributionRecord>;
     var nextDistributionId : Nat;
     admin : Principal;
+    evmConfig : ?Types.EvmConfig;
+    distributionConfig : Types.DistributionConfig;
+    walletCache : Map.Map<Principal, WalletAddresses>;
+  };
+
+  public type WalletAddresses = {
+    icSubaccount : Blob;
+    evmAddress : ?Text;
+    solAddress : ?Text;
   };
 };

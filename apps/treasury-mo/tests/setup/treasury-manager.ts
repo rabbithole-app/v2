@@ -1,4 +1,4 @@
-import { type Actor, createIdentity } from "@dfinity/pic";
+import { type Actor, createIdentity, type DeferredActor } from "@dfinity/pic";
 import { principalToSubAccount } from "@dfinity/utils";
 import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
@@ -7,10 +7,21 @@ import { resolve } from "node:path";
 import { BaseManager, minterIdentity } from "@rabbithole/testing";
 
 import {
+  idlFactory as evmRpcIdlFactory,
+  init as evmRpcInit,
+  type _SERVICE as EvmRpcService,
+} from "../../declarations/evm_rpc/evm_rpc.did.js";
+import {
   idlFactory as treasuryIdlFactory,
   init as treasuryInit,
   type _SERVICE as TreasuryService,
 } from "../../declarations/treasury/treasury.did.js";
+import {
+  getEvmTxParams,
+  sendErc20,
+  signTransaction,
+  waitForTx,
+} from "./evm-signer.ts";
 
 const TREASURY_WASM_PATH = resolve(
   import.meta.dirname,
@@ -23,16 +34,54 @@ const TREASURY_WASM_PATH = resolve(
   "treasury.wasm",
 );
 
+const EVM_RPC_WASM_PATH = resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  ".dfx",
+  "local",
+  "canisters",
+  "evm_rpc",
+  "evm_rpc.wasm.gz",
+);
+
+// ---- Base Sepolia testnet constants ----
+
+/** Public RPC endpoint for Base Sepolia testnet. */
+export const BASE_SEPOLIA_RPC = "https://base-sepolia-rpc.publicnode.com";
+
+/** Chain ID for Base Sepolia testnet. */
+export const BASE_SEPOLIA_CHAIN_ID = 84532n;
+
+/** Official Circle USDC on Base Sepolia. */
+export const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
+/** Placeholder USDT on Base Sepolia (no official Circle contract). */
+export const BASE_SEPOLIA_USDT = "0x0000000000000000000000000000000000000000";
+
+/**
+ * Deterministic test funder wallet (seed: sha256("rabbithole-treasury-test-funder-v1")).
+ * Fund this address on Base Sepolia with ETH + USDC before running EVM tests.
+ */
+export const TEST_FUNDER_PRIVATE_KEY =
+  "0x189aef4312a0e16ba3872119c9895aaf51f83b0b292b4107b09673b03fad974a";
+export const TEST_FUNDER_ADDRESS =
+  "0x7ba0edcc915019b7ff8d2e27f2f19be960c022af";
+
 export class TreasuryManager extends BaseManager {
   readonly adminIdentity: ReturnType<typeof createIdentity>;
+  readonly deferredTreasuryActor: DeferredActor<TreasuryService>;
+  readonly evmRpcCanisterId?: Principal;
   readonly treasuryActor: Actor<TreasuryService>;
   readonly treasuryCanisterId: Principal;
 
   private constructor(
     base: BaseManager,
     treasuryActor: Actor<TreasuryService>,
+    deferredTreasuryActor: DeferredActor<TreasuryService>,
     treasuryCanisterId: Principal,
     adminIdentity: ReturnType<typeof createIdentity>,
+    evmRpcCanisterId?: Principal,
   ) {
     super(
       base.pic,
@@ -42,8 +91,10 @@ export class TreasuryManager extends BaseManager {
       base.applicationSubnetId,
     );
     this.treasuryActor = treasuryActor;
+    this.deferredTreasuryActor = deferredTreasuryActor;
     this.treasuryCanisterId = treasuryCanisterId;
     this.adminIdentity = adminIdentity;
+    this.evmRpcCanisterId = evmRpcCanisterId;
   }
 
   static override async create(): Promise<TreasuryManager> {
@@ -54,17 +105,150 @@ export class TreasuryManager extends BaseManager {
       idlFactory: treasuryIdlFactory,
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
-        { admin: adminIdentity.getPrincipal() },
+        {
+          admin: adminIdentity.getPrincipal(),
+          evmConfig: [],
+          distributionConfig: [],
+        },
       ]),
       sender: adminIdentity.getPrincipal(),
     });
 
+    const deferredActor = base.pic.createDeferredActor<TreasuryService>(
+      treasuryIdlFactory,
+      fixture.canisterId,
+    );
+
     return new TreasuryManager(
       base,
       fixture.actor,
+      deferredActor,
       fixture.canisterId,
       adminIdentity,
     );
+  }
+
+  /** Create TreasuryManager with EVM support (real evm_rpc canister). */
+  static async createWithEvm(): Promise<TreasuryManager> {
+    const adminIdentity = createIdentity("treasury-admin");
+    // II subnet provides threshold ECDSA keys needed for EVM address derivation.
+    // ingressMaxRetries raised for multi-step EVM calls (ECDSA sign + RPC outcalls).
+    const base = await BaseManager.create({ ii: true, ingressMaxRetries: 500 });
+
+    // Deploy the official evm_rpc canister
+    const evmRpcFixture = await base.setupCanister<EvmRpcService>({
+      idlFactory: evmRpcIdlFactory,
+      wasm: EVM_RPC_WASM_PATH,
+      arg: IDL.encode(evmRpcInit({ IDL }), [
+        {
+          demo: [true],
+          manageApiKeys: [],
+          logFilter: [],
+          overrideProvider: [],
+          nodesInSubnet: [1],
+        },
+      ]),
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    // Deploy treasury with evmConfig pointing to evm_rpc canister
+    const fixture = await base.setupCanister<TreasuryService>({
+      idlFactory: treasuryIdlFactory,
+      wasm: TREASURY_WASM_PATH,
+      arg: IDL.encode(treasuryInit({ IDL }), [
+        {
+          admin: adminIdentity.getPrincipal(),
+          evmConfig: [
+            {
+              chainId: BASE_SEPOLIA_CHAIN_ID,
+              ecdsaKeyName: "dfx_test_key",
+              evmRpcCanisterId: evmRpcFixture.canisterId.toText(),
+              usdcContract: BASE_SEPOLIA_USDC,
+              usdtContract: BASE_SEPOLIA_USDT,
+              rpcUrls: [BASE_SEPOLIA_RPC],
+            },
+          ],
+          distributionConfig: [
+            {
+              l1Bps: 2000n, // 20%
+              l2Bps: 500n, // 5%
+              minWithdraw: {
+                icp: 10_000n, // 0.0001 ICP
+                ckUsdc: 1_000n, // $0.001
+                ckUsdt: 1_000n,
+                ckEth: 1_000_000_000_000n, // 0.000001 ETH
+                baseEth: 1_000_000_000_000n,
+                baseUsdc: 1_000n,
+                baseUsdt: 1_000n,
+              },
+            },
+          ],
+        },
+      ]),
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    const deferredActor = base.pic.createDeferredActor<TreasuryService>(
+      treasuryIdlFactory,
+      fixture.canisterId,
+    );
+
+    return new TreasuryManager(
+      base,
+      fixture.actor,
+      deferredActor,
+      fixture.canisterId,
+      adminIdentity,
+      evmRpcFixture.canisterId,
+    );
+  }
+
+  /**
+   * Fund an EVM address with ETH from the test funder wallet on Base Sepolia.
+   * Sends a real transaction, waits for it to be mined.
+   */
+  static async fundWithEth(
+    toAddress: string,
+    amountWei: bigint,
+  ): Promise<string> {
+    const rpcUrl = BASE_SEPOLIA_RPC;
+    const { nonce, gasPrice } = await getEvmTxParams(rpcUrl, TEST_FUNDER_ADDRESS);
+    const txHash = await signTransaction({
+      rpcUrl,
+      privateKey: TEST_FUNDER_PRIVATE_KEY,
+      to: toAddress,
+      value: amountWei,
+      nonce,
+      gasPrice,
+      gasLimit: 21_000n,
+      chainId: Number(BASE_SEPOLIA_CHAIN_ID),
+    });
+    await waitForTx(rpcUrl, txHash);
+    return txHash;
+  }
+
+  /**
+   * Fund an EVM address with ERC-20 tokens (USDC) from the test funder wallet on Base Sepolia.
+   * Sends a real transaction, waits for it to be mined.
+   */
+  static async fundWithUsdc(
+    toAddress: string,
+    amount: bigint,
+  ): Promise<string> {
+    const rpcUrl = BASE_SEPOLIA_RPC;
+    const { nonce, gasPrice } = await getEvmTxParams(rpcUrl, TEST_FUNDER_ADDRESS);
+    const txHash = await sendErc20({
+      rpcUrl,
+      privateKey: TEST_FUNDER_PRIVATE_KEY,
+      contract: BASE_SEPOLIA_USDC,
+      to: toAddress,
+      amount,
+      nonce,
+      gasPrice,
+      chainId: Number(BASE_SEPOLIA_CHAIN_ID),
+    });
+    await waitForTx(rpcUrl, txHash);
+    return txHash;
   }
 
   /** Get ICP balance of a subaccount under the Treasury canister. */
@@ -74,6 +258,44 @@ export class TreasuryManager extends BaseManager {
       owner: this.treasuryCanisterId,
       subaccount: [subaccount],
     });
+  }
+
+  /**
+   * Get the treasury canister's derived EVM address.
+   * Uses DeferredActor + ticks since getEvmAddress involves threshold ECDSA
+   * (management canister call that needs PocketIC processing rounds).
+   */
+  async getTreasuryEvmAddress(): Promise<string> {
+    this.deferredTreasuryActor.setIdentity(this.adminIdentity);
+    const getResult =
+      await this.deferredTreasuryActor.getEvmAddress();
+    // Threshold ECDSA needs processing rounds
+    for (let i = 0; i < 10; i++) {
+      await this.pic.tick(2);
+    }
+    const address = await getResult();
+    if (address.length === 0) {
+      throw new Error("Treasury has no EVM address (evmConfig not set?)");
+    }
+    return address[0];
+  }
+
+  /**
+   * Get the treasury canister's own EVM signing address (empty derivation path).
+   * This is the address that signs distributePayment ERC-20 transfers.
+   */
+  async getTreasurySigningAddress(): Promise<string> {
+    this.deferredTreasuryActor.setIdentity(this.adminIdentity);
+    const getResult =
+      await this.deferredTreasuryActor.getTreasurySigningAddress();
+    for (let i = 0; i < 10; i++) {
+      await this.pic.tick(2);
+    }
+    const address = await getResult();
+    if (address.length === 0) {
+      throw new Error("Treasury has no signing address (evmConfig not set?)");
+    }
+    return address[0];
   }
 
   /** Mint ICP to Treasury canister's default account (simulating ICPay deposit). */

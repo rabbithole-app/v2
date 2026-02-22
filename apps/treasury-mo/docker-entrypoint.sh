@@ -53,11 +53,10 @@ dfx ping >/dev/null 2>&1 || {
   exit 1
 }
 
-ADMIN="${TREASURY_ADMIN:-aaaaa-aa}"
-dfx deploy --network local treasury --argument "(record { admin = principal \"${ADMIN}\" })"
+dfx deploy --network local treasury
 dfx generate treasury
 
 CANISTER_ID=$(dfx canister id treasury)
-echo "treasury canister deployed: $CANISTER_ID (admin: $ADMIN)"
+echo "✅ treasury canister deployed: $CANISTER_ID"
 
 exec tail -f /dev/null

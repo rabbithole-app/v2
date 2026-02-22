@@ -16,6 +16,9 @@ export {
   ONE_TRILLION,
 } from "./constants.ts";
 
+// HTTPS outcall proxy (for testing canisters that make external HTTP requests)
+export { drainProxy, type DrainProxyOptions, proxyHttpsOutcalls, runWithProxy } from "./https-outcall-proxy.ts";
+
 // Base test manager (NNS/PocketIC infrastructure)
 export { BaseManager, type CreateManagerOptions } from "./manager.ts";
 

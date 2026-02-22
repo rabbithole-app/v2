@@ -6,10 +6,10 @@ export default defineConfig({
     tsconfigPaths({ root: '../../' })
   ],
   test: {
-    include: ["tests/**.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/*.test.ts"],
     globalSetup: "./global-setup.ts",
-    testTimeout: 30_000,
-    hookTimeout: 300_000,
+    testTimeout: 200_000,
+    hookTimeout: 200_000,
     watch: false,
     pool: "forks",
   },

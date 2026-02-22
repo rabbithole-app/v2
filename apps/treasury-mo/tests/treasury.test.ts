@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import { E8S_PER_ICP, ICP_TRANSACTION_FEE } from '@rabbithole/testing';
 
+import type { DistributePaymentResult, DistributionRecord, WithdrawResult } from '../declarations/treasury/treasury.did.d.ts';
 import { TreasuryManager } from './setup/treasury-manager.ts';
 
 // 5 identities for all tests — reuse with delta-based balance checks
@@ -76,11 +77,12 @@ describe('Treasury Canister', () => {
     });
 
     expect(result).toHaveProperty('ok');
-    const record = (result as { ok: unknown }).ok as Record<string, unknown>;
+    const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
     // Record stores gross amounts (before fee deduction)
     expect(record.treasuryAmount).toBe(paymentAmount);
     expect(record.l1Amount).toBe(0n);
     expect(record.l2Amount).toBe(0n);
+    expect(record.status).toEqual({ completed: null });
 
     // Subaccount receives net = gross - fee
     const treasuryAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
@@ -108,12 +110,13 @@ describe('Treasury Canister', () => {
     });
 
     expect(result).toHaveProperty('ok');
-    const record = (result as { ok: unknown }).ok as Record<string, unknown>;
+    const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
     const grossL1 = paymentAmount * 2000n / 10000n;
     const grossTreasury = paymentAmount - grossL1;
     expect(record.l1Amount).toBe(grossL1);
     expect(record.l2Amount).toBe(0n);
     expect(record.treasuryAmount).toBe(grossTreasury);
+    expect(record.status).toEqual({ completed: null });
 
     // Subaccounts receive net = gross - fee
     const treasuryAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
@@ -145,13 +148,14 @@ describe('Treasury Canister', () => {
     });
 
     expect(result).toHaveProperty('ok');
-    const record = (result as { ok: unknown }).ok as Record<string, unknown>;
+    const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
     const grossL1 = paymentAmount * 2000n / 10000n;
     const grossL2 = paymentAmount * 500n / 10000n;
     const grossTreasury = paymentAmount - grossL1 - grossL2;
     expect(record.l1Amount).toBe(grossL1);
     expect(record.l2Amount).toBe(grossL2);
     expect(record.treasuryAmount).toBe(grossTreasury);
+    expect(record.status).toEqual({ completed: null });
 
     // Subaccounts receive net = gross - fee
     const treasuryAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
@@ -221,7 +225,7 @@ describe('Treasury Canister', () => {
     const result = await manager.treasuryActor.withdraw({
       tokenId: { ICP: null },
       amount: withdrawAmount,
-      to: { owner: l1Identity.getPrincipal(), subaccount: [] },
+      to: { IC: { owner: l1Identity.getPrincipal(), subaccount: [] } },
     });
 
     expect(result).toHaveProperty('ok');
@@ -236,11 +240,10 @@ describe('Treasury Canister', () => {
     const result = await manager.treasuryActor.withdraw({
       tokenId: { ICP: null },
       amount: 1_000n, // 0.00001 ICP, below minimum of 0.001 ICP
-      to: { owner: l1Identity.getPrincipal(), subaccount: [] },
+      to: { IC: { owner: l1Identity.getPrincipal(), subaccount: [] } },
     });
     expect(result).toHaveProperty('err');
-    const err = (result as { err: unknown }).err as Record<string, unknown>;
-    expect(err).toHaveProperty('BelowMinimum');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('BelowMinimum');
   });
 
   test('withdraw: insufficient balance returns #InsufficientBalance', async () => {
@@ -248,11 +251,10 @@ describe('Treasury Canister', () => {
     const result = await manager.treasuryActor.withdraw({
       tokenId: { ICP: null },
       amount: 1n * E8S_PER_ICP,
-      to: { owner: randomIdentity.getPrincipal(), subaccount: [] },
+      to: { IC: { owner: randomIdentity.getPrincipal(), subaccount: [] } },
     });
     expect(result).toHaveProperty('err');
-    const err = (result as { err: unknown }).err as Record<string, unknown>;
-    expect(err).toHaveProperty('InsufficientBalance');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('InsufficientBalance');
   });
 
   // ---- Balance queries ----
@@ -345,12 +347,12 @@ describe('Treasury Canister', () => {
     });
 
     const l1Distributions = await manager.treasuryActor.getUserDistributions(l1Identity.getPrincipal());
-    const l1PaymentIds = l1Distributions.map((d: Record<string, unknown>) => d.paymentId);
+    const l1PaymentIds = l1Distributions.map((d: DistributionRecord) => d.paymentId);
     expect(l1PaymentIds).toContain('pay-user-dist-1');
     expect(l1PaymentIds).not.toContain('pay-user-dist-2');
 
     const payerDistributions = await manager.treasuryActor.getUserDistributions(payerIdentity.getPrincipal());
-    const payerPaymentIds = payerDistributions.map((d: Record<string, unknown>) => d.paymentId);
+    const payerPaymentIds = payerDistributions.map((d: DistributionRecord) => d.paymentId);
     expect(payerPaymentIds).toContain('pay-user-dist-1');
   });
 
