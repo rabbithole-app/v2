@@ -16,7 +16,7 @@
       "dependsOn": ["build-403"]
     },
     "serve": {
-      "dependsOn": [{ "projects": ["backend"], "target": "serve" }]
+      "dependsOn": []
     },
     "extract-i18n": {
       "executor": "@angular-devkit/build-angular:extract-i18n",

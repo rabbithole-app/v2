@@ -16,7 +16,7 @@ import {
   AuthConfig,
   AuthService,
 } from '@rabbithole/auth';
-import { TauriDeepLinkAuthService } from '@rabbithole/auth/tauri';
+import { TauriNativeAuthService } from '@rabbithole/auth/tauri';
 import {
   APP_NAME_TOKEN,
   AUTH_MAX_TIME_TO_LIVE,
@@ -25,6 +25,7 @@ import {
   IS_PRODUCTION_TOKEN,
   MAIN_BACKEND_URL_TOKEN,
   MAIN_CANISTER_ID_TOKEN,
+  provideIcAuthSignOutHandler,
   provideCoreWorker,
 } from '@rabbithole/core';
 
@@ -35,7 +36,7 @@ import { isCustomDomain } from './core/utils';
 
 export const provideAuthService = (): Provider => ({
   provide: AUTH_SERVICE,
-  useClass: isTauri() ? TauriDeepLinkAuthService : AuthService,
+  useClass: isTauri() ? TauriNativeAuthService : AuthService,
 });
 
 const authConfig: AuthConfig = {
@@ -55,6 +56,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
+    provideIcAuthSignOutHandler(),
     provideRouter(appRoutes, withComponentInputBinding()),
     provideHttpClient(),
     provideAuthService(),

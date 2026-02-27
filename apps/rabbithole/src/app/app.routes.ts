@@ -113,5 +113,12 @@ export const appRoutes: Route[] = [
         (m) => m.DelegationComponent,
       ),
   },
+  {
+    path: 'ii-bridge',
+    loadComponent: () =>
+      import('./pages/ii-bridge/ii-bridge.component').then(
+        (m) => m.IiBridgeComponent,
+      ),
+  },
   { path: '**', pathMatch: 'full', redirectTo: '' },
 ];

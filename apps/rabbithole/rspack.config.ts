@@ -162,6 +162,10 @@ export default createConfig(
         devServer: {},
       },
       rspackConfigOverrides: {
+        devServer: {
+          host: '0.0.0.0',
+          historyApiFallback: true,
+        },
         output: {
           publicPath: '/',
         },

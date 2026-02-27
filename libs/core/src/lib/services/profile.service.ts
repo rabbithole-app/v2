@@ -1,5 +1,6 @@
 import { computed, Injectable, resource } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { catchError, map, of } from 'rxjs';
 import {
   AbstractControl,
   AsyncValidatorFn,
@@ -8,7 +9,6 @@ import {
 import { fromNullable } from '@dfinity/utils';
 import { Actor } from '@icp-sdk/core/agent';
 import { toast } from 'ngx-sonner';
-import { map } from 'rxjs';
 
 import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
 
@@ -31,9 +31,15 @@ export class ProfileService {
       return fromNullable(profile) ?? null;
     },
   });
-  profile = computed(() => this.#profileResource.value());
+  profile = computed(() => {
+    if (this.#profileResource.error() !== undefined) {
+      return undefined;
+    }
+    return this.#profileResource.value();
+  });
   ready$ = toObservable(this.#profileResource.value).pipe(
     map((v) => v !== undefined),
+    catchError(() => of(true)),
   );
 
   checkUsernameValidator(): AsyncValidatorFn {
