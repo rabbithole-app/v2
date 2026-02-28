@@ -123,6 +123,7 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
         overwrite: false,
+        encryptionMode: [],
       });
       expect(result).toMatchObject({
         id: 1938810470400000002n,
@@ -131,11 +132,13 @@ describe('FileSystem', () => {
       const result2 = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/detective'],
         overwrite: false,
+        encryptionMode: [],
       });
       expect(result2).toMatchObject({ id: 1938810470400000003n });
       const result3 = await actor.create({
         entry: [FILE, 'Documents/Photos/1.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       expect(result3).toMatchObject({ id: 1938810470400000005n });
     });
@@ -144,12 +147,14 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
         overwrite: false,
+        encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       await expect(
         actor.create({
           entry: [DIRECTORY, 'Documents/Books/classic'],
           overwrite: false,
+          encryptionMode: [],
         }),
       ).rejects.toThrowError();
     });
@@ -160,6 +165,7 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
         overwrite: false,
+        encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       await expect(
@@ -188,11 +194,13 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
         overwrite: false,
+        encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       const result2 = await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
         overwrite: false,
+        encryptionMode: [],
       });
       expect(result2).toMatchObject({ id: 1938810470400000004n });
 
@@ -217,34 +225,42 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Photos/1.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/2.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/2.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/3.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/1.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/2.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/2.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/3.jpg'],
         overwrite: false,
+        encryptionMode: [],
       });
     });
 
@@ -360,14 +376,17 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
@@ -637,6 +656,7 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
@@ -690,10 +710,12 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-bob[r]'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-charlie[rwm]'],
         overwrite: false,
+        encryptionMode: [],
       });
       await actor.grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]']],
@@ -770,14 +792,17 @@ describe('FileSystem', () => {
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]/photos'],
           overwrite: false,
+          encryptionMode: [],
         });
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]/documents'],
           overwrite: false,
+          encryptionMode: [],
         });
         await actor.create({
           entry: [FILE, 'Private/wallet.dat'],
           overwrite: false,
+          encryptionMode: [],
         });
         await actor.grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]']],
@@ -878,10 +903,78 @@ describe('FileSystem', () => {
     });
   });
 
+  describe('encryption mode', () => {
+    test('should create plaintext file', async () => {
+      const result = await actor.create({
+        entry: [FILE, 'Public/readme.txt'],
+        overwrite: false,
+        encryptionMode: [{ Plaintext: null }],
+      });
+      expect('File' in result.metadata).toBeTruthy();
+      if ('File' in result.metadata) {
+        expect('Plaintext' in result.metadata.File.encryptionMode).toBeTruthy();
+      }
+    });
+
+    test('should create encrypted file (default)', async () => {
+      const result = await actor.create({
+        entry: [FILE, 'Private/secret.dat'],
+        overwrite: false,
+        encryptionMode: [],
+      });
+      expect('File' in result.metadata).toBeTruthy();
+      if ('File' in result.metadata) {
+        expect('Encrypted' in result.metadata.File.encryptionMode).toBeTruthy();
+      }
+    });
+
+    test('should inherit directory defaultEncryptionMode', async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'PublicDir'],
+        overwrite: false,
+        encryptionMode: [{ Plaintext: null }],
+      });
+      const file = await actor.create({
+        entry: [FILE, 'PublicDir/file.txt'],
+        overwrite: false,
+        encryptionMode: [],
+      });
+      if ('File' in file.metadata) {
+        expect('Plaintext' in file.metadata.File.encryptionMode).toBeTruthy();
+      }
+    });
+  });
+
+  describe('versioning', () => {
+    test('listVersions on new file returns 0 versions', async () => {
+      await actor.create({
+        entry: [FILE, 'Docs/v.txt'],
+        overwrite: false,
+        encryptionMode: [],
+      });
+      const versions = await actor.listVersions({
+        entry: [FILE, 'Docs/v.txt'],
+      });
+      expect(versions).toHaveLength(0);
+    });
+
+    test('restoreVersion with invalid index should fail', async () => {
+      await actor.create({
+        entry: [FILE, 'Docs/v.txt'],
+        overwrite: false,
+        encryptionMode: [],
+      });
+      await expect(
+        actor.restoreVersion({ entry: [FILE, 'Docs/v.txt'], version: 5 }),
+      ).rejects.toThrowError();
+    });
+  });
+
   test('should reinstall the canister', async () => {
     await actor.create({
       entry: [DIRECTORY, 'test/dir/sub'],
       overwrite: false,
+      encryptionMode: [],
     });
     const preReinstallTree = await actor.showTree([]);
 
