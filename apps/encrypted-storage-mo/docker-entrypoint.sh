@@ -33,7 +33,7 @@ mops install
 
 # Apply mops patches (e.g. hex@1.0.2 Text.join argument order fix)
 if [ -x /mops-patches/apply.sh ]; then
-  /mops-patches/apply.sh /app
+  /mops-patches/apply.sh /app || true
 fi
 
 dfx start --clean --background --host 0.0.0.0:4943 --domain localhost --domain 127.0.0.1 --domain 0.0.0.0
