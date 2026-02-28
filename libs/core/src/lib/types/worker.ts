@@ -33,6 +33,7 @@ export const uploadSchema = type({
   bytes: 'ArrayBuffer',
   config: {
     'contentType?': 'string',
+    'encryptionMode?': "'Encrypted' | 'Plaintext'",
     fileName: 'string>=1',
     'path?': 'string',
   },

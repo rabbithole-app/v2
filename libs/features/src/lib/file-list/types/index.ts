@@ -19,6 +19,7 @@ export type DirectoryColor = ExtractVariantKeys<DirectoryColorRaw>;
 
 export type DirectoryNode = {
   color?: DirectoryColor;
+  defaultEncryptionMode: 'encrypted' | 'plaintext';
   type: 'directory';
 } & CommonAttrs;
 
@@ -26,13 +27,14 @@ export type DirectoryNodeExtended = DirectoryNode & ItemsCommonAttrs;
 
 export type FileNode = {
   contentType: string;
+  currentVersion: number;
+  encryptionMode: 'encrypted' | 'plaintext';
   sha256?: string;
   size: bigint;
+  storageBackend: 'inline' | 'blobStorage' | 'external';
   thumbnailKey?: string;
-  // downloadUrl: string;
-  // encrypted: boolean;
-  // thumbnailUrl?: string;
   type: 'file';
+  versionCount: number;
 } & CommonAttrs;
 
 export type FileNodeExtended = FileNode & ItemsCommonAttrs;

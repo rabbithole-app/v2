@@ -56,7 +56,11 @@ export class UploadFilesService implements IUploadService {
     effect(() => console.log(this.showTree.value()));
   }
 
-  async add(item: { file: File; path?: string }) {
+  async add(item: {
+    encryptionMode?: 'Encrypted' | 'Plaintext';
+    file: File;
+    path?: string;
+  }) {
     const id = crypto.randomUUID();
     // Add file to state with initial parameters
     this.#uploadBaseService.add({
@@ -73,6 +77,7 @@ export class UploadFilesService implements IUploadService {
       config: {
         fileName: item.file.name,
         contentType: item.file.type,
+        ...(item.encryptionMode && { encryptionMode: item.encryptionMode }),
       },
     };
 

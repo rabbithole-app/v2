@@ -63,6 +63,14 @@
           }
         </button>
       }
+      <button
+        hlmDropdownMenuItem
+        (click)="_handleProperties(selected)"
+        [disabled]="selected.length > 1"
+      >
+        <ng-icon hlm name="lucideInfo" hlmMenuIcon />
+        Properties
+      </button>
       <hlm-dropdown-menu-separator />
       <button
         hlmDropdownMenuItem

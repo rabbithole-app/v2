@@ -25,6 +25,7 @@ import {
   provideUploadFilesService,
 } from '@rabbithole/core';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 
@@ -33,6 +34,7 @@ import { FileListService } from '../../services';
 import { FILE_LIST_ICONS_CONFIG } from '../../tokens';
 import { NodeItem } from '../../types';
 import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
+import { FilePropertiesDialogComponent } from '../file-properties-dialog/file-properties-dialog.component';
 import { FileIconComponent } from '../file-icon/file-icon.component';
 import { GridViewComponent } from '../grid-view/grid-view.component';
 import { UploadDrawerComponent } from '../upload-drawer/upload-drawer.component';
@@ -67,6 +69,7 @@ export class FileListViewComponent {
   active = signal(false);
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   fileListService = inject(FileListService);
+  #dialogService = inject(HlmDialogService);
   #route = inject(ActivatedRoute);
   items = toSignal(
     this.#route.data.pipe(
@@ -111,5 +114,12 @@ export class FileListViewComponent {
 
   _handleRename(selected: bigint[]) {
     console.log('rename', selected);
+  }
+
+  _handleProperties(item: NodeItem) {
+    this.#dialogService.open(FilePropertiesDialogComponent, {
+      contentClass: 'sm:max-w-[420px]',
+      context: item,
+    });
   }
 }

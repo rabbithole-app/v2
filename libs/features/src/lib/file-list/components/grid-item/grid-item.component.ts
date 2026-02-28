@@ -10,7 +10,12 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import { lucideLock } from '@ng-icons/lucide';
+
 import { ENCRYPTED_STORAGE_CANISTER_ID, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
+import { HlmBadgeImports } from '@spartan-ng/helm/badge';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { hlm } from '@spartan-ng/helm/utils';
 
 import { isDirectory, isFile, NodeItem } from '../../types';
@@ -48,7 +53,8 @@ export type GridItemVariants = VariantProps<typeof gridItemVariants>;
   selector: 'rbth-feat-file-list-grid-item',
   templateUrl: './grid-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AnimatedFolderComponent, FileIconComponent],
+  imports: [AnimatedFolderComponent, FileIconComponent, NgIcon, HlmBadgeImports, HlmTooltipImports],
+  providers: [provideIcons({ lucideLock })],
   host: {
     '[class]': '_computedClass()',
     '[tabindex]': 'data().disabled ? -1 : 0',
@@ -124,7 +130,29 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   });
 
   protected readonly isDirectoryNode = computed(() => isDirectory(this.data()));
+  protected readonly isEncrypted = computed(() => {
+    const item = this.data();
+    if (isFile(item)) return item.encryptionMode === 'encrypted';
+    if (isDirectory(item)) return item.defaultEncryptionMode === 'encrypted';
+    return false;
+  });
   protected readonly isFileNode = computed(() => isFile(this.data()));
+
+  protected readonly badges = computed(() => {
+    const items: { icon: string; title: string }[] = [];
+    if (this.isEncrypted()) {
+      items.push({ icon: 'lucideLock', title: 'Encrypted' });
+    }
+    // Future: shared badge
+    // if (this.isShared()) {
+    //   items.push({ icon: 'lucideUsers', title: 'Shared' });
+    // }
+    return items;
+  });
+
+  protected readonly badgeTooltip = computed(() =>
+    this.badges().map((b) => b.title).join(', '),
+  );
 
   protected readonly itemName = computed(() => this.data().name);
 

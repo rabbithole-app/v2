@@ -2,7 +2,6 @@
 @let isFile = isFileNode();
 @let hasThumb = hasThumbnail();
 @let thumbUrl = thumbnailUrl();
-@let itemDisabled = _disabled();
 
 <div
   class="flex items-end h-[74px] justify-center w-full max-w-[80px] mx-auto relative"
@@ -11,7 +10,11 @@
     <rbth-feat-file-list-animated-folder
       [color]="directoryColor()"
       [active]="active()"
-    />
+    >
+      @if (isEncrypted()) {
+        <ng-icon icon name="lucideLock" />
+      }
+    </rbth-feat-file-list-animated-folder>
   } @else if (isFile && hasThumb && thumbUrl) {
     <div
       class="relative w-full h-full max-w-[80px] max-h-[74px] overflow-hidden flex items-end justify-center"
@@ -27,6 +30,19 @@
     <div class="flex items-center justify-center w-full aspect-square">
       <rbth-feat-file-list-icon [extension]="fileExtension()" />
     </div>
+  }
+
+  @if (isFile && badges().length > 0) {
+    <span
+      hlmBadge
+      class="absolute -bottom-1 -right-1 z-10"
+      [hlmTooltip]="badgeTooltip()"
+      [showDelay]="300"
+    >
+      @for (badge of badges(); track badge) {
+        <ng-icon [name]="badge.icon" />
+      }
+    </span>
   }
 </div>
 

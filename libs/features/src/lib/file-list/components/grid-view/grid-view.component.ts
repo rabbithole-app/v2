@@ -21,6 +21,7 @@ import {
   lucideFolderPlus,
   lucideFolderTree,
   lucideFolderUp,
+  lucideInfo,
   lucidePencil,
   lucideTrash2,
   lucideUpload,
@@ -65,6 +66,7 @@ const GRID_CELL_COLUMN_GAP = 16;
       lucideDownload,
       lucidePencil,
       lucideFolderTree,
+      lucideInfo,
     }),
   ],
   hostDirectives: [
@@ -114,6 +116,7 @@ export class GridViewComponent implements OnDestroy {
   folderColorControl = new FormControl<DirectoryColor>('blue');
   move = output<bigint[]>();
   rename = output<bigint[]>();
+  properties = output<NodeItem>();
 
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
   protected readonly _computedClass = computed(() =>
@@ -202,6 +205,12 @@ export class GridViewComponent implements OnDestroy {
     }
   }
 
+  _handleProperties(selected: bigint[]) {
+    if (selected.length !== 1) return;
+    const item = this.items().find((i) => i.id === selected[0]);
+    if (item) this.properties.emit(item);
+  }
+
   _handleItemClick(event: MouseEvent, { id }: NodeItem) {
     // Stop event propagation so host doesn't handle the click
     event.stopPropagation();
@@ -285,6 +294,7 @@ export class GridViewComponent implements OnDestroy {
         }));
       }
     }
+
   }
 
   _handleItemDblClick(_event: MouseEvent, item: NodeItem) {

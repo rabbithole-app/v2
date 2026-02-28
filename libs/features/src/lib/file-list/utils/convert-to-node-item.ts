@@ -53,6 +53,18 @@ export function convertToNodeItem(
         sha256: hash ? uint8ArrayToHexString(hash) : undefined,
         size: file.size,
         thumbnailKey: fromNullable(file.thumbnailKey),
+        encryptionMode: (
+          'Encrypted' in file.encryptionMode ? 'encrypted' : 'plaintext'
+        ) as 'encrypted' | 'plaintext',
+        versionCount: Number(file.versionCount),
+        currentVersion: Number(file.currentVersion),
+        storageBackend: (
+          'Inline' in file.storageBackend
+            ? 'inline'
+            : 'BlobStorage' in file.storageBackend
+              ? 'blobStorage'
+              : 'external'
+        ) as 'inline' | 'blobStorage' | 'external',
       };
     })
     .with({ Directory: P.select() }, (directory) => {
@@ -60,6 +72,11 @@ export function convertToNodeItem(
       const dir: DirectoryNode = {
         ...commonAttrs,
         type: 'directory',
+        defaultEncryptionMode: (
+          'Encrypted' in directory.defaultEncryptionMode
+            ? 'encrypted'
+            : 'plaintext'
+        ) as 'encrypted' | 'plaintext',
       };
 
       if (color) {
