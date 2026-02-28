@@ -148,6 +148,11 @@ export type StoreConfig = {
    */
   contentType?: string;
   /**
+   * Encryption mode for this file
+   * @default undefined (inherits from parent directory, defaults to 'Encrypted')
+   */
+  encryptionMode?: 'Encrypted' | 'Plaintext';
+  /**
    * File name
    * @default File object name or name in file path
    */

@@ -55,9 +55,19 @@ export class EncryptedStorage {
     this.#limit = limit(concurrency ?? 16);
   }
 
-  async createDirectory(path: string) {
+  async createDirectory(
+    path: string,
+    options?: { encryptionMode?: 'Encrypted' | 'Plaintext' },
+  ) {
     const entry: EntryRaw = [{ Directory: null }, path];
-    return await this.#actor.create({ entry, overwrite: false });
+    const encryptionMode = options?.encryptionMode
+      ? [{ [options.encryptionMode]: null }]
+      : [];
+    return await this.#actor.create({
+      entry,
+      overwrite: false,
+      encryptionMode,
+    } as Parameters<_SERVICE['create']>[0]);
   }
 
   delete(entry: Entry) {
@@ -84,11 +94,10 @@ export class EncryptedStorage {
    * @param keyId A unique identifier for a vetKey, consisting of the owner and key name.
    * @returns Blob with decrypted content of the file
    */
-  async get(keyId: [Principal, Uint8Array]) {
-    // get derivedKeyMaterial for created file
-    const derivedKeyMaterial = await this.#getDerivedKeyMaterialOrFetchIfNeeded(
-      ...keyId,
-    );
+  async get(
+    keyId: [Principal, Uint8Array],
+    options?: { encrypted?: boolean },
+  ) {
     const url = new URL(
       `/encrypted/${keyId[0].toText()}/${new TextDecoder().decode(keyId[1])}`,
       this.#origin,
@@ -96,6 +105,16 @@ export class EncryptedStorage {
 
     const response = await fetch(url);
     const bytes = await response.bytes();
+
+    // Skip decryption for plaintext files
+    if (options?.encrypted === false) {
+      return new Blob([bytes]);
+    }
+
+    // get derivedKeyMaterial for created file
+    const derivedKeyMaterial = await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+      ...keyId,
+    );
     const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
     const decryptedContent = await derivedKeyMaterial.decryptMessage(
       bytes,
@@ -290,35 +309,56 @@ export class EncryptedStorage {
       [key]: { status: UploadState.INITIALIZING },
     }));
 
+    // Resolve encryption mode from config
+    const encryptionMode = config.encryptionMode
+      ? [{ [config.encryptionMode]: null }]
+      : [];
+
     // create file
     const details = await this.#limit(
-      () => this.#actor.create({ entry, overwrite: true }),
+      () =>
+        this.#actor.create({
+          entry,
+          overwrite: true,
+          encryptionMode,
+        } as Parameters<_SERVICE['create']>[0]),
       config.signal,
     );
 
-    this.#progress.setState((state) => ({
-      ...state,
-      [key]: { status: UploadState.REQUESTING_VETKD },
-    }));
+    // Determine if file is encrypted from the response
+    const isEncrypted =
+      'File' in details.metadata &&
+      'Encrypted' in details.metadata.File.encryptionMode;
 
-    // get derivedKeyMaterial for created file
-    const derivedKeyMaterial = await this.#getDerivedKeyMaterialOrFetchIfNeeded(
-      details.keyId[0],
-      Uint8Array.from(details.keyId[1]),
-    );
+    let bytesToUpload: Uint8Array;
+    if (isEncrypted) {
+      this.#progress.setState((state) => ({
+        ...state,
+        [key]: { status: UploadState.REQUESTING_VETKD },
+      }));
 
-    const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
-    const encryptedBytes = await derivedKeyMaterial.encryptMessage(
-      bytes,
-      domainSeparator,
-    );
+      // get derivedKeyMaterial for created file
+      const derivedKeyMaterial =
+        await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+          details.keyId[0],
+          Uint8Array.from(details.keyId[1]),
+        );
+
+      const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
+      bytesToUpload = await derivedKeyMaterial.encryptMessage(
+        bytes,
+        domainSeparator,
+      );
+    } else {
+      bytesToUpload = bytes;
+    }
 
     this.#progress.setState((state) => ({
       ...state,
       [key]: {
         status: UploadState.IN_PROGRESS,
         current: 0,
-        total: encryptedBytes.byteLength,
+        total: bytesToUpload.byteLength,
       },
     }));
 
@@ -330,13 +370,13 @@ export class EncryptedStorage {
 
     // upload chunks
     const chunkCount = Math.ceil(
-      encryptedBytes.byteLength / this.#maxChunkSize,
+      bytesToUpload.byteLength / this.#maxChunkSize,
     );
     const chunkIds: bigint[] = await Promise.all(
       Array.from({ length: chunkCount }).map(async (_, index) => {
-        const content = encryptedBytes.slice(
+        const content = bytesToUpload.slice(
           index * this.#maxChunkSize,
-          Math.min((index + 1) * this.#maxChunkSize, encryptedBytes.byteLength),
+          Math.min((index + 1) * this.#maxChunkSize, bytesToUpload.byteLength),
         );
 
         this.#sha256[key].update(content);
@@ -351,7 +391,7 @@ export class EncryptedStorage {
               ? { ...state[key], current: state[key].current + content.length }
               : {
                   current: content.length,
-                  total: encryptedBytes.byteLength,
+                  total: bytesToUpload.byteLength,
                 };
 
           return {
@@ -387,6 +427,31 @@ export class EncryptedStorage {
     });
 
     unmount();
+  }
+
+  async listVersions(entry: Entry) {
+    return await this.#actor.listStorageVersions({
+      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
+    });
+  }
+
+  async restoreVersion(entry: Entry, version: number) {
+    return await this.#actor.restoreStorageVersion({
+      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
+      version: BigInt(version),
+    });
+  }
+
+  async getChunkAtVersion(
+    entry: Entry,
+    chunkIndex: number,
+    version?: number,
+  ) {
+    return await this.#actor.getStorageChunk({
+      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
+      chunkIndex: BigInt(chunkIndex),
+      version: version !== undefined ? [BigInt(version)] : [],
+    } as Parameters<_SERVICE['getStorageChunk']>[0]);
   }
 
   #contentType(fileName: string) {
