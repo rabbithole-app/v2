@@ -140,11 +140,11 @@ module EncryptedFileStorage {
 
     switch (FileSystem.get(self.fs, #entry(args.entry))) {
       case (?{ metadata = #File(file) }) {
-        let numChunks = File.getChunksSize(file);
+        let numChunks = File.getChunksSize(file, args.version);
 
         if (args.chunkIndex >= numChunks) return #err("Chunk index out of bounds.");
 
-        File.getChunk(self.fs, file, args.chunkIndex) |> #ok({
+        File.getChunk(self.fs, file, args.chunkIndex, args.version) |> #ok({
           content = Option.get<Blob>(_, "");
         });
       };
@@ -186,6 +186,22 @@ module EncryptedFileStorage {
     };
 
     FileSystem.create(self.fs, caller, args) |> Result.mapOk<T.NodeStore, T.NodeDetails, Text>(_, Node.getDetails);
+  };
+
+  public func listVersions(self : T.StableStore, caller : Principal, args : T.ListVersionsArguments) : Result.Result<[T.FileVersionDetails], Text> {
+    switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+    FileSystem.listVersions(self.fs, args.entry);
+  };
+
+  public func restoreVersion(self : T.StableStore, caller : Principal, args : T.RestoreVersionArguments) : Result.Result<(), Text> {
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+    FileSystem.restoreVersion(self.fs, args.entry, args.version);
   };
 
   /// Updates data for a file or directory.
@@ -245,15 +261,13 @@ module EncryptedFileStorage {
           case null {};
         };
 
-        File.deallocate(self.fs, file);
-
-        let chunks = Iter.map<T.SizedPointer, Blob>(
-          chunkPointers.vals(),
-          func(address : Nat, size : Nat) : Blob = MemoryRegion.loadBlob(self.fs.region, address, size),
+        // Materialize chunks before addVersion (avoid lazy iterator + dealloc issue)
+        let chunks = Array.map<T.SizedPointer, Blob>(
+          chunkPointers,
+          func(address : Nat, size : Nat) : Blob = MemoryRegion.loadBlob(self.upload.region, address, size),
         );
 
-        File.replaceContentViaChunks(self.fs, file, chunks, totalLength, hash);
-        file.contentType := contentType;
+        File.addVersion(self.fs, file, chunks.vals(), totalLength, hash, contentType);
         CertifiedAssets.certify(self.certs, endpoint(keyId, hash));
         #ok;
       };
@@ -336,7 +350,7 @@ module EncryptedFileStorage {
     };
 
     switch (FileSystem.delete(self.fs, args)) {
-      case (#ok(?{ metadata = #File(file) })) File.deallocate(self.fs, file);
+      case (#ok(?{ metadata = #File(file) })) File.deallocateAll(self.fs, file);
       case (#err(message)) return #err message;
       case _ {};
     };
@@ -580,6 +594,16 @@ module EncryptedFileStorage {
   /// The vetKey is secured using the provided transport key and can only be accessed by authorized users.
   /// Returns an error if the caller is not authorized to access the vetKey.
   public func getEncryptedVetkey(self : T.StableStore, caller : T.Caller, keyId : T.KeyId, transportKey : T.TransportKey) : async Result.Result<T.VetKey, Text> {
+    // Guard: reject VetKey requests for plaintext files
+    switch (FileSystem.get(self.fs, #keyId(keyId))) {
+      case (?{ metadata = #File(fileMeta) }) {
+        if (fileMeta.encryptionMode == #Plaintext) {
+          return #err(ErrorMessages.vetKeyNotAvailableForPlaintext());
+        };
+      };
+      case _ {};
+    };
+
     switch (Permissions.ensureUserCanRead(self.fs, caller, #keyId keyId)) {
       case (#err message) #err message;
       case (#ok _) {

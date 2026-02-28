@@ -3,12 +3,11 @@ import Iter "mo:core/Iter";
 import Time "mo:core/Time";
 import Nat64 "mo:core/Nat64";
 import Order "mo:core/Order";
+import Option "mo:core/Option";
 import Text "mo:core/Text";
 
 import Map "mo:map/Map";
 import TID "mo:tid";
-import Vector "mo:vector";
-
 import T "../Types";
 import File "File";
 import { permissionCompare } "../Utils";
@@ -17,12 +16,13 @@ import { permissionCompare } "../Utils";
 module Node {
   let { phash } = Map;
 
-  /// Creates a new node.
-  public func new(nodeKey : T.NodeKey, owner : Principal, tid : TID.TID) : T.NodeStore {
+  /// Creates a new node with optional encryption mode.
+  public func new(nodeKey : T.NodeKey, owner : Principal, tid : TID.TID, encryptionMode : ?T.EncryptionMode) : T.NodeStore {
     let now = Time.now();
+    let mode = Option.get(encryptionMode, #Encrypted);
     let (parentId, name, metadata) : (?Nat64, Text, T.NodeMetadataStore) = switch (nodeKey) {
-      case (#File, parentId, name) (parentId, name, #File(File.new()));
-      case (#Directory, parentId, name) (parentId, name, #Directory { var color = null });
+      case (#File, parentId, name) (parentId, name, #File(File.new(mode, ?1)));
+      case (#Directory, parentId, name) (parentId, name, #Directory { var color = null; var defaultEncryptionMode = mode });
     };
 
     {
@@ -43,13 +43,26 @@ module Node {
       #File : T.FileMetadata;
       #Directory : T.DirectoryMetadata;
     } = switch (node.metadata) {
-      case (#File metadata) #File {
-        sha256 = metadata.sha256;
-        contentType = metadata.contentType;
-        size = metadata.size;
-        thumbnailKey = metadata.thumbnailKey;
+      case (#File file) {
+        let currentVer = File.getCurrentVersion(file);
+        #File {
+          sha256 = switch (currentVer) { case (?v) v.sha256; case null null };
+          contentType = switch (currentVer) { case (?v) v.contentType; case null "" };
+          size = switch (currentVer) { case (?v) v.size; case null 0 };
+          thumbnailKey = file.thumbnailKey;
+          encryptionMode = file.encryptionMode;
+          versionCount = File.versionCount(file);
+          currentVersion = file.currentVersion;
+          storageBackend = switch (currentVer) {
+            case (?v) File.storageBackendOf(v.contentRef);
+            case null #Inline;
+          };
+        };
       };
-      case (#Directory metadata) #Directory { color = metadata.color };
+      case (#Directory metadata) #Directory {
+        color = metadata.color;
+        defaultEncryptionMode = metadata.defaultEncryptionMode;
+      };
     };
     {
       id = node.id;
@@ -66,7 +79,7 @@ module Node {
   public func copy(self : T.NodeStore) : T.NodeStore {
     let metadata : T.NodeMetadataStore = switch (self.metadata) {
       case (#File file) #File(File.copy(file));
-      case (#Directory dir) #Directory { var color = dir.color };
+      case (#Directory dir) #Directory { var color = dir.color; var defaultEncryptionMode = dir.defaultEncryptionMode };
     };
     let newNode : T.NodeStore = {
       id = self.id;

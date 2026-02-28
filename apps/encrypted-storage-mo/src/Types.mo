@@ -35,6 +35,9 @@ module {
   public type StreamingCallbackResponse = V1.StreamingCallbackResponse;
   public type BatchId = V1.BatchId;
   public type ChunkId = V1.ChunkId;
+  public type ContentRef = V1.ContentRef;
+  public type EncryptionMode = V1.EncryptionMode;
+  public type FileVersion = V1.FileVersion;
 
   /* ----------------------- API types (not versioned) ----------------------- */
 
@@ -106,11 +109,17 @@ module {
 
   /* ---------------------------------- File ---------------------------------- */
 
+  public type StorageBackend = { #Inline; #BlobStorage; #External };
+
   public type FileMetadata = {
     sha256 : ?Blob;
     contentType : Text;
     size : Nat;
     thumbnailKey : ?Text;
+    encryptionMode : EncryptionMode;
+    versionCount : Nat;
+    currentVersion : Nat;
+    storageBackend : StorageBackend;
   };
 
   type NodeBase = {
@@ -144,6 +153,7 @@ module {
 
   public type DirectoryMetadata = {
     color : ?DirectoryColor;
+    defaultEncryptionMode : EncryptionMode;
   };
 
   /* ------------------------------- FileSystem ------------------------------- */
@@ -178,6 +188,7 @@ module {
   public type CreateArguments = {
     entry : Entry;
     overwrite : Bool;
+    encryptionMode : ?EncryptionMode;
   };
 
   public type UpdateArguments = {
@@ -210,6 +221,7 @@ module {
   public type GetChunkArguments = {
     entry : Entry;
     chunkIndex : Nat;
+    version : ?Nat;
   };
 
   public type CommitBatchArguments = {
@@ -304,5 +316,25 @@ module {
   public type StreamingCallbackResponseAny = {
     body : Blob;
     token : ?Any;
+  };
+
+  /* -------------------------------- Versioning ------------------------------ */
+
+  public type ListVersionsArguments = {
+    entry : Entry;
+  };
+
+  public type FileVersionDetails = {
+    index : Nat;
+    sha256 : ?Blob;
+    size : Nat;
+    contentType : Text;
+    createdAt : Time.Time;
+    storageBackend : StorageBackend;
+  };
+
+  public type RestoreVersionArguments = {
+    entry : Entry;
+    version : Nat;
   };
 };

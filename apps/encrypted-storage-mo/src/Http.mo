@@ -31,7 +31,10 @@ module {
     etags : [Text],
     httpReq : T.HttpRequest,
   ) : Result.Result<T.HttpResponse, Text> {
-    let headers = switch (file.sha256) {
+    let currentVer = File.getCurrentVersion(file);
+    let fileSha256 = switch (currentVer) { case (?v) v.sha256; case null null };
+
+    let headers = switch (fileSha256) {
       case (?hash) {
         let hex = BaseX.toHex(hash.vals(), { isUpper = false; prefix = #none });
         let etagValue = "\"" # hex # "\"";
@@ -43,7 +46,7 @@ module {
     let nextToken : T.CustomStreamingToken = {
       keyId;
       index = chunkIndex + 1;
-      sha256 = file.sha256;
+      sha256 = fileSha256;
     };
 
     let ?callback : ?T.StreamingCallback = self.streamingCallback else return #err("Streaming callback not set");
@@ -52,10 +55,10 @@ module {
       callback;
     });
 
-    let contentChunk = Option.get<Blob>(File.getChunk(self.fs, file, chunkIndex), "");
+    let contentChunk = Option.get<Blob>(File.getChunk(self.fs, file, chunkIndex, null), "");
 
     assert contentChunk.size() <= 2 * (1024 ** 2);
-    let (statusCode, body, optBodyHash) : (Nat16, Blob, ?Blob) = (200, contentChunk, file.sha256);
+    let (statusCode, body, optBodyHash) : (Nat16, Blob, ?Blob) = (200, contentChunk, fileSha256);
     let headersVector = Vector.fromArray<(Text, Text)>(headers);
 
     let httpRes = {
@@ -79,7 +82,7 @@ module {
           Vector.add(headersVector, (key, value));
         };
 
-        let numChunks = File.getChunksSize(file);
+        let numChunks = File.getChunksSize(file, null);
 
         let certifiedRes : T.HttpResponse = {
           httpRes with headers = Vector.toArray(headersVector);
@@ -156,7 +159,10 @@ module {
       case null return #err(ErrorMessages.keyIdNotFound(token.keyId));
     };
 
-    switch (token.sha256, file.sha256) {
+    let currentVer = File.getCurrentVersion(file);
+    let currentSha256 = switch (currentVer) { case (?v) v.sha256; case null null };
+
+    switch (token.sha256, currentSha256) {
       case (?providedHash, ?hash) {
         if (hash != providedHash) {
           return #err(ErrorMessages.sha256HashMismatch(providedHash, hash));
@@ -165,13 +171,13 @@ module {
       case _ {};
     };
 
-    let numChunks = File.getChunksSize(file);
-    let chunk = Option.get<Blob>(File.getChunk(self.fs, file, token.index), "");
+    let numChunks = File.getChunksSize(file, null);
+    let chunk = Option.get<Blob>(File.getChunk(self.fs, file, token.index, null), "");
 
     let nextToken : T.CustomStreamingToken = {
       keyId = token.keyId;
       index = token.index + 1;
-      sha256 = file.sha256;
+      sha256 = currentSha256;
     };
 
     let response : T.StreamingCallbackResponse = {

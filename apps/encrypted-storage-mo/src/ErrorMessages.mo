@@ -57,8 +57,15 @@ module ErrorMessages {
     "Bad arguments are passed";
   };
 
-  // public func missing_permission(permission : Text) : Text {
-  //   "Caller does not have " # debug_show permission # " permission";
-  // };
+  public func versionOutOfBounds(version : Nat) : Text {
+    "Version " # debug_show version # " is out of bounds";
+  };
 
+  public func vetKeyNotAvailableForPlaintext() : Text {
+    "VetKey not available for plaintext files";
+  };
+
+  public func cannotVersionDirectory() : Text {
+    "Cannot list or restore versions on a directory";
+  };
 };

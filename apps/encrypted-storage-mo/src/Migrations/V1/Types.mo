@@ -1,5 +1,7 @@
 import Time "mo:core/Time";
 
+import CoreMap "mo:core/Map";
+
 import VetKeys "mo:ic-vetkeys";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 import Map "mo:map/Map";
@@ -17,6 +19,27 @@ module {
   public type Permission = VetKeys.AccessRights;
   public type PermissionMap = Map.Map<Principal, Permission>;
 
+  /* ----------------------------- Content Ref ------------------------------ */
+
+  public type ContentRef = {
+    #Inline : SizedPointer;
+    #BlobStorage : { blobId : Blob; size : Nat };
+    #External : { uri : Text; size : Nat; sha256 : ?Blob };
+  };
+
+  public type EncryptionMode = {
+    #Encrypted;
+    #Plaintext;
+  };
+
+  public type FileVersion = {
+    contentRef : ContentRef;
+    sha256 : ?Blob;
+    size : Nat;
+    contentType : Text;
+    createdAt : Time.Time;
+  };
+
   /* ---------------------------------- Node ---------------------------------- */
 
   public type DirectoryColor = {
@@ -30,16 +53,18 @@ module {
   };
 
   public type FileMetadataStore = {
-    var contentPointer : SizedPointer;
-    var sha256 : ?Blob;
-    var size : Nat;
-    var contentType : Text;
+    versions : CoreMap.Map<Nat, FileVersion>;
+    var nextVersionId : Nat;
+    var currentVersion : Nat;
+    var maxVersions : ?Nat;
     var locked : Bool;
     var thumbnailKey : ?Text;
+    var encryptionMode : EncryptionMode;
   };
 
   public type DirectoryMetadataStore = {
     var color : ?DirectoryColor;
+    var defaultEncryptionMode : EncryptionMode;
   };
 
   public type NodeMetadataStore = {

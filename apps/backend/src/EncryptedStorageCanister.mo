@@ -256,6 +256,20 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
+  public query ({ caller }) func listStorageVersions(args : T.ListVersionsArguments) : async [T.FileVersionDetails] {
+    switch (EncryptedStorage.listVersions(storage, caller, args)) {
+      case (#ok items) items;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func restoreStorageVersion(args : T.RestoreVersionArguments) : async () {
+    switch (EncryptedStorage.restoreVersion(storage, caller, args)) {
+      case (#ok _) {};
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
   /* -------------------------------------------------------------------------- */
   /*                           Asset canister methods                           */
   /* -------------------------------------------------------------------------- */

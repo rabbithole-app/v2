@@ -68,9 +68,14 @@ export const idlFactory = ({ IDL }) => {
     IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
     IDL.Text,
   );
+  const EncryptionMode = IDL.Variant({
+    'Encrypted' : IDL.Null,
+    'Plaintext' : IDL.Null,
+  });
   const CreateArguments = IDL.Record({
     'entry' : Entry,
     'overwrite' : IDL.Bool,
+    'encryptionMode' : IDL.Opt(EncryptionMode),
   });
   const Permission__1 = IDL.Variant({
     'Read' : IDL.Null,
@@ -78,11 +83,20 @@ export const idlFactory = ({ IDL }) => {
     'ReadWriteManage' : IDL.Null,
   });
   const Time = IDL.Int;
+  const StorageBackend = IDL.Variant({
+    'External' : IDL.Null,
+    'BlobStorage' : IDL.Null,
+    'Inline' : IDL.Null,
+  });
   const FileMetadata = IDL.Record({
+    'storageBackend' : StorageBackend,
     'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'thumbnailKey' : IDL.Opt(IDL.Text),
     'contentType' : IDL.Text,
     'size' : IDL.Nat,
+    'currentVersion' : IDL.Nat,
+    'encryptionMode' : EncryptionMode,
+    'versionCount' : IDL.Nat,
   });
   const DirectoryColor = IDL.Variant({
     'blue' : IDL.Null,
@@ -93,7 +107,10 @@ export const idlFactory = ({ IDL }) => {
     'green' : IDL.Null,
     'yellow' : IDL.Null,
   });
-  const DirectoryMetadata = IDL.Record({ 'color' : IDL.Opt(DirectoryColor) });
+  const DirectoryMetadata = IDL.Record({
+    'color' : IDL.Opt(DirectoryColor),
+    'defaultEncryptionMode' : EncryptionMode,
+  });
   const Owner = IDL.Principal;
   const KeyName = IDL.Vec(IDL.Nat8);
   const KeyId = IDL.Tuple(Owner, KeyName);
@@ -152,6 +169,7 @@ export const idlFactory = ({ IDL }) => {
   const GetChunkArguments = IDL.Record({
     'chunkIndex' : IDL.Nat,
     'entry' : Entry,
+    'version' : IDL.Opt(IDL.Nat),
   });
   const ChunkContent = IDL.Record({ 'content' : IDL.Vec(IDL.Nat8) });
   const VetKeyVerificationKey = IDL.Vec(IDL.Nat8);
@@ -245,10 +263,23 @@ export const idlFactory = ({ IDL }) => {
     'ReadWriteManage' : IDL.Null,
     'Controller' : IDL.Null,
   });
+  const ListVersionsArguments = IDL.Record({ 'entry' : Entry });
+  const FileVersionDetails = IDL.Record({
+    'storageBackend' : StorageBackend,
+    'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'contentType' : IDL.Text,
+    'createdAt' : Time,
+    'size' : IDL.Nat,
+    'index' : IDL.Nat,
+  });
   const ListPermitted = IDL.Record({ 'permission' : Permission });
   const MoveArguments = IDL.Record({
     'entry' : Entry,
     'target' : IDL.Opt(Entry),
+  });
+  const RestoreVersionArguments = IDL.Record({
+    'entry' : Entry,
+    'version' : IDL.Nat,
   });
   const RevokePermissionArguments = IDL.Record({
     'user' : IDL.Principal,
@@ -372,9 +403,15 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(NodeDetails)],
         ['query'],
       ),
+    'listStorageVersions' : IDL.Func(
+        [ListVersionsArguments],
+        [IDL.Vec(FileVersionDetails)],
+        ['query'],
+      ),
     'list_permitted' : IDL.Func([ListPermitted], [IDL.Vec(IDL.Principal)], []),
     'move' : IDL.Func([MoveArguments], [], []),
     'propose_commit_batch' : IDL.Func([CommitBatchArguments], [], []),
+    'restoreStorageVersion' : IDL.Func([RestoreVersionArguments], [], []),
     'revokeStoragePermission' : IDL.Func([RevokePermissionArguments], [], []),
     'revoke_permission' : IDL.Func([RevokePermission], [], []),
     'saveThumbnail' : IDL.Func([SaveThumbnailArguments], [NodeDetails], []),

@@ -6,6 +6,7 @@ import Runtime "mo:core/Runtime";
 import Option "mo:core/Option";
 import Nat "mo:core/Nat";
 import Array "mo:core/Array";
+import CoreMap "mo:core/Map";
 
 import Map "mo:map/Map";
 import TID "mo:tid";
@@ -16,6 +17,7 @@ import T "../Types";
 import Utils "../Utils";
 import ErrorMessages "../ErrorMessages";
 import Path "../Path";
+import File "File";
 import Node "Node";
 import { findNodeByKeyId } "Common";
 
@@ -150,9 +152,9 @@ module FileSystem {
     };
   };
 
-  public func create(self : Store, owner : Principal, { entry; overwrite } : T.CreateArguments) : Result.Result<T.NodeStore, Text> {
+  public func create(self : Store, owner : Principal, { entry; overwrite; encryptionMode } : T.CreateArguments) : Result.Result<T.NodeStore, Text> {
     switch (findNodeByEntry(self, ?entry), overwrite) {
-      case (null, _) #ok(createPath(self, owner, entry));
+      case (null, _) #ok(createPath(self, owner, entry, encryptionMode));
       case (?node, true) #ok(node);
       case (?_, false) #err(ErrorMessages.entryAlreadyExists(entry));
     };
@@ -160,7 +162,7 @@ module FileSystem {
 
   // func commitBatch(self : Store, operations : [CommitBatchOperation]) {};
 
-  func createPath(self : Store, owner : Principal, (kind, path) : T.Entry) : T.NodeStore {
+  func createPath(self : Store, owner : Principal, (kind, path) : T.Entry, encryptionMode : ?T.EncryptionMode) : T.NodeStore {
     let dirnames = Path.normalize(path) |> Text.split(_, #char '/') |> Vector.fromIter<Text>(_);
     let filename : ?Text = if (kind == #File) Vector.removeLast(dirnames) else null;
 
@@ -169,28 +171,45 @@ module FileSystem {
     for (name in Vector.vals(dirnames)) {
       let node = switch (Map.get(self.nodes, hashNodes, (#Directory, parentId, name))) {
         case (?v) v;
-        case null switch (createNode(self, (#Directory, parentId, name), owner)) {
+        case null switch (createNode(self, (#Directory, parentId, name), owner, null)) {
           case (#ok v or #err(#AlreadyExists v)) v;
         };
       };
       parent := ?node;
       parentId := ?node.id;
     };
+
+    // Resolve encryption mode: explicit > inherit from parent directory > #Encrypted
+    let resolvedMode : ?T.EncryptionMode = switch (encryptionMode) {
+      case (?mode) ?mode;
+      case null switch (parent) {
+        case (?{ metadata = #Directory(dir) }) ?dir.defaultEncryptionMode;
+        case _ null;
+      };
+    };
+
     switch (parent, filename) {
-      case (_, ?name) switch (createNode(self, (#File, parentId, name), owner)) {
+      case (_, ?name) switch (createNode(self, (#File, parentId, name), owner, resolvedMode)) {
         case (#ok v or #err(#AlreadyExists v)) v;
       };
-      case (?node, null) node;
+      case (?node, null) {
+        // If creating a directory with explicit encryption mode, update it
+        switch (resolvedMode, node.metadata) {
+          case (?mode, #Directory(dir)) dir.defaultEncryptionMode := mode;
+          case _ {};
+        };
+        node;
+      };
       case _ Runtime.unreachable();
     };
   };
 
-  func createNode(self : Store, nodeKey : T.NodeKey, owner : Principal) : Result.Result<T.NodeStore, { #AlreadyExists : T.NodeStore }> {
+  func createNode(self : Store, nodeKey : T.NodeKey, owner : Principal, encryptionMode : ?T.EncryptionMode) : Result.Result<T.NodeStore, { #AlreadyExists : T.NodeStore }> {
     switch (Map.get(self.nodes, hashNodes, nodeKey)) {
       case (?v) #err(#AlreadyExists v);
       case null {
         let tid = StableTID.next(self.tid);
-        let node = Node.new(nodeKey, owner, tid);
+        let node = Node.new(nodeKey, owner, tid, encryptionMode);
         ignore Map.put(self.nodes, hashNodes, nodeKey, node);
         #ok node;
       };
@@ -336,6 +355,43 @@ module FileSystem {
       i += 1;
     };
     output;
+  };
+
+  public func listVersions(self : Store, entry : T.Entry) : Result.Result<[T.FileVersionDetails], Text> {
+    let ?node = findNodeByEntry(self, ?entry) else return #err(ErrorMessages.entryNotFound(entry));
+    switch (node.metadata) {
+      case (#File(file)) {
+        let result = CoreMap.foldLeft<Nat, T.FileVersion, [T.FileVersionDetails]>(
+          file.versions,
+          [],
+          func(acc, key, v) {
+            let detail : T.FileVersionDetails = {
+              index = key;
+              sha256 = v.sha256;
+              size = v.size;
+              contentType = v.contentType;
+              createdAt = v.createdAt;
+              storageBackend = File.storageBackendOf(v.contentRef);
+            };
+            Array.concat(acc, [detail]);
+          },
+        );
+        #ok(result);
+      };
+      case (#Directory _) #err(ErrorMessages.cannotVersionDirectory());
+    };
+  };
+
+  public func restoreVersion(self : Store, entry : T.Entry, version : Nat) : Result.Result<(), Text> {
+    let ?node = findNodeByEntry(self, ?entry) else return #err(ErrorMessages.entryNotFound(entry));
+    switch (node.metadata) {
+      case (#File(file)) {
+        if (not File.hasVersion(file, version)) return #err(ErrorMessages.versionOutOfBounds(version));
+        file.currentVersion := version;
+        #ok;
+      };
+      case (#Directory _) #err(ErrorMessages.cannotVersionDirectory());
+    };
   };
 
   public func setThumbnail(self : Store, args : T.SetThumbnailArguments) : Result.Result<T.NodeStore, Text> {

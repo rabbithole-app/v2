@@ -5,7 +5,11 @@ import type { IDL } from '@icp-sdk/core/candid';
 export type BatchId = bigint;
 export interface ChunkContent { 'content' : Uint8Array | number[] }
 export type ChunkId = bigint;
-export interface CreateArguments { 'entry' : Entry, 'overwrite' : boolean }
+export interface CreateArguments {
+  'entry' : Entry,
+  'overwrite' : boolean,
+  'encryptionMode' : [] | [EncryptionMode],
+}
 export interface CreateBatchResponse { 'batchId' : BatchId }
 export interface CreateChunkArguments {
   'content' : Uint8Array | number[],
@@ -20,7 +24,10 @@ export type DirectoryColor = { 'blue' : null } |
   { 'purple' : null } |
   { 'green' : null } |
   { 'yellow' : null };
-export interface DirectoryMetadata { 'color' : [] | [DirectoryColor] }
+export interface DirectoryMetadata {
+  'color' : [] | [DirectoryColor],
+  'defaultEncryptionMode' : EncryptionMode,
+}
 export interface EncryptedStorageCanister {
   'clear' : ActorMethod<[], undefined>,
   'create' : ActorMethod<[CreateArguments], NodeDetails>,
@@ -30,6 +37,11 @@ export interface EncryptedStorageCanister {
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'getChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
+  /**
+   * / Get canister module_hash via canister_status.
+   * / Only accessible by canister controllers.
+   */
+  'getModuleHash' : ActorMethod<[], [] | [Uint8Array | number[]]>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'grantPermission' : ActorMethod<[GrantPermissionArguments], undefined>,
   'hasPermission' : ActorMethod<[HasPermissionArguments], boolean>,
@@ -38,20 +50,43 @@ export interface EncryptedStorageCanister {
     [[] | [Entry]],
     Array<[Principal, PermissionExt]>
   >,
+  'listVersions' : ActorMethod<
+    [ListVersionsArguments],
+    Array<FileVersionDetails>
+  >,
   'move' : ActorMethod<[MoveArguments], undefined>,
+  'restoreVersion' : ActorMethod<[RestoreVersionArguments], undefined>,
   'revokePermission' : ActorMethod<[RevokePermissionArguments], undefined>,
   'setThumbnail' : ActorMethod<[SetThumbnailArguments], NodeDetails>,
   'showTree' : ActorMethod<[[] | [Entry]], string>,
   'update' : ActorMethod<[UpdateArguments], undefined>,
 }
+export type EncryptionMode = { 'Encrypted' : null } |
+  { 'Plaintext' : null };
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
+  'storageBackend' : StorageBackend,
   'sha256' : [] | [Uint8Array | number[]],
   'thumbnailKey' : [] | [string],
   'contentType' : string,
   'size' : bigint,
+  'currentVersion' : bigint,
+  'encryptionMode' : EncryptionMode,
+  'versionCount' : bigint,
 }
-export interface GetChunkArguments { 'chunkIndex' : bigint, 'entry' : Entry }
+export interface FileVersionDetails {
+  'storageBackend' : StorageBackend,
+  'sha256' : [] | [Uint8Array | number[]],
+  'contentType' : string,
+  'createdAt' : Time,
+  'size' : bigint,
+  'index' : bigint,
+}
+export interface GetChunkArguments {
+  'chunkIndex' : bigint,
+  'entry' : Entry,
+  'version' : [] | [bigint],
+}
 export interface GrantPermissionArguments {
   'permission' : Permission,
   'user' : Principal,
@@ -64,6 +99,7 @@ export interface HasPermissionArguments {
 }
 export type KeyId = [Owner, KeyName];
 export type KeyName = Uint8Array | number[];
+export interface ListVersionsArguments { 'entry' : Entry }
 export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
   'id' : bigint,
@@ -84,6 +120,7 @@ export type PermissionExt = { 'Read' : null } |
   { 'ReadWrite' : null } |
   { 'ReadWriteManage' : null } |
   { 'Controller' : null };
+export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export interface RevokePermissionArguments {
   'user' : Principal,
   'entry' : [] | [Entry],
@@ -92,6 +129,9 @@ export interface SetThumbnailArguments {
   'thumbnailKey' : [] | [string],
   'entry' : Entry,
 }
+export type StorageBackend = { 'External' : null } |
+  { 'BlobStorage' : null } |
+  { 'Inline' : null };
 export type Time = bigint;
 export type TransportKey = Uint8Array | number[];
 export interface TreeNode {

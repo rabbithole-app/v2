@@ -156,6 +156,20 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
+  public query ({ caller }) func listVersions(args : T.ListVersionsArguments) : async [T.FileVersionDetails] {
+    switch (EncryptedStorage.listVersions(storage, caller, args)) {
+      case (#ok items) items;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func restoreVersion(args : T.RestoreVersionArguments) : async () {
+    switch (EncryptedStorage.restoreVersion(storage, caller, args)) {
+      case (#ok _) {};
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
   /// Get canister module_hash via canister_status.
   /// Only accessible by canister controllers.
   public shared func getModuleHash() : async ?Blob {

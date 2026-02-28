@@ -55,7 +55,11 @@ export interface ConfigureArguments {
   'max_bytes' : [] | [[] | [bigint]],
   'max_chunks' : [] | [[] | [bigint]],
 }
-export interface CreateArguments { 'entry' : Entry, 'overwrite' : boolean }
+export interface CreateArguments {
+  'entry' : Entry,
+  'overwrite' : boolean,
+  'encryptionMode' : [] | [EncryptionMode],
+}
 export interface CreateAssetArguments {
   'key' : Key,
   'content_type' : string,
@@ -92,7 +96,10 @@ export type DirectoryColor = { 'blue' : null } |
   { 'purple' : null } |
   { 'green' : null } |
   { 'yellow' : null };
-export interface DirectoryMetadata { 'color' : [] | [DirectoryColor] }
+export interface DirectoryMetadata {
+  'color' : [] | [DirectoryColor],
+  'defaultEncryptionMode' : EncryptionMode,
+}
 export interface EncodedAsset {
   'content' : Uint8Array | number[],
   'sha256' : [] | [Uint8Array | number[]],
@@ -161,9 +168,14 @@ export interface EncryptedStorageCanister {
     Array<[Principal, PermissionExt]>
   >,
   'listStorage' : ActorMethod<[[] | [Entry]], Array<NodeDetails>>,
+  'listStorageVersions' : ActorMethod<
+    [ListVersionsArguments],
+    Array<FileVersionDetails>
+  >,
   'list_permitted' : ActorMethod<[ListPermitted], Array<Principal>>,
   'move' : ActorMethod<[MoveArguments], undefined>,
   'propose_commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
+  'restoreStorageVersion' : ActorMethod<[RestoreVersionArguments], undefined>,
   'revokeStoragePermission' : ActorMethod<
     [RevokePermissionArguments],
     undefined
@@ -193,12 +205,26 @@ export interface EncryptedStorageInitArgs {
   'vetKeyName' : string,
   'owner' : Principal,
 }
+export type EncryptionMode = { 'Encrypted' : null } |
+  { 'Plaintext' : null };
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
+  'storageBackend' : StorageBackend,
   'sha256' : [] | [Uint8Array | number[]],
   'thumbnailKey' : [] | [string],
   'contentType' : string,
   'size' : bigint,
+  'currentVersion' : bigint,
+  'encryptionMode' : EncryptionMode,
+  'versionCount' : bigint,
+}
+export interface FileVersionDetails {
+  'storageBackend' : StorageBackend,
+  'sha256' : [] | [Uint8Array | number[]],
+  'contentType' : string,
+  'createdAt' : Time,
+  'size' : bigint,
+  'index' : bigint,
 }
 export interface GetArgs { 'key' : Key, 'accept_encodings' : Array<string> }
 export interface GetChunkArgs {
@@ -207,7 +233,11 @@ export interface GetChunkArgs {
   'index' : bigint,
   'content_encoding' : string,
 }
-export interface GetChunkArguments { 'chunkIndex' : bigint, 'entry' : Entry }
+export interface GetChunkArguments {
+  'chunkIndex' : bigint,
+  'entry' : Entry,
+  'version' : [] | [bigint],
+}
 export interface GrantPermission {
   'permission' : Permission,
   'to_principal' : Principal,
@@ -227,6 +257,7 @@ export type Key = string;
 export type KeyId = [Owner, KeyName];
 export type KeyName = Uint8Array | number[];
 export interface ListPermitted { 'permission' : Permission }
+export interface ListVersionsArguments { 'entry' : Entry }
 export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
   'id' : bigint,
@@ -276,6 +307,7 @@ export interface RawUpdateHttpResponse {
   'streaming_strategy' : [] | [StreamingStrategy],
   'status_code' : number,
 }
+export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export type Result = { 'ok' : string } |
   { 'err' : string };
 export interface RevokePermission {
@@ -303,6 +335,9 @@ export interface SetAssetPropertiesArguments {
   'allow_raw_access' : [] | [[] | [boolean]],
   'max_age' : [] | [[] | [bigint]],
 }
+export type StorageBackend = { 'External' : null } |
+  { 'BlobStorage' : null } |
+  { 'Inline' : null };
 export interface StoreArgs {
   'key' : Key,
   'content' : Uint8Array | number[],
