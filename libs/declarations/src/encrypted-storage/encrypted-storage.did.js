@@ -64,6 +64,10 @@ export const idlFactory = ({ IDL }) => {
     'max_bytes' : IDL.Opt(IDL.Opt(IDL.Nat64)),
     'max_chunks' : IDL.Opt(IDL.Opt(IDL.Nat64)),
   });
+  const CreateMode = IDL.Variant({
+    'GetOrCreate' : IDL.Null,
+    'CreateNew' : IDL.Null,
+  });
   const Entry = IDL.Tuple(
     IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
     IDL.Text,
@@ -73,8 +77,8 @@ export const idlFactory = ({ IDL }) => {
     'Plaintext' : IDL.Null,
   });
   const CreateArguments = IDL.Record({
+    'createMode' : CreateMode,
     'entry' : Entry,
-    'overwrite' : IDL.Bool,
     'encryptionMode' : IDL.Opt(EncryptionMode),
   });
   const Permission__1 = IDL.Variant({

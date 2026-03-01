@@ -152,11 +152,11 @@ module FileSystem {
     };
   };
 
-  public func create(self : Store, owner : Principal, { entry; overwrite; encryptionMode } : T.CreateArguments) : Result.Result<T.NodeStore, Text> {
-    switch (findNodeByEntry(self, ?entry), overwrite) {
+  public func create(self : Store, owner : Principal, { entry; createMode; encryptionMode } : T.CreateArguments) : Result.Result<T.NodeStore, Text> {
+    switch (findNodeByEntry(self, ?entry), createMode) {
       case (null, _) #ok(createPath(self, owner, entry, encryptionMode));
-      case (?node, true) #ok(node);
-      case (?_, false) #err(ErrorMessages.entryAlreadyExists(entry));
+      case (?node, #GetOrCreate) #ok(node);
+      case (?_, #CreateNew) #err(ErrorMessages.entryAlreadyExists(entry));
     };
   };
 
@@ -202,6 +202,12 @@ module FileSystem {
       };
       case _ Runtime.unreachable();
     };
+  };
+
+  /// Removes a node from the FS nodes map by its NodeKey.
+  /// Used to clean up staged placeholder nodes.
+  public func removeNodeByKey(self : Store, nodeKey : T.NodeKey) : ?T.NodeStore {
+    Map.remove(self.nodes, hashNodes, nodeKey);
   };
 
   func createNode(self : Store, nodeKey : T.NodeKey, owner : Principal, encryptionMode : ?T.EncryptionMode) : Result.Result<T.NodeStore, { #AlreadyExists : T.NodeStore }> {

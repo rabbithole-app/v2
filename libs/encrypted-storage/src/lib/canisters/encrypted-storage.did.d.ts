@@ -56,10 +56,12 @@ export interface ConfigureArguments {
   'max_chunks' : [] | [[] | [bigint]],
 }
 export interface CreateArguments {
+  'createMode' : CreateMode,
   'entry' : Entry,
-  'overwrite' : boolean,
   'encryptionMode' : [] | [EncryptionMode],
 }
+export type CreateMode = { 'GetOrCreate' : null } |
+  { 'CreateNew' : null };
 export interface CreateAssetArguments {
   'key' : Key,
   'content_type' : string,

@@ -9,6 +9,7 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Nat8 "mo:core/Nat8";
+import Time "mo:core/Time";
 
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 import Map "mo:map/Map";
@@ -62,6 +63,7 @@ module EncryptedFileStorage {
       region;
       fs;
       upload;
+      staging = Map.new();
       certs = Option.get(certs, CertifiedAssets.init_stable_store());
       vetKdKeyId;
       domainSeparatorBytes = Text.encodeUtf8(domainSeparator);
@@ -167,17 +169,21 @@ module EncryptedFileStorage {
     self.streamingCallback := ?callback;
   };
 
-  /// Creates a file or directory using the specified path, if the path does not exist, it also creates all parent directories.
+  /// Creates a file or directory at the specified path, creating all parent directories as needed.
+  ///
+  /// New files are placed in a staging area and hidden from `list()` until content is
+  /// committed via `update()`. This prevents incomplete uploads from appearing in the UI.
+  ///
+  /// Use `#CreateNew` to create a new entry (fails if it already exists).
+  /// Use `#GetOrCreate` to return an existing entry or create a new one.
   ///
   /// Example:
   /// ```motoko
-  /// let result = EncryptedStorage.create(storage, caller, { entry = #File("dir/subdir/file.jpg") });
-  /// switch (result) {
-  ///   case (#ok node) {
-  ///     // the `node` variable is of type T.NodeStore and contains information about the created node `file.jpg `
-  ///   };
-  ///   case (#err message) return #err message;
-  /// };
+  /// let result = EncryptedStorage.create(storage, caller, {
+  ///   entry = (#File, "dir/subdir/file.jpg");
+  ///   createMode = #CreateNew;
+  ///   encryptionMode = null;
+  /// });
   /// ```
   public func create(self : T.StableStore, caller : Principal, args : T.CreateArguments) : Result.Result<T.NodeDetails, Text> {
     switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
@@ -185,7 +191,106 @@ module EncryptedFileStorage {
       case (#err message) return #err message;
     };
 
-    FileSystem.create(self.fs, caller, args) |> Result.mapOk<T.NodeStore, T.NodeDetails, Text>(_, Node.getDetails);
+    let { entry; createMode } = args;
+    let (kind, _) = entry;
+
+    // Check if file is currently in staging (incomplete upload)
+    let nodeKey = entryToNodeKey(self.fs, entry);
+    let inStaging = switch (nodeKey) {
+      case (?nk) Map.has(self.staging, Utils.hashNodes, nk);
+      case null false;
+    };
+
+    let result = switch (inStaging, FileSystem.get(self.fs, #entry(entry)), createMode, kind) {
+      // File in staging with GetOrCreate → return existing node (retry upload)
+      case (true, ?node, #GetOrCreate, #File) #ok(node);
+      // File in staging with CreateNew → error (upload already in progress)
+      case (true, _, #CreateNew, #File) #err(ErrorMessages.entryAlreadyExists(entry));
+      // Normal flow: delegate to FileSystem
+      case _ FileSystem.create(self.fs, caller, args);
+    };
+
+    switch (result) {
+      case (#ok(node)) {
+        // Mark new files in staging (not GetOrCreate on existing committed files)
+        let isNewFile = kind == #File and not inStaging and createMode == #CreateNew;
+        if (isNewFile) {
+          let nk : T.NodeKey = (#File, node.parentId, node.name);
+          ignore Map.put(self.staging, Utils.hashNodes, nk, {
+            node;
+            var batchId : ?T.BatchId = null;
+            createdAt = Time.now();
+          });
+        };
+        #ok(Node.getDetails(node));
+      };
+      case (#err msg) #err msg;
+    };
+  };
+
+  /// Converts an entry path to a `NodeKey` by resolving parent directories.
+  /// Returns `null` if parent directories don't exist or if the entry is a directory
+  /// (staging only applies to files).
+  func entryToNodeKey(fs : T.FileSystemStore, (kind, path) : T.Entry) : ?T.NodeKey {
+    let dirnames = Text.split(path, #char '/') |> Vector.fromIter<Text>(_);
+
+    // Remove empty segments
+    let cleaned = Vector.new<Text>();
+    for (seg in Vector.vals(dirnames)) {
+      if (seg != "") Vector.add(cleaned, seg);
+    };
+
+    let filename : ?Text = if (kind == #File) Vector.removeLast(cleaned) else null;
+
+    var parentId : ?Nat64 = null;
+    for (name in Vector.vals(cleaned)) {
+      let ?{ id } = Map.get(fs.nodes, Utils.hashNodes, (#Directory, parentId, name)) else return null;
+      parentId := ?id;
+    };
+
+    switch (filename) {
+      case (?fname) ?(#File, parentId, fname);
+      case null {
+        // Staging doesn't apply to directories, so we don't need to resolve directory keys
+        null;
+      };
+    };
+  };
+
+  /// Checks if a node is in staging (incomplete upload).
+  func isStaged(self : T.StableStore, node : T.NodeDetails) : Bool {
+    let nodeKey : T.NodeKey = switch (node.metadata) {
+      case (#File(_)) (#File, node.parentId, node.name);
+      case (#Directory(_)) return false;
+    };
+    Map.has(self.staging, Utils.hashNodes, nodeKey);
+  };
+
+  /// Removes staging entries whose associated batch has expired/been removed,
+  /// or entries without a batchId that have exceeded the expiry duration.
+  /// Also removes the corresponding file nodes from the main FS.
+  func cleanupExpiredStaging(self : T.StableStore) {
+    let now = Time.now();
+    let keysToRemove = Vector.new<T.NodeKey>();
+
+    for ((nodeKey, staging) in Map.entries(self.staging)) {
+      let shouldRemove = switch (staging.batchId) {
+        // Batch was assigned — check if it still exists
+        case (?batchId) switch (Upload.getBatch(self.upload, batchId)) {
+          case null true;
+          case _ false;
+        };
+        // No batch assigned — check timeout
+        case null (now - staging.createdAt) > Const.BATCH_EXPIRY_DURATION;
+      };
+      if (shouldRemove) Vector.add(keysToRemove, nodeKey);
+    };
+
+    for (key in Vector.vals(keysToRemove)) {
+      ignore Map.remove(self.staging, Utils.hashNodes, key);
+      // Remove the placeholder file node from FS
+      ignore FileSystem.removeNodeByKey(self.fs, key);
+    };
   };
 
   public func listVersions(self : T.StableStore, caller : Principal, args : T.ListVersionsArguments) : Result.Result<[T.FileVersionDetails], Text> {
@@ -218,7 +323,11 @@ module EncryptedFileStorage {
       case (#ok _) {};
       case (#err message) return #err message;
     };
+
     let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
+
+    // Check if node is in staging (incomplete upload)
+    let nodeKey = entryToNodeKey(self.fs, entry);
 
     switch (node, args) {
       case ({ keyId; metadata = #File(file) }, #File { metadata = { sha256; chunkIds; contentType } }) {
@@ -269,6 +378,13 @@ module EncryptedFileStorage {
 
         File.addVersion(self.fs, file, chunks.vals(), totalLength, hash, contentType);
         CertifiedAssets.certify(self.certs, endpoint(keyId, hash));
+
+        // Remove staging marker — file upload is now complete
+        switch (nodeKey) {
+          case (?nk) ignore Map.remove(self.staging, Utils.hashNodes, nk);
+          case null {};
+        };
+
         #ok;
       };
       case ({ metadata = #Directory(dir) }, #Directory { metadata }) {
@@ -379,7 +495,27 @@ module EncryptedFileStorage {
       case (#err message) return #err message;
     };
 
-    Upload.createBatch(self.upload);
+    // Cleanup expired staging entries
+    cleanupExpiredStaging(self);
+
+    let result = Upload.createBatch(self.upload);
+
+    // Bind staging entry to the newly created batch
+    switch (result) {
+      case (#ok { batchId }) {
+        let nodeKey = entryToNodeKey(self.fs, args.entry);
+        switch (nodeKey) {
+          case (?nk) switch (Map.get(self.staging, Utils.hashNodes, nk)) {
+            case (?staging) staging.batchId := ?batchId;
+            case null {};
+          };
+          case null {};
+        };
+      };
+      case _ {};
+    };
+
+    result;
   };
 
   /// Creates a chunk
@@ -441,6 +577,7 @@ module EncryptedFileStorage {
     };
 
     FileSystem.clear(self.fs);
+    Map.clear(self.staging);
     CertifiedAssets.clear(self.certs);
 
     #ok();
@@ -530,7 +667,9 @@ module EncryptedFileStorage {
       };
       case null null;
     };
-    let items = FileSystem.listByParentId(self.fs, parentId) |> Array.map(_, Node.getDetails);
+    let allItems = FileSystem.listByParentId(self.fs, parentId) |> Array.map(_, Node.getDetails);
+    // Filter out staged (incomplete upload) files
+    let items = Array.filter(allItems, func(node : T.NodeDetails) : Bool = not isStaged(self, node));
 
     if (not canRead) {
       return Array.filter(

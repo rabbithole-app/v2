@@ -38,6 +38,7 @@ module {
   public type ContentRef = V1.ContentRef;
   public type EncryptionMode = V1.EncryptionMode;
   public type FileVersion = V1.FileVersion;
+  public type StagingEntry = V1.StagingEntry;
 
   /* ----------------------- API types (not versioned) ----------------------- */
 
@@ -185,9 +186,14 @@ module {
     entry : Entry;
   };
 
+  public type CreateMode = {
+    #CreateNew;
+    #GetOrCreate;
+  };
+
   public type CreateArguments = {
     entry : Entry;
-    overwrite : Bool;
+    createMode : CreateMode;
     encryptionMode : ?EncryptionMode;
   };
 

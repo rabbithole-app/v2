@@ -86,6 +86,14 @@ module {
     metadata : NodeMetadataStore;
   };
 
+  /* -------------------------------- Staging -------------------------------- */
+
+  public type StagingEntry = {
+    node : NodeStore;
+    var batchId : ?BatchId;
+    createdAt : Time.Time;
+  };
+
   /* ------------------------------- FileSystem ------------------------------- */
 
   type FileSystemStoreBase = {
@@ -147,6 +155,7 @@ module {
     region : MemoryRegion.MemoryRegion;
     fs : FileSystemStore;
     upload : UploadStore;
+    staging : Map.Map<NodeKey, StagingEntry>;
     certs : CertifiedAssets.StableStore;
     vetKdKeyId : ManagementCanister.VetKdKeyid;
     domainSeparatorBytes : Blob;

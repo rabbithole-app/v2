@@ -1,5 +1,9 @@
 export const idlFactory = ({ IDL }) => {
   const TreeNode = IDL.Rec();
+  const CreateMode = IDL.Variant({
+    'GetOrCreate' : IDL.Null,
+    'CreateNew' : IDL.Null,
+  });
   const Entry = IDL.Tuple(
     IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
     IDL.Text,
@@ -9,8 +13,8 @@ export const idlFactory = ({ IDL }) => {
     'Plaintext' : IDL.Null,
   });
   const CreateArguments = IDL.Record({
+    'createMode' : CreateMode,
     'entry' : Entry,
-    'overwrite' : IDL.Bool,
     'encryptionMode' : IDL.Opt(EncryptionMode),
   });
   const Permission = IDL.Variant({

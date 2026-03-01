@@ -86,9 +86,15 @@ pub struct NodeDetails {
 // --- Request/response types ---
 
 #[derive(candid::CandidType)]
+enum CreateMode {
+    GetOrCreate,
+    CreateNew,
+}
+
+#[derive(candid::CandidType)]
 struct CreateArguments {
+    createMode: CreateMode,
     entry: Entry,
-    overwrite: bool,
 }
 
 #[derive(candid::CandidType)]
@@ -209,8 +215,8 @@ pub async fn upload(
     let create_response = agent
         .update(&canister_id, "create")
         .with_arg(Encode!(&CreateArguments {
+            createMode: CreateMode::GetOrCreate,
             entry: entry.clone(),
-            overwrite: true,
         })?)
         .call_and_wait()
         .await

@@ -56,8 +56,8 @@ export interface ConfigureArguments {
   'max_chunks' : [] | [[] | [bigint]],
 }
 export interface CreateArguments {
+  'createMode' : CreateMode,
   'entry' : Entry,
-  'overwrite' : boolean,
   'encryptionMode' : [] | [EncryptionMode],
 }
 export interface CreateAssetArguments {
@@ -86,6 +86,8 @@ export interface CreateChunksArguments {
   'batch_id' : BatchId,
 }
 export interface CreateChunksResponse { 'chunk_ids' : Array<ChunkId> }
+export type CreateMode = { 'GetOrCreate' : null } |
+  { 'CreateNew' : null };
 export interface DeleteArguments { 'recursive' : boolean, 'entry' : Entry }
 export interface DeleteAssetArguments { 'key' : Key }
 export interface DeleteBatchArguments { 'batch_id' : BatchId }

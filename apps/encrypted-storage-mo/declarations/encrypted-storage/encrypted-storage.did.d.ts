@@ -6,8 +6,8 @@ export type BatchId = bigint;
 export interface ChunkContent { 'content' : Uint8Array | number[] }
 export type ChunkId = bigint;
 export interface CreateArguments {
+  'createMode' : CreateMode,
   'entry' : Entry,
-  'overwrite' : boolean,
   'encryptionMode' : [] | [EncryptionMode],
 }
 export interface CreateBatchResponse { 'batchId' : BatchId }
@@ -16,6 +16,8 @@ export interface CreateChunkArguments {
   'batchId' : BatchId,
 }
 export interface CreateChunkResponse { 'chunkId' : bigint }
+export type CreateMode = { 'GetOrCreate' : null } |
+  { 'CreateNew' : null };
 export interface DeleteArguments { 'recursive' : boolean, 'entry' : Entry }
 export type DirectoryColor = { 'blue' : null } |
   { 'gray' : null } |

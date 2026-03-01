@@ -72,9 +72,13 @@ export const idlFactory = ({ IDL }) => {
     'Encrypted' : IDL.Null,
     'Plaintext' : IDL.Null,
   });
+  const CreateMode = IDL.Variant({
+    'GetOrCreate' : IDL.Null,
+    'CreateNew' : IDL.Null,
+  });
   const CreateArguments = IDL.Record({
+    'createMode' : CreateMode,
     'entry' : Entry,
-    'overwrite' : IDL.Bool,
     'encryptionMode' : IDL.Opt(EncryptionMode),
   });
   const Permission__1 = IDL.Variant({

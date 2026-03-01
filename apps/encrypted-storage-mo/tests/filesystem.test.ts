@@ -38,6 +38,8 @@ const READ_WRITE = { ReadWrite: null };
 const READ_WRITE_MANAGE = { ReadWriteManage: null };
 const DIRECTORY = { Directory: null };
 const FILE = { File: null };
+const CREATE_NEW = { CreateNew: null };
+const GET_OR_CREATE = { GetOrCreate: null };
 
 async function createPic(): Promise<[PocketIc, CanisterFixture<_SERVICE>]> {
   // create a new PocketIC instance
@@ -122,7 +124,7 @@ describe('FileSystem', () => {
     test('should create entries', async () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect(result).toMatchObject({
@@ -131,13 +133,13 @@ describe('FileSystem', () => {
       });
       const result2 = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/detective'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect(result2).toMatchObject({ id: 1938810470400000003n });
       const result3 = await actor.create({
         entry: [FILE, 'Documents/Photos/1.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect(result3).toMatchObject({ id: 1938810470400000005n });
@@ -146,14 +148,14 @@ describe('FileSystem', () => {
     test('should return err if entry exists', async () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       await expect(
         actor.create({
           entry: [DIRECTORY, 'Documents/Books/classic'],
-          overwrite: false,
+          createMode: CREATE_NEW,
           encryptionMode: [],
         }),
       ).rejects.toThrowError();
@@ -164,7 +166,7 @@ describe('FileSystem', () => {
     test('should throw NotEmpty error with recursive false', async () => {
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
@@ -193,13 +195,13 @@ describe('FileSystem', () => {
       // create entries
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       const result2 = await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect(result2).toMatchObject({ id: 1938810470400000004n });
@@ -224,42 +226,42 @@ describe('FileSystem', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [FILE, 'Photos/1.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/2.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/2.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/3.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/1.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/2.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/2.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/3.jpg'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
     });
@@ -375,17 +377,17 @@ describe('FileSystem', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.grantPermission({
@@ -655,7 +657,7 @@ describe('FileSystem', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.grantPermission({
@@ -709,12 +711,12 @@ describe('FileSystem', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-bob[r]'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-charlie[rwm]'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await actor.grantPermission({
@@ -791,17 +793,17 @@ describe('FileSystem', () => {
       beforeEach(async () => {
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]/photos'],
-          overwrite: false,
+          createMode: CREATE_NEW,
           encryptionMode: [],
         });
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]/documents'],
-          overwrite: false,
+          createMode: CREATE_NEW,
           encryptionMode: [],
         });
         await actor.create({
           entry: [FILE, 'Private/wallet.dat'],
-          overwrite: false,
+          createMode: CREATE_NEW,
           encryptionMode: [],
         });
         await actor.grantPermission({
@@ -907,7 +909,7 @@ describe('FileSystem', () => {
     test('should create plaintext file', async () => {
       const result = await actor.create({
         entry: [FILE, 'Public/readme.txt'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [{ Plaintext: null }],
       });
       expect('File' in result.metadata).toBeTruthy();
@@ -919,7 +921,7 @@ describe('FileSystem', () => {
     test('should create encrypted file (default)', async () => {
       const result = await actor.create({
         entry: [FILE, 'Private/secret.dat'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       expect('File' in result.metadata).toBeTruthy();
@@ -931,12 +933,12 @@ describe('FileSystem', () => {
     test('should inherit directory defaultEncryptionMode', async () => {
       await actor.create({
         entry: [DIRECTORY, 'PublicDir'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [{ Plaintext: null }],
       });
       const file = await actor.create({
         entry: [FILE, 'PublicDir/file.txt'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       if ('File' in file.metadata) {
@@ -945,11 +947,162 @@ describe('FileSystem', () => {
     });
   });
 
+  describe('staging area', () => {
+    test('new file should not appear in list() until update()', async () => {
+      // Create a new file — goes to staging
+      await actor.create({
+        entry: [FILE, 'Uploads/photo.jpg'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      // File should NOT be visible in list
+      const items = await actor.list([[DIRECTORY, 'Uploads']]);
+      const fileNames = items.map((item) => item.name);
+      expect(fileNames).not.toContain('photo.jpg');
+    });
+
+    test('file becomes visible in list() after full upload flow', async () => {
+      // Create file
+      await actor.create({
+        entry: [FILE, 'Uploads/doc.txt'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      // Create batch
+      const { batchId } = await actor.createBatch({
+        entry: [FILE, 'Uploads/doc.txt'],
+        createMode: GET_OR_CREATE,
+        encryptionMode: [],
+      });
+
+      // Upload chunk
+      const content = new TextEncoder().encode('Hello, World!');
+      const { chunkId } = await actor.createChunk({
+        batchId,
+        content,
+      });
+
+      // Compute SHA-256
+      const hashBuffer = await crypto.subtle.digest('SHA-256', content);
+      const sha256 = new Uint8Array(hashBuffer);
+
+      // Commit via update
+      await actor.update({
+        File: {
+          path: 'Uploads/doc.txt',
+          metadata: {
+            sha256: [sha256],
+            chunkIds: [chunkId],
+            contentType: 'text/plain',
+          },
+        },
+      });
+
+      // File should now be visible in list
+      const items = await actor.list([[DIRECTORY, 'Uploads']]);
+      const fileNames = items.map((item) => item.name);
+      expect(fileNames).toContain('doc.txt');
+    });
+
+    test('directories created by staged file should be visible', async () => {
+      // Create file in nested dirs
+      await actor.create({
+        entry: [FILE, 'Deep/Nested/Dir/file.txt'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      // Parent directories should be visible
+      const rootItems = await actor.list([]);
+      expect(rootItems.map((i) => i.name)).toContain('Deep');
+
+      const deepItems = await actor.list([[DIRECTORY, 'Deep']]);
+      expect(deepItems.map((i) => i.name)).toContain('Nested');
+    });
+
+    test('GetOrCreate on staged file should succeed (retry upload)', async () => {
+      // Create file — goes to staging
+      await actor.create({
+        entry: [FILE, 'Staging/retry.bin'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      // GetOrCreate should work (retry upload)
+      const result = await actor.create({
+        entry: [FILE, 'Staging/retry.bin'],
+        createMode: GET_OR_CREATE,
+        encryptionMode: [],
+      });
+      expect(result.name).toBe('retry.bin');
+    });
+
+    test('CreateNew on staged file should throw', async () => {
+      await actor.create({
+        entry: [FILE, 'Staging/dup.bin'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      await expect(
+        actor.create({
+          entry: [FILE, 'Staging/dup.bin'],
+          createMode: CREATE_NEW,
+          encryptionMode: [],
+        }),
+      ).rejects.toThrowError();
+    });
+
+    test('GetOrCreate on committed file should not go to staging', async () => {
+      // Create and commit a file first
+      await actor.create({
+        entry: [FILE, 'Committed/data.bin'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      const { batchId } = await actor.createBatch({
+        entry: [FILE, 'Committed/data.bin'],
+        createMode: GET_OR_CREATE,
+        encryptionMode: [],
+      });
+      const content = new Uint8Array([1, 2, 3]);
+      const { chunkId } = await actor.createChunk({ batchId, content });
+      const hashBuffer = await crypto.subtle.digest('SHA-256', content);
+      await actor.update({
+        File: {
+          path: 'Committed/data.bin',
+          metadata: {
+            sha256: [new Uint8Array(hashBuffer)],
+            chunkIds: [chunkId],
+            contentType: 'application/octet-stream',
+          },
+        },
+      });
+
+      // File should be visible (committed)
+      let items = await actor.list([[DIRECTORY, 'Committed']]);
+      expect(items.map((i) => i.name)).toContain('data.bin');
+
+      // Now GetOrCreate for new version
+      await actor.create({
+        entry: [FILE, 'Committed/data.bin'],
+        createMode: GET_OR_CREATE,
+        encryptionMode: [],
+      });
+
+      // File should STILL be visible (GetOrCreate doesn't re-stage)
+      items = await actor.list([[DIRECTORY, 'Committed']]);
+      expect(items.map((i) => i.name)).toContain('data.bin');
+    });
+  });
+
   describe('versioning', () => {
     test('listVersions on new file returns 0 versions', async () => {
       await actor.create({
         entry: [FILE, 'Docs/v.txt'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       const versions = await actor.listVersions({
@@ -961,11 +1114,11 @@ describe('FileSystem', () => {
     test('restoreVersion with invalid index should fail', async () => {
       await actor.create({
         entry: [FILE, 'Docs/v.txt'],
-        overwrite: false,
+        createMode: CREATE_NEW,
         encryptionMode: [],
       });
       await expect(
-        actor.restoreVersion({ entry: [FILE, 'Docs/v.txt'], version: 5 }),
+        actor.restoreVersion({ entry: [FILE, 'Docs/v.txt'], version: 5n }),
       ).rejects.toThrowError();
     });
   });
@@ -973,7 +1126,7 @@ describe('FileSystem', () => {
   test('should reinstall the canister', async () => {
     await actor.create({
       entry: [DIRECTORY, 'test/dir/sub'],
-      overwrite: false,
+      createMode: CREATE_NEW,
       encryptionMode: [],
     });
     const preReinstallTree = await actor.showTree([]);

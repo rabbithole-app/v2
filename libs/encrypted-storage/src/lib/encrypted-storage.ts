@@ -65,7 +65,7 @@ export class EncryptedStorage {
       : [];
     return await this.#actor.create({
       entry,
-      overwrite: false,
+      createMode: { CreateNew: null },
       encryptionMode,
     } as Parameters<_SERVICE['create']>[0]);
   }
@@ -319,7 +319,7 @@ export class EncryptedStorage {
       () =>
         this.#actor.create({
           entry,
-          overwrite: true,
+          createMode: { GetOrCreate: null },
           encryptionMode,
         } as Parameters<_SERVICE['create']>[0]),
       config.signal,
