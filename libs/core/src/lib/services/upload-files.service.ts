@@ -1,5 +1,4 @@
-import { computed, effect, inject, Injectable, resource } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { computed, inject, Injectable, resource } from '@angular/core';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { isDeepEqual, isNonNullish } from 'remeda';
 
@@ -11,11 +10,23 @@ import {
 
 import { MAX_THUMBNAIL_HEIGHT, MAX_THUMBNAIL_WIDTH } from '../constants';
 import { injectCoreWorker, injectEncryptedStorage } from '../injectors';
-import { messageByAction } from '../operators';
 import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
-import { IUploadService, UploadFile, UploadId, UploadState } from '../types';
+import {
+  IUploadService,
+  UploadFile,
+  UploadId,
+  UploadServiceState,
+  UploadState,
+} from '../types';
 import { isPhotonSupportedMimeType } from '../utils';
-import { UploadBaseService } from './upload-base.service';
+import { UploadRegistryService } from './upload-registry.service';
+
+const EMPTY_STATE: UploadServiceState = {
+  overallProgress: 0,
+  isProcessing: false,
+  files: [],
+  completedCount: 0,
+};
 
 @Injectable()
 export class UploadFilesService implements IUploadService {
@@ -41,20 +52,12 @@ export class UploadFilesService implements IUploadService {
     },
     defaultValue: '',
   });
-  #uploadBaseService = inject(UploadBaseService, { self: true });
-  state = this.#uploadBaseService.state;
+  #canisterIdText = computed(() => this.canisterId.toText());
+  #registry = inject(UploadRegistryService);
+  state = computed<UploadServiceState>(
+    () => this.#registry.getStorageState(this.#canisterIdText()) ?? EMPTY_STATE,
+  );
   #coreWorkerService = injectCoreWorker();
-
-  constructor() {
-    this.#coreWorkerService.workerMessage$
-      .pipe(messageByAction('upload:progress-file'), takeUntilDestroyed())
-      .subscribe(({ payload }) => {
-        this.#uploadBaseService.update(payload);
-      });
-
-    effect(() => console.log(this.listPermitted.value()));
-    effect(() => console.log(this.showTree.value()));
-  }
 
   async add(item: {
     encryptionMode?: 'Encrypted' | 'Plaintext';
@@ -62,8 +65,8 @@ export class UploadFilesService implements IUploadService {
     path?: string;
   }) {
     const id = crypto.randomUUID();
-    // Add file to state with initial parameters
-    this.#uploadBaseService.add({
+    // Add file to registry with initial parameters
+    this.#registry.addUpload(this.#canisterIdText(), {
       ...item,
       id,
       status: UploadState.NOT_STARTED,
@@ -72,7 +75,7 @@ export class UploadFilesService implements IUploadService {
     const arrayBuffer = await item.file.arrayBuffer();
     const payload: UploadFile = {
       id,
-      storageId: this.canisterId.toText(),
+      storageId: this.#canisterIdText(),
       bytes: arrayBuffer,
       config: {
         fileName: item.file.name,
@@ -115,7 +118,7 @@ export class UploadFilesService implements IUploadService {
   }
 
   clear() {
-    this.#uploadBaseService.clear();
+    this.#registry.clearStorage(this.#canisterIdText());
   }
 
   reloadPermissions() {
@@ -123,7 +126,7 @@ export class UploadFilesService implements IUploadService {
   }
 
   remove(id: UploadId) {
-    this.#uploadBaseService.remove(id);
+    this.#registry.removeUpload(id);
   }
 
   retry(id: UploadId) {
@@ -139,6 +142,5 @@ export const [injectUploadFilesService, provideUploadFilesService] =
     isRoot: false,
     extraProviders: [
       { provide: UPLOAD_SERVICE_TOKEN, useClass: UploadFilesService },
-      UploadBaseService,
     ],
   });

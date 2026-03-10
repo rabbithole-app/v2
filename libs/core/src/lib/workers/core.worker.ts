@@ -2,6 +2,7 @@
 
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import { AnonymousIdentity, HttpAgent, uint8ToBuf } from '@icp-sdk/core/agent';
+import { Principal } from '@icp-sdk/core/principal';
 import photonInit, { crop, PhotonImage, resize } from '@silvia-odwyer/photon';
 import { type } from 'arktype';
 import { isNonNull } from 'remeda';
@@ -13,6 +14,7 @@ import {
     of,
     ReplaySubject,
     Subject,
+    Subscriber,
     Subscription,
 } from 'rxjs';
 import {
@@ -26,6 +28,7 @@ import {
     scan,
     shareReplay,
     switchMap,
+    take,
     withLatestFrom,
 } from 'rxjs/operators';
 import { match, P } from 'ts-pattern';
@@ -35,6 +38,7 @@ import {
     EncryptedStorage,
     Entry,
 } from '@rabbithole/encrypted-storage';
+import { Zip, ZipPassThrough } from 'fflate';
 
 import {
     MAX_AVATAR_HEIGHT,
@@ -44,8 +48,15 @@ import {
 } from '../constants/images';
 import { customRepeatWhen } from '../operators';
 import {
+    ArchiveDownloadProgress,
+    ArchiveDownloadRequest,
+    archiveDownloadRequestSchema,
     CoreWorkerMessageIn,
     CoreWorkerMessageOut,
+    downloadCancelSchema,
+    DownloadProgress,
+    DownloadRequest,
+    downloadRequestSchema,
     fileIdSchema,
     ImageCropPayload,
     imageCropSchema,
@@ -67,8 +78,8 @@ import {
     parseCanisterRejectError,
 } from '../utils';
 
-const postMessage = (message: CoreWorkerMessageOut) =>
-  self.postMessage(message);
+const postMessage = (message: CoreWorkerMessageOut, transfer?: Transferable[]) =>
+  transfer ? self.postMessage(message, transfer) : self.postMessage(message);
 
 // Initialize WASM module - required for worker context
 let wasmInitialized = false;
@@ -97,6 +108,33 @@ async function ensureWasmInitialized(): Promise<void> {
 
 addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
   switch (data.action) {
+    case 'download:archive': {
+      const request = archiveDownloadRequestSchema(data.payload);
+      if (request instanceof type.errors) {
+        console.error(request.summary);
+      } else {
+        archiveDownloads.next(request);
+      }
+      break;
+    }
+    case 'download:cancel': {
+      const payload = downloadCancelSchema(data.payload);
+      if (payload instanceof type.errors) {
+        console.error(payload.summary);
+      } else {
+        cancelDownload.next(payload.id);
+      }
+      break;
+    }
+    case 'download:start': {
+      const request = downloadRequestSchema(data.payload);
+      if (request instanceof type.errors) {
+        console.error(request.summary);
+      } else {
+        downloadFiles.next(request);
+      }
+      break;
+    }
     case 'image:crop': {
       const imageCropData = imageCropSchema(data.payload);
       if (imageCropData instanceof type.errors) {
@@ -223,7 +261,7 @@ const identity$ = defer(() => loadIdentity()).pipe(
   catchError(() => of(new AnonymousIdentity())),
   shareReplay(1),
 );
-const workerConfig = new Subject<WorkerConfig>();
+const workerConfig = new ReplaySubject<WorkerConfig>(1);
 const agent$ = identity$.pipe(
   combineLatestWith(workerConfig.asObservable()),
   switchMap(([identity, { httpAgentOptions }]) =>
@@ -231,7 +269,7 @@ const agent$ = identity$.pipe(
   ),
   shareReplay(1),
 );
-const encryptedStorage = new Subject<PrincipalString>();
+const encryptedStorage = new ReplaySubject<PrincipalString>(1);
 const encryptedStorageInstances$ = encryptedStorage.asObservable().pipe(
   combineLatestWith(agent$),
   scan((acc, [canisterId, agent]) => {
@@ -254,6 +292,9 @@ const uploadAssets = new Subject<UploadAsset>();
 const uploadFiles = new Subject<UploadFile>();
 const cancelUpload = new Subject<UploadId>();
 const retryUpload = new Subject<UploadId>();
+const downloadFiles = new Subject<DownloadRequest>();
+const archiveDownloads = new Subject<ArchiveDownloadRequest>();
+const cancelDownload = new Subject<string>();
 const imageCrop = new Subject<ImageCropPayload>();
 
 function getEncryptedStorageInstance(
@@ -272,77 +313,16 @@ function getEncryptedStorageInstance(
   return instance;
 }
 
-uploadAssets
-  .asObservable()
-  .pipe(
-    customRepeatWhen((item) =>
-      retryUpload.asObservable().pipe(filter((id) => item.id === id)),
-    ),
-    withLatestFrom(encryptedStorageInstances$),
-    mergeMap(([{ id, storageId, bytes, config }, instancesMap]) => {
-      const { assetManager } = getEncryptedStorageInstance(
-        instancesMap,
-        storageId,
-      );
-      return new Observable<UploadStatus>((subscriber) => {
-        const controller = new AbortController();
-        const cancelSub = cancelUpload
-          .asObservable()
-          .pipe(filter((_id) => id === _id))
-          .subscribe(() => {
-            controller.abort();
-          });
-        const uploadSub = from(
-          assetManager.store([
-            bytes,
-            {
-              ...config,
-              signal: controller.signal,
-              onProgress: (progress) => {
-                subscriber.next({
-                  id,
-                  ...progress,
-                });
-              },
-            },
-          ]),
-        )
-          .pipe(
-            map(() => <UploadStatus>{ id, status: UploadState.COMPLETED }),
-            catchError((err) =>
-              of<UploadStatus>({
-                id,
-                status: UploadState.FAILED,
-                errorMessage: parseCanisterRejectError(err) ?? 'Unknown error',
-              }),
-            ),
-          )
-          .subscribe({
-            next: (value) => subscriber.next(value),
-            complete: () => subscriber.complete(),
-          });
-
-        return () => {
-          cancelSub.unsubscribe();
-          uploadSub.unsubscribe();
-        };
-      });
-    }),
-  )
-  .subscribe((payload) => {
-    postMessage({ action: 'upload:progress-asset', payload });
-  });
-
-uploadFiles
-  .asObservable()
-  .pipe(
-    customRepeatWhen((item) =>
-      retryUpload.asObservable().pipe(filter((id) => item.id === id)),
-    ),
-    withLatestFrom(encryptedStorageInstances$),
-    mergeMap(
-      ([{ id, storageId, bytes, config, offscreenCanvas }, instancesMap]) => {
-        const { encryptedStorage } = getEncryptedStorageInstance(
+workerConfig.pipe(
+  take(1),
+  switchMap((wc) =>
+    uploadAssets.asObservable().pipe(
+      customRepeatWhen((item) =>
+        retryUpload.asObservable().pipe(filter((id) => item.id === id)),
+      ),
+      withLatestFrom(encryptedStorageInstances$),
+      mergeMap(([{ id, storageId, bytes, config }, instancesMap]) => {
+        const { assetManager } = getEncryptedStorageInstance(
           instancesMap,
           storageId,
         );
@@ -354,63 +334,13 @@ uploadFiles
             .subscribe(() => {
               controller.abort();
             });
-          // Generate thumbnail for image files (non-blocking for upload progress)
-          const created = new ReplaySubject<boolean>();
-          let thumbnailSub: Subscription | undefined;
-          if (
-            isPhotonSupportedMimeType(config.contentType) &&
-            offscreenCanvas
-          ) {
-            const entry: Entry = [
-              'File',
-              [config.path ?? '', config.fileName].join('/'),
-            ];
-            const imageThumbnailArgs = {
-              bytes,
-              imageType: config.contentType as string,
-              offscreenCanvas,
-            };
-            thumbnailSub = from(processImageThumbnail(imageThumbnailArgs))
-              .pipe(
-                audit(() => created.asObservable().pipe(filter((v) => v))),
-                switchMap((blob) =>
-                  encryptedStorage.saveThumbnail(entry, blob),
-                ),
-                catchError(() => EMPTY),
-              )
-              .subscribe((value) => {
-                const thumbnailKey = match(value)
-                  .with(
-                    {
-                      metadata: {
-                        File: { thumbnailKey: [P.optional(P.string.select())] },
-                      },
-                    },
-                    (v) => v,
-                  )
-                  .otherwise(() => undefined);
-                postMessage({
-                  action: 'upload:thumbnail',
-                  payload: { id, thumbnailKey },
-                });
-              });
-          }
-
           const uploadSub = from(
-            encryptedStorage.store([
+            assetManager.store([
               bytes,
               {
                 ...config,
                 signal: controller.signal,
                 onProgress: (progress) => {
-                  if (
-                    [
-                      UploadState.IN_PROGRESS,
-                      UploadState.REQUESTING_VETKD,
-                    ].includes(progress.status)
-                  ) {
-                    created.next(true);
-                  }
                   subscriber.next({
                     id,
                     ...progress,
@@ -425,8 +355,7 @@ uploadFiles
                 of<UploadStatus>({
                   id,
                   status: UploadState.FAILED,
-                  errorMessage:
-                    parseCanisterRejectError(err) ?? 'Unknown error',
+                  errorMessage: parseCanisterRejectError(err) ?? 'Unknown error',
                 }),
               ),
             )
@@ -438,15 +367,332 @@ uploadFiles
           return () => {
             cancelSub.unsubscribe();
             uploadSub.unsubscribe();
-            thumbnailSub?.unsubscribe();
           };
         });
-      },
+      }, wc.concurrentUploads),
     ),
-  )
-  .subscribe((payload) => {
-    postMessage({ action: 'upload:progress-file', payload });
-  });
+  ),
+).subscribe((payload) => {
+  postMessage({ action: 'upload:progress-asset', payload });
+});
+
+workerConfig.pipe(
+  take(1),
+  switchMap((wc) =>
+    uploadFiles.asObservable().pipe(
+      customRepeatWhen((item) =>
+        retryUpload.asObservable().pipe(filter((id) => item.id === id)),
+      ),
+      withLatestFrom(encryptedStorageInstances$),
+      mergeMap(
+        ([{ id, storageId, bytes, config, offscreenCanvas }, instancesMap]) => {
+          const { encryptedStorage } = getEncryptedStorageInstance(
+            instancesMap,
+            storageId,
+          );
+          return new Observable<UploadStatus>((subscriber) => {
+            const controller = new AbortController();
+            const cancelSub = cancelUpload
+              .asObservable()
+              .pipe(filter((_id) => id === _id))
+              .subscribe(() => {
+                controller.abort();
+              });
+            // Generate thumbnail for image files (non-blocking for upload progress)
+            const created = new ReplaySubject<boolean>();
+            let thumbnailSub: Subscription | undefined;
+            if (
+              isPhotonSupportedMimeType(config.contentType) &&
+              offscreenCanvas
+            ) {
+              const entry: Entry = [
+                'File',
+                [config.path ?? '', config.fileName].join('/'),
+              ];
+              const imageThumbnailArgs = {
+                bytes,
+                imageType: config.contentType as string,
+                offscreenCanvas,
+              };
+              thumbnailSub = from(processImageThumbnail(imageThumbnailArgs))
+                .pipe(
+                  audit(() => created.asObservable().pipe(filter((v) => v))),
+                  switchMap((blob) =>
+                    encryptedStorage.saveThumbnail(entry, blob),
+                  ),
+                  catchError(() => EMPTY),
+                )
+                .subscribe((value) => {
+                  const thumbnailKey = match(value)
+                    .with(
+                      {
+                        metadata: {
+                          File: { thumbnailKey: [P.optional(P.string.select())] },
+                        },
+                      },
+                      (v) => v,
+                    )
+                    .otherwise(() => undefined);
+                  postMessage({
+                    action: 'upload:thumbnail',
+                    payload: { id, thumbnailKey },
+                  });
+                });
+            }
+
+            const uploadSub = from(
+              encryptedStorage.store([
+                bytes,
+                {
+                  ...config,
+                  signal: controller.signal,
+                  onProgress: (progress) => {
+                    if (
+                      [
+                        UploadState.IN_PROGRESS,
+                        UploadState.REQUESTING_VETKD,
+                      ].includes(progress.status)
+                    ) {
+                      created.next(true);
+                    }
+                    subscriber.next({
+                      id,
+                      ...progress,
+                    });
+                  },
+                },
+              ]),
+            )
+              .pipe(
+                map(() => <UploadStatus>{ id, status: UploadState.COMPLETED }),
+                catchError((err) =>
+                  of<UploadStatus>({
+                    id,
+                    status: UploadState.FAILED,
+                    errorMessage:
+                      parseCanisterRejectError(err) ?? 'Unknown error',
+                  }),
+                ),
+              )
+              .subscribe({
+                next: (value) => subscriber.next(value),
+                complete: () => subscriber.complete(),
+              });
+
+            return () => {
+              cancelSub.unsubscribe();
+              uploadSub.unsubscribe();
+              thumbnailSub?.unsubscribe();
+            };
+          });
+        },
+        wc.concurrentUploads,
+      ),
+    ),
+  ),
+).subscribe((payload) => {
+  postMessage({ action: 'upload:progress-file', payload });
+});
+
+// Download pipeline
+async function processDownload(
+  encryptedStorage: EncryptedStorage,
+  request: DownloadRequest,
+  controller: AbortController,
+  subscriber: Subscriber<CoreWorkerMessageOut>,
+) {
+  try {
+    const stream = encryptedStorage.downloadStream(request.entry, {
+      encrypted: request.encrypted,
+      totalChunks: request.totalChunks,
+      keyId: request.keyId
+        ? [Principal.fromText(request.keyId[0]), new Uint8Array(request.keyId[1])]
+        : undefined,
+      signal: controller.signal,
+      onProgress: (chunkIndex, totalChunks) => {
+        subscriber.next({
+          action: 'download:progress',
+          payload: { id: request.id, chunkIndex, totalChunks, status: 'downloading' } satisfies DownloadProgress,
+        });
+      },
+    });
+
+    let chunkIndex = 0;
+    for await (const chunk of stream) {
+      subscriber.next({
+        action: 'download:chunk',
+        payload: {
+          id: request.id,
+          chunk: chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength),
+          chunkIndex,
+          totalChunks: request.totalChunks,
+          fileName: request.fileName,
+          contentType: request.contentType ?? 'application/octet-stream',
+        },
+      });
+      chunkIndex++;
+    }
+
+    subscriber.next({
+      action: 'download:progress',
+      payload: { id: request.id, status: 'completed' },
+    });
+  } catch (err) {
+    subscriber.next({
+      action: 'download:progress',
+      payload: controller.signal.aborted
+        ? { id: request.id, status: 'canceled' }
+        : { id: request.id, status: 'failed', errorMessage: parseCanisterRejectError(err) ?? 'Unknown error' },
+    });
+  } finally {
+    subscriber.complete();
+  }
+}
+
+workerConfig.pipe(
+  take(1),
+  switchMap((wc) =>
+    downloadFiles.asObservable().pipe(
+      withLatestFrom(encryptedStorageInstances$),
+      mergeMap(
+        ([request, instancesMap]) => {
+          const { encryptedStorage } = getEncryptedStorageInstance(instancesMap, request.storageId);
+          return new Observable<CoreWorkerMessageOut>((subscriber) => {
+            const controller = new AbortController();
+            const cancelSub = cancelDownload
+              .asObservable()
+              .pipe(filter((id) => id === request.id))
+              .subscribe(() => controller.abort());
+
+            processDownload(encryptedStorage, request, controller, subscriber);
+
+            return () => {
+              cancelSub.unsubscribe();
+              controller.abort();
+            };
+          });
+        },
+        wc.concurrentDownloads,
+      ),
+    ),
+  ),
+).subscribe((message) => {
+  if (message.action === 'download:chunk') {
+    postMessage(message, [message.payload.chunk]);
+  } else {
+    postMessage(message);
+  }
+});
+
+// Archive download pipeline
+async function processArchiveDownload(
+  encryptedStorage: EncryptedStorage,
+  request: ArchiveDownloadRequest,
+  controller: AbortController,
+  subscriber: Subscriber<CoreWorkerMessageOut>,
+) {
+  try {
+    const zip = new Zip((err, data, _final) => {
+      if (err) {
+        subscriber.next({
+          action: 'download:archive-progress',
+          payload: { id: request.id, status: 'failed', errorMessage: err.message } satisfies ArchiveDownloadProgress,
+        });
+        return;
+      }
+      const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      subscriber.next({
+        action: 'download:archive-chunk',
+        payload: { id: request.id, chunk: buf },
+      });
+    });
+
+    for (let i = 0; i < request.files.length; i++) {
+      if (controller.signal.aborted) throw new Error('Canceled');
+      const file = request.files[i];
+
+      subscriber.next({
+        action: 'download:archive-progress',
+        payload: {
+          id: request.id,
+          status: 'downloading',
+          currentFileIndex: i,
+          totalFiles: request.files.length,
+          currentFileName: file.fileName,
+        } satisfies ArchiveDownloadProgress,
+      });
+
+      const entry = new ZipPassThrough(file.fileName);
+      zip.add(entry);
+
+      const stream = encryptedStorage.downloadStream(file.entry, {
+        encrypted: file.encrypted,
+        totalChunks: file.totalChunks,
+        keyId: file.keyId
+          ? [Principal.fromText(file.keyId[0]), new Uint8Array(file.keyId[1])]
+          : undefined,
+        signal: controller.signal,
+      });
+
+      let chunkIdx = 0;
+      for await (const chunk of stream) {
+        chunkIdx++;
+        entry.push(chunk, chunkIdx === file.totalChunks);
+      }
+    }
+
+    zip.end();
+
+    subscriber.next({
+      action: 'download:archive-progress',
+      payload: { id: request.id, status: 'completed' } satisfies ArchiveDownloadProgress,
+    });
+  } catch (err) {
+    subscriber.next({
+      action: 'download:archive-progress',
+      payload: controller.signal.aborted
+        ? { id: request.id, status: 'canceled' } satisfies ArchiveDownloadProgress
+        : { id: request.id, status: 'failed', errorMessage: parseCanisterRejectError(err) ?? 'Unknown error' } satisfies ArchiveDownloadProgress,
+    });
+  } finally {
+    subscriber.complete();
+  }
+}
+
+workerConfig.pipe(
+  take(1),
+  switchMap(() =>
+    archiveDownloads.asObservable().pipe(
+      withLatestFrom(encryptedStorageInstances$),
+      mergeMap(
+        ([request, instancesMap]) => {
+          const { encryptedStorage } = getEncryptedStorageInstance(instancesMap, request.storageId);
+          return new Observable<CoreWorkerMessageOut>((subscriber) => {
+            const controller = new AbortController();
+            const cancelSub = cancelDownload
+              .asObservable()
+              .pipe(filter((id) => id === request.id))
+              .subscribe(() => controller.abort());
+
+            processArchiveDownload(encryptedStorage, request, controller, subscriber);
+
+            return () => {
+              cancelSub.unsubscribe();
+              controller.abort();
+            };
+          });
+        },
+        1,
+      ),
+    ),
+  ),
+).subscribe((message) => {
+  if (message.action === 'download:archive-chunk') {
+    postMessage(message, [message.payload.chunk]);
+  } else {
+    postMessage(message);
+  }
+});
 
 imageCrop
   .asObservable()

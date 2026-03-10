@@ -8,6 +8,7 @@ import { assertWorker } from '../asserts';
 import { messageByAction } from '../operators';
 // Direct import to avoid circular dependency with services/index.ts
 // which exports services that import from injectors
+import { UploadRegistryService } from '../services/upload-registry.service';
 import { WorkerService } from '../services/worker.service';
 import { WORKER } from '../tokens';
 import {
@@ -27,6 +28,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
     const workerService = inject<
       WorkerService<CoreWorkerMessageIn, CoreWorkerMessageOut>
     >(WorkerService, { self: true });
+    const uploadRegistry = inject(UploadRegistryService);
     assertWorker(workerService.worker);
     effect(() => {
       if (authService.isAuthenticated()) {
@@ -45,8 +47,17 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
       .subscribe(() => {
         const payload: WorkerConfigIn = {
           httpAgentOptions,
+          concurrentUploads: 3,
+          concurrentDownloads: 2
         };
         workerService.postMessage({ action: 'worker:config', payload });
+      });
+
+    // Route upload progress to global registry (survives navigation)
+    workerService.workerMessage$
+      .pipe(messageByAction('upload:progress-file'), takeUntilDestroyed())
+      .subscribe(({ payload }) => {
+        uploadRegistry.updateUpload(payload);
       });
 
     return workerService as NonNullableProps<typeof workerService, 'worker'>;

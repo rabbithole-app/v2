@@ -55,7 +55,70 @@ export const uploadFileSchema = uploadSchema.and(
   }),
 );
 
+export const downloadRequestSchema = type({
+  id: uploadIdSchema,
+  storageId: principalSchema,
+  encrypted: 'boolean',
+  entry: type(["'Directory' | 'File'", 'string>=1']),
+  fileName: 'string>=1',
+  'contentType?': 'string',
+  totalChunks: 'number',
+  'keyId?': type(['string', type('number').array()]),
+});
+
+export const downloadCancelSchema = downloadRequestSchema.pick('id');
+
 export const fileIdSchema = uploadFileSchema.pick('id');
+
+export const downloadProgressSchema = fileIdSchema.and(
+  type({
+    status: "'downloading'",
+    chunkIndex: 'number',
+    totalChunks: 'number',
+  }).or({
+    status: "'failed'",
+    errorMessage: 'string',
+  }).or({
+    status: "'canceled' | 'completed' | 'decrypting' | 'queued'",
+  }),
+);
+
+export const downloadChunkSchema = downloadRequestSchema.pick('id', 'fileName', 'totalChunks').and({
+  chunk: 'ArrayBuffer',
+  chunkIndex: 'number',
+  contentType: 'string',
+});
+
+export const archiveDownloadRequestSchema = type({
+  id: 'string.uuid.v4',
+  storageId: principalSchema,
+  archiveName: 'string>=1',
+  files: type({
+    entry: type(["'File'", 'string>=1']),
+    encrypted: 'boolean',
+    fileName: 'string>=1',
+    'contentType?': 'string',
+    totalChunks: 'number',
+    fileSize: 'number',
+    'keyId?': type(['string', type('number').array()]),
+  }).array().atLeastLength(1),
+});
+
+export const archiveDownloadProgressSchema = type({
+  id: 'string.uuid.v4',
+}).and(
+  type({
+    status: "'downloading'",
+    currentFileIndex: 'number',
+    totalFiles: 'number',
+    currentFileName: 'string',
+  }).or({
+    status: "'failed'",
+    errorMessage: 'string',
+  }).or({
+    status: "'canceled' | 'completed'",
+  }),
+);
 
 const httpAgentOptionsSchema = type({
   'host?': 'string',
@@ -69,11 +132,16 @@ export const workerConfigSchema = type({
   httpAgentOptions: httpAgentOptionsSchema.and({
     'shouldFetchRootKey?': 'boolean',
   }),
+  'concurrentUploads?': 'number',
+  'concurrentDownloads?': 'number',
   // canisters: type.Record("'encryptedStorage'", principalSchema),
 });
 
 export type CoreWorkerActionsIn = Prettify<
   {
+    'download:archive': { payload: ArchiveDownloadRequest };
+    'download:cancel': { payload: Pick<DownloadRequest, 'id'> };
+    'download:start': { payload: DownloadRequest };
     'fs:load-list': unknown;
     'image:crop': { payload: ImageCropPayload };
     'upload:add-asset': { payload: UploadAsset };
@@ -88,6 +156,10 @@ export type CoreWorkerActionsIn = Prettify<
 
 export type CoreWorkerActionsOut = Prettify<
   {
+    'download:archive-chunk': { payload: { id: string; chunk: ArrayBuffer } };
+    'download:archive-progress': { payload: ArchiveDownloadProgress };
+    'download:chunk': { payload: DownloadChunk };
+    'download:progress': { payload: DownloadProgress };
     'fs:list': { payload: unknown };
     'image:crop-done': {
       payload: { bytes: ArrayBuffer; id: string; imageType: string };
@@ -104,6 +176,16 @@ export type CoreWorkerMessageIn = Message<CoreWorkerActionsIn>;
 export type CoreWorkerMessageOut = Message<CoreWorkerActionsOut>;
 
 export type CoreWorkerMessages = CoreWorkerMessageIn | CoreWorkerMessageOut;
+
+export type ArchiveDownloadProgress = typeof archiveDownloadProgressSchema.infer;
+
+export type ArchiveDownloadRequest = typeof archiveDownloadRequestSchema.infer;
+
+export type DownloadChunk = typeof downloadChunkSchema.infer;
+
+export type DownloadProgress = typeof downloadProgressSchema.infer;
+
+export type DownloadRequest = typeof downloadRequestSchema.infer;
 
 export type EventName<
   Namespace extends string,

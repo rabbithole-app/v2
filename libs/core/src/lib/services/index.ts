@@ -1,5 +1,6 @@
 export * from './core.service';
 export * from './cycles-minting-canister.service';
+export * from './download.service';
 export * from './file-system-access.service';
 export * from './icp-ledger.service';
 export * from './permissions.service';
@@ -7,4 +8,5 @@ export * from './profile.service';
 export * from './upload-assets.service';
 export * from './upload-base.service';
 export * from './upload-files.service';
+export * from './upload-registry.service';
 export * from './worker.service';
