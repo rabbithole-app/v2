@@ -10,7 +10,10 @@ import {
 } from '@ng-icons/lucide';
 import { map } from 'rxjs/operators';
 
-import { NavigationComponent, NavItem } from '@rabbithole/core';
+import {
+  NavigationComponent,
+  NavItem,
+} from '@rabbithole/core';
 import {
   HlmSidebarGroup,
   HlmSidebarGroupContent,
@@ -19,11 +22,12 @@ import {
 
 @Component({
   selector: 'app-storage-navigation',
-  template: `<div hlmSidebarGroupLabel>Navigation</div>
+  template: `<div hlmSidebarGroupLabel>
+      Navigation
+    </div>
     <div hlmSidebarGroupContent>
       <core-navigation [data]="data()" [exact]="'/' + canisterId()" />
     </div> `,
-  standalone: true,
   imports: [
     NavigationComponent,
     HlmSidebarGroupLabel,

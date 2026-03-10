@@ -2,53 +2,75 @@
 @let isFile = isFileNode();
 @let hasThumb = hasThumbnail();
 @let thumbUrl = thumbnailUrl();
+@let dlProgress = downloadProgress();
 
-<div
-  class="flex items-end h-[74px] justify-center w-full max-w-[80px] mx-auto relative"
->
-  @if (isDir) {
-    <rbth-feat-file-list-animated-folder
-      [color]="directoryColor()"
-      [active]="active()"
-    >
-      @if (isEncrypted()) {
-        <ng-icon icon name="lucideLock" />
-      }
-    </rbth-feat-file-list-animated-folder>
-  } @else if (isFile && hasThumb && thumbUrl) {
-    <div
-      class="relative w-full h-full max-w-[80px] max-h-[74px] overflow-hidden flex items-end justify-center"
-    >
-      <img
-        [src]="thumbUrl"
-        [alt]="itemName()"
-        class="max-w-full max-h-full w-auto h-auto object-contain select-none pointer-events-none rounded-xs"
-        loading="lazy"
-      />
-    </div>
-  } @else if (isFile) {
-    <div class="flex items-center justify-center w-full aspect-square">
-      <rbth-feat-file-list-icon [extension]="fileExtension()" />
-    </div>
-  }
+<div class="relative h-[74px] w-full max-w-[80px] mx-auto">
+  <div
+    class="flex items-end h-full justify-center w-full transition-opacity"
+    [class.opacity-50]="!!dlProgress && dlProgress.status !== 'failed'"
+  >
+    @if (isDir) {
+      <rbth-feat-file-list-animated-folder
+        [color]="directoryColor()"
+        [active]="active()"
+      >
+        @if (isEncrypted()) {
+          <ng-icon icon name="lucideLock" />
+        }
+      </rbth-feat-file-list-animated-folder>
+    } @else if (isFile && hasThumb && thumbUrl) {
+      <div
+        class="relative w-full h-full max-w-[80px] max-h-[74px] overflow-hidden flex items-end justify-center"
+      >
+        <img
+          [src]="thumbUrl"
+          [alt]="itemName()"
+          class="max-w-full max-h-full w-auto h-auto object-contain select-none pointer-events-none rounded-xs"
+          loading="lazy"
+        />
+      </div>
+    } @else if (isFile) {
+      <div class="flex items-center justify-center w-full aspect-square">
+        <rbth-feat-file-list-icon [extension]="fileExtension()" />
+      </div>
+    }
 
-  @if (isFile && badges().length > 0) {
-    <span
-      hlmBadge
-      class="absolute -bottom-1 -right-1 z-10"
-      [hlmTooltip]="badgeTooltip()"
-      [showDelay]="300"
-    >
-      @for (badge of badges(); track badge) {
-        <ng-icon [name]="badge.icon" />
-      }
-    </span>
+    @if (isFile && badges().length > 0 && !dlProgress) {
+      <span
+        hlmBadge
+        class="absolute -bottom-1 -right-1 z-10"
+        [hlmTooltip]="badgeTooltip()"
+        [showDelay]="300"
+      >
+        @for (badge of badges(); track badge) {
+          <ng-icon [name]="badge.icon" />
+        }
+      </span>
+    }
+  </div>
+
+  @if (dlProgress && dlProgress.status !== 'failed') {
+    <div class="absolute inset-x-0 bottom-0 flex flex-col items-center gap-0.5 px-1">
+      <div hlmProgress [value]="dlProgress.percent" class="h-1.25 w-full">
+        <hlm-progress-indicator />
+      </div>
+      <span class="text-[10px] text-muted-foreground leading-none min-h-3">
+        @if (dlProgress.status === 'downloading' && dlProgress.percent !== null) {
+          {{ dlProgress.percent }}%
+        }
+      </span>
+    </div>
   }
 </div>
 
 <p
   class="text-sm text-center w-[80px] line-clamp-2 overflow-hidden wrap-break-word"
-  [title]="itemName()"
+  [class.text-destructive]="dlProgress?.status === 'failed'"
+  [title]="dlProgress?.status === 'failed' ? (dlProgress?.errorMessage ?? 'Download failed') : itemName()"
 >
-  {{ itemName() }}
+  @if (dlProgress && dlProgress.status === 'failed') {
+    {{ dlProgress.errorMessage ?? 'Download failed' }}
+  } @else {
+    {{ itemName() }}
+  }
 </p>

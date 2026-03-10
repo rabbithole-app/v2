@@ -26,6 +26,7 @@ export type DirectoryNode = {
 export type DirectoryNodeExtended = DirectoryNode & ItemsCommonAttrs;
 
 export type FileNode = {
+  chunkCount: number;
   contentType: string;
   currentVersion: number;
   encryptionMode: 'encrypted' | 'plaintext';

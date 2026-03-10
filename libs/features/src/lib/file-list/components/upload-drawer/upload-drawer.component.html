@@ -5,6 +5,24 @@
   <rbth-drawer-content *brnSheetContent="let ctx">
     <rbth-drawer-header>
       <h2 rbthDrawerTitle>Upload</h2>
+      @if (showStorageSwitcher()) {
+        <brn-select
+          class="ml-auto"
+          [value]="selectedStorageId()"
+          (valueChange)="selectStorage($any($event))"
+        >
+          <hlm-select-trigger class="w-[180px]">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content>
+            @for (id of storagesWithUploads(); track id) {
+              <hlm-option [value]="id">
+                {{ id.slice(0, 8) }}...
+              </hlm-option>
+            }
+          </hlm-select-content>
+        </brn-select>
+      }
     </rbth-drawer-header>
     <div class="flex-1 overflow-y-auto space-y-6">
       <div class="flex gap-2 px-4 pb-2">
@@ -13,13 +31,6 @@
           Upload directory
         </button>
       </div>
-      <!-- @if (parsedError(); as error) { -->
-      <!-- <div hlmAlert variant="destructive">
-      <ng-icon hlmIcon hlmAlertIcon name="lucideTriangleAlert" />
-      <h4 hlmAlertTitle>Unexpected Error</h4>
-      <p hlmAlertDesc>Your session has expired. Please log in again.</p>
-    </div> -->
-      <!-- } -->
       <core-file-upload-dropzone
         class="flex flex-col gap-2 w-full px-4"
         (added)="upload($event)"
@@ -38,8 +49,5 @@
         <core-upload-drawer-list [items]="failedItems()" />
       }
     </div>
-    <!-- <rbth-drawer-footer>
-      <button hlmBtn type="submit">Save Changes</button>
-    </rbth-drawer-footer> -->
   </rbth-drawer-content>
 </rbth-drawer>

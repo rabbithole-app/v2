@@ -57,12 +57,26 @@
         >
           <ng-icon hlm name="lucideDownload" hlmMenuIcon />
           @if (selected.length > 1) {
-            Download ({{ selected.length }})
+            Download archive ({{ selected.length }})
           } @else {
             Download
           }
         </button>
       }
+      <button
+        hlmDropdownMenuItem
+        (click)="manageAccess.emit(selected)"
+      >
+        <ng-icon hlm name="lucideUsers" hlmMenuIcon />
+        Manage Access
+      </button>
+      <button
+        hlmDropdownMenuItem
+        (click)="makePublic.emit(selected)"
+      >
+        <ng-icon hlm name="lucideGlobe" hlmMenuIcon />
+        Make Public
+      </button>
       <button
         hlmDropdownMenuItem
         (click)="_handleProperties(selected)"

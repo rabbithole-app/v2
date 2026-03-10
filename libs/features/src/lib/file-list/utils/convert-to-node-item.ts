@@ -49,6 +49,7 @@ export function convertToNodeItem(
       return {
         ...commonAttrs,
         type: 'file',
+        chunkCount: Number(file.chunkCount),
         contentType: file.contentType,
         sha256: hash ? uint8ArrayToHexString(hash) : undefined,
         size: file.size,

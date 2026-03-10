@@ -13,8 +13,9 @@ import type { ClassValue } from 'clsx';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLock } from '@ng-icons/lucide';
 
-import { ENCRYPTED_STORAGE_CANISTER_ID, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
+import { DownloadService, ENCRYPTED_STORAGE_CANISTER_ID, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { hlm } from '@spartan-ng/helm/utils';
 
@@ -23,7 +24,7 @@ import { AnimatedFolderComponent } from '../animated-folder/animated-folder.comp
 import { FileIconComponent } from '../file-icon/file-icon.component';
 
 export const gridItemVariants = cva(
-  'grid gap-y-2 grid-rows-[1fr_36px] items-start p-3 select-none transition-colors duration-100 ease-in-out rounded-lg cursor-pointer hover:bg-muted focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+  'grid gap-y-2 grid-rows-[1fr_36px] items-start p-3 select-none transition-colors duration-200 ease-in-out rounded-lg cursor-pointer hover:bg-muted focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
   {
     variants: {
       selected: {
@@ -38,31 +39,42 @@ export const gridItemVariants = cva(
         true: 'border-2 border-dashed border-sky-500 bg-sky-50/50 dark:bg-sky-950/20',
         false: '',
       },
+      downloading: {
+        true: 'pointer-events-none',
+        false: '',
+      },
     },
     defaultVariants: {
       selected: false,
       highlighted: false,
       active: false,
+      downloading: false,
     },
   },
 );
 
 export type GridItemVariants = VariantProps<typeof gridItemVariants>;
 
+export type DownloadProgressState = {
+  errorMessage?: string;
+  percent: number | null;
+  status: 'downloading' | 'failed' | 'queued';
+};
+
 @Component({
   selector: 'rbth-feat-file-list-grid-item',
   templateUrl: './grid-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AnimatedFolderComponent, FileIconComponent, NgIcon, HlmBadgeImports, HlmTooltipImports],
+  imports: [AnimatedFolderComponent, FileIconComponent, NgIcon, HlmBadgeImports, HlmProgressImports, HlmTooltipImports],
   providers: [provideIcons({ lucideLock })],
   host: {
     '[class]': '_computedClass()',
-    '[tabindex]': 'data().disabled ? -1 : 0',
+    '[tabindex]': '_isDownloading() ? -1 : (data().disabled ? -1 : 0)',
     '[attr.role]': '"gridcell"',
     '[attr.aria-selected]': 'selected()',
     '[attr.aria-label]': 'itemName()',
     '[attr.id]': '_itemId()',
-    '[attr.aria-disabled]': '_disabled()',
+    '[attr.aria-disabled]': '_disabled() || _isDownloading()',
   },
   styles: [
     `
@@ -100,6 +112,7 @@ export class GridItemComponent implements FocusableOption, Highlightable {
         selected: this.selected(),
         highlighted: this.highlighted(),
         active: this.active(),
+        downloading: this._isDownloading(),
       }),
       this.userClass(),
     ),
@@ -143,10 +156,6 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     if (this.isEncrypted()) {
       items.push({ icon: 'lucideLock', title: 'Encrypted' });
     }
-    // Future: shared badge
-    // if (this.isShared()) {
-    //   items.push({ icon: 'lucideUsers', title: 'Shared' });
-    // }
     return items;
   });
 
@@ -168,10 +177,41 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   });
 
   #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  #downloadService = inject(DownloadService);
 
   #elementRef = inject(ElementRef<HTMLElement>);
 
   readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
+
+  protected readonly downloadProgress = computed<DownloadProgressState | null>(() => {
+    const item = this.data();
+    if (item.type !== 'file') return null;
+    const path = item.parentPath
+      ? `${item.parentPath}/${item.name}`
+      : item.name;
+    const state = this.#downloadService.getDownloadByEntryPath(path);
+    if (!state) return null;
+    const { status } = state.progress;
+    if (status === 'canceled' || status === 'completed') return null;
+    if (status === 'failed') {
+      const errorMessage = 'errorMessage' in state.progress ? state.progress.errorMessage : 'Download failed';
+      return { status: 'failed', percent: 0, errorMessage };
+    }
+    if (status === 'queued') {
+      return { status: 'queued', percent: null };
+    }
+    if (status === 'downloading' && 'chunkIndex' in state.progress && 'totalChunks' in state.progress) {
+      const total = state.progress.totalChunks || 1;
+      const percent = Math.round((state.progress.chunkIndex / total) * 100);
+      return { status: 'downloading', percent };
+    }
+    return { status: 'downloading', percent: 0 };
+  });
+
+  protected readonly _isDownloading = computed(() => {
+    const dl = this.downloadProgress();
+    return dl !== null && dl.status !== 'failed';
+  });
 
   focus(): void {
     this.#elementRef.nativeElement.focus();

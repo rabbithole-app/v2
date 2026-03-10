@@ -3,7 +3,7 @@
   <rbth-feat-file-list-upload-drawer />
 </div>
 @if (items().length === 0) {
-  <div hlmEmpty class="min-h-[400px]">
+  <div hlmEmpty class="min-h-[400px]" [hlmContextMenuTrigger]="emptyAreaContextMenu">
     <div hlmEmptyHeader>
       <div hlmEmptyMedia variant="icon">
         <ng-icon name="lucideFolderOpen" />
@@ -19,18 +19,22 @@
     class="mt-4"
     [hlmContextMenuTrigger]="emptyAreaContextMenu"
     [items]="items()"
+    (color)="_handleColor($event)"
     (delete)="_handleDelete($event)"
     (download)="_handleDownload($event)"
+    (manageAccess)="_handleManageAccess($event)"
+    (makePublic)="_handleMakePublic($event)"
     (move)="_handleMove($event)"
     (rename)="_handleRename($event)"
     (properties)="_handleProperties($event)"
+    (selectionChange)="_handleSelectionChange($event)"
   />
 }
 
 <ng-template #emptyAreaContextMenu>
   <hlm-dropdown-menu class="w-52">
     <hlm-dropdown-menu-group>
-      <button hlmDropdownMenuItem>
+      <button hlmDropdownMenuItem (click)="_handleNewFolder()">
         <ng-icon hlm name="lucideFolderPlus" hlmMenuIcon />
         New folder
       </button>
@@ -49,3 +53,5 @@
     </hlm-dropdown-menu-group>
   </hlm-dropdown-menu>
 </ng-template>
+
+<rbth-feat-properties-drawer [items]="propertiesDrawerItems()" />

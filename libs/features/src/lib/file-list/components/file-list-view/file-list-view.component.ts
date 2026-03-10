@@ -3,6 +3,7 @@ import {
   Component,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import {
   takeUntilDestroyed,
@@ -22,8 +23,12 @@ import { filter, map, mergeWith } from 'rxjs';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   injectCoreWorker,
-  provideUploadFilesService,
+  injectEncryptedStorage,
+  PermissionsService,
 } from '@rabbithole/core';
+import { Entry } from '@rabbithole/encrypted-storage';
+import { toast } from 'ngx-sonner';
+import { intersectionWith } from 'remeda';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
@@ -32,29 +37,35 @@ import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { GRAY_ICONS_CONFIG } from '../../constants';
 import { FileListService } from '../../services';
 import { FILE_LIST_ICONS_CONFIG } from '../../tokens';
-import { NodeItem } from '../../types';
+import { DirectoryColor, NodeItem } from '../../types';
 import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
-import { FilePropertiesDialogComponent } from '../file-properties-dialog/file-properties-dialog.component';
 import { FileIconComponent } from '../file-icon/file-icon.component';
 import { GridViewComponent } from '../grid-view/grid-view.component';
+import { MoveDialogComponent } from '../move-dialog/move-dialog.component';
+import { NewFolderDialogComponent } from '../new-folder-dialog/new-folder-dialog.component';
+import { PropertiesDrawerComponent } from '../properties-drawer/properties-drawer.component';
+import { RenameDialogComponent } from '../rename-dialog/rename-dialog.component';
 import { UploadDrawerComponent } from '../upload-drawer/upload-drawer.component';
 
 @Component({
   selector: 'rbth-feat-file-list-view',
   templateUrl: './file-list-view.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class: 'flex flex-col flex-1',
+  },
   imports: [
     UploadDrawerComponent,
     AnimatedFolderComponent,
     FileIconComponent,
     GridViewComponent,
+    PropertiesDrawerComponent,
     NgIcon,
     HlmContextMenuImports,
     HlmDropdownMenuImports,
     HlmEmptyImports,
   ],
   providers: [
-    provideUploadFilesService(),
     FileListService,
     { provide: FILE_LIST_ICONS_CONFIG, useValue: GRAY_ICONS_CONFIG },
     provideIcons({
@@ -69,7 +80,11 @@ export class FileListViewComponent {
   active = signal(false);
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   fileListService = inject(FileListService);
+  propertiesDrawerItems = signal<NodeItem[]>([]);
   #dialogService = inject(HlmDialogService);
+  #encryptedStorage = injectEncryptedStorage();
+  #permissionsService = inject(PermissionsService);
+  private readonly propertiesDrawer = viewChild(PropertiesDrawerComponent);
   #route = inject(ActivatedRoute);
   items = toSignal(
     this.#route.data.pipe(
@@ -100,6 +115,23 @@ export class FileListViewComponent {
       );
   }
 
+  _handleNewFolder() {
+    const existingNames = this.items()
+      .filter((i) => i.type === 'directory')
+      .map((i) => i.name);
+    const dialogRef = this.#dialogService.open(NewFolderDialogComponent, {
+      contentClass: 'min-w-[420px]',
+      context: { existingNames },
+    });
+    dialogRef.closed$
+      .pipe(filter((v): v is string => typeof v === 'string'))
+      .subscribe((name) => this.fileListService.createFolder(name));
+  }
+
+  _handleColor({ id, color }: { id: bigint; color: DirectoryColor }) {
+    this.fileListService.updateColor(id, color);
+  }
+
   _handleDelete(selected: bigint[]) {
     this.fileListService.delete(selected);
   }
@@ -108,18 +140,109 @@ export class FileListViewComponent {
     this.fileListService.download(selected);
   }
 
-  _handleMove(selected: bigint[]) {
-    console.log('move', selected);
+  _handleManageAccess(selected: bigint[]) {
+    const items = this.#resolveItems(selected);
+    if (items.length === 0) return;
+    this.#openPropertiesDrawer(items, 'permissions');
   }
 
-  _handleRename(selected: bigint[]) {
-    console.log('rename', selected);
+  _handleSelectionChange(selected: bigint[]) {
+    if (!this.#drawerOpen) return;
+    if (selected.length === 0) {
+      this.propertiesDrawerItems.set([]);
+      return;
+    }
+    const items = this.#resolveItems(selected);
+    this.#updateDrawerItems(items);
+  }
+
+  _handleMakePublic(selected: bigint[]) {
+    const items = this.#resolveItems(selected);
+    if (items.length === 0) return;
+    for (const item of items) {
+      const entryType = item.type === 'file' ? 'File' : 'Directory';
+      const path = item.parentPath
+        ? `${item.parentPath}/${item.name}`
+        : item.name;
+      this.#permissionsService.setEntry([entryType, path]);
+      this.#permissionsService.grantPermission({
+        user: '2vxsx-fae',
+        permission: 'Read',
+      });
+    }
+    toast.success(
+      items.length === 1
+        ? `"${items[0].name}" is now public`
+        : `${items.length} items are now public`,
+    );
+  }
+
+  _handleMove(selected: bigint[]) {
+    const items = this.#resolveItems(selected);
+    const excludePaths = items
+      .filter((i) => i.type === 'directory')
+      .map((i) => (i.parentPath ? `${i.parentPath}/${i.name}` : i.name));
+    const currentParentPath = items[0]?.parentPath ?? null;
+    const dialogRef = this.#dialogService.open(MoveDialogComponent, {
+      contentClass: 'min-w-[420px]',
+      context: { encryptedStorage: this.#encryptedStorage(), excludePaths, currentParentPath },
+    });
+    dialogRef.closed$
+      .pipe(filter((v): v is Entry | null => v !== undefined))
+      .subscribe((target) =>
+        this.fileListService.moveItems(selected, target ?? undefined),
+      );
   }
 
   _handleProperties(item: NodeItem) {
-    this.#dialogService.open(FilePropertiesDialogComponent, {
-      contentClass: 'sm:max-w-[420px]',
-      context: item,
+    this.#openPropertiesDrawer([item], 'info');
+  }
+
+  _handleRename(selected: bigint[]) {
+    if (selected.length !== 1) return;
+    const item = this.items().find((i) => i.id === selected[0]);
+    if (!item) return;
+    const existingNames = this.items()
+      .filter((i) => i.id !== item.id)
+      .map((i) => i.name);
+    const dialogRef = this.#dialogService.open(RenameDialogComponent, {
+      contentClass: 'min-w-[420px]',
+      context: { item, existingNames },
     });
+    dialogRef.closed$
+      .pipe(filter((v): v is string => typeof v === 'string'))
+      .subscribe((newName) =>
+        this.fileListService.rename(item.id, newName),
+      );
+  }
+
+  #drawerOpen = false;
+
+  #openPropertiesDrawer(items: NodeItem[], tab: 'info' | 'permissions') {
+    this.#drawerOpen = true;
+    this.#updateDrawerItems(items);
+    this.propertiesDrawer()?.open(tab);
+  }
+
+  #updateDrawerItems(items: NodeItem[]) {
+    if (items.length === 1) {
+      const item = items[0];
+      const entryType = item.type === 'file' ? 'File' : 'Directory';
+      const path = item.parentPath
+        ? `${item.parentPath}/${item.name}`
+        : item.name;
+      this.#permissionsService.setEntry([entryType, path]);
+    } else {
+      this.#permissionsService.setEntry(null);
+    }
+    this.propertiesDrawerItems.set(items);
+  }
+
+  #resolveItems(selected: bigint[]): NodeItem[] {
+    return intersectionWith(
+      this.items(),
+      selected,
+      (item, id) => item.id === id,
+    );
   }
 }

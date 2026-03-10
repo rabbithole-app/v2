@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
   input,
@@ -13,6 +14,7 @@ import {
   signal,
   viewChildren,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -21,10 +23,12 @@ import {
   lucideFolderPlus,
   lucideFolderTree,
   lucideFolderUp,
+  lucideGlobe,
   lucideInfo,
   lucidePencil,
   lucideTrash2,
   lucideUpload,
+  lucideUsers,
 } from '@ng-icons/lucide';
 import type { ClassValue } from 'clsx';
 import { NgClickOutsideDirective } from 'ng-click-outside2';
@@ -67,6 +71,8 @@ const GRID_CELL_COLUMN_GAP = 16;
       lucidePencil,
       lucideFolderTree,
       lucideInfo,
+      lucideUsers,
+      lucideGlobe,
     }),
   ],
   hostDirectives: [
@@ -111,17 +117,21 @@ export class GridViewComponent implements OnDestroy {
       R.chunk(this.state().columns),
     ),
   );
+  color = output<{ id: bigint; color: DirectoryColor }>();
   delete = output<bigint[]>();
   download = output<bigint[]>();
   folderColorControl = new FormControl<DirectoryColor>('blue');
+  manageAccess = output<bigint[]>();
+  makePublic = output<bigint[]>();
   move = output<bigint[]>();
-  rename = output<bigint[]>();
   properties = output<NodeItem>();
+  rename = output<bigint[]>();
+  selectionChange = output<bigint[]>();
 
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
   protected readonly _computedClass = computed(() =>
     hlm(
-      'flex flex-wrap gap-4 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] rounded-lg',
+      'flex flex-1 flex-wrap content-start gap-4 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] rounded-lg',
       this.userClass(),
     ),
   );
@@ -159,9 +169,27 @@ export class GridViewComponent implements OnDestroy {
 
   constructor() {
     this.#init();
+    this.folderColorControl.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((color) => {
+        const selected = this.state().selected;
+        if (color && selected.length === 1) {
+          this.color.emit({ id: selected[0], color });
+        }
+      });
+    effect(() => {
+      this.selectionChange.emit(this.state().selected);
+    });
   }
 
-  _handleClickOutside(_event: Event) {
+  _handleClickOutside(event: Event) {
+    // Don't clear selection if clicking inside a CDK overlay (context menu, dropdown, etc.)
+    if (
+      event.target instanceof Element &&
+      event.target.closest('.cdk-overlay-container')
+    ) {
+      return;
+    }
     // Clear selection when clicking outside the component
     this.state.update((state) => ({
       ...state,
@@ -211,10 +239,11 @@ export class GridViewComponent implements OnDestroy {
     if (item) this.properties.emit(item);
   }
 
-  _handleItemClick(event: MouseEvent, { id }: NodeItem) {
+  _handleItemClick(event: MouseEvent, item: NodeItem) {
     // Stop event propagation so host doesn't handle the click
     event.stopPropagation();
 
+    const { id } = item;
     const { button, shiftKey, ctrlKey, metaKey, which } = event;
     const selected = this.state().selected;
 
@@ -226,6 +255,10 @@ export class GridViewComponent implements OnDestroy {
             selected: [id],
             ...this.#prepareSelectedBooleans([id]),
           }));
+        }
+
+        if (item.type === 'directory') {
+          this.folderColorControl.setValue(item.color ?? 'blue', { emitEvent: false });
         }
 
         break;

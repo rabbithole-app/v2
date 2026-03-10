@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -17,9 +18,11 @@ import { distinctUntilChanged, map } from 'rxjs';
 
 import {
   CoreFileUploadDropzoneComponent,
+  ENCRYPTED_STORAGE_CANISTER_ID,
   ENCRYPTED_STORAGE_TOKEN,
   UPLOAD_SERVICE_TOKEN,
   UploadDrawerListComponent,
+  UploadRegistryService,
   UploadState,
 } from '@rabbithole/core';
 import {
@@ -29,8 +32,10 @@ import {
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui';
+import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
 
 import { FileListService } from '../../services';
 
@@ -42,7 +47,6 @@ import { FileListService } from '../../services';
     RbthDrawerComponent,
     RbthDrawerContentComponent,
     RbthDrawerHeaderComponent,
-    // RbthDrawerFooterComponent,
     RbthDrawerTitleDirective,
     HlmButton,
     HlmIcon,
@@ -50,6 +54,8 @@ import { FileListService } from '../../services';
     RbthDrawerSeparatorDirective,
     CoreFileUploadDropzoneComponent,
     UploadDrawerListComponent,
+    BrnSelectImports,
+    HlmSelectImports,
   ],
   providers: [
     provideIcons({
@@ -64,7 +70,17 @@ import { FileListService } from '../../services';
 })
 export class UploadDrawerComponent {
   #uploadService = inject(UPLOAD_SERVICE_TOKEN);
-  #items = computed(() => this.#uploadService.state().files);
+  #registry = inject(UploadRegistryService);
+  #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  selectedStorageId = signal(this.#canisterId.toText());
+  storagesWithUploads = this.#registry.storagesWithUploads;
+  showStorageSwitcher = computed(
+    () => this.storagesWithUploads().length > 1,
+  );
+  #items = computed(() => {
+    const storageId = this.selectedStorageId();
+    return this.#registry.getStorageState(storageId)?.files ?? [];
+  });
   activeItems = computed(() =>
     this.#items().filter(({ status }) =>
       [
@@ -89,12 +105,20 @@ export class UploadDrawerComponent {
 
   constructor() {
     this.fileListService.files$.pipe(takeUntilDestroyed()).subscribe((item) => {
-      this.#uploadService.add({ file: item.file, path: item.parentPath });
+      const parentPath = this.fileListService.state().parentPath;
+      const filePath = parentPath
+        ? item.parentPath
+          ? `${parentPath}/${item.parentPath}`
+          : parentPath
+        : item.parentPath;
+      this.#uploadService.add({ file: item.file, path: filePath });
     });
     this.fileListService.directories$
       .pipe(takeUntilDestroyed())
-      .subscribe((path) => {
-        this.encryptedStorage().createDirectory(path);
+      .subscribe((dirPath) => {
+        const parentPath = this.fileListService.state().parentPath;
+        const fullPath = parentPath ? `${parentPath}/${dirPath}` : dirPath;
+        this.encryptedStorage().createDirectory(fullPath);
       });
     toObservable(this.#uploadService.state)
       .pipe(
@@ -111,8 +135,16 @@ export class UploadDrawerComponent {
     if (files instanceof FileList) {
       files = Array.from(files);
     }
+    const parentPath = this.fileListService.state().parentPath;
     for (const file of files) {
-      this.#uploadService.add({ file });
+      this.#uploadService.add({
+        file,
+        ...(parentPath && { path: parentPath }),
+      });
     }
+  }
+
+  selectStorage(storageId: string) {
+    this.selectedStorageId.set(storageId);
   }
 }

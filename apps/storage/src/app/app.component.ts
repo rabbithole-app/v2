@@ -1,13 +1,18 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
-import { PermissionsService, provideEncryptedStorage } from '@rabbithole/core';
+import {
+  PermissionsService,
+  provideEncryptedStorage,
+  provideUploadFilesService,
+} from '@rabbithole/core';
 
 @Component({
   selector: 'app-root',
   template: `<router-outlet />`,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'contents' },
   imports: [RouterOutlet],
-  providers: [provideEncryptedStorage(), PermissionsService],
+  providers: [provideEncryptedStorage(), provideUploadFilesService(), PermissionsService],
 })
 export class AppComponent {}

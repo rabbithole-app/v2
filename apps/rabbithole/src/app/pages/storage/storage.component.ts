@@ -5,16 +5,19 @@ import {
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   PermissionsService,
   provideEncryptedStorage,
+  provideUploadFilesService,
 } from '@rabbithole/core';
 
 @Component({
   selector: 'app-storage',
   template: `<router-outlet />`,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'contents' },
   imports: [RouterOutlet],
   providers: [
     ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
     provideEncryptedStorage(),
+    provideUploadFilesService(),
     PermissionsService,
   ],
 })
