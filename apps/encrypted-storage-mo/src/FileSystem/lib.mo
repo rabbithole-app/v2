@@ -258,16 +258,46 @@ module FileSystem {
 
   public func move(self : Store, source : T.Entry, optTarget : ?T.Entry) : Result.Result<(), Text> {
     let ?sourceNode = findNodeByEntry(self, ?source) else return #err(ErrorMessages.sourceNotFound(source));
-    // let ?targetNode =  else return #err(ErrorMessages.targetNotFound(target));
 
     switch (sourceNode, optTarget, findNodeByEntry(self, optTarget)) {
       case ({ metadata = #Directory(_) }, _, ?{ metadata = #File(_) }) return #err(ErrorMessages.badArgs());
       case (_, ?target, null) return #err(ErrorMessages.targetNotFound(target));
-      case (_, _, ?{ id }) moveNode(self, sourceNode, ?id);
-      case (_, null, null) moveNode(self, sourceNode, null);
+      case (_, _, ?{ id }) {
+        // No-op: already in target directory
+        if (sourceNode.parentId == ?id) return #ok;
+        // Prevent moving a directory into itself or its own descendant
+        switch (sourceNode.metadata) {
+          case (#Directory(_)) {
+            if (isDescendant(self, id, sourceNode.id)) {
+              return #err("Cannot move a directory into itself or its subdirectory");
+            };
+          };
+          case _ {};
+        };
+        moveNode(self, sourceNode, ?id);
+      };
+      case (_, null, null) {
+        // No-op: already at root
+        if (sourceNode.parentId == null) return #ok;
+        moveNode(self, sourceNode, null);
+      };
     };
 
     #ok;
+  };
+
+  /// Checks if `candidateId` is a descendant of `ancestorId` (or equal to it).
+  func isDescendant(self : Store, candidateId : Nat64, ancestorId : Nat64) : Bool {
+    if (candidateId == ancestorId) return true;
+    for (child in Iter.fromArray(listByParentId(self, ?ancestorId))) {
+      switch (child.metadata) {
+        case (#Directory(_)) {
+          if (isDescendant(self, candidateId, child.id)) return true;
+        };
+        case _ {};
+      };
+    };
+    false;
   };
 
   func moveNode(self : Store, node : T.NodeStore, newParentId : ?Nat64) {
@@ -298,7 +328,35 @@ module FileSystem {
       };
     };
     Map.set(self.nodes, hashNodes, newEntry, updatedNode);
-    Map.delete(self.nodes, hashNodes, oldEntry);
+    if (oldEntry != newEntry) {
+      Map.delete(self.nodes, hashNodes, oldEntry);
+    };
+  };
+
+  public func rename(self : Store, entry : T.Entry, newName : Text) : Result.Result<(), Text> {
+    let ?sourceNode = findNodeByEntry(self, ?entry) else return #err(ErrorMessages.sourceNotFound(entry));
+
+    let oldKey : T.NodeKey = switch (sourceNode.metadata) {
+      case (#Directory(_)) (#Directory, sourceNode.parentId, sourceNode.name);
+      case (#File(_)) (#File, sourceNode.parentId, sourceNode.name);
+    };
+    let newKey : T.NodeKey = switch (sourceNode.metadata) {
+      case (#Directory(_)) (#Directory, sourceNode.parentId, newName);
+      case (#File(_)) (#File, sourceNode.parentId, newName);
+    };
+
+    // Check if a node with newName already exists at the same parent
+    switch (Map.get(self.nodes, hashNodes, newKey)) {
+      case (?_) return #err("An entry with name \"" # newName # "\" already exists");
+      case null {};
+    };
+
+    let updatedNode = Node.copy(sourceNode);
+    updatedNode.name := newName;
+    Map.set(self.nodes, hashNodes, newKey, updatedNode);
+    Map.delete(self.nodes, hashNodes, oldKey);
+
+    #ok;
   };
 
   public func clear(self : Store) {
@@ -377,7 +435,7 @@ module FileSystem {
               size = v.size;
               contentType = v.contentType;
               createdAt = v.createdAt;
-              storageBackend = File.storageBackendOf(v.contentRef);
+              storageBackend = File.storageBackendOf(v.chunks);
             };
             Array.concat(acc, [detail]);
           },

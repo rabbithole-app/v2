@@ -198,6 +198,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
+  public shared ({ caller }) func rename(args : T.RenameArguments) : async () {
+    switch (EncryptedStorage.rename(storage, caller, args)) {
+      case (#ok) {};
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
   public shared ({ caller }) func clearStorage() : async () {
     switch (EncryptedStorage.clear(storage, caller)) {
       case (#ok) {};
@@ -231,14 +238,17 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   public shared func getVetkeyVerificationKey() : async T.VetKeyVerificationKey {
-    await EncryptedStorage.getVetkeyVerificationKey(storage);
+    // Inlined: avoid module-level async self-call
+    await ManagementCanister.vetKdPublicKey(?storage.canisterId, storage.domainSeparatorBytes, storage.vetKdKeyId);
   };
 
   public shared ({ caller }) func getEncryptedVetkey(keyId : T.KeyId, transportKey : T.TransportKey) : async T.VetKey {
-    let result = await EncryptedStorage.getEncryptedVetkey(storage, caller, keyId, transportKey);
-    switch (result) {
-      case (#ok vetKey) vetKey;
+    // Inlined: avoid module-level async self-call from EncryptedStorage.getEncryptedVetkey
+    switch (EncryptedStorage.validateVetkeyAccess(storage, caller, keyId)) {
       case (#err(message)) throw Error.reject(message);
+      case (#ok(input)) {
+        await ManagementCanister.vetKdDeriveKey(input, storage.domainSeparatorBytes, storage.vetKdKeyId, transportKey);
+      };
     };
   };
 

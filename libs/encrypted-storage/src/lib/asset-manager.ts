@@ -3,19 +3,19 @@ import { Principal } from '@icp-sdk/core/principal';
 import { sha256 } from '@noble/hashes/sha2';
 import { Store } from '@tanstack/store';
 
+import { EncryptedStorageActorService, EncryptedStorageHttpPermission } from '@rabbithole/declarations';
+// import { ReadablePath } from './readable/readablePath';
+
 import { Asset } from './asset';
 import { AssetManagerBatch } from './asset-manager-batch';
-import { _SERVICE } from './canisters/encrypted-storage.did';
 import { isReadable, Readable } from './readable/readable';
 import { ReadableBlob } from './readable/readableBlob';
 import { ReadableBytes } from './readable/readableBytes';
 import { ReadableFile } from './readable/readableFile';
-// import { ReadablePath } from './readable/readablePath';
 import {
   AssetManagerConfig,
   ContentEncoding,
   Permission,
-  PermissionRaw,
   Progress,
   StoreArgs,
   UploadState,
@@ -24,7 +24,7 @@ import { createEncryptedStorageActor } from './utils/create-encrypted-storage-ac
 import { limit, LimitFn } from './utils/limit';
 
 export class AssetManager {
-  private readonly _actor: ActorSubclass<_SERVICE>;
+  private readonly _actor: ActorSubclass<EncryptedStorageActorService>;
   private readonly _limit: LimitFn;
   private readonly _maxChunkSize: number;
   private readonly _maxSingleFileSize: number;
@@ -132,7 +132,7 @@ export class AssetManager {
       typeof user === 'string' ? Principal.fromText(user) : user;
 
     return await this._actor.grant_permission({
-      permission: { [permission]: null } as PermissionRaw,
+      permission: { [permission]: null } as EncryptedStorageHttpPermission,
       to_principal,
     });
   }
@@ -141,15 +141,15 @@ export class AssetManager {
   //  * Get list of all files in assets canister
   //  * @returns All files in asset canister
   //  */
-  public async list(): ReturnType<_SERVICE['list']> {
+  public async list(): ReturnType<EncryptedStorageActorService['list']> {
     return this._actor.list({});
   }
 
   async listPermitted(
     permission: Permission,
-  ): Promise<ReturnType<_SERVICE['list_permitted']>> {
+  ): Promise<ReturnType<EncryptedStorageActorService['list_permitted']>> {
     return await this._actor.list_permitted({
-      permission: { [permission]: null } as PermissionRaw,
+      permission: { [permission]: null } as EncryptedStorageHttpPermission,
     });
   }
 
@@ -157,7 +157,7 @@ export class AssetManager {
     const of_principal =
       typeof user === 'string' ? Principal.fromText(user) : user;
     return await this._actor.revoke_permission({
-      permission: { [permission]: null } as PermissionRaw,
+      permission: { [permission]: null } as EncryptedStorageHttpPermission,
       of_principal,
     });
   }

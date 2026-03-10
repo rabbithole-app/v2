@@ -53,6 +53,7 @@
     "d3-shape": "^3.2.0",
     "date-fns": "^4.1.0",
     "embla-carousel-angular": "^21.0.0",
+    "fflate": "^0.8.2",
     "file-saver": "^2.0.5",
     "mime": "^4.0.7",
     "nanoid": "^5.1.6",

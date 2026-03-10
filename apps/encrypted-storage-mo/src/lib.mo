@@ -569,6 +569,16 @@ module EncryptedFileStorage {
     FileSystem.move(self.fs, args.entry, args.target);
   };
 
+  /// Renames an entry (file or directory) without moving it
+  public func rename(self : T.StableStore, caller : Principal, args : T.RenameArguments) : Result.Result<(), Text> {
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    FileSystem.rename(self.fs, args.entry, args.newName);
+  };
+
   /// Clears the current storage
   public func clear(self : T.StableStore, caller : Principal) : Result.Result<(), Text> {
     switch (Permissions.ensureUserCanWrite(self.fs, caller, #root)) {
@@ -732,7 +742,9 @@ module EncryptedFileStorage {
   /// Retrieves an encrypted vetKey for caller and key id.
   /// The vetKey is secured using the provided transport key and can only be accessed by authorized users.
   /// Returns an error if the caller is not authorized to access the vetKey.
-  public func getEncryptedVetkey(self : T.StableStore, caller : T.Caller, keyId : T.KeyId, transportKey : T.TransportKey) : async Result.Result<T.VetKey, Text> {
+  /// Validates vetkey access (sync) and returns the derivation input blob.
+  /// Use this from the canister actor to avoid module-level async self-calls.
+  public func validateVetkeyAccess(self : T.StableStore, caller : T.Caller, keyId : T.KeyId) : Result.Result<Blob, Text> {
     // Guard: reject VetKey requests for plaintext files
     switch (FileSystem.get(self.fs, #keyId(keyId))) {
       case (?{ metadata = #File(fileMeta) }) {
@@ -752,8 +764,17 @@ module EncryptedFileStorage {
           principalBytes,
           Blob.toArray(keyId.1),
         ]);
+        #ok(Blob.fromArray(input));
+      };
+    };
+  };
 
-        #ok(await ManagementCanister.vetKdDeriveKey(Blob.fromArray(input), self.domainSeparatorBytes, self.vetKdKeyId, transportKey));
+  /// Legacy async version — kept for backward compatibility with example canister.
+  public func getEncryptedVetkey(self : T.StableStore, caller : T.Caller, keyId : T.KeyId, transportKey : T.TransportKey) : async Result.Result<T.VetKey, Text> {
+    switch (validateVetkeyAccess(self, caller, keyId)) {
+      case (#err message) #err message;
+      case (#ok input) {
+        #ok(await ManagementCanister.vetKdDeriveKey(input, self.domainSeparatorBytes, self.vetKdKeyId, transportKey));
       };
     };
   };

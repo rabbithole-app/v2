@@ -57,6 +57,7 @@ export interface EncryptedStorageCanister {
     Array<FileVersionDetails>
   >,
   'move' : ActorMethod<[MoveArguments], undefined>,
+  'rename' : ActorMethod<[RenameArguments], undefined>,
   'restoreVersion' : ActorMethod<[RestoreVersionArguments], undefined>,
   'revokePermission' : ActorMethod<[RevokePermissionArguments], undefined>,
   'setThumbnail' : ActorMethod<[SetThumbnailArguments], NodeDetails>,
@@ -74,6 +75,7 @@ export interface FileMetadata {
   'size' : bigint,
   'currentVersion' : bigint,
   'encryptionMode' : EncryptionMode,
+  'chunkCount' : bigint,
   'versionCount' : bigint,
 }
 export interface FileVersionDetails {
@@ -122,6 +124,7 @@ export type PermissionExt = { 'Read' : null } |
   { 'ReadWrite' : null } |
   { 'ReadWriteManage' : null } |
   { 'Controller' : null };
+export interface RenameArguments { 'entry' : Entry, 'newName' : string }
 export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export interface RevokePermissionArguments {
   'user' : Principal,

@@ -177,6 +177,7 @@ export interface EncryptedStorageCanister {
   'list_permitted' : ActorMethod<[ListPermitted], Array<Principal>>,
   'move' : ActorMethod<[MoveArguments], undefined>,
   'propose_commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
+  'rename' : ActorMethod<[RenameArguments], undefined>,
   'restoreStorageVersion' : ActorMethod<[RestoreVersionArguments], undefined>,
   'revokeStoragePermission' : ActorMethod<
     [RevokePermissionArguments],
@@ -218,6 +219,7 @@ export interface FileMetadata {
   'size' : bigint,
   'currentVersion' : bigint,
   'encryptionMode' : EncryptionMode,
+  'chunkCount' : bigint,
   'versionCount' : bigint,
 }
 export interface FileVersionDetails {
@@ -309,6 +311,7 @@ export interface RawUpdateHttpResponse {
   'streaming_strategy' : [] | [StreamingStrategy],
   'status_code' : number,
 }
+export interface RenameArguments { 'entry' : Entry, 'newName' : string }
 export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export type Result = { 'ok' : string } |
   { 'err' : string };

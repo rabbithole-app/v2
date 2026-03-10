@@ -1,6 +1,6 @@
 import { Actor, ActorConfig, ActorSubclass } from '@icp-sdk/core/agent';
 
-import { _SERVICE, idlFactory } from './../canisters/encrypted-storage.did';
+import { EncryptedStorageActorService, encryptedStorageIdlFactory } from '@rabbithole/declarations';
 
 /**
  * Create an encrypted storage canister actor
@@ -8,6 +8,6 @@ import { _SERVICE, idlFactory } from './../canisters/encrypted-storage.did';
  */
 export function createEncryptedStorageActor(
   config: ActorConfig,
-): ActorSubclass<_SERVICE> {
-  return Actor.createActor<_SERVICE>(idlFactory, config);
+): ActorSubclass<EncryptedStorageActorService> {
+  return Actor.createActor<EncryptedStorageActorService>(encryptedStorageIdlFactory, config);
 }

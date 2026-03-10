@@ -33,7 +33,10 @@ module {
   };
 
   public type FileVersion = {
-    contentRef : ContentRef;
+    /// Each chunk is stored as a separate (address, size) pointer in MemoryRegion.
+    /// getChunk(i) returns chunks[i] as-is, preserving original upload boundaries.
+    /// This is critical for per-chunk encryption where each chunk is an independent AES-GCM ciphertext.
+    chunks : [SizedPointer];
     sha256 : ?Blob;
     size : Nat;
     contentType : Text;

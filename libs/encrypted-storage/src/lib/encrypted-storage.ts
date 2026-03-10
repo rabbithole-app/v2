@@ -13,34 +13,39 @@ import { get, set } from 'idb-keyval';
 import mime from 'mime/lite';
 import { isMatching, match, P } from 'ts-pattern';
 
-import { _SERVICE, idlFactory } from './canisters/encrypted-storage.did';
+import {
+  EncryptedStorageActorService,
+  encryptedStorageIdlFactory,
+  Entry as EntryRaw,
+} from '@rabbithole/declarations';
+
 import {
   EncryptedStorageConfig,
   Entry,
-  EntryKind,
-  EntryRaw,
   GrantStoragePermission,
   Progress,
   RevokeStoragePermission,
   StoragePermission,
   StoragePermissionItem,
-  StoragePermissionRaw,
   StoreArgs,
   StorePathArgs,
   StoreReadableArgs,
+  toEncryptionMode,
+  toEntryRaw,
+  toOptionalEntryRaw,
+  toStoragePermission,
   UploadState,
 } from './types';
 import { convertTreeNodes } from './utils';
 import { limit, LimitFn } from './utils/limit';
 
 export class EncryptedStorage {
-  readonly #actor: ActorSubclass<_SERVICE>;
+  readonly #actor: ActorSubclass<EncryptedStorageActorService>;
   readonly #domainSeparator = 'file_storage_dapp';
   readonly #limit: LimitFn;
   readonly #maxChunkSize: number;
   readonly #origin: string;
   #progress = new Store<Record<string, Progress>>({});
-  // readonly #maxSingleFileSize: number;
   #sha256: Record<string, ReturnType<typeof sha256.create>> = {};
 
   /**
@@ -49,9 +54,9 @@ export class EncryptedStorage {
    */
   constructor(config: EncryptedStorageConfig) {
     const { concurrency, maxChunkSize, origin, ...actorConfig } = config;
-    this.#actor = Actor.createActor<_SERVICE>(idlFactory, actorConfig);
+    this.#actor = Actor.createActor<EncryptedStorageActorService>(encryptedStorageIdlFactory, actorConfig);
     this.#origin = origin;
-    this.#maxChunkSize = maxChunkSize ?? 1900000;
+    this.#maxChunkSize = maxChunkSize ?? 1_900_000;
     this.#limit = limit(concurrency ?? 16);
   }
 
@@ -60,21 +65,67 @@ export class EncryptedStorage {
     options?: { encryptionMode?: 'Encrypted' | 'Plaintext' },
   ) {
     const entry: EntryRaw = [{ Directory: null }, path];
-    const encryptionMode = options?.encryptionMode
-      ? [{ [options.encryptionMode]: null }]
-      : [];
     return await this.#actor.create({
       entry,
       createMode: { CreateNew: null },
-      encryptionMode,
-    } as Parameters<_SERVICE['create']>[0]);
+      encryptionMode: toEncryptionMode(options?.encryptionMode),
+    });
   }
 
   delete(entry: Entry) {
     return this.#actor.delete({
-      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
+      entry: toEntryRaw(entry),
       recursive: true,
     });
+  }
+
+  async *downloadStream(
+    entry: Entry,
+    options?: {
+      encrypted?: boolean;
+      keyId?: [Principal, Uint8Array];
+      onProgress?: (chunkIndex: number, totalChunks: number) => void;
+      signal?: AbortSignal;
+      totalChunks: number;
+      version?: number;
+    },
+  ): AsyncGenerator<Uint8Array> {
+    const totalChunks = options?.totalChunks ?? 1;
+    const isEncrypted = options?.encrypted !== false;
+
+    let derivedKeyMaterial: DerivedKeyMaterial | undefined;
+    if (isEncrypted && options?.keyId) {
+      derivedKeyMaterial = await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+        ...options.keyId,
+      );
+    }
+
+    const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
+
+    for (let i = 0; i < totalChunks; i++) {
+      if (options?.signal?.aborted) {
+        throw new Error('Download aborted');
+      }
+
+      const chunkResult = await this.getChunkAtVersion(
+        entry,
+        i,
+        options?.version,
+      );
+      const chunkBytes = chunkResult.content as Uint8Array;
+
+      if (isEncrypted && derivedKeyMaterial) {
+        const decrypted = await derivedKeyMaterial.decryptMessage(
+          chunkBytes,
+          domainSeparator,
+        );
+        yield Uint8Array.from(decrypted);
+      } else {
+        yield chunkBytes;
+      }
+
+      options?.onProgress?.(i + 1, totalChunks);
+    }
   }
 
   async fsTree() {
@@ -124,6 +175,18 @@ export class EncryptedStorage {
     return new Blob([Uint8Array.from(decryptedContent)]);
   }
 
+  async getChunkAtVersion(
+    entry: Entry,
+    chunkIndex: number,
+    version?: number,
+  ) {
+    return await this.#actor.getStorageChunk({
+      entry: toEntryRaw(entry),
+      chunkIndex: BigInt(chunkIndex),
+      version: version !== undefined ? [BigInt(version)] : [],
+    });
+  }
+
   async getDerivedKeyMaterial(
     keyOwner: Principal,
     keyName: Uint8Array,
@@ -155,9 +218,9 @@ export class EncryptedStorage {
 
   async grantPermission({ user, permission, entry }: GrantStoragePermission) {
     return await this.#actor.grantStoragePermission({
-      entry: entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
+      entry: toOptionalEntryRaw(entry),
       user: typeof user === 'string' ? Principal.fromText(user) : user,
-      permission: { [permission]: null } as StoragePermissionRaw,
+      permission: toStoragePermission(permission),
     });
   }
 
@@ -171,22 +234,18 @@ export class EncryptedStorage {
     user: Principal | string;
   }) {
     return await this.#actor.hasStoragePermission({
-      entry: entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
+      entry: toOptionalEntryRaw(entry),
       user: typeof user === 'string' ? Principal.fromText(user) : user,
-      permission: { [permission]: null } as StoragePermissionRaw,
+      permission: toStoragePermission(permission),
     });
   }
 
   async list(entry?: Entry) {
-    return await this.#actor.listStorage(
-      entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
-    );
+    return await this.#actor.listStorage(toOptionalEntryRaw(entry));
   }
 
   async listPermitted(entry?: Entry): Promise<StoragePermissionItem[]> {
-    const list = await this.#actor.listPermitted(
-      entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
-    );
+    const list = await this.#actor.listPermitted(toOptionalEntryRaw(entry));
 
     return list.map(([principal, permission]) => ({
       user: principal.toString(),
@@ -194,9 +253,36 @@ export class EncryptedStorage {
     }));
   }
 
+  async listVersions(entry: Entry) {
+    return await this.#actor.listStorageVersions({
+      entry: toEntryRaw(entry),
+    });
+  }
+
+  async move(entry: Entry, target?: Entry) {
+    return await this.#actor.move({
+      entry: toEntryRaw(entry),
+      target: toOptionalEntryRaw(target),
+    });
+  }
+
+  async rename(entry: Entry, newName: string) {
+    return await this.#actor.rename({
+      entry: toEntryRaw(entry),
+      newName,
+    });
+  }
+
+  async restoreVersion(entry: Entry, version: number) {
+    return await this.#actor.restoreStorageVersion({
+      entry: toEntryRaw(entry),
+      version: BigInt(version),
+    });
+  }
+
   async revokePermission({ user, entry }: RevokeStoragePermission) {
     return await this.#actor.revokeStoragePermission({
-      entry: entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
+      entry: toOptionalEntryRaw(entry),
       user: typeof user === 'string' ? Principal.fromText(user) : user,
     });
   }
@@ -205,7 +291,7 @@ export class EncryptedStorage {
     const buffer = await blob.arrayBuffer();
     const content = arrayBufferToUint8Array(buffer);
     return await this.#actor.saveThumbnail({
-      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
+      entry: toEntryRaw(entry),
       thumbnail: {
         content,
         contentType: blob.type ?? 'image/jpeg',
@@ -214,9 +300,7 @@ export class EncryptedStorage {
   }
 
   async showTree(entry?: Entry) {
-    return await this.#actor.showTree(
-      entry ? [[{ [entry[0]]: null } as EntryKind, entry[1]]] : [],
-    );
+    return await this.#actor.showTree(toOptionalEntryRaw(entry));
   }
 
   /**
@@ -309,19 +393,14 @@ export class EncryptedStorage {
       [key]: { status: UploadState.INITIALIZING },
     }));
 
-    // Resolve encryption mode from config
-    const encryptionMode = config.encryptionMode
-      ? [{ [config.encryptionMode]: null }]
-      : [];
-
     // create file
     const details = await this.#limit(
       () =>
         this.#actor.create({
           entry,
           createMode: { GetOrCreate: null },
-          encryptionMode,
-        } as Parameters<_SERVICE['create']>[0]),
+          encryptionMode: toEncryptionMode(config.encryptionMode),
+        }),
       config.signal,
     );
 
@@ -330,37 +409,19 @@ export class EncryptedStorage {
       'File' in details.metadata &&
       'Encrypted' in details.metadata.File.encryptionMode;
 
-    let bytesToUpload: Uint8Array;
+    let derivedKeyMaterial: Awaited<ReturnType<typeof this.getDerivedKeyMaterial>> | undefined;
     if (isEncrypted) {
       this.#progress.setState((state) => ({
         ...state,
         [key]: { status: UploadState.REQUESTING_VETKD },
       }));
 
-      // get derivedKeyMaterial for created file
-      const derivedKeyMaterial =
+      derivedKeyMaterial =
         await this.#getDerivedKeyMaterialOrFetchIfNeeded(
           details.keyId[0],
           Uint8Array.from(details.keyId[1]),
         );
-
-      const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
-      bytesToUpload = await derivedKeyMaterial.encryptMessage(
-        bytes,
-        domainSeparator,
-      );
-    } else {
-      bytesToUpload = bytes;
     }
-
-    this.#progress.setState((state) => ({
-      ...state,
-      [key]: {
-        status: UploadState.IN_PROGRESS,
-        current: 0,
-        total: bytesToUpload.byteLength,
-      },
-    }));
 
     // create batch
     const { batchId } = await this.#limit(
@@ -368,40 +429,59 @@ export class EncryptedStorage {
       config.signal,
     );
 
-    // upload chunks
-    const chunkCount = Math.ceil(
-      bytesToUpload.byteLength / this.#maxChunkSize,
-    );
+    // Per-chunk encryption: split plaintext first, encrypt each chunk independently.
+    // The canister stores each uploaded chunk as a separate blob and returns it
+    // as-is via getChunk(i), preserving encryption boundaries.
+    const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
+    const chunkCount = Math.max(1, Math.ceil(bytes.byteLength / this.#maxChunkSize));
+
+    // Step 1: Encrypt and hash sequentially (bounded CPU, deterministic SHA).
+    const encryptedChunks: Uint8Array[] = [];
+    for (let i = 0; i < chunkCount; i++) {
+      if (config.signal?.aborted) throw new Error('Upload aborted');
+
+      const plainChunk = bytes.slice(
+        i * this.#maxChunkSize,
+        Math.min((i + 1) * this.#maxChunkSize, bytes.byteLength),
+      );
+
+      const content = isEncrypted && derivedKeyMaterial
+        ? await derivedKeyMaterial.encryptMessage(plainChunk, domainSeparator)
+        : plainChunk;
+
+      this.#sha256[key].update(content);
+      encryptedChunks.push(content);
+    }
+
+    // Step 2: Upload chunks in parallel (concurrency limited by this.#limit).
+    this.#progress.setState((state) => ({
+      ...state,
+      [key]: {
+        status: UploadState.IN_PROGRESS,
+        current: 0,
+        total: bytes.byteLength,
+      },
+    }));
     const chunkIds: bigint[] = await Promise.all(
-      Array.from({ length: chunkCount }).map(async (_, index) => {
-        const content = bytesToUpload.slice(
-          index * this.#maxChunkSize,
-          Math.min((index + 1) * this.#maxChunkSize, bytesToUpload.byteLength),
-        );
-
-        this.#sha256[key].update(content);
-
+      encryptedChunks.map(async (content, index) => {
         const { chunkId } = await this.#limit(
           () => this.#actor.createStorageChunk({ content, batchId }),
           config.signal,
         );
-        this.#progress.setState((state) => {
-          const progress =
-            state[key].status === UploadState.IN_PROGRESS
-              ? { ...state[key], current: state[key].current + content.length }
-              : {
-                  current: content.length,
-                  total: bytesToUpload.byteLength,
-                };
-
-          return {
-            ...state,
-            [key]: {
-              status: UploadState.IN_PROGRESS,
-              ...progress,
-            },
-          };
-        });
+        const plainChunkSize = Math.min(
+          this.#maxChunkSize,
+          bytes.byteLength - index * this.#maxChunkSize,
+        );
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: {
+            status: UploadState.IN_PROGRESS,
+            current: (state[key].status === UploadState.IN_PROGRESS
+              ? state[key].current
+              : 0) + plainChunkSize,
+            total: bytes.byteLength,
+          },
+        }));
 
         return chunkId;
       }),
@@ -429,29 +509,16 @@ export class EncryptedStorage {
     unmount();
   }
 
-  async listVersions(entry: Entry) {
-    return await this.#actor.listStorageVersions({
-      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
-    });
-  }
-
-  async restoreVersion(entry: Entry, version: number) {
-    return await this.#actor.restoreStorageVersion({
-      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
-      version: BigInt(version),
-    });
-  }
-
-  async getChunkAtVersion(
-    entry: Entry,
-    chunkIndex: number,
-    version?: number,
+  async updateDirectoryColor(
+    path: string,
+    color: string,
   ) {
-    return await this.#actor.getStorageChunk({
-      entry: [{ [entry[0]]: null } as EntryKind, entry[1]],
-      chunkIndex: BigInt(chunkIndex),
-      version: version !== undefined ? [BigInt(version)] : [],
-    } as Parameters<_SERVICE['getStorageChunk']>[0]);
+    return await this.#actor.update({
+      Directory: {
+        path,
+        metadata: { color: [{ [color]: null }] },
+      },
+    } as Parameters<EncryptedStorageActorService['update']>[0]); // color is dynamic, keep cast
   }
 
   #contentType(fileName: string) {

@@ -23,9 +23,15 @@ export type {
 } from './backend/rabbithole-backend.did';
 export { idlFactory as rabbitholeIdlFactory, init as initBackend } from './backend/rabbithole-backend.did';
 export type {
+  BatchOperationKind,
   DirectoryColor,
+  Entry,
+  EncryptionMode,
   _SERVICE as EncryptedStorageActorService,
   NodeDetails,
+  Permission as EncryptedStorageHttpPermission,
+  Permission__1 as StoragePermission,
+  TreeNode,
 } from './encrypted-storage/encrypted-storage.did';
 export { idlFactory as encryptedStorageIdlFactory, init as initEncryptedStorage } from './encrypted-storage/encrypted-storage.did';
 export type * from './icp-ledger/icp-ledger.did';

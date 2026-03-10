@@ -100,6 +100,7 @@ export const idlFactory = ({ IDL }) => {
     'size' : IDL.Nat,
     'currentVersion' : IDL.Nat,
     'encryptionMode' : EncryptionMode,
+    'chunkCount' : IDL.Nat,
     'versionCount' : IDL.Nat,
   });
   const DirectoryColor = IDL.Variant({
@@ -281,6 +282,7 @@ export const idlFactory = ({ IDL }) => {
     'entry' : Entry,
     'target' : IDL.Opt(Entry),
   });
+  const RenameArguments = IDL.Record({ 'entry' : Entry, 'newName' : IDL.Text });
   const RestoreVersionArguments = IDL.Record({
     'entry' : Entry,
     'version' : IDL.Nat,
@@ -415,6 +417,7 @@ export const idlFactory = ({ IDL }) => {
     'list_permitted' : IDL.Func([ListPermitted], [IDL.Vec(IDL.Principal)], []),
     'move' : IDL.Func([MoveArguments], [], []),
     'propose_commit_batch' : IDL.Func([CommitBatchArguments], [], []),
+    'rename' : IDL.Func([RenameArguments], [], []),
     'restoreStorageVersion' : IDL.Func([RestoreVersionArguments], [], []),
     'revokeStoragePermission' : IDL.Func([RevokePermissionArguments], [], []),
     'revoke_permission' : IDL.Func([RevokePermission], [], []),

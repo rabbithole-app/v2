@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "../../dist/libs/declarations/types",
+    "types": ["node"]
+  },
+  "include": ["src/index.ts"]
+}

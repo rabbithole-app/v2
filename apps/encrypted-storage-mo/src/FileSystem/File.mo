@@ -1,3 +1,4 @@
+import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
@@ -7,8 +8,6 @@ import Map "mo:core/Map";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 
 import T "../Types";
-import Utils "../Utils";
-import Const "../Const";
 
 module File {
 
@@ -28,32 +27,32 @@ module File {
     Map.get(self.versions, Nat.compare, self.currentVersion);
   };
 
-  /// Returns the storage backend for a ContentRef.
-  public func storageBackendOf(ref : T.ContentRef) : T.StorageBackend {
-    switch (ref) {
-      case (#Inline _) #Inline;
-      case (#BlobStorage _) #BlobStorage;
-      case (#External _) #External;
-    };
+  /// Returns the storage backend type (currently always Inline).
+  public func storageBackendOf(_chunks : [T.SizedPointer]) : T.StorageBackend {
+    #Inline;
   };
 
-  /// Allocates inline content from chunks and returns a ContentRef.
-  func allocateInline(fs : T.FileSystemStore, chunksIter : Iter.Iter<Blob>, totalLength : Nat) : T.ContentRef {
-    let address = MemoryRegion.allocate(fs.region, totalLength);
-    var offset = 0;
-    for (chunk in chunksIter) {
-      MemoryRegion.storeBlob(fs.region, address + offset, chunk);
-      offset += chunk.size();
-    };
-    #Inline(address, totalLength);
+  /// Allocates each chunk separately in MemoryRegion, returning an array of pointers.
+  /// Each pointer preserves the exact upload chunk boundary.
+  func allocateChunks(fs : T.FileSystemStore, chunksIter : Iter.Iter<Blob>) : [T.SizedPointer] {
+    let pointers = Array.fromIter<T.SizedPointer>(
+      Iter.map<Blob, T.SizedPointer>(
+        chunksIter,
+        func(chunk : Blob) : T.SizedPointer {
+          let size = chunk.size();
+          let address = MemoryRegion.allocate(fs.region, size);
+          MemoryRegion.storeBlob(fs.region, address, chunk);
+          (address, size);
+        },
+      )
+    );
+    pointers;
   };
 
-  /// Deallocates a single #Inline ContentRef. No-op for other backends.
-  func deallocateInlineRef(fs : T.FileSystemStore, ref : T.ContentRef) {
-    switch (ref) {
-      case (#Inline(address, size)) MemoryRegion.deallocate(fs.region, address, size);
-      case (#BlobStorage _) {};
-      case (#External _) {};
+  /// Deallocates all chunk pointers for a version.
+  func deallocateChunks(fs : T.FileSystemStore, chunks : [T.SizedPointer]) {
+    for ((address, size) in chunks.vals()) {
+      MemoryRegion.deallocate(fs.region, address, size);
     };
   };
 
@@ -64,7 +63,7 @@ module File {
       case (?limit) {
         while (Map.size(self.versions) > limit) {
           let ?(key, ver) = Map.minEntry(self.versions) else return;
-          deallocateInlineRef(fs, ver.contentRef);
+          deallocateChunks(fs, ver.chunks);
           Map.remove(self.versions, Nat.compare, key);
         };
         // If currentVersion was trimmed, clamp to the smallest remaining key
@@ -85,9 +84,9 @@ module File {
     contentHash : Blob,
     contentType : Text,
   ) {
-    let contentRef = allocateInline(fs, chunksIter, totalLength);
+    let chunks = allocateChunks(fs, chunksIter);
     let version : T.FileVersion = {
-      contentRef;
+      chunks;
       sha256 = ?contentHash;
       size = totalLength;
       contentType;
@@ -112,44 +111,34 @@ module File {
     addVersion(fs, self, Iter.singleton(content), content.size(), contentHash, contentType);
   };
 
-  /// Deallocates ALL inline versions (used for file deletion).
+  /// Deallocates ALL versions (used for file deletion).
   public func deallocateAll(fs : T.FileSystemStore, self : T.FileMetadataStore) {
     Map.forEach<Nat, T.FileVersion>(self.versions, func(_key, v) {
-      deallocateInlineRef(fs, v.contentRef);
+      deallocateChunks(fs, v.chunks);
     });
     Map.clear(self.versions);
     self.currentVersion := 0;
     self.nextVersionId := 0;
   };
 
-  /// Gets content from a specific version (or current if version is null). Only works for #Inline.
-  public func getContent(fs : T.FileSystemStore, self : T.FileMetadataStore, version : ?Nat) : Blob {
-    let ver = getVersion(self, version);
-    switch (ver) {
-      case (?{ contentRef = #Inline(address, size) }) MemoryRegion.loadBlob(fs.region, address, size);
-      case _ "";
-    };
-  };
-
   /// Returns the number of chunks for a given version (or current).
   public func getChunksSize(self : T.FileMetadataStore, version : ?Nat) : Nat {
     let ver = getVersion(self, version);
     switch (ver) {
-      case (?v) Utils.divCeiling(v.size, Const.MAX_CHUNK_SIZE);
+      case (?v) v.chunks.size();
       case null 0;
     };
   };
 
   /// Reads a chunk from a specific version (or current).
+  /// Returns the chunk exactly as it was uploaded — preserving encryption boundaries.
   public func getChunk(fs : T.FileSystemStore, self : T.FileMetadataStore, chunkIndex : Nat, version : ?Nat) : ?Blob {
     let ver = getVersion(self, version);
     switch (ver) {
-      case (?{ contentRef = #Inline(address, size) }) {
-        let numChunks = Utils.divCeiling(size, Const.MAX_CHUNK_SIZE);
-        if (chunkIndex >= numChunks) return null;
-        let chunkOffset = chunkIndex * Const.MAX_CHUNK_SIZE;
-        let chunkSize = Nat.min(Const.MAX_CHUNK_SIZE, size - chunkOffset);
-        ?MemoryRegion.loadBlob(fs.region, address + chunkOffset, chunkSize);
+      case (?v) {
+        if (chunkIndex >= v.chunks.size()) return null;
+        let (address, size) = v.chunks[chunkIndex];
+        ?MemoryRegion.loadBlob(fs.region, address, size);
       };
       case _ null;
     };

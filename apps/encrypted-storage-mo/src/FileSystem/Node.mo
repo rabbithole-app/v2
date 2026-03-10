@@ -53,8 +53,9 @@ module Node {
           encryptionMode = file.encryptionMode;
           versionCount = File.versionCount(file);
           currentVersion = file.currentVersion;
+          chunkCount = File.getChunksSize(file, null);
           storageBackend = switch (currentVer) {
-            case (?v) File.storageBackendOf(v.contentRef);
+            case (?v) File.storageBackendOf(v.chunks);
             case null #Inline;
           };
         };

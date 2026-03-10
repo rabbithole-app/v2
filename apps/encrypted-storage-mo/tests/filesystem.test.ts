@@ -371,6 +371,127 @@ describe('FileSystem', () => {
         }),
       ).toBeTruthy();
     });
+
+    test('should not lose node when moving to current parent', async () => {
+      const treeBefore = await actor.showTree([]);
+      const result = await actor.move({
+        entry: [DIRECTORY, 'Photos/Turkey'],
+        target: [[DIRECTORY, 'Photos']],
+      });
+      expect(result).toBeNull();
+      const treeAfter = await actor.showTree([]);
+      expect(treeAfter).toEqual(treeBefore);
+    });
+
+    test('should not lose node when moving root dir to root', async () => {
+      const treeBefore = await actor.showTree([]);
+      const result = await actor.move({
+        entry: [DIRECTORY, 'Photos'],
+        target: [],
+      });
+      expect(result).toBeNull();
+      const treeAfter = await actor.showTree([]);
+      expect(treeAfter).toEqual(treeBefore);
+    });
+
+    test('should reject moving directory into itself', async () => {
+      await expect(
+        actor.move({
+          entry: [DIRECTORY, 'Photos'],
+          target: [[DIRECTORY, 'Photos']],
+        }),
+      ).rejects.toThrow();
+      const treeAfter = await actor.showTree([]);
+      expect(treeAfter).toContain('Photos');
+    });
+
+    test('should reject moving directory into its subdirectory', async () => {
+      await expect(
+        actor.move({
+          entry: [DIRECTORY, 'Photos'],
+          target: [[DIRECTORY, 'Photos/Turkey']],
+        }),
+      ).rejects.toThrow();
+      const treeAfter = await actor.showTree([]);
+      expect(treeAfter).toContain('Photos');
+      expect(treeAfter).toContain('Turkey');
+    });
+  });
+
+  describe('rename', () => {
+    beforeEach(async () => {
+      await actor.create({
+        entry: [FILE, 'Documents/report.pdf'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      await actor.create({
+        entry: [FILE, 'Documents/notes.txt'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      await actor.create({
+        entry: [DIRECTORY, 'Photos'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+    });
+
+    test('should rename a file', async () => {
+      await actor.rename({
+        entry: [FILE, 'Documents/report.pdf'],
+        newName: 'renamed.pdf',
+      });
+      const tree = await actor.showTree([]);
+      expect(tree).toContain('renamed.pdf');
+      expect(tree).not.toContain('report.pdf');
+    });
+
+    test('should rename a directory', async () => {
+      await actor.rename({
+        entry: [DIRECTORY, 'Photos'],
+        newName: 'Images',
+      });
+      const tree = await actor.showTree([]);
+      expect(tree).toContain('Images');
+      expect(tree).not.toContain('Photos');
+    });
+
+    test('should fail if new name already exists', async () => {
+      await expect(
+        actor.rename({
+          entry: [FILE, 'Documents/report.pdf'],
+          newName: 'notes.txt',
+        }),
+      ).rejects.toThrow('already exists');
+    });
+
+    test('should fail if entry does not exist', async () => {
+      await expect(
+        actor.rename({
+          entry: [FILE, 'Documents/nonexistent.pdf'],
+          newName: 'new-name.pdf',
+        }),
+      ).rejects.toThrow();
+    });
+
+    test('should preserve file access after rename', async () => {
+      await actor.grantPermission({
+        entry: [[FILE, 'Documents/report.pdf']],
+        user: aliceIdentity.getPrincipal(),
+        permission: READ,
+      });
+
+      await actor.rename({
+        entry: [FILE, 'Documents/report.pdf'],
+        newName: 'renamed.pdf',
+      });
+
+      actor.setIdentity(aliceIdentity);
+      const list = await actor.list([[DIRECTORY, 'Documents']]);
+      const names = list.map((n) => n.name);
+      expect(names).toContain('renamed.pdf');
+    });
   });
 
   describe('grantPermission', () => {

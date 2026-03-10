@@ -13,14 +13,15 @@ import {
 import { compare, lebDecode, PipeArrayBuffer } from '@icp-sdk/core/candid';
 import { sha256 } from '@noble/hashes/sha2';
 
-import { _SERVICE } from './canisters/encrypted-storage.did';
+import { EncryptedStorageActorService } from '@rabbithole/declarations';
+
 import { ContentEncoding } from './types';
 import { base64Decode } from './utils/base64';
 import { limit, LimitFn } from './utils/limit';
 
 export class Asset {
   constructor(
-    private readonly _actor: ActorSubclass<_SERVICE>,
+    private readonly _actor: ActorSubclass<EncryptedStorageActorService>,
     private readonly _limit: LimitFn,
     private readonly _maxSingleFileSize: number,
     private readonly _maxChunkSize: number,

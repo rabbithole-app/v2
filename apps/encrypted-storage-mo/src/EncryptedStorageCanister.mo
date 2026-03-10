@@ -91,6 +91,13 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
+  public shared ({ caller }) func rename(args : T.RenameArguments) : async () {
+    switch (EncryptedStorage.rename(storage, caller, args)) {
+      case (#ok) {};
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
   public shared ({ caller }) func clear() : async () {
     switch (EncryptedStorage.clear(storage, caller)) {
       case (#ok) {};

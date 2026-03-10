@@ -116,6 +116,7 @@ module {
     sha256 : ?Blob;
     contentType : Text;
     size : Nat;
+    chunkCount : Nat;
     thumbnailKey : ?Text;
     encryptionMode : EncryptionMode;
     versionCount : Nat;
@@ -217,6 +218,11 @@ module {
   public type MoveArguments = {
     entry : Entry;
     target : ?Entry;
+  };
+
+  public type RenameArguments = {
+    entry : Entry;
+    newName : Text;
   };
 
   public type DeleteArguments = {

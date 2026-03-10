@@ -2,10 +2,12 @@ import { ActorConfig } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 
 import {
+  EncryptionMode,
   Entry as EntryRaw,
-  Permission as PermissionRaw,
-  Permission__1 as StoragePermissionRaw,
-} from './canisters/encrypted-storage.did';
+  EncryptedStorageHttpPermission as PermissionRaw,
+  StoragePermission as StoragePermissionRaw,
+} from '@rabbithole/declarations';
+
 import { Readable } from './readable/readable';
 
 export enum UploadState {
@@ -193,10 +195,20 @@ export type TreeNode = {
   path?: string;
 };
 
-export type {
-  Entry as EntryRaw,
-  Permission as PermissionRaw,
-  Permission__1 as StoragePermissionRaw,
-} from './canisters/encrypted-storage.did';
-
 type ExtractVariantKeys<T> = T extends Record<infer K, unknown> ? K : never;
+
+export function toEncryptionMode(mode?: 'Encrypted' | 'Plaintext'): [] | [EncryptionMode] {
+  return mode ? [{ [mode]: null } as EncryptionMode] : [];
+}
+
+export function toEntryRaw(entry: Entry): EntryRaw {
+  return [{ [entry[0]]: null } as EntryRaw[0], entry[1]];
+}
+
+export function toOptionalEntryRaw(entry?: Entry): [] | [EntryRaw] {
+  return entry ? [toEntryRaw(entry)] : [];
+}
+
+export function toStoragePermission(permission: StoragePermission): StoragePermissionRaw {
+  return { [permission]: null } as StoragePermissionRaw;
+}

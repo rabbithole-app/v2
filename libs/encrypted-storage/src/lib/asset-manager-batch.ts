@@ -3,11 +3,9 @@ import { sha256 } from '@noble/hashes/sha2';
 import { Derived, Store } from '@tanstack/store';
 import { isMatching, P } from 'ts-pattern';
 
+import { BatchOperationKind, EncryptedStorageActorService } from '@rabbithole/declarations';
+
 import { AssetManager } from './asset-manager';
-import {
-  _SERVICE,
-  BatchOperationKind,
-} from './canisters/encrypted-storage.did';
 import { CommitBatchArgs, Progress, StoreArgs, UploadState } from './types';
 import { LimitFn } from './utils/limit';
 
@@ -24,7 +22,7 @@ export class AssetManagerBatch {
   #sha256: Record<string, SHA256TYPE> = {};
 
   constructor(
-    private readonly _actor: ActorSubclass<_SERVICE>,
+    private readonly _actor: ActorSubclass<EncryptedStorageActorService>,
     private readonly _limit: LimitFn,
     private readonly _maxChunkSize: number,
   ) {}

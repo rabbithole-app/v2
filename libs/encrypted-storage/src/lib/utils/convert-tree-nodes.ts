@@ -1,6 +1,7 @@
 import { match, P } from 'ts-pattern';
 
-import { TreeNode as TreeNodeRaw } from '../canisters/encrypted-storage.did';
+import { TreeNode as TreeNodeRaw } from '@rabbithole/declarations';
+
 import { TreeNode } from '../types';
 
 export function convertTreeNodes(
