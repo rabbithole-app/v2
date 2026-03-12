@@ -1,0 +1,13 @@
+{
+  "canisters": {
+    "docs": {
+      "type": "assets",
+      "source": ["doc_build"],
+      "frontend": {
+        "entrypoint": "index.html"
+      }
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

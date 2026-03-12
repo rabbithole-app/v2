@@ -1,0 +1,17 @@
+[
+  {
+    "type": "dir",
+    "name": "getting-started",
+    "label": "Начало работы"
+  },
+  {
+    "type": "dir",
+    "name": "how-it-works",
+    "label": "Как это работает"
+  },
+  {
+    "type": "file",
+    "name": "faq",
+    "label": "Вопросы и ответы"
+  }
+]

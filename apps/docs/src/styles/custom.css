@@ -1,0 +1,11 @@
+/* Hero buttons — equal width */
+.rp-home-hero__actions a {
+  min-width: 220px;
+  text-align: center;
+  justify-content: center;
+}
+
+/* Russian — wider buttons for longer text */
+:lang(ru) .rp-home-hero__actions a + a {
+  min-width: 260px;
+}

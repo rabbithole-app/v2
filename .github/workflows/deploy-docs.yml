@@ -1,0 +1,41 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/docs/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        working-directory: apps/docs
+        run: npm ci
+
+      - name: Setup DFX
+        uses: dfinity/setup-dfx@main
+        with:
+          dfx-version: latest
+
+      - name: Import DFX Identity
+        run: |
+          echo "${{ secrets.DFX_IDENTITY_PEM }}" > identity.pem
+          dfx identity import --storage-mode plaintext --force docs-deployer identity.pem || true
+          dfx identity use docs-deployer
+          rm -f identity.pem
+
+      - name: Deploy to IC
+        working-directory: apps/docs
+        env:
+          DFX_WARNING: -mainnet_plaintext_identity
+        run: dfx deploy docs --network ic --yes
