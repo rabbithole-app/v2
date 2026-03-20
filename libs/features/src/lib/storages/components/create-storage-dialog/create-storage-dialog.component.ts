@@ -360,7 +360,7 @@ export class CreateStorageDialogComponent {
     const canisterId = this.createdCanisterId();
     if (canisterId) {
       this.#dialogRef.close();
-      this.#router.navigate(['/', canisterId, 'drive']);
+      this.#router.navigate(['/dashboard', canisterId, 'drive']);
     }
   }
 }

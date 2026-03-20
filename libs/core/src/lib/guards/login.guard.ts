@@ -18,7 +18,7 @@ export const loginGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
     filter((v) => v),
     map(() => {
       const redirectUrl = router.parseUrl(
-        route.queryParams['redirectUrl'] ?? '/',
+        route.queryParams['redirectUrl'] ?? '/dashboard',
       );
       const isAuthenticated = authService.isAuthenticated();
       if (
@@ -33,4 +33,3 @@ export const loginGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
     }),
   );
 };
-

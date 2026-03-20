@@ -25,3 +25,16 @@ export const canistersRoutes: Route[] = [
     ],
   },
 ];
+
+/** Routes for /dashboard/:id/canister — canister detail within a storage context. */
+export const canisterDetailRoutes: Route[] = [
+  {
+    path: '',
+    resolve: {
+      canisterList: canisterListResolver,
+      canisterStatus: canisterStatusResolver,
+    },
+    loadComponent: () =>
+      import('./pages').then((m) => m.CanisterDetailComponent),
+  },
+];

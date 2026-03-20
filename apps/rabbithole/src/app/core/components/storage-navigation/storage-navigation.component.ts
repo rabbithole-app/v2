@@ -6,7 +6,6 @@ import {
   lucideDatabase,
   lucideFolder,
   lucideHardDrive,
-  lucideUserCog,
 } from '@ng-icons/lucide';
 import { map } from 'rxjs/operators';
 
@@ -26,7 +25,7 @@ import {
       Navigation
     </div>
     <div hlmSidebarGroupContent>
-      <core-navigation [data]="data()" [exact]="'/' + canisterId()" />
+      <core-navigation [data]="data()" [exact]="'/dashboard/' + canisterId()" />
     </div> `,
   imports: [
     NavigationComponent,
@@ -37,7 +36,6 @@ import {
     provideIcons({
       lucideDatabase,
       lucideHardDrive,
-      lucideUserCog,
       lucideFolder,
     }),
   ],
@@ -53,22 +51,17 @@ export class StorageNavigationComponent {
     return [
       {
         title: 'Storage',
-        url: `/${canisterId}`,
+        url: `/dashboard/${canisterId}`,
         icon: 'lucideHardDrive',
       },
       {
         title: 'My Files',
-        url: `/${canisterId}/drive`,
+        url: `/dashboard/${canisterId}/drive`,
         icon: 'lucideFolder',
       },
       {
-        title: 'Permissions',
-        url: `/${canisterId}/permissions`,
-        icon: 'lucideUserCog',
-      },
-      {
         title: 'Canister settings',
-        url: `/canisters/${canisterId}`,
+        url: `/dashboard/${canisterId}/canister`,
         icon: 'lucideDatabase',
       },
     ];

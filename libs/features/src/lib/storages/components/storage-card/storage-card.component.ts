@@ -143,7 +143,7 @@ export class StorageCardComponent {
   navigateToCanisterManagement(): void {
     const canisterId = this.canisterIdText();
     if (canisterId) {
-      this.#router.navigate(['/canisters', canisterId]);
+      this.#router.navigate(['/dashboard', canisterId, 'canister']);
     }
   }
 

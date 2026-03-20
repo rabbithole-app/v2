@@ -6,10 +6,10 @@ import {
 } from '@angular/core';
 import {
   createAuthClient,
+  type Params,
   parseParams,
   popupCenter,
   startLogin,
-  type Params,
 } from '@perforate/ic-auth-bridge';
 
 import { environment } from '../../../environments/environment';
@@ -58,29 +58,11 @@ const AUTH_POPUP_HEIGHT = 826;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IiBridgeComponent implements OnInit {
-  state = signal<'loading' | 'ready' | 'success' | 'error'>('loading');
   errorMessage = signal('');
+  state = signal<'error' | 'loading' | 'ready' | 'success'>('loading');
 
   #authClient: Awaited<ReturnType<typeof createAuthClient>> | null = null;
   #params: Params | null = null;
-
-  async ngOnInit() {
-    try {
-      this.#params = parseParams(window.location.href);
-
-      const identityProvider =
-        this.#params.identityProvider ?? this.#getIdentityProvider();
-
-      this.#authClient = await createAuthClient(
-        this.#params,
-        identityProvider,
-      );
-      this.state.set('ready');
-    } catch (e) {
-      this.errorMessage.set(e instanceof Error ? e.message : String(e));
-      this.state.set('error');
-    }
-  }
 
   login() {
     if (!this.#authClient || !this.#params) return;
@@ -101,6 +83,24 @@ export class IiBridgeComponent implements OnInit {
         },
       },
     );
+  }
+
+  async ngOnInit() {
+    try {
+      this.#params = parseParams(window.location.href);
+
+      const identityProvider =
+        this.#params.identityProvider ?? this.#getIdentityProvider();
+
+      this.#authClient = await createAuthClient(
+        this.#params,
+        identityProvider,
+      );
+      this.state.set('ready');
+    } catch (e) {
+      this.errorMessage.set(e instanceof Error ? e.message : String(e));
+      this.state.set('error');
+    }
   }
 
   retry() {

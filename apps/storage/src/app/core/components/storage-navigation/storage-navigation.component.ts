@@ -1,9 +1,9 @@
 import { Component } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
 import {
+  lucideDatabase,
   lucideFolder,
   lucideHardDrive,
-  lucideUserCog,
 } from '@ng-icons/lucide';
 
 import { NavigationComponent, NavItem } from '@rabbithole/core';
@@ -19,7 +19,6 @@ import {
     <div hlmSidebarGroupContent>
       <core-navigation [data]="data" />
     </div> `,
-  standalone: true,
   imports: [
     NavigationComponent,
     HlmSidebarGroupLabel,
@@ -28,7 +27,7 @@ import {
   providers: [
     provideIcons({
       lucideHardDrive,
-      lucideUserCog,
+      lucideDatabase,
       lucideFolder,
     }),
   ],
@@ -47,9 +46,9 @@ export class StorageNavigationComponent {
       icon: 'lucideFolder',
     },
     {
-      title: 'Permissions',
-      url: `/permissions`,
-      icon: 'lucideUserCog',
+      title: 'Canister settings',
+      url: `/canister`,
+      icon: 'lucideDatabase',
     },
   ];
 }

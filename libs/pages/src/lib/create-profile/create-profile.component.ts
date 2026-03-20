@@ -28,7 +28,7 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 @Component({
-  selector: 'page-create-profile',
+  selector: 'rbth-page-create-profile',
   standalone: true,
   imports: [
     ReactiveFormsModule,
@@ -86,7 +86,7 @@ export class CreateProfileComponent {
       const ready = this.profileReady();
       const authenticated = this.authService.isAuthenticated();
       if (ready && profile && authenticated) {
-        this.#router.navigate(['/']);
+        this.#router.navigate(['/dashboard']);
       } else if (ready && !authenticated) {
         this.#router.navigate(['/login']);
       }

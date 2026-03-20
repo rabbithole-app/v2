@@ -117,6 +117,6 @@ export class CanisterCardComponent {
   }
 
   protected _onView() {
-    this.#router.navigate(['/canisters', this.canisterIdText()]);
+    this.#router.navigate(['/dashboard', this.canisterIdText(), 'canister']);
   }
 }

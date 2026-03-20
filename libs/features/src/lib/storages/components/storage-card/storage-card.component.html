@@ -77,7 +77,7 @@
           hlmBtn
           variant="outline"
           size="sm"
-          [routerLink]="hasWasmUpdate() ? null : ['/', canisterIdText(), 'drive']"
+          [routerLink]="hasWasmUpdate() ? null : ['/dashboard', canisterIdText(), 'drive']"
           [class.pointer-events-none]="hasWasmUpdate()"
           [class.opacity-50]="hasWasmUpdate()"
           [hlmTooltip]="hasWasmUpdate() ? 'Update required — storage module is outdated' : ''"

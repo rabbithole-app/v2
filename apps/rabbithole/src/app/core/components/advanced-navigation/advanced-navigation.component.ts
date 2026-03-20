@@ -7,7 +7,6 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronDown,
-  lucideDatabase,
   lucideEllipsis,
   lucideTags,
   lucideUsers,
@@ -34,7 +33,6 @@ import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
   providers: [
     provideIcons({
       lucideChevronDown,
-      lucideDatabase,
       lucideEllipsis,
       lucideTags,
       lucideUsers,
@@ -45,9 +43,8 @@ export class AdvancedNavigationComponent {
   readonly advancedExpanded = signal(false);
 
   readonly advancedNavItems = [
-    { icon: 'lucideDatabase', label: 'Canisters', route: '/canisters' },
-    { icon: 'lucideTags', label: 'Releases', route: '/releases' },
-    { icon: 'lucideUsers', label: 'Users', route: '/users' },
+    { icon: 'lucideTags', label: 'Releases', route: '/dashboard/releases' },
+    { icon: 'lucideUsers', label: 'Users', route: '/dashboard/users' },
   ];
 
   readonly menuItemClass =

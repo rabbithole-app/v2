@@ -28,8 +28,7 @@
       <hlm-dropdown-menu-group>
         <button
           hlmDropdownMenuItem
-          routerLink="/profile"
-          (click)="ctx.close()"
+          (click)="navigateToProfile(); ctx.close()"
         >
           <ng-icon hlm name="lucideUser" />
           <span>{{ profile() ? 'Profile' : 'Set up profile' }}</span>

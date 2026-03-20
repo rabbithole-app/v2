@@ -37,8 +37,10 @@ export class StorageSwitcherComponent {
       map((e) => e.urlAfterRedirects),
       startWith(this.#router.url),
       map((url) => {
-        const first = url.split(/[?#(]/)[0].split('/').filter(Boolean)[0];
-        return first && isPrincipal(first) ? first : null;
+        const segments = url.split(/[?#(]/)[0].split('/').filter(Boolean);
+        // Skip 'dashboard' prefix — canisterId is the second segment
+        const candidate = segments[0] === 'dashboard' ? segments[1] : segments[0];
+        return candidate && isPrincipal(candidate) ? candidate : null;
       }),
     ),
     { initialValue: null },
@@ -59,7 +61,7 @@ export class StorageSwitcherComponent {
   readonly #dialogService = inject(HlmDialogService);
 
   navigateToStorage(canisterId: string): void {
-    this.#router.navigate(['/', canisterId, 'drive']);
+    this.#router.navigate(['/dashboard', canisterId, 'drive']);
   }
 
   async openCreateStorageDialog(): Promise<void> {

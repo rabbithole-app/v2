@@ -18,6 +18,11 @@ export const appRoutes: Route[] = [
     children: [
       {
         path: '',
+        redirectTo: 'drive',
+        pathMatch: 'full',
+      },
+      {
+        path: '',
         loadComponent: () =>
           import('./app.component').then((m) => m.AppComponent),
         children: [
@@ -29,10 +34,10 @@ export const appRoutes: Route[] = [
               ),
           },
           {
-            path: 'permissions',
-            loadComponent: () =>
-              import('@rabbithole/pages/permissions').then(
-                (m) => m.PermissionsComponent,
+            path: 'canister',
+            loadChildren: () =>
+              import('@rabbithole/features/canisters').then(
+                (m) => m.canisterDetailRoutes,
               ),
           },
         ],
@@ -63,8 +68,17 @@ export const appRoutes: Route[] = [
   {
     path: 'login',
     loadComponent: () =>
-      import('@rabbithole/pages/login').then((m) => m.LoginComponent),
+      import('./pages/login-layout/login-layout.component').then(
+        (m) => m.LoginLayoutComponent,
+      ),
     canActivate: [loginGuard],
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('@rabbithole/pages/login').then((m) => m.LoginComponent),
+      },
+    ],
   },
   { path: '**', pathMatch: 'full', redirectTo: '' },
 ];

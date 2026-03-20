@@ -25,8 +25,8 @@ import {
   IS_PRODUCTION_TOKEN,
   MAIN_BACKEND_URL_TOKEN,
   MAIN_CANISTER_ID_TOKEN,
-  provideIcAuthSignOutHandler,
   provideCoreWorker,
+  provideIcAuthSignOutHandler,
 } from '@rabbithole/core';
 
 import { environment } from '../environments/environment';

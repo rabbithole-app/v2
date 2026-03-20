@@ -1,18 +1,24 @@
-<core-login-wrapper>
-  @if (publicKey(); as pk) {
-    <rbth-delegation-internet-identity
-      [publicKey]="pk"
-      [targets]="targets()"
-      (delegate)="handleDelegate($event)"
+<h1 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+  Sign in to Rabbithole
+</h1>
+<p class="mx-auto mt-3 max-w-sm text-center text-muted-foreground">
+  Authenticate with Internet Identity — no passwords, just passkeys.
+</p>
+
+@if (publicKey(); as pk) {
+  <rbth-delegation-internet-identity
+    [publicKey]="pk"
+    [targets]="targets()"
+    (delegate)="handleDelegate($event)"
+  >
+    <button
+      rbthRainbowBtn
+      size="lg"
+      class="mt-8"
+      rbthDelegationInternetIdentityTrigger
     >
-      <button
-        type="button"
-        class="inline-flex items-center justify-center gap-x-3 rounded-full border border-transparent bg-gradient-to-tl from-blue-600 to-violet-600 px-4 py-3 text-center text-sm font-medium text-white hover:from-violet-600 hover:to-blue-600 focus:from-violet-600 focus:to-blue-600 focus:outline-hidden"
-        rbthDelegationInternetIdentityTrigger
-      >
-        <img src="./ic.svg" alt="" width="24px" />
-        Sign in with Internet Identity
-      </button>
-    </rbth-delegation-internet-identity>
-  }
-</core-login-wrapper>
+      <img src="/ic.svg" alt="" class="h-5 w-5" />
+      Sign in with Internet Identity
+    </button>
+  </rbth-delegation-internet-identity>
+}

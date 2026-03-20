@@ -6,7 +6,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
 import { AuthClient, IdbStorage, KEY_STORAGE_KEY } from '@icp-sdk/auth/client';
 import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import {
@@ -102,7 +101,6 @@ export class DelegationAuthService implements IAuthService {
   #authConfig = inject(AUTH_CONFIG);
   #destroyRef = inject(DestroyRef);
   #popupWindow: Window | null = null;
-  #router = inject(Router);
 
   constructor() {
     toObservable(this.#state)
@@ -231,7 +229,6 @@ export class DelegationAuthService implements IAuthService {
 
     // Save delegation for later use
     await saveDelegationChain(delegationChain);
-    await this.#router.navigate(['/']);
   }
 
   #setupPostMessageListener() {

@@ -20,7 +20,7 @@ export const createProfileGuard: CanActivateFn = (
     map(() => {
       const profile = profileService.profile();
       if (profile) {
-        return new RedirectCommand(router.parseUrl('/'), { replaceUrl: true });
+        return new RedirectCommand(router.parseUrl('/dashboard'), { replaceUrl: true });
       }
 
       return true;

@@ -2,7 +2,7 @@
   "name": "pages",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/pages/src",
-  "prefix": "page",
+  "prefix": "rbth-page",
   "projectType": "library",
   "tags": ["type:page"],
   "targets": {

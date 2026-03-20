@@ -5,8 +5,40 @@ import { dashboardGuard, loginGuard, profileResolver } from '@rabbithole/core';
 import { storageViewGuard } from './core/guards';
 
 export const appRoutes: Route[] = [
+  // Landing layout group (particles + navbar)
   {
     path: '',
+    loadComponent: () =>
+      import('./pages/landing/landing-layout.component').then(
+        (m) => m.LandingLayoutComponent,
+      ),
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () =>
+          import('./pages/landing/landing.component').then(
+            (m) => m.LandingComponent,
+          ),
+      },
+      {
+        path: 'login',
+        loadComponent: () =>
+          import('@rabbithole/pages/login').then((m) => m.LoginComponent),
+        canActivate: [loginGuard],
+      },
+      {
+        path: 'delegation',
+        loadComponent: () =>
+          import('./pages/delegation/delegation.component').then(
+            (m) => m.DelegationComponent,
+          ),
+      },
+    ],
+  },
+  // Dashboard layout group
+  {
+    path: 'dashboard',
     loadComponent: () =>
       import('./pages/dashboard/dashboard.component').then(
         (m) => m.DashboardComponent,
@@ -23,24 +55,26 @@ export const appRoutes: Route[] = [
             (m) => m.storagesRoutes,
           ),
       },
-
+      {
+        path: 'create-storage',
+        outlet: 'dialog',
+        loadComponent: () =>
+          import('@rabbithole/features/storages').then(
+            (m) => m.CreateStorageTriggerComponent,
+          ),
+      },
       {
         path: 'users',
         loadComponent: () =>
-          import('./pages/users/users.component').then((m) => m.UsersComponent),
+          import('./pages/users/users.component').then(
+            (m) => m.UsersComponent,
+          ),
       },
       {
         path: 'releases',
         loadChildren: () =>
           import('@rabbithole/features/releases').then(
             (m) => m.releasesRoutes,
-          ),
-      },
-      {
-        path: 'canisters',
-        loadChildren: () =>
-          import('@rabbithole/features/canisters').then(
-            (m) => m.canistersRoutes,
           ),
       },
       {
@@ -80,10 +114,10 @@ export const appRoutes: Route[] = [
                   ),
               },
               {
-                path: 'permissions',
-                loadComponent: () =>
-                  import('@rabbithole/pages/permissions').then(
-                    (m) => m.PermissionsComponent,
+                path: 'canister',
+                loadChildren: () =>
+                  import('@rabbithole/features/canisters').then(
+                    (m) => m.canisterDetailRoutes,
                   ),
               },
             ],
@@ -101,24 +135,11 @@ export const appRoutes: Route[] = [
     ],
   },
   {
-    path: 'login',
-    loadComponent: () =>
-      import('@rabbithole/pages/login').then((m) => m.LoginComponent),
-    canActivate: [loginGuard],
-  },
-  {
-    path: 'delegation',
-    loadComponent: () =>
-      import('./pages/delegation/delegation.component').then(
-        (m) => m.DelegationComponent,
-      ),
-  },
-  {
     path: 'ii-bridge',
     loadComponent: () =>
       import('./pages/ii-bridge/ii-bridge.component').then(
         (m) => m.IiBridgeComponent,
       ),
   },
-  { path: '**', pathMatch: 'full', redirectTo: '' },
+  { path: '**', pathMatch: 'full', redirectTo: 'dashboard' },
 ];

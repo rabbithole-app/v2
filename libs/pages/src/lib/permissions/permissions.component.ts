@@ -20,7 +20,7 @@ import { RbthTreeComponent, TreeNode } from '@rabbithole/ui';
 import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
-  selector: 'page-permissions',
+  selector: 'rbth-page-permissions',
   imports: [PermissionsTableComponent, RbthTreeComponent],
   providers: [provideIcons({ lucideLogOut })],
   templateUrl: './permissions.component.html',

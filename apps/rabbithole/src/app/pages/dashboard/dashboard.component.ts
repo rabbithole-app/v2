@@ -4,7 +4,7 @@ import {
   effect,
   inject,
 } from '@angular/core';
-import { Params, Router, RouterOutlet } from '@angular/router';
+import { Router, RouterOutlet } from '@angular/router';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { SidebarLayoutComponent } from '@rabbithole/core';
@@ -24,7 +24,8 @@ import { StorageSwitcherComponent } from '../../core/components/storage-switcher
     <app-storage-switcher sidebarTop />
     <app-advanced-navigation sidebarBottom />
     <router-outlet />
-  </core-sidebar-layout>`,
+  </core-sidebar-layout>
+  <router-outlet name="dialog" />`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {
@@ -34,9 +35,9 @@ export class DashboardComponent {
   constructor() {
     effect(() => {
       if (!this.#authService.isAuthenticated()) {
-        const queryParams: Params | null =
-          this.#router.url === '/' ? null : { redirectUrl: this.#router.url };
-        this.#router.navigate(['/login'], { queryParams });
+        this.#router.navigate(['/login'], {
+          queryParams: { redirectUrl: this.#router.url },
+        });
       }
     });
   }

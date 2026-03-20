@@ -115,7 +115,7 @@ describe('loginGuard', () => {
       const result = executeGuard(route, state) as Observable<GuardResult>;
       const expected = '(a|)';
       expectObservable(result).toBe(expected, {
-        a: new RedirectCommand(router.parseUrl('/'), { replaceUrl: true }),
+        a: new RedirectCommand(router.parseUrl('/dashboard'), { replaceUrl: true }),
       });
     });
   });

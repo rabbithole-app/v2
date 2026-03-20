@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLogOut, lucideUser } from '@ng-icons/lucide';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
@@ -31,7 +31,6 @@ import { AccountMenuTriggerContentComponent } from '../account-menu-trigger-cont
     NgIcon,
     CopyToClipboardComponent,
     CdkMenu,
-    RouterLink,
   ],
   providers: [
     provideIcons({
@@ -47,17 +46,23 @@ export class AccountMenuComponent {
 
   readonly #authService = inject(AUTH_SERVICE);
   readonly principalId = this.#authService.principalId;
-
   readonly #profileService = inject(ProfileService);
-
   readonly profile = this.#profileService.profile;
+
   readonly truncatedPrincipal = computed(() => {
     const id = this.principalId();
     if (!id || id.length <= 15) return id;
     return `${id.slice(0, 7)}...${id.slice(-5)}`;
   });
 
+  readonly #route = inject(ActivatedRoute);
+  readonly #router = inject(Router);
+
   handleLogout(): void {
     this.#authService.signOut();
+  }
+
+  navigateToProfile(): void {
+    this.#router.navigate(['profile'], { relativeTo: this.#route });
   }
 }

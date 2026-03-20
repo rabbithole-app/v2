@@ -38,7 +38,7 @@ interface ProfileFormData {
 }
 
 @Component({
-  selector: 'page-profile',
+  selector: 'rbth-page-profile',
   imports: [
     FormField,
     HlmButton,

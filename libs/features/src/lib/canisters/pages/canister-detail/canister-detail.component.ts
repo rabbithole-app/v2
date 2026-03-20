@@ -91,7 +91,6 @@ import { ICManagementService } from '../../services';
 export class CanisterDetailComponent implements OnInit {
   #route = inject(ActivatedRoute);
 
-  // List of available canisters from resolver
   readonly canisterList = toSignal(
     this.#route.data.pipe(
       map((data) =>
@@ -101,6 +100,7 @@ export class CanisterDetailComponent implements OnInit {
     { requireSync: true },
   );
   #icManagementService = inject(ICManagementService);
+
   // Combines initial data from resolver with reactive updates from service resource
   canisterStatus = toSignal(
     this.#route.data.pipe(
@@ -113,9 +113,7 @@ export class CanisterDetailComponent implements OnInit {
     ),
     { requireSync: true },
   );
-
   controllers = computed(() => this.canisterStatus().settings.controllers);
-
   readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
 
   readonly currentCanisterId = computed(() => this.#canisterId.toText());
@@ -175,7 +173,7 @@ export class CanisterDetailComponent implements OnInit {
 
   protected _onCanisterChange(canisterId: string[] | string | undefined) {
     if (typeof canisterId === 'string') {
-      this.#router.navigate(['/canisters', canisterId]);
+      this.#router.navigate(['/dashboard', canisterId, 'canister']);
     }
   }
 

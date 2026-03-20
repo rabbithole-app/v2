@@ -227,7 +227,7 @@ export class CreateCanisterDialogComponent {
   protected _onViewCanister(canisterId: string) {
     this.#dialogRef.close(true);
     // Navigate to canister detail page
-    this.#router.navigate(['/canisters', canisterId]);
+    this.#router.navigate(['/dashboard', canisterId, 'canister']);
   }
 
   #createCanister(blockIndex: bigint) {

@@ -6,7 +6,6 @@ type Result<T, E> = [null, E] | [T];
  * @returns A result object with either `data` and `error: undefined`, or `data: undefined` and `error`.
  */
 export function tryCatch<T, E = Error>(fn: () => T): Result<T, E>;
-
 /**
  * Executes a promise and returns a promise that resolves to a result object containing either the data or an error.
  * @param promise A promise to execute.
@@ -15,7 +14,6 @@ export function tryCatch<T, E = Error>(fn: () => T): Result<T, E>;
 export function tryCatch<T, E = Error>(
   promise: Promise<T>
 ): Promise<Result<T, E>>;
-
 export function tryCatch<T, E = Error>(
   input: Promise<T> | (() => T)
 ): Promise<Result<T, E>> | Result<T, E> {

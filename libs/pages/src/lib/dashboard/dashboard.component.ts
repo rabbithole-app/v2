@@ -4,13 +4,13 @@ import {
   effect,
   inject,
 } from '@angular/core';
-import { Params, Router, RouterOutlet } from '@angular/router';
+import { Router, RouterOutlet } from '@angular/router';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { SidebarLayoutComponent } from '@rabbithole/core';
 
 @Component({
-  selector: 'page-dashboard',
+  selector: 'rbth-page-dashboard',
   imports: [SidebarLayoutComponent, RouterOutlet],
   template: `<core-sidebar-layout>
     <router-outlet />
@@ -24,9 +24,9 @@ export class DashboardComponent {
   constructor() {
     effect(() => {
       if (!this.authService.isAuthenticated()) {
-        const queryParams: Params | null =
-          this.#router.url === '/' ? null : { redirectUrl: this.#router.url };
-        this.#router.navigate(['/login'], { queryParams });
+        this.#router.navigate(['/login'], {
+          queryParams: { redirectUrl: this.#router.url },
+        });
       }
     });
   }

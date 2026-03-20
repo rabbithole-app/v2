@@ -14,7 +14,15 @@ export const ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER = {
   provide: ENCRYPTED_STORAGE_CANISTER_ID,
   useFactory: () => {
     const route = inject(ActivatedRoute);
-    const canisterId = route.snapshot.paramMap.get('id');
+
+    // Search for 'id' param in current and parent routes
+    let snapshot: ActivatedRouteSnapshot | null = route.snapshot;
+    let canisterId: string | null = null;
+
+    while (snapshot && !canisterId) {
+      canisterId = snapshot.paramMap.get('id');
+      snapshot = snapshot.parent;
+    }
 
     if (!canisterId) {
       throw new Error('Canister ID parameter is required');
