@@ -1,0 +1,79 @@
+<nav class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+  <a routerLink="/" class="flex items-center gap-2.5">
+    <img src="/logo-rabbit.svg" alt="Rabbithole" class="h-7 w-7" />
+    <span class="text-base font-semibold">Rabbithole</span>
+  </a>
+
+  <!-- Desktop -->
+  <div class="hidden items-center gap-2 md:flex">
+    <a
+      hlmBtn
+      variant="ghost"
+      size="sm"
+      href="https://docs.rabbithole.app"
+      target="_blank"
+      rel="noopener"
+    >
+      <ng-icon name="lucideBookOpen" size="16" />
+      Docs
+    </a>
+    <a
+      hlmBtn
+      variant="ghost"
+      size="sm"
+      href="https://github.com/rabbithole-app/v2"
+      target="_blank"
+      rel="noopener"
+    >
+      <ng-icon name="lucideGithub" size="16" />
+      GitHub
+    </a>
+    @if (ctaTpl(); as tpl) {
+      <ng-container [ngTemplateOutlet]="tpl" />
+    }
+  </div>
+
+  <!-- Mobile -->
+  <button
+    hlmBtn
+    variant="ghost"
+    size="icon"
+    class="md:hidden"
+    (click)="toggleMenu()"
+  >
+    <ng-icon
+      [name]="mobileMenuOpen() ? 'lucideX' : 'lucideMenu'"
+      size="20"
+    />
+  </button>
+</nav>
+
+@if (mobileMenuOpen()) {
+  <div class="border-t border-border bg-background px-6 py-4 md:hidden">
+    <div class="flex flex-col gap-2">
+      <a
+        hlmBtn
+        variant="ghost"
+        href="https://docs.rabbithole.app"
+        target="_blank"
+        rel="noopener"
+      >
+        <ng-icon name="lucideBookOpen" size="16" />
+        Docs
+      </a>
+      <a
+        hlmBtn
+        variant="ghost"
+        href="https://github.com/rabbithole-app/v2"
+        target="_blank"
+        rel="noopener"
+      >
+        <ng-icon name="lucideGithub" size="16" />
+        GitHub
+      </a>
+      @if (ctaTpl(); as tpl) {
+        <ng-container [ngTemplateOutlet]="tpl" />
+      }
+    </div>
+  </div>
+}

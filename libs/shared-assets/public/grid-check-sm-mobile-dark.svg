@@ -1,0 +1,77 @@
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="960"
+    height="960"
+    viewBox="0 0 960 960"
+    fill="none"
+>
+    <defs>
+        <pattern
+            id="dotPattern"
+            width="64"
+            height="64"
+            patternUnits="userSpaceOnUse"
+        >
+            <rect
+                width="64"
+                height="64"
+                stroke="#22262F"
+                stroke-width="1"
+                fill="none"
+            />
+        </pattern>
+
+        <radialGradient
+            id="fadeGradient"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="translate(480 -0.000114441) rotate(90) scale(960 501.059)"
+        >
+            <stop />
+            <stop offset="0.953125" stop-opacity="0" />
+        </radialGradient>
+
+        <mask
+            id="fadeMask"
+            style="mask-type: alpha"
+            maskUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width="960"
+            height="960"
+        >
+            <rect width="960" height="960" fill="url(#fadeGradient)" />
+        </mask>
+    </defs>
+
+    <g mask="url(#fadeMask)">
+        <rect width="960" height="960" fill="url(#dotPattern)" />
+        <path d="M128 64H192V128H128V64Z" fill="#22262F" />
+        <path d="M704 64H768V128H704V64Z" fill="#22262F" />
+        <path d="M256 128H320V192H256V128Z" fill="#22262F" />
+        <path d="M512 128H576V192H512V128Z" fill="#22262F" />
+        <path d="M768 192H832V256H768V192Z" fill="#22262F" />
+        <path d="M0 256H64V320H0V256Z" fill="#22262F" />
+        <path d="M320 256H384V320H320V256Z" fill="#22262F" />
+        <path d="M192 320H256V384H192V320Z" fill="#22262F" />
+        <path d="M576 320H640V384H576V320Z" fill="#22262F" />
+        <path d="M768 320H832V384H768V320Z" fill="#22262F" />
+        <path d="M384 384H448V448H384V384Z" fill="#22262F" />
+        <path d="M256 448H320V512H256V448Z" fill="#22262F" />
+        <path d="M640 448H704V512H640V448Z" fill="#22262F" />
+        <path d="M128 512H192V576H128V512Z" fill="#22262F" />
+        <path d="M832 512H896V576H832V512Z" fill="#22262F" />
+        <path d="M384 576H448V640H384V576Z" fill="#22262F" />
+        <path d="M256 640H320V704H256V640Z" fill="#22262F" />
+        <path d="M704 640H768V704H704V640Z" fill="#22262F" />
+        <path d="M512 704H576V768H512V704Z" fill="#22262F" />
+        <path d="M832 704H896V768H832V704Z" fill="#22262F" />
+        <path d="M256 768H320V832H256V768Z" fill="#22262F" />
+        <path d="M64 832H128V896H64V832Z" fill="#22262F" />
+        <path d="M640 832H704V896H640V832Z" fill="#22262F" />
+        <path d="M448 896H512V960H448V896Z" fill="#22262F" />
+        <path d="M896 896H960V960H896V896Z" fill="#22262F" />
+    </g>
+</svg>

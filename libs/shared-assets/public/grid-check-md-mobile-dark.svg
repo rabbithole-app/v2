@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960" fill="none">
+
+    <defs>
+        <pattern
+            id="dotPattern"
+            width="96"
+            height="96"
+            patternUnits="userSpaceOnUse"
+        >
+            <rect
+                width="96"
+                height="96"
+                stroke="#22262F"
+                stroke-width="1"
+                fill="none"
+            />
+        </pattern>
+
+        <radialGradient
+            id="fadeGradient"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="translate(480 -0.000114441) rotate(90) scale(960 501.059)"
+        >
+            <stop />
+            <stop offset="0.953125" stop-opacity="0" />
+        </radialGradient>
+
+        <mask
+            id="fadeMask"
+            style="mask-type: alpha"
+            maskUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width="960"
+            height="960"
+        >
+            <rect width="960" height="960" fill="url(#fadeGradient)" />
+        </mask>
+    </defs>
+
+    <g mask="url(#fadeMask)">
+        <rect width="960" height="960" fill="url(#dotPattern)" />
+        <path d="M192 96H288V192H192V96Z" fill="#22262F" />
+        <path d="M768 96H864V192H768V96Z" fill="#22262F" />
+        <path d="M0 192H96V288H0V192Z" fill="#22262F" />
+        <path d="M576 192H672V288H576V192Z" fill="#22262F" />
+        <path d="M864 288H960V384H864V288Z" fill="#22262F" />
+        <path d="M288 384H384V480H288V384Z" fill="#22262F" />
+        <path d="M0 480H96V576H0V480Z" fill="#22262F" />
+        <path d="M576 480H672V576H576V480Z" fill="#22262F" />
+        <path d="M288 672H384V768H288V672Z" fill="#22262F" />
+        <path d="M864 672H960V768H864V672Z" fill="#22262F" />
+        <path d="M0 768H96V864H0V768Z" fill="#22262F" />
+        <path d="M576 768H672V864H576V768Z" fill="#22262F" />
+    </g>
+</svg>

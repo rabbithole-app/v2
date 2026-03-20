@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1440" viewBox="0 0 1920 1440"
+    fill="none">
+    <defs>
+        <pattern
+            id="dotPattern"
+            width="96"
+            height="96"
+            patternUnits="userSpaceOnUse"
+        >
+            <rect
+                width="96"
+                height="96"
+                stroke="#E9EAEB"
+                stroke-width="1"
+                fill="none"
+            />
+        </pattern>
+
+        <radialGradient
+            id="fadeGradient"
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="translate(720 -0.000171661) rotate(90) scale(1440 751.588)"
+        >
+            <stop />
+            <stop offset="0.953125" stop-opacity="0" />
+        </radialGradient>
+
+        <mask
+            id="fadeMask"
+            style="mask-type: alpha"
+            maskUnits="userSpaceOnUse"
+            x="240"
+            y="0"
+            width="1440"
+            height="1440"
+        >
+            <rect
+                width="1440"
+                height="1440"
+                transform="translate(240)"
+                fill="url(#fadeGradient)"
+            />
+        </mask>
+    </defs>
+
+    <g mask="url(#fadeMask)">
+        <rect width="1920" height="1440" fill="url(#dotPattern)" />
+        <path d="M480 96H576V192H480V96Z" fill="#F5F5F5" />
+        <path d="M1344 96H1440V192H1344V96Z" fill="#F5F5F5" />
+        <path d="M672 192H768V288H672V192Z" fill="#F5F5F5" />
+        <path d="M1056 192H1152V288H1056V192Z" fill="#F5F5F5" />
+        <path d="M192 288H288V384H192V288Z" fill="#F5F5F5" />
+        <path d="M1344 288H1440V384H1344V288Z" fill="#F5F5F5" />
+        <path d="M768 384H864V480H768V384Z" fill="#F5F5F5" />
+        <path d="M480 480H576V576H480V480Z" fill="#F5F5F5" />
+        <path d="M1056 480H1152V576H1056V480Z" fill="#F5F5F5" />
+        <path d="M288 576H384V672H288V576Z" fill="#F5F5F5" />
+        <path d="M1536 576H1632V672H1536V576Z" fill="#F5F5F5" />
+        <path d="M768 672H864V768H768V672Z" fill="#F5F5F5" />
+        <path d="M1344 672H1440V768H1344V672Z" fill="#F5F5F5" />
+        <path d="M480 768H576V864H480V768Z" fill="#F5F5F5" />
+        <path d="M1056 768H1152V864H1056V768Z" fill="#F5F5F5" />
+        <path d="M1632 864H1728V960H1632V864Z" fill="#F5F5F5" />
+        <path d="M576 960H672V1056H576V960Z" fill="#F5F5F5" />
+        <path d="M960 960H1056V1056H960V960Z" fill="#F5F5F5" />
+        <path d="M192 1056H288V1152H192V1056Z" fill="#F5F5F5" />
+        <path d="M1344 1056H1440V1152H1344V1056Z" fill="#F5F5F5" />
+        <path d="M768 1152H864V1248H768V1152Z" fill="#F5F5F5" />
+        <path d="M480 1248H576V1344H480V1248Z" fill="#F5F5F5" />
+        <path d="M1056 1248H1152V1344H1056V1248Z" fill="#F5F5F5" />
+        <path d="M288 1344H384V1440H288V1344Z" fill="#F5F5F5" />
+        <path d="M1536 1344H1632V1440H1536V1344Z" fill="#F5F5F5" />
+    </g>
+</svg>
