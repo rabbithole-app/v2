@@ -437,6 +437,156 @@ Utility skill for discovering and navigating available skills in the project.
 - Capability overview
 - Cross-skill navigation
 
+### excalidraw
+
+Create hand-drawn style diagrams using Excalidraw JSON format.
+
+**Covers:**
+- Architecture diagrams, flowcharts, sequence diagrams
+- `.excalidraw` file generation
+- Can be opened at excalidraw.com
+
+### asset-canister
+
+Deploy frontend assets to the IC with certified responses and SPA routing.
+
+**Covers:**
+- Certified assets with SPA routing via `.ic-assets.json5`
+- Custom domain setup with DNS configuration
+- Programmatic uploads with `@icp-sdk/canisters/assets`
+- Content encoding (gzip/brotli) and caching strategies
+
+### canister-security
+
+IC-specific security patterns for Motoko and Rust canisters.
+
+**Covers:**
+- Anonymous principal rejection and access control guards
+- CallerGuard pattern for per-caller reentrancy locking
+- `inspect_message` for cycle optimization
+- Callback trap handling and state rollback awareness
+- Cycles monitoring and freezing threshold management
+
+### certified-variables
+
+Serve cryptographically verified query responses using Merkle trees and subnet BLS signatures.
+
+**Covers:**
+- RbTree/CertTree construction for Merkle proofs
+- `certified_data_set` (updates) and `data_certificate` (queries)
+- Witness generation and frontend verification
+- HTTP certification for custom HTTP canisters
+
+### ckbtc
+
+Accept, send, and manage ckBTC tokens with BTC deposit/withdrawal flows.
+
+**Covers:**
+- BTC deposit flow via minter (get address → send BTC → update balance)
+- ckBTC transfers and ICRC-2 approve/transferFrom
+- BTC withdrawal (min 50,000 satoshis)
+- Subaccount derivation and UTXO management
+
+### cycles-management
+
+Manage cycles and canister lifecycle including top-ups, freezing thresholds, and programmatic canister creation.
+
+**Covers:**
+- Cycle balance queries and acceptance patterns
+- Canister creation via management canister
+- Top-up operations and freezing threshold configuration
+- Cycles ledger integration
+
+### evm-rpc
+
+Call Ethereum and EVM chains from IC canisters via the EVM RPC canister.
+
+**Covers:**
+- Multi-provider consensus with `Consistent`/`Inconsistent` variants
+- ERC-20 token balance reads via `eth_call`
+- Signed raw transaction submission
+- Chain support: Ethereum, Arbitrum, Base, Optimism
+
+### https-outcalls
+
+Make HTTPS requests from canisters to external web APIs.
+
+**Covers:**
+- Transform functions for consensus (strip non-deterministic data)
+- GET/POST with custom headers and idempotency keys
+- Response size limits (2MB max) and cycle cost calculation
+- Automatic cycle attachment
+
+### icp-cli
+
+Build and deploy IC applications using the `icp` CLI tool with YAML configuration.
+
+**Covers:**
+- YAML configuration (`icp.yaml`) with canister definitions
+- Recipe system for Rust, Motoko, and asset canisters
+- Environment-based deployment (local, staging, production)
+- TypeScript binding generation with `@icp-sdk/bindgen`
+
+### icrc-ledger
+
+Deploy and interact with ICRC-1/ICRC-2 token ledgers (ICP, ckBTC, ckETH).
+
+**Covers:**
+- ICRC-1 transfers with deduplication
+- ICRC-2 approve/transferFrom allowance mechanics
+- Fee handling per token type
+- Local test ledger deployment
+
+### internet-identity
+
+Integrate Internet Identity authentication with passkey and OpenID login flows.
+
+**Covers:**
+- Passkey and OpenID account support
+- Delegation expiry configuration (max 30 days)
+- Per-app principal isolation for privacy
+- `AuthClient` for frontend login flow
+
+### multi-canister
+
+Design and deploy multi-canister dapps with inter-canister calls and factory patterns.
+
+**Covers:**
+- Inter-canister calls with bounded/unbounded wait semantics
+- 2MB payload limit for requests and responses
+- Canister factory pattern for dynamic creation
+- Reentrancy prevention and callback trap handling
+
+### stable-memory
+
+Persist canister state across upgrades using StableBTreeMap (Rust) or persistent actor (Motoko).
+
+**Covers:**
+- Motoko: `persistent actor` with automatic stable storage
+- Rust: `StableBTreeMap`, `StableCell`, `StableLog` with `MemoryManager`
+- `transient` keyword for non-stable data
+- Direct stable memory access without pre_upgrade serialization
+
+### vetkd
+
+Implement on-chain encryption using vetKeys (verifiable encrypted threshold key derivation).
+
+**Covers:**
+- `vetkd_public_key` and `vetkd_derive_key` APIs
+- Transport keys for secure delivery
+- IBE (Identity-Based Encryption) for principal-based encryption
+- Context-based key isolation
+
+### wallet-integration
+
+Integrate wallets with IC dApps using ICRC signer standards (ICRC-21/25/27/29/49).
+
+**Covers:**
+- Popup-based signer model with JSON-RPC 2.0 over postMessage
+- `IcpWallet` / `IcrcWallet` for ledger operations
+- Permission lifecycle with consent messages
+- Per-action transaction approval flow
+
 ## Testing Infrastructure
 
 - **Unit Tests**: Vitest for most projects (configured per-project)

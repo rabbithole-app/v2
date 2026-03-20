@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "skills": {
+    "asset-canister": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "e09e7675cc54eb677b27e0eb127e10fb9432564b168ef3fa837a22aa86e27464"
+    },
+    "canister-security": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "aa599635ccf3d5996cab1230b49e2e345535cd25b5d522d1ffc07804c2944a51"
+    },
+    "certified-variables": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "7f6342bbb88cf22b6459029ad5790ec8185ee23f5a441242f8bedf9284cea4d2"
+    },
+    "ckbtc": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "104bf8fa0a43c8e1f83de00fd7e9fbe7a030be7c9a57164938b8c4007c61274f"
+    },
+    "cycles-management": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "b14f8da81ce7bb78c10297b9051951d778fac20b9cf3b9c0e29c70fcf738d3c9"
+    },
+    "evm-rpc": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "b1fee51e848d39e0d04395d654560dc26b4efd645e2eb8cf4ddd7bc97dec41f3"
+    },
+    "https-outcalls": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "dd90859b2db2148630a7c04350549104f6f383072fdfc06ec3f75f463bad104a"
+    },
+    "icp-cli": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "ba7d74190c7862c01e814ff5974f9c30d989f793bfafaa8e7375cbc97895fdcc"
+    },
+    "icrc-ledger": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "675ba6259c4970d3dee2cc8aee678e9f31796a177b0b8a35f1a39c8e5728785b"
+    },
+    "internet-identity": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "f6fb4cd2ec4d10a061f9bc9a80a33bccc5643aefe81f2242ce73a121e7108442"
+    },
+    "multi-canister": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "72b81c31acec791302467cda7d340b730e9f4f0b0fcf0d4dfb2a7f0d82695146"
+    },
+    "stable-memory": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "9f6cea447d4d6182113b7b0e16faf0e28d9311fa8a0bc1cbb3c1ad8219761b24"
+    },
+    "vetkd": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "996470d1009af486e187e2a7c7135d2124c811b0fa64871e2fca3f7a5f9bd130"
+    },
+    "wallet-integration": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "6d1c9076bb9d8139f6313ee80eda78c13f94e04e1dce7e7ce02a24e610c7a4e5"
+    }
+  }
+}
