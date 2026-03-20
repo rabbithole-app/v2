@@ -81,18 +81,13 @@
       "executor": "nx:run-commands",
       "options": {
         "commands": [
+          "npx nx build storage --skip-nx-cache",
           "cp apps/backend/.dfx/local/canisters/encrypted-storage/encrypted-storage.wasm.gz apps/backend/mock/assets/",
           "COPYFILE_DISABLE=1 tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
           "node apps/backend/mock/sync-release-metadata.mjs"
         ],
         "parallel": false
-      },
-      "dependsOn": [
-        {
-          "target": "build",
-          "projects": ["storage"]
-        }
-      ]
+      }
     }
   }
 }
