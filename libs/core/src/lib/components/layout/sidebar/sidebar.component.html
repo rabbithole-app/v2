@@ -3,7 +3,41 @@
   <div hlmSidebarContent class="gap-0">
     <ng-content select="[sidebarTop]" />
     <router-outlet name="sidebar" />
-    <ng-content select="[sidebarBottom]" />
+    <div hlmSidebarGroup>
+      <div hlmSidebarGroupLabel>Resources</div>
+      <div hlmSidebarGroupContent>
+        <ul hlmSidebarMenu>
+          <li hlmSidebarMenuItem>
+            <a
+              rbthSidebarMenuButton
+              [hlmTooltip]="'Docs'"
+              [tooltipDisabled]="tooltipDisabled()"
+              position="right"
+              href="https://docs.rabbithole.app"
+              target="_blank"
+              rel="noopener"
+            >
+              <ng-icon hlmIcon name="lucideBookOpen" size="sm" hlmMenuIcon />
+              <span>Docs</span>
+            </a>
+          </li>
+          <li hlmSidebarMenuItem>
+            <a
+              rbthSidebarMenuButton
+              [hlmTooltip]="'GitHub'"
+              [tooltipDisabled]="tooltipDisabled()"
+              position="right"
+              href="https://github.com/rabbithole-app/v2"
+              target="_blank"
+              rel="noopener"
+            >
+              <ng-icon hlmIcon name="lucideGithub" size="sm" hlmMenuIcon />
+              <span>GitHub</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
   </div>
   <div hlmSidebarFooter></div>
   <button hlmSidebarRail></button>

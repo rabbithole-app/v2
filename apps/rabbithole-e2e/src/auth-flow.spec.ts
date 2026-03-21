@@ -27,14 +27,6 @@ test.describe('Authenticated routing', () => {
     });
   });
 
-  test('/dashboard/releases renders releases page', async ({ page }) => {
-    await page.goto('/dashboard/releases');
-    await page.waitForURL(/\/dashboard\/releases/);
-    await expect(page.locator('core-sidebar-layout')).toBeVisible({
-      timeout: 15000,
-    });
-  });
-
   test('/dashboard/profile renders profile page', async ({ page }) => {
     await page.goto('/dashboard/profile');
     await page.waitForURL(/\/dashboard\/profile/);

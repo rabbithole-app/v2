@@ -9,7 +9,6 @@ import { Router, RouterOutlet } from '@angular/router';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { SidebarLayoutComponent } from '@rabbithole/core';
 
-import { AdvancedNavigationComponent } from '../../core/components/advanced-navigation/advanced-navigation.component';
 import { StorageSwitcherComponent } from '../../core/components/storage-switcher/storage-switcher.component';
 
 @Component({
@@ -18,11 +17,9 @@ import { StorageSwitcherComponent } from '../../core/components/storage-switcher
     SidebarLayoutComponent,
     RouterOutlet,
     StorageSwitcherComponent,
-    AdvancedNavigationComponent,
   ],
   template: `<core-sidebar-layout>
     <app-storage-switcher sidebarTop />
-    <app-advanced-navigation sidebarBottom />
     <router-outlet />
   </core-sidebar-layout>
   <router-outlet name="dialog" />`,

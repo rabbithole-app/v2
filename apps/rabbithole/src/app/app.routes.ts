@@ -64,20 +64,6 @@ export const appRoutes: Route[] = [
           ),
       },
       {
-        path: 'users',
-        loadComponent: () =>
-          import('./pages/users/users.component').then(
-            (m) => m.UsersComponent,
-          ),
-      },
-      {
-        path: 'releases',
-        loadChildren: () =>
-          import('@rabbithole/features/releases').then(
-            (m) => m.releasesRoutes,
-          ),
-      },
-      {
         path: 'profile',
         loadComponent: () =>
           import('@rabbithole/pages/profile').then((m) => m.ProfileComponent),
