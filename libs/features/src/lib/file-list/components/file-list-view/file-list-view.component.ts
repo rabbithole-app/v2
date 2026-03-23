@@ -182,10 +182,10 @@ export class FileListViewComponent {
     const excludePaths = items
       .filter((i) => i.type === 'directory')
       .map((i) => (i.parentPath ? `${i.parentPath}/${i.name}` : i.name));
-    const currentParentPath = items[0]?.parentPath ?? null;
+    const currentParentPaths = [...new Set(items.map((i) => i.parentPath ?? null))];
     const dialogRef = this.#dialogService.open(MoveDialogComponent, {
       contentClass: 'min-w-[420px]',
-      context: { encryptedStorage: this.#encryptedStorage(), excludePaths, currentParentPath },
+      context: { encryptedStorage: this.#encryptedStorage(), excludePaths, currentParentPaths },
     });
     dialogRef.closed$
       .pipe(filter((v): v is Entry | null => v !== undefined))

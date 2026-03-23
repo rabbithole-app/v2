@@ -110,11 +110,16 @@ interface FlatTreeItem {
 })
 export class MoveDialogComponent {
   readonly dialogRef = inject(BrnDialogRef);
-  readonly #context = injectBrnDialogContext<{ encryptedStorage: EncryptedStorage; excludePaths?: string[]; currentParentPath?: string | null }>();
+  readonly #context = injectBrnDialogContext<{ encryptedStorage: EncryptedStorage; excludePaths?: string[]; currentParentPaths: (string | null)[] }>();
   readonly #encryptedStorage = this.#context.encryptedStorage;
   readonly #excludePaths = this.#context.excludePaths ?? [];
-  readonly #currentParentPath = this.#context.currentParentPath ?? null;
-  readonly rootDisabled = this.#currentParentPath === null;
+  readonly #currentParentPaths = this.#context.currentParentPaths;
+  readonly #expandedPaths = new Set(this.#currentParentPaths.flatMap((p) => {
+    if (p == null) return [];
+    const segments = p.split('/');
+    return segments.map((_, i) => segments.slice(0, i + 1).join('/'));
+  }));
+  readonly rootDisabled = this.#currentParentPaths.includes(null);
   readonly loading = signal(true);
   readonly selectedPath = signal<string | null>(null);
   readonly flatItems = signal<FlatTreeItem[]>([]);
@@ -157,23 +162,23 @@ export class MoveDialogComponent {
     }
   }
 
-  #convertTree(nodes: TreeNode[], level: number, parentDisabled = false): FlatTreeItem[] {
+  #convertTree(nodes: TreeNode[], level: number, parentExcluded = false): FlatTreeItem[] {
     return nodes
       .filter((node) => node.children !== undefined)
       .map((node) => {
         const path = node.path ?? node.name;
-        const isCurrent = this.#currentParentPath !== null && path === this.#currentParentPath;
-        const disabled = parentDisabled || isCurrent || this.#excludePaths.some(
+        const isCurrent = this.#currentParentPaths.includes(path);
+        const isExcluded = parentExcluded || this.#excludePaths.some(
           (ep) => path === ep || path.startsWith(ep + '/'),
         );
         return {
           name: node.name,
           path,
           level,
-          expanded: false,
-          disabled,
+          expanded: this.#expandedPaths.has(path),
+          disabled: isCurrent || isExcluded,
           children: node.children
-            ? this.#convertTree(node.children, level + 1, disabled)
+            ? this.#convertTree(node.children, level + 1, isExcluded)
             : undefined,
         };
       });
