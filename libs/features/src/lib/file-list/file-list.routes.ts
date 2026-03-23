@@ -19,4 +19,3 @@ export const fileListRoutes: Route[] = [
     component: FileListViewComponent,
   },
 ];
-
