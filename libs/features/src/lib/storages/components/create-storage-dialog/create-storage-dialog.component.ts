@@ -23,7 +23,7 @@ import {
   lucidePlus,
   lucideRocket,
 } from '@ng-icons/lucide';
-import { BrnDialogClose, BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { BrnDialogClose, BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { toast } from 'ngx-sonner';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -60,6 +60,10 @@ import { StorageCreationProgressComponent } from '../storage-creation-progress/s
 
 type DeploymentMode = 'existing' | 'new';
 type WizardStep = 'configure' | 'creating' | 'error' | 'select-mode';
+
+export interface CreateStorageDialogContext {
+  retryCanisterId?: string;
+}
 
 const CANISTER_CREATION_COST_TC = 0.5;
 
@@ -226,6 +230,7 @@ export class CreateStorageDialogComponent {
 
   readonly #authService = inject(AUTH_SERVICE);
 
+  readonly #context = injectBrnDialogContext<CreateStorageDialogContext | undefined>({ optional: true });
   readonly #dialogRef = inject(BrnDialogRef);
 
   // ═══════════════════════════════════════════════════════════════
@@ -236,6 +241,14 @@ export class CreateStorageDialogComponent {
   readonly #router = inject(Router);
 
   constructor() {
+    // If opened with retry context, pre-fill existing canister mode
+    const retryCanisterId = this.#context?.retryCanisterId;
+    if (retryCanisterId) {
+      this.#deploymentMode.set('existing');
+      this.existingFormModel.set({ canisterId: retryCanisterId });
+      this.#step.set('configure');
+    }
+
     // Watch creation status for completion/failure
     effect(() => {
       const status = this.creationStatus();

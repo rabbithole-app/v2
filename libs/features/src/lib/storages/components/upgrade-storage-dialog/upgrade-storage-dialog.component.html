@@ -47,6 +47,14 @@
         }
       </div>
 
+      @if (previousUpgradeError(); as prevError) {
+        <div hlmAlert variant="destructive">
+          <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+          <h4 hlmAlertTitle>Previous upgrade failed</h4>
+          <p hlmAlertDesc>{{ prevError }}</p>
+        </div>
+      }
+
       <div hlmAlert>
         <ng-icon hlmAlertIcon name="lucideCircleAlert" />
         <h4 hlmAlertTitle>Temporary permissions required</h4>

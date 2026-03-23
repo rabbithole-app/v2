@@ -19,9 +19,12 @@ import {
   lucideExternalLink,
   lucideHardDrive,
   lucideLoader2,
+  lucideRefreshCw,
   lucideSettings,
   lucideTrash2,
 } from '@ng-icons/lucide';
+
+import { BrnAlertDialogContent, BrnAlertDialogTrigger } from '@spartan-ng/brain/alert-dialog';
 
 import { CopyToClipboardComponent, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import {
@@ -39,9 +42,11 @@ import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmItemImports } from '@spartan-ng/helm/item';
+import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
+import { type CreateStorageDialogContext } from '../create-storage-dialog/create-storage-dialog.component';
 import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade-storage-dialog.component';
 
 @Component({
@@ -52,6 +57,9 @@ import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade
     HlmIcon,
     HlmBadge,
     HlmSpinner,
+    BrnAlertDialogContent,
+    BrnAlertDialogTrigger,
+    ...HlmAlertDialogImports,
     ...HlmButtonImports,
     ...HlmButtonGroupImports,
     ...HlmDropdownMenuImports,
@@ -71,6 +79,7 @@ import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade
       lucideExternalLink,
       lucideHardDrive,
       lucideLoader2,
+      lucideRefreshCw,
       lucideSettings,
       lucideTrash2,
     }),
@@ -109,6 +118,7 @@ export class StorageCardComponent {
     () => !!this.storage().updateAvailable?.wasmUpdateAvailable,
   );
   readonly isDeleting = signal(false);
+  readonly lastUpgradeError = computed(() => this.storage().lastUpgradeError ?? null);
 
   readonly statusTooltip = computed<string>(() => {
     const status = this.storage().status;
@@ -137,6 +147,27 @@ export class StorageCardComponent {
       await this.#storagesService.deleteStorage(this.storage().id);
     } finally {
       this.isDeleting.set(false);
+    }
+  }
+
+  async retryFailedStorage(): Promise<void> {
+    const canisterId = this.canisterIdText();
+    if (!canisterId) return;
+
+    try {
+      // Delete the failed record first
+      await this.#storagesService.deleteStorage(this.storage().id);
+
+      // Open create dialog pre-configured for existing canister
+      const { CreateStorageDialogComponent } = await import(
+        '../create-storage-dialog/create-storage-dialog.component'
+      );
+      this.#dialogService.open(CreateStorageDialogComponent, {
+        contentClass: 'min-w-[500px] sm:max-w-[600px]',
+        context: { retryCanisterId: canisterId } satisfies CreateStorageDialogContext,
+      });
+    } catch {
+      // deleteStorage already shows toast on error
     }
   }
 

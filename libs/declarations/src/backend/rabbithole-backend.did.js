@@ -252,6 +252,7 @@ export const idlFactory = ({ IDL }) => {
     'status' : CreationStatus,
     'completedAt' : IDL.Opt(Time),
     'createdAt' : Time,
+    'lastUpgradeError' : IDL.Opt(IDL.Text),
     'releaseTag' : IDL.Text,
     'updateAvailable' : IDL.Opt(UpdateInfo),
     'canisterId' : IDL.Opt(IDL.Principal),

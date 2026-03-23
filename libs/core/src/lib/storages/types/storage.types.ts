@@ -64,6 +64,8 @@ export interface StorageInfo {
   createdAt: Date;
   /** Unique ID of the storage creation process */
   id: bigint;
+  /** Last upgrade error message (preserved after revert to Completed) */
+  lastUpgradeError?: string;
   releaseTag: string;
   status: StorageCreationStatus;
   updateAvailable?: UpdateInfo;

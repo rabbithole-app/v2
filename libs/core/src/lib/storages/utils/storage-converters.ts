@@ -96,6 +96,7 @@ export function convertStorageInfo(
     createdAt: timeInNanosToDate(record.createdAt),
     completedAt: completedAt ? timeInNanosToDate(completedAt) : undefined,
     updateAvailable: updateInfo ? convertUpdateInfo(updateInfo) : undefined,
+    lastUpgradeError: fromNullable(record.lastUpgradeError),
   };
 }
 

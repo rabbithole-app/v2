@@ -93,6 +93,9 @@ export class UpgradeStorageDialogComponent {
   readonly currentReleaseTag = computed(
     () => this.updateInfo().currentReleaseTag ?? 'unknown',
   );
+  readonly previousUpgradeError = computed(
+    () => this.#context.storage.lastUpgradeError ?? null,
+  );
   readonly #errorMessage = signal<string | null>(null);
   readonly errorMessage = this.#errorMessage.asReadonly();
 

@@ -10,6 +10,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronsUpDown,
   lucideHardDrive,
+  lucideLoader2,
   lucidePlus,
 } from '@ng-icons/lucide';
 import { filter, map, startWith } from 'rxjs';
@@ -19,14 +20,15 @@ import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 @Component({
   selector: 'app-storage-switcher',
   templateUrl: './storage-switcher.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgIcon, HlmIcon, ...HlmSidebarImports, ...HlmDropdownMenuImports],
+  imports: [NgIcon, HlmIcon, HlmSpinner, ...HlmSidebarImports, ...HlmDropdownMenuImports],
   providers: [
-    provideIcons({ lucideChevronsUpDown, lucideHardDrive, lucidePlus }),
+    provideIcons({ lucideChevronsUpDown, lucideHardDrive, lucideLoader2, lucidePlus }),
   ],
 })
 export class StorageSwitcherComponent {
@@ -49,9 +51,15 @@ export class StorageSwitcherComponent {
   readonly #storagesService = inject(StoragesService);
   readonly storages = this.#storagesService.storages;
 
-  readonly completedStorages = computed(() =>
+  readonly availableStorages = computed(() =>
     this.storages().filter(
-      (s) => s.status.type === 'Completed' && s.canisterId,
+      (s) => s.canisterId && (
+        s.status.type === 'Completed' ||
+        s.status.type === 'UpgradingWasm' ||
+        s.status.type === 'UpgradingFrontend' ||
+        s.status.type === 'UpdatingControllers' ||
+        s.status.type === 'RevokingInstallerPermission'
+      ),
     ),
   );
 
@@ -59,6 +67,25 @@ export class StorageSwitcherComponent {
     'group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center';
 
   readonly #dialogService = inject(HlmDialogService);
+
+  readonly #upgradingCanisterIds = computed(() => {
+    const upgrading = new Set<string>();
+    for (const s of this.storages()) {
+      if (
+        s.canisterId &&
+        s.status.type !== 'Completed' &&
+        s.status.type !== 'Failed' &&
+        s.status.type !== 'Pending'
+      ) {
+        upgrading.add(s.canisterId.toText());
+      }
+    }
+    return upgrading;
+  });
+
+  isStorageUpgrading(canisterId: string): boolean {
+    return this.#upgradingCanisterIds().has(canisterId);
+  }
 
   navigateToStorage(canisterId: string): void {
     this.#router.navigate(['/dashboard', canisterId, 'drive']);

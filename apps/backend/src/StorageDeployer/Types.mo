@@ -170,6 +170,7 @@ module {
     createdAt : Time.Time;
     completedAt : ?Time.Time;
     updateAvailable : ?UpdateInfo;
+    lastUpgradeError : ?Text;
   };
 
   // -- Task Types --

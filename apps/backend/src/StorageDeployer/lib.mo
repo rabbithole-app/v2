@@ -78,6 +78,8 @@ module StorageDeployerOrchestrator {
     var isUpgrade : Bool;
     /// Whether the current upgrade includes frontend update
     var upgradeIncludesFrontend : Bool;
+    /// Last upgrade error message (preserved after revert to Completed)
+    var lastUpgradeError : ?Text;
   };
 
   // -- Store --
@@ -198,12 +200,26 @@ module StorageDeployerOrchestrator {
     FrontendInstaller.resetTransient(store.frontendInstaller);
     HttpDownloader.resetTransient(store.githubReleases.downloaderStore);
 
-    // Mark interrupted creations as failed
+    // Mark interrupted creations as failed (or revert upgrades to Completed)
     for ((_, record) in Map.entries(store.creations)) {
       switch (record.status) {
         case (#Completed _ or #Failed _) {};
         case _ {
-          record.status := #Failed("Interrupted by canister upgrade");
+          let errorMsg = "Interrupted by canister upgrade";
+          if (record.isUpgrade) {
+            // Upgrade interrupted — canister still works, revert to Completed
+            switch (record.canisterId) {
+              case (?canisterId) {
+                record.status := #Completed({ canisterId });
+                record.lastUpgradeError := ?errorMsg;
+              };
+              case null {
+                record.status := #Failed(errorMsg);
+              };
+            };
+          } else {
+            record.status := #Failed(errorMsg);
+          };
           record.isUpgrade := false;
           record.upgradeIncludesFrontend := false;
         };
@@ -488,6 +504,7 @@ module StorageDeployerOrchestrator {
       var completedAt = null;
       var isUpgrade = false;
       var upgradeIncludesFrontend = false;
+      var lastUpgradeError = null;
     };
 
     // Store record
@@ -942,6 +959,7 @@ module StorageDeployerOrchestrator {
           };
           record.isUpgrade := false;
           record.upgradeIncludesFrontend := false;
+          record.lastUpgradeError := ?errorMsg;
           record.status := #Completed({ canisterId });
         } else {
           record.status := #Failed(errorMsg);
@@ -981,6 +999,7 @@ module StorageDeployerOrchestrator {
     // Reset upgrade flags
     record.isUpgrade := false;
     record.upgradeIncludesFrontend := false;
+    record.lastUpgradeError := null;
 
     record.status := #Completed({ canisterId });
     record.completedAt := ?Time.now();
@@ -1138,6 +1157,7 @@ module StorageDeployerOrchestrator {
       createdAt = record.createdAt;
       completedAt = record.completedAt;
       updateAvailable = getUpdateInfo(store, record);
+      lastUpgradeError = record.lastUpgradeError;
     };
   };
 

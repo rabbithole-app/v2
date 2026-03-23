@@ -2,7 +2,7 @@
   <div hlmSidebarGroupLabel>Storage</div>
   <div hlmSidebarGroupContent>
     <ul hlmSidebarMenu>
-      @if (completedStorages().length > 0) {
+      @if (availableStorages().length > 0) {
         <li hlmSidebarMenuItem [class]="menuItemClass">
           <button
             hlmSidebarMenuButton
@@ -24,14 +24,24 @@
           <ng-template #storageDropdown>
             <hlm-dropdown-menu class="w-[--radix-popper-anchor-width] min-w-56">
               <hlm-dropdown-menu-group>
-                @for (storage of completedStorages(); track storage.id) {
+                @for (storage of availableStorages(); track storage.id) {
+                  @let isUpgrading = isStorageUpgrading(storage.canisterId!.toText());
                   <button
                     hlmDropdownMenuCheckbox
                     [checked]="storage.canisterId?.toText() === activeCanisterId()"
+                    [disabled]="isUpgrading"
                     (triggered)="navigateToStorage(storage.canisterId!.toText())"
                   >
-                    <hlm-dropdown-menu-checkbox-indicator />
-                    <span class="truncate">{{ storage.canisterId?.toText() }}</span>
+                    @if (isUpgrading) {
+                      <span class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
+                        <hlm-spinner size="text-xs" icon="lucideLoader2" />
+                      </span>
+                    } @else {
+                      <hlm-dropdown-menu-checkbox-indicator />
+                    }
+                    <span class="truncate" [class.opacity-50]="isUpgrading">
+                      {{ storage.canisterId?.toText() }}
+                    </span>
                   </button>
                 }
               </hlm-dropdown-menu-group>

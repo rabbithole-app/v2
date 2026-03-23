@@ -219,6 +219,7 @@ export interface StorageInfo {
   'status' : CreationStatus,
   'completedAt' : [] | [Time],
   'createdAt' : Time,
+  'lastUpgradeError' : [] | [string],
   'releaseTag' : string,
   'updateAvailable' : [] | [UpdateInfo],
   'canisterId' : [] | [Principal],
