@@ -5,7 +5,7 @@ import { createEncryptedStorageActor } from '@rabbithole/encrypted-storage';
 
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
 import { ExtractInjectionToken } from '../types';
-import { HTTP_AGENT_TOKEN, provideHttpAgent } from './http-agent';
+import { HTTP_AGENT_TOKEN } from './http-agent';
 
 export type EncryptedStorageActor = ReturnType<
   typeof createEncryptedStorageActor
@@ -29,7 +29,6 @@ export const [
   {
     isRoot: false,
     deps: [ENCRYPTED_STORAGE_CANISTER_ID, HTTP_AGENT_TOKEN],
-    extraProviders: [provideHttpAgent()],
   },
 );
 // export const [injectStorageActor, provideStorageActor, STORAGE_ACTOR_TOKEN] =

@@ -9,7 +9,7 @@ import {
 
 import { MAIN_CANISTER_ID_TOKEN } from '../tokens';
 import { ExtractInjectionToken } from '../types';
-import { HTTP_AGENT_TOKEN, provideHttpAgent } from './http-agent';
+import { HTTP_AGENT_TOKEN } from './http-agent';
 
 export const [injectMainActor, provideMainActor, MAIN_ACTOR_TOKEN] =
   createInjectionToken(
@@ -25,6 +25,5 @@ export const [injectMainActor, provideMainActor, MAIN_ACTOR_TOKEN] =
       ),
     {
       deps: [MAIN_CANISTER_ID_TOKEN, HTTP_AGENT_TOKEN],
-      extraProviders: [provideHttpAgent()],
     },
   );
