@@ -1006,6 +1006,37 @@ describe('FileSystem', () => {
         }
       });
 
+      // --- Sharing info ---
+      test('owner: shared directories have sharing info', async () => {
+        // Shared/with-alice[rw]-bob[r] has alice(RW) + bob(R) = 2 permissions
+        // Shared/with-charlie[rwm] has charlie(RWM) = 1 permission
+        const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(entries.length).toBe(2);
+        const withAliceBob = entries.find((e) => e.name === 'with-alice[rw]-bob[r]');
+        const withCharlie = entries.find((e) => e.name === 'with-charlie[rwm]');
+        expect(withAliceBob).toBeTruthy();
+        expect(withCharlie).toBeTruthy();
+        expect(withAliceBob!.sharing).toEqual([{ sharedWith: 2n }]);
+        expect(withCharlie!.sharing).toEqual([{ sharedWith: 1n }]);
+      });
+
+      test('owner: non-shared directories have no sharing info', async () => {
+        // Root-level "Shared" directory itself has no direct permissions
+        const { entries } = await actor.list([]);
+        const sharedDir = entries.find((e) => e.name === 'Shared');
+        expect(sharedDir).toBeTruthy();
+        expect(sharedDir!.sharing).toEqual([]);
+      });
+
+      test('Alice: sharing info is null (not manager)', async () => {
+        actor.setIdentity(aliceIdentity);
+        const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(entries.length).toBeGreaterThan(0);
+        for (const entry of entries) {
+          expect(entry.sharing).toEqual([]);
+        }
+      });
+
       // --- callerPermission null for non-list methods ---
       test('create returns NodeDetails with callerPermission null', async () => {
         const node = await actor.create({
@@ -1015,6 +1046,85 @@ describe('FileSystem', () => {
         });
         expect(node.callerPermission).toEqual([]);
       });
+    });
+
+    describe('fsTree (permission-aware)', () => {
+      test('owner: returns full directory tree', async () => {
+        const tree = await actor.fsTree();
+        // Owner should see all directories: Shared, Shared/with-alice[rw]-bob[r], Shared/with-charlie[rwm]
+        const names = tree.map((n) => n.name);
+        expect(names).toContain('Shared');
+      });
+
+      test('Alice: returns only writable roots with subtrees', async () => {
+        actor.setIdentity(aliceIdentity);
+        const tree = await actor.fsTree();
+        // Alice has ReadWrite on Shared/with-alice[rw]-bob[r]
+        expect(tree.length).toBe(1);
+        expect(tree[0].name).toBe('Shared/with-alice[rw]-bob[r]');
+      });
+
+      test('Bob: returns empty (Read-only, no writable dirs)', async () => {
+        actor.setIdentity(bobIdentity);
+        const tree = await actor.fsTree();
+        // Bob has only Read on Shared/with-alice[rw]-bob[r], no Write anywhere
+        expect(tree).toEqual([]);
+      });
+
+      test('Charlie: returns writable root with subtree', async () => {
+        actor.setIdentity(charlieIdentity);
+        const tree = await actor.fsTree();
+        // Charlie has ReadWriteManage on Shared/with-charlie[rwm]
+        expect(tree.length).toBe(1);
+        expect(tree[0].name).toBe('Shared/with-charlie[rwm]');
+      });
+
+      test('Dan: returns empty (no access)', async () => {
+        actor.setIdentity(danIdentity);
+        const tree = await actor.fsTree();
+        expect(tree).toEqual([]);
+      });
+    });
+  });
+
+  describe('deep nested permission (3rd level)', () => {
+    beforeEach(async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'test/dir/subdir'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      await actor.grantPermission({
+        entry: [[DIRECTORY, 'test/dir/subdir']],
+        user: aliceIdentity.getPrincipal(),
+        permission: READ_WRITE,
+      });
+    });
+
+    test('Alice: list([]) shows "test" as reachable root', async () => {
+      actor.setIdentity(aliceIdentity);
+      const { entries } = await actor.list([]);
+      expect(entries.map((n) => n.name)).toContain('test');
+    });
+
+    test('Alice: list(test) shows "dir" as intermediate directory', async () => {
+      actor.setIdentity(aliceIdentity);
+      const { entries } = await actor.list([[DIRECTORY, 'test']]);
+      expect(entries.map((n) => n.name)).toContain('dir');
+    });
+
+    test('Alice: list(test/dir) shows "subdir"', async () => {
+      actor.setIdentity(aliceIdentity);
+      const { entries } = await actor.list([[DIRECTORY, 'test/dir']]);
+      expect(entries.map((n) => n.name)).toContain('subdir');
+    });
+
+    test('Alice: callerPermission on subdir is ReadWrite', async () => {
+      actor.setIdentity(aliceIdentity);
+      const { entries } = await actor.list([[DIRECTORY, 'test/dir']]);
+      const subdir = entries.find((e) => e.name === 'subdir');
+      expect(subdir).toBeTruthy();
+      expect(subdir!.callerPermission).toEqual([READ_WRITE]);
     });
   });
 

@@ -1,5 +1,4 @@
 import Principal "mo:core/Principal";
-import Iter "mo:core/Iter";
 import Time "mo:core/Time";
 import Nat64 "mo:core/Nat64";
 import Order "mo:core/Order";
@@ -38,7 +37,6 @@ module Node {
   };
 
   public func getDetails(node : T.NodeStore) : T.NodeDetails {
-    let permissions = Map.entries(node.permissions) |> Iter.toArray(_);
     let metadata : {
       #File : T.FileMetadata;
       #Directory : T.DirectoryMetadata;
@@ -72,8 +70,8 @@ module Node {
       modifiedAt = node.modifiedAt;
       name = node.name;
       parentId = node.parentId;
-      permissions;
       callerPermission = null;
+      sharing = null;
       metadata;
     };
   };

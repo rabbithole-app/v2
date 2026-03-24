@@ -363,6 +363,23 @@ module FileSystem {
     Map.clear(self.nodes);
   };
 
+  /// Builds the full path of a node by traversing parents up to root.
+  public func getEntryPath(self : Store, node : T.NodeStore) : Text {
+    func buildPath(n : T.NodeStore) : Text {
+      switch (n.parentId) {
+        case null n.name;
+        case (?pid) {
+          let parent = Map.find(self.nodes, func(_, v) = v.id == pid);
+          switch (parent) {
+            case (?(_, p)) buildPath(p) # "/" # n.name;
+            case null n.name;
+          };
+        };
+      };
+    };
+    buildPath(node);
+  };
+
   public func tree(self : Store, parentId : ?Nat64) : [T.TreeNode] {
     let vector = Vector.new<T.TreeNode>();
     let items = listByParentId(self, parentId);

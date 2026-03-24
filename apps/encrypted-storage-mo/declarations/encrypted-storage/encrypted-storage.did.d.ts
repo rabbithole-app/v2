@@ -111,13 +111,13 @@ export interface ListVersionsArguments { 'entry' : Entry }
 export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
   'id' : bigint,
-  'permissions' : Array<[Principal, Permission]>,
   'modifiedAt' : [] | [Time],
   'metadata' : { 'File' : FileMetadata } |
     { 'Directory' : DirectoryMetadata },
   'name' : string,
   'createdAt' : Time,
   'callerPermission' : [] | [Permission],
+  'sharing' : [] | [SharingInfo],
   'parentId' : [] | [bigint],
   'keyId' : KeyId,
 }
@@ -139,6 +139,7 @@ export interface SetThumbnailArguments {
   'thumbnailKey' : [] | [string],
   'entry' : Entry,
 }
+export interface SharingInfo { 'sharedWith' : bigint }
 export type StorageBackend = { 'External' : null } |
   { 'BlobStorage' : null } |
   { 'Inline' : null };

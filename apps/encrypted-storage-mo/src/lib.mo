@@ -27,6 +27,7 @@ import ErrorMessages "ErrorMessages";
 import File "FileSystem/File";
 import Node "FileSystem/Node";
 import Permissions "FileSystem/Permissions";
+import Common "FileSystem/Common";
 import Const "Const";
 import Http "Http";
 
@@ -642,6 +643,21 @@ module EncryptedFileStorage {
     Array.map<T.NodeDetails, T.NodeDetails>(nodes, func(node) = { node with callerPermission = permission });
   };
 
+  func enrichSharing(fs : T.FileSystemStore, nodes : [T.NodeDetails]) : [T.NodeDetails] {
+    let { hashNodes } = Utils;
+    Array.map<T.NodeDetails, T.NodeDetails>(
+      nodes,
+      func(node) {
+        let nodeKey = nodeKeyFromDetails(node);
+        let count = switch (Map.get(fs.nodes, hashNodes, nodeKey)) {
+          case (?raw) Map.size(raw.permissions);
+          case null 0;
+        };
+        { node with sharing = if (count > 0) ?{ sharedWith = count } else null };
+      },
+    );
+  };
+
   /// Returns a list of directories and files by the specified entry.
   /// If the user does not have the right to read the directory, it returns an array with the elements to which the user has the right to read.
   /// Each node is enriched with the caller's effective permission (callerPermission).
@@ -660,24 +676,11 @@ module EncryptedFileStorage {
     if (entry == null and not canRead) {
       let nat64hash : Map.HashUtils<Nat64> = (Map.hashNat64, Nat64.equal);
 
-      func findTopLevel(node : T.NodeStore) : T.NodeStore {
-        switch (node.parentId) {
-          case null node;
-          case (?pid) {
-            let parent = Map.find(self.fs.nodes, func(_, value) = value.id == pid);
-            switch (parent) {
-              case (?(_, v)) findTopLevel(v);
-              case null node;
-            };
-          };
-        };
-      };
-
       let reachableRoots = Vector.new<T.NodeStore>();
       let seenRootIds = Map.new<Nat64, ()>();
       for (node in Map.vals(self.fs.nodes)) {
         if (Permissions.ensureUserCanRead(self.fs, caller, #keyId(node.keyId)) |> Result.isOk(_)) {
-          let rootNode = findTopLevel(node);
+          let rootNode = Common.findRootAncestor(self.fs, node);
           if (Map.get(seenRootIds, nat64hash, rootNode.id) == null) {
             ignore Map.put(seenRootIds, nat64hash, rootNode.id, ());
             Vector.add(reachableRoots, rootNode);
@@ -704,15 +707,42 @@ module EncryptedFileStorage {
       };
       case null null;
     };
-    let allItems = FileSystem.listByParentId(self.fs, parentId) |> Array.map(_, Node.getDetails);
+    let { phash } = Map;
+    let rawNodes = FileSystem.listByParentId(self.fs, parentId);
+    let allItems = Array.map(rawNodes, Node.getDetails);
     // Filter out staged (incomplete upload) files
     let items = Array.filter(allItems, func(node : T.NodeDetails) : Bool = not isStaged(self, node));
 
     if (not canRead) {
+      // Check if caller can read the node directly OR has access to any descendant
+      func hasReachableDescendant(nodeId : Nat64) : Bool {
+        for (child in Map.vals(self.fs.nodes)) {
+          if (child.parentId == ?nodeId) {
+            if (Permissions.ensureUserCanRead(self.fs, caller, #keyId(child.keyId)) |> Result.isOk(_)) {
+              return true;
+            };
+            // Recurse into directories
+            switch (child.metadata) {
+              case (#Directory _) if (hasReachableDescendant(child.id)) return true;
+              case _ {};
+            };
+          };
+        };
+        false;
+      };
+
       let filtered = Array.filter(
         items,
         func(node) {
-          Permissions.ensureUserCanRead(self.fs, caller, #nodeKey(nodeKeyFromDetails(node))) |> Result.isOk(_);
+          // Direct access
+          if (Permissions.ensureUserCanRead(self.fs, caller, #nodeKey(nodeKeyFromDetails(node))) |> Result.isOk(_)) {
+            return true;
+          };
+          // Or has reachable descendant (for directories)
+          switch (node.metadata) {
+            case (#Directory _) hasReachableDescendant(node.id);
+            case _ false;
+          };
         },
       );
       let entries = Array.map<T.NodeDetails, T.NodeDetails>(
@@ -723,15 +753,16 @@ module EncryptedFileStorage {
     };
 
     // Optimization: check if any child has direct permission overrides for the caller
-    let hasChildOverrides = Array.find<T.NodeDetails>(
-      items,
-      func(node) {
-        Array.find<(Principal, T.Permission)>(
-          node.permissions,
-          func((p, _)) = Principal.equal(p, caller) or Principal.isAnonymous(p),
-        ) != null;
-      },
-    ) != null;
+    // Uses raw NodeStore (which has permissions map) since NodeDetails no longer exposes it
+    let hasChildOverrides = Option.isSome(
+      Array.find<T.NodeStore>(
+        rawNodes,
+        func(node) {
+          Map.has(node.permissions, phash, caller)
+          or Map.has(node.permissions, phash, Principal.anonymous());
+        },
+      ),
+    );
 
     let entries = if (not hasChildOverrides) {
       // Fast path: all children inherit directory permission
@@ -744,7 +775,12 @@ module EncryptedFileStorage {
       );
     };
 
-    #ok({ entries; directoryPermission });
+    // Enrich sharing info for managers only
+    let enrichedEntries = if (directoryPermission == ?#ReadWriteManage) {
+      enrichSharing(self.fs, entries);
+    } else { entries };
+
+    #ok({ entries = enrichedEntries; directoryPermission });
   };
 
   // Retrieves the list of users with rights for the specified entry
@@ -778,9 +814,67 @@ module EncryptedFileStorage {
     Permissions.ensureUserCanRead(self.fs, caller, findBy) |> Result.mapOk(_, func v = FileSystem.showTree(self.fs, entry));
   };
 
-  /// Returns a hierarchical file system tree
+  /// Returns a hierarchical file system tree with only writable directories.
+  /// For owner/manager: full directory tree.
+  /// For shared users: only writable roots with their subtrees.
   public func fsTree(self : T.StableStore, caller : Principal) : Result.Result<[T.TreeNode], Text> {
-    Permissions.ensureUserCanRead(self.fs, caller, #root) |> Result.mapOk(_, func v = FileSystem.tree(self.fs, null));
+    // Owner/manager can see full tree
+    switch (Permissions.getMaxPermission(self.fs, caller, #root, null)) {
+      case (?perm) if (not Order.isLess(Utils.permissionCompare(perm, #ReadWrite))) {
+        return #ok(FileSystem.tree(self.fs, null));
+      };
+      case _ {};
+    };
+
+    // Shared user: find all nodes with direct Write+ permission, collect writable roots
+    let writableRoots = Vector.new<T.NodeStore>();
+
+    func isWritable(permission : T.Permission) : Bool {
+      not Order.isLess(Utils.permissionCompare(permission, #ReadWrite));
+    };
+
+    func hasWritableAncestor(node : T.NodeStore) : Bool {
+      switch (node.parentId) {
+        case null false;
+        case (?pid) {
+          switch (Common.findNodeById(self.fs, pid)) {
+            case (?parent) {
+              switch (Permissions.getMaxPermission(self.fs, caller, #keyId(parent.keyId), null)) {
+                case (?perm) if (isWritable(perm)) true else hasWritableAncestor(parent);
+                case null hasWritableAncestor(parent);
+              };
+            };
+            case null false;
+          };
+        };
+      };
+    };
+
+    for (node in Map.vals(self.fs.nodes)) {
+      switch (node.metadata) {
+        case (#Directory _) {
+          switch (Permissions.getMaxPermission(self.fs, caller, #keyId(node.keyId), null)) {
+            case (?perm) {
+              if (isWritable(perm) and not hasWritableAncestor(node)) {
+                Vector.add(writableRoots, node);
+              };
+            };
+            case null {};
+          };
+        };
+        case _ {};
+      };
+    };
+
+    // Build subtree for each writable root, including full path as name
+    let result = Vector.new<T.TreeNode>();
+    for (root in Vector.vals(writableRoots)) {
+      let path = FileSystem.getEntryPath(self.fs, root);
+      let subtree = FileSystem.tree(self.fs, ?root.id);
+      Vector.add(result, { name = path; children = ?subtree });
+    };
+
+    #ok(Vector.toArray(result));
   };
 
   /// Retrieves the vetKD verification key for this canister.

@@ -48,7 +48,7 @@ module Permissions {
   };
 
   func getParentNode(fs : T.FileSystemStore, parentId : Nat64) : ?T.NodeStore {
-    Map.find(fs.nodes, func(_, value) = Nat64.equal(value.id, parentId)) |> Option.map(_, func(k, v) = v);
+    Common.findNodeById(fs, parentId);
   };
 
   public func getMaxPermission(fs : T.FileSystemStore, user : Principal, findBy : T.FindBy, lastPermission : ?T.Permission) : ?T.Permission {

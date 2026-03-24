@@ -138,9 +138,13 @@ module {
     permissions : [(Principal, Permission)];
   };
 
+  public type SharingInfo = {
+    sharedWith : Nat;
+  };
+
   public type NodeDetails = NodeBase and {
-    permissions : [(Principal, Permission)];
     callerPermission : ?Permission;
+    sharing : ?SharingInfo;
     metadata : {
       #File : FileMetadata;
       #Directory : DirectoryMetadata;

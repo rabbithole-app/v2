@@ -17,11 +17,6 @@ export const idlFactory = ({ IDL }) => {
     'entry' : Entry,
     'encryptionMode' : IDL.Opt(EncryptionMode),
   });
-  const Permission = IDL.Variant({
-    'Read' : IDL.Null,
-    'ReadWrite' : IDL.Null,
-    'ReadWriteManage' : IDL.Null,
-  });
   const Time = IDL.Int;
   const StorageBackend = IDL.Variant({
     'External' : IDL.Null,
@@ -52,12 +47,17 @@ export const idlFactory = ({ IDL }) => {
     'color' : IDL.Opt(DirectoryColor),
     'defaultEncryptionMode' : EncryptionMode,
   });
+  const Permission = IDL.Variant({
+    'Read' : IDL.Null,
+    'ReadWrite' : IDL.Null,
+    'ReadWriteManage' : IDL.Null,
+  });
+  const SharingInfo = IDL.Record({ 'sharedWith' : IDL.Nat });
   const Owner = IDL.Principal;
   const KeyName = IDL.Vec(IDL.Nat8);
   const KeyId = IDL.Tuple(Owner, KeyName);
   const NodeDetails = IDL.Record({
     'id' : IDL.Nat64,
-    'permissions' : IDL.Vec(IDL.Tuple(IDL.Principal, Permission)),
     'modifiedAt' : IDL.Opt(Time),
     'metadata' : IDL.Variant({
       'File' : FileMetadata,
@@ -66,6 +66,7 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'createdAt' : Time,
     'callerPermission' : IDL.Opt(Permission),
+    'sharing' : IDL.Opt(SharingInfo),
     'parentId' : IDL.Opt(IDL.Nat64),
     'keyId' : KeyId,
   });
