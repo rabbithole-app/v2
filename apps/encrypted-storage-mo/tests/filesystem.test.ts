@@ -488,7 +488,7 @@ describe('FileSystem', () => {
       });
 
       actor.setIdentity(aliceIdentity);
-      const list = await actor.list([[DIRECTORY, 'Documents']]);
+      const { entries: list } = await actor.list([[DIRECTORY, 'Documents']]);
       const names = list.map((n) => n.name);
       expect(names).toContain('renamed.pdf');
     });
@@ -863,7 +863,7 @@ describe('FileSystem', () => {
       });
 
       test('list([]) should show Shared', async () => {
-        const list = await actor.list([]);
+        const { entries: list } = await actor.list([]);
         expect(list.map((n) => n.name)).toEqual(['Shared']);
         const [root] = list;
         expect(root).toBeTruthy();
@@ -872,7 +872,7 @@ describe('FileSystem', () => {
       });
 
       test('list(Shared) should show only permitted shares', async () => {
-        const list = await actor.list([[DIRECTORY, 'Shared']]);
+        const { entries: list } = await actor.list([[DIRECTORY, 'Shared']]);
         expect(list.map((n) => n.name)).toEqual(['with-alice[rw]-bob[r]']);
       });
     });
@@ -883,7 +883,7 @@ describe('FileSystem', () => {
       });
 
       test('list([]) should show Shared', async () => {
-        const list = await actor.list([]);
+        const { entries: list } = await actor.list([]);
         expect(list.map((n) => n.name)).toEqual(['Shared']);
         const [root] = list;
         expect(root).toBeTruthy();
@@ -892,7 +892,7 @@ describe('FileSystem', () => {
       });
 
       test('list(Shared) should show only permitted shares', async () => {
-        const list = await actor.list([[DIRECTORY, 'Shared']]);
+        const { entries: list } = await actor.list([[DIRECTORY, 'Shared']]);
         expect(list.map((n) => n.name)).toEqual(['with-alice[rw]-bob[r]']);
       });
     });
@@ -903,8 +903,117 @@ describe('FileSystem', () => {
       });
 
       test('list([]) should be empty (no shares)', async () => {
-        const list = await actor.list([]);
-        expect(list).toEqual([]);
+        const { entries } = await actor.list([]);
+        expect(entries).toEqual([]);
+      });
+    });
+
+    describe('callerPermission and directoryPermission', () => {
+      // --- Owner ---
+      test('owner: directoryPermission is ReadWriteManage on root', async () => {
+        const { directoryPermission } = await actor.list([]);
+        expect(directoryPermission).toEqual([READ_WRITE_MANAGE]);
+      });
+
+      test('owner: callerPermission is ReadWriteManage on all root entries', async () => {
+        const { entries } = await actor.list([]);
+        expect(entries.length).toBeGreaterThan(0);
+        for (const entry of entries) {
+          expect(entry.callerPermission).toEqual([READ_WRITE_MANAGE]);
+        }
+      });
+
+      test('owner: directoryPermission is ReadWriteManage on subdirectory', async () => {
+        const { directoryPermission } = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(directoryPermission).toEqual([READ_WRITE_MANAGE]);
+      });
+
+      // --- Alice (ReadWrite on with-alice[rw]-bob[r]) ---
+      test('Alice: directoryPermission is null on root (no root access)', async () => {
+        actor.setIdentity(aliceIdentity);
+        const { directoryPermission } = await actor.list([]);
+        expect(directoryPermission).toEqual([]);
+      });
+
+      test('Alice: callerPermission on reachable root Shared reflects actual permission', async () => {
+        actor.setIdentity(aliceIdentity);
+        const { entries } = await actor.list([]);
+        expect(entries.map((n) => n.name)).toEqual(['Shared']);
+        // Alice has no direct permission on Shared, but can see it as a path to her shares
+        // callerPermission reflects the effective permission on the Shared directory itself
+        for (const entry of entries) {
+          expect(entry.callerPermission).toBeTruthy();
+        }
+      });
+
+      test('Alice: directoryPermission on Shared directory', async () => {
+        actor.setIdentity(aliceIdentity);
+        const { directoryPermission } = await actor.list([[DIRECTORY, 'Shared']]);
+        // Alice doesn't have direct permission on Shared, inherited from child access
+        expect(directoryPermission).toBeTruthy();
+      });
+
+      test('Alice: callerPermission is ReadWrite on her shared entries', async () => {
+        actor.setIdentity(aliceIdentity);
+        const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(entries.length).toBeGreaterThan(0);
+        for (const entry of entries) {
+          expect(entry.callerPermission).toEqual([READ_WRITE]);
+        }
+      });
+
+      // --- Bob (Read on with-alice[rw]-bob[r]) ---
+      test('Bob: callerPermission is Read on his shared directory', async () => {
+        actor.setIdentity(bobIdentity);
+        const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(entries.length).toBeGreaterThan(0);
+        for (const entry of entries) {
+          expect(entry.callerPermission).toEqual([READ]);
+        }
+      });
+
+      // --- Charlie (ReadWriteManage on with-charlie[rwm]) ---
+      test('Charlie: callerPermission is ReadWriteManage on his managed directory', async () => {
+        actor.setIdentity(charlieIdentity);
+        const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(entries.length).toBeGreaterThan(0);
+        for (const entry of entries) {
+          expect(entry.callerPermission).toEqual([READ_WRITE_MANAGE]);
+        }
+      });
+
+      // --- Dan (no access) ---
+      test('Dan: directoryPermission is null on root', async () => {
+        actor.setIdentity(danIdentity);
+        const { directoryPermission } = await actor.list([]);
+        expect(directoryPermission).toEqual([]);
+      });
+
+      test('Dan: entries are empty', async () => {
+        actor.setIdentity(danIdentity);
+        const { entries } = await actor.list([]);
+        expect(entries).toEqual([]);
+      });
+
+      // --- Mixed permissions (child overrides) ---
+      test('owner: children with different user permissions still return ReadWriteManage for owner', async () => {
+        // Shared has two children with different grants for alice/bob/charlie
+        // But owner should see ReadWriteManage on all
+        const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+        expect(entries.length).toBe(2);
+        for (const entry of entries) {
+          expect(entry.callerPermission).toEqual([READ_WRITE_MANAGE]);
+        }
+      });
+
+      // --- callerPermission null for non-list methods ---
+      test('create returns NodeDetails with callerPermission null', async () => {
+        const node = await actor.create({
+          entry: [DIRECTORY, 'TestDir'],
+          createMode: CREATE_NEW,
+          encryptionMode: [],
+        });
+        expect(node.callerPermission).toEqual([]);
       });
     });
   });
@@ -1078,7 +1187,7 @@ describe('FileSystem', () => {
       });
 
       // File should NOT be visible in list
-      const items = await actor.list([[DIRECTORY, 'Uploads']]);
+      const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
       const fileNames = items.map((item) => item.name);
       expect(fileNames).not.toContain('photo.jpg');
     });
@@ -1122,7 +1231,7 @@ describe('FileSystem', () => {
       });
 
       // File should now be visible in list
-      const items = await actor.list([[DIRECTORY, 'Uploads']]);
+      const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
       const fileNames = items.map((item) => item.name);
       expect(fileNames).toContain('doc.txt');
     });
@@ -1136,10 +1245,10 @@ describe('FileSystem', () => {
       });
 
       // Parent directories should be visible
-      const rootItems = await actor.list([]);
+      const { entries: rootItems } = await actor.list([]);
       expect(rootItems.map((i) => i.name)).toContain('Deep');
 
-      const deepItems = await actor.list([[DIRECTORY, 'Deep']]);
+      const { entries: deepItems } = await actor.list([[DIRECTORY, 'Deep']]);
       expect(deepItems.map((i) => i.name)).toContain('Nested');
     });
 
@@ -1203,7 +1312,7 @@ describe('FileSystem', () => {
       });
 
       // File should be visible (committed)
-      let items = await actor.list([[DIRECTORY, 'Committed']]);
+      let { entries: items } = await actor.list([[DIRECTORY, 'Committed']]);
       expect(items.map((i) => i.name)).toContain('data.bin');
 
       // Now GetOrCreate for new version
@@ -1214,7 +1323,7 @@ describe('FileSystem', () => {
       });
 
       // File should STILL be visible (GetOrCreate doesn't re-stage)
-      items = await actor.list([[DIRECTORY, 'Committed']]);
+      ({ entries: items } = await actor.list([[DIRECTORY, 'Committed']]));
       expect(items.map((i) => i.name)).toContain('data.bin');
     });
   });

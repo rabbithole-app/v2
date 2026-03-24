@@ -135,9 +135,9 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   EncryptedStorage.setStreamingCallback(storage, http_request_streaming_callback);
 
-  public query ({ caller }) func listStorage(entry : ?T.Entry) : async [T.NodeDetails] {
+  public query ({ caller }) func listStorage(entry : ?T.Entry) : async T.ListResponse {
     switch (EncryptedStorage.list(storage, caller, entry)) {
-      case (#ok items) items;
+      case (#ok response) response;
       case (#err(message)) throw Error.reject(message);
     };
   };

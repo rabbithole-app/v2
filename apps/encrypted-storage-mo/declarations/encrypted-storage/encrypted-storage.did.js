@@ -65,6 +65,7 @@ export const idlFactory = ({ IDL }) => {
     }),
     'name' : IDL.Text,
     'createdAt' : Time,
+    'callerPermission' : IDL.Opt(Permission),
     'parentId' : IDL.Opt(IDL.Nat64),
     'keyId' : KeyId,
   });
@@ -100,6 +101,10 @@ export const idlFactory = ({ IDL }) => {
     'permission' : Permission,
     'user' : IDL.Principal,
     'entry' : IDL.Opt(Entry),
+  });
+  const ListResponse = IDL.Record({
+    'entries' : IDL.Vec(NodeDetails),
+    'directoryPermission' : IDL.Opt(Permission),
   });
   const PermissionExt = IDL.Variant({
     'Read' : IDL.Null,
@@ -161,7 +166,7 @@ export const idlFactory = ({ IDL }) => {
     'getVetkeyVerificationKey' : IDL.Func([], [VetKeyVerificationKey], []),
     'grantPermission' : IDL.Func([GrantPermissionArguments], [], []),
     'hasPermission' : IDL.Func([HasPermissionArguments], [IDL.Bool], ['query']),
-    'list' : IDL.Func([IDL.Opt(Entry)], [IDL.Vec(NodeDetails)], ['query']),
+    'list' : IDL.Func([IDL.Opt(Entry)], [ListResponse], ['query']),
     'listPermitted' : IDL.Func(
         [IDL.Opt(Entry)],
         [IDL.Vec(IDL.Tuple(IDL.Principal, PermissionExt))],

@@ -35,9 +35,9 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
   transient let storage = EncryptedStorage.fromVersion(versionedStore);
 
-  public query ({ caller }) func list(entry : ?T.Entry) : async [T.NodeDetails] {
+  public query ({ caller }) func list(entry : ?T.Entry) : async T.ListResponse {
     switch (EncryptedStorage.list(storage, caller, entry)) {
-      case (#ok items) items;
+      case (#ok response) response;
       case (#err(message)) throw Error.reject(message);
     };
   };

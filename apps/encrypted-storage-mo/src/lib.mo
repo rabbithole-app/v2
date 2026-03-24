@@ -627,13 +627,32 @@ module EncryptedFileStorage {
     Permissions.removeUserRights(self.fs, caller, findBy, args.user);
   };
 
+  func nodeKeyFromDetails(node : T.NodeDetails) : T.NodeKey {
+    switch (node.metadata) {
+      case (#File _) (#File, node.parentId, node.name);
+      case (#Directory _) (#Directory, node.parentId, node.name);
+    };
+  };
+
+  func getCallerPermission(fs : T.FileSystemStore, caller : Principal, node : T.NodeDetails) : ?T.Permission {
+    Permissions.getMaxPermission(fs, caller, #nodeKey(nodeKeyFromDetails(node)), null);
+  };
+
+  func setCallerPermission(nodes : [T.NodeDetails], permission : ?T.Permission) : [T.NodeDetails] {
+    Array.map<T.NodeDetails, T.NodeDetails>(nodes, func(node) = { node with callerPermission = permission });
+  };
+
   /// Returns a list of directories and files by the specified entry.
   /// If the user does not have the right to read the directory, it returns an array with the elements to which the user has the right to read.
-  public func list(self : T.StableStore, caller : Principal, entry : ?T.Entry) : Result.Result<[T.NodeDetails], Text> {
-    let canRead = switch (FileSystem.getFilterByFromEntry(self.fs, entry)) {
-      case (#ok v) Permissions.ensureUserCanRead(self.fs, caller, v) |> Result.isOk(_);
+  /// Each node is enriched with the caller's effective permission (callerPermission).
+  /// The response also includes the caller's permission on the listed directory (directoryPermission).
+  public func list(self : T.StableStore, caller : Principal, entry : ?T.Entry) : Result.Result<T.ListResponse, Text> {
+    let dirFindBy = switch (FileSystem.getFilterByFromEntry(self.fs, entry)) {
+      case (#ok v) v;
       case (#err message) return #err message;
     };
+    let directoryPermission = Permissions.getMaxPermission(self.fs, caller, dirFindBy, null);
+    let canRead = directoryPermission != null;
 
     // Special case: when the caller cannot read the root directory,
     // we still want to show top-level directories leading to permitted resources
@@ -667,12 +686,20 @@ module EncryptedFileStorage {
       };
 
       let sortedRoots = Array.sort(Vector.toArray(reachableRoots), func(a, b) = Text.compare(a.name, b.name));
-      return #ok(Array.map(sortedRoots, Node.getDetails));
+      let details = Array.map(sortedRoots, Node.getDetails);
+      let entries = Array.map<T.NodeDetails, T.NodeDetails>(
+        details,
+        func(node) = { node with callerPermission = getCallerPermission(self.fs, caller, node) },
+      );
+      return #ok({ entries; directoryPermission });
     };
 
     let parentId = switch (entry) {
       case (?v) {
-        let ?{ id } = FileSystem.get(self.fs, #entry(v)) else return #ok([]);
+        let ?{ id } = FileSystem.get(self.fs, #entry(v)) else return #ok({
+          entries = [];
+          directoryPermission;
+        });
         ?id;
       };
       case null null;
@@ -682,19 +709,42 @@ module EncryptedFileStorage {
     let items = Array.filter(allItems, func(node : T.NodeDetails) : Bool = not isStaged(self, node));
 
     if (not canRead) {
-      return Array.filter(
+      let filtered = Array.filter(
         items,
         func(node) {
-          let nodeKey : T.NodeKey = switch (node) {
-            case ({ metadata = #File(_) }) (#File, node.parentId, node.name);
-            case ({ metadata = #Directory(_) }) (#Directory, node.parentId, node.name);
-          };
-          Permissions.ensureUserCanRead(self.fs, caller, #nodeKey(nodeKey)) |> Result.isOk(_);
+          Permissions.ensureUserCanRead(self.fs, caller, #nodeKey(nodeKeyFromDetails(node))) |> Result.isOk(_);
         },
-      ) |> #ok(_);
+      );
+      let entries = Array.map<T.NodeDetails, T.NodeDetails>(
+        filtered,
+        func(node) = { node with callerPermission = getCallerPermission(self.fs, caller, node) },
+      );
+      return #ok({ entries; directoryPermission });
     };
 
-    #ok(items);
+    // Optimization: check if any child has direct permission overrides for the caller
+    let hasChildOverrides = Array.find<T.NodeDetails>(
+      items,
+      func(node) {
+        Array.find<(Principal, T.Permission)>(
+          node.permissions,
+          func((p, _)) = Principal.equal(p, caller) or Principal.isAnonymous(p),
+        ) != null;
+      },
+    ) != null;
+
+    let entries = if (not hasChildOverrides) {
+      // Fast path: all children inherit directory permission
+      setCallerPermission(items, directoryPermission);
+    } else {
+      // Slow path: per-node permission calculation
+      Array.map<T.NodeDetails, T.NodeDetails>(
+        items,
+        func(node) = { node with callerPermission = getCallerPermission(self.fs, caller, node) },
+      );
+    };
+
+    #ok({ entries; directoryPermission });
   };
 
   // Retrieves the list of users with rights for the specified entry

@@ -73,6 +73,7 @@ module Node {
       name = node.name;
       parentId = node.parentId;
       permissions;
+      callerPermission = null;
       metadata;
     };
   };

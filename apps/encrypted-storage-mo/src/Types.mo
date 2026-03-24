@@ -140,10 +140,16 @@ module {
 
   public type NodeDetails = NodeBase and {
     permissions : [(Principal, Permission)];
+    callerPermission : ?Permission;
     metadata : {
       #File : FileMetadata;
       #Directory : DirectoryMetadata;
     };
+  };
+
+  public type ListResponse = {
+    entries : [NodeDetails];
+    directoryPermission : ?Permission;
   };
 
   public type SetThumbnailArguments = {

@@ -47,7 +47,7 @@ export interface EncryptedStorageCanister {
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'grantPermission' : ActorMethod<[GrantPermissionArguments], undefined>,
   'hasPermission' : ActorMethod<[HasPermissionArguments], boolean>,
-  'list' : ActorMethod<[[] | [Entry]], Array<NodeDetails>>,
+  'list' : ActorMethod<[[] | [Entry]], ListResponse>,
   'listPermitted' : ActorMethod<
     [[] | [Entry]],
     Array<[Principal, PermissionExt]>
@@ -103,6 +103,10 @@ export interface HasPermissionArguments {
 }
 export type KeyId = [Owner, KeyName];
 export type KeyName = Uint8Array | number[];
+export interface ListResponse {
+  'entries' : Array<NodeDetails>,
+  'directoryPermission' : [] | [Permission],
+}
 export interface ListVersionsArguments { 'entry' : Entry }
 export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
@@ -113,6 +117,7 @@ export interface NodeDetails {
     { 'Directory' : DirectoryMetadata },
   'name' : string,
   'createdAt' : Time,
+  'callerPermission' : [] | [Permission],
   'parentId' : [] | [bigint],
   'keyId' : KeyId,
 }

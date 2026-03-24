@@ -51,7 +51,7 @@ module Permissions {
     Map.find(fs.nodes, func(_, value) = Nat64.equal(value.id, parentId)) |> Option.map(_, func(k, v) = v);
   };
 
-  func getMaxPermission(fs : T.FileSystemStore, user : Principal, findBy : T.FindBy, lastPermission : ?T.Permission) : ?T.Permission {
+  public func getMaxPermission(fs : T.FileSystemStore, user : Principal, findBy : T.FindBy, lastPermission : ?T.Permission) : ?T.Permission {
     getUserMaxPermission(fs, user, findBy, lastPermission, findBy == #root);
   };
 
