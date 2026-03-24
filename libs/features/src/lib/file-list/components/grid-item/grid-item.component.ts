@@ -11,7 +11,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideLock } from '@ng-icons/lucide';
+import { lucideEye, lucideLock, lucideUsers } from '@ng-icons/lucide';
 
 import { DownloadService, ENCRYPTED_STORAGE_CANISTER_ID, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -66,7 +66,7 @@ export type DownloadProgressState = {
   templateUrl: './grid-item.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [AnimatedFolderComponent, FileIconComponent, NgIcon, HlmBadgeImports, HlmProgressImports, HlmTooltipImports],
-  providers: [provideIcons({ lucideLock })],
+  providers: [provideIcons({ lucideEye, lucideLock, lucideUsers })],
   host: {
     '[class]': '_computedClass()',
     '[tabindex]': '_isDownloading() ? -1 : (data().disabled ? -1 : 0)',
@@ -151,9 +151,25 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   });
   protected readonly isFileNode = computed(() => isFile(this.data()));
 
+  protected readonly isReadOnly = computed(() =>
+    this.data().callerPermission === 'Read',
+  );
+
+  protected readonly isShared = computed(() => {
+    const count = this.data().sharedWith;
+    return count !== undefined && count > 0;
+  });
+
   protected readonly badges = computed(() => {
     const items: { icon: string; title: string }[] = [];
-    if (this.isEncrypted()) {
+    if (this.isShared()) {
+      const count = this.data().sharedWith!;
+      items.push({ icon: 'lucideUsers', title: `Shared with ${count} user(s)` });
+    }
+    if (this.isReadOnly()) {
+      items.push({ icon: 'lucideEye', title: 'Read only' });
+    }
+    if (this.isEncrypted() && this.isFileNode()) {
       items.push({ icon: 'lucideLock', title: 'Encrypted' });
     }
     return items;

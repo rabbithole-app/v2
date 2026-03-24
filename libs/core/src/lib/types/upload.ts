@@ -12,11 +12,14 @@ export interface IUploadService {
   add(item: { file: File; path?: string }): Promise<void>;
   cancel(id: UploadId): void;
   clear(): void;
-  hasPermission: Signal<boolean>;
-  reloadPermissions(): void;
   remove(id: UploadId): void;
   retry(id: UploadId): void;
   state: Signal<UploadServiceState>;
+}
+
+export interface IAssetUploadService extends IUploadService {
+  hasPermission: Signal<boolean>;
+  reloadPermissions(): void;
 }
 
 export type UploadServiceState = {

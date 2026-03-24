@@ -94,6 +94,8 @@ const GRID_CELL_COLUMN_GAP = 16;
 export class GridViewComponent implements OnDestroy {
   items = input.required<NodeItem[]>();
   state = signal<{
+    canManage: boolean;
+    canWrite: boolean;
     columns: number;
     everyDirectory: boolean;
     everyFile: boolean;
@@ -103,6 +105,8 @@ export class GridViewComponent implements OnDestroy {
   }>({
     selected: [],
     columns: 0,
+    canWrite: false,
+    canManage: false,
     everyDirectory: false,
     everyFile: false,
     someDirectory: false,
@@ -194,6 +198,8 @@ export class GridViewComponent implements OnDestroy {
     this.state.update((state) => ({
       ...state,
       selected: [],
+      canWrite: false,
+      canManage: false,
       everyDirectory: false,
       everyFile: false,
       someDirectory: false,
@@ -206,6 +212,8 @@ export class GridViewComponent implements OnDestroy {
     this.state.update((state) => ({
       ...state,
       selected: [],
+      canWrite: false,
+      canManage: false,
       everyDirectory: false,
       everyFile: false,
       someDirectory: false,
@@ -485,6 +493,12 @@ export class GridViewComponent implements OnDestroy {
     const everyFile = items.every(({ type }) => type === 'file');
     const someDirectory = items.some(({ type }) => type === 'directory');
     const someFile = items.some(({ type }) => type === 'file');
-    return { everyDirectory, everyFile, someDirectory, someFile };
+    const canWrite = items.every(({ callerPermission: p }) =>
+      p === 'ReadWrite' || p === 'ReadWriteManage',
+    );
+    const canManage = items.every(({ callerPermission: p }) =>
+      p === 'ReadWriteManage',
+    );
+    return { everyDirectory, everyFile, someDirectory, someFile, canWrite, canManage };
   }
 }

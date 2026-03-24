@@ -1,11 +1,8 @@
-import { computed, inject, Injectable, resource } from '@angular/core';
+import { inject, Injectable, computed, resource } from '@angular/core';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
-import { isDeepEqual, isNonNullish } from 'remeda';
 
-import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   EncryptedStorage,
-  StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 
 import { MAX_THUMBNAIL_HEIGHT, MAX_THUMBNAIL_WIDTH } from '../constants';
@@ -32,19 +29,6 @@ const EMPTY_STATE: UploadServiceState = {
 export class UploadFilesService implements IUploadService {
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   encryptedStorage = injectEncryptedStorage();
-  listPermitted = resource<StoragePermissionItem[], EncryptedStorage>({
-    params: () => this.encryptedStorage(),
-    loader: async ({ params: encryptedStorage }) =>
-      await encryptedStorage.listPermitted(),
-    defaultValue: [],
-    equal: isDeepEqual,
-  });
-  #authService = inject(AUTH_SERVICE);
-  hasPermission = computed(() => {
-    const permitted = this.listPermitted.value();
-    const principalId = this.#authService.principalId();
-    return isNonNullish(permitted.find((item) => item.user === principalId));
-  });
   showTree = resource<string, EncryptedStorage>({
     params: () => this.encryptedStorage(),
     loader: async ({ params: encryptedStorage }) => {
@@ -121,9 +105,6 @@ export class UploadFilesService implements IUploadService {
     this.#registry.clearStorage(this.#canisterIdText());
   }
 
-  reloadPermissions() {
-    this.listPermitted.reload();
-  }
 
   remove(id: UploadId) {
     this.#registry.removeUpload(id);

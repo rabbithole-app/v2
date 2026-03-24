@@ -15,7 +15,7 @@ import {
     injectCoreWorker,
     injectEncryptedStorage,
 } from '@rabbithole/core';
-import { EncryptedStorage, Entry } from '@rabbithole/encrypted-storage';
+import { EncryptedStorage, Entry, StoragePermission } from '@rabbithole/encrypted-storage';
 
 import { NodeItem } from '../types';
 import { convertToNodeItem } from '../utils';
@@ -23,6 +23,7 @@ import { convertToNodeItem } from '../utils';
 type State = {
   deleting: { ids: bigint[]; toastId: number | null };
   parentPath: string | null;
+  directoryPermission: StoragePermission | null;
 };
 
 function handleDeleteQueuerState(
@@ -74,6 +75,7 @@ export class FileListService {
   #state = signal<State>({
     deleting: { ids: [], toastId: null },
     parentPath: null,
+    directoryPermission: null,
   });
   #parentPath = computed(() => this.#state().parentPath);
   items = resource<
@@ -85,14 +87,26 @@ export class FileListService {
       path: this.#parentPath(),
     }),
     loader: async ({ params: { encryptedStorage, path } }) => {
-      const nodes = await encryptedStorage.list(
+      const { entries, directoryPermission } = await encryptedStorage.list(
         path ? ['Directory', path] : undefined,
       );
-      return nodes.map((v) => convertToNodeItem(v, path ?? undefined));
+      const permRaw = directoryPermission.length > 0 ? directoryPermission[0] : null;
+      this.#state.update((s) => ({
+        ...s,
+        directoryPermission: permRaw
+          ? (Object.keys(permRaw)[0] as StoragePermission)
+          : null,
+      }));
+      return entries.map((v) => convertToNodeItem(v, path ?? undefined));
     },
     defaultValue: [],
   });
   state = this.#state.asReadonly();
+  directoryPermission = computed(() => this.#state().directoryPermission);
+  canWrite = computed(() => {
+    const perm = this.directoryPermission();
+    return perm === 'ReadWrite' || perm === 'ReadWriteManage';
+  });
   #fsAccessService = inject(FileSystemAccessService);
 
   async createFolder(name: string) {
@@ -317,6 +331,10 @@ export class FileListService {
 
   reload() {
     this.items.reload();
+  }
+
+  setDirectoryPermission(permission: StoragePermission | null) {
+    this.#state.update((s) => ({ ...s, directoryPermission: permission }));
   }
 
   setParentPath(parentPath: string | null) {

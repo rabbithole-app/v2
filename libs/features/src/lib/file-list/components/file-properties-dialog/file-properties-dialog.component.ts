@@ -92,10 +92,6 @@ import { isDirectory, isFile, NodeItem } from '../../types';
         </div>
       }
 
-      <div class="flex justify-between">
-        <span class="text-muted-foreground">Permissions</span>
-        <span>{{ node.permissions.length }} user(s)</span>
-      </div>
     </div>
 
     <hlm-dialog-footer>

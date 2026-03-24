@@ -1,9 +1,11 @@
 <div class="flex justify-between items-center">
   <h1 class="text-2xl font-semibold">Storage</h1>
-  <rbth-feat-file-list-upload-drawer />
+  @if (canWrite()) {
+    <rbth-feat-file-list-upload-drawer />
+  }
 </div>
 @if (items().length === 0) {
-  <div hlmEmpty class="min-h-[400px]" [hlmContextMenuTrigger]="emptyAreaContextMenu">
+  <div hlmEmpty class="min-h-[400px]" [hlmContextMenuTrigger]="emptyAreaContextMenu" [disabled]="!canWrite()">
     <div hlmEmptyHeader>
       <div hlmEmptyMedia variant="icon">
         <ng-icon name="lucideFolderOpen" />
@@ -11,13 +13,18 @@
     </div>
     <div hlmEmptyTitle>No files or folders</div>
     <div hlmEmptyDescription>
-      This directory is empty. Upload files or create folders to get started.
+      @if (canWrite()) {
+        This directory is empty. Upload files or create folders to get started.
+      } @else {
+        This directory is empty.
+      }
     </div>
   </div>
 } @else {
   <rbth-feat-file-list-grid-view
     class="mt-4"
     [hlmContextMenuTrigger]="emptyAreaContextMenu"
+    [disabled]="!canWrite()"
     [items]="items()"
     (color)="_handleColor($event)"
     (delete)="_handleDelete($event)"
@@ -32,26 +39,28 @@
 }
 
 <ng-template #emptyAreaContextMenu>
-  <hlm-dropdown-menu class="w-52">
-    <hlm-dropdown-menu-group>
-      <button hlmDropdownMenuItem (click)="_handleNewFolder()">
-        <ng-icon hlm name="lucideFolderPlus" hlmMenuIcon />
-        New folder
-      </button>
-      <hlm-dropdown-menu-separator />
-      <button hlmDropdownMenuItem (click)="fileListService.openFileDialog()">
-        <ng-icon hlm name="lucideUpload" hlmMenuIcon />
-        Upload files
-      </button>
-      <button
-        hlmDropdownMenuItem
-        (click)="fileListService.openDirectoryDialog()"
-      >
-        <ng-icon hlm name="lucideFolderUp" hlmMenuIcon />
-        Upload directory
-      </button>
-    </hlm-dropdown-menu-group>
-  </hlm-dropdown-menu>
+  @if (canWrite()) {
+    <hlm-dropdown-menu class="w-52">
+      <hlm-dropdown-menu-group>
+        <button hlmDropdownMenuItem (click)="_handleNewFolder()">
+          <ng-icon hlm name="lucideFolderPlus" hlmMenuIcon />
+          New folder
+        </button>
+        <hlm-dropdown-menu-separator />
+        <button hlmDropdownMenuItem (click)="fileListService.openFileDialog()">
+          <ng-icon hlm name="lucideUpload" hlmMenuIcon />
+          Upload files
+        </button>
+        <button
+          hlmDropdownMenuItem
+          (click)="fileListService.openDirectoryDialog()"
+        >
+          <ng-icon hlm name="lucideFolderUp" hlmMenuIcon />
+          Upload directory
+        </button>
+      </hlm-dropdown-menu-group>
+    </hlm-dropdown-menu>
+  }
 </ng-template>
 
 <rbth-feat-properties-drawer [items]="propertiesDrawerItems()" />

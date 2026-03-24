@@ -34,7 +34,6 @@
       <core-file-upload-dropzone
         class="flex flex-col gap-2 w-full px-4"
         (added)="upload($event)"
-        [disabled]="dropzoneDisabled()"
       />
       @if (activeItems().length) {
         <h3 rbthDrawerSeparator>Active</h3>

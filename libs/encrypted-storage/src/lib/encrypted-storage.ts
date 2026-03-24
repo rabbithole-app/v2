@@ -130,13 +130,7 @@ export class EncryptedStorage {
 
   async fsTree() {
     const fsTree = await this.#actor.fsTree();
-    const canisterId = Actor.canisterIdOf(this.#actor);
-    return [
-      {
-        name: canisterId.toText(),
-        children: convertTreeNodes(fsTree),
-      },
-    ];
+    return convertTreeNodes(fsTree);
   }
 
   /**
@@ -241,7 +235,8 @@ export class EncryptedStorage {
   }
 
   async list(entry?: Entry) {
-    return await this.#actor.listStorage(toOptionalEntryRaw(entry));
+    const response = await this.#actor.listStorage(toOptionalEntryRaw(entry));
+    return response;
   }
 
   async listPermitted(entry?: Entry): Promise<StoragePermissionItem[]> {

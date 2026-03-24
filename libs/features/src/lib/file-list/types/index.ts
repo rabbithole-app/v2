@@ -5,6 +5,7 @@ import { DirectoryColor as DirectoryColorRaw } from '@rabbithole/declarations';
 import { StoragePermission } from '@rabbithole/encrypted-storage';
 
 export type CommonAttrs = {
+  callerPermission?: StoragePermission;
   createdAt: Date;
   id: bigint;
   keyId: [Principal, Uint8Array];
@@ -12,7 +13,7 @@ export type CommonAttrs = {
   name: string;
   parentId?: bigint;
   parentPath?: string;
-  permissions: Array<[Principal, StoragePermission]>;
+  sharedWith?: number;
 };
 
 export type DirectoryColor = ExtractVariantKeys<DirectoryColorRaw>;

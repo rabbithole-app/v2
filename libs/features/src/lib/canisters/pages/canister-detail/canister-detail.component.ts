@@ -24,6 +24,7 @@ import {
   CanisterDataInfo,
   ENCRYPTED_STORAGE_CANISTER_ID,
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
+  IAssetUploadService,
   injectCoreWorker,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
@@ -123,7 +124,7 @@ export class CanisterDetailComponent implements OnInit {
     return this.#authService.principalId();
   });
 
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN) as IAssetUploadService;
   hasUploadPermission = computed(() => this.#uploadService.hasPermission());
 
   isController = computed(() => {

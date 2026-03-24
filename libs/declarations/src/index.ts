@@ -28,6 +28,7 @@ export type {
   Entry,
   EncryptionMode,
   _SERVICE as EncryptedStorageActorService,
+  ListResponse,
   NodeDetails,
   Permission as EncryptedStorageHttpPermission,
   Permission__1 as StoragePermission,

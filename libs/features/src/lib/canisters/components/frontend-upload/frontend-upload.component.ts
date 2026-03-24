@@ -25,6 +25,7 @@ import { match, P } from 'ts-pattern';
 
 import {
   FileSystemAccessService,
+  IAssetUploadService,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
   UploadDrawerListComponent,
@@ -95,7 +96,7 @@ import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.direct
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FrontendUploadDrawerComponent {
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN, { self: true });
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN, { self: true }) as IAssetUploadService;
   files = computed(() => this.#uploadService.state().files);
   readonly activeItems = computed(() =>
     this.files().filter(({ status }) =>

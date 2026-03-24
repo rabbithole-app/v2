@@ -96,7 +96,6 @@ export class UploadDrawerComponent {
   completedItems = computed(() =>
     this.#items().filter(({ status }) => status === UploadState.COMPLETED),
   );
-  dropzoneDisabled = computed(() => !this.#uploadService.hasPermission());
   encryptedStorage = inject(ENCRYPTED_STORAGE_TOKEN);
   failedItems = computed(() =>
     this.#items().filter(({ status }) => status === UploadState.FAILED),

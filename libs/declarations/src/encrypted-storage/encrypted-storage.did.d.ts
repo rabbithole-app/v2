@@ -169,7 +169,7 @@ export interface EncryptedStorageCanister {
     [[] | [Entry]],
     Array<[Principal, PermissionExt]>
   >,
-  'listStorage' : ActorMethod<[[] | [Entry]], Array<NodeDetails>>,
+  'listStorage' : ActorMethod<[[] | [Entry]], ListResponse>,
   'listStorageVersions' : ActorMethod<
     [ListVersionsArguments],
     Array<FileVersionDetails>
@@ -261,16 +261,21 @@ export type Key = string;
 export type KeyId = [Owner, KeyName];
 export type KeyName = Uint8Array | number[];
 export interface ListPermitted { 'permission' : Permission }
+export interface ListResponse {
+  'entries' : Array<NodeDetails>,
+  'directoryPermission' : [] | [Permission__1],
+}
 export interface ListVersionsArguments { 'entry' : Entry }
 export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
   'id' : bigint,
-  'permissions' : Array<[Principal, Permission__1]>,
   'modifiedAt' : [] | [Time],
   'metadata' : { 'File' : FileMetadata } |
     { 'Directory' : DirectoryMetadata },
   'name' : string,
   'createdAt' : Time,
+  'callerPermission' : [] | [Permission__1],
+  'sharing' : [] | [SharingInfo],
   'parentId' : [] | [bigint],
   'keyId' : KeyId,
 }
@@ -340,6 +345,7 @@ export interface SetAssetPropertiesArguments {
   'allow_raw_access' : [] | [[] | [boolean]],
   'max_age' : [] | [[] | [bigint]],
 }
+export interface SharingInfo { 'sharedWith' : bigint }
 export type StorageBackend = { 'External' : null } |
   { 'BlobStorage' : null } |
   { 'Inline' : null };

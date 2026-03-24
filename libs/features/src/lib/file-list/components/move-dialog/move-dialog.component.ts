@@ -44,17 +44,19 @@ interface FlatTreeItem {
           <hlm-spinner />
         </div>
       } @else {
-        <button
-          class="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md"
-          [class.bg-accent]="selectedPath() === ''"
-          [class.hover:bg-accent]="!rootDisabled"
-          [class.opacity-40]="rootDisabled"
-          [class.cursor-not-allowed]="rootDisabled"
-          (click)="rootDisabled || select(null)"
-        >
-          <ng-icon name="lucideFolder" class="!size-4" />
-          Root
-        </button>
+        @if (showRoot()) {
+          <button
+            class="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md"
+            [class.bg-accent]="selectedPath() === ''"
+            [class.hover:bg-accent]="!rootDisabled"
+            [class.opacity-40]="rootDisabled"
+            [class.cursor-not-allowed]="rootDisabled"
+            (click)="rootDisabled || select(null)"
+          >
+            <ng-icon name="lucideFolder" class="!size-4" />
+            Root
+          </button>
+        }
         @for (item of flatItems(); track item.path) {
           <button
             class="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md"
@@ -119,10 +121,11 @@ export class MoveDialogComponent {
     const segments = p.split('/');
     return segments.map((_, i) => segments.slice(0, i + 1).join('/'));
   }));
-  readonly rootDisabled = this.#currentParentPaths.includes(null);
   readonly loading = signal(true);
   readonly selectedPath = signal<string | null>(null);
   readonly flatItems = signal<FlatTreeItem[]>([]);
+  readonly showRoot = signal(false);
+  readonly rootDisabled = this.#currentParentPaths.includes(null);
   #tree: FlatTreeItem[] = [];
 
   constructor() {
@@ -155,7 +158,11 @@ export class MoveDialogComponent {
   async #loadTree() {
     try {
       const tree = await this.#encryptedStorage.fsTree();
-      this.#tree = this.#convertTree(tree[0]?.children ?? [], 0);
+      // If all top-level items have no "/" in name, this is a full tree (owner) — show Root
+      // If items have "/" in name, these are writable roots for shared users — no Root
+      const isFullTree = tree.length > 0 && tree.every((n) => !n.name?.includes('/'));
+      this.showRoot.set(isFullTree);
+      this.#tree = this.#convertTree(tree, 0);
       this.flatItems.set(this.#flatten(this.#tree));
     } finally {
       this.loading.set(false);

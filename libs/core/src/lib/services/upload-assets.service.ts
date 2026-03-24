@@ -14,11 +14,11 @@ import {
 } from '../injectors';
 import { messageByAction } from '../operators';
 import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
-import { IUploadService, UploadAsset, UploadId, UploadState } from '../types';
+import { IAssetUploadService, UploadAsset, UploadId, UploadState } from '../types';
 import { UploadBaseService } from './upload-base.service';
 
 @Injectable()
-export class UploadAssetsService implements IUploadService {
+export class UploadAssetsService implements IAssetUploadService {
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   #assetManager = injectAssetManager();
   listPermitted = resource<Principal[], AssetManager>({

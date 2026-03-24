@@ -56,9 +56,11 @@ import { isDirectory, isFile, NodeItem } from '../../types';
             <button hlmTabsTrigger="info" (click)="activeTab.set('info')">
               Info
             </button>
-            <button hlmTabsTrigger="permissions" (click)="activeTab.set('permissions')">
-              Permissions
-            </button>
+            @if (canManage()) {
+              <button hlmTabsTrigger="permissions" (click)="_openPermissionsTab()">
+                Permissions
+              </button>
+            }
           </div>
 
           <div hlmTabsContent="info" class="flex-1 overflow-y-auto px-4 py-4">
@@ -106,10 +108,6 @@ import { isDirectory, isFile, NodeItem } from '../../types';
                     <span>{{ item.modifiedAt | date: 'short' }}</span>
                   </div>
                 }
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground">Permissions</span>
-                  <span>{{ item.permissions.length }} user(s)</span>
-                </div>
               </div>
             } @else {
               <div class="space-y-3 text-sm">
@@ -140,7 +138,7 @@ import { isDirectory, isFile, NodeItem } from '../../types';
                 </core-edit-permission-form>
               </div>
               <core-permissions-table
-                [data]="permissionsService.listPermitted.value()"
+                [data]="permissionsService.permitted()"
                 (grant)="grantPermission($event)"
                 (revoke)="revokePermission($event)"
               />
@@ -190,6 +188,10 @@ export class PropertiesDrawerComponent {
 
   singleItem = computed(() =>
     this.items().length === 1 ? this.items()[0] : null,
+  );
+
+  canManage = computed(() =>
+    this.items().every(({ callerPermission: p }) => p === 'ReadWriteManage'),
   );
 
   totalSize = computed(() =>
@@ -249,8 +251,17 @@ export class PropertiesDrawerComponent {
   }
 
   open(tab: 'info' | 'permissions' = 'info') {
-    this.activeTab.set(tab);
+    const resolvedTab = tab === 'permissions' && !this.canManage() ? 'info' : tab;
+    this.activeTab.set(resolvedTab);
+    if (resolvedTab === 'permissions') {
+      this.permissionsService.loadPermitted();
+    }
     this.drawer()?.open();
+  }
+
+  _openPermissionsTab() {
+    this.activeTab.set('permissions');
+    this.permissionsService.loadPermitted();
   }
 
   revokePermission(args: Omit<RevokeStoragePermission, 'entry'>) {

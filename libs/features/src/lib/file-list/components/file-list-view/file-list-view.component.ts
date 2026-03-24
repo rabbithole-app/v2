@@ -38,6 +38,7 @@ import { GRAY_ICONS_CONFIG } from '../../constants';
 import { FileListService } from '../../services';
 import { FILE_LIST_ICONS_CONFIG } from '../../tokens';
 import { DirectoryColor, NodeItem } from '../../types';
+import { FileListResolverData } from '../../resolvers/file-list';
 import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
 import { FileIconComponent } from '../file-icon/file-icon.component';
 import { GridViewComponent } from '../grid-view/grid-view.component';
@@ -80,6 +81,7 @@ export class FileListViewComponent {
   active = signal(false);
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   fileListService = inject(FileListService);
+  canWrite = this.fileListService.canWrite;
   propertiesDrawerItems = signal<NodeItem[]>([]);
   #dialogService = inject(HlmDialogService);
   #encryptedStorage = injectEncryptedStorage();
@@ -88,7 +90,14 @@ export class FileListViewComponent {
   #route = inject(ActivatedRoute);
   items = toSignal(
     this.#route.data.pipe(
-      map((data) => data['fileList'] as NodeItem[]),
+      map((data) => {
+        const resolved = data['fileList'] as FileListResolverData;
+        // Sync directoryPermission from resolver into FileListService state
+        if (resolved.directoryPermission !== undefined) {
+          this.fileListService.setDirectoryPermission(resolved.directoryPermission);
+        }
+        return resolved.items;
+      }),
       mergeWith(
         toObservable(this.fileListService.items.value).pipe(filter((v) => !!v)),
       ),

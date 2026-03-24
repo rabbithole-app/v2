@@ -9,9 +9,7 @@ import { lucideCircleAlert } from '@ng-icons/lucide';
 import { toast } from 'ngx-sonner';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { injectAssetManager } from '@rabbithole/core';
-import { parseCanisterRejectError } from '@rabbithole/core';
-import { UPLOAD_SERVICE_TOKEN } from '@rabbithole/core';
+import { IAssetUploadService, injectAssetManager, parseCanisterRejectError, UPLOAD_SERVICE_TOKEN } from '@rabbithole/core';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -57,7 +55,7 @@ export class CommitPermissionWarningComponent {
   readonly isGrantingPermission = signal(false);
   #assetManager = injectAssetManager();
   #authService = inject(AUTH_SERVICE);
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN) as IAssetUploadService;
 
   async grantCommitPermission() {
     this.isGrantingPermission.set(true);

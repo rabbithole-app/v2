@@ -1,7 +1,6 @@
-import { computed, Injectable, resource, signal } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { toast } from 'ngx-sonner';
-import { isDeepEqual } from 'remeda';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
 import {
@@ -10,7 +9,6 @@ import {
   GrantStoragePermission,
   RevokeStoragePermission,
   StoragePermissionItem,
-  type TreeNode,
 } from '@rabbithole/encrypted-storage';
 
 import { injectEncryptedStorage } from '../injectors';
@@ -18,46 +16,23 @@ import { parseCanisterRejectError } from '../utils';
 
 type State = {
   entry: Entry | null;
-  loading: Record<'grant' | 'revoke', number[]>;
+  permitted: StoragePermissionItem[];
+  permittedLoading: boolean;
 };
 
 const INITIAL_VALUE: State = {
   entry: null,
-  loading: {
-    grant: [],
-    revoke: [],
-  },
+  permitted: [],
+  permittedLoading: false,
 };
 
 @Injectable()
 export class PermissionsService {
   encryptedStorage = injectEncryptedStorage();
   #state = signal(INITIAL_VALUE);
-  #entry = computed(() => this.#state().entry);
-  listPermitted = resource<
-    StoragePermissionItem[],
-    { encryptedStorage: EncryptedStorage; entry: Entry | null }
-  >({
-    params: () => ({
-      encryptedStorage: this.encryptedStorage(),
-      entry: this.#entry(),
-    }),
-    loader: async ({ params: { encryptedStorage, entry } }) => {
-      const items = await encryptedStorage.listPermitted(entry ?? undefined);
-      return items;
-    },
-    defaultValue: [],
-    equal: isDeepEqual,
-  });
-  tree = resource<TreeNode[], EncryptedStorage>({
-    params: () => this.encryptedStorage(),
-    loader: async ({ params: encryptedStorage }) => {
-      return await encryptedStorage.fsTree();
-    },
-    defaultValue: [],
-  });
-  rootNode = computed(() => this.tree.value()[0]);
   state = this.#state.asReadonly();
+  permitted = computed(() => this.#state().permitted);
+  permittedLoading = computed(() => this.#state().permittedLoading);
   #grantPermission = new Subject<Omit<GrantStoragePermission, 'entry'>>();
   #revokePermission = new Subject<Omit<RevokeStoragePermission, 'entry'>>();
 
@@ -71,7 +46,7 @@ export class PermissionsService {
       mergeMap((args) => this.#grantPermissionHandler(args)),
     );
     grant$.pipe(mergeWith(revoke$), takeUntilDestroyed()).subscribe(() => {
-      this.listPermitted.reload();
+      this.loadPermitted();
     });
   }
 
@@ -84,8 +59,22 @@ export class PermissionsService {
   }
 
   setEntry(entry: Entry | null) {
-    this.#state.update((state) => ({ ...state, entry }));
+    this.#state.update((state) => ({ ...state, entry, permitted: [] }));
   }
+
+  async loadPermitted() {
+    const encryptedStorage = this.encryptedStorage();
+    const { entry } = this.#state();
+    if (!entry) return;
+    this.#state.update((s) => ({ ...s, permittedLoading: true }));
+    try {
+      const items = await encryptedStorage.listPermitted(entry || undefined);
+      this.#state.update((s) => ({ ...s, permitted: items, permittedLoading: false }));
+    } catch {
+      this.#state.update((s) => ({ ...s, permitted: [], permittedLoading: false }));
+    }
+  }
+
 
   #addEntry<T = GrantStoragePermission | RevokeStoragePermission>(
     args: Omit<T, 'entry'>,

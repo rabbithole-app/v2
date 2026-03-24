@@ -17,15 +17,17 @@ export function convertToNodeItem(
   node: NodeDetails,
   parentPath?: string,
 ): NodeItem {
+  const callerPermissionRaw = fromNullable(node.callerPermission);
+  const sharingRaw = fromNullable(node.sharing);
   const commonAttrs: CommonAttrs = {
     id: node.id,
     keyId: [node.keyId[0], new Uint8Array(node.keyId[1])],
     createdAt: timeInNanosToDate(node.createdAt),
     name: node.name,
-    permissions: node.permissions.map(([principal, permission]) => [
-      principal,
-      Object.keys(permission)[0] as StoragePermission,
-    ]),
+    callerPermission: callerPermissionRaw
+      ? (Object.keys(callerPermissionRaw)[0] as StoragePermission)
+      : undefined,
+    sharedWith: sharingRaw ? Number(sharingRaw.sharedWith) : undefined,
   };
 
   const parentId = fromNullable(node.parentId);

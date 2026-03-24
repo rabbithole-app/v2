@@ -17,10 +17,10 @@
   @let selected = state().selected;
   @let everyDirectory = state().everyDirectory;
   @let everyFile = state().everyFile;
-  @let someDirectory = state().someDirectory;
-  @let someFile = state().someFile;
+  @let canWrite = state().canWrite;
+  @let canManage = state().canManage;
   <hlm-dropdown-menu class="w-48">
-    @if (everyDirectory) {
+    @if (everyDirectory && canWrite) {
       <hlm-dropdown-menu-group>
         <div hlmField class="p-2">
           <label hlmFieldLabel for="field-folder-color">Folder color</label>
@@ -34,22 +34,24 @@
       <hlm-dropdown-menu-separator />
     }
     <hlm-dropdown-menu-group>
-      <button
-        hlmDropdownMenuItem
-        (click)="_handleItemAction('rename', selected)"
-        [disabled]="selected.length > 1"
-      >
-        <ng-icon hlm name="lucidePencil" hlmMenuIcon />
-        Rename
-      </button>
-      <button hlmDropdownMenuItem (click)="_handleItemAction('move', selected)">
-        <ng-icon hlm name="lucideFolderTree" hlmMenuIcon />
-        @if (selected.length > 1) {
-          Move ({{ selected.length }})
-        } @else {
-          Move
-        }
-      </button>
+      @if (canWrite) {
+        <button
+          hlmDropdownMenuItem
+          (click)="_handleItemAction('rename', selected)"
+          [disabled]="selected.length > 1"
+        >
+          <ng-icon hlm name="lucidePencil" hlmMenuIcon />
+          Rename
+        </button>
+        <button hlmDropdownMenuItem (click)="_handleItemAction('move', selected)">
+          <ng-icon hlm name="lucideFolderTree" hlmMenuIcon />
+          @if (selected.length > 1) {
+            Move ({{ selected.length }})
+          } @else {
+            Move
+          }
+        </button>
+      }
       @if (everyFile) {
         <button
           hlmDropdownMenuItem
@@ -63,20 +65,22 @@
           }
         </button>
       }
-      <button
-        hlmDropdownMenuItem
-        (click)="manageAccess.emit(selected)"
-      >
-        <ng-icon hlm name="lucideUsers" hlmMenuIcon />
-        Manage Access
-      </button>
-      <button
-        hlmDropdownMenuItem
-        (click)="makePublic.emit(selected)"
-      >
-        <ng-icon hlm name="lucideGlobe" hlmMenuIcon />
-        Make Public
-      </button>
+      @if (canManage) {
+        <button
+          hlmDropdownMenuItem
+          (click)="manageAccess.emit(selected)"
+        >
+          <ng-icon hlm name="lucideUsers" hlmMenuIcon />
+          Manage Access
+        </button>
+        <button
+          hlmDropdownMenuItem
+          (click)="makePublic.emit(selected)"
+        >
+          <ng-icon hlm name="lucideGlobe" hlmMenuIcon />
+          Make Public
+        </button>
+      }
       <button
         hlmDropdownMenuItem
         (click)="_handleProperties(selected)"
@@ -85,19 +89,21 @@
         <ng-icon hlm name="lucideInfo" hlmMenuIcon />
         Properties
       </button>
-      <hlm-dropdown-menu-separator />
-      <button
-        hlmDropdownMenuItem
-        variant="destructive"
-        (click)="_handleItemAction('delete', selected)"
-      >
-        <ng-icon hlm name="lucideTrash2" hlmMenuIcon />
-        @if (selected.length > 1) {
-          Delete ({{ selected.length }})
-        } @else {
-          Delete
-        }
-      </button>
+      @if (canWrite) {
+        <hlm-dropdown-menu-separator />
+        <button
+          hlmDropdownMenuItem
+          variant="destructive"
+          (click)="_handleItemAction('delete', selected)"
+        >
+          <ng-icon hlm name="lucideTrash2" hlmMenuIcon />
+          @if (selected.length > 1) {
+            Delete ({{ selected.length }})
+          } @else {
+            Delete
+          }
+        </button>
+      }
     </hlm-dropdown-menu-group>
   </hlm-dropdown-menu>
 </ng-template>
