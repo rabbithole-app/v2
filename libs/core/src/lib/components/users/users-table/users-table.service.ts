@@ -1,10 +1,10 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { toBigIntNanoSeconds } from '@dfinity/utils';
+import { fromNullable, toBigIntNanoSeconds } from '@dfinity/utils';
 import { endOfMonth, startOfMonth, subDays } from 'date-fns';
 import { isNonNullish } from 'remeda';
 
 import {
-  ListOptions,
+  ProfileListOptions as ListOptions,
   Profile as ProfileRaw,
   RabbitholeActorService,
 } from '@rabbithole/declarations';
@@ -21,7 +21,7 @@ export interface Profile {
   createdAt: Date;
   displayName?: string;
   id: string;
-  inviter?: string;
+  referralCode?: string;
   updatedAt: Date;
   username: string;
 }
@@ -39,11 +39,9 @@ function convertProfile(item: ProfileRaw): Profile {
     username: item.username,
     createdAt: timeInNanosToDate(item.createdAt),
     updatedAt: timeInNanosToDate(item.updatedAt),
-    displayName: isNonNullish(item.displayName)
-      ? item.displayName[0]
-      : undefined,
-    avatarUrl: isNonNullish(item.avatarUrl) ? item.avatarUrl[0] : undefined,
-    inviter: item.inviter[0] ? item.inviter[0].toText() : undefined,
+    displayName: fromNullable(item.displayName),
+    avatarUrl: fromNullable(item.avatarUrl),
+    referralCode: fromNullable(item.referralCode),
   };
 }
 
@@ -93,7 +91,6 @@ export class UsersTableService {
         id: [],
         username: filters.search ? [filters.search] : [],
         displayName: [],
-        inviter: [],
         createdAt: filters.dateFilter
           ? [
               {

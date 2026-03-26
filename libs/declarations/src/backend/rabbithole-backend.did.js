@@ -6,6 +6,12 @@ export const idlFactory = ({ IDL }) => {
     'apiUrl' : IDL.Text,
   });
   const InitArgs = IDL.Record({ 'github' : IDL.Opt(GithubOptions) });
+  const Plan = IDL.Variant({
+    'Pro' : IDL.Null,
+    'Free' : IDL.Null,
+    'License' : IDL.Null,
+    'Trial' : IDL.Null,
+  });
   const UpdateInfo = IDL.Record({
     'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'wasmUpdateAvailable' : IDL.Bool,
@@ -14,10 +20,17 @@ export const idlFactory = ({ IDL }) => {
     'frontendUpdateAvailable' : IDL.Bool,
     'availableWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
   });
+  const SubscriptionCheckResult = IDL.Variant({
+    'trial' : IDL.Record({ 'remainingBytes' : IDL.Nat }),
+    'active' : IDL.Record({ 'plan' : Plan }),
+    'expired' : IDL.Null,
+    'free' : IDL.Null,
+    'unknownCanister' : IDL.Null,
+    'invalidWasm' : IDL.Null,
+  });
   const CreateProfileArgs = IDL.Record({
     'username' : IDL.Text,
     'displayName' : IDL.Opt(IDL.Text),
-    'inviter' : IDL.Opt(IDL.Principal),
     'avatarUrl' : IDL.Opt(IDL.Text),
   });
   const ReleaseSelector = IDL.Variant({
@@ -90,12 +103,39 @@ export const idlFactory = ({ IDL }) => {
     'NotOwner' : IDL.Null,
   });
   const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const AmbassadorChain = IDL.Record({
+    'l1' : IDL.Opt(IDL.Principal),
+    'l2' : IDL.Opt(IDL.Principal),
+  });
   const Time = IDL.Int;
+  const TypedEvent = IDL.Variant({
+    'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
+    'subscriptionExpired' : IDL.Null,
+    'subscriptionActivated' : IDL.Record({ 'plan' : Plan }),
+    'updateAvailable' : IDL.Record({
+      'releaseTag' : IDL.Text,
+      'canisterId' : IDL.Principal,
+    }),
+    'lowCycles' : IDL.Record({
+      'remaining' : IDL.Nat,
+      'canisterId' : IDL.Principal,
+    }),
+  });
+  const StoredNotification = IDL.Record({
+    'id' : IDL.Nat,
+    'createdAt' : Time,
+    'read' : IDL.Bool,
+    'event' : TypedEvent,
+  });
+  const NotificationsPage = IDL.Record({
+    'data' : IDL.Vec(StoredNotification),
+    'unreadCount' : IDL.Nat,
+  });
   const Profile = IDL.Record({
     'id' : IDL.Principal,
+    'referralCode' : IDL.Opt(IDL.Text),
     'username' : IDL.Text,
     'displayName' : IDL.Opt(IDL.Text),
-    'inviter' : IDL.Opt(IDL.Principal),
     'createdAt' : Time,
     'updatedAt' : Time,
     'avatarUrl' : IDL.Opt(IDL.Text),
@@ -149,6 +189,28 @@ export const idlFactory = ({ IDL }) => {
     'releases' : IDL.Vec(ReleaseFullStatus),
     'completedDownloads' : IDL.Nat,
   });
+  const Status = IDL.Variant({
+    'Active' : IDL.Null,
+    'Cancelled' : IDL.Null,
+    'Expired' : IDL.Null,
+  });
+  const Subscription = IDL.Record({
+    'status' : Status,
+    'expiresAt' : IDL.Opt(Time),
+    'activatedAt' : Time,
+    'userId' : IDL.Principal,
+    'createdAt' : Time,
+    'plan' : Plan,
+    'updatedAt' : Time,
+    'trialUsedBytes' : IDL.Nat,
+    'autoRenew' : IDL.Bool,
+  });
+  const User = IDL.Record({
+    'id' : IDL.Principal,
+    'inviter' : IDL.Opt(IDL.Principal),
+    'createdAt' : Time,
+    'updatedAt' : Time,
+  });
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
   const RawQueryHttpRequest = IDL.Record({
     'url' : IDL.Text,
@@ -193,11 +255,16 @@ export const idlFactory = ({ IDL }) => {
     'streaming_strategy' : IDL.Opt(StreamingStrategy),
     'status_code' : IDL.Nat16,
   });
+  const KnownWasmHash = IDL.Record({
+    'hash' : IDL.Vec(IDL.Nat8),
+    'releaseTag' : IDL.Text,
+    'registeredAt' : Time,
+  });
   const SortDirection = IDL.Variant({
     'Descending' : IDL.Null,
     'Ascending' : IDL.Null,
   });
-  const ListOptions = IDL.Record({
+  const ListOptions__1 = IDL.Record({
     'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
     'count' : IDL.Bool,
     'sort' : IDL.Vec(IDL.Tuple(IDL.Text, SortDirection)),
@@ -205,7 +272,6 @@ export const idlFactory = ({ IDL }) => {
       'id' : IDL.Opt(IDL.Vec(IDL.Principal)),
       'username' : IDL.Opt(IDL.Text),
       'displayName' : IDL.Opt(IDL.Text),
-      'inviter' : IDL.Opt(IDL.Vec(IDL.Principal)),
       'createdAt' : IDL.Opt(
         IDL.Record({ 'max' : IDL.Opt(IDL.Int), 'min' : IDL.Opt(IDL.Int) })
       ),
@@ -257,6 +323,24 @@ export const idlFactory = ({ IDL }) => {
     'updateAvailable' : IDL.Opt(UpdateInfo),
     'canisterId' : IDL.Opt(IDL.Principal),
   });
+  const ListOptions = IDL.Record({
+    'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
+    'count' : IDL.Bool,
+    'sort' : IDL.Vec(IDL.Tuple(IDL.Text, SortDirection)),
+    'filter' : IDL.Record({
+      'status' : IDL.Opt(IDL.Vec(Status)),
+      'expiresAt' : IDL.Opt(
+        IDL.Record({ 'max' : IDL.Opt(IDL.Int), 'min' : IDL.Opt(IDL.Int) })
+      ),
+      'userId' : IDL.Opt(IDL.Vec(IDL.Principal)),
+      'plan' : IDL.Opt(IDL.Vec(Plan)),
+    }),
+  });
+  const GetSubscriptionsResponse = IDL.Record({
+    'total' : IDL.Opt(IDL.Nat),
+    'data' : IDL.Vec(Subscription),
+    'instructions' : IDL.Nat,
+  });
   const CreateProfileAvatarArgs = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
     'contentType' : IDL.Text,
@@ -276,19 +360,38 @@ export const idlFactory = ({ IDL }) => {
   });
   const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : UpgradeStorageError });
   const Rabbithole = IDL.Service({
-    'addCanister' : IDL.Func([IDL.Principal], [], []),
+    'activateSubscription' : IDL.Func(
+        [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
+        [],
+        [],
+      ),
+    'activateTrial' : IDL.Func([], [], []),
+    'addAdmin' : IDL.Func([IDL.Principal], [], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UpdateInfo)],
         ['query'],
       ),
+    'checkSubscription' : IDL.Func(
+        [IDL.Vec(IDL.Nat8)],
+        [SubscriptionCheckResult],
+        [],
+      ),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
     'createStorage' : IDL.Func([CreateStorageOptions], [Result_2], []),
-    'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteProfile' : IDL.Func([], [], []),
     'deleteStorage' : IDL.Func([IDL.Nat], [Result_1], []),
+    'getAmbassadorChainQuery' : IDL.Func([], [AmbassadorChain], ['query']),
+    'getNotifications' : IDL.Func(
+        [IDL.Opt(Time), IDL.Nat],
+        [NotificationsPage],
+        ['query'],
+      ),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
+    'getSubscription' : IDL.Func([], [IDL.Opt(Subscription)], ['query']),
+    'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUser' : IDL.Func([], [IDL.Opt(User)], ['query']),
     'http_request' : IDL.Func(
         [RawQueryHttpRequest],
         [RawQueryHttpResponse],
@@ -304,11 +407,27 @@ export const idlFactory = ({ IDL }) => {
         [RawUpdateHttpResponse],
         [],
       ),
+    'isAdmin' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
+    'isKnownWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8)], [IDL.Bool], ['query']),
     'isStorageDeployerRunning' : IDL.Func([], [IDL.Bool], ['query']),
-    'listCanisters' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
-    'listProfiles' : IDL.Func([ListOptions], [GetProfilesResponse], ['query']),
+    'listAdmins' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+    'listKnownWasmHashes' : IDL.Func([], [IDL.Vec(KnownWasmHash)], ['query']),
+    'listProfiles' : IDL.Func(
+        [ListOptions__1],
+        [GetProfilesResponse],
+        ['query'],
+      ),
     'listStorages' : IDL.Func([], [IDL.Vec(StorageInfo)], ['query']),
+    'listSubscriptions' : IDL.Func(
+        [ListOptions],
+        [GetSubscriptionsResponse],
+        ['query'],
+      ),
+    'markAllNotificationsAsRead' : IDL.Func([], [], []),
+    'markNotificationsAsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
     'refreshReleases' : IDL.Func([], [], []),
+    'register' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
+    'removeAdmin' : IDL.Func([IDL.Principal], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),

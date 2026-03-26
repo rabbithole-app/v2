@@ -2,6 +2,10 @@ import type { Principal } from '@icp-sdk/core/principal';
 import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 
+export interface AmbassadorChain {
+  'l1' : [] | [Principal],
+  'l2' : [] | [Principal],
+}
 export type AssetDownloadStatus = { 'Error' : string } |
   {
     'Downloading' : {
@@ -28,7 +32,6 @@ export interface CallbackStreamingStrategy {
 export interface CreateProfileArgs {
   'username' : string,
   'displayName' : [] | [string],
-  'inviter' : [] | [Principal],
   'avatarUrl' : [] | [string],
 }
 export interface CreateProfileAvatarArgs {
@@ -84,6 +87,11 @@ export interface GetProfilesResponse {
   'data' : Array<Profile>,
   'instructions' : bigint,
 }
+export interface GetSubscriptionsResponse {
+  'total' : [] | [bigint],
+  'data' : Array<Subscription>,
+  'instructions' : bigint,
+}
 export interface GithubOptions {
   'token' : [] | [string],
   'owner' : string,
@@ -95,7 +103,23 @@ export type Icrc1BlockIndex = bigint;
 export type Icrc1Timestamp = bigint;
 export type Icrc1Tokens = bigint;
 export interface InitArgs { 'github' : [] | [GithubOptions] }
+export interface KnownWasmHash {
+  'hash' : Uint8Array | number[],
+  'releaseTag' : string,
+  'registeredAt' : Time,
+}
 export interface ListOptions {
+  'pagination' : { 'offset' : bigint, 'limit' : bigint },
+  'count' : boolean,
+  'sort' : Array<[string, SortDirection]>,
+  'filter' : {
+    'status' : [] | [Array<Status>],
+    'expiresAt' : [] | [{ 'max' : [] | [bigint], 'min' : [] | [bigint] }],
+    'userId' : [] | [Array<Principal>],
+    'plan' : [] | [Array<Plan>],
+  },
+}
+export interface ListOptions__1 {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
   'count' : boolean,
   'sort' : Array<[string, SortDirection]>,
@@ -103,10 +127,13 @@ export interface ListOptions {
     'id' : [] | [Array<Principal>],
     'username' : [] | [string],
     'displayName' : [] | [string],
-    'inviter' : [] | [Array<Principal>],
     'createdAt' : [] | [{ 'max' : [] | [bigint], 'min' : [] | [bigint] }],
     'avatarUrl' : [] | [boolean],
   },
+}
+export interface NotificationsPage {
+  'data' : Array<StoredNotification>,
+  'unreadCount' : bigint,
 }
 export type NotifyError = {
     'Refunded' : { 'block_index' : [] | [BlockIndex], 'reason' : string }
@@ -115,26 +142,43 @@ export type NotifyError = {
   { 'Other' : { 'error_message' : string, 'error_code' : bigint } } |
   { 'Processing' : null } |
   { 'TransactionTooOld' : BlockIndex };
+export type Plan = { 'Pro' : null } |
+  { 'Free' : null } |
+  { 'License' : null } |
+  { 'Trial' : null };
 export interface Profile {
   'id' : Principal,
+  'referralCode' : [] | [string],
   'username' : string,
   'displayName' : [] | [string],
-  'inviter' : [] | [Principal],
   'createdAt' : Time,
   'updatedAt' : Time,
   'avatarUrl' : [] | [string],
 }
 export interface Progress { 'total' : bigint, 'processed' : bigint }
 export interface Rabbithole {
-  'addCanister' : ActorMethod<[Principal], undefined>,
+  'activateSubscription' : ActorMethod<
+    [Principal, Plan, [] | [bigint]],
+    undefined
+  >,
+  'activateTrial' : ActorMethod<[], undefined>,
+  'addAdmin' : ActorMethod<[Principal], undefined>,
   'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
+  'checkSubscription' : ActorMethod<
+    [Uint8Array | number[]],
+    SubscriptionCheckResult
+  >,
   'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
   'createStorage' : ActorMethod<[CreateStorageOptions], Result_2>,
-  'deleteCanister' : ActorMethod<[Principal], undefined>,
   'deleteProfile' : ActorMethod<[], undefined>,
   'deleteStorage' : ActorMethod<[bigint], Result_1>,
+  'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
+  'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
+  'getSubscription' : ActorMethod<[], [] | [Subscription]>,
+  'getUnreadCount' : ActorMethod<[], bigint>,
+  'getUser' : ActorMethod<[], [] | [User]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
   'http_request_streaming_callback' : ActorMethod<
     [StreamingToken],
@@ -144,11 +188,19 @@ export interface Rabbithole {
     [RawUpdateHttpRequest],
     RawUpdateHttpResponse
   >,
+  'isAdmin' : ActorMethod<[Principal], boolean>,
+  'isKnownWasmHash' : ActorMethod<[Uint8Array | number[]], boolean>,
   'isStorageDeployerRunning' : ActorMethod<[], boolean>,
-  'listCanisters' : ActorMethod<[], Array<Principal>>,
-  'listProfiles' : ActorMethod<[ListOptions], GetProfilesResponse>,
+  'listAdmins' : ActorMethod<[], Array<Principal>>,
+  'listKnownWasmHashes' : ActorMethod<[], Array<KnownWasmHash>>,
+  'listProfiles' : ActorMethod<[ListOptions__1], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
+  'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
+  'markAllNotificationsAsRead' : ActorMethod<[], undefined>,
+  'markNotificationsAsRead' : ActorMethod<[Array<bigint>], undefined>,
   'refreshReleases' : ActorMethod<[], undefined>,
+  'register' : ActorMethod<[[] | [string]], undefined>,
+  'removeAdmin' : ActorMethod<[Principal], undefined>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
@@ -214,6 +266,9 @@ export type Result_2 = { 'ok' : null } |
   { 'err' : CreateStorageError };
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
+export type Status = { 'Active' : null } |
+  { 'Cancelled' : null } |
+  { 'Expired' : null };
 export interface StorageInfo {
   'id' : bigint,
   'status' : CreationStatus,
@@ -223,6 +278,12 @@ export interface StorageInfo {
   'releaseTag' : string,
   'updateAvailable' : [] | [UpdateInfo],
   'canisterId' : [] | [Principal],
+}
+export interface StoredNotification {
+  'id' : bigint,
+  'createdAt' : Time,
+  'read' : boolean,
+  'event' : TypedEvent,
 }
 export type StreamingCallback = ActorMethod<
   [StreamingToken],
@@ -234,6 +295,25 @@ export interface StreamingCallbackResponse {
 }
 export type StreamingStrategy = { 'Callback' : CallbackStreamingStrategy };
 export type StreamingToken = Uint8Array | number[];
+export interface Subscription {
+  'status' : Status,
+  'expiresAt' : [] | [Time],
+  'activatedAt' : Time,
+  'userId' : Principal,
+  'createdAt' : Time,
+  'plan' : Plan,
+  'updatedAt' : Time,
+  'trialUsedBytes' : bigint,
+  'autoRenew' : boolean,
+}
+export type SubscriptionCheckResult = {
+    'trial' : { 'remainingBytes' : bigint }
+  } |
+  { 'active' : { 'plan' : Plan } } |
+  { 'expired' : null } |
+  { 'free' : null } |
+  { 'unknownCanister' : null } |
+  { 'invalidWasm' : null };
 export type TargetCanister = { 'Existing' : Principal } |
   { 'Create' : { 'initialCycles' : bigint, 'subnetId' : [] | [Principal] } };
 export type Time = bigint;
@@ -248,6 +328,11 @@ export type TransferFromError = {
   { 'CreatedInFuture' : { 'ledger_time' : Icrc1Timestamp } } |
   { 'TooOld' : null } |
   { 'InsufficientFunds' : { 'balance' : Icrc1Tokens } };
+export type TypedEvent = { 'trialStarted' : { 'limitBytes' : bigint } } |
+  { 'subscriptionExpired' : null } |
+  { 'subscriptionActivated' : { 'plan' : Plan } } |
+  { 'updateAvailable' : { 'releaseTag' : string, 'canisterId' : Principal } } |
+  { 'lowCycles' : { 'remaining' : bigint, 'canisterId' : Principal } };
 export interface UpdateInfo {
   'currentWasmHash' : [] | [Uint8Array | number[]],
   'wasmUpdateAvailable' : boolean,
@@ -266,6 +351,12 @@ export type UpgradeStorageError = { 'AlreadyUpgrading' : null } |
   { 'NotOwner' : null } |
   { 'ReleaseNotReady' : null } |
   { 'NotCompleted' : null };
+export interface User {
+  'id' : Principal,
+  'inviter' : [] | [Principal],
+  'createdAt' : Time,
+  'updatedAt' : Time,
+}
 export interface _SERVICE extends Rabbithole {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

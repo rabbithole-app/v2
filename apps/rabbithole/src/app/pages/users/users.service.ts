@@ -1,11 +1,12 @@
 import { computed, Injectable, resource, signal } from '@angular/core';
+import { fromNullable } from '@dfinity/utils';
 import { ActorSubclass } from '@icp-sdk/core/agent';
 import { isDeepEqual, isNonNullish } from 'remeda';
 
 import { injectMainActor } from '@rabbithole/core';
 import { timeInNanosToDate } from '@rabbithole/core';
 import {
-  ListOptions,
+  ProfileListOptions as ListOptions,
   Profile as ProfileRaw,
   RabbitholeActorService,
 } from '@rabbithole/declarations';
@@ -15,7 +16,7 @@ export type Profile = {
   createdAt: Date;
   displayName?: string;
   id: string;
-  inviter?: string;
+  referralCode?: string;
   updatedAt: Date;
   username: string;
 };
@@ -32,11 +33,9 @@ function convertProfile(item: ProfileRaw): Profile {
     username: item.username,
     createdAt: timeInNanosToDate(item.createdAt),
     updatedAt: timeInNanosToDate(item.updatedAt),
-    displayName: isNonNullish(item.displayName)
-      ? item.displayName[0]
-      : undefined,
-    avatarUrl: item.avatarUrl[0] || undefined,
-    inviter: item.inviter[0] ? item.inviter[0].toText() : undefined,
+    displayName: fromNullable(item.displayName),
+    avatarUrl: fromNullable(item.avatarUrl),
+    referralCode: fromNullable(item.referralCode),
   };
 }
 
@@ -50,7 +49,6 @@ const INITIAL_VALUE: State = {
       id: [],
       username: [],
       displayName: [],
-      inviter: [],
       createdAt: [],
       avatarUrl: [],
     },

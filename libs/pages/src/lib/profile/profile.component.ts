@@ -158,7 +158,6 @@ export class ProfileComponent {
         username,
         displayName: displayName ? [displayName] : [],
         avatarUrl: avatarUrl ? [avatarUrl] : [],
-        inviter: [],
       });
     } finally {
       this.loading.set(false);
