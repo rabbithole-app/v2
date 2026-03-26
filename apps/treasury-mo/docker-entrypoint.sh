@@ -53,8 +53,8 @@ dfx ping >/dev/null 2>&1 || {
   exit 1
 }
 
-dfx deploy --network local treasury
-dfx generate treasury
+dfx deploy --network local
+dfx generate
 
 CANISTER_ID=$(dfx canister id treasury)
 echo "✅ treasury canister deployed: $CANISTER_ID"

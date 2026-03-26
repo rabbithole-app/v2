@@ -27,7 +27,6 @@ import {
   type Result,
   type Tokens,
 } from "../declarations/example/example.did.js";
-import { setupChunkedCanister } from "./ic-management.utils.js";
 
 function isOkResult(result: Result): result is Extract<Result, { ok: Tokens }> {
   return Object.keys(result)[0] === "ok";
@@ -57,10 +56,9 @@ async function createPic(): Promise<[PocketIc, CanisterFixture<_SERVICE>]> {
   });
 
   // Setup the canister and actor
-  const fixture = await setupChunkedCanister<_SERVICE>({
-    pic,
-    wasmPath: WASM_PATH,
-    sender: ownerIdentity,
+  const fixture = await pic.setupCanister<_SERVICE>({
+    wasm: WASM_PATH,
+    sender: ownerIdentity.getPrincipal(),
     idlFactory,
   });
 

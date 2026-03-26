@@ -16,7 +16,6 @@ services:
       - ./:/app:rw
       - ../../mops-patches:/mops-patches:ro
       - icpay_webhooks_node_modules:/app/node_modules
-      - icpay_webhooks_dfx_project:/app/.dfx
       - nginx_config:/nginx-config:rw
     environment:
       - ICPAY_SECRET_KEY=${ICPAY_SECRET_KEY:?ICPAY_SECRET_KEY is not set — create .env file}
@@ -50,5 +49,4 @@ services:
 
 volumes:
   icpay_webhooks_node_modules:
-  icpay_webhooks_dfx_project:
   nginx_config:

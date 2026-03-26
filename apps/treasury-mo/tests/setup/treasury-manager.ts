@@ -21,7 +21,7 @@ import {
   sendErc20,
   signTransaction,
   waitForTx,
-} from "./evm-signer.ts";
+} from "./evm-signer";
 import {
   fundWithSol,
   SOLANA_DEVNET_RPC,

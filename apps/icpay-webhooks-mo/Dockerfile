@@ -1,11 +1,11 @@
-FROM rust:1.92-slim-bookworm
+FROM rust:1.94-slim-bookworm
 
 ENV NVM_DIR=/root/.nvm
-ENV NVM_VERSION=v0.40.3
-ENV NODE_VERSION=22.22.0
-ENV IC_MOPS_VERSION=1.12.0
-ENV DFX_VERSION=0.31.0-beta.0
-ENV POCKETIC_VERSION=11.0.0
+ENV NVM_VERSION=v0.40.4
+ENV NODE_VERSION=22.22.2
+ENV IC_MOPS_VERSION=2.5.1
+ENV DFX_VERSION=0.31.0
+ENV POCKETIC_VERSION=13.0.0
 
 RUN apt -yq update
 RUN apt -yqq install --no-install-recommends curl ca-certificates libunwind-dev git python3 patch

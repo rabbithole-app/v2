@@ -1,9 +1,3 @@
-// Chunked canister install utilities
-export {
-  setupChunkedCanister,
-  upgradeChunkedCanister,
-} from "./chunked-install.ts";
-
 // Constants
 export {
   CMC_CANISTER_ID,
