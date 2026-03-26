@@ -5,19 +5,22 @@ import Map "mo:core/Map";
 import Nat64 "mo:core/Nat64";
 import Option "mo:core/Option";
 import Principal "mo:core/Principal";
+import Random "mo:core/Random";
+import Text "mo:core/Text";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
 
+import ByteUtils "mo:byte-utils";
+import Sha256 "mo:sha2/Sha256";
 import ZenDB "mo:zendb";
 
 module {
   public type ListOptions = {
     filter : {
-      id : ?[Principal]; // filter based on id
-      username : ?Text; // filter based on username
-      displayName : ?Text; // filter based on displayName
-      avatarUrl : ?Bool; // filter based on avatar
-      inviter : ?[Principal];
+      id : ?[Principal];
+      username : ?Text;
+      displayName : ?Text;
+      avatarUrl : ?Bool;
       createdAt : ?{
         min : ?Int;
         max : ?Int;
@@ -39,9 +42,9 @@ module {
     username : Text;
     displayName : ?Text;
     avatarUrl : ?Text;
+    referralCode : ?Text;
     createdAt : Time.Time;
     updatedAt : Time.Time;
-    inviter : ?Principal;
   };
 
   let ProfileSchema : ZenDB.Types.Schema = #Record([
@@ -49,16 +52,15 @@ module {
     ("username", #Text),
     ("displayName", #Option(#Text)),
     ("avatarUrl", #Option(#Text)),
+    ("referralCode", #Option(#Text)),
     ("createdAt", #Int),
     ("updatedAt", #Int),
-    ("inviter", #Option(#Principal)),
   ]);
 
   public type CreateProfileArgs = {
     username : Text;
     displayName : ?Text;
     avatarUrl : ?Text;
-    inviter : ?Principal;
   };
 
   public type CreateProfileAvatarArgs = {
@@ -84,11 +86,30 @@ module {
   };
 
   let schemaConstraints : [ZenDB.Types.SchemaConstraint] = [
-    #Unique(["id"]), // id must be unique
-    #Unique(["username"]), // Username must be unique
-    #Field("username", [#MinSize(2), #MaxSize(20)]), // username must be between 2 and 20 characters
-    #Field("displayName", [#MaxSize(100)]), // displayName must be <= 100 characters
+    #Unique(["id"]),
+    #Unique(["username"]),
+    #Unique(["referralCode"]),
+    #Field("username", [#MinSize(2), #MaxSize(20)]),
+    #Field("displayName", [#MaxSize(100)]),
   ];
+
+  /// Generate an 8-char alphanumeric referral code (e.g. "8UGR6WKP")
+  /// Deterministic per principal (seeded PRNG from SHA256 of principal)
+  func generateReferralCode(principal : Principal) : Text {
+    let alphabet = Text.toArray("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+    let hash = Sha256.fromBlob(#sha256, Principal.toBlob(principal));
+    let seed = ByteUtils.BigEndian.toNat64(hash.vals());
+
+    let random = Random.seed(seed);
+    var code = "";
+    var i = 0;
+    while (i < 8) {
+      let idx = random.natRange(0, alphabet.size());
+      code #= Text.fromChar(alphabet[idx]);
+      i += 1;
+    };
+    code;
+  };
 
   func convertListOptionsToDBQuery(options : ListOptions) : ZenDB.QueryBuilder {
     let dbQuery = ZenDB.QueryBuilder();
@@ -116,14 +137,6 @@ module {
     switch (options.filter.avatarUrl) {
       case (?true) ignore dbQuery.Where("avatarUrl", #not_(#eq(#Null))); // #exists
       case (?false) ignore dbQuery.Where("avatarUrl", #eq(#Null)); // #not_(#exists)
-      case null {};
-    };
-
-    switch (options.filter.inviter) {
-      case (?v) {
-        let values = Array.map<Principal, ZenDB.Types.Candid>(v, func id = #Option(#Principal(id)));
-        ignore dbQuery.Where("inviter", #anyOf(values));
-      };
       case null {};
     };
 
@@ -168,7 +181,13 @@ module {
     public func create(caller : Principal, args : CreateProfileArgs) : ZenDB.Types.Result<Nat, Text> {
       let now = Time.now();
       let profile : Profile = {
-        args and { id = caller; createdAt = now; updatedAt = now }
+        id = caller;
+        username = args.username;
+        displayName = args.displayName;
+        avatarUrl = args.avatarUrl;
+        referralCode = ?generateReferralCode(caller);
+        createdAt = now;
+        updatedAt = now;
       };
       profilesCollection.insert(profile);
     };
@@ -230,6 +249,13 @@ module {
       let profilesByUsernameQuery = ZenDB.QueryBuilder().Where("username", #eq(#Text(username)));
       let #ok(count) = profilesCollection.count(profilesByUsernameQuery) else return false;
       count > 0;
+    };
+
+    public func resolveReferralCode(code : Text) : ?Principal {
+      let q = ZenDB.QueryBuilder().Where("referralCode", #eq(#Option(#Text(code)))).Limit(1);
+      let #ok(results) = profilesCollection.search(q) else return null;
+      let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(results) |> List.first(_) else return null;
+      ?profile.id;
     };
 
     public func list(options : ListOptions) : GetProfilesResponse {

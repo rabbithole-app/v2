@@ -120,6 +120,7 @@ module StorageDeployerOrchestrator {
 
     // Index: owner → list of creationIds
     creationsByOwner : Map.Map<Principal, Vector.Vector<Nat>>;
+
   };
 
   // -- Initialization --
@@ -692,7 +693,9 @@ module StorageDeployerOrchestrator {
               // Update status
               switch (getCreationById(store, task.creationId)) {
                 case (?record) {
-                  record.status := #RevokingInstallerPermission({ canisterId = args.canisterId });
+                  record.status := #RevokingInstallerPermission({
+                    canisterId = args.canisterId;
+                  });
                 };
                 case null {};
               };
@@ -1341,5 +1344,26 @@ module StorageDeployerOrchestrator {
 
     // Trigger fetch
     await checkAndDownloadReleases<system>(store);
+  };
+
+  /// Get the hash of the latest downloaded storage WASM (if available)
+  public func getLatestWasmHash(store : Store) : ?(Blob, Text) {
+    switch (GitHubReleases.latestStorageWasm(store.githubReleases)) {
+      case (#ok(details)) ?(details.sha256, details.key);
+      case (#err(_)) null;
+    };
+  };
+
+  /// Find the owner of a canister by its ID (reverse lookup via creation records)
+  public func findOwnerByCanister(store : Store, canisterId : Principal) : ?Principal {
+    for ((_, record) in Map.entries(store.creations)) {
+      switch (record.canisterId) {
+        case (?id) {
+          if (Principal.equal(id, canisterId)) return ?record.owner;
+        };
+        case null {};
+      };
+    };
+    null;
   };
 };
