@@ -1,5 +1,4 @@
 export * from './add-controller-instructions/add-controller-instructions.component';
-export * from './canister-card/canister-card.component';
 export * from './canister-controllers-table/canister-controllers-table.component';
 export * from './canister-health-check/canister-health-check.component';
 export * from './canister-load-snapshot-dialog/canister-load-snapshot-dialog.component';
@@ -11,7 +10,6 @@ export * from './canister-take-snapshot-dialog/canister-take-snapshot-dialog.com
 export * from './commit-permission-warning/commit-permission-warning.component';
 export * from './controllers-selector/controller-item/controller-item.component';
 export * from './controllers-selector/controllers-selector.component';
-export * from './create-canister-dialog/create-canister-dialog.component';
 export * from './cycles-balance-input/cycles-balance-input.component';
 export * from './delete-canister-dialog/delete-canister-dialog.component';
 export * from './frontend-take-ownership/frontend-take-ownership-alert.component';
