@@ -14,8 +14,7 @@ import { resolve } from "node:path";
 import { filter, isEmpty, pick, prop, sortBy, splice, take } from "remeda";
 import { afterEach, beforeEach, describe, expect, inject, test } from "vitest";
 
-import { CreateProfileArgs, initBackend, ListOptions, RabbitholeActorService, rabbitholeIdlFactory } from "@rabbithole/declarations";
-import { setupChunkedCanister } from "@rabbithole/testing";
+import { type CreateProfileArgs, initBackend, ListOptions__1 as ListOptions, type RabbitholeActorService, rabbitholeIdlFactory } from "@rabbithole/declarations";
 
 // Define the path to your canister's WASM file
 export const WASM_PATH = resolve(
@@ -25,7 +24,7 @@ export const WASM_PATH = resolve(
   "local",
   "canisters",
   "rabbithole-backend",
-  "rabbithole-backend.wasm",
+  "rabbithole-backend.wasm.gz",
 );
 
 const ownerIdentity = createIdentity("owner");
@@ -35,11 +34,10 @@ async function createPic(): Promise<[PocketIc, CanisterFixture<RabbitholeActorSe
   const pic = await PocketIc.create(inject("PIC_URL"));
 
   // Setup the canister and actor
-  const fixture = await setupChunkedCanister<RabbitholeActorService>({
-    pic,
-    wasmPath: WASM_PATH,
-    sender: ownerIdentity,
-    idlFactory: rabbitholeIdlFactory,
+  const fixture = await pic.setupCanister<RabbitholeActorService>({
+    wasm: WASM_PATH,
+    sender: ownerIdentity.getPrincipal(),
+    idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
     arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
   });
 
@@ -53,7 +51,6 @@ function createRandomUser(): { args: CreateProfileArgs; identity: Identity } {
   const identity = createIdentity(faker.string.uuid());
   const hasDisplayName = faker.datatype.boolean();
   const hasAvatar = faker.datatype.boolean();
-  const invited = faker.datatype.boolean(0.3);
 
   return {
     identity,
@@ -61,7 +58,6 @@ function createRandomUser(): { args: CreateProfileArgs; identity: Identity } {
       username: faker.internet.username().substring(0, 20),
       displayName: hasDisplayName ? [faker.person.fullName()] : [],
       avatarUrl: hasAvatar ? [faker.image.avatar()] : [],
-      inviter: invited ? [ownerIdentity.getPrincipal()] : [],
     },
   };
 }
@@ -157,7 +153,6 @@ describe("Profiles", () => {
         id: [],
         username: [],
         displayName: [],
-        inviter: [],
         createdAt: [],
         avatarUrl: [],
       },
@@ -213,7 +208,7 @@ describe("Profiles", () => {
 
     // filter displayName
     const usersWithDisplayName = filter(
-      USERS.map(({ args }) => args),
+      USERS.map(({ args }) => pick(args, ["username", "displayName", "avatarUrl"])),
       (v) => !isEmpty(v.displayName),
     );
     const result6 = await actor.listProfiles({
@@ -224,20 +219,6 @@ describe("Profiles", () => {
       },
     });
     expect(result6.data).toMatchObject(take(usersWithDisplayName, 1));
-
-    // filter inviter
-    const usersWithInviter = filter(
-      USERS.map(({ args }) => args),
-      (v) => !isEmpty(v.inviter),
-    );
-    const result7 = await actor.listProfiles({
-      ...defaultOptions,
-      filter: {
-        ...defaultOptions.filter,
-        inviter: [[ownerIdentity.getPrincipal()]],
-      },
-    });
-    expect(result7.data).toMatchObject(usersWithInviter);
 
     // filter createdAt
     const result8 = await actor.listProfiles({
@@ -271,7 +252,7 @@ describe("Profiles", () => {
 
     // filter avatarUrl
     const usersWithAvatar = filter(
-      USERS.map(({ args }) => args),
+      USERS.map(({ args }) => pick(args, ["username", "displayName", "avatarUrl"])),
       (v) => !isEmpty(v.avatarUrl),
     );
     const result10 = await actor.listProfiles({
@@ -283,7 +264,7 @@ describe("Profiles", () => {
     });
     expect(result10.data).toMatchObject(usersWithAvatar);
     const usersWithoutAvatar = filter(
-      USERS.map(({ args }) => args),
+      USERS.map(({ args }) => pick(args, ["username", "displayName", "avatarUrl"])),
       (v) => isEmpty(v.avatarUrl),
     );
     const result11 = await actor.listProfiles({

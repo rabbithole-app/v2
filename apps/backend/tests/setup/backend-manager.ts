@@ -6,11 +6,7 @@ import {
   type RabbitholeActorService,
   rabbitholeIdlFactory,
 } from "@rabbithole/declarations";
-import {
-  BaseManager,
-  setupChunkedCanister,
-  upgradeChunkedCanister,
-} from "@rabbithole/testing";
+import { BaseManager } from "@rabbithole/testing";
 
 import {
   CMC_CANISTER_ID,
@@ -42,11 +38,9 @@ export class BackendManager extends BaseManager {
     CanisterFixture<RabbitholeActorService>
   > {
     const { actor, canisterId } =
-      await setupChunkedCanister<RabbitholeActorService>({
-        pic: this.pic,
-        sender: this.ownerIdentity,
+      await this.setupCanister<RabbitholeActorService>({
         idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
-        wasmPath: RABBITHOLE_BACKEND_WASM_PATH,
+        wasm: RABBITHOLE_BACKEND_WASM_PATH,
         arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
       });
 
@@ -79,12 +73,15 @@ export class BackendManager extends BaseManager {
   async upgradeBackendCanister(
     fixture: CanisterFixture<RabbitholeActorService>,
   ): Promise<void> {
-    await upgradeChunkedCanister({
-      pic: this.pic,
-      sender: this.ownerIdentity,
+    await this.pic.upgradeCanister({
+      sender: this.ownerIdentity.getPrincipal(),
       canisterId: fixture.canisterId,
-      wasmPath: RABBITHOLE_BACKEND_WASM_PATH,
+      wasm: RABBITHOLE_BACKEND_WASM_PATH,
       arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
+      upgradeModeOptions: {
+        skip_pre_upgrade: [],
+        wasm_memory_persistence: [{ keep: null }],
+      },
     });
   }
 }
