@@ -27,6 +27,8 @@ import {
   MAIN_CANISTER_ID_TOKEN,
   provideCoreWorker,
   provideIcAuthSignOutHandler,
+  provideReferralCapture,
+  provideRegistration,
 } from '@rabbithole/core';
 
 import { environment } from '../environments/environment';
@@ -56,7 +58,9 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
+    provideReferralCapture(),
     provideIcAuthSignOutHandler(),
+    provideRegistration(),
     provideRouter(appRoutes, withComponentInputBinding()),
     provideHttpClient(),
     provideAuthService(),

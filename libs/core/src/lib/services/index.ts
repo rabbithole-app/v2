@@ -9,4 +9,5 @@ export * from './upload-assets.service';
 export * from './upload-base.service';
 export * from './upload-files.service';
 export * from './upload-registry.service';
+export * from './registration.service';
 export * from './worker.service';
