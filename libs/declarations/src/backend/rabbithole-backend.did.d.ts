@@ -2,6 +2,10 @@ import type { Principal } from '@icp-sdk/core/principal';
 import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 
+export type AddStorageError = {
+    'CanisterAlreadyUsed' : { 'canisterId' : Principal }
+  } |
+  { 'InvalidWasm' : string };
 export interface AmbassadorChain {
   'l1' : [] | [Principal],
   'l2' : [] | [Principal],
@@ -163,6 +167,7 @@ export interface Rabbithole {
   >,
   'activateTrial' : ActorMethod<[], undefined>,
   'addAdmin' : ActorMethod<[Principal], undefined>,
+  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_3>,
   'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'checkSubscription' : ActorMethod<
     [Uint8Array | number[]],
@@ -198,9 +203,23 @@ export interface Rabbithole {
   'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
   'markAllNotificationsAsRead' : ActorMethod<[], undefined>,
   'markNotificationsAsRead' : ActorMethod<[Array<bigint>], undefined>,
+  /**
+   * / Called by storage canister when cycle balance is low.
+   * / Caller must be the storage canister itself (canisterId == caller).
+   */
+  'onStorageLowCycles' : ActorMethod<
+    [Principal, bigint, bigint, { 'warning' : null } | { 'critical' : null }],
+    undefined
+  >,
   'refreshReleases' : ActorMethod<[], undefined>,
   'register' : ActorMethod<[[] | [string]], undefined>,
+  /**
+   * / Register the latest downloaded WASM hash as known.
+   * / Called after release download completes to make hash available for addStorage verification.
+   */
+  'registerLatestWasmHash' : ActorMethod<[], undefined>,
   'removeAdmin' : ActorMethod<[Principal], undefined>,
+  'reportTrialBytes' : ActorMethod<[bigint], undefined>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
@@ -264,6 +283,8 @@ export type Result_1 = { 'ok' : null } |
   { 'err' : DeleteStorageError };
 export type Result_2 = { 'ok' : null } |
   { 'err' : CreateStorageError };
+export type Result_3 = { 'ok' : bigint } |
+  { 'err' : AddStorageError };
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
 export type Status = { 'Active' : null } |
@@ -332,7 +353,15 @@ export type TypedEvent = { 'trialStarted' : { 'limitBytes' : bigint } } |
   { 'subscriptionExpired' : null } |
   { 'subscriptionActivated' : { 'plan' : Plan } } |
   { 'updateAvailable' : { 'releaseTag' : string, 'canisterId' : Principal } } |
-  { 'lowCycles' : { 'remaining' : bigint, 'canisterId' : Principal } };
+  {
+    'lowCycles' : {
+      'estimatedDaysLeft' : bigint,
+      'severity' : { 'warning' : null } |
+        { 'critical' : null },
+      'remaining' : bigint,
+      'canisterId' : Principal,
+    }
+  };
 export interface UpdateInfo {
   'currentWasmHash' : [] | [Uint8Array | number[]],
   'wasmUpdateAvailable' : boolean,

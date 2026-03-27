@@ -320,7 +320,7 @@ export class CreateStorageDialogComponent {
       const vetKeyName = this.#isProduction ? 'key_1' : 'dfx_test_key';
       await this.#storagesService.createStorage({
         releaseSelector: { LatestDraft: null },
-        initArg: encodeStorageInitArgs({ owner, vetKeyName }),
+        initArg: encodeStorageInitArgs({ owner, vetKeyName, backendId: this.backendCanisterId }),
         target,
       });
 

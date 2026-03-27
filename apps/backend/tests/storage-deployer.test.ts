@@ -458,7 +458,8 @@ describe("StorageDeployer", () => {
       releaseSelector: { LatestDraft: null },
       initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
         owner: e2eTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key'
+        vetKeyName: 'dfx_test_key',
+        backendId: backendFixture.canisterId,
       }]),
     };
 
@@ -513,7 +514,8 @@ describe("StorageDeployer", () => {
       releaseSelector: { LatestDraft: null },
       initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
         owner: duplicateTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key'
+        vetKeyName: 'dfx_test_key',
+        backendId: backendFixture.canisterId,
       }]),
     };
 
@@ -556,7 +558,8 @@ describe("StorageDeployer", () => {
       releaseSelector: { LatestDraft: null },
       initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
         owner: linkTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key'
+        vetKeyName: 'dfx_test_key',
+        backendId: backendFixture.canisterId,
       }]),
     };
 
@@ -847,7 +850,8 @@ describe("StorageDeployer", () => {
       releaseSelector: { LatestDraft: null },
       initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
         owner: updateInfoTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key'
+        vetKeyName: 'dfx_test_key',
+        backendId: backendFixture.canisterId,
       }]),
     };
 

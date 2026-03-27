@@ -12,6 +12,11 @@ export const idlFactory = ({ IDL }) => {
     'License' : IDL.Null,
     'Trial' : IDL.Null,
   });
+  const AddStorageError = IDL.Variant({
+    'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'InvalidWasm' : IDL.Text,
+  });
+  const Result_3 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
   const UpdateInfo = IDL.Record({
     'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'wasmUpdateAvailable' : IDL.Bool,
@@ -117,6 +122,8 @@ export const idlFactory = ({ IDL }) => {
       'canisterId' : IDL.Principal,
     }),
     'lowCycles' : IDL.Record({
+      'estimatedDaysLeft' : IDL.Nat,
+      'severity' : IDL.Variant({ 'warning' : IDL.Null, 'critical' : IDL.Null }),
       'remaining' : IDL.Nat,
       'canisterId' : IDL.Principal,
     }),
@@ -367,6 +374,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'activateTrial' : IDL.Func([], [], []),
     'addAdmin' : IDL.Func([IDL.Principal], [], []),
+    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_3], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UpdateInfo)],
@@ -425,9 +433,21 @@ export const idlFactory = ({ IDL }) => {
       ),
     'markAllNotificationsAsRead' : IDL.Func([], [], []),
     'markNotificationsAsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
+    'onStorageLowCycles' : IDL.Func(
+        [
+          IDL.Principal,
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Variant({ 'warning' : IDL.Null, 'critical' : IDL.Null }),
+        ],
+        [],
+        [],
+      ),
     'refreshReleases' : IDL.Func([], [], []),
     'register' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
+    'registerLatestWasmHash' : IDL.Func([], [], []),
     'removeAdmin' : IDL.Func([IDL.Principal], [], []),
+    'reportTrialBytes' : IDL.Func([IDL.Nat], [], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),

@@ -68,7 +68,7 @@ export interface CreateAssetArguments {
   'max_age' : [] | [bigint],
   'enable_aliasing' : [] | [boolean],
 }
-export interface CreateBatchArguments { 'entry' : Entry }
+export interface CreateBatchArguments { 'totalSize' : bigint, 'entry' : Entry }
 export interface CreateBatchResponse { 'batch_id' : BatchId }
 export interface CreateBatchResponse__1 { 'batchId' : BatchId }
 export interface CreateChunkArguments {
@@ -142,12 +142,14 @@ export interface EncryptedStorageCanister {
   'delete_batch' : ActorMethod<[DeleteBatchArguments], undefined>,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'get' : ActorMethod<[GetArgs], EncodedAsset>,
+  'getCycleBalance' : ActorMethod<[], bigint>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
   /**
    * / Get canister module_hash via canister_status.
    * / Only accessible by canister controllers.
    */
   'getModuleHash' : ActorMethod<[], [] | [Uint8Array | number[]]>,
+  'getStatus' : ActorMethod<[], StorageStatus>,
   'getStorageChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'get_chunk' : ActorMethod<[GetChunkArgs], ChunkContent>,
@@ -177,6 +179,7 @@ export interface EncryptedStorageCanister {
   'list_permitted' : ActorMethod<[ListPermitted], Array<Principal>>,
   'move' : ActorMethod<[MoveArguments], undefined>,
   'propose_commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
+  'refreshSubscription' : ActorMethod<[], undefined>,
   'rename' : ActorMethod<[RenameArguments], undefined>,
   'restoreStorageVersion' : ActorMethod<[RestoreVersionArguments], undefined>,
   'revokeStoragePermission' : ActorMethod<
@@ -207,6 +210,7 @@ export interface EncryptedStorageCanister {
 export interface EncryptedStorageInitArgs {
   'vetKeyName' : string,
   'owner' : Principal,
+  'backendId' : Principal,
 }
 export type EncryptionMode = { 'Encrypted' : null } |
   { 'Plaintext' : null };
@@ -290,6 +294,10 @@ export type PermissionExt = { 'Read' : null } |
 export type Permission__1 = { 'Read' : null } |
   { 'ReadWrite' : null } |
   { 'ReadWriteManage' : null };
+export type Plan = { 'Pro' : null } |
+  { 'Free' : null } |
+  { 'License' : null } |
+  { 'Trial' : null };
 export interface RawQueryHttpRequest {
   'url' : string,
   'method' : string,
@@ -349,6 +357,12 @@ export interface SharingInfo { 'sharedWith' : bigint }
 export type StorageBackend = { 'External' : null } |
   { 'BlobStorage' : null } |
   { 'Inline' : null };
+export interface StorageStatus {
+  'cycleBalance' : bigint,
+  'encryptedBytesUsed' : bigint,
+  'subscriptionStatus' : [] | [SubscriptionStatus],
+  'backendId' : [] | [Principal],
+}
 export interface StoreArgs {
   'key' : Key,
   'content' : Uint8Array | number[],
@@ -367,6 +381,12 @@ export interface StreamingCallbackResponse {
 }
 export type StreamingStrategy = { 'Callback' : CallbackStreamingStrategy };
 export type StreamingToken = Uint8Array | number[];
+export type SubscriptionStatus = { 'trial' : { 'remainingBytes' : bigint } } |
+  { 'active' : { 'plan' : Plan } } |
+  { 'expired' : null } |
+  { 'free' : null } |
+  { 'unknownCanister' : null } |
+  { 'invalidWasm' : null };
 export type Time = bigint;
 export type TransportKey = Uint8Array | number[];
 export interface TreeNode {

@@ -6,6 +6,7 @@ import { initEncryptedStorage } from '@rabbithole/declarations';
 export type EncryptedStorageInitArgs = {
   owner: Principal;
   vetKeyName: string;
+  backendId: Principal;
 }
 
 /**

@@ -420,7 +420,7 @@ export class EncryptedStorage {
 
     // create batch
     const { batchId } = await this.#limit(
-      () => this.#actor.createStorageBatch({ entry }),
+      () => this.#actor.createStorageBatch({ entry, totalSize: BigInt(bytes.byteLength) }),
       config.signal,
     );
 

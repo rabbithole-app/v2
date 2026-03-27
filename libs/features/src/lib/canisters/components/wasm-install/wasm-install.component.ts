@@ -32,6 +32,7 @@ import {
   FileSystemAccessService,
   FormatBytesPipe,
   IS_PRODUCTION_TOKEN,
+  MAIN_CANISTER_ID_TOKEN,
 } from '@rabbithole/core';
 import {
   RbthDrawerComponent,
@@ -157,6 +158,7 @@ export class WasmInstallComponent {
     hlm('flex flex-col gap-y-4', this.userClass()),
   );
   readonly #authService = inject(AUTH_SERVICE);
+  readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
   #fileSystemAccessService = inject(FileSystemAccessService);
   readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
 
@@ -287,7 +289,7 @@ export class WasmInstallComponent {
   #generateDefaultInitArg(): void {
     const owner = this.#authService.identity().getPrincipal();
     const vetKeyName = this.#isProduction ? 'key_1' : 'dfx_test_key';
-    const initArgBytes = encodeStorageInitArgs({ owner, vetKeyName });
+    const initArgBytes = encodeStorageInitArgs({ owner, vetKeyName, backendId: this.#backendCanisterId });
     const hex = uint8ArrayToHexString(initArgBytes);
     this.initArgHex.set(hex);
   }
