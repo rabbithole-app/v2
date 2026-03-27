@@ -12,7 +12,12 @@ module {
     #subscriptionActivated : { plan : Subscriptions.Plan };
     #subscriptionExpired;
     #trialStarted : { limitBytes : Nat };
-    #lowCycles : { canisterId : Principal; remaining : Nat };
+    #lowCycles : {
+      canisterId : Principal;
+      remaining : Nat;
+      estimatedDaysLeft : Nat;
+      severity : { #warning; #critical };
+    };
     #updateAvailable : { canisterId : Principal; releaseTag : Text };
   };
 

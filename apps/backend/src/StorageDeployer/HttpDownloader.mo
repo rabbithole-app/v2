@@ -139,7 +139,7 @@ module {
   };
 
   /// Process the next pending download request
-  public func runRequests(store : Store) : async () {
+  public func runRequests(store : Store, onComplete : ?((DownloadDetails) -> ())) : async () {
     switch (Queue.popFront(store.requests)) {
       case (?{ request; attempts; chunkId; key }) {
         let ?download = find(store, key) else return;
@@ -215,7 +215,7 @@ module {
           case null {};
         };
         ignore Map.insert(download.chunkStatuses, Nat.compare, chunkId, status);
-        checkDownloads(store);
+        checkDownloads(store, onComplete);
       };
       case null {};
     };
@@ -278,7 +278,7 @@ module {
     };
   };
 
-  func checkDownloads(store : Store) : () {
+  func checkDownloads(store : Store, onComplete : ?((DownloadDetails) -> ())) : () {
     for (download in Set.values(store.downloads)) {
       let isEmpty = Map.isEmpty(download.chunkStatuses);
       let isDownloaded = not isEmpty and Map.all(download.chunkStatuses, func(k : Nat, v : ChunkStatus) : Bool = switch (v) { case (#Downloaded _) true; case _ false });
@@ -305,9 +305,23 @@ module {
           offset += chunk.size();
           sha256.writeBlob(chunk);
         };
-        download.hash := ?sha256.sum();
+        let hash = sha256.sum();
+        download.hash := ?hash;
         download.pointer := (newContentAddress, totalLength);
         Map.clear(download.chunkStatuses);
+
+        // Notify caller about completed download
+        switch (onComplete) {
+          case (?cb) cb({
+            key = download.key;
+            name = download.name;
+            contentType = download.contentType;
+            sha256 = hash;
+            size = totalLength;
+            content = MemoryRegion.loadBlob(store.region, newContentAddress, totalLength);
+          });
+          case null {};
+        };
       };
     };
   };

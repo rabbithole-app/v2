@@ -47,6 +47,12 @@ module StorageDeployerOrchestrator {
   public type UnifiedTaskType = Types.UnifiedTaskType;
   public type StorageInfo = Types.StorageInfo;
   public type DeleteStorageError = Types.DeleteStorageError;
+  public type AddStorageError = Types.AddStorageError;
+  public type DownloadDetails = HttpDownloader.DownloadDetails;
+
+  public type StartCallbacks = {
+    onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ());
+  };
   public type UpdateInfo = Types.UpdateInfo;
   public type UpgradeStorageError = Types.UpgradeStorageError;
 
@@ -232,7 +238,7 @@ module StorageDeployerOrchestrator {
   ///
   /// This starts GitHub release checking, download processing,
   /// and task queue processing
-  public func start<system>(store : Store) : async () {
+  public func start<system>(store : Store, callbacks : StartCallbacks) : async () {
     if (store.running) return;
 
     // Reset transient state (meaningless after canister upgrade)
@@ -241,18 +247,18 @@ module StorageDeployerOrchestrator {
     store.running := true;
 
     // 1. Start release check
-    await checkAndDownloadReleases<system>(store);
+    await checkAndDownloadReleases<system>(store, callbacks.onAssetDownloaded);
     store.githubTimerId := ?Timer.recurringTimer<system>(
       #days 1,
       func() : async () {
         // Reset retry count for daily check to allow fresh retry attempts
         store.fetchRetryCount := 0;
-        await checkAndDownloadReleases<system>(store);
+        await checkAndDownloadReleases<system>(store, callbacks.onAssetDownloaded);
       },
     );
 
     // 2. Downloader timer (activates when queue has items)
-    ensureDownloaderTimer<system>(store);
+    ensureDownloaderTimer<system>(store, callbacks.onAssetDownloaded);
 
     // 3. Unified timer (activates when queue has items)
     ensureUnifiedTimer<system>(store);
@@ -285,7 +291,7 @@ module StorageDeployerOrchestrator {
   };
 
   // Ensure downloader timer is running if there are pending requests
-  func ensureDownloaderTimer<system>(store : Store) {
+  func ensureDownloaderTimer<system>(store : Store, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) {
     if (Queue.isEmpty(store.githubReleases.downloaderStore.requests)) {
       cancelTimer(store.downloaderTimerId);
       store.downloaderTimerId := null;
@@ -298,8 +304,8 @@ module StorageDeployerOrchestrator {
         store.downloaderTimerId := ?Timer.recurringTimer<system>(
           #milliseconds 100,
           func() : async () {
-            await HttpDownloader.runRequests(store.githubReleases.downloaderStore);
-            ensureDownloaderTimer<system>(store);
+            await HttpDownloader.runRequests(store.githubReleases.downloaderStore, onAssetDownloaded);
+            ensureDownloaderTimer<system>(store, onAssetDownloaded);
           },
         );
       };
@@ -307,8 +313,8 @@ module StorageDeployerOrchestrator {
       store.downloaderTimerId := ?Timer.recurringTimer<system>(
         #milliseconds 100,
         func() : async () {
-          await HttpDownloader.runRequests(store.githubReleases.downloaderStore);
-          ensureDownloaderTimer<system>(store);
+          await HttpDownloader.runRequests(store.githubReleases.downloaderStore, onAssetDownloaded);
+          ensureDownloaderTimer<system>(store, onAssetDownloaded);
         },
       );
     };
@@ -352,7 +358,7 @@ module StorageDeployerOrchestrator {
   };
 
   // Check and download releases from GitHub with retry logic
-  func checkAndDownloadReleases<system>(store : Store) : async () {
+  func checkAndDownloadReleases<system>(store : Store, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
     // Cancel any pending retry timer
     cancelTimer(store.retryTimerId);
     store.retryTimerId := null;
@@ -379,7 +385,7 @@ module StorageDeployerOrchestrator {
         };
 
         // Ensure downloader timer is running for any queued downloads
-        ensureDownloaderTimer<system>(store);
+        ensureDownloaderTimer<system>(store, onAssetDownloaded);
 
         // Try to start frontend extraction if downloads are complete
         tryStartFrontendExtraction<system>(store);
@@ -400,7 +406,7 @@ module StorageDeployerOrchestrator {
             #seconds delaySeconds,
             func() : async () {
               if (store.running) {
-                await checkAndDownloadReleases<system>(store);
+                await checkAndDownloadReleases<system>(store, onAssetDownloaded);
               };
             },
           );
@@ -541,6 +547,67 @@ module StorageDeployerOrchestrator {
     ensureUnifiedTimer<system>(store);
 
     #ok;
+  };
+
+  /// Register an externally deployed storage canister.
+  /// Verifies WASM hash via canister_info against known hashes.
+  /// Creates a record so findOwnerByCanister resolves this canister to the caller.
+  public func addStorage(
+    store : Store,
+    caller : Principal,
+    canisterId : Principal,
+    initArg : Blob,
+    isKnownWasm : (Blob) -> Bool,
+  ) : async Result.Result<Nat, Types.AddStorageError> {
+    if (isCanisterIdUsed(store, canisterId)) {
+      return #err(#CanisterAlreadyUsed({ canisterId }));
+    };
+
+    // Verify WASM hash via canister_info
+    let info = await IC.ic.canister_info({
+      canister_id = canisterId;
+      num_requested_changes = ?0;
+    });
+    let wasmHash = switch (info.module_hash) {
+      case (?hash) hash;
+      case null return #err(#InvalidWasm("No WASM installed on canister"));
+    };
+    if (not isKnownWasm(wasmHash)) {
+      return #err(#InvalidWasm("WASM hash does not match any known release"));
+    };
+
+    let creationId = store.nextCreationId;
+    store.nextCreationId += 1;
+
+    let record : StorageCreationRecordMutable = {
+      id = creationId;
+      owner = caller;
+      var canisterId = ?canisterId;
+      releaseTag = "external";
+      initArg;
+      var wasmHash = ?wasmHash;
+      var frontendHash = null;
+      var installedReleaseTag = null;
+      var status : Types.CreationStatus = #Completed({ canisterId });
+      createdAt = Time.now();
+      var completedAt = ?Time.now();
+      var isUpgrade = false;
+      var upgradeIncludesFrontend = false;
+      var lastUpgradeError = null;
+    };
+
+    Map.add(store.creations, Nat.compare, creationId, record);
+
+    switch (Map.get(store.creationsByOwner, Principal.compare, caller)) {
+      case (?ids) Vector.add(ids, creationId);
+      case null {
+        let ids = Vector.new<Nat>();
+        Vector.add(ids, creationId);
+        Map.add(store.creationsByOwner, Principal.compare, caller, ids);
+      };
+    };
+
+    #ok(creationId);
   };
 
   func findReleaseTag(_store : Store, selector : ReleaseSelector) : ?Text {
@@ -1342,8 +1409,8 @@ module StorageDeployerOrchestrator {
     cancelTimer(store.retryTimerId);
     store.retryTimerId := null;
 
-    // Trigger fetch
-    await checkAndDownloadReleases<system>(store);
+    // Trigger fetch (no download callback — admin can call registerLatestWasmHash manually)
+    await checkAndDownloadReleases<system>(store, null);
   };
 
   /// Get the hash of the latest downloaded storage WASM (if available)

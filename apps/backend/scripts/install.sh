@@ -70,7 +70,10 @@ fi
 
 echo "🚀 Deploying canisters..."
 dfx deploy --network local rabbithole-backend
-dfx deploy --network local encrypted-storage
+
+BACKEND_ID=$(dfx canister id rabbithole-backend)
+OWNER_PRINCIPAL=$(dfx identity get-principal)
+dfx deploy --network local encrypted-storage --argument "(record { vetKeyName = \"dfx_test_key\"; owner = principal \"$OWNER_PRINCIPAL\"; backendId = principal \"$BACKEND_ID\" })"
 # dfx deploy --network local rabbithole-frontend
 
 dfx generate || true

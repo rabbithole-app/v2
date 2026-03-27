@@ -1,3 +1,4 @@
+import Cycles "mo:core/Cycles";
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
@@ -46,9 +47,46 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     region = MemoryRegion.new();
     rootPermissions = [(owner, #ReadWriteManage), (canisterId, #ReadWriteManage)];
     certs = ?httpAssetsState.fs.certs;
+    backendId = ?initArgs.backendId;
   });
-  versionedStorage := EncryptedStorage.upgradeStableStore(versionedStorage);
+  versionedStorage := EncryptedStorage.upgradeStableStore(versionedStorage, {
+    backendId = ?initArgs.backendId;
+  });
   transient let storage = EncryptedStorage.fromVersion(versionedStorage);
+
+  // Reset cached module hash on upgrade (body re-executes for persistent actor class)
+  storage.cachedModuleHash := null;
+
+  // Populate cachedIdleBurnPerDay at startup so cycle monitoring works immediately
+  ignore Timer.setTimer<system>(
+    #seconds 0,
+    func() : async () {
+      let status = await IC.ic.canister_status({ canister_id = canisterId });
+      storage.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
+    },
+  );
+
+
+  // Fire-and-forget low-cycles notification to backend
+  func reportLowCyclesIfNeeded<system>() : () {
+    switch (EncryptedStorage.checkCyclesOnUpdate(storage)) {
+      case (?alert) {
+        let ?bid = storage.backendId else return;
+        let backend : actor {
+          onStorageLowCycles : (Principal, Nat, Nat, { #warning; #critical }) -> async ();
+        } = actor (Principal.toText(bid));
+        ignore Timer.setTimer<system>(
+          #seconds 0,
+          func() : async () {
+            try {
+              await backend.onStorageLowCycles(alert.canisterId, alert.balance, alert.daysLeft, alert.severity);
+            } catch _ {};
+          },
+        );
+      };
+      case null {};
+    };
+  };
 
   transient var assetStore = HttpAssets.Assets(assetStableData, null);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
@@ -158,21 +196,21 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func create(args : T.CreateArguments) : async T.NodeDetails {
     switch (EncryptedStorage.create(storage, caller, args)) {
-      case (#ok value) value;
+      case (#ok value) { reportLowCyclesIfNeeded<system>(); value };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func update(args : T.UpdateArguments) : async () {
     switch (await* EncryptedStorage.update(storage, caller, args)) {
-      case (#ok _) {};
+      case (#ok _) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func delete(args : T.DeleteArguments) : async () {
     switch (EncryptedStorage.delete(storage, caller, args)) {
-      case (#ok _) {};
+      case (#ok _) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -193,21 +231,21 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func move(args : T.MoveArguments) : async () {
     switch (EncryptedStorage.move(storage, caller, args)) {
-      case (#ok) {};
+      case (#ok) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func rename(args : T.RenameArguments) : async () {
     switch (EncryptedStorage.rename(storage, caller, args)) {
-      case (#ok) {};
+      case (#ok) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func clearStorage() : async () {
     switch (EncryptedStorage.clear(storage, caller)) {
-      case (#ok) {};
+      case (#ok) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -243,6 +281,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   public shared ({ caller }) func getEncryptedVetkey(keyId : T.KeyId, transportKey : T.TransportKey) : async T.VetKey {
+    // Subscription gate: refresh cache if stale, then check decrypt permission
+    ignore await* EncryptedStorage.refreshSubscription(storage);
+    switch (EncryptedStorage.canDecrypt(storage, caller, owner)) {
+      case (#err(message)) throw Error.reject(message);
+      case (#ok) {};
+    };
+
     // Inlined: avoid module-level async self-call from EncryptedStorage.getEncryptedVetkey
     switch (EncryptedStorage.validateVetkeyAccess(storage, caller, keyId)) {
       case (#err(message)) throw Error.reject(message);
@@ -443,6 +488,18 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       };
       case (#err message) throw Error.reject(message);
     };
+  };
+
+  public shared func refreshSubscription() : async () {
+    ignore await* EncryptedStorage.refreshSubscription(storage);
+  };
+
+  public query func getCycleBalance() : async Nat {
+    Cycles.balance();
+  };
+
+  public query func getStatus() : async T.StorageStatus {
+    EncryptedStorage.getStatus(storage, Cycles.balance());
   };
 
   /// Get canister module_hash via canister_status.

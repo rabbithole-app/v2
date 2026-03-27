@@ -2,6 +2,7 @@ import Error "mo:core/Error";
 import Option "mo:core/Option";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
+import Text "mo:core/Text";
 import Timer "mo:core/Timer";
 
 import Liminal "mo:liminal";
@@ -81,7 +82,14 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ignore Timer.setTimer<system>(
     #seconds 0,
     func() : async () {
-      await StorageDeployerOrchestrator.start<system>(storageOrchestrator);
+      await StorageDeployerOrchestrator.start<system>(storageOrchestrator, {
+        onAssetDownloaded = ?(func(details : StorageDeployerOrchestrator.DownloadDetails) {
+          if (Text.contains(details.name, #text ".wasm")) {
+            registerWasmHash(details.sha256, details.key);
+          };
+        });
+      });
+      // After start, downloads may have completed — register hash if available
       switch (StorageDeployerOrchestrator.getLatestWasmHash(storageOrchestrator)) {
         case (?(hash, tag)) registerWasmHash(hash, tag);
         case null {};
@@ -93,6 +101,12 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     let expiredUsers = expireOverdueSubscriptions();
     for (userId in expiredUsers.vals()) {
       notifyUser(userId, #subscriptionExpired);
+    };
+
+    // Register WASM hash if new release was downloaded since last check
+    switch (StorageDeployerOrchestrator.getLatestWasmHash(storageOrchestrator)) {
+      case (?(hash, tag)) registerWasmHash(hash, tag);
+      case null {};
     };
   });
 
@@ -108,6 +122,14 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   public query ({ caller }) func listStorages() : async [StorageDeployerOrchestrator.StorageInfo] {
     assert not Principal.isAnonymous(caller);
     StorageDeployerOrchestrator.listStorages(storageOrchestrator, caller);
+  };
+
+  public shared ({ caller }) func addStorage(
+    canisterId : Principal,
+    initArg : Blob,
+  ) : async Result.Result<Nat, StorageDeployerOrchestrator.AddStorageError> {
+    assert not Principal.isAnonymous(caller);
+    await StorageDeployerOrchestrator.addStorage(storageOrchestrator, caller, canisterId, initArg, isKnownWasm);
   };
 
   public shared ({ caller }) func deleteStorage(storageId : Nat) : async Result.Result<(), StorageDeployerOrchestrator.DeleteStorageError> {
@@ -128,7 +150,13 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public shared ({ caller }) func startStorageDeployer() : async () {
     assertAdmin(caller);
-    await StorageDeployerOrchestrator.start<system>(storageOrchestrator);
+    await StorageDeployerOrchestrator.start<system>(storageOrchestrator, {
+      onAssetDownloaded = ?(func(details : StorageDeployerOrchestrator.DownloadDetails) {
+        if (Text.contains(details.name, #text ".wasm")) {
+          registerWasmHash(details.sha256, details.key);
+        };
+      });
+    });
   };
 
   public shared ({ caller }) func stopStorageDeployer() : async () {
@@ -138,6 +166,31 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public query func isStorageDeployerRunning() : async Bool {
     StorageDeployerOrchestrator.isRunning(storageOrchestrator);
+  };
+
+  /// Register the latest downloaded WASM hash as known.
+  /// Called after release download completes to make hash available for addStorage verification.
+  public shared ({ caller }) func registerLatestWasmHash() : async () {
+    assertAdmin(caller);
+    switch (StorageDeployerOrchestrator.getLatestWasmHash(storageOrchestrator)) {
+      case (?(hash, tag)) registerWasmHash(hash, tag);
+      case null {};
+    };
+  };
+
+  // --- Storage Canister Callbacks ---
+
+  /// Called by storage canister when cycle balance is low.
+  /// Caller must be the storage canister itself (canisterId == caller).
+  public shared ({ caller }) func onStorageLowCycles(
+    canisterId : Principal,
+    balance : Nat,
+    daysLeft : Nat,
+    severity : { #warning; #critical },
+  ) : async () {
+    assert caller == canisterId;
+    let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(storageOrchestrator, caller) else return;
+    notifyUser(storageOwner, #lowCycles({ canisterId; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
   };
 
   public query func getReleasesFullStatus() : async StorageDeployerOrchestrator.ReleasesFullStatus {

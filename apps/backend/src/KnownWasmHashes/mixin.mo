@@ -33,4 +33,5 @@ mixin() {
   public query func listKnownWasmHashes() : async [KnownWasmHash] {
     Iter.toArray(Map.values(knownHashes));
   };
+
 };

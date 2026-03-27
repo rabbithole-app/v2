@@ -95,6 +95,12 @@ module {
     #UpdateControllersFailed : Text;
   };
 
+  /// Errors that can occur when adding an external storage
+  public type AddStorageError = {
+    #CanisterAlreadyUsed : { canisterId : Principal };
+    #InvalidWasm : Text;
+  };
+
   /// Errors that can occur when deleting a storage record
   public type DeleteStorageError = {
     #NotFound;

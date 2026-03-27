@@ -83,5 +83,6 @@ module {
   public type EncryptedStorageInitArgs = {
     owner : Principal;
     vetKeyName : Text;
+    backendId : Principal;
   };
 };

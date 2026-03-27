@@ -74,4 +74,10 @@ mixin(
     assertAdmin(caller);
     subscriptions.list(options);
   };
+
+  /// Called by storage canister to report trial bytes usage
+  public shared ({ caller }) func reportTrialBytes(bytes : Nat) : async () {
+    let ?reportOwner = findOwnerByCanister(caller) else return;
+    subscriptions.recordTrialBytes(reportOwner, bytes);
+  };
 };
