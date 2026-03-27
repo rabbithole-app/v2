@@ -6,16 +6,22 @@ import MemoryRegion "mo:memory-region/MemoryRegion";
 import CertifiedAssets "mo:certified-assets/Stable";
 
 import V1 "Migrations/V1/Types";
+import V2 "Migrations/V2/Types";
 import Migrations "Migrations/lib";
 
 module {
   /* -------------- Versioned stable store (migration support) --------------- */
 
   public type VersionedStableStore = Migrations.VersionedStableStore;
+  public type UpgradeOptions = Migrations.UpgradeOptions;
 
-  /* -------------- Re-exports from V1 (current stable types) --------------- */
+  /* -------------- Re-exports from V2 (current stable types) --------------- */
 
-  public type StableStore = V1.StableStore;
+  public type StableStore = V2.StableStore;
+  public type SubscriptionStatus = V2.SubscriptionStatus;
+  public type SubscriptionCache = V2.SubscriptionCache;
+  public type Plan = V2.Plan;
+  public type CycleAlertLevel = V2.CycleAlertLevel;
   public type FileSystemStore = V1.FileSystemStore;
   public type NodeStore = V1.NodeStore;
   public type NodeKey = V1.NodeKey;
@@ -189,6 +195,14 @@ module {
     region : MemoryRegion.MemoryRegion;
     rootPermissions : [(Principal, Permission)];
     certs : ?CertifiedAssets.StableStore;
+    backendId : ?Principal;
+  };
+
+  public type StorageStatus = {
+    cycleBalance : Nat;
+    subscriptionStatus : ?SubscriptionStatus;
+    encryptedBytesUsed : Nat;
+    backendId : ?Principal;
   };
 
   public type Entry = ({ #File; #Directory }, Text);
@@ -267,6 +281,7 @@ module {
 
   public type CreateBatchArguments = {
     entry : Entry;
+    totalSize : Nat;
   };
 
   public type CreateBatchResponse = {

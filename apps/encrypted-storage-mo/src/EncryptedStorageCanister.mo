@@ -31,8 +31,9 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     // ```
     // Otherwise, use null.
     certs = null;
+    backendId = null; // standalone mode — no backend
   });
-  versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
+  versionedStore := EncryptedStorage.upgradeStableStore(versionedStore, { backendId = null });
   transient let storage = EncryptedStorage.fromVersion(versionedStore);
 
   public query ({ caller }) func list(entry : ?T.Entry) : async T.ListResponse {

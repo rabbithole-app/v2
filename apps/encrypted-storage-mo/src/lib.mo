@@ -30,10 +30,12 @@ import Permissions "FileSystem/Permissions";
 import Common "FileSystem/Common";
 import Const "Const";
 import Http "Http";
+import SubscriptionGate "SubscriptionGate";
 
 module EncryptedFileStorage {
   public type StableStore = T.StableStore;
   public type VersionedStableStore = T.VersionedStableStore;
+  public type CycleAlert = SubscriptionGate.CycleAlert;
 
   /// Creates a new versioned stable store. Called once during initial canister deployment.
   /// On subsequent upgrades, the existing stable variable is preserved and migrated
@@ -52,14 +54,14 @@ module EncryptedFileStorage {
   /// versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
   /// let storage = EncryptedStorage.fromVersion(versionedStore);
   /// ```
-  public func initStableStore({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
+  public func initStableStore({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs; backendId } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
     let fs = FileSystem.new({
       region;
       rootPermissions;
     });
     let upload = Upload.new(region);
 
-    #v1({
+    #v2({
       canisterId;
       region;
       fs;
@@ -69,19 +71,70 @@ module EncryptedFileStorage {
       vetKdKeyId;
       domainSeparatorBytes = Text.encodeUtf8(domainSeparator);
       var streamingCallback = null;
+
+      // V2 fields
+      var backendId = backendId;
+      var subscriptionCache = null;
+      var encryptedBytesUsed = 0;
+      var unreportedTrialBytes = 0;
+      var cachedModuleHash = null;
+      var lastCycleAlertAt = 0;
+      var lastCycleAlertLevel = null;
+      var cachedIdleBurnPerDay = null;
     });
   };
 
   /// Migrates the versioned store to the current version.
   /// Safe to call on every upgrade — if already at the latest version, returns as-is.
-  public func upgradeStableStore(store : T.VersionedStableStore) : T.VersionedStableStore {
-    Migrations.upgrade(store);
+  /// `options.backendId` updates backendId on each upgrade (from initArgs).
+  public func upgradeStableStore(store : T.VersionedStableStore, options : T.UpgradeOptions) : T.VersionedStableStore {
+    Migrations.upgrade(store, options);
   };
 
   /// Extracts the current-version StableStore from a VersionedStableStore.
   /// Must be called after `upgradeStableStore`.
   public func fromVersion(store : T.VersionedStableStore) : T.StableStore {
     Migrations.getCurrentState(store);
+  };
+
+  /* ----------------------- Subscription & Gating ------------------------- */
+
+  /// Refresh subscription status from backend. Call periodically or before gated ops.
+  public func refreshSubscription(self : T.StableStore) : async* T.SubscriptionStatus {
+    await* SubscriptionGate.ensureSubscription(self);
+  };
+
+  /// Check if caller can decrypt (owner always can, shared users need active/trial).
+  public func canDecrypt(self : T.StableStore, caller : Principal, owner : Principal) : Result.Result<(), Text> {
+    SubscriptionGate.canDecrypt(self, caller, owner);
+  };
+
+  /// Check if encryption operations are allowed (active/trial only).
+  public func canUseEncryption(self : T.StableStore) : Result.Result<(), Text> {
+    SubscriptionGate.canUseEncryption(self);
+  };
+
+  /// Check if an encrypted upload of given size is allowed (trial limit).
+  public func canUploadEncrypted(self : T.StableStore, additionalBytes : Nat) : Result.Result<(), Text> {
+    SubscriptionGate.canUploadEncrypted(self, additionalBytes);
+  };
+
+  /// Event-driven cycle check — call from every mutation. Returns alert if needed.
+  public func checkCyclesOnUpdate(self : T.StableStore) : ?CycleAlert {
+    SubscriptionGate.checkCyclesOnUpdate(self);
+  };
+
+  /// Returns canister status summary (cycle balance filled by caller).
+  public func getStatus(self : T.StableStore, cycleBalance : Nat) : T.StorageStatus {
+    {
+      cycleBalance;
+      subscriptionStatus = switch (self.subscriptionCache) {
+        case (?cache) ?cache.status;
+        case null null;
+      };
+      encryptedBytesUsed = self.encryptedBytesUsed;
+      backendId = self.backendId;
+    };
   };
 
   /// Handles HTTP requests.
@@ -357,6 +410,14 @@ module EncryptedFileStorage {
           case null {};
         };
 
+        // Trial limit verification with actual totalLength (in case declared totalSize was wrong)
+        if (file.encryptionMode == #Encrypted) {
+          switch (SubscriptionGate.canUploadEncrypted(self, totalLength)) {
+            case (#err msg) return #err msg;
+            case (#ok) {};
+          };
+        };
+
         let hash = switch (await* asyncHashChunksViaPointers(self, chunkPointers)) {
           case (#ok(hash)) hash;
           case (#err(msg)) return #err("Failed to hash chunks: " # msg); // dead section?
@@ -379,6 +440,12 @@ module EncryptedFileStorage {
 
         File.addVersion(self.fs, file, chunks.vals(), totalLength, hash, contentType);
         CertifiedAssets.certify(self.certs, endpoint(keyId, hash));
+
+        // Track encrypted bytes for trial limit (cumulative — not decreased on delete)
+        if (file.encryptionMode == #Encrypted) {
+          self.encryptedBytesUsed += totalLength;
+          self.unreportedTrialBytes += totalLength;
+        };
 
         // Remove staging marker — file upload is now complete
         switch (nodeKey) {
@@ -496,6 +563,23 @@ module EncryptedFileStorage {
       case (#err message) return #err message;
     };
 
+    // Trial limit pre-check for encrypted files (before uploading chunks)
+    let nodeKey = entryToNodeKey(self.fs, args.entry);
+    let isEncrypted = switch (nodeKey) {
+      case (?nk) switch (Map.get(self.staging, Utils.hashNodes, nk)) {
+        case (?{ node = { metadata = #File(fileMeta) } }) fileMeta.encryptionMode == #Encrypted;
+        case _ false;
+      };
+      case null false;
+    };
+
+    if (isEncrypted) {
+      switch (SubscriptionGate.canUploadEncrypted(self, args.totalSize)) {
+        case (#err msg) return #err msg;
+        case (#ok) {};
+      };
+    };
+
     // Cleanup expired staging entries
     cleanupExpiredStaging(self);
 
@@ -610,6 +694,12 @@ module EncryptedFileStorage {
   /// Only the file owner or a user with management rights can perform this action.
   /// The file owner cannot change their own rights.
   public func grantPermission(self : T.StableStore, caller : T.Caller, args : T.GrantPermissionArguments) : Result.Result<(), Text> {
+    // Subscription gate: sharing requires active/trial
+    switch (SubscriptionGate.canUseEncryption(self)) {
+      case (#err msg) return #err msg;
+      case (#ok) {};
+    };
+
     let findBy = switch (FileSystem.getFilterByFromEntry(self.fs, args.entry)) {
       case (#ok v) v;
       case (#err message) return #err message;
