@@ -23,9 +23,15 @@ describe("AdminManager", () => {
   });
 
   test("installer is initial admin", async () => {
+    actor.setIdentity(ownerIdentity);
     const admins = await actor.listAdmins();
     expect(admins).toHaveLength(1);
     expect(admins[0].toText()).toBe(ownerIdentity.getPrincipal().toText());
+  });
+
+  test("non-admin cannot list admins", async () => {
+    actor.setIdentity(userAlice);
+    await expect(actor.listAdmins()).rejects.toThrow();
   });
 
   test("installer can check isAdmin", async () => {

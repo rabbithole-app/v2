@@ -137,6 +137,37 @@ describe("Subscriptions", () => {
     expect(result).toEqual({ unknownCanister: null });
   });
 
+  test("reportTrialBytes silently ignores calls from unknown principals", async () => {
+    actor.setIdentity(userAlice);
+    // Should not throw — noop for unregistered callers
+    await actor.reportTrialBytes(1000n);
+
+    // Verify no subscription was created or modified
+    actor.setIdentity(ownerIdentity);
+    const subs = await actor.listSubscriptions({
+      filter: {
+        userId: [[userAlice.getPrincipal()]],
+        plan: [],
+        status: [],
+        expiresAt: [],
+      },
+      sort: [],
+      pagination: { offset: 0n, limit: 1n },
+      count: true,
+    });
+    expect(subs.total).toEqual([0n]);
+  });
+
+  test("onStorageLowCycles ignores calls from unregistered principal", async () => {
+    actor.setIdentity(userAlice);
+    // Should not throw — silently returns for unregistered callers
+    await actor.onStorageLowCycles(1000n, 5n, { warning: null });
+
+    // Verify no notification was created for alice
+    const page = await actor.getNotifications([], 10n);
+    expect(page.data).toHaveLength(0);
+  });
+
   test("trial shows as expired after 14 days", async () => {
     const startTime = new Date("2026-06-01T00:00:00Z");
     await pic.setCertifiedTime(startTime);

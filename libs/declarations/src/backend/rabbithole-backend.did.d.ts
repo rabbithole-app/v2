@@ -208,7 +208,7 @@ export interface Rabbithole {
    * / Caller must be the storage canister itself (canisterId == caller).
    */
   'onStorageLowCycles' : ActorMethod<
-    [Principal, bigint, bigint, { 'warning' : null } | { 'critical' : null }],
+    [bigint, bigint, { 'warning' : null } | { 'critical' : null }],
     undefined
   >,
   'refreshReleases' : ActorMethod<[], undefined>,
@@ -351,7 +351,14 @@ export type TransferFromError = {
   { 'InsufficientFunds' : { 'balance' : Icrc1Tokens } };
 export type TypedEvent = { 'trialStarted' : { 'limitBytes' : bigint } } |
   { 'subscriptionExpired' : null } |
-  { 'subscriptionActivated' : { 'plan' : Plan } } |
+  {
+    'subscriptionActivated' : {
+      'plan' : { 'Pro' : null } |
+        { 'Free' : null } |
+        { 'License' : null } |
+        { 'Trial' : null },
+    }
+  } |
   { 'updateAvailable' : { 'releaseTag' : string, 'canisterId' : Principal } } |
   {
     'lowCycles' : {

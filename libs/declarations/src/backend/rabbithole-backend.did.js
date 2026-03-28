@@ -116,7 +116,14 @@ export const idlFactory = ({ IDL }) => {
   const TypedEvent = IDL.Variant({
     'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
     'subscriptionExpired' : IDL.Null,
-    'subscriptionActivated' : IDL.Record({ 'plan' : Plan }),
+    'subscriptionActivated' : IDL.Record({
+      'plan' : IDL.Variant({
+        'Pro' : IDL.Null,
+        'Free' : IDL.Null,
+        'License' : IDL.Null,
+        'Trial' : IDL.Null,
+      }),
+    }),
     'updateAvailable' : IDL.Record({
       'releaseTag' : IDL.Text,
       'canisterId' : IDL.Principal,
@@ -435,7 +442,6 @@ export const idlFactory = ({ IDL }) => {
     'markNotificationsAsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
     'onStorageLowCycles' : IDL.Func(
         [
-          IDL.Principal,
           IDL.Nat,
           IDL.Nat,
           IDL.Variant({ 'warning' : IDL.Null, 'critical' : IDL.Null }),

@@ -1,10 +1,5 @@
 export const idlFactory = ({ IDL }) => {
   const TreeNode = IDL.Rec();
-  const EncryptedStorageInitArgs = IDL.Record({
-    'vetKeyName' : IDL.Text,
-    'owner' : IDL.Principal,
-    'backendId' : IDL.Principal,
-  });
   const CertifiedTree = IDL.Record({
     'certificate' : IDL.Vec(IDL.Nat8),
     'tree' : IDL.Vec(IDL.Nat8),
@@ -325,13 +320,6 @@ export const idlFactory = ({ IDL }) => {
     'permission' : Permission,
     'of_principal' : IDL.Principal,
   });
-  const SaveThumbnailArguments = IDL.Record({
-    'thumbnail' : IDL.Record({
-      'content' : IDL.Vec(IDL.Nat8),
-      'contentType' : IDL.Text,
-    }),
-    'entry' : Entry,
-  });
   const StoreArgs = IDL.Record({
     'key' : Key,
     'content' : IDL.Vec(IDL.Nat8),
@@ -450,7 +438,19 @@ export const idlFactory = ({ IDL }) => {
     'restoreStorageVersion' : IDL.Func([RestoreVersionArguments], [], []),
     'revokeStoragePermission' : IDL.Func([RevokePermissionArguments], [], []),
     'revoke_permission' : IDL.Func([RevokePermission], [], []),
-    'saveThumbnail' : IDL.Func([SaveThumbnailArguments], [NodeDetails], []),
+    'saveThumbnail' : IDL.Func(
+        [
+          IDL.Record({
+            'thumbnail' : IDL.Record({
+              'content' : IDL.Vec(IDL.Nat8),
+              'contentType' : IDL.Text,
+            }),
+            'entry' : Entry,
+          }),
+        ],
+        [NodeDetails],
+        [],
+      ),
     'set_asset_content' : IDL.Func([SetAssetContentArguments], [], []),
     'set_asset_properties' : IDL.Func([SetAssetPropertiesArguments], [], []),
     'showTree' : IDL.Func([IDL.Opt(Entry)], [IDL.Text], ['query']),
@@ -471,10 +471,11 @@ export const idlFactory = ({ IDL }) => {
   return EncryptedStorageCanister;
 };
 export const init = ({ IDL }) => {
-  const EncryptedStorageInitArgs = IDL.Record({
-    'vetKeyName' : IDL.Text,
-    'owner' : IDL.Principal,
-    'backendId' : IDL.Principal,
-  });
-  return [EncryptedStorageInitArgs];
+  return [
+    IDL.Record({
+      'vetKeyName' : IDL.Text,
+      'owner' : IDL.Principal,
+      'backendId' : IDL.Principal,
+    }),
+  ];
 };

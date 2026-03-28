@@ -143,7 +143,13 @@ describe("Feature Gating", () => {
   // ===================== B2: checkSubscription =====================
 
   describe("Subscription Check and Cache", () => {
+    test("refreshSubscription rejects non-owner caller", async () => {
+      storageActor.setIdentity(userAlice);
+      await expect(storageActor.refreshSubscription()).rejects.toThrow();
+    });
+
     test("refreshSubscription populates cache with #free", async () => {
+      storageActor.setIdentity(manager.ownerIdentity);
       await storageActor.refreshSubscription();
       const status = await storageActor.getStatus();
       expect(status.subscriptionStatus).toHaveLength(1);

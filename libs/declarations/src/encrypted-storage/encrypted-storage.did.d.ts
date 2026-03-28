@@ -187,7 +187,18 @@ export interface EncryptedStorageCanister {
     undefined
   >,
   'revoke_permission' : ActorMethod<[RevokePermission], undefined>,
-  'saveThumbnail' : ActorMethod<[SaveThumbnailArguments], NodeDetails>,
+  'saveThumbnail' : ActorMethod<
+    [
+      {
+        'thumbnail' : {
+          'content' : Uint8Array | number[],
+          'contentType' : string,
+        },
+        'entry' : Entry,
+      },
+    ],
+    NodeDetails
+  >,
   'set_asset_content' : ActorMethod<[SetAssetContentArguments], undefined>,
   'set_asset_properties' : ActorMethod<
     [SetAssetPropertiesArguments],
@@ -206,11 +217,6 @@ export interface EncryptedStorageCanister {
   'validate_grant_permission' : ActorMethod<[GrantPermission], Result>,
   'validate_revoke_permission' : ActorMethod<[RevokePermission], Result>,
   'validate_take_ownership' : ActorMethod<[], Result>,
-}
-export interface EncryptedStorageInitArgs {
-  'vetKeyName' : string,
-  'owner' : Principal,
-  'backendId' : Principal,
 }
 export type EncryptionMode = { 'Encrypted' : null } |
   { 'Plaintext' : null };
@@ -335,10 +341,6 @@ export interface RevokePermission {
 export interface RevokePermissionArguments {
   'user' : Principal,
   'entry' : [] | [Entry],
-}
-export interface SaveThumbnailArguments {
-  'thumbnail' : { 'content' : Uint8Array | number[], 'contentType' : string },
-  'entry' : Entry,
 }
 export interface SetAssetContentArguments {
   'key' : Key,
