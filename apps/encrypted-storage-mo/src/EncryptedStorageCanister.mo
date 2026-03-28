@@ -58,7 +58,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   };
 
   public shared ({ caller }) func update(args : T.UpdateArguments) : async () {
-    switch (await* EncryptedStorage.update(storage, caller, args)) {
+    switch (await* EncryptedStorage.update(storage, caller, args, null)) {
       case (#ok _) {};
       case (#err(message)) throw Error.reject(message);
     };
@@ -72,14 +72,14 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   };
 
   public shared ({ caller }) func createBatch(args : T.CreateArguments) : async T.CreateBatchResponse {
-    switch (EncryptedStorage.createBatch(storage, caller, args)) {
+    switch (EncryptedStorage.createBatch(storage, caller, { entry = args.entry; totalSize = 0 }, null)) {
       case (#ok batch) batch;
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public shared func createChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
-    switch (EncryptedStorage.createChunk(storage, args)) {
+  public shared ({ caller }) func createChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
+    switch (EncryptedStorage.createChunk(storage, caller, args, null)) {
       case (#ok chunk) chunk;
       case (#err(message)) throw Error.reject(message);
     };
@@ -111,7 +111,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   };
 
   public shared ({ caller }) func grantPermission(args : T.GrantPermissionArguments) : async () {
-    switch (EncryptedStorage.grantPermission(storage, caller, args)) {
+    switch (EncryptedStorage.grantPermission(storage, caller, args, null)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };

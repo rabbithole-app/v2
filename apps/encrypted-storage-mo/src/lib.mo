@@ -30,13 +30,10 @@ import Permissions "FileSystem/Permissions";
 import Common "FileSystem/Common";
 import Const "Const";
 import Http "Http";
-import SubscriptionGate "SubscriptionGate";
 
 module EncryptedFileStorage {
   public type StableStore = T.StableStore;
   public type VersionedStableStore = T.VersionedStableStore;
-  public type CycleAlert = SubscriptionGate.CycleAlert;
-
   /// Creates a new versioned stable store. Called once during initial canister deployment.
   /// On subsequent upgrades, the existing stable variable is preserved and migrated
   /// via `upgradeStableStore`.
@@ -95,33 +92,6 @@ module EncryptedFileStorage {
   /// Must be called after `upgradeStableStore`.
   public func fromVersion(store : T.VersionedStableStore) : T.StableStore {
     Migrations.getCurrentState(store);
-  };
-
-  /* ----------------------- Subscription & Gating ------------------------- */
-
-  /// Refresh subscription status from backend. Call periodically or before gated ops.
-  public func refreshSubscription(self : T.StableStore) : async* T.SubscriptionStatus {
-    await* SubscriptionGate.ensureSubscription(self);
-  };
-
-  /// Check if caller can decrypt (owner always can, shared users need active/trial).
-  public func canDecrypt(self : T.StableStore, caller : Principal, owner : Principal) : Result.Result<(), Text> {
-    SubscriptionGate.canDecrypt(self, caller, owner);
-  };
-
-  /// Check if encryption operations are allowed (active/trial only).
-  public func canUseEncryption(self : T.StableStore) : Result.Result<(), Text> {
-    SubscriptionGate.canUseEncryption(self);
-  };
-
-  /// Check if an encrypted upload of given size is allowed (trial limit).
-  public func canUploadEncrypted(self : T.StableStore, additionalBytes : Nat) : Result.Result<(), Text> {
-    SubscriptionGate.canUploadEncrypted(self, additionalBytes);
-  };
-
-  /// Event-driven cycle check — call from every mutation. Returns alert if needed.
-  public func checkCyclesOnUpdate(self : T.StableStore) : ?CycleAlert {
-    SubscriptionGate.checkCyclesOnUpdate(self);
   };
 
   /// Returns canister status summary (cycle balance filled by caller).
@@ -368,7 +338,7 @@ module EncryptedFileStorage {
   /// 1. Create a file using the `create` method.
   /// 2. Create a batch file using `createBatch` and upload all chunks from the file using `createChunk`.
   /// 3. Complete the upload process by calling `update`.
-  public func update(self : T.StableStore, caller : Principal, args : T.UpdateArguments) : async* Result.Result<(), Text> {
+  public func update(self : T.StableStore, caller : Principal, args : T.UpdateArguments, onEncryptedUpload : ?(Nat -> Result.Result<(), Text>)) : async* Result.Result<(), Text> {
     let entry = switch (args) {
       case (#File { path }) (#File, path);
       case (#Directory { path }) (#Directory, path);
@@ -410,11 +380,14 @@ module EncryptedFileStorage {
           case null {};
         };
 
-        // Trial limit verification with actual totalLength (in case declared totalSize was wrong)
+        // Trial limit verification with actual totalLength
         if (file.encryptionMode == #Encrypted) {
-          switch (SubscriptionGate.canUploadEncrypted(self, totalLength)) {
-            case (#err msg) return #err msg;
-            case (#ok) {};
+          switch (onEncryptedUpload) {
+            case (?check) switch (check(totalLength)) {
+              case (#err msg) return #err msg;
+              case (#ok) {};
+            };
+            case null {};
           };
         };
 
@@ -557,7 +530,7 @@ module EncryptedFileStorage {
   /// //   case (#err message) return #err message;
   /// // };
   /// ```
-  public func createBatch(self : T.StableStore, caller : Principal, args : T.CreateBatchArguments) : Result.Result<T.CreateBatchResponse, Text> {
+  public func createBatch(self : T.StableStore, caller : Principal, args : T.CreateBatchArguments, onEncryptedUpload : ?(Nat -> Result.Result<(), Text>)) : Result.Result<T.CreateBatchResponse, Text> {
     switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
       case (#ok _) {};
       case (#err message) return #err message;
@@ -574,16 +547,19 @@ module EncryptedFileStorage {
     };
 
     if (isEncrypted) {
-      switch (SubscriptionGate.canUploadEncrypted(self, args.totalSize)) {
-        case (#err msg) return #err msg;
-        case (#ok) {};
+      switch (onEncryptedUpload) {
+        case (?check) switch (check(args.totalSize)) {
+          case (#err msg) return #err msg;
+          case (#ok) {};
+        };
+        case null {};
       };
     };
 
     // Cleanup expired staging entries
     cleanupExpiredStaging(self);
 
-    let result = Upload.createBatch(self.upload);
+    let result = Upload.createBatch(self.upload, caller);
 
     // Bind staging entry to the newly created batch
     switch (result) {
@@ -614,8 +590,33 @@ module EncryptedFileStorage {
   /// };
   /// // after uploading all the chunks of the file, you can call the `update` method and attach the chunks to the already created file.
   /// ```
-  public func createChunk(self : T.StableStore, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> {
-    Upload.createChunk(self.upload, args);
+  public func createChunk(self : T.StableStore, caller : Principal, args : T.Chunk, onEncryptedUpload : ?(Nat -> Result.Result<(), Text>)) : Result.Result<T.CreateChunkResponse, Text> {
+    // Gate check before writing chunk to memory region
+    if (isEncryptedBatch(self, args.batchId)) {
+      let batchBytes = switch (Upload.getBatch(self.upload, args.batchId)) {
+        case (?batch) batch.totalBytes;
+        case null 0;
+      };
+      switch (onEncryptedUpload) {
+        case (?check) switch (check(batchBytes + args.content.size())) {
+          case (#err msg) return #err msg;
+          case (#ok) {};
+        };
+        case null {};
+      };
+    };
+    Upload.createChunk(self.upload, caller, args);
+  };
+
+  /// Reverse lookup: find if a batch belongs to an encrypted file via staging entries.
+  func isEncryptedBatch(self : T.StableStore, batchId : T.BatchId) : Bool {
+    for ((_, staging) in Map.entries(self.staging)) {
+      if (staging.batchId == ?batchId) {
+        let #File(fileMeta) = staging.node.metadata else return false;
+        return fileMeta.encryptionMode == #Encrypted;
+      };
+    };
+    false;
   };
 
   /// Move directories and files from one location to another. The method also recursively merges folders and files, replacing existing files and combining access rights.
@@ -693,11 +694,14 @@ module EncryptedFileStorage {
   /// Grants or modifies access rights for a user to a given entry.
   /// Only the file owner or a user with management rights can perform this action.
   /// The file owner cannot change their own rights.
-  public func grantPermission(self : T.StableStore, caller : T.Caller, args : T.GrantPermissionArguments) : Result.Result<(), Text> {
+  public func grantPermission(self : T.StableStore, caller : T.Caller, args : T.GrantPermissionArguments, onShareGate : ?(() -> Result.Result<(), Text>)) : Result.Result<(), Text> {
     // Subscription gate: sharing requires active/trial
-    switch (SubscriptionGate.canUseEncryption(self)) {
-      case (#err msg) return #err msg;
-      case (#ok) {};
+    switch (onShareGate) {
+      case (?check) switch (check()) {
+        case (#err msg) return #err msg;
+        case (#ok) {};
+      };
+      case null {};
     };
 
     let findBy = switch (FileSystem.getFilterByFromEntry(self.fs, args.entry)) {

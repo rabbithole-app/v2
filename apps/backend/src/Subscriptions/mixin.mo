@@ -7,7 +7,7 @@ import ZenDB "mo:zendb";
 mixin(
   db : ZenDB.Database,
   findOwnerByCanister : (Principal) -> ?Principal,
-  isKnownWasmHash : (Blob) -> Bool,
+  isKnownWasm : (Blob) -> Bool,
   assertAdmin : (Principal) -> (),
 ) {
   transient let subscriptions = Subscriptions.Subscriptions(db);
@@ -19,11 +19,11 @@ mixin(
 
   /// Called by storage canister (caller = canisterId) to check subscription status
   public shared ({ caller }) func checkSubscription(wasmHash : Blob) : async Subscriptions.SubscriptionCheckResult {
-    // 1. Resolve canister → owner
+    // Resolve canister → owner (rejects both non-canister and unregistered callers)
     let ?owner = findOwnerByCanister(caller) else return #unknownCanister;
 
     // 2. Validate WASM hash
-    if (not isKnownWasmHash(wasmHash)) return #invalidWasm;
+    if (not isKnownWasm(wasmHash)) return #invalidWasm;
 
     // 3. Check subscription
     switch (subscriptions.getSubscription(owner)) {

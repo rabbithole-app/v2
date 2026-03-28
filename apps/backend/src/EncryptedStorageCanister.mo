@@ -18,11 +18,17 @@ import Sha256 "mo:sha2/Sha256";
 import Json "mo:json";
 
 import EncryptedStorage "mo:encrypted-storage";
+import EncryptedStorageClass "mo:encrypted-storage/Class";
 import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
 import T "mo:encrypted-storage/Types";
-import Types "Types";
+import SubscriptionGate "SubscriptionGate";
+import HttpAssetsMixin "HttpAssetsMixin";
 
-shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : Types.EncryptedStorageInitArgs) = this {
+shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
+    owner : Principal;
+    vetKeyName : Text;
+    backendId : Principal;
+  }) = this {
   let owner = initArgs.owner;
 
   let keyId : ManagementCanister.VetKdKeyid = {
@@ -36,7 +42,6 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
 
   // Extract certificate store from HttpAssets for shared use
-  // Use from_version to get the current state
   let httpAssetsState = HttpAssets.from_version(assetStableData);
 
   // Use shared certificate store from HttpAssets for EncryptedStorage
@@ -54,6 +59,12 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   });
   transient let storage = EncryptedStorage.fromVersion(versionedStorage);
 
+  // Create class wrapper with subscription gates
+  transient let es = EncryptedStorageClass.Storage(storage, ?{
+    canUploadEncrypted = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canUploadEncrypted(storage, bytes);
+    canUseEncryption = func() : Result.Result<(), Text> = SubscriptionGate.canUseEncryption(storage);
+  });
+
   // Reset cached module hash on upgrade (body re-executes for persistent actor class)
   storage.cachedModuleHash := null;
 
@@ -69,17 +80,17 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   // Fire-and-forget low-cycles notification to backend
   func reportLowCyclesIfNeeded<system>() : () {
-    switch (EncryptedStorage.checkCyclesOnUpdate(storage)) {
+    switch (SubscriptionGate.checkCyclesOnUpdate(storage)) {
       case (?alert) {
         let ?bid = storage.backendId else return;
         let backend : actor {
-          onStorageLowCycles : (Principal, Nat, Nat, { #warning; #critical }) -> async ();
+          onStorageLowCycles : (Nat, Nat, { #warning; #critical }) -> async ();
         } = actor (Principal.toText(bid));
         ignore Timer.setTimer<system>(
           #seconds 0,
           func() : async () {
             try {
-              await backend.onStorageLowCycles(alert.canisterId, alert.balance, alert.daysLeft, alert.severity);
+              await backend.onStorageLowCycles(alert.balance, alert.daysLeft, alert.severity);
             } catch _ {};
           },
         );
@@ -127,11 +138,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   // Create the HTTP App with middleware
   transient let app = Liminal.App({
     middleware = [
-      // Order matters
-      // First middleware will be called FIRST with the HTTP request
-      // and LAST with handling the HTTP response
       CORSMiddleware.default(),
-      // RouterMiddleware.new(routerConfig),
       AssetsMiddleware.new({
         store = assetStore;
       }),
@@ -163,7 +170,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public query func http_request_streaming_callback(token : T.StreamingToken) : async T.StreamingCallbackResponse {
     switch (assetStore.http_request_streaming_callback(token)) {
-      case (#err _) switch (EncryptedStorage.httpRequestStreamingCallback(storage, token)) {
+      case (#err _) switch (es.httpRequestStreamingCallback(token)) {
         case (#ok(response)) response;
         case (#err message) throw Error.reject(message);
       };
@@ -171,105 +178,98 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  EncryptedStorage.setStreamingCallback(storage, http_request_streaming_callback);
+  es.setStreamingCallback(http_request_streaming_callback);
 
   public query ({ caller }) func listStorage(entry : ?T.Entry) : async T.ListResponse {
-    switch (EncryptedStorage.list(storage, caller, entry)) {
+    switch (es.list(caller, entry)) {
       case (#ok response) response;
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func listPermitted(entry : ?T.Entry) : async [(Principal, T.PermissionExt)] {
-    switch (await* EncryptedStorage.listPermitted(storage, caller, entry)) {
+    switch (await* es.listPermitted(caller, entry)) {
       case (#ok items) items;
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  // public shared ({ caller }) func store(args : T.StoreArguments) : async () {
-  //   switch (EncryptedStorage.store(storage, caller, args)) {
-  //     case (#ok value) value;
-  //     case (#err(message)) throw Error.reject(message);
-  //   };
-  // };
-
   public shared ({ caller }) func create(args : T.CreateArguments) : async T.NodeDetails {
-    switch (EncryptedStorage.create(storage, caller, args)) {
+    switch (es.create(caller, args)) {
       case (#ok value) { reportLowCyclesIfNeeded<system>(); value };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func update(args : T.UpdateArguments) : async () {
-    switch (await* EncryptedStorage.update(storage, caller, args)) {
+    switch (await* es.update(caller, args)) {
       case (#ok _) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func delete(args : T.DeleteArguments) : async () {
-    switch (EncryptedStorage.delete(storage, caller, args)) {
+    switch (es.delete(caller, args)) {
       case (#ok _) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func createStorageBatch(args : T.CreateBatchArguments) : async T.CreateBatchResponse {
-    switch (EncryptedStorage.createBatch(storage, caller, args)) {
+    switch (es.createBatch(caller, args)) {
       case (#ok batch) batch;
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public shared func createStorageChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
-    switch (EncryptedStorage.createChunk(storage, args)) {
+  public shared ({ caller }) func createStorageChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
+    switch (es.createChunk(caller, args)) {
       case (#ok chunk) chunk;
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func move(args : T.MoveArguments) : async () {
-    switch (EncryptedStorage.move(storage, caller, args)) {
+    switch (es.move(caller, args)) {
       case (#ok) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func rename(args : T.RenameArguments) : async () {
-    switch (EncryptedStorage.rename(storage, caller, args)) {
+    switch (es.rename(caller, args)) {
       case (#ok) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func clearStorage() : async () {
-    switch (EncryptedStorage.clear(storage, caller)) {
+    switch (es.clear(caller)) {
       case (#ok) { reportLowCyclesIfNeeded<system>() };
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public query ({ caller }) func hasStoragePermission(args : T.HasPermissionArguments) : async Bool {
-    EncryptedStorage.hasPermission(storage, caller, args);
+    es.hasPermission(caller, args);
   };
 
   public shared ({ caller }) func grantStoragePermission(args : T.GrantPermissionArguments) : async () {
-    switch (EncryptedStorage.grantPermission(storage, caller, args)) {
+    switch (es.grantPermission(caller, args)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func revokeStoragePermission(args : T.RevokePermissionArguments) : async () {
-    switch (EncryptedStorage.revokePermission(storage, caller, args)) {
+    switch (es.revokePermission(caller, args)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared query ({ caller }) func getStorageChunk(args : T.GetChunkArguments) : async T.ChunkContent {
-    switch (EncryptedStorage.getChunk(storage, caller, args)) {
+    switch (es.getChunk(caller, args)) {
       case (#ok chunk) chunk;
       case (#err(message)) throw Error.reject(message);
     };
@@ -282,14 +282,17 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func getEncryptedVetkey(keyId : T.KeyId, transportKey : T.TransportKey) : async T.VetKey {
     // Subscription gate: refresh cache if stale, then check decrypt permission
-    ignore await* EncryptedStorage.refreshSubscription(storage);
-    switch (EncryptedStorage.canDecrypt(storage, caller, owner)) {
+    switch (await* SubscriptionGate.ensureSubscription(storage)) {
+      case (#err(message)) throw Error.reject(message);
+      case (#ok _) {};
+    };
+    switch (SubscriptionGate.canDecrypt(storage, caller, owner)) {
       case (#err(message)) throw Error.reject(message);
       case (#ok) {};
     };
 
     // Inlined: avoid module-level async self-call from EncryptedStorage.getEncryptedVetkey
-    switch (EncryptedStorage.validateVetkeyAccess(storage, caller, keyId)) {
+    switch (es.validateVetkeyAccess(caller, keyId)) {
       case (#err(message)) throw Error.reject(message);
       case (#ok(input)) {
         await ManagementCanister.vetKdDeriveKey(input, storage.domainSeparatorBytes, storage.vetKdKeyId, transportKey);
@@ -298,28 +301,28 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   public query ({ caller }) func showTree(entry : ?T.Entry) : async Text {
-    switch (EncryptedStorage.showTree(storage, caller, entry)) {
+    switch (es.showTree(caller, entry)) {
       case (#ok chunk) chunk;
       case (#err message) throw Error.reject(message);
     };
   };
 
   public query ({ caller }) func fsTree() : async [T.TreeNode] {
-    switch (EncryptedStorage.fsTree(storage, caller)) {
+    switch (es.fsTree(caller)) {
       case (#ok tree) tree;
       case (#err message) throw Error.reject(message);
     };
   };
 
   public query ({ caller }) func listStorageVersions(args : T.ListVersionsArguments) : async [T.FileVersionDetails] {
-    switch (EncryptedStorage.listVersions(storage, caller, args)) {
+    switch (es.listVersions(caller, args)) {
       case (#ok items) items;
       case (#err(message)) throw Error.reject(message);
     };
   };
 
   public shared ({ caller }) func restoreStorageVersion(args : T.RestoreVersionArguments) : async () {
-    switch (EncryptedStorage.restoreVersion(storage, caller, args)) {
+    switch (es.restoreVersion(caller, args)) {
       case (#ok _) {};
       case (#err(message)) throw Error.reject(message);
     };
@@ -331,137 +334,15 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   assetStore.set_streaming_callback(http_request_streaming_callback);
 
-  public shared query func api_version() : async Nat16 {
-    assetCanister.api_version();
-  };
-
-  public shared query func get(args : HttpAssets.GetArgs) : async HttpAssets.EncodedAsset {
-    assetCanister.get(args);
-  };
-
-  public shared query func get_chunk(args : HttpAssets.GetChunkArgs) : async (HttpAssets.ChunkContent) {
-    assetCanister.get_chunk(args);
-  };
-
-  public shared ({ caller }) func grant_permission(args : HttpAssets.GrantPermission) : async () {
-    await* assetCanister.grant_permission(caller, args);
-  };
-
-  public shared ({ caller }) func revoke_permission(args : HttpAssets.RevokePermission) : async () {
-    await* assetCanister.revoke_permission(caller, args);
-  };
-
-  public shared query func list(args : {}) : async [HttpAssets.AssetDetails] {
-    assetCanister.list(args);
-  };
-
-  public shared ({ caller }) func store(args : HttpAssets.StoreArgs) : async () {
-    assetCanister.store(caller, args);
-  };
-
-  public shared ({ caller }) func create_asset(args : HttpAssets.CreateAssetArguments) : async () {
-    assetCanister.create_asset(caller, args);
-  };
-
-  public shared ({ caller }) func set_asset_content(args : HttpAssets.SetAssetContentArguments) : async () {
-    await* assetCanister.set_asset_content(caller, args);
-  };
-
-  public shared ({ caller }) func unset_asset_content(args : HttpAssets.UnsetAssetContentArguments) : async () {
-    assetCanister.unset_asset_content(caller, args);
-  };
-
-  public shared ({ caller }) func delete_asset(args : HttpAssets.DeleteAssetArguments) : async () {
-    assetCanister.delete_asset(caller, args);
-  };
-
-  public shared ({ caller }) func set_asset_properties(args : HttpAssets.SetAssetPropertiesArguments) : async () {
-    assetCanister.set_asset_properties(caller, args);
-  };
-
-  public shared ({ caller }) func clear(args : HttpAssets.ClearArguments) : async () {
-    assetCanister.clear(caller, args);
-  };
-
-  public shared ({ caller }) func create_batch(args : {}) : async (HttpAssets.CreateBatchResponse) {
-    assetCanister.create_batch(caller, args);
-  };
-
-  public shared ({ caller }) func create_chunk(args : HttpAssets.CreateChunkArguments) : async (HttpAssets.CreateChunkResponse) {
-    assetCanister.create_chunk(caller, args);
-  };
-
-  public shared ({ caller }) func create_chunks(args : HttpAssets.CreateChunksArguments) : async HttpAssets.CreateChunksResponse {
-    await* assetCanister.create_chunks(caller, args);
-  };
-
-  public shared ({ caller }) func commit_batch(args : HttpAssets.CommitBatchArguments) : async () {
-    await* assetCanister.commit_batch(caller, args);
-  };
-
-  public shared ({ caller }) func propose_commit_batch(args : HttpAssets.CommitBatchArguments) : async () {
-    assetCanister.propose_commit_batch(caller, args);
-  };
-
-  public shared ({ caller }) func commit_proposed_batch(args : HttpAssets.CommitProposedBatchArguments) : async () {
-    await* assetCanister.commit_proposed_batch(caller, args);
-  };
-
-  public shared ({ caller }) func compute_evidence(args : HttpAssets.ComputeEvidenceArguments) : async (?Blob) {
-    await* assetCanister.compute_evidence(caller, args);
-  };
-
-  public shared ({ caller }) func delete_batch(args : HttpAssets.DeleteBatchArguments) : async () {
-    assetCanister.delete_batch(caller, args);
-  };
-
-  public shared func list_permitted(args : HttpAssets.ListPermitted) : async ([Principal]) {
-    assetCanister.list_permitted(args);
-  };
-
-  public shared ({ caller }) func take_ownership() : async () {
-    await* assetCanister.take_ownership(caller);
-  };
-
-  public shared ({ caller }) func get_configuration() : async (HttpAssets.ConfigurationResponse) {
-    assetCanister.get_configuration(caller);
-  };
-
-  public shared ({ caller }) func configure(args : HttpAssets.ConfigureArguments) : async () {
-    assetCanister.configure(caller, args);
-  };
-
-  public shared func certified_tree(args : {}) : async (HttpAssets.CertifiedTree) {
-    assetCanister.certified_tree(args);
-  };
-
-  public shared func validate_grant_permission(args : HttpAssets.GrantPermission) : async (Result.Result<Text, Text>) {
-    assetCanister.validate_grant_permission(args);
-  };
-
-  public shared func validate_revoke_permission(args : HttpAssets.RevokePermission) : async (Result.Result<Text, Text>) {
-    assetCanister.validate_revoke_permission(args);
-  };
-
-  public shared func validate_take_ownership() : async (Result.Result<Text, Text>) {
-    assetCanister.validate_take_ownership();
-  };
-
-  public shared func validate_commit_proposed_batch(args : HttpAssets.CommitProposedBatchArguments) : async (Result.Result<Text, Text>) {
-    assetCanister.validate_commit_proposed_batch(args);
-  };
-
-  public shared func validate_configure(args : HttpAssets.ConfigureArguments) : async (Result.Result<Text, Text>) {
-    assetCanister.validate_configure(args);
-  };
+  include HttpAssetsMixin(assetCanister);
 
   /* -------------------------------------------------------------------------- */
   /*                             Thumbnails methods                             */
   /* -------------------------------------------------------------------------- */
 
-  public shared ({ caller }) func saveThumbnail(args : Types.SaveThumbnailArguments) : async T.NodeDetails {
+  public shared ({ caller }) func saveThumbnail(args : { entry : T.Entry; thumbnail : { content : Blob; contentType : Text } }) : async T.NodeDetails {
     assert not Principal.isAnonymous(caller);
-    switch (EncryptedStorage.get(storage, caller, { entry = args.entry })) {
+    switch (es.get(caller, { entry = args.entry })) {
       case (#ok node) {
         let (#File(_)) = node.metadata else throw Error.reject("Directory does not support thumbnails");
         let filename = switch (Text.decodeUtf8(node.keyId.1)) {
@@ -481,7 +362,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
           entry = args.entry;
           thumbnailKey = ?storeArgs.key;
         };
-        switch (EncryptedStorage.setThumbnail(storage, caller, setThumbnailArgs)) {
+        switch (es.setThumbnail(caller, setThumbnailArgs)) {
           case (#ok node) node;
           case (#err message) throw Error.reject(message);
         };
@@ -490,8 +371,12 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  public shared func refreshSubscription() : async () {
-    ignore await* EncryptedStorage.refreshSubscription(storage);
+  public shared ({ caller }) func refreshSubscription() : async () {
+    assert Principal.equal(caller, owner) or Principal.equal(caller, canisterId) or Principal.isController(caller);
+    switch (await* SubscriptionGate.ensureSubscription(storage)) {
+      case (#err(message)) throw Error.reject(message);
+      case (#ok _) {};
+    };
   };
 
   public query func getCycleBalance() : async Nat {
@@ -499,7 +384,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   public query func getStatus() : async T.StorageStatus {
-    EncryptedStorage.getStatus(storage, Cycles.balance());
+    es.getStatus(Cycles.balance());
   };
 
   /// Get canister module_hash via canister_status.

@@ -198,10 +198,9 @@ module {
       // Get prevAvatarUrl before update
       let prevAvatarUrl : ?Text = switch (profilesCollection.search(callerQuery)) {
         case (#ok(results)) {
-          switch (List.fromArray<ZenDB.Types.WrapId<Profile>>(results) |> List.first(_)) {
-            case (?(_, profile)) profile.avatarUrl;
-            case null return #err("Profile not found");
-          };
+          if (results.size() == 0) return #err("Profile not found");
+          let (_, profile) = results[0];
+          profile.avatarUrl;
         };
         case (#err message) return #err(message);
       };
@@ -229,7 +228,8 @@ module {
       let callerQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
       let #ok(profiles) = profilesCollection.search(callerQuery) else return null;
-      let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(profiles) |> List.first(_) else return null;
+      if (profiles.size() == 0) return null;
+      let (_, profile) = profiles[0];
       ?profile;
     };
 
@@ -237,7 +237,8 @@ module {
       let callerQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
       let #ok(deletedProfiles) = profilesCollection.delete(callerQuery) else return #err("Failed to delete profile");
-      let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(deletedProfiles) |> List.first(_) else return #err("Profile not found");
+      if (deletedProfiles.size() == 0) return #err("Profile not found");
+      let (_, profile) = deletedProfiles[0];
 
       deleteIfDifferent(profile.avatarUrl, null); // always delete saved avatar
       deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), profile.avatarUrl);
@@ -254,7 +255,8 @@ module {
     public func resolveReferralCode(code : Text) : ?Principal {
       let q = ZenDB.QueryBuilder().Where("referralCode", #eq(#Option(#Text(code)))).Limit(1);
       let #ok(results) = profilesCollection.search(q) else return null;
-      let ?(_, profile) = List.fromArray<ZenDB.Types.WrapId<Profile>>(results) |> List.first(_) else return null;
+      if (results.size() == 0) return null;
+      let (_, profile) = results[0];
       ?profile.id;
     };
 

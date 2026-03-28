@@ -1,3 +1,4 @@
+import Principal "mo:core/Principal";
 import Time "mo:core/Time";
 
 import CoreMap "mo:core/Map";
@@ -115,6 +116,7 @@ module {
   public type ChunkId = Nat;
 
   public type Batch = {
+    owner : Principal;
     var expiresAt : Time.Time;
     var totalBytes : Nat;
     chunkIds : Vector.Vector<ChunkId>;

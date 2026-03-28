@@ -1,5 +1,6 @@
 /// The upload module is responsible for managing data that is uploaded but not yet committed to the canister.
 
+import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Nat64 "mo:core/Nat64";
@@ -97,7 +98,7 @@ module {
     Map.get(self.batches, nhash, batchId);
   };
 
-  public func createBatch(self : Store) : Result.Result<T.CreateBatchResponse, Text> {
+  public func createBatch(self : Store, caller : Principal) : Result.Result<T.CreateBatchResponse, Text> {
     let now = Time.now();
 
     for ((batchId, batch) in Map.entries(self.batches)) {
@@ -120,6 +121,7 @@ module {
     self.nextBatchId += 1;
 
     let batch : T.Batch = {
+      owner = caller;
       var expiresAt = now + Const.BATCH_EXPIRY_DURATION;
       var totalBytes = 0;
       chunkIds = Vector.new();
@@ -136,7 +138,7 @@ module {
     #ok;
   };
 
-  public func createChunk(self : Store, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> {
+  public func createChunk(self : Store, caller : Principal, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> {
     switch (self.configuration.maxChunks) {
       case (?maxChunks) {
         if (Nat64.fromNat(Map.size(self.chunks)) >= maxChunks) {
@@ -147,6 +149,9 @@ module {
     };
 
     let ?batch = Map.get(self.batches, nhash, args.batchId) else return #err(ErrorMessages.batchNotFound(args.batchId));
+    if (not Principal.equal(batch.owner, caller)) {
+      return #err("Batch " # debug_show args.batchId # " does not belong to caller");
+    };
     let contentSize = args.content.size();
 
     let totalBytesPlusNewChunk = Nat64.fromNat(batch.totalBytes) + Nat64.fromNat(contentSize);

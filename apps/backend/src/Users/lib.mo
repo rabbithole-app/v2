@@ -1,4 +1,3 @@
-import List "mo:core/List";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
@@ -51,7 +50,8 @@ module {
     public func get(caller : Principal) : ?User {
       let q = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
       let #ok(users) = usersCollection.search(q) else return null;
-      let ?(_, user) = List.fromArray<ZenDB.Types.WrapId<User>>(users) |> List.first(_) else return null;
+      if (users.size() == 0) return null;
+      let (_, user) = users[0];
       ?user;
     };
 

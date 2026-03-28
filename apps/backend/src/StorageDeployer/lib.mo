@@ -624,13 +624,6 @@ module StorageDeployerOrchestrator {
     };
   };
 
-  func _getWasmHash(store : Store, _releaseTag : Text) : ?Blob {
-    switch (GitHubReleases.latestStorageWasm(store.githubReleases)) {
-      case (#ok(details)) ?details.sha256;
-      case (#err(_)) null;
-    };
-  };
-
   func updateCanisterSettings(
     storageCanisterId : Principal,
     userPrincipal : Principal,

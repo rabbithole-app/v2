@@ -73,6 +73,25 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     assertAdmin,
   );
 
+  // --- Storage Deployer Helpers ---
+
+  func handleAssetDownloaded(details : StorageDeployerOrchestrator.DownloadDetails) {
+    if (Text.contains(details.name, #text ".wasm")) {
+      registerWasmHash(details.sha256, details.key);
+    };
+  };
+
+  transient let startCallbacks : StorageDeployerOrchestrator.StartCallbacks = {
+    onAssetDownloaded = ?handleAssetDownloaded;
+  };
+
+  func syncLatestWasmHash() {
+    switch (StorageDeployerOrchestrator.getLatestWasmHash(storageOrchestrator)) {
+      case (?(hash, tag)) registerWasmHash(hash, tag);
+      case null {};
+    };
+  };
+
   // --- System lifecycle ---
 
   system func preupgrade() {
@@ -82,18 +101,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ignore Timer.setTimer<system>(
     #seconds 0,
     func() : async () {
-      await StorageDeployerOrchestrator.start<system>(storageOrchestrator, {
-        onAssetDownloaded = ?(func(details : StorageDeployerOrchestrator.DownloadDetails) {
-          if (Text.contains(details.name, #text ".wasm")) {
-            registerWasmHash(details.sha256, details.key);
-          };
-        });
-      });
-      // After start, downloads may have completed — register hash if available
-      switch (StorageDeployerOrchestrator.getLatestWasmHash(storageOrchestrator)) {
-        case (?(hash, tag)) registerWasmHash(hash, tag);
-        case null {};
-      };
+      await StorageDeployerOrchestrator.start<system>(storageOrchestrator, startCallbacks);
+      syncLatestWasmHash();
     },
   );
 
@@ -102,12 +111,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     for (userId in expiredUsers.vals()) {
       notifyUser(userId, #subscriptionExpired);
     };
-
-    // Register WASM hash if new release was downloaded since last check
-    switch (StorageDeployerOrchestrator.getLatestWasmHash(storageOrchestrator)) {
-      case (?(hash, tag)) registerWasmHash(hash, tag);
-      case null {};
-    };
+    syncLatestWasmHash();
   });
 
   // --- Storage Deployer API ---
@@ -150,13 +154,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public shared ({ caller }) func startStorageDeployer() : async () {
     assertAdmin(caller);
-    await StorageDeployerOrchestrator.start<system>(storageOrchestrator, {
-      onAssetDownloaded = ?(func(details : StorageDeployerOrchestrator.DownloadDetails) {
-        if (Text.contains(details.name, #text ".wasm")) {
-          registerWasmHash(details.sha256, details.key);
-        };
-      });
-    });
+    await StorageDeployerOrchestrator.start<system>(storageOrchestrator, startCallbacks);
   };
 
   public shared ({ caller }) func stopStorageDeployer() : async () {
@@ -172,10 +170,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// Called after release download completes to make hash available for addStorage verification.
   public shared ({ caller }) func registerLatestWasmHash() : async () {
     assertAdmin(caller);
-    switch (StorageDeployerOrchestrator.getLatestWasmHash(storageOrchestrator)) {
-      case (?(hash, tag)) registerWasmHash(hash, tag);
-      case null {};
-    };
+    syncLatestWasmHash();
   };
 
   // --- Storage Canister Callbacks ---
@@ -183,14 +178,12 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// Called by storage canister when cycle balance is low.
   /// Caller must be the storage canister itself (canisterId == caller).
   public shared ({ caller }) func onStorageLowCycles(
-    canisterId : Principal,
     balance : Nat,
     daysLeft : Nat,
     severity : { #warning; #critical },
   ) : async () {
-    assert caller == canisterId;
     let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(storageOrchestrator, caller) else return;
-    notifyUser(storageOwner, #lowCycles({ canisterId; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
+    notifyUser(storageOwner, #lowCycles({ canisterId = caller; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
   };
 
   public query func getReleasesFullStatus() : async StorageDeployerOrchestrator.ReleasesFullStatus {

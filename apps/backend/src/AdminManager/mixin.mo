@@ -27,7 +27,8 @@ mixin(installer : Principal) {
     ignore Set.delete(admins, Principal.compare, target);
   };
 
-  public query func listAdmins() : async [Principal] {
+  public query ({ caller }) func listAdmins() : async [Principal] {
+    assertAdmin(caller);
     Set.toArray(admins);
   };
 

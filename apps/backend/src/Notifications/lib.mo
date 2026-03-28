@@ -5,11 +5,9 @@ import Time "mo:core/Time";
 
 import Vector "mo:vector";
 
-import Subscriptions "../Subscriptions/lib";
-
 module {
   public type TypedEvent = {
-    #subscriptionActivated : { plan : Subscriptions.Plan };
+    #subscriptionActivated : { plan : { #Free; #Trial; #License; #Pro } };
     #subscriptionExpired;
     #trialStarted : { limitBytes : Nat };
     #lowCycles : {

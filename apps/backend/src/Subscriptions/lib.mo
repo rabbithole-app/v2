@@ -154,7 +154,8 @@ module {
     func findSubscription(userId : Principal) : ?(Nat, Subscription) {
       let q = ZenDB.QueryBuilder().Where("userId", #eq(#Principal(userId))).Limit(1);
       let #ok(results) = collection.search(q) else return null;
-      List.fromArray<ZenDB.Types.WrapId<Subscription>>(results) |> List.first(_);
+      if (results.size() == 0) return null;
+      ?results[0];
     };
 
     public func getSubscription(userId : Principal) : ?Subscription {
@@ -234,7 +235,8 @@ module {
     public func recordTrialBytes(userId : Principal, bytes : Nat) {
       let q = ZenDB.QueryBuilder().Where("userId", #eq(#Principal(userId))).Limit(1);
       let #ok(results) = collection.search(q) else return;
-      let ?(docId, sub) = List.fromArray<ZenDB.Types.WrapId<Subscription>>(results) |> List.first(_) else return;
+      if (results.size() == 0) return;
+      let (docId, sub) = results[0];
 
       ignore collection.updateById(docId, [
         ("trialUsedBytes", #Nat(sub.trialUsedBytes + bytes)),

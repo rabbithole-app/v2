@@ -1,4 +1,3 @@
-import Debug "mo:base/Debug";
 import Cycles "mo:core/Cycles";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
@@ -6,8 +5,8 @@ import Time "mo:core/Time";
 
 import IC "mo:ic";
 
-import T "Types";
-import Const "Const";
+import T "mo:encrypted-storage/Types";
+import Const "mo:encrypted-storage/Const";
 
 module SubscriptionGate {
 
@@ -20,20 +19,20 @@ module SubscriptionGate {
 
   /// Async subscription check — refreshes cache if stale.
   /// Call from actor-level methods via `await*`.
-  public func ensureSubscription(self : T.StableStore) : async* T.SubscriptionStatus {
+  public func ensureSubscription(self : T.StableStore) : async* Result.Result<T.SubscriptionStatus, Text> {
     // 1. Check cache freshness
     switch (self.subscriptionCache) {
       case (?cache) {
         let age : Int = Time.now() - cache.checkedAt;
         if (age >= 0 and age < Const.SUBSCRIPTION_CACHE_TTL) {
-          return cache.status;
+          return #ok(cache.status);
         };
       };
       case null {};
     };
 
     // 2. Require backendId
-    let ?backendPrincipal = self.backendId else Debug.trap("backendId not set");
+    let ?backendPrincipal = self.backendId else return #err("backendId not set — cannot check subscription");
 
     // 3. Get module hash (cached or fetch via canister_info)
     let moduleHash = switch (self.cachedModuleHash) {
@@ -43,7 +42,7 @@ module SubscriptionGate {
           canister_id = self.canisterId;
           num_requested_changes = ?0;
         });
-        let ?hash = info.module_hash else Debug.trap("No module hash — canister has no installed code");
+        let ?hash = info.module_hash else return #err("No module hash — canister has no installed code");
         self.cachedModuleHash := ?hash;
         hash;
       };
@@ -68,7 +67,7 @@ module SubscriptionGate {
           canister_id = self.canisterId;
           num_requested_changes = ?0;
         });
-        let ?newHash = info.module_hash else Debug.trap("No module hash");
+        let ?newHash = info.module_hash else return #err("No module hash after retry");
         self.cachedModuleHash := ?newHash;
         result := await backend.checkSubscription(newHash);
       };
@@ -93,7 +92,7 @@ module SubscriptionGate {
       };
     };
 
-    result;
+    #ok(result);
   };
 
   /* ----------------------------- Sync Gates ------------------------------- */
@@ -120,10 +119,9 @@ module SubscriptionGate {
   /// Shared users can only decrypt when active/trial.
   public func canDecrypt(self : T.StableStore, caller : Principal, owner : Principal) : Result.Result<(), Text> {
     if (caller == owner) {
-      // Owner: allowed when active, trial, or expired
+      // Owner can ALWAYS decrypt their own files — sovereignty guarantee
       switch (self.subscriptionCache) {
-        case (?{ status = #active(_) or #trial(_) or #expired }) #ok;
-        case (?{ status = #free }) #err("Encryption requires a subscription");
+        case (?{ status = #active(_) or #trial(_) or #expired or #free }) #ok;
         case (?{ status = #invalidWasm }) #err("Invalid WASM — contact support");
         case (?{ status = #unknownCanister }) #err("Unknown canister — contact support");
         case null #err("Subscription status unknown — call refreshSubscription first");
