@@ -1,0 +1,48 @@
+{
+  "name": "encrypted-storage-mo",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/motoko/encrypted-storage",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/encrypted-storage && dfx canister create --all && dfx build encrypted-storage'",
+        "parallel": false
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko/encrypted-storage",
+        "command": "vitest",
+        "parallel": false
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/encrypted-storage && npx lintoko'",
+        "parallel": false
+      }
+    },
+    "doc": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/encrypted-storage && $(dfx cache show)/mo-doc --source src --format plain'",
+        "parallel": false
+      }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/encrypted-storage && dfx deploy encrypted-storage'",
+        "parallel": false
+      }
+    }
+  }
+}

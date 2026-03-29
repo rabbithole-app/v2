@@ -1,0 +1,40 @@
+{
+  "name": "icpay-webhooks-mo",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/motoko/icpay-webhooks",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/icpay-webhooks && dfx canister create --all && dfx build example'",
+        "parallel": false
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko/icpay-webhooks",
+        "command": "vitest",
+        "parallel": false
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko/icpay-webhooks",
+        "command": "docker compose -f docker-compose.integration.yml up",
+        "parallel": false
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/icpay-webhooks && npx lintoko'",
+        "parallel": false
+      }
+    }
+  }
+}

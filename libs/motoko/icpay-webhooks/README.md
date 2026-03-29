@@ -201,16 +201,41 @@ The middleware automatically detects the blockchain network from the `ledgerCani
 9. Mark event as processed
 10. Return 200
 
-## Testing
+## Development
 
-Tests use [PocketIC](https://github.com/dfinity/pic-js) with an example canister:
+Requires the shared `motoko-libs` Docker container for compilation (`libs/motoko/docker-compose.yml`).
 
 ```bash
-# Build the example canister
-docker compose exec -T replica bash -lc "dfx build example"
+# Build wasm (requires motoko-libs container running)
+npx nx build icpay-webhooks-mo
 
-# Run tests
-docker compose exec -T replica bash -lc "cd /app && npx vitest run"
+# Run unit tests (local, uses PocketIC)
+npx nx test icpay-webhooks-mo
+
+# Lint
+npx nx lint icpay-webhooks-mo
+```
+
+### Integration testing with ICPay
+
+To test real webhooks from ICPay, use the integration compose which creates a Cloudflare tunnel exposing the canister to the internet.
+
+```bash
+# Set your ICPay webhook secret (or create .env file)
+export ICPAY_SECRET_KEY="your-secret"
+
+# Start replica + nginx + cloudflared tunnel
+npx nx serve icpay-webhooks-mo
+
+# Get the public tunnel URL
+docker compose -f docker-compose.integration.yml logs cloudflared
+# Look for: https://<random-id>.trycloudflare.com
+
+# Use this URL as the webhook endpoint in the ICPay dashboard.
+# Flow: ICPay -> cloudflared -> nginx -> DFX replica -> canister
+
+# Stop
+docker compose -f docker-compose.integration.yml down
 ```
 
 ## License

@@ -1,0 +1,32 @@
+{
+  "name": "auth-jwt-mo",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/motoko/auth-jwt",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/auth-jwt && dfx canister create --all && dfx build example'",
+        "parallel": false
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko/auth-jwt",
+        "command": "vitest",
+        "parallel": false
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/auth-jwt && npx lintoko'",
+        "parallel": false
+      }
+    }
+  }
+}

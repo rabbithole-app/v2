@@ -12,10 +12,13 @@ This is an Nx monorepo for a decentralized application built on the Internet Com
 
 - **apps/rabbithole**: Main Angular 20 application (frontend)
 - **apps/backend**: ICP/dfx backend with Motoko canisters
+- **apps/treasury-mo**: Treasury canister (payments, fund distribution)
 - **apps/storage**: Storage-specific Angular application
 - **apps/tauri-app**: Desktop application using Tauri
 - **apps/\*-e2e**: E2E test projects using Playwright
 - **libs/**: Shared libraries organized by domain
+- **libs/motoko/**: Motoko canister libraries (shared Docker infrastructure)
+- **infra/motoko-dev/**: Shared Dockerfile and entrypoint for all Motoko projects
 
 ### Key Libraries
 
@@ -28,6 +31,14 @@ This is an Nx monorepo for a decentralized application built on the Internet Com
 - **libs/utils**: Utility functions
 - **libs/shared**: Shared types and utilities
 
+### Motoko Libraries (libs/motoko/)
+
+- **libs/motoko/encrypted-storage**: Encrypted storage canister library (used by backend)
+- **libs/motoko/icpay-webhooks**: ICPay webhook handler library
+- **libs/motoko/auth-jwt**: JWT authentication library
+
+All Motoko libraries share a single Docker container (`libs/motoko/docker-compose.yml`) built from `infra/motoko-dev/Dockerfile`. Build/test commands run via `docker compose exec`.
+
 ### Backend (Internet Computer)
 
 The backend runs on ICP using Motoko smart contracts (canisters):
@@ -39,9 +50,16 @@ The backend runs on ICP using Motoko smart contracts (canisters):
 
 Backend development uses Docker Compose with:
 
-- Caddy reverse proxy for HTTPS
+- Shared Dockerfile at `infra/motoko-dev/Dockerfile` (all Motoko projects)
+- Shared entrypoint base at `infra/motoko-dev/entrypoint-base.sh`
+- Caddy reverse proxy for HTTPS (backend only)
 - DFX (DFINITY Canister SDK) for building and deploying canisters
 - Mops package manager for Motoko dependencies
+
+Docker containers:
+- **apps/backend**: caddy + mock-server + backend replica (3 services)
+- **apps/treasury-mo**: single replica with evm_rpc/sol_rpc
+- **libs/motoko**: single shared replica for all Motoko libraries
 
 ## Development Commands
 

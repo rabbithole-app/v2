@@ -16,7 +16,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/treasury-mo",
-        "command": "docker compose exec -T replica bash -lc 'cd /app && npx vitest'",
+        "command": "vitest",
         "parallel": false
       }
     },
