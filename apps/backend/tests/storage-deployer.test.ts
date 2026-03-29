@@ -677,15 +677,16 @@ describe("StorageDeployer", () => {
       : "";
     console.log("Original frontend hash:", originalHash.slice(0, 16) + "...");
 
-    // Call refreshReleases and mock HTTP outcalls concurrently
-    // (same pattern as github-releases.test.ts)
-    const refreshPromise = backendFixture.actor.refreshReleases();
+    // Advance time by 1 day to trigger the daily recurring timer
+    // which calls checkAndDownloadReleases via timer (not blocking update call).
+    // Direct refreshReleases() uses `await` for HTTP outcalls which deadlocks with PocketIC polling.
+    await manager.pic.advanceTime(86_400_000);
 
     await runHttpDownloaderQueueProcessor(
       manager.pic,
       async () => {
-        const status = await backendFixture.actor.getReleasesFullStatus();
-        const frontendAsset = status.releases[0]?.assets.find(a => a.name.includes("frontend"));
+        const releasesStatus = await backendFixture.actor.getReleasesFullStatus();
+        const frontendAsset = releasesStatus.releases[0]?.assets.find(a => a.name.includes("frontend"));
         if (frontendAsset?.sha256?.length !== 1) return false;
         const currentHash = Buffer.from(frontendAsset.sha256[0]).toString("hex");
         return currentHash !== originalHash;
@@ -693,7 +694,6 @@ describe("StorageDeployer", () => {
       { frontend: frontendV2Content },
     );
 
-    await refreshPromise;
     await manager.pic.tick();
 
     // Wait for frontend extraction

@@ -1471,6 +1471,10 @@ describe('FileSystem', () => {
     });
     const preReinstallTree = await actor.showTree([]);
 
+    // Advance time to reset install_code rate limiter
+    await pic.advanceTime(600_000);
+    await pic.tick(10);
+
     await pic.reinstallCode({
       canisterId,
       wasm: WASM_PATH,

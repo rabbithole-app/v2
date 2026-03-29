@@ -184,13 +184,13 @@ describe("GitHub Releases", () => {
 
     console.log("\nTriggering refreshReleases with v2 frontend (different content)...");
 
-    // Call refreshReleases and process HTTP outcalls concurrently
-    // refreshReleases internally awaits HTTP outcalls, so we need to mock them in parallel
-    const refreshPromise = backendFixture.actor.refreshReleases();
+    // Advance time by 1 day to trigger the daily recurring timer
+    // which calls checkAndDownloadReleases via timer (not blocking update call).
+    // Direct refreshReleases() uses `await` for HTTP outcalls which deadlocks with PocketIC polling.
+    await manager.pic.advanceTime(86_400_000);
 
     // Process pending HTTP outcalls with v2 frontend asset
-    // This simulates GitHub API reporting a new hash and serving new content
-    // We wait until the hash CHANGES from the original (not just exists)
+    // We wait until the hash CHANGES from the original (invalidation + re-download completed)
     await runHttpDownloaderQueueProcessor(
       manager.pic,
       async () => {
@@ -205,8 +205,6 @@ describe("GitHub Releases", () => {
       { frontend: frontendV2Content },
     );
 
-    // Wait for refreshReleases to complete
-    await refreshPromise;
     await manager.pic.tick();
 
     // Get status after invalidation and re-download

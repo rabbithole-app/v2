@@ -12,5 +12,6 @@ export default defineConfig({
     hookTimeout: 300_000,
     watch: false,
     pool: "forks",
+    fileParallelism: false,
   },
 });
