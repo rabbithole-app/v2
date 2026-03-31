@@ -17,6 +17,11 @@ module {
       severity : { #warning; #critical };
     };
     #updateAvailable : { canisterId : Principal; releaseTag : Text };
+    #paymentReceived : { purpose : Text; amount : Nat; tokenId : Text };
+    #depositReceived : { amount : Nat; tokenId : Text };
+    #subscriptionRenewed : { plan : { #Free; #Trial; #License; #Pro }; expiresAt : ?Int };
+    #balanceLow : { requiredAmount : Nat };
+    #autoRenewFailed : { reason : Text };
   };
 
   public type StoredNotification = {

@@ -1,3 +1,4 @@
+import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Option "mo:core/Option";
 import Principal "mo:core/Principal";
@@ -6,6 +7,7 @@ import Text "mo:core/Text";
 import Timer "mo:core/Timer";
 
 import Liminal "mo:liminal";
+import LiminalApp "mo:liminal/App";
 import ZenDB "mo:zendb";
 import CORSMiddleware "mo:liminal/Middleware/CORS";
 import AssetsMiddleware "mo:liminal/Middleware/Assets";
@@ -19,7 +21,11 @@ import KnownWasmHashesMixin "KnownWasmHashes/mixin";
 import UsersMixin "Users/mixin";
 import ProfilesMixin "Profiles/mixin";
 import NotificationsMixin "Notifications/mixin";
+import SettingsMixin "Settings/mixin";
+import TreasuryMixin "Treasury/mixin";
 import SubscriptionsMixin "Subscriptions/mixin";
+import PaymentsMixin "Payments/mixin";
+import BalanceMixin "Balance/mixin";
 
 import Types "Types";
 
@@ -66,11 +72,30 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   );
   include UsersMixin(db, resolveReferralCode);
   include NotificationsMixin();
+  include SettingsMixin();
+  include TreasuryMixin(canisterId, installer, initArgs.evmConfig, initArgs.solConfig, assertAdmin);
   include SubscriptionsMixin(
     db,
     func(cId : Principal) : ?Principal = StorageDeployerOrchestrator.findOwnerByCanister(storageOrchestrator, cId),
     isKnownWasm,
     assertAdmin,
+  );
+  include PaymentsMixin(
+    initArgs.icpaySecretKey,
+    assertAdmin,
+    notifyUser,
+    getAmbassadorChain,
+    activateSubscriptionInternal,
+    treasuryDistributePayment,
+  );
+  include BalanceMixin(
+    getUserSettings,
+    getExpiringSubscriptions,
+    getAmbassadorChain,
+    activateSubscriptionInternal,
+    notifyUser,
+    treasuryChargeAndDistribute,
+    treasuryGetUserBalances,
   );
 
   // --- Storage Deployer Helpers ---
@@ -106,12 +131,19 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     },
   );
 
+  // Payment queue drain: check every 10 seconds if there are queued events
+  ignore Timer.recurringTimer<system>(#seconds(10), func() : async () {
+    schedulePaymentDrain<system>();
+  });
+
+  // Daily timer: expire subscriptions + auto-renew
   ignore Timer.recurringTimer<system>(#seconds(86400), func() : async () {
     let expiredUsers = expireOverdueSubscriptions();
     for (userId in expiredUsers.vals()) {
       notifyUser(userId, #subscriptionExpired);
     };
     syncLatestWasmHash();
+    await processAutoRenewals();
   });
 
   // --- Storage Deployer API ---
@@ -167,7 +199,6 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
 
   /// Register the latest downloaded WASM hash as known.
-  /// Called after release download completes to make hash available for addStorage verification.
   public shared ({ caller }) func registerLatestWasmHash() : async () {
     assertAdmin(caller);
     syncLatestWasmHash();
@@ -175,8 +206,6 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   // --- Storage Canister Callbacks ---
 
-  /// Called by storage canister when cycle balance is low.
-  /// Caller must be the storage canister itself (canisterId == caller).
   public shared ({ caller }) func onStorageLowCycles(
     balance : Nat,
     daysLeft : Nat,
@@ -198,10 +227,13 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // --- HTTP interface ---
 
   transient let app = Liminal.App({
-    middleware = [
-      CORSMiddleware.default(),
-      AssetsMiddleware.new({ store = assetStore }),
-    ];
+    middleware = Array.concat<LiminalApp.Middleware>(
+      [
+        CORSMiddleware.default(),
+        AssetsMiddleware.new({ store = assetStore }),
+      ],
+      switch (getIcpayMiddleware()) { case (?m) [m]; case null [] },
+    );
     errorSerializer = Liminal.defaultJsonErrorSerializer;
     candidRepresentationNegotiator = Liminal.defaultCandidRepresentationNegotiator;
     logger = Liminal.buildDebugLogger(#info);

@@ -11,15 +11,19 @@ source /infra/entrypoint-base.sh
 MINTER_ACCOUNT_ID=$(dfx ledger account-id)
 echo "Minter account: $MINTER_ACCOUNT_ID"
 
-# Deploy canisters
+# Deploy canisters (non-fatal — container stays alive for manual builds)
 echo "Deploying canisters..."
-dfx deploy --network local rabbithole-backend
+if ! dfx deploy --network local rabbithole-backend; then
+  echo "WARNING: Backend deploy failed (compilation error?). Container stays alive for manual builds."
+fi
 
-BACKEND_ID=$(dfx canister id rabbithole-backend)
-OWNER_PRINCIPAL=$(dfx identity get-principal)
-dfx deploy --network local encrypted-storage --argument "(record { vetKeyName = \"dfx_test_key\"; owner = principal \"$OWNER_PRINCIPAL\"; backendId = principal \"$BACKEND_ID\" })"
-
-dfx generate || true
+if BACKEND_ID=$(dfx canister id rabbithole-backend 2>/dev/null); then
+  OWNER_PRINCIPAL=$(dfx identity get-principal)
+  dfx deploy --network local encrypted-storage --argument "(record { vetKeyName = \"dfx_test_key\"; owner = principal \"$OWNER_PRINCIPAL\"; backendId = principal \"$BACKEND_ID\" })" || echo "WARNING: encrypted-storage deploy failed."
+  dfx generate || true
+else
+  echo "WARNING: Backend not deployed, skipping encrypted-storage and generate."
+fi
 
 # Verify canisters are deployed
 echo "Verifying canisters are deployed..."

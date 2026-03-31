@@ -1,11 +1,31 @@
 export const idlFactory = ({ IDL }) => {
+  const SolConfig = IDL.Record({
+    'usdcMint' : IDL.Text,
+    'solRpcCanisterId' : IDL.Text,
+    'rpcUrl' : IDL.Opt(IDL.Text),
+    'schnorrKeyName' : IDL.Text,
+    'usdtMint' : IDL.Text,
+  });
+  const EvmConfig = IDL.Record({
+    'evmRpcCanisterId' : IDL.Text,
+    'rpcUrls' : IDL.Vec(IDL.Text),
+    'usdcContract' : IDL.Text,
+    'usdtContract' : IDL.Text,
+    'ecdsaKeyName' : IDL.Text,
+    'chainId' : IDL.Nat,
+  });
   const GithubOptions = IDL.Record({
     'token' : IDL.Opt(IDL.Text),
     'owner' : IDL.Text,
     'repo' : IDL.Text,
     'apiUrl' : IDL.Text,
   });
-  const InitArgs = IDL.Record({ 'github' : IDL.Opt(GithubOptions) });
+  const InitArgs = IDL.Record({
+    'solConfig' : IDL.Opt(SolConfig),
+    'evmConfig' : IDL.Opt(EvmConfig),
+    'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'github' : IDL.Opt(GithubOptions),
+  });
   const Plan = IDL.Variant({
     'Pro' : IDL.Null,
     'Free' : IDL.Null,
@@ -16,7 +36,7 @@ export const idlFactory = ({ IDL }) => {
     'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InvalidWasm' : IDL.Text,
   });
-  const Result_3 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const Result_4 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
   const UpdateInfo = IDL.Record({
     'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'wasmUpdateAvailable' : IDL.Bool,
@@ -101,21 +121,88 @@ export const idlFactory = ({ IDL }) => {
     'ReleaseNotFound' : IDL.Null,
     'TransferFailed' : TransferFromError,
   });
-  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
+  const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
   const DeleteStorageError = IDL.Variant({
     'NotFailed' : IDL.Null,
     'NotFound' : IDL.Null,
     'NotOwner' : IDL.Null,
   });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
   const AmbassadorChain = IDL.Record({
     'l1' : IDL.Opt(IDL.Principal),
     'l2' : IDL.Opt(IDL.Principal),
   });
+  const DistributionLogOptions = IDL.Record({
+    'offset' : IDL.Nat,
+    'limit' : IDL.Nat,
+  });
+  const DistributionStatus = IDL.Variant({
+    'completed' : IDL.Null,
+    'partial' : IDL.Null,
+  });
+  const TokenId = IDL.Variant({
+    'ICP' : IDL.Null,
+    'SOL' : IDL.Null,
+    'SolUSDC' : IDL.Null,
+    'SolUSDT' : IDL.Null,
+    'ckETH' : IDL.Null,
+    'ckUSDC' : IDL.Null,
+    'ckUSDT' : IDL.Null,
+    'BaseUSDC' : IDL.Null,
+    'BaseUSDT' : IDL.Null,
+    'BaseETH' : IDL.Null,
+  });
+  const TransferRecord = IDL.Record({
+    'tokenId' : TokenId,
+    'solSignature' : IDL.Opt(IDL.Text),
+    'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'recipient' : IDL.Principal,
+    'solAddress' : IDL.Opt(IDL.Text),
+    'error' : IDL.Opt(IDL.Text),
+    'blockIndex' : IDL.Opt(IDL.Nat),
+    'txHash' : IDL.Opt(IDL.Text),
+    'amount' : IDL.Nat,
+    'evmAddress' : IDL.Opt(IDL.Text),
+  });
+  const DistributionRecord = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : DistributionStatus,
+    'tokenId' : TokenId,
+    'l1Amount' : IDL.Nat,
+    'transfers' : IDL.Vec(TransferRecord),
+    'l2Amount' : IDL.Nat,
+    'ambassadorL1' : IDL.Opt(IDL.Principal),
+    'ambassadorL2' : IDL.Opt(IDL.Principal),
+    'totalAmount' : IDL.Nat,
+    'paymentId' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'payer' : IDL.Principal,
+    'treasuryAmount' : IDL.Nat,
+  });
   const Time = IDL.Int;
   const TypedEvent = IDL.Variant({
+    'depositReceived' : IDL.Record({
+      'tokenId' : IDL.Text,
+      'amount' : IDL.Nat,
+    }),
     'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
     'subscriptionExpired' : IDL.Null,
+    'autoRenewFailed' : IDL.Record({ 'reason' : IDL.Text }),
+    'subscriptionRenewed' : IDL.Record({
+      'expiresAt' : IDL.Opt(IDL.Int),
+      'plan' : IDL.Variant({
+        'Pro' : IDL.Null,
+        'Free' : IDL.Null,
+        'License' : IDL.Null,
+        'Trial' : IDL.Null,
+      }),
+    }),
+    'balanceLow' : IDL.Record({ 'requiredAmount' : IDL.Nat }),
+    'paymentReceived' : IDL.Record({
+      'tokenId' : IDL.Text,
+      'amount' : IDL.Nat,
+      'purpose' : IDL.Text,
+    }),
     'subscriptionActivated' : IDL.Record({
       'plan' : IDL.Variant({
         'Pro' : IDL.Null,
@@ -203,6 +290,21 @@ export const idlFactory = ({ IDL }) => {
     'releases' : IDL.Vec(ReleaseFullStatus),
     'completedDownloads' : IDL.Nat,
   });
+  const TokenId__1 = IDL.Variant({
+    'ICP' : IDL.Null,
+    'SOL' : IDL.Null,
+    'SolUSDC' : IDL.Null,
+    'SolUSDT' : IDL.Null,
+    'ckUSDC' : IDL.Null,
+    'ckUSDT' : IDL.Null,
+    'BaseUSDC' : IDL.Null,
+    'BaseUSDT' : IDL.Null,
+    'BaseETH' : IDL.Null,
+  });
+  const UserSettings = IDL.Record({
+    'spendingPriority' : IDL.Vec(TokenId__1),
+    'autoRenew' : IDL.Bool,
+  });
   const Status = IDL.Variant({
     'Active' : IDL.Null,
     'Cancelled' : IDL.Null,
@@ -219,6 +321,7 @@ export const idlFactory = ({ IDL }) => {
     'trialUsedBytes' : IDL.Nat,
     'autoRenew' : IDL.Bool,
   });
+  const BalanceEntry = IDL.Record({ 'tokenId' : TokenId, 'balance' : IDL.Nat });
   const User = IDL.Record({
     'id' : IDL.Principal,
     'inviter' : IDL.Opt(IDL.Principal),
@@ -360,6 +463,7 @@ export const idlFactory = ({ IDL }) => {
     'contentType' : IDL.Text,
     'filename' : IDL.Text,
   });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const UpdateProfileArgs = IDL.Record({
     'displayName' : IDL.Opt(IDL.Text),
     'avatarUrl' : IDL.Opt(IDL.Text),
@@ -373,6 +477,27 @@ export const idlFactory = ({ IDL }) => {
     'NotCompleted' : IDL.Null,
   });
   const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : UpgradeStorageError });
+  const WithdrawDestination = IDL.Variant({
+    'IC' : IDL.Record({
+      'owner' : IDL.Principal,
+      'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    }),
+    'EVM' : IDL.Record({ 'address' : IDL.Text }),
+    'SOL' : IDL.Record({ 'address' : IDL.Text }),
+  });
+  const WithdrawArgs = IDL.Record({
+    'to' : WithdrawDestination,
+    'tokenId' : TokenId,
+    'amount' : IDL.Nat,
+  });
+  const WithdrawError = IDL.Variant({
+    'BelowMinimum' : IDL.Record({ 'minimum' : IDL.Nat }),
+    'InsufficientBalance' : IDL.Record({ 'available' : IDL.Nat }),
+    'TransferFailed' : IDL.Text,
+    'EvmNotConfigured' : IDL.Null,
+    'SolNotConfigured' : IDL.Null,
+  });
+  const WithdrawResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : WithdrawError });
   const Rabbithole = IDL.Service({
     'activateSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
@@ -381,7 +506,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'activateTrial' : IDL.Func([], [], []),
     'addAdmin' : IDL.Func([IDL.Principal], [], []),
-    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_3], []),
+    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_4], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UpdateInfo)],
@@ -393,10 +518,28 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
-    'createStorage' : IDL.Func([CreateStorageOptions], [Result_2], []),
+    'createStorage' : IDL.Func([CreateStorageOptions], [Result_3], []),
     'deleteProfile' : IDL.Func([], [], []),
-    'deleteStorage' : IDL.Func([IDL.Nat], [Result_1], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result_2], []),
+    'flushPaymentQueue' : IDL.Func([], [], []),
     'getAmbassadorChainQuery' : IDL.Func([], [AmbassadorChain], ['query']),
+    'getDistributionLog' : IDL.Func(
+        [DistributionLogOptions],
+        [IDL.Vec(DistributionRecord)],
+        ['query'],
+      ),
+    'getEvmAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
+    'getMyWalletAddresses' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'icSubaccount' : IDL.Vec(IDL.Nat8),
+            'solAddress' : IDL.Opt(IDL.Text),
+            'evmAddress' : IDL.Opt(IDL.Text),
+          }),
+        ],
+        ['query'],
+      ),
     'getNotifications' : IDL.Func(
         [IDL.Opt(Time), IDL.Nat],
         [NotificationsPage],
@@ -404,7 +547,10 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
+    'getSettings' : IDL.Func([], [UserSettings], ['query']),
+    'getSolAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'getSubscription' : IDL.Func([], [IDL.Opt(Subscription)], ['query']),
+    'getTreasuryBalances' : IDL.Func([], [IDL.Vec(BalanceEntry)], []),
     'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUser' : IDL.Func([], [IDL.Opt(User)], ['query']),
     'http_request' : IDL.Func(
@@ -457,19 +603,42 @@ export const idlFactory = ({ IDL }) => {
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
+    'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result_1], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
+    'updateSettings' : IDL.Func([UserSettings], [], []),
     'upgradeStorage' : IDL.Func([IDL.Principal], [Result], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+    'withdraw' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
   });
   return Rabbithole;
 };
 export const init = ({ IDL }) => {
+  const SolConfig = IDL.Record({
+    'usdcMint' : IDL.Text,
+    'solRpcCanisterId' : IDL.Text,
+    'rpcUrl' : IDL.Opt(IDL.Text),
+    'schnorrKeyName' : IDL.Text,
+    'usdtMint' : IDL.Text,
+  });
+  const EvmConfig = IDL.Record({
+    'evmRpcCanisterId' : IDL.Text,
+    'rpcUrls' : IDL.Vec(IDL.Text),
+    'usdcContract' : IDL.Text,
+    'usdtContract' : IDL.Text,
+    'ecdsaKeyName' : IDL.Text,
+    'chainId' : IDL.Nat,
+  });
   const GithubOptions = IDL.Record({
     'token' : IDL.Opt(IDL.Text),
     'owner' : IDL.Text,
     'repo' : IDL.Text,
     'apiUrl' : IDL.Text,
   });
-  const InitArgs = IDL.Record({ 'github' : IDL.Opt(GithubOptions) });
+  const InitArgs = IDL.Record({
+    'solConfig' : IDL.Opt(SolConfig),
+    'evmConfig' : IDL.Opt(EvmConfig),
+    'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'github' : IDL.Opt(GithubOptions),
+  });
   return [InitArgs];
 };

@@ -28,6 +28,7 @@ export interface AssetFullStatus {
   'downloadStatus' : AssetDownloadStatus,
   'extractionStatus' : [] | [ExtractionStatus],
 }
+export interface BalanceEntry { 'tokenId' : TokenId, 'balance' : bigint }
 export type BlockIndex = bigint;
 export interface CallbackStreamingStrategy {
   'token' : StreamingToken,
@@ -77,6 +78,32 @@ export type CreationStatus = { 'Failed' : string } |
 export type DeleteStorageError = { 'NotFailed' : null } |
   { 'NotFound' : null } |
   { 'NotOwner' : null };
+export interface DistributionLogOptions { 'offset' : bigint, 'limit' : bigint }
+export interface DistributionRecord {
+  'id' : bigint,
+  'status' : DistributionStatus,
+  'tokenId' : TokenId,
+  'l1Amount' : bigint,
+  'transfers' : Array<TransferRecord>,
+  'l2Amount' : bigint,
+  'ambassadorL1' : [] | [Principal],
+  'ambassadorL2' : [] | [Principal],
+  'totalAmount' : bigint,
+  'paymentId' : string,
+  'timestamp' : bigint,
+  'payer' : Principal,
+  'treasuryAmount' : bigint,
+}
+export type DistributionStatus = { 'completed' : null } |
+  { 'partial' : null };
+export interface EvmConfig {
+  'evmRpcCanisterId' : string,
+  'rpcUrls' : Array<string>,
+  'usdcContract' : string,
+  'usdtContract' : string,
+  'ecdsaKeyName' : string,
+  'chainId' : bigint,
+}
 export type ExtractionStatus = { 'Idle' : null } |
   { 'Complete' : Array<FileMetadata> } |
   { 'Decoding' : { 'total' : bigint, 'processed' : bigint } };
@@ -106,7 +133,12 @@ export type Header = [string, string];
 export type Icrc1BlockIndex = bigint;
 export type Icrc1Timestamp = bigint;
 export type Icrc1Tokens = bigint;
-export interface InitArgs { 'github' : [] | [GithubOptions] }
+export interface InitArgs {
+  'solConfig' : [] | [SolConfig],
+  'evmConfig' : [] | [EvmConfig],
+  'icpaySecretKey' : [] | [Uint8Array | number[]],
+  'github' : [] | [GithubOptions],
+}
 export interface KnownWasmHash {
   'hash' : Uint8Array | number[],
   'releaseTag' : string,
@@ -167,21 +199,38 @@ export interface Rabbithole {
   >,
   'activateTrial' : ActorMethod<[], undefined>,
   'addAdmin' : ActorMethod<[Principal], undefined>,
-  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_3>,
+  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_4>,
   'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'checkSubscription' : ActorMethod<
     [Uint8Array | number[]],
     SubscriptionCheckResult
   >,
   'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
-  'createStorage' : ActorMethod<[CreateStorageOptions], Result_2>,
+  'createStorage' : ActorMethod<[CreateStorageOptions], Result_3>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_1>,
+  'deleteStorage' : ActorMethod<[bigint], Result_2>,
+  'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
+  'getDistributionLog' : ActorMethod<
+    [DistributionLogOptions],
+    Array<DistributionRecord>
+  >,
+  'getEvmAddress' : ActorMethod<[], [] | [string]>,
+  'getMyWalletAddresses' : ActorMethod<
+    [],
+    {
+      'icSubaccount' : Uint8Array | number[],
+      'solAddress' : [] | [string],
+      'evmAddress' : [] | [string],
+    }
+  >,
   'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
+  'getSettings' : ActorMethod<[], UserSettings>,
+  'getSolAddress' : ActorMethod<[], [] | [string]>,
   'getSubscription' : ActorMethod<[], [] | [Subscription]>,
+  'getTreasuryBalances' : ActorMethod<[], Array<BalanceEntry>>,
   'getUnreadCount' : ActorMethod<[], bigint>,
   'getUser' : ActorMethod<[], [] | [User]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
@@ -203,10 +252,6 @@ export interface Rabbithole {
   'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
   'markAllNotificationsAsRead' : ActorMethod<[], undefined>,
   'markNotificationsAsRead' : ActorMethod<[Array<bigint>], undefined>,
-  /**
-   * / Called by storage canister when cycle balance is low.
-   * / Caller must be the storage canister itself (canisterId == caller).
-   */
   'onStorageLowCycles' : ActorMethod<
     [bigint, bigint, { 'warning' : null } | { 'critical' : null }],
     undefined
@@ -215,7 +260,6 @@ export interface Rabbithole {
   'register' : ActorMethod<[[] | [string]], undefined>,
   /**
    * / Register the latest downloaded WASM hash as known.
-   * / Called after release download completes to make hash available for addStorage verification.
    */
   'registerLatestWasmHash' : ActorMethod<[], undefined>,
   'removeAdmin' : ActorMethod<[Principal], undefined>,
@@ -223,9 +267,12 @@ export interface Rabbithole {
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
+  'topUpFromBalance' : ActorMethod<[Principal, bigint], Result_1>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
+  'updateSettings' : ActorMethod<[UserSettings], undefined>,
   'upgradeStorage' : ActorMethod<[Principal], Result>,
   'usernameExists' : ActorMethod<[string], boolean>,
+  'withdraw' : ActorMethod<[WithdrawArgs], WithdrawResult>,
 }
 export interface RawQueryHttpRequest {
   'url' : string,
@@ -280,11 +327,20 @@ export interface ReleasesFullStatus {
 export type Result = { 'ok' : null } |
   { 'err' : UpgradeStorageError };
 export type Result_1 = { 'ok' : null } |
-  { 'err' : DeleteStorageError };
+  { 'err' : string };
 export type Result_2 = { 'ok' : null } |
+  { 'err' : DeleteStorageError };
+export type Result_3 = { 'ok' : null } |
   { 'err' : CreateStorageError };
-export type Result_3 = { 'ok' : bigint } |
+export type Result_4 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
+export interface SolConfig {
+  'usdcMint' : string,
+  'solRpcCanisterId' : string,
+  'rpcUrl' : [] | [string],
+  'schnorrKeyName' : string,
+  'usdtMint' : string,
+}
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
 export type Status = { 'Active' : null } |
@@ -338,6 +394,25 @@ export type SubscriptionCheckResult = {
 export type TargetCanister = { 'Existing' : Principal } |
   { 'Create' : { 'initialCycles' : bigint, 'subnetId' : [] | [Principal] } };
 export type Time = bigint;
+export type TokenId = { 'ICP' : null } |
+  { 'SOL' : null } |
+  { 'SolUSDC' : null } |
+  { 'SolUSDT' : null } |
+  { 'ckETH' : null } |
+  { 'ckUSDC' : null } |
+  { 'ckUSDT' : null } |
+  { 'BaseUSDC' : null } |
+  { 'BaseUSDT' : null } |
+  { 'BaseETH' : null };
+export type TokenId__1 = { 'ICP' : null } |
+  { 'SOL' : null } |
+  { 'SolUSDC' : null } |
+  { 'SolUSDT' : null } |
+  { 'ckUSDC' : null } |
+  { 'ckUSDT' : null } |
+  { 'BaseUSDC' : null } |
+  { 'BaseUSDT' : null } |
+  { 'BaseETH' : null };
 export type TransferFromError = {
     'GenericError' : { 'message' : string, 'error_code' : bigint }
   } |
@@ -349,8 +424,41 @@ export type TransferFromError = {
   { 'CreatedInFuture' : { 'ledger_time' : Icrc1Timestamp } } |
   { 'TooOld' : null } |
   { 'InsufficientFunds' : { 'balance' : Icrc1Tokens } };
-export type TypedEvent = { 'trialStarted' : { 'limitBytes' : bigint } } |
+export interface TransferRecord {
+  'tokenId' : TokenId,
+  'solSignature' : [] | [string],
+  'subaccount' : [] | [Uint8Array | number[]],
+  'recipient' : Principal,
+  'solAddress' : [] | [string],
+  'error' : [] | [string],
+  'blockIndex' : [] | [bigint],
+  'txHash' : [] | [string],
+  'amount' : bigint,
+  'evmAddress' : [] | [string],
+}
+export type TypedEvent = {
+    'depositReceived' : { 'tokenId' : string, 'amount' : bigint }
+  } |
+  { 'trialStarted' : { 'limitBytes' : bigint } } |
   { 'subscriptionExpired' : null } |
+  { 'autoRenewFailed' : { 'reason' : string } } |
+  {
+    'subscriptionRenewed' : {
+      'expiresAt' : [] | [bigint],
+      'plan' : { 'Pro' : null } |
+        { 'Free' : null } |
+        { 'License' : null } |
+        { 'Trial' : null },
+    }
+  } |
+  { 'balanceLow' : { 'requiredAmount' : bigint } } |
+  {
+    'paymentReceived' : {
+      'tokenId' : string,
+      'amount' : bigint,
+      'purpose' : string,
+    }
+  } |
   {
     'subscriptionActivated' : {
       'plan' : { 'Pro' : null } |
@@ -393,6 +501,27 @@ export interface User {
   'createdAt' : Time,
   'updatedAt' : Time,
 }
+export interface UserSettings {
+  'spendingPriority' : Array<TokenId__1>,
+  'autoRenew' : boolean,
+}
+export interface WithdrawArgs {
+  'to' : WithdrawDestination,
+  'tokenId' : TokenId,
+  'amount' : bigint,
+}
+export type WithdrawDestination = {
+    'IC' : { 'owner' : Principal, 'subaccount' : [] | [Uint8Array | number[]] }
+  } |
+  { 'EVM' : { 'address' : string } } |
+  { 'SOL' : { 'address' : string } };
+export type WithdrawError = { 'BelowMinimum' : { 'minimum' : bigint } } |
+  { 'InsufficientBalance' : { 'available' : bigint } } |
+  { 'TransferFailed' : string } |
+  { 'EvmNotConfigured' : null } |
+  { 'SolNotConfigured' : null };
+export type WithdrawResult = { 'ok' : bigint } |
+  { 'err' : WithdrawError };
 export interface _SERVICE extends Rabbithole {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

@@ -41,7 +41,7 @@ export class BackendManager extends BaseManager {
       await this.setupCanister<RabbitholeActorService>({
         idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
         wasm: RABBITHOLE_BACKEND_WASM_PATH,
-        arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
+        arg: IDL.encode(initBackend({ IDL }), [{ github: [], icpaySecretKey: [], evmConfig: [], solConfig: [] }]),
       });
 
     actor.setIdentity(this.ownerIdentity);
@@ -77,7 +77,7 @@ export class BackendManager extends BaseManager {
       sender: this.ownerIdentity.getPrincipal(),
       canisterId: fixture.canisterId,
       wasm: RABBITHOLE_BACKEND_WASM_PATH,
-      arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
+      arg: IDL.encode(initBackend({ IDL }), [{ github: [], icpaySecretKey: [], evmConfig: [], solConfig: [] }]),
       upgradeModeOptions: {
         skip_pre_upgrade: [],
         wasm_memory_persistence: [{ keep: null }],

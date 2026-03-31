@@ -1,5 +1,6 @@
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
+import Result "mo:core/Result";
 
 import Subscriptions "lib";
 import ZenDB "mo:zendb";
@@ -15,6 +16,16 @@ mixin(
   /// Expire overdue subscriptions. Available to other mixins in the actor.
   func expireOverdueSubscriptions() : [Principal] {
     subscriptions.expireOverdue();
+  };
+
+  /// Activate subscription internally (available to sibling mixins like PaymentsMixin).
+  func activateSubscriptionInternal(userId : Principal, plan : Subscriptions.Plan, expiresAt : ?Int) : Result.Result<(), Subscriptions.ActivateError> {
+    subscriptions.activateSubscription(userId, plan, expiresAt);
+  };
+
+  /// Get subscriptions expiring within hoursAhead hours. For auto-renew timer.
+  func getExpiringSubscriptions(hoursAhead : Nat) : [(Principal, Subscriptions.Subscription)] {
+    subscriptions.getExpiring(hoursAhead);
   };
 
   /// Called by storage canister (caller = canisterId) to check subscription status

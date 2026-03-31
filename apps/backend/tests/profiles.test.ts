@@ -38,7 +38,7 @@ async function createPic(): Promise<[PocketIc, CanisterFixture<RabbitholeActorSe
     wasm: WASM_PATH,
     sender: ownerIdentity.getPrincipal(),
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
-    arg: IDL.encode(initBackend({ IDL }), [{ github: [] }]),
+    arg: IDL.encode(initBackend({ IDL }), [{ github: [], icpaySecretKey: [], evmConfig: [], solConfig: [] }]),
   });
 
   // next block to init ecdsa keypair in the canister

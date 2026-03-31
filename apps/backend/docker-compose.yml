@@ -39,6 +39,8 @@ services:
       - ./:/app:rw
       - ../../:/workspace:rw
       - ../../libs/motoko/encrypted-storage:/encrypted-storage-mo:ro
+      - ../../libs/motoko/treasury:/treasury-mo:ro
+      - ../../libs/motoko/icpay-webhooks:/icpay-webhooks-mo:ro
       - ../../mops-patches:/mops-patches:ro
       - backend_node_modules:/app/node_modules
     entrypoint: ["bash", "-lc", "scripts/install.sh"]

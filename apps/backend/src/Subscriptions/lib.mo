@@ -232,6 +232,18 @@ module {
       expired;
     };
 
+    public func getExpiring(hoursAhead : Nat) : [(Principal, Subscription)] {
+      let now = Time.now();
+      let cutoff = now + hoursAhead * 60 * 60 * 1_000_000_000;
+      let q = ZenDB.QueryBuilder()
+        .Where("status", #eq(#Text("Active")))
+        .Where("expiresAt", #lte(#Option(#Int(cutoff))))
+        .Where("expiresAt", #gte(#Option(#Int(now))));
+
+      let #ok(results) = collection.search(q) else return [];
+      Array.map<(Nat, Subscription), (Principal, Subscription)>(results, func(_, sub) = (sub.userId, withEffectiveStatus(sub)));
+    };
+
     public func recordTrialBytes(userId : Principal, bytes : Nat) {
       let q = ZenDB.QueryBuilder().Where("userId", #eq(#Principal(userId))).Limit(1);
       let #ok(results) = collection.search(q) else return;
