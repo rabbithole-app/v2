@@ -3,6 +3,17 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 
 export interface BalanceEntry { 'tokenId' : TokenId, 'balance' : bigint }
+export interface ChargeAndDistributeArgs {
+  'tokenId' : TokenId,
+  'metadata' : [] | [string],
+  'userId' : Principal,
+  'ambassadorL1' : [] | [Principal],
+  'ambassadorL2' : [] | [Principal],
+  'totalAmount' : bigint,
+  'paymentId' : string,
+}
+export type ChargeAndDistributeResult = { 'ok' : DistributionRecord } |
+  { 'err' : DistributePaymentError };
 export interface DistributePaymentArgs {
   'tokenId' : TokenId,
   'metadata' : [] | [string],
@@ -110,6 +121,14 @@ export interface TransferVerification {
 }
 export interface TreasuryCanister {
   /**
+   * / Charge from user's wallet and distribute to treasury + ambassadors in one step.
+   * / Admin only. Transfers directly from user's derived wallets.
+   */
+  'chargeAndDistribute' : ActorMethod<
+    [ChargeAndDistributeArgs],
+    ChargeAndDistributeResult
+  >,
+  /**
    * / Distribute a payment among treasury and ambassadors.
    * / Only callable by the admin (Backend canister).
    */
@@ -154,6 +173,10 @@ export interface TreasuryCanister {
    * / This is the address used to sign SOL/SPL transfers in distributePayment.
    */
   'getTreasurySolSigningAddress' : ActorMethod<[], [] | [string]>,
+  /**
+   * / Get all balances for a user across IC tokens. Admin only.
+   */
+  'getUserBalances' : ActorMethod<[Principal], Array<BalanceEntry>>,
   /**
    * / Get distributions related to a specific user. Admin only.
    */

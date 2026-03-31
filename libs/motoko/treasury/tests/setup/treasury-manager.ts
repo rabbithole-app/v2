@@ -27,6 +27,18 @@ import {
   SOLANA_DEVNET_RPC,
 } from "./sol-signer";
 
+const ICRC1_LEDGER_WASM_PATH = resolve(
+  import.meta.dirname,
+  "wasm",
+  "ic-icrc1-ledger.wasm.gz",
+);
+
+// Re-export the init function from the generated IDL for ckUSDC ledger
+import { idlFactory as icrc1LedgerIdlFactory, init as icrc1LedgerInit } from "./wasm/icrc1-ledger.idl.js";
+export { icrc1LedgerIdlFactory, icrc1LedgerInit };
+
+const CKUSDC_FEE = 10_000n; // 0.01 USDC (6 decimals)
+
 const TREASURY_WASM_PATH = resolve(
   import.meta.dirname,
   "..",
@@ -453,6 +465,119 @@ export class TreasuryManager extends BaseManager {
     return address[0];
   }
 
+  /** Deploy ckUSDC ICRC-1 ledger on fiduciary subnet with mainnet canister ID. */
+  static async createWithCkUsdc(): Promise<TreasuryManager> {
+    const adminIdentity = createIdentity("treasury-admin");
+    // Fiduciary subnet allows targetCanisterId for mainnet ckUSDC canister ID
+    const base = await BaseManager.create({ fiduciary: true });
+
+    // Get fiduciary subnet
+    const fiduciarySubnet = await base.pic.getFiduciarySubnet();
+    if (!fiduciarySubnet) throw new Error("Fiduciary subnet not found. Use BaseManager.create({ fiduciary: true })");
+
+    // Deploy ckUSDC ICRC-1 ledger with mainnet canister ID on fiduciary subnet
+    const ckUsdcCanisterId = Principal.fromText("xevnm-gaaaa-aaaar-qafnq-cai");
+    const initArg = IDL.encode(icrc1LedgerInit({ IDL }), [
+      {
+        Init: {
+          decimals: [6],
+          token_symbol: "ckUSDC",
+          transfer_fee: CKUSDC_FEE,
+          metadata: [],
+          minting_account: { owner: minterIdentity.getPrincipal(), subaccount: [] },
+          initial_balances: [],
+          fee_collector_account: [],
+          archive_options: {
+            num_blocks_to_archive: 1000n,
+            max_transactions_per_response: [],
+            trigger_threshold: 2000n,
+            more_controller_ids: [],
+            max_message_size_bytes: [],
+            cycles_for_archive_creation: [],
+            node_max_memory_size_bytes: [],
+            controller_id: adminIdentity.getPrincipal(),
+          },
+          max_memo_length: [],
+          index_principal: [],
+          token_name: "Chain-Key USDC",
+          feature_flags: [{ icrc2: true }],
+        },
+      },
+    ]);
+
+    await base.pic.setupCanister({
+      targetCanisterId: ckUsdcCanisterId,
+      targetSubnetId: fiduciarySubnet.id,
+      wasm: ICRC1_LEDGER_WASM_PATH,
+      idlFactory: icrc1LedgerIdlFactory,
+      arg: initArg,
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    // Deploy treasury on application subnet (uses hardcoded ckUSDC canister ID from Const.mo)
+    const fixture = await base.setupCanister<TreasuryService>({
+      idlFactory: treasuryIdlFactory,
+      wasm: TREASURY_WASM_PATH,
+      arg: IDL.encode(treasuryInit({ IDL }), [
+        {
+          admin: adminIdentity.getPrincipal(),
+          evmConfig: [],
+          solConfig: [],
+          distributionConfig: [],
+        },
+      ]),
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    const deferredActor = base.pic.createDeferredActor<TreasuryService>(
+      treasuryIdlFactory,
+      fixture.canisterId,
+    );
+
+    const manager = new TreasuryManager(
+      base,
+      fixture.actor,
+      deferredActor,
+      fixture.canisterId,
+      adminIdentity,
+    );
+    manager._ckUsdcCanisterId = ckUsdcCanisterId;
+    return manager;
+  }
+
+  _ckUsdcCanisterId?: Principal;
+  _nnsSubnetId?: Principal;
+
+  /** Mint ckUSDC to a user's subaccount on the Treasury canister. */
+  async mintCkUsdcToUserSubaccount(userPrincipal: Principal, amount: bigint): Promise<void> {
+    if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed. Use createWithCkUsdc().");
+    const ckUsdcActor = this.pic.createActor(icrc1LedgerIdlFactory, this._ckUsdcCanisterId);
+    ckUsdcActor.setIdentity(minterIdentity);
+    const subaccount = principalToSubAccount(userPrincipal);
+    const result = await ckUsdcActor.icrc1_transfer({
+      to: { owner: this.treasuryCanisterId, subaccount: [subaccount] },
+      fee: [],
+      memo: [],
+      from_subaccount: [],
+      created_at_time: [],
+      amount,
+    });
+    if (!("Ok" in (result as Record<string, unknown>))) {
+      throw new Error(`mintCkUsdcToUserSubaccount failed: ${JSON.stringify(result)}`);
+    }
+  }
+
+  /** Get ckUSDC balance of a subaccount under the Treasury canister. */
+  async getCkUsdcSubaccountBalance(userPrincipal: Principal): Promise<bigint> {
+    if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed.");
+    const ckUsdcActor = this.pic.createActor(icrc1LedgerIdlFactory, this._ckUsdcCanisterId);
+    const subaccount = principalToSubAccount(userPrincipal);
+    return ckUsdcActor.icrc1_balance_of({
+      owner: this.treasuryCanisterId,
+      subaccount: [subaccount],
+    }) as Promise<bigint>;
+  }
+
   /** Mint ICP to Treasury canister's default account (simulating ICPay deposit). */
   async mintToTreasury(amount: bigint): Promise<void> {
     this.icpLedgerActor.setIdentity(minterIdentity);
@@ -466,6 +591,23 @@ export class TreasuryManager extends BaseManager {
     });
     if (!("Ok" in result)) {
       throw new Error(`mintToTreasury failed: ${JSON.stringify(result)}`);
+    }
+  }
+
+  /** Mint ICP to a user's subaccount on the Treasury canister (simulating user deposit). */
+  async mintToUserSubaccount(userPrincipal: Principal, amount: bigint): Promise<void> {
+    const subaccount = principalToSubAccount(userPrincipal);
+    this.icpLedgerActor.setIdentity(minterIdentity);
+    const result = await this.icpLedgerActor.icrc1_transfer({
+      to: { owner: this.treasuryCanisterId, subaccount: [subaccount] },
+      fee: [],
+      memo: [],
+      from_subaccount: [],
+      created_at_time: [],
+      amount,
+    });
+    if (!("Ok" in result)) {
+      throw new Error(`mintToUserSubaccount failed: ${JSON.stringify(result)}`);
     }
   }
 }

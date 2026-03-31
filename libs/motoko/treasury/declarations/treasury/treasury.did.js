@@ -49,14 +49,14 @@ export const idlFactory = ({ IDL }) => {
     'BaseUSDT' : IDL.Null,
     'BaseETH' : IDL.Null,
   });
-  const DistributePaymentArgs = IDL.Record({
+  const ChargeAndDistributeArgs = IDL.Record({
     'tokenId' : TokenId,
     'metadata' : IDL.Opt(IDL.Text),
+    'userId' : IDL.Principal,
     'ambassadorL1' : IDL.Opt(IDL.Principal),
     'ambassadorL2' : IDL.Opt(IDL.Principal),
+    'totalAmount' : IDL.Nat,
     'paymentId' : IDL.Text,
-    'payer' : IDL.Principal,
-    'amount' : IDL.Nat,
   });
   const DistributionStatus = IDL.Variant({
     'completed' : IDL.Null,
@@ -100,6 +100,19 @@ export const idlFactory = ({ IDL }) => {
     }),
     'EvmNotConfigured' : IDL.Null,
     'SolNotConfigured' : IDL.Null,
+  });
+  const ChargeAndDistributeResult = IDL.Variant({
+    'ok' : DistributionRecord,
+    'err' : DistributePaymentError,
+  });
+  const DistributePaymentArgs = IDL.Record({
+    'tokenId' : TokenId,
+    'metadata' : IDL.Opt(IDL.Text),
+    'ambassadorL1' : IDL.Opt(IDL.Principal),
+    'ambassadorL2' : IDL.Opt(IDL.Principal),
+    'paymentId' : IDL.Text,
+    'payer' : IDL.Principal,
+    'amount' : IDL.Nat,
   });
   const DistributePaymentResult = IDL.Variant({
     'ok' : DistributionRecord,
@@ -152,6 +165,11 @@ export const idlFactory = ({ IDL }) => {
   });
   const WithdrawResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : WithdrawError });
   const TreasuryCanister = IDL.Service({
+    'chargeAndDistribute' : IDL.Func(
+        [ChargeAndDistributeArgs],
+        [ChargeAndDistributeResult],
+        [],
+      ),
     'distributePayment' : IDL.Func(
         [DistributePaymentArgs],
         [DistributePaymentResult],
@@ -169,6 +187,7 @@ export const idlFactory = ({ IDL }) => {
     'getTreasuryBalances' : IDL.Func([], [IDL.Vec(BalanceEntry)], []),
     'getTreasurySigningAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'getTreasurySolSigningAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
+    'getUserBalances' : IDL.Func([IDL.Principal], [IDL.Vec(BalanceEntry)], []),
     'getUserDistributions' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(DistributionRecord)],

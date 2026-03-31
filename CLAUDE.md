@@ -11,8 +11,7 @@ This is an Nx monorepo for a decentralized application built on the Internet Com
 ### Monorepo Structure
 
 - **apps/rabbithole**: Main Angular 20 application (frontend)
-- **apps/backend**: ICP/dfx backend with Motoko canisters
-- **apps/treasury-mo**: Treasury canister (payments, fund distribution)
+- **apps/backend**: ICP/dfx backend with Motoko canisters (includes treasury as library)
 - **apps/storage**: Storage-specific Angular application
 - **apps/tauri-app**: Desktop application using Tauri
 - **apps/\*-e2e**: E2E test projects using Playwright
@@ -34,6 +33,7 @@ This is an Nx monorepo for a decentralized application built on the Internet Com
 ### Motoko Libraries (libs/motoko/)
 
 - **libs/motoko/encrypted-storage**: Encrypted storage canister library (used by backend)
+- **libs/motoko/treasury**: Treasury library (payments, fund distribution — used by backend as mixin)
 - **libs/motoko/icpay-webhooks**: ICPay webhook handler library
 - **libs/motoko/auth-jwt**: JWT authentication library
 
@@ -58,8 +58,7 @@ Backend development uses Docker Compose with:
 
 Docker containers:
 - **apps/backend**: caddy + mock-server + backend replica (3 services)
-- **apps/treasury-mo**: single replica with evm_rpc/sol_rpc
-- **libs/motoko**: single shared replica for all Motoko libraries
+- **libs/motoko**: single shared replica for all Motoko libraries (including treasury)
 
 ## Development Commands
 

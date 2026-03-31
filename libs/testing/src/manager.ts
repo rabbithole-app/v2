@@ -32,6 +32,8 @@ import { minterIdentity } from "./nns-identity.ts";
 export interface CreateManagerOptions {
   /** Enable II subnet (provides threshold ECDSA keys like dfx_test_key) */
   ii?: boolean;
+  /** Enable fiduciary subnet (allows targetCanisterId for ck-token ledger canister IDs) */
+  fiduciary?: boolean;
   /** Max rounds for awaitCall() in DeferredActor (default: 100, increase for multi-step EVM calls) */
   ingressMaxRetries?: number;
   /** Initial ICP balance for owner in e8s (default: 1_000_000 * E8S_PER_ICP) */
@@ -73,6 +75,7 @@ export class BaseManager {
       },
       ...(opts?.system ? { system: opts.system } : {}),
       ...(opts?.ii ? { ii: { state: { type: SubnetStateType.New } } } : {}),
+      ...(opts?.fiduciary ? { fiduciary: { state: { type: SubnetStateType.New } } } : {}),
       application: [{ state: { type: SubnetStateType.New } }],
       processingTimeoutMs: 120_000,
       ...(opts?.ingressMaxRetries

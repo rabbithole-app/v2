@@ -111,7 +111,7 @@ describe('Treasury Canister', () => {
 
     expect(result).toHaveProperty('ok');
     const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
-    const grossL1 = paymentAmount * 2000n / 10000n;
+    const grossL1 = paymentAmount * 1500n / 10000n;
     const grossTreasury = paymentAmount - grossL1;
     expect(record.l1Amount).toBe(grossL1);
     expect(record.l2Amount).toBe(0n);
@@ -149,7 +149,7 @@ describe('Treasury Canister', () => {
 
     expect(result).toHaveProperty('ok');
     const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
-    const grossL1 = paymentAmount * 2000n / 10000n;
+    const grossL1 = paymentAmount * 1500n / 10000n;
     const grossL2 = paymentAmount * 500n / 10000n;
     const grossTreasury = paymentAmount - grossL1 - grossL2;
     expect(record.l1Amount).toBe(grossL1);
@@ -279,7 +279,7 @@ describe('Treasury Canister', () => {
     manager.treasuryActor.setIdentity(l1Identity);
     const l1Balance = await manager.treasuryActor.getBalance({ ICP: null });
     // L1 receives net = gross - fee
-    const grossL1 = paymentAmount * 2000n / 10000n;
+    const grossL1 = paymentAmount * 1500n / 10000n;
     expect(l1Balance - l1Before).toBe(grossL1 - FEE);
   });
 

@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [
-    tsconfigPaths({ root: '../../' })
+    tsconfigPaths({ root: '../../../' })
   ],
   test: {
     include: ["tests/**/*.test.ts", "tests/*.test.ts"],

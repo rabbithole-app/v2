@@ -133,6 +133,21 @@ module {
     status : DistributionStatus;
   };
 
+  /// Charge from user wallet and distribute in one step.
+  /// Transfers directly from user's derived wallets to treasury/L1/L2.
+  public type ChargeAndDistributeArgs = {
+    paymentId : Text;
+    userId : Principal;
+    tokenId : TokenId;
+    totalAmount : Nat;
+    ambassadorL1 : ?Principal;
+    ambassadorL2 : ?Principal;
+    metadata : ?Text;
+  };
+
+  /// Same result type as DistributePaymentResult.
+  public type ChargeAndDistributeResult = DistributePaymentResult;
+
   /// Withdraw destination — IC (ICRC-1), EVM, or Solana address.
   public type WithdrawDestination = {
     #IC : { owner : Principal; subaccount : ?Blob };

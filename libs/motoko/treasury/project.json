@@ -1,0 +1,32 @@
+{
+  "name": "treasury-mo",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/motoko/treasury",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/treasury && dfx canister create --all && dfx build treasury'",
+        "parallel": false
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko/treasury",
+        "command": "vitest",
+        "parallel": false
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/motoko",
+        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/treasury && npx lintoko'",
+        "parallel": false
+      }
+    }
+  }
+}

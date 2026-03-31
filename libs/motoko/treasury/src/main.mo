@@ -37,6 +37,17 @@ shared ({ caller = installer }) persistent actor class TreasuryCanister(initArgs
     await* Treasury.getTreasuryBalances(treasury);
   };
 
+  /// Charge from user's wallet and distribute to treasury + ambassadors in one step.
+  /// Admin only. Transfers directly from user's derived wallets.
+  public shared ({ caller }) func chargeAndDistribute(args : Types.ChargeAndDistributeArgs) : async Types.ChargeAndDistributeResult {
+    await* Treasury.chargeAndDistribute(treasury, caller, args);
+  };
+
+  /// Get all balances for a user across IC tokens. Admin only.
+  public shared ({ caller }) func getUserBalances(userId : Principal) : async [Types.BalanceEntry] {
+    await* Treasury.getUserBalances(treasury, caller, userId);
+  };
+
   // ---- User methods ----
 
   /// Withdraw funds from caller's subaccount to an external ICRC account.

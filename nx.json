@@ -29,7 +29,7 @@
     },
     {
       "plugin": "@nx/vite/plugin",
-      "exclude": ["libs/motoko/**", "apps/treasury-mo/**"],
+      "exclude": ["libs/motoko/**"],
       "options": {
         "buildTargetName": "build",
         "serveTargetName": "serve",
@@ -59,7 +59,7 @@
     },
     {
       "plugin": "@nx/vitest",
-      "exclude": ["libs/motoko/**", "apps/treasury-mo/**"],
+      "exclude": ["libs/motoko/**"],
       "options": {
         "testTargetName": "test"
       }
