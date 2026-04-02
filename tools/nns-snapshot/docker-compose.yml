@@ -1,0 +1,10 @@
+services:
+  snapshot:
+    build:
+      context: ../../infra/motoko-dev
+    platform: linux/arm64
+    working_dir: /workspace
+    volumes:
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./output:/output
+    entrypoint: ["bash", "/entrypoint.sh"]

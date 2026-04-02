@@ -19,7 +19,7 @@ export const CMC_CANISTER_ID = Principal.fromText(
 
 export const ICP_TRANSACTION_FEE = 10_000n;
 export const E8S_PER_ICP = 100_000_000n;
-export const ONE_TRILLION = 1_000_000_000_000n;
+export const ONE_TRILLION_CYCLES = 1_000_000_000_000n;
 
 export const NNS_STATE_PATH = resolve(
   import.meta.dirname,

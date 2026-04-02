@@ -21,6 +21,12 @@
       "@rabbithole/declarations": ["libs/declarations/src/index.ts"],
       "@rabbithole/encrypted-storage": ["libs/encrypted-storage/src/index.ts"],
       "@rabbithole/testing": ["libs/testing/src/index.ts"],
+      "@rabbithole/testing/evm": ["libs/testing/src/evm-signer.ts"],
+      "@rabbithole/testing/sol": ["libs/testing/src/sol-signer.ts"],
+      // Workaround: @icp-sdk/canisters exports IcrcLedgerDid as type-only namespace,
+      // so idlFactory/init are not available at runtime via public API.
+      // TODO: remove when @icp-sdk/canisters exposes raw declarations subpath.
+      "@rabbithole/declarations/icrc-ledger": ["node_modules/@icp-sdk/canisters/declarations/ledger-icrc/icrc_ledger.idl.js"],
       "@rabbithole/ui": ["libs/app-ui/src/index.ts"],
       "@rabbithole/utils": ["libs/utils/src/index.ts"],
       "@rabbithole/features": ["libs/features/src/index.ts"],

@@ -33,9 +33,12 @@ const ICRC1_LEDGER_WASM_PATH = resolve(
   "ic-icrc1-ledger.wasm.gz",
 );
 
-// Re-export the init function from the generated IDL for ckUSDC ledger
-import { idlFactory as icrc1LedgerIdlFactory, init as icrc1LedgerInit } from "./wasm/icrc1-ledger.idl.js";
-export { icrc1LedgerIdlFactory, icrc1LedgerInit };
+import {
+  idlFactory as icrc1LedgerIdlFactory,
+  init as icrc1LedgerInit,
+  type _SERVICE as IcrcLedgerService,
+} from "@rabbithole/declarations/icrc-ledger";
+export { icrc1LedgerIdlFactory, icrc1LedgerInit, type IcrcLedgerService };
 
 const CKUSDC_FEE = 10_000n; // 0.01 USDC (6 decimals)
 
