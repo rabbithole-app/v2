@@ -3,8 +3,8 @@ import Principal "mo:core/Principal";
 
 import IC "mo:ic";
 
-import LedgerTypes "LedgerTypes";
-import CMCTypes "CMCTypes";
+import LedgerTypes "../Types/LedgerTypes";
+import CMCTypes "../Types/CMCTypes";
 import GitHubReleasesTypes "GitHubReleasesTypes";
 
 module {

@@ -148,7 +148,7 @@ module {
     dbQuery;
   };
 
-  public class Subscriptions(db : ZenDB.Database) {
+  public class Subscriptions(db : ZenDB.Database, hasUsedTrial : (Principal) -> Bool, markTrialUsed : (Principal) -> ()) {
     let #ok(collection) = db.createCollection<Subscription>("subscriptions", SubscriptionSchema, candifySubscriptions, ?{ schemaConstraints }) else Runtime.unreachable();
 
     func findSubscription(userId : Principal) : ?(Nat, Subscription) {
@@ -161,6 +161,24 @@ module {
     public func getSubscription(userId : Principal) : ?Subscription {
       let ?(_, sub) = findSubscription(userId) else return null;
       ?withEffectiveStatus(sub);
+    };
+
+    /// Renew an existing Active subscription with new expiry.
+    /// Unlike activateSubscription, this works ON Active subscriptions (for auto-renew).
+    public func renewSubscription(userId : Principal, plan : Plan, newExpiresAt : ?Time.Time) : Result.Result<(), Text> {
+      let ?(docId, sub) = findSubscription(userId) else return #err("No subscription found");
+      let effective = withEffectiveStatus(sub);
+      if (effective.status != #Active and effective.status != #Expired) {
+        return #err("Subscription not active or expired");
+      };
+      ignore collection.replace(docId, {
+        sub with
+        plan;
+        status = #Active;
+        expiresAt = newExpiresAt;
+        updatedAt = Time.now();
+      });
+      #ok();
     };
 
     public func activateSubscription(userId : Principal, plan : Plan, expiresAt : ?Time.Time) : Result.Result<(), ActivateError> {
@@ -200,6 +218,9 @@ module {
     };
 
     public func activateTrial(userId : Principal) : Result.Result<(), ActivateError> {
+      // Check persistent trial-used flag in Users (survives plan changes like Trial → Free)
+      if (hasUsedTrial(userId)) return #err(#TrialAlreadyUsed);
+
       switch (findSubscription(userId)) {
         case (?(_, sub)) {
           if (sub.plan == #Trial) return #err(#TrialAlreadyUsed);
@@ -208,6 +229,8 @@ module {
         };
         case null {};
       };
+
+      markTrialUsed(userId);
 
       let now = Time.now();
       let fourteenDays = 14 * 24 * 60 * 60 * 1_000_000_000; // 14 days in nanoseconds
@@ -242,6 +265,15 @@ module {
 
       let #ok(results) = collection.search(q) else return [];
       Array.map<(Nat, Subscription), (Principal, Subscription)>(results, func(_, sub) = (sub.userId, withEffectiveStatus(sub)));
+    };
+
+    /// Get subscriptions with Expired status (for grace period downgrade).
+    public func getExpired() : [(Principal, Subscription)] {
+      let q = ZenDB.QueryBuilder()
+        .Where("status", #eq(#Text("Expired")));
+
+      let #ok(results) = collection.search(q) else return [];
+      Array.map<(Nat, Subscription), (Principal, Subscription)>(results, func(_, sub) = (sub.userId, sub));
     };
 
     public func recordTrialBytes(userId : Principal, bytes : Nat) {

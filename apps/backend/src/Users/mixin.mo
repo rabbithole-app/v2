@@ -31,6 +31,14 @@ mixin(
     };
   };
 
+  func hasUsedTrial(principal : Principal) : Bool {
+    users.hasUsedTrial(principal);
+  };
+
+  func markTrialUsed(principal : Principal) {
+    users.markTrialUsed(principal);
+  };
+
   public query ({ caller }) func getUser() : async ?Users.User {
     assert not Principal.isAnonymous(caller);
     users.get(caller);

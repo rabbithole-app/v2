@@ -178,6 +178,13 @@ export type NotifyError = {
   { 'Other' : { 'error_message' : string, 'error_code' : bigint } } |
   { 'Processing' : null } |
   { 'TransactionTooOld' : BlockIndex };
+export interface PendingRefund {
+  'tokenId' : TokenId,
+  'userId' : Principal,
+  'createdAt' : bigint,
+  'amount' : bigint,
+  'reason' : string,
+}
 export type Plan = { 'Pro' : null } |
   { 'Free' : null } |
   { 'License' : null } |
@@ -200,6 +207,10 @@ export interface Rabbithole {
   'activateTrial' : ActorMethod<[], undefined>,
   'addAdmin' : ActorMethod<[Principal], undefined>,
   'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_4>,
+  'adminRegisterWasmHash' : ActorMethod<
+    [Uint8Array | number[], string],
+    undefined
+  >,
   'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'checkSubscription' : ActorMethod<
     [Uint8Array | number[]],
@@ -225,6 +236,7 @@ export interface Rabbithole {
     }
   >,
   'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
+  'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
   'getSettings' : ActorMethod<[], UserSettings>,
@@ -256,6 +268,7 @@ export interface Rabbithole {
     [bigint, bigint, { 'warning' : null } | { 'critical' : null }],
     undefined
   >,
+  'processPendingRefunds' : ActorMethod<[], bigint>,
   'refreshReleases' : ActorMethod<[], undefined>,
   'register' : ActorMethod<[[] | [string]], undefined>,
   /**
@@ -268,6 +281,7 @@ export interface Rabbithole {
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'topUpFromBalance' : ActorMethod<[Principal, bigint], Result_1>,
+  'triggerAutoRenewals' : ActorMethod<[], undefined>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
   'updateSettings' : ActorMethod<[UserSettings], undefined>,
   'upgradeStorage' : ActorMethod<[Principal], Result>,
@@ -326,7 +340,7 @@ export interface ReleasesFullStatus {
 }
 export type Result = { 'ok' : null } |
   { 'err' : UpgradeStorageError };
-export type Result_1 = { 'ok' : null } |
+export type Result_1 = { 'ok' : { 'cyclesAdded' : bigint } } |
   { 'err' : string };
 export type Result_2 = { 'ok' : null } |
   { 'err' : DeleteStorageError };
@@ -404,15 +418,6 @@ export type TokenId = { 'ICP' : null } |
   { 'BaseUSDC' : null } |
   { 'BaseUSDT' : null } |
   { 'BaseETH' : null };
-export type TokenId__1 = { 'ICP' : null } |
-  { 'SOL' : null } |
-  { 'SolUSDC' : null } |
-  { 'SolUSDT' : null } |
-  { 'ckUSDC' : null } |
-  { 'ckUSDT' : null } |
-  { 'BaseUSDC' : null } |
-  { 'BaseUSDT' : null } |
-  { 'BaseETH' : null };
 export type TransferFromError = {
     'GenericError' : { 'message' : string, 'error_code' : bigint }
   } |
@@ -437,11 +442,16 @@ export interface TransferRecord {
   'evmAddress' : [] | [string],
 }
 export type TypedEvent = {
-    'depositReceived' : { 'tokenId' : string, 'amount' : bigint }
+    'topUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint }
   } |
+  { 'depositReceived' : { 'tokenId' : string, 'amount' : bigint } } |
   { 'trialStarted' : { 'limitBytes' : bigint } } |
   { 'subscriptionExpired' : null } |
   { 'autoRenewFailed' : { 'reason' : string } } |
+  { 'topUpFailed' : { 'canisterId' : Principal, 'reason' : string } } |
+  {
+    'autoTopUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint }
+  } |
   {
     'subscriptionRenewed' : {
       'expiresAt' : [] | [bigint],
@@ -468,6 +478,7 @@ export type TypedEvent = {
     }
   } |
   { 'updateAvailable' : { 'releaseTag' : string, 'canisterId' : Principal } } |
+  { 'autoTopUpFailed' : { 'canisterId' : Principal, 'reason' : string } } |
   {
     'lowCycles' : {
       'estimatedDaysLeft' : bigint,
@@ -502,8 +513,10 @@ export interface User {
   'updatedAt' : Time,
 }
 export interface UserSettings {
-  'spendingPriority' : Array<TokenId__1>,
+  'spendingPriority' : Array<TokenId>,
+  'topUpAmountCycles' : bigint,
   'autoRenew' : boolean,
+  'autoTopUp' : boolean,
 }
 export interface WithdrawArgs {
   'to' : WithdrawDestination,

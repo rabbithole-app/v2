@@ -22,6 +22,10 @@ module {
     #subscriptionRenewed : { plan : { #Free; #Trial; #License; #Pro }; expiresAt : ?Int };
     #balanceLow : { requiredAmount : Nat };
     #autoRenewFailed : { reason : Text };
+    #topUpCompleted : { canisterId : Principal; cyclesAmount : Nat };
+    #topUpFailed : { canisterId : Principal; reason : Text };
+    #autoTopUpCompleted : { canisterId : Principal; cyclesAmount : Nat };
+    #autoTopUpFailed : { canisterId : Principal; reason : Text };
   };
 
   public type StoredNotification = {

@@ -181,6 +181,10 @@ export const idlFactory = ({ IDL }) => {
   });
   const Time = IDL.Int;
   const TypedEvent = IDL.Variant({
+    'topUpCompleted' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'cyclesAmount' : IDL.Nat,
+    }),
     'depositReceived' : IDL.Record({
       'tokenId' : IDL.Text,
       'amount' : IDL.Nat,
@@ -188,6 +192,14 @@ export const idlFactory = ({ IDL }) => {
     'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
     'subscriptionExpired' : IDL.Null,
     'autoRenewFailed' : IDL.Record({ 'reason' : IDL.Text }),
+    'topUpFailed' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'reason' : IDL.Text,
+    }),
+    'autoTopUpCompleted' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'cyclesAmount' : IDL.Nat,
+    }),
     'subscriptionRenewed' : IDL.Record({
       'expiresAt' : IDL.Opt(IDL.Int),
       'plan' : IDL.Variant({
@@ -215,6 +227,10 @@ export const idlFactory = ({ IDL }) => {
       'releaseTag' : IDL.Text,
       'canisterId' : IDL.Principal,
     }),
+    'autoTopUpFailed' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'reason' : IDL.Text,
+    }),
     'lowCycles' : IDL.Record({
       'estimatedDaysLeft' : IDL.Nat,
       'severity' : IDL.Variant({ 'warning' : IDL.Null, 'critical' : IDL.Null }),
@@ -231,6 +247,13 @@ export const idlFactory = ({ IDL }) => {
   const NotificationsPage = IDL.Record({
     'data' : IDL.Vec(StoredNotification),
     'unreadCount' : IDL.Nat,
+  });
+  const PendingRefund = IDL.Record({
+    'tokenId' : TokenId,
+    'userId' : IDL.Principal,
+    'createdAt' : IDL.Int,
+    'amount' : IDL.Nat,
+    'reason' : IDL.Text,
   });
   const Profile = IDL.Record({
     'id' : IDL.Principal,
@@ -290,20 +313,11 @@ export const idlFactory = ({ IDL }) => {
     'releases' : IDL.Vec(ReleaseFullStatus),
     'completedDownloads' : IDL.Nat,
   });
-  const TokenId__1 = IDL.Variant({
-    'ICP' : IDL.Null,
-    'SOL' : IDL.Null,
-    'SolUSDC' : IDL.Null,
-    'SolUSDT' : IDL.Null,
-    'ckUSDC' : IDL.Null,
-    'ckUSDT' : IDL.Null,
-    'BaseUSDC' : IDL.Null,
-    'BaseUSDT' : IDL.Null,
-    'BaseETH' : IDL.Null,
-  });
   const UserSettings = IDL.Record({
-    'spendingPriority' : IDL.Vec(TokenId__1),
+    'spendingPriority' : IDL.Vec(TokenId),
+    'topUpAmountCycles' : IDL.Nat,
     'autoRenew' : IDL.Bool,
+    'autoTopUp' : IDL.Bool,
   });
   const Status = IDL.Variant({
     'Active' : IDL.Null,
@@ -463,7 +477,10 @@ export const idlFactory = ({ IDL }) => {
     'contentType' : IDL.Text,
     'filename' : IDL.Text,
   });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const Result_1 = IDL.Variant({
+    'ok' : IDL.Record({ 'cyclesAdded' : IDL.Nat }),
+    'err' : IDL.Text,
+  });
   const UpdateProfileArgs = IDL.Record({
     'displayName' : IDL.Opt(IDL.Text),
     'avatarUrl' : IDL.Opt(IDL.Text),
@@ -507,6 +524,7 @@ export const idlFactory = ({ IDL }) => {
     'activateTrial' : IDL.Func([], [], []),
     'addAdmin' : IDL.Func([IDL.Principal], [], []),
     'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_4], []),
+    'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UpdateInfo)],
@@ -545,6 +563,7 @@ export const idlFactory = ({ IDL }) => {
         [NotificationsPage],
         ['query'],
       ),
+    'getPendingRefunds' : IDL.Func([], [IDL.Vec(PendingRefund)], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
     'getSettings' : IDL.Func([], [UserSettings], ['query']),
@@ -595,6 +614,7 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'processPendingRefunds' : IDL.Func([], [IDL.Nat], []),
     'refreshReleases' : IDL.Func([], [], []),
     'register' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
     'registerLatestWasmHash' : IDL.Func([], [], []),
@@ -604,6 +624,7 @@ export const idlFactory = ({ IDL }) => {
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
     'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result_1], []),
+    'triggerAutoRenewals' : IDL.Func([], [], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
     'updateSettings' : IDL.Func([UserSettings], [], []),
     'upgradeStorage' : IDL.Func([IDL.Principal], [Result], []),

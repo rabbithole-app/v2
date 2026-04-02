@@ -1,17 +1,20 @@
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
-
 import Subscriptions "lib";
 import ZenDB "mo:zendb";
 
 mixin(
   db : ZenDB.Database,
-  findOwnerByCanister : (Principal) -> ?Principal,
-  isKnownWasm : (Blob) -> Bool,
-  assertAdmin : (Principal) -> (),
+  admin : { assertAdmin : (Principal) -> () },
+  deps : {
+    findOwnerByCanister : (Principal) -> ?Principal;
+    isKnownWasm : (Blob) -> Bool;
+    hasUsedTrial : (Principal) -> Bool;
+    markTrialUsed : (Principal) -> ();
+  },
 ) {
-  transient let subscriptions = Subscriptions.Subscriptions(db);
+  transient let subscriptions = Subscriptions.Subscriptions(db, deps.hasUsedTrial, deps.markTrialUsed);
 
   /// Expire overdue subscriptions. Available to other mixins in the actor.
   func expireOverdueSubscriptions() : [Principal] {
@@ -28,15 +31,17 @@ mixin(
     subscriptions.getExpiring(hoursAhead);
   };
 
+  /// Get expired subscriptions (for grace period downgrade).
+  func getExpiredSubscriptions() : [(Principal, Subscriptions.Subscription)] {
+    subscriptions.getExpired();
+  };
+
   /// Called by storage canister (caller = canisterId) to check subscription status
   public shared ({ caller }) func checkSubscription(wasmHash : Blob) : async Subscriptions.SubscriptionCheckResult {
-    // Resolve canister → owner (rejects both non-canister and unregistered callers)
-    let ?owner = findOwnerByCanister(caller) else return #unknownCanister;
+    let ?owner = deps.findOwnerByCanister(caller) else return #unknownCanister;
 
-    // 2. Validate WASM hash
-    if (not isKnownWasm(wasmHash)) return #invalidWasm;
+    if (not deps.isKnownWasm(wasmHash)) return #invalidWasm;
 
-    // 3. Check subscription
     switch (subscriptions.getSubscription(owner)) {
       case null #free;
       case (?sub) {
@@ -57,6 +62,16 @@ mixin(
     };
   };
 
+  /// Renew an Active/Expired subscription with new expiry. For auto-renew.
+  func renewSubscriptionInternal(userId : Principal, plan : Subscriptions.Plan, expiresAt : ?Int) : Result.Result<(), Text> {
+    subscriptions.renewSubscription(userId, plan, expiresAt);
+  };
+
+  /// Internal: get subscription for a user. Available to sibling mixins.
+  func getSubscriptionInternal(userId : Principal) : ?Subscriptions.Subscription {
+    subscriptions.getSubscription(userId);
+  };
+
   public query ({ caller }) func getSubscription() : async ?Subscriptions.Subscription {
     assert not Principal.isAnonymous(caller);
     subscriptions.getSubscription(caller);
@@ -74,7 +89,7 @@ mixin(
     plan : Subscriptions.Plan,
     expiresAt : ?Int,
   ) : async () {
-    assertAdmin(caller);
+    admin.assertAdmin(caller);
     let #err(e) = subscriptions.activateSubscription(userId, plan, expiresAt) else return;
     throw Error.reject(debug_show e);
   };
@@ -82,13 +97,13 @@ mixin(
   public query ({ caller }) func listSubscriptions(
     options : Subscriptions.ListOptions,
   ) : async Subscriptions.GetSubscriptionsResponse {
-    assertAdmin(caller);
+    admin.assertAdmin(caller);
     subscriptions.list(options);
   };
 
   /// Called by storage canister to report trial bytes usage
   public shared ({ caller }) func reportTrialBytes(bytes : Nat) : async () {
-    let ?reportOwner = findOwnerByCanister(caller) else return;
+    let ?reportOwner = deps.findOwnerByCanister(caller) else return;
     subscriptions.recordTrialBytes(reportOwner, bytes);
   };
 };

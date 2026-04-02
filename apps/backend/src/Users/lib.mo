@@ -8,6 +8,7 @@ module {
   public type User = {
     id : Principal;
     inviter : ?Principal;
+    trialUsed : Bool;
     createdAt : Time.Time;
     updatedAt : Time.Time;
   };
@@ -20,6 +21,7 @@ module {
   let UserSchema : ZenDB.Types.Schema = #Record([
     ("id", #Principal),
     ("inviter", #Option(#Principal)),
+    ("trialUsed", #Bool),
     ("createdAt", #Int),
     ("updatedAt", #Int),
   ]);
@@ -41,10 +43,24 @@ module {
       let user : User = {
         id = principal;
         inviter;
+        trialUsed = false;
         createdAt = now;
         updatedAt = now;
       };
       usersCollection.insert(user);
+    };
+
+    public func hasUsedTrial(principal : Principal) : Bool {
+      let ?user = get(principal) else return false;
+      user.trialUsed;
+    };
+
+    public func markTrialUsed(principal : Principal) {
+      let q = ZenDB.QueryBuilder().Where("id", #eq(#Principal(principal))).Limit(1);
+      let #ok(results) = usersCollection.search(q) else return;
+      if (results.size() == 0) return;
+      let (docId, user) = results[0];
+      ignore usersCollection.replace(docId, { user with trialUsed = true; updatedAt = Time.now() });
     };
 
     public func get(caller : Principal) : ?User {

@@ -3,6 +3,7 @@ import Runtime "mo:core/Runtime";
 import Ecmult "mo:libsecp256k1/core/ecmult";
 import Int "mo:core/Int";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
@@ -1038,7 +1039,7 @@ module Treasury {
       subaccount = ?userSubaccount;
     });
     if (balance < args.totalAmount + totalFees) {
-      return #err(#TransferFailed({ recipient = "pre-check"; error = "Insufficient balance: have " # debug_show balance # ", need " # debug_show (args.totalAmount + totalFees) }));
+      return #err(#TransferFailed({ recipient = "pre-check"; error = "Insufficient IC token balance for charge" }));
     };
 
     var transfers = Vector.new<Types.TransferRecord>();
@@ -1138,7 +1139,7 @@ module Treasury {
       case (#err(e)) return #err(#TransferFailed({ recipient = "pre-check"; error = e }));
     };
     if (balance < args.totalAmount) {
-      return #err(#TransferFailed({ recipient = "pre-check"; error = "Insufficient EVM balance: have " # debug_show balance # ", need " # debug_show args.totalAmount }));
+      return #err(#TransferFailed({ recipient = "pre-check"; error = "Insufficient EVM token balance for charge" }));
     };
 
     var nonce = switch (await* EvmRpc.getNonce(evmConfig.evmRpcCanisterId, rpcServices, userEvmAddr)) {
@@ -1236,7 +1237,7 @@ module Treasury {
       case (#err(e)) return #err(#TransferFailed({ recipient = "pre-check"; error = e }));
     };
     if (balance < args.totalAmount) {
-      return #err(#TransferFailed({ recipient = "pre-check"; error = "Insufficient SOL balance: have " # debug_show balance # ", need " # debug_show args.totalAmount }));
+      return #err(#TransferFailed({ recipient = "pre-check"; error = "Insufficient SOL token balance for charge" }));
     };
 
     let userDerivationPath = [Principal.toBlob(args.userId)];
@@ -1302,6 +1303,91 @@ module Treasury {
     };
 
     finalizeDistribution(treasury, distArgs, treasuryAmount, l1Amount, l2Amount, transfers);
+  };
+
+  // ---- Simple Transfer (no ambassador split) ----
+
+  /// Transfer from user subaccount → admin subaccount. Single ICRC-1 transfer.
+  /// Used for top-up charges where no ambassador distribution is needed.
+  /// Returns block index on success.
+  public func simpleTransfer(
+    treasury : Treasury,
+    caller : Principal,
+    userId : Principal,
+    tokenId : Types.TokenId,
+    amount : Nat,
+  ) : async* Result.Result<Nat, Text> {
+    if (not Principal.equal(caller, treasury.store.admin)) {
+      return #err("Unauthorized");
+    };
+    if (not isIcToken(tokenId)) {
+      return #err("simpleTransfer only supports IC tokens");
+    };
+
+    let ledger = getIcLedger(tokenId);
+    let fee = getIcFee(tokenId);
+    let userSubaccount = Account.principalToSubaccount(userId);
+    let adminSubaccount = Account.principalToSubaccount(treasury.store.admin);
+
+    if (amount <= fee) return #err("Amount too small to cover fee");
+
+    let result = await ledger.icrc1_transfer({
+      to = { owner = treasury.canisterId; subaccount = ?adminSubaccount };
+      fee = ?fee;
+      memo = null;
+      from_subaccount = ?userSubaccount;
+      created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
+      amount = amount - fee;
+    });
+    switch (result) {
+      case (#Ok(idx)) #ok(idx);
+      case (#Err(err)) #err("Transfer failed: " # debug_show err);
+    };
+  };
+
+  /// Refund from admin subaccount → user subaccount. Reverse of simpleTransfer.
+  /// Transfers up to `maxAmount` from admin back to user (minus ledger fee).
+  /// Checks actual admin balance to avoid InsufficientFunds errors.
+  public func simpleRefund(
+    treasury : Treasury,
+    caller : Principal,
+    userId : Principal,
+    tokenId : Types.TokenId,
+    maxAmount : Nat,
+  ) : async* Result.Result<(), Text> {
+    if (not Principal.equal(caller, treasury.store.admin)) {
+      return #err("Unauthorized");
+    };
+    if (not isIcToken(tokenId)) {
+      return #err("simpleRefund only supports IC tokens");
+    };
+
+    let ledger = getIcLedger(tokenId);
+    let fee = getIcFee(tokenId);
+    let adminSubaccount = Account.principalToSubaccount(treasury.store.admin);
+    let userSubaccount = Account.principalToSubaccount(userId);
+
+    // Check actual admin balance to refund as much as possible
+    let adminBalance = await ledger.icrc1_balance_of({
+      owner = treasury.canisterId;
+      subaccount = ?adminSubaccount;
+    });
+
+    let refundAmount = Nat.min(adminBalance, maxAmount);
+    if (refundAmount <= fee) return #err("Refund amount too small to cover fee");
+
+    let result = await ledger.icrc1_transfer({
+      to = { owner = treasury.canisterId; subaccount = ?userSubaccount };
+      fee = ?fee;
+      memo = null;
+      from_subaccount = ?adminSubaccount;
+      created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
+      amount = refundAmount - fee;
+    });
+    switch (result) {
+      case (#Ok(_)) #ok();
+      case (#Err(err)) #err("Refund failed: " # debug_show err);
+    };
   };
 
   /// Get all non-zero balances for a user across all chains (admin-only wrapper).

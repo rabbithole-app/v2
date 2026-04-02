@@ -22,8 +22,8 @@ import StorageDeployer "StorageDeployer";
 import WasmInstaller "WasmInstaller";
 import FrontendInstaller "FrontendInstaller";
 import Types "Types";
-import LedgerTypes "LedgerTypes";
-import CMCTypes "CMCTypes";
+import LedgerTypes "../Types/LedgerTypes";
+import CMCTypes "../Types/CMCTypes";
 import HttpAssetsTypes "mo:http-assets/BaseAssets/Types";
 
 module StorageDeployerOrchestrator {

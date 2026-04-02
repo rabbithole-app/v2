@@ -7,8 +7,8 @@ import Blob "mo:core/Blob";
 
 import ByteUtils "mo:byte-utils";
 
-import CMCTypes "CMCTypes";
-import LedgerTypes "LedgerTypes";
+import CMCTypes "../Types/CMCTypes";
+import LedgerTypes "../Types/LedgerTypes";
 import Account "Utils/Account";
 import Types "Types";
 

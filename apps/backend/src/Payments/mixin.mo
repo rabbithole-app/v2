@@ -1,5 +1,6 @@
 import Blob "mo:core/Blob";
 import Debug "mo:base/Debug";
+import Error "mo:core/Error";
 import Int "mo:core/Int";
 import Principal "mo:core/Principal";
 import Queue "mo:core/Queue";
@@ -21,11 +22,13 @@ import Users "../Users/lib";
 
 mixin(
   icpaySecretKey : ?Blob,
-  assertAdmin : (Principal) -> (),
-  notifyUser : (Principal, Notifications.TypedEvent) -> (),
-  getAmbassadorChain : (Principal) -> Users.AmbassadorChain,
-  activateSubscriptionInternal : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>,
-  treasuryDistributePayment : (TreasuryTypes.DistributePaymentArgs) -> async* TreasuryTypes.DistributePaymentResult,
+  admin : { assertAdmin : (Principal) -> () },
+  deps : {
+    notifyUser : (Principal, Notifications.TypedEvent) -> ();
+    getAmbassadorChain : (Principal) -> Users.AmbassadorChain;
+    activateSubscription : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>;
+    distributePayment : (TreasuryTypes.DistributePaymentArgs) -> async* TreasuryTypes.DistributePaymentResult;
+  },
 ) {
   // ---- Persistent state ----
   let processedWebhookEvents : Set.Set<Text> = Set.empty();
@@ -65,8 +68,8 @@ mixin(
     if (not drainScheduled and not Queue.isEmpty(eventQueue)) {
       drainScheduled := true;
       ignore Timer.setTimer<system>(#seconds(5), func() : async () {
-        drainScheduled := false;
         await processPaymentQueue();
+        drainScheduled := false;
         // Re-check after drain (may need another round)
         schedulePaymentDrain<system>();
       });
@@ -85,16 +88,28 @@ mixin(
       // Extract purpose from metadata
       let purposeText = switch (Json.get(payment.metadata, "purpose")) {
         case (?#string(p)) p;
-        case _ { continue drain }; // Unknown purpose, skip
+        case _ {
+          Debug.print("Payment " # payment.id # ": missing or invalid purpose in metadata, skipping");
+          continue drain;
+        };
       };
-      let ?purpose = Payments.parsePurpose(purposeText) else continue drain;
+      let ?purpose = Payments.parsePurpose(purposeText) else {
+        Debug.print("Payment " # payment.id # ": unrecognized purpose '" # purposeText # "', skipping");
+        continue drain;
+      };
 
       // Extract userId from metadata
       let userIdText = switch (Json.get(payment.metadata, "userId")) {
         case (?#string(u)) u;
-        case _ { continue drain };
+        case _ {
+          Debug.print("Payment " # payment.id # ": missing userId in metadata, skipping");
+          continue drain;
+        };
       };
-      let userId = Principal.fromText(userIdText);
+      let userId = try { Principal.fromText(userIdText) } catch (e) {
+        Debug.print("Payment " # payment.id # ": invalid userId '" # userIdText # "': " # Error.message(e));
+        continue drain;
+      };
 
       let tokenId = Payments.resolveTokenId(payment.paymentMethod);
       let tokenIdText = debug_show tokenId;
@@ -102,13 +117,13 @@ mixin(
       switch (purpose) {
         case (#deposit) {
           // Funds already on user wallet via ICPay relay. Just notify.
-          notifyUser(userId, #depositReceived({ amount = payment.amount; tokenId = tokenIdText }));
+          deps.notifyUser(userId, #depositReceived({ amount = payment.amount; tokenId = tokenIdText }));
         };
         case (#license) {
           // ICPay delivered funds to backend main account.
           // Distribute (splits) from main account.
-          let chain = getAmbassadorChain(userId);
-          ignore await* treasuryDistributePayment({
+          let chain = deps.getAmbassadorChain(userId);
+          ignore await* deps.distributePayment({
             paymentId = payment.id;
             payer = userId;
             tokenId;
@@ -117,12 +132,12 @@ mixin(
             ambassadorL2 = chain.l2;
             metadata = ?"license";
           });
-          ignore activateSubscriptionInternal(userId, #License, null);
-          notifyUser(userId, #paymentReceived({ purpose = "license"; amount = payment.amount; tokenId = tokenIdText }));
+          ignore deps.activateSubscription(userId, #License, null);
+          deps.notifyUser(userId, #paymentReceived({ purpose = "license"; amount = payment.amount; tokenId = tokenIdText }));
         };
         case (#pro_monthly) {
-          let chain = getAmbassadorChain(userId);
-          ignore await* treasuryDistributePayment({
+          let chain = deps.getAmbassadorChain(userId);
+          ignore await* deps.distributePayment({
             paymentId = payment.id;
             payer = userId;
             tokenId;
@@ -132,8 +147,8 @@ mixin(
             metadata = ?"pro_monthly";
           });
           let thirtyDays = 30 * 24 * 60 * 60 * 1_000_000_000;
-          ignore activateSubscriptionInternal(userId, #Pro, ?(Time.now() + thirtyDays));
-          notifyUser(userId, #paymentReceived({ purpose = "pro_monthly"; amount = payment.amount; tokenId = tokenIdText }));
+          ignore deps.activateSubscription(userId, #Pro, ?(Time.now() + thirtyDays));
+          deps.notifyUser(userId, #paymentReceived({ purpose = "pro_monthly"; amount = payment.amount; tokenId = tokenIdText }));
         };
       };
     };
@@ -141,7 +156,7 @@ mixin(
 
   /// Admin: manually flush the payment queue.
   public shared ({ caller }) func flushPaymentQueue() : async () {
-    assertAdmin(caller);
+    admin.assertAdmin(caller);
     await processPaymentQueue();
   };
 };
