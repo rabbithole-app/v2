@@ -1,18 +1,12 @@
-import { type CanisterFixture, PocketIc, createIdentity } from '@dfinity/pic';
+import { type CanisterFixture, PocketIc } from '@dfinity/pic';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { RabbitholeActorService } from '@rabbithole/declarations';
+import { ONE_TRILLION_CYCLES } from './setup/constants.ts';
+
 import { createPic, ownerIdentity, userAlice } from './setup/helpers.ts';
 
-// NOTE: Auto-renew tests require multi-canister setup with:
-// 1. ICP ledger (for balance checks and chargeAndDistribute)
-// 2. Treasury library integrated in backend
-// 3. Time advancement via PocketIC
-//
-// Current tests verify the subscription + settings integration.
-// Full charge flow tests require treasury + ledger canister setup.
-
-describe('Auto-renew', () => {
+describe('Auto-renew & Auto-topup settings', () => {
   let pic: PocketIc;
   let actor: CanisterFixture<RabbitholeActorService>['actor'];
 
@@ -23,6 +17,8 @@ describe('Auto-renew', () => {
   afterEach(async () => {
     await pic?.tearDown();
   });
+
+  // ---- autoRenew ----
 
   test('autoRenew disabled by default', async () => {
     actor.setIdentity(userAlice);
@@ -36,6 +32,8 @@ describe('Auto-renew', () => {
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: true,
+      autoTopUp: false,
+      topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
     const settings = await actor.getSettings();
@@ -44,21 +42,19 @@ describe('Auto-renew', () => {
 
   test('subscription + autoRenew settings are independent', async () => {
     actor.setIdentity(userAlice);
-
-    // Activate trial
     await actor.activateTrial();
+
     const sub = await actor.getSubscription();
-    expect(sub).toHaveLength(1);
     expect(sub[0]?.plan).toEqual({ Trial: null });
 
-    // autoRenew is in settings, not subscription
     const settings = await actor.getSettings();
     expect(settings.autoRenew).toBe(false);
 
-    // Enable autoRenew
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: true,
+      autoTopUp: false,
+      topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
     // Subscription unchanged
@@ -70,11 +66,111 @@ describe('Auto-renew', () => {
     expect(settings2.autoRenew).toBe(true);
   });
 
-  // TODO: Full auto-renew integration tests (require multi-canister setup):
-  // - success: Pro expiring, autoRenew=true, sufficient balance → renewed +30d
-  // - insufficient funds: notify #balanceLow, no downgrade (grace period)
-  // - autoRenew disabled: skip charge attempt
-  // - grace period: 3 days after expiry → downgrade to #Free
-  // - stablecoin priority: ckUSDC+ICP, priority [#ckUSDC, #ICP] → ckUSDC first
-  // - error boundary: trap one user doesn't kill batch
+  // ---- autoTopUp ----
+
+  test('autoTopUp disabled by default', async () => {
+    actor.setIdentity(userAlice);
+    const settings = await actor.getSettings();
+    expect(settings.autoTopUp).toBe(false);
+  });
+
+  test('topUpAmountCycles defaults to 1TC', async () => {
+    actor.setIdentity(userAlice);
+    const settings = await actor.getSettings();
+    expect(settings.topUpAmountCycles).toBe(ONE_TRILLION_CYCLES);
+  });
+
+  test('user can enable autoTopUp independently from autoRenew', async () => {
+    actor.setIdentity(userAlice);
+
+    await actor.updateSettings({
+      spendingPriority: [{ ckUSDC: null }],
+      autoRenew: false,
+      autoTopUp: true,
+      topUpAmountCycles: 2_000_000_000_000n,
+    });
+
+    const settings = await actor.getSettings();
+    expect(settings.autoRenew).toBe(false);
+    expect(settings.autoTopUp).toBe(true);
+    expect(settings.topUpAmountCycles).toBe(2_000_000_000_000n);
+  });
+
+  test('autoRenew=true + autoTopUp=true both persist', async () => {
+    actor.setIdentity(userAlice);
+
+    await actor.updateSettings({
+      spendingPriority: [{ ICP: null }, { ckUSDC: null }],
+      autoRenew: true,
+      autoTopUp: true,
+      topUpAmountCycles: 5_000_000_000_000n,
+    });
+
+    const settings = await actor.getSettings();
+    expect(settings.autoRenew).toBe(true);
+    expect(settings.autoTopUp).toBe(true);
+    expect(settings.topUpAmountCycles).toBe(5_000_000_000_000n);
+    expect(settings.spendingPriority[0]).toEqual({ ICP: null });
+  });
+
+  // ---- autoRenew: skip when disabled ----
+
+  test('triggerAutoRenewals skips user with autoRenew=false', async () => {
+    actor.setIdentity(userAlice);
+    await actor.register([]);
+
+    // autoRenew stays default (false)
+    const settings = await actor.getSettings();
+    expect(settings.autoRenew).toBe(false);
+
+    // Admin activates Pro with 1h expiry
+    actor.setIdentity(ownerIdentity);
+    const picTimeMs = await pic.getTime();
+    const now = BigInt(picTimeMs) * 1_000_000n;
+    await actor.activateSubscription(
+      userAlice.getPrincipal(),
+      { Pro: null },
+      [now + 3_600_000_000_000n],
+    );
+
+    // Trigger — should not attempt charge (no notifications)
+    await actor.triggerAutoRenewals();
+    await pic.tick(5);
+
+    // No renewal notification (autoRenew disabled)
+    actor.setIdentity(userAlice);
+    const notifs = await actor.getNotifications([], 10n);
+    const renewNotif = notifs.data.find((n: any) =>
+      'subscriptionRenewed' in n.event || 'balanceLow' in n.event || 'autoRenewFailed' in n.event,
+    );
+    expect(renewNotif).toBeUndefined();
+  });
+
+  // ---- Only Pro has auto-renew ----
+
+  test('triggerAutoRenewals skips Trial and License plans', async () => {
+    actor.setIdentity(userAlice);
+    await actor.register([]);
+    await actor.updateSettings({
+      spendingPriority: [{ ckUSDC: null }],
+      autoRenew: true,
+      autoTopUp: false,
+      topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    // Activate Trial (not Pro)
+    await actor.activateTrial();
+
+    actor.setIdentity(ownerIdentity);
+    await actor.triggerAutoRenewals();
+    await pic.tick(5);
+
+    // No renewal notification (Trial not eligible for auto-renew)
+    actor.setIdentity(userAlice);
+    const notifs = await actor.getNotifications([], 10n);
+    const renewNotif = notifs.data.find((n: any) =>
+      'subscriptionRenewed' in n.event || 'balanceLow' in n.event,
+    );
+    expect(renewNotif).toBeUndefined();
+  });
 });

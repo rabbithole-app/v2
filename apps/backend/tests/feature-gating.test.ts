@@ -108,7 +108,7 @@ describe("Feature Gating", () => {
     await manager?.pic?.tearDown();
   });
 
-  // ===================== B1: StableStore v2 + backendId =====================
+  // ===================== StableStore v2 + backendId =====================
 
   describe("Storage Status and Backend Connection", () => {
     test("getStatus returns backendId from initArgs", async () => {
@@ -140,7 +140,7 @@ describe("Feature Gating", () => {
     });
   });
 
-  // ===================== B2: checkSubscription =====================
+  // ===================== checkSubscription =====================
 
   describe("Subscription Check and Cache", () => {
     test("refreshSubscription rejects non-owner caller", async () => {
@@ -182,7 +182,7 @@ describe("Feature Gating", () => {
     });
   });
 
-  // ===================== B3: Feature Gates =====================
+  // ===================== Feature Gates =====================
 
   describe("Permission and Encryption Gates", () => {
     test("#trial — grantPermission works", async () => {
@@ -251,8 +251,9 @@ describe("Feature Gating", () => {
     });
 
     test("#active (Pro) — grantPermission works after reactivation", async () => {
-      // Reset time to avoid expired state from previous test
-      await manager.pic.setCertifiedTime(new Date("2026-07-01T00:00:00Z"));
+      // Advance time so Trial subscription is expired (>14 days)
+      await manager.pic.setTime(new Date("2026-07-01T00:00:00Z").getTime());
+      await manager.pic.tick(2);
 
       backendActor.setIdentity(manager.ownerIdentity);
       await backendActor.activateSubscription(
@@ -283,7 +284,7 @@ describe("Feature Gating", () => {
     });
   });
 
-  // ===================== B4: Trial Limit =====================
+  // ===================== Trial Limit =====================
 
   describe("Trial Storage Limit", () => {
     test("plaintext createBatch works regardless of subscription", async () => {
@@ -320,7 +321,8 @@ describe("Feature Gating", () => {
 
     test("encrypted createBatch rejects file exceeding trial limit", async () => {
       // Expire current subscription so we can re-activate as trial
-      await manager.pic.setCertifiedTime(new Date("2027-01-01T00:00:00Z"));
+      await manager.pic.setTime(new Date("2027-01-01T00:00:00Z").getTime());
+      await manager.pic.tick(2);
       backendActor.setIdentity(manager.ownerIdentity);
       await backendActor.activateTrial();
       storageActor.setIdentity(manager.ownerIdentity);
@@ -365,7 +367,7 @@ describe("Feature Gating", () => {
     });
   });
 
-  // ===================== B5: Cycle Monitoring =====================
+  // ===================== Cycle Monitoring =====================
 
   describe("Cycle Balance Monitoring", () => {
     test("getCycleBalance returns bigint > 0", async () => {

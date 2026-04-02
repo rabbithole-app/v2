@@ -18,7 +18,7 @@ import {
 } from "@rabbithole/declarations";
 
 import { BackendManager } from "./setup/backend-manager";
-import { CMC_CANISTER_ID, E8S_PER_ICP, ONE_TRILLION } from "./setup/constants";
+import { CMC_CANISTER_ID, E8S_PER_ICP, ONE_TRILLION_CYCLES } from "./setup/constants";
 import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 
 /**
@@ -237,11 +237,11 @@ describe("StorageDeployer", () => {
 
     manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
 
-    const initialCycles = ONE_TRILLION;
+    const initialCycles = ONE_TRILLION_CYCLES;
     const totalCycles = initialCycles + 500_000_000_000n;
 
     const rate = await manager.cmcActor.get_icp_xdr_conversion_rate();
-    const requiredE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (ONE_TRILLION * rate.data.xdr_permyriad_per_icp);
+    const requiredE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (ONE_TRILLION_CYCLES * rate.data.xdr_permyriad_per_icp);
     const totalRequired = requiredE8s + 10_000n;
 
     // Approve spender
@@ -313,7 +313,7 @@ describe("StorageDeployer", () => {
     manager.icpLedgerActor.setIdentity(transferTestIdentity);
 
     const insufficientAmount = 100_000n;
-    const transferAmount = ONE_TRILLION; // Much larger than allowance
+    const transferAmount = ONE_TRILLION_CYCLES; // Much larger than allowance
 
     // Approve only a small amount
     await manager.icpLedgerActor.icrc2_approve({
@@ -420,11 +420,11 @@ describe("StorageDeployer", () => {
     manager.icpLedgerActor.setIdentity(e2eTestIdentity);
     backendFixture.actor.setIdentity(e2eTestIdentity);
 
-    const initialCycles = ONE_TRILLION;
+    const initialCycles = ONE_TRILLION_CYCLES;
     const totalCycles = initialCycles + 500_000_000_000n;
 
     const rate = await manager.cmcActor.get_icp_xdr_conversion_rate();
-    const requiredE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (ONE_TRILLION * rate.data.xdr_permyriad_per_icp);
+    const requiredE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (ONE_TRILLION_CYCLES * rate.data.xdr_permyriad_per_icp);
     const totalRequired = requiredE8s + 10_000n;
 
     console.log("Test user:", e2eTestIdentity.getPrincipal().toText());
@@ -507,7 +507,7 @@ describe("StorageDeployer", () => {
     const duplicateOptions: CreateStorageOptions = {
       target: {
         Create: {
-          initialCycles: ONE_TRILLION,
+          initialCycles: ONE_TRILLION_CYCLES,
           subnetId: [manager.applicationSubnetId],
         },
       },

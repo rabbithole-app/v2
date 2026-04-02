@@ -1,16 +1,10 @@
-import { type CanisterFixture, PocketIc, createIdentity } from '@dfinity/pic';
+import { type CanisterFixture, createIdentity, PocketIc } from '@dfinity/pic';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { RabbitholeActorService } from '@rabbithole/declarations';
-import { createPic, ownerIdentity, userAlice } from './setup/helpers.ts';
 
-// NOTE: Balance charge tests require multi-canister setup with:
-// 1. ICP ledger canister
-// 2. Treasury library integrated in backend
-// 3. Funded user subaccounts
-//
-// Current tests verify the API surface and settings integration.
-// Full charge flow is tested in treasury-charge.test.ts (treasury library level).
+import { ONE_TRILLION_CYCLES } from './setup/constants.ts';
+import { createPic, userAlice } from './setup/helpers.ts';
 
 describe('Balance & Charge', () => {
   let pic: PocketIc;
@@ -29,9 +23,8 @@ describe('Balance & Charge', () => {
     const addresses = await actor.getMyWalletAddresses();
 
     expect(addresses.icSubaccount).toBeDefined();
-    expect(addresses.icSubaccount.length).toBe(32); // 32-byte subaccount
+    expect(addresses.icSubaccount.length).toBe(32);
 
-    // Same user gets same subaccount
     const addresses2 = await actor.getMyWalletAddresses();
     expect(addresses.icSubaccount).toEqual(addresses2.icSubaccount);
   });
@@ -51,7 +44,6 @@ describe('Balance & Charge', () => {
     actor.setIdentity(userAlice);
     const addresses = await actor.getMyWalletAddresses();
 
-    // Without EVM/SOL config, addresses are null
     expect(addresses.evmAddress).toEqual([]);
     expect(addresses.solAddress).toEqual([]);
   });
@@ -60,20 +52,39 @@ describe('Balance & Charge', () => {
     await expect(actor.getMyWalletAddresses()).rejects.toThrow();
   });
 
-  test('topUpFromBalance: not implemented yet returns error', async () => {
-    actor.setIdentity(userAlice);
-    const result = await actor.topUpFromBalance(
-      userAlice.getPrincipal(), // canisterId
-      1_000_000_000_000n,      // 1T cycles
-    );
-    expect(result).toHaveProperty('err');
+  test('topUpFromBalance: anonymous caller rejected', async () => {
+    await expect(
+      actor.topUpFromBalance(
+        userAlice.getPrincipal(),
+        ONE_TRILLION_CYCLES,
+      ),
+    ).rejects.toThrow();
   });
 
-  // TODO: Full balance-charge integration tests (require multi-canister setup):
-  // - chargeForService: stablecoin first by default priority
-  // - chargeForService: fallback to ICP at CMC rate
-  // - chargeForService: insufficient all → #insufficientFunds
-  // - chargeForService: custom priority [#ICP, #ckUSDC] → ICP first
-  // - chargeForService: ambassador splits in chargeAndDistribute args
-  // - chargeForService: single token only ($5+$5 < $9.9 → insufficient)
+  test('topUpFromBalance: non-owner canister returns error', async () => {
+    actor.setIdentity(userAlice);
+    const fakeCanisterId = userAlice.getPrincipal();
+    const result = await actor.topUpFromBalance(fakeCanisterId, ONE_TRILLION_CYCLES);
+    expect(result).toEqual({ err: 'You do not own this canister' });
+  });
+
+  test('topUpFromBalance: cyclesAmount=0 returns error early', async () => {
+    actor.setIdentity(userAlice);
+    const result = await actor.topUpFromBalance(
+      userAlice.getPrincipal(),
+      0n,
+    );
+    expect(result).toEqual({ err: 'Cycles amount must be greater than zero' });
+  });
+
+  test('triggerAutoRenewals: non-admin rejected', async () => {
+    actor.setIdentity(userAlice);
+    await expect(actor.triggerAutoRenewals()).rejects.toThrow();
+  });
+
+  test('adminRegisterWasmHash: non-admin rejected', async () => {
+    actor.setIdentity(userAlice);
+    const fakeHash = new Uint8Array(32);
+    await expect(actor.adminRegisterWasmHash(fakeHash, 'test')).rejects.toThrow();
+  });
 });
