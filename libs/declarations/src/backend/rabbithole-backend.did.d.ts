@@ -199,6 +199,11 @@ export interface Profile {
   'avatarUrl' : [] | [string],
 }
 export interface Progress { 'total' : bigint, 'processed' : bigint }
+export type PurchaseError = { 'ActivationFailed' : string } |
+  { 'InvalidPlan' : string } |
+  { 'ChargeFailed' : string } |
+  { 'AlreadyActive' : null } |
+  { 'InsufficientFunds' : { 'required' : bigint } };
 export interface Rabbithole {
   'activateSubscription' : ActorMethod<
     [Principal, Plan, [] | [bigint]],
@@ -206,7 +211,7 @@ export interface Rabbithole {
   >,
   'activateTrial' : ActorMethod<[], undefined>,
   'addAdmin' : ActorMethod<[Principal], undefined>,
-  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_4>,
+  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_5>,
   'adminRegisterWasmHash' : ActorMethod<
     [Uint8Array | number[], string],
     undefined
@@ -217,9 +222,9 @@ export interface Rabbithole {
     SubscriptionCheckResult
   >,
   'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
-  'createStorage' : ActorMethod<[CreateStorageOptions], Result_3>,
+  'createStorage' : ActorMethod<[CreateStorageOptions], Result_4>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_2>,
+  'deleteStorage' : ActorMethod<[bigint], Result_3>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
   'getDistributionLog' : ActorMethod<
@@ -269,6 +274,7 @@ export interface Rabbithole {
     undefined
   >,
   'processPendingRefunds' : ActorMethod<[], bigint>,
+  'purchaseSubscription' : ActorMethod<[Plan], Result_2>,
   'refreshReleases' : ActorMethod<[], undefined>,
   'register' : ActorMethod<[[] | [string]], undefined>,
   /**
@@ -343,10 +349,12 @@ export type Result = { 'ok' : null } |
 export type Result_1 = { 'ok' : { 'cyclesAdded' : bigint } } |
   { 'err' : string };
 export type Result_2 = { 'ok' : null } |
-  { 'err' : DeleteStorageError };
+  { 'err' : PurchaseError };
 export type Result_3 = { 'ok' : null } |
+  { 'err' : DeleteStorageError };
+export type Result_4 = { 'ok' : null } |
   { 'err' : CreateStorageError };
-export type Result_4 = { 'ok' : bigint } |
+export type Result_5 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
 export interface SolConfig {
   'usdcMint' : string,
@@ -510,6 +518,7 @@ export interface User {
   'id' : Principal,
   'inviter' : [] | [Principal],
   'createdAt' : Time,
+  'trialUsed' : boolean,
   'updatedAt' : Time,
 }
 export interface UserSettings {

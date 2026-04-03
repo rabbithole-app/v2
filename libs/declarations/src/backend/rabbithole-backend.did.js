@@ -36,7 +36,7 @@ export const idlFactory = ({ IDL }) => {
     'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InvalidWasm' : IDL.Text,
   });
-  const Result_4 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const Result_5 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
   const UpdateInfo = IDL.Record({
     'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'wasmUpdateAvailable' : IDL.Bool,
@@ -121,13 +121,13 @@ export const idlFactory = ({ IDL }) => {
     'ReleaseNotFound' : IDL.Null,
     'TransferFailed' : TransferFromError,
   });
-  const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
+  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : CreateStorageError });
   const DeleteStorageError = IDL.Variant({
     'NotFailed' : IDL.Null,
     'NotFound' : IDL.Null,
     'NotOwner' : IDL.Null,
   });
-  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
   const AmbassadorChain = IDL.Record({
     'l1' : IDL.Opt(IDL.Principal),
     'l2' : IDL.Opt(IDL.Principal),
@@ -340,6 +340,7 @@ export const idlFactory = ({ IDL }) => {
     'id' : IDL.Principal,
     'inviter' : IDL.Opt(IDL.Principal),
     'createdAt' : Time,
+    'trialUsed' : IDL.Bool,
     'updatedAt' : Time,
   });
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
@@ -472,6 +473,14 @@ export const idlFactory = ({ IDL }) => {
     'data' : IDL.Vec(Subscription),
     'instructions' : IDL.Nat,
   });
+  const PurchaseError = IDL.Variant({
+    'ActivationFailed' : IDL.Text,
+    'InvalidPlan' : IDL.Text,
+    'ChargeFailed' : IDL.Text,
+    'AlreadyActive' : IDL.Null,
+    'InsufficientFunds' : IDL.Record({ 'required' : IDL.Nat }),
+  });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : PurchaseError });
   const CreateProfileAvatarArgs = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
     'contentType' : IDL.Text,
@@ -523,7 +532,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'activateTrial' : IDL.Func([], [], []),
     'addAdmin' : IDL.Func([IDL.Principal], [], []),
-    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_4], []),
+    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_5], []),
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
@@ -536,9 +545,9 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
-    'createStorage' : IDL.Func([CreateStorageOptions], [Result_3], []),
+    'createStorage' : IDL.Func([CreateStorageOptions], [Result_4], []),
     'deleteProfile' : IDL.Func([], [], []),
-    'deleteStorage' : IDL.Func([IDL.Nat], [Result_2], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result_3], []),
     'flushPaymentQueue' : IDL.Func([], [], []),
     'getAmbassadorChainQuery' : IDL.Func([], [AmbassadorChain], ['query']),
     'getDistributionLog' : IDL.Func(
@@ -615,6 +624,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'processPendingRefunds' : IDL.Func([], [IDL.Nat], []),
+    'purchaseSubscription' : IDL.Func([Plan], [Result_2], []),
     'refreshReleases' : IDL.Func([], [], []),
     'register' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
     'registerLatestWasmHash' : IDL.Func([], [], []),

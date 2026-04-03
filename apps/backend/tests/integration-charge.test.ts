@@ -212,7 +212,7 @@ describe('Integration: webhook license/pro → subscription', () => {
     const body = makePaymentCompletedEvent({
       purpose: 'license',
       userId: userIdentity.getPrincipal().toText(),
-      amount: 499_000n, // $4.99 in e8s-like units
+      amount: 490_000n, // $4.90 in e8s-like units
       paymentId: 'pay-license-integ',
     });
     const sig = signWebhookPayload(ICPAY_SECRET, body, ts);
@@ -1723,4 +1723,212 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
     const lowNotif = notifs.data.find((n: any) => 'balanceLow' in n.event);
     expect(lowNotif).toBeDefined();
   }, 300_000);
+});
+
+// ========== Test Suite: purchaseSubscription (ICPay fallback) ==========
+
+describe('Integration: purchaseSubscription (direct balance purchase)', () => {
+  let manager: BackendManager;
+  let actor: any;
+  let backendCanisterId: Principal;
+
+  beforeAll(async () => {
+    manager = await BackendManager.create({ fiduciary: true });
+    await manager.deployXrcMock();
+    const fixture = await manager.initBackendCanister();
+    actor = fixture.actor;
+    backendCanisterId = fixture.canisterId;
+    await manager.pic.tick();
+  });
+
+  afterAll(async () => { await manager?.afterAll(); });
+
+  test('purchaseSubscription: anonymous caller rejected', async () => {
+    // Create a separate actor without identity set (defaults to anonymous)
+    const anonActor = manager.pic.createActor(
+      rabbitholeIdlFactory as any,
+      backendCanisterId,
+    );
+    await expect(anonActor.purchaseSubscription({ License: null })).rejects.toThrow();
+  });
+
+  test('purchaseSubscription: Free plan returns InvalidPlan', async () => {
+    const user = createIdentity('purchase-free');
+    actor.setIdentity(user);
+    await actor.register([]);
+
+    const result = await actor.purchaseSubscription({ Free: null });
+    expect(result).toHaveProperty('err');
+    expect(result.err).toHaveProperty('InvalidPlan');
+  });
+
+  test('purchaseSubscription: Trial plan returns InvalidPlan', async () => {
+    const user = createIdentity('purchase-trial');
+    actor.setIdentity(user);
+    await actor.register([]);
+
+    const result = await actor.purchaseSubscription({ Trial: null });
+    expect(result).toHaveProperty('err');
+    expect(result.err).toHaveProperty('InvalidPlan');
+  });
+
+  test('purchaseSubscription: insufficient balance returns InsufficientFunds', async () => {
+    const user = createIdentity('purchase-no-funds');
+    actor.setIdentity(user);
+    await actor.register([]);
+    await actor.updateSettings({
+      spendingPriority: [{ ICP: null }],
+      autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    const result = await actor.purchaseSubscription({ License: null });
+    expect(result).toHaveProperty('err');
+    expect(result.err).toHaveProperty('InsufficientFunds');
+  });
+
+  test('purchaseSubscription: License with ICP → activates License', async () => {
+    const user = createIdentity('purchase-license-icp');
+    actor.setIdentity(user);
+    await actor.register([]);
+    await actor.updateSettings({
+      spendingPriority: [{ ICP: null }],
+      autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    // Fund user's ICP subaccount
+    const userSubaccount = principalToSubAccount(user.getPrincipal());
+    manager.icpLedgerActor.setIdentity(minterIdentity);
+    await manager.icpLedgerActor.icrc1_transfer({
+      to: { owner: backendCanisterId, subaccount: [userSubaccount] },
+      fee: [], memo: [], from_subaccount: [], created_at_time: [],
+      amount: 10n * E8S_PER_ICP,
+    });
+
+    // Check balance before
+    const balanceBefore = await manager.icpLedgerActor.icrc1_balance_of({
+      owner: backendCanisterId,
+      subaccount: [userSubaccount],
+    });
+
+    // Purchase License
+    actor.setIdentity(user);
+    const result = await actor.purchaseSubscription({ License: null });
+    expect(result).toHaveProperty('ok');
+
+    // Verify subscription
+    const sub = await actor.getSubscription();
+    expect(sub).toHaveLength(1);
+    expect(sub[0].plan).toEqual({ License: null });
+    expect(sub[0].status).toEqual({ Active: null });
+    expect(sub[0].expiresAt).toHaveLength(0); // License has no expiry
+
+    // Balance should have decreased
+    const balanceAfter = await manager.icpLedgerActor.icrc1_balance_of({
+      owner: backendCanisterId,
+      subaccount: [userSubaccount],
+    });
+    expect(balanceAfter).toBeLessThan(balanceBefore);
+
+    // Should have subscriptionActivated notification
+    const notifs = await actor.getNotifications([], 10n);
+    const activatedNotif = notifs.data.find((n: any) => 'subscriptionActivated' in n.event);
+    expect(activatedNotif).toBeDefined();
+    expect(activatedNotif.event.subscriptionActivated.plan).toEqual({ License: null });
+  });
+
+  test('purchaseSubscription: Pro with ICP → activates Pro with 30d expiry', async () => {
+    const user = createIdentity('purchase-pro-icp');
+    actor.setIdentity(user);
+    await actor.register([]);
+    await actor.updateSettings({
+      spendingPriority: [{ ICP: null }],
+      autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    // Fund user
+    const userSubaccount = principalToSubAccount(user.getPrincipal());
+    manager.icpLedgerActor.setIdentity(minterIdentity);
+    await manager.icpLedgerActor.icrc1_transfer({
+      to: { owner: backendCanisterId, subaccount: [userSubaccount] },
+      fee: [], memo: [], from_subaccount: [], created_at_time: [],
+      amount: 10n * E8S_PER_ICP,
+    });
+
+    actor.setIdentity(user);
+    const result = await actor.purchaseSubscription({ Pro: null });
+    expect(result).toHaveProperty('ok');
+
+    const sub = await actor.getSubscription();
+    expect(sub[0].plan).toEqual({ Pro: null });
+    expect(sub[0].status).toEqual({ Active: null });
+    expect(sub[0].expiresAt).toHaveLength(1);
+    expect(sub[0].expiresAt[0]).toBeGreaterThan(0n);
+  });
+
+  test('purchaseSubscription: already active → AlreadyActive error', async () => {
+    const user = createIdentity('purchase-already-active');
+    actor.setIdentity(user);
+    await actor.register([]);
+
+    // Admin activates License
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.activateSubscription(user.getPrincipal(), { License: null }, []);
+
+    // Try to purchase again
+    actor.setIdentity(user);
+    const result = await actor.purchaseSubscription({ Pro: null });
+    expect(result).toHaveProperty('err');
+    expect(result.err).toHaveProperty('AlreadyActive');
+  });
+
+  test('purchaseSubscription: ambassador distribution works (80/15/5)', async () => {
+    // Create L1 ambassador with profile (referralCode is generated on createProfile)
+    const ambassador = createIdentity('purchase-ambassador');
+    actor.setIdentity(ambassador);
+    await actor.register([]);
+    await actor.createProfile({
+      username: 'ambassador',
+      displayName: [],
+      avatarUrl: [],
+    });
+    const ambassadorProfile = await actor.getProfile();
+    const referralCode = ambassadorProfile[0]?.referralCode?.[0];
+    expect(referralCode).toBeDefined();
+
+    const buyer = createIdentity('purchase-buyer-amb');
+    actor.setIdentity(buyer);
+    await actor.register(referralCode ? [referralCode] : []);
+    await actor.updateSettings({
+      spendingPriority: [{ ICP: null }],
+      autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    // Fund buyer
+    const buyerSubaccount = principalToSubAccount(buyer.getPrincipal());
+    manager.icpLedgerActor.setIdentity(minterIdentity);
+    await manager.icpLedgerActor.icrc1_transfer({
+      to: { owner: backendCanisterId, subaccount: [buyerSubaccount] },
+      fee: [], memo: [], from_subaccount: [], created_at_time: [],
+      amount: 10n * E8S_PER_ICP,
+    });
+
+    // Purchase
+    actor.setIdentity(buyer);
+    const result = await actor.purchaseSubscription({ License: null });
+    expect(result).toHaveProperty('ok');
+
+    // Verify ambassador got their share via distribution log
+    actor.setIdentity(manager.ownerIdentity);
+    const log = await actor.getDistributionLog({
+      limit: 10n,
+      offset: 0n,
+    });
+    const purchaseEntry = log.find((r: any) =>
+      r.payer.toText() === buyer.getPrincipal().toText()
+    );
+    expect(purchaseEntry).toBeDefined();
+    // 80% treasury, 15% L1, 5% L2 (no L2 here)
+    expect(purchaseEntry.treasuryAmount).toBeGreaterThan(0n);
+    expect(purchaseEntry.l1Amount).toBeGreaterThan(0n);
+  });
 });

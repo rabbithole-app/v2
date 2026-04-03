@@ -316,6 +316,73 @@ mixin (
     prefix # "_" # Principal.toText(userId) # "_" # Nat.toText(id);
   };
 
+  // ---- Price constants (USD cents) ----
+
+  let LICENSE_PRICE_CENTS : Nat = 490;   // $4.90
+  let PRO_MONTHLY_PRICE_CENTS : Nat = 990; // $9.90
+
+  // ---- Direct purchase (ICPay fallback) ----
+
+  public type PurchaseError = {
+    #InsufficientFunds : { required : Nat };
+    #AlreadyActive;
+    #InvalidPlan : Text;
+    #ChargeFailed : Text;
+    #ActivationFailed : Text;
+  };
+
+  /// Purchase a subscription by charging from user's deposited balance.
+  /// ICPay fallback: user deposits tokens to their derived wallet, then calls this.
+  public shared ({ caller }) func purchaseSubscription(
+    plan : Subscriptions.Plan,
+  ) : async Result.Result<(), PurchaseError> {
+    assert not Principal.isAnonymous(caller);
+
+    // Validate plan
+    let (amountCents, expiresAt) : (Nat, ?Int) = switch (plan) {
+      case (#License) (LICENSE_PRICE_CENTS, null);
+      case (#Pro) {
+        let thirtyDays = 30 * 24 * 60 * 60 * 1_000_000_000;
+        (PRO_MONTHLY_PRICE_CENTS, ?(Time.now() + thirtyDays));
+      };
+      case (#Free or #Trial) return #err(#InvalidPlan("Cannot purchase Free or Trial plans"));
+    };
+
+    // Check not already active
+    switch (subscriptions.get(caller)) {
+      case (?sub) {
+        if (sub.status == #Active) return #err(#AlreadyActive);
+      };
+      case null {};
+    };
+
+    // Charge from balance (with ambassador distribution)
+    let paymentId = generatePaymentId("purchase", caller);
+    let chargeResult = await* chargeForService(caller, amountCents, debug_show plan, paymentId);
+
+    switch (chargeResult) {
+      case (#ok(charged)) {
+        switch (subscriptions.activate(caller, plan, expiresAt)) {
+          case (#ok()) {
+            deps.notifyUser(caller, #subscriptionActivated({ plan }));
+            #ok();
+          };
+          case (#err(e)) {
+            // Charge succeeded but activation failed — refund
+            await* safeRefund(caller, charged.tokenId, charged.amount, "purchaseSubscription activation failed");
+            #err(#ActivationFailed(debug_show e));
+          };
+        };
+      };
+      case (#insufficientFunds(details)) {
+        #err(#InsufficientFunds({ required = details.required }));
+      };
+      case (#err(msg)) {
+        #err(#ChargeFailed(msg));
+      };
+    };
+  };
+
   // ---- Auto-renew ----
 
   func processAutoRenewals() : async () {
