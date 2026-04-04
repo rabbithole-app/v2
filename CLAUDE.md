@@ -604,6 +604,66 @@ Integrate wallets with IC dApps using ICRC signer standards (ICRC-21/25/27/29/49
 - Permission lifecycle with consent messages
 - Per-action transaction approval flow
 
+### Caffeine Extension Skills
+
+These skills provide patterns for adding features using `caffeineai-*` Mops packages (backend) and `@caffeineai/*` npm packages (frontend). Note: Caffeine skills reference React hooks — adapt to Angular patterns when integrating into this project.
+
+#### extension-core-infrastructure
+
+Core infrastructure: backend connection config, storage client, React app entry point. Automatically included in all Caffeine projects. Provides `useActor()` and `useInternetIdentity()` hooks.
+
+#### extension-authorization
+
+Role-based access control with three roles (#admin, #user, #guest). Uses `MixinAuthorization` from `mo:caffeineai-authorization/access-control`. First authenticated user becomes admin automatically. Depends on `caffeineai-authorization` (~0.1.0).
+
+#### extension-user-approval
+
+Approval-based user management — users request access, admins approve/reject. Statuses: #approved, #rejected, #pending. Uses `mo:caffeineai-user-approval/approval`. Depends on extension-authorization.
+
+#### extension-email
+
+Service/transactional emails (order confirmations, notifications). Uses `sendServiceEmail` from `mo:caffeineai-email/emailClient`. Subscription: Plus/Pro. Not for marketing or verification.
+
+#### extension-email-raw
+
+Send emails with multiple to, cc, bcc recipients (max 50 total). Uses `sendRawEmail`. Subscription: Plus/Pro.
+
+#### extension-email-verification
+
+Email verification via click-to-verify links. Tracks verified emails with `verifiedEmails` module, includes `MixinEmailVerification` callback handler. Subscription: Plus/Pro.
+
+#### extension-email-marketing
+
+Marketing email campaigns with subscriber management, topic-based subscriptions, personalization ({{NAME}} substitutions), and automatic unsubscribe links. Requires verified emails. Subscription: Plus/Pro.
+
+#### extension-email-calendar-events
+
+Calendar event CRUD and iCalendar email invitations. Uses `CalendarEvents` module with add, update, cancel, delete operations. Subscription: Plus/Pro.
+
+#### extension-http-outcalls
+
+HTTP GET/POST from backend canister. Uses `mo:caffeineai-http-outcalls/outcall`. Requires transform callback for IC validation. JSON parsing recommended on frontend.
+
+#### extension-object-storage
+
+Off-chain file/object storage with on-chain references. Uses `Storage.ExternalBlob` type for file fields (never `Text`). Frontend: `getDirectURL()` for streaming, `getBytes()` for downloads. Depends on `caffeineai-object-storage` (~0.1.1).
+
+#### extension-stripe
+
+Stripe payment processing (credit/debit cards). Creates checkout sessions via HTTP outcalls. Uses `mo:caffeineai-stripe/stripe`. Frontend redirects via `window.location.href`. Depends on extension-http-outcalls and extension-authorization.
+
+#### extension-invite-links
+
+Invite-link generation and RSVP collection. Guests submit responses without login, admins view responses with login. Uses `mo:caffeineai-invite-links/invite-links-module`.
+
+#### extension-camera
+
+Web-camera support for photo capture and streaming. Uses `useCamera` hook from `@caffeineai/camera`. Supports facing mode switching.
+
+#### extension-qr-code
+
+QR code scanner using device camera. Uses `useQRScanner` hook from `@caffeineai/qr-code` with jsQR library. Depends on extension-camera.
+
 ## Testing Infrastructure
 
 - **Unit Tests**: Vitest for most projects (configured per-project)
