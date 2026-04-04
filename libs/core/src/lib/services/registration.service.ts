@@ -1,7 +1,8 @@
 import { EnvironmentProviders, inject, provideAppInitializer } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { fromNullable } from '@dfinity/utils';
-import { ActorSubclass } from '@icp-sdk/core/agent';
-import { effectOnceIf } from 'ngxtension/effect-once-if';
+import { Actor, ActorSubclass } from '@icp-sdk/core/agent';
+import { filter, from, map, switchMap, take } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { RabbitholeActorService } from '@rabbithole/declarations';
@@ -31,16 +32,25 @@ export function provideReferralCapture(): EnvironmentProviders {
  * After authentication, checks if a User record exists.
  * If not, calls `register()` with the referral code from sessionStorage.
  * Runs once per session — idempotent on the backend side as well.
+ *
+ * The actor signal may initially hold an actor backed by an anonymous agent
+ * (httpAgent starts with a sync anonymous instance). We verify the actor's
+ * agent principal is not anonymous before making any calls — this avoids
+ * the race between isAuthenticated (sync signal) and httpAgent (async pipeline).
  */
 export function provideRegistration(): EnvironmentProviders {
   return provideAppInitializer(() => {
-    const authService = inject(AUTH_SERVICE);
     const actor = injectMainActor();
 
-    effectOnceIf(
-      () => (authService.isAuthenticated() ? actor() : null),
-      (currentActor) => ensureRegistered(currentActor),
-    );
+    toObservable(actor).pipe(
+      switchMap((a) =>
+        from(Actor.agentOf(a)!.getPrincipal()).pipe(
+          filter((p) => !p.isAnonymous()),
+          map(() => a),
+        ),
+      ),
+      take(1),
+    ).subscribe((currentActor) => ensureRegistered(currentActor));
   });
 }
 

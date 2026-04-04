@@ -58,4 +58,4 @@ export type {
   install_chunked_code_args as InstallChunkedCodeArgs
 } from './ic-management/ic-management';
 export { idlFactory as icManagementIdlFactory } from './ic-management/ic-management.idl';
-export { xrcMockIdlFactory, xrcMockInitArgs, encodeXrcMockInitArg } from './xrc-mock/index.ts';
+export { xrcMockIdlFactory, xrcMockInitArgs, encodeXrcMockInitArg } from './xrc-mock/index';
