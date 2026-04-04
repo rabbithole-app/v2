@@ -36,9 +36,9 @@ module {
   ];
 
   public class Users(db : ZenDB.Database) {
-    let #ok(usersCollection) = db.createCollection<User>("users", UserSchema, candifyUsers, ?{ schemaConstraints }) else Runtime.unreachable();
+    let #ok(usersCollection) = db.createCollection<User>("users", UserSchema, candifyUsers, ?{ schema_constraints = schemaConstraints }) else Runtime.unreachable();
 
-    public func create(principal : Principal, inviter : ?Principal) : ZenDB.Types.Result<Nat, Text> {
+    public func create(principal : Principal, inviter : ?Principal) : ZenDB.Types.Result<ZenDB.Types.DocumentId, Text> {
       let now = Time.now();
       let user : User = {
         id = principal;
@@ -57,17 +57,17 @@ module {
 
     public func markTrialUsed(principal : Principal) {
       let q = ZenDB.QueryBuilder().Where("id", #eq(#Principal(principal))).Limit(1);
-      let #ok(results) = usersCollection.search(q) else return;
-      if (results.size() == 0) return;
-      let (docId, user) = results[0];
+      let #ok({ documents }) = usersCollection.search(q) else return;
+      if (documents.size() == 0) return;
+      let (docId, user) = documents[0];
       ignore usersCollection.replace(docId, { user with trialUsed = true; updatedAt = Time.now() });
     };
 
     public func get(caller : Principal) : ?User {
       let q = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
-      let #ok(users) = usersCollection.search(q) else return null;
-      if (users.size() == 0) return null;
-      let (_, user) = users[0];
+      let #ok({ documents }) = usersCollection.search(q) else return null;
+      if (documents.size() == 0) return null;
+      let (_, user) = documents[0];
       ?user;
     };
 

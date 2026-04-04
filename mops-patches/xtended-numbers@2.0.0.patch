@@ -1,0 +1,11 @@
+--- a/.mops/xtended-numbers@2.0.0/src/Util.mo
++++ b/.mops/xtended-numbers@2.0.0/src/Util.mo
+@@ -28,7 +28,7 @@
+       List.add(buffer, false); // Pad 0's for full byte
+     };
+     if (hasSign) {
+-      let mostSignificantBit : Bool = List.get(buffer, List.size(buffer) - 1 : Nat);
++      let mostSignificantBit : Bool = switch (List.get(buffer, List.size(buffer) - 1 : Nat)) { case (?v) v; case null false };
+       if (mostSignificantBit) {
+         // If most significant bit is a 1, overflow to another byte
+         for (i in Nat.range(1, byteLength + 1)) {

@@ -1,10 +1,19 @@
-[dependencies]
-map = "9.0.1"
-liminal = "1.0.0"
-core = "0.6.0"
-ic = "3.0.0"
-xtended-numbers = "2.0.0"
-
 [package]
 name = "auth-jwt"
 version = "0.1.0"
+
+[dependencies]
+map = "9.0.1"
+liminal = "3.1.0"
+core = "2.4.0"
+ic = "3.2.0"
+# Direct imports not auto-resolved from liminal transitive deps
+jwt = "2.1.1"
+ecdsa = "7.1.0"
+sha2 = "0.1.14"
+base-x-encoder = "2.1.0"
+candid = "2.4.2"
+
+[toolchain]
+moc = "1.4.1"
+wasmtime = "43.0.0"

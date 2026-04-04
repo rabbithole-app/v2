@@ -148,7 +148,7 @@ module {
     };
 
     switch (List.first(List.fromArray<(Text, ZenDB.Types.SortDirection)>(options.sort))) {
-      case (?(field, direction)) ignore dbQuery.Sort(field, direction);
+      case (?(field, direction)) ignore dbQuery.SortBy(field, direction);
       case null {};
     };
 
@@ -156,7 +156,7 @@ module {
   };
 
   public class Profiles(db : ZenDB.Database, deleteAsset : (Text) -> ()) {
-    let #ok(profilesCollection) = db.createCollection<Profile>("profiles", ProfileSchema, candifyProfiles, ?{ schemaConstraints }) else Runtime.unreachable();
+    let #ok(profilesCollection) = db.createCollection<Profile>("profiles", ProfileSchema, candifyProfiles, ?{ schema_constraints = schemaConstraints }) else Runtime.unreachable();
 
     // Tracks the last uploaded (but not yet saved) avatar asset key per user.
     // On each trackAvatar call the previous pending avatar is deleted.
@@ -178,7 +178,7 @@ module {
       };
     };
 
-    public func create(caller : Principal, args : CreateProfileArgs) : ZenDB.Types.Result<Nat, Text> {
+    public func create(caller : Principal, args : CreateProfileArgs) : ZenDB.Types.Result<ZenDB.Types.DocumentId, Text> {
       let now = Time.now();
       let profile : Profile = {
         id = caller;
@@ -197,15 +197,15 @@ module {
 
       // Get prevAvatarUrl before update
       let prevAvatarUrl : ?Text = switch (profilesCollection.search(callerQuery)) {
-        case (#ok(results)) {
-          if (results.size() == 0) return #err("Profile not found");
-          let (_, profile) = results[0];
+        case (#ok({ documents })) {
+          if (documents.size() == 0) return #err("Profile not found");
+          let (_, profile) = documents[0];
           profile.avatarUrl;
         };
         case (#err message) return #err(message);
       };
 
-      let #ok(updated) = profilesCollection.update(
+      let #ok({ updated_count }) = profilesCollection.update(
         callerQuery,
         [
           ("displayName", Option.map<Text, ZenDB.Types.Candid>(args.displayName, func(v : Text) : ZenDB.Types.Candid = #Text(v)) |> Option.get(_, #Null) |> #Option _),
@@ -214,7 +214,7 @@ module {
         ],
       ) else return #err("Failed to update profile");
 
-      if (updated == 0) {
+      if (updated_count == 0) {
         return #err("Profile not found");
       };
 
@@ -227,18 +227,18 @@ module {
     public func get(caller : Principal) : ?Profile {
       let callerQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
-      let #ok(profiles) = profilesCollection.search(callerQuery) else return null;
-      if (profiles.size() == 0) return null;
-      let (_, profile) = profiles[0];
+      let #ok({ documents }) = profilesCollection.search(callerQuery) else return null;
+      if (documents.size() == 0) return null;
+      let (_, profile) = documents[0];
       ?profile;
     };
 
     public func delete(caller : Principal) : ZenDB.Types.Result<Profile, Text> {
       let callerQuery = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
 
-      let #ok(deletedProfiles) = profilesCollection.delete(callerQuery) else return #err("Failed to delete profile");
-      if (deletedProfiles.size() == 0) return #err("Profile not found");
-      let (_, profile) = deletedProfiles[0];
+      let #ok({ deleted_documents }) = profilesCollection.delete(callerQuery) else return #err("Failed to delete profile");
+      if (deleted_documents.size() == 0) return #err("Profile not found");
+      let (_, profile) = deleted_documents[0];
 
       deleteIfDifferent(profile.avatarUrl, null); // always delete saved avatar
       deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), profile.avatarUrl);
@@ -248,15 +248,15 @@ module {
 
     public func usernameExists(username : Text) : Bool {
       let profilesByUsernameQuery = ZenDB.QueryBuilder().Where("username", #eq(#Text(username)));
-      let #ok(count) = profilesCollection.count(profilesByUsernameQuery) else return false;
+      let #ok({ count }) = profilesCollection.count(profilesByUsernameQuery) else return false;
       count > 0;
     };
 
     public func resolveReferralCode(code : Text) : ?Principal {
       let q = ZenDB.QueryBuilder().Where("referralCode", #eq(#Option(#Text(code)))).Limit(1);
-      let #ok(results) = profilesCollection.search(q) else return null;
-      if (results.size() == 0) return null;
-      let (_, profile) = results[0];
+      let #ok({ documents }) = profilesCollection.search(q) else return null;
+      if (documents.size() == 0) return null;
+      let (_, profile) = documents[0];
       ?profile.id;
     };
 
@@ -269,12 +269,12 @@ module {
       let instructions = IC.countInstructions(
         func() {
           data := switch (profilesCollection.search(dbQuery)) {
-            case (#ok(result)) Array.map<(Nat, Profile), Profile>(result, func(_, profile) = profile);
+            case (#ok({ documents })) Array.map<(ZenDB.Types.DocumentId, Profile), Profile>(documents, func(_, profile) = profile);
             case (#err message) Runtime.trap("list failed: " # message);
           };
 
           if (options.count) {
-            let #ok(count) = profilesCollection.count(dbQuery) else Runtime.trap("profilesCollection.count failed");
+            let #ok({ count }) = profilesCollection.count(dbQuery) else Runtime.trap("profilesCollection.count failed");
             total := ?count;
           };
         }

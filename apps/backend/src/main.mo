@@ -50,7 +50,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   // --- Database ---
 
-  let zendb = ZenDB.newStableStore(null);
+  let zendb = ZenDB.newStableStore(canisterId, null);
   transient let db = ZenDB.launchDefaultDB(zendb);
 
   // --- Storage Deployer ---

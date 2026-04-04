@@ -36,10 +36,10 @@ mixin(
     args.key;
   };
 
-  public shared ({ caller }) func createProfile(args : Profiles.CreateProfileArgs) : async Nat {
+  public shared ({ caller }) func createProfile(args : Profiles.CreateProfileArgs) : async Blob {
     assert not Principal.isAnonymous(caller);
     switch (profiles.create(caller, args)) {
-      case (#ok index) index;
+      case (#ok docId) docId;
       case (#err message) throw Error.reject(message);
     };
   };

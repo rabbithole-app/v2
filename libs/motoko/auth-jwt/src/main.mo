@@ -34,9 +34,9 @@ shared ({ caller = owner }) persistent actor class AuthJWTCanister() = self {
       }
     );
     routes = [
-      Router.getQuery(
+      Router.get(
         "/whoami",
-        func(context : RouteContext.RouteContext) : Route.HttpResponse {
+        #query_(func(context : RouteContext.RouteContext) : Route.HttpResponse {
           // Get authenticated identity
           switch (context.getIdentity()) {
             case (?identity) switch (identity.isAuthenticated(), identity.getId()) {
@@ -47,7 +47,7 @@ shared ({ caller = owner }) persistent actor class AuthJWTCanister() = self {
           };
 
           context.buildResponse(#unauthorized, #error(#message("Not logged in")));
-        },
+        }),
       )
     ];
   };
@@ -75,6 +75,14 @@ shared ({ caller = owner }) persistent actor class AuthJWTCanister() = self {
     errorSerializer = Liminal.defaultJsonErrorSerializer;
     candidRepresentationNegotiator = Liminal.defaultCandidRepresentationNegotiator;
     logger = Liminal.buildDebugLogger(#info);
+    urlNormalization = {
+      pathIsCaseSensitive = false;
+      preserveTrailingSlash = false;
+      queryKeysAreCaseSensitive = false;
+      removeEmptyPathSegments = true;
+      resolvePathDotSegments = true;
+      usernameIsCaseSensitive = false;
+    };
   });
 
   // Http server methods
