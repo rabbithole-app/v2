@@ -28,5 +28,9 @@ module {
     icpaySecretKey : ?Blob;
     evmConfig : ?EvmConfig;
     solConfig : ?SolConfig;
+    /// VetKey name for storage canisters: "key_1" (prod) / "dfx_test_key" (dev)
+    vetKeyName : Text;
+    /// Caffeine cashier canister ID for blob storage protocol
+    cashierCanisterId : Principal;
   };
 };

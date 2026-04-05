@@ -51,14 +51,14 @@ module EncryptedFileStorage {
   /// versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
   /// let storage = EncryptedStorage.fromVersion(versionedStore);
   /// ```
-  public func initStableStore({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs; backendId } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
+  public func initStableStore({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs; backendId; storageBackendType } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
     let fs = FileSystem.new({
       region;
       rootPermissions;
     });
     let upload = Upload.new(region);
 
-    #v2({
+    #v1({
       canisterId;
       region;
       fs;
@@ -69,7 +69,7 @@ module EncryptedFileStorage {
       domainSeparatorBytes = Text.encodeUtf8(domainSeparator);
       var streamingCallback = null;
 
-      // V2 fields
+      // Subscription & Backend
       var backendId = backendId;
       var subscriptionCache = null;
       var encryptedBytesUsed = 0;
@@ -78,6 +78,9 @@ module EncryptedFileStorage {
       var lastCycleAlertAt = 0;
       var lastCycleAlertLevel = null;
       var cachedIdleBurnPerDay = null;
+
+      // Caffeine Blob Storage
+      storageBackendType;
     });
   };
 
@@ -104,6 +107,7 @@ module EncryptedFileStorage {
       };
       encryptedBytesUsed = self.encryptedBytesUsed;
       backendId = self.backendId;
+      storageBackendType = self.storageBackendType;
     };
   };
 
@@ -507,12 +511,70 @@ module EncryptedFileStorage {
     };
 
     switch (FileSystem.delete(self.fs, args)) {
-      case (#ok(?{ metadata = #File(file) })) File.deallocateAll(self.fs, file);
+      case (#ok(?{ metadata = #File(file) })) {
+        File.deallocateAll(self.fs, file);
+      };
       case (#err(message)) return #err message;
       case _ {};
     };
 
     #ok;
+  };
+
+  /// Commits a Caffeine upload. Called after frontend uploads encrypted chunks
+  /// to the Caffeine gateway. Creates a FileVersion with #BlobStorage ref.
+  public func commitCaffeineUpload(self : T.StableStore, caller : Principal, args : T.CommitCaffeineUploadArgs) : Result.Result<(), Text> {
+    let entry = (#File, args.entry.1);
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
+    let #File(file) = node.metadata else return #err("Expected file, got directory");
+
+    File.addVersionBlobStorage(self.fs, file, Text.encodeUtf8(args.rootHash), args.size, args.sha256, args.contentType);
+    CertifiedAssets.certify(self.certs, endpoint(node.keyId, args.sha256));
+
+    if (file.encryptionMode == #Encrypted) {
+      self.encryptedBytesUsed += args.size;
+      self.unreportedTrialBytes += args.size;
+    };
+
+    // Remove staging marker
+    let nodeKey = entryToNodeKey(self.fs, entry);
+    switch (nodeKey) {
+      case (?nk) ignore Map.remove(self.staging, Utils.hashNodes, nk);
+      case null {};
+    };
+
+    #ok;
+  };
+
+  /// Returns download info for a Caffeine-stored file.
+  /// Frontend uses blobHash to construct the gateway download URL.
+  public func getBlobDownloadInfo(self : T.StableStore, caller : Principal, args : T.GetChunkArguments) : Result.Result<T.BlobDownloadInfo, Text> {
+    switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+    let #File(file) = node.metadata else return #err("Expected file, got directory");
+
+    let ?version = File.getCurrentVersion(file) else return #err("No version available");
+
+    switch (version.chunks[0]) {
+      case (#BlobStorage { blobId; size }) {
+        let ?hash = Text.decodeUtf8(blobId) else return #err("Invalid blob hash encoding");
+        #ok({
+          blobHash = hash;
+          size;
+          contentType = version.contentType;
+        });
+      };
+      case _ #err("File is not stored on Caffeine Blob Storage");
+    };
   };
 
   /// Creates a batch for subsequent linking of chunks of the file

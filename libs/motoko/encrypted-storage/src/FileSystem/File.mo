@@ -27,32 +27,38 @@ module File {
     Map.get(self.versions, Nat.compare, self.currentVersion);
   };
 
-  /// Returns the storage backend type (currently always Inline).
-  public func storageBackendOf(_chunks : [T.SizedPointer]) : T.StorageBackend {
-    #Inline;
+  /// Returns the storage backend type based on the first chunk's ContentRef.
+  public func storageBackendOf(chunks : [T.ContentRef]) : T.StorageBackend {
+    if (chunks.size() == 0) return #OnChain;
+    switch (chunks[0]) {
+      case (#OnChain _) #OnChain;
+      case (#BlobStorage _) #BlobStorage;
+    };
   };
 
-  /// Allocates each chunk separately in MemoryRegion, returning an array of pointers.
+  /// Allocates each chunk separately in MemoryRegion, returning ContentRef array.
   /// Each pointer preserves the exact upload chunk boundary.
-  func allocateChunks(fs : T.FileSystemStore, chunksIter : Iter.Iter<Blob>) : [T.SizedPointer] {
-    let pointers = Array.fromIter<T.SizedPointer>(
-      Iter.map<Blob, T.SizedPointer>(
+  func allocateChunks(fs : T.FileSystemStore, chunksIter : Iter.Iter<Blob>) : [T.ContentRef] {
+    Array.fromIter<T.ContentRef>(
+      Iter.map<Blob, T.ContentRef>(
         chunksIter,
-        func(chunk : Blob) : T.SizedPointer {
+        func(chunk : Blob) : T.ContentRef {
           let size = chunk.size();
           let address = MemoryRegion.allocate(fs.region, size);
           MemoryRegion.storeBlob(fs.region, address, chunk);
-          (address, size);
+          #OnChain(address, size);
         },
       )
     );
-    pointers;
   };
 
-  /// Deallocates all chunk pointers for a version.
-  func deallocateChunks(fs : T.FileSystemStore, chunks : [T.SizedPointer]) {
-    for ((address, size) in chunks.vals()) {
-      MemoryRegion.deallocate(fs.region, address, size);
+  /// Deallocates chunk pointers for a version. Only #OnChain chunks use MemoryRegion.
+  func deallocateChunks(fs : T.FileSystemStore, chunks : [T.ContentRef]) {
+    for (ref in chunks.vals()) {
+      switch (ref) {
+        case (#OnChain(address, size)) MemoryRegion.deallocate(fs.region, address, size);
+        case (#BlobStorage _) {}; // managed by blob storage scrubber
+      };
     };
   };
 
@@ -66,7 +72,6 @@ module File {
           deallocateChunks(fs, ver.chunks);
           Map.remove(self.versions, Nat.compare, key);
         };
-        // If currentVersion was trimmed, clamp to the smallest remaining key
         if (not Map.containsKey(self.versions, Nat.compare, self.currentVersion)) {
           let ?(minKey, _) = Map.minEntry(self.versions) else return;
           self.currentVersion := minKey;
@@ -75,7 +80,8 @@ module File {
     };
   };
 
-  /// Adds a new version from uploaded chunks. Trims old versions per maxVersions.
+  /// Adds a new version from uploaded chunks (#OnChain backend).
+  /// Trims old versions per maxVersions.
   public func addVersion(
     fs : T.FileSystemStore,
     self : T.FileMetadataStore,
@@ -85,6 +91,32 @@ module File {
     contentType : Text,
   ) {
     let chunks = allocateChunks(fs, chunksIter);
+    commitVersion(fs, self, chunks, totalLength, contentHash, contentType);
+  };
+
+  /// Adds a new version for Caffeine blob storage (#BlobStorage backend).
+  /// The blob is stored off-chain; only the hash reference is kept on-chain.
+  public func addVersionBlobStorage(
+    fs : T.FileSystemStore,
+    self : T.FileMetadataStore,
+    blobId : Blob,
+    totalLength : Nat,
+    contentHash : Blob,
+    contentType : Text,
+  ) {
+    let chunks : [T.ContentRef] = [#BlobStorage { blobId; size = totalLength }];
+    commitVersion(fs, self, chunks, totalLength, contentHash, contentType);
+  };
+
+  /// Shared version commit logic for both backends.
+  func commitVersion(
+    fs : T.FileSystemStore,
+    self : T.FileMetadataStore,
+    chunks : [T.ContentRef],
+    totalLength : Nat,
+    contentHash : Blob,
+    contentType : Text,
+  ) {
     let version : T.FileVersion = {
       chunks;
       sha256 = ?contentHash;
@@ -100,7 +132,7 @@ module File {
     trimVersions(fs, self);
   };
 
-  /// Adds a new version from a single blob.
+  /// Adds a new version from a single blob (#OnChain).
   public func addVersionFromContent(
     fs : T.FileSystemStore,
     self : T.FileMetadataStore,
@@ -131,14 +163,16 @@ module File {
   };
 
   /// Reads a chunk from a specific version (or current).
-  /// Returns the chunk exactly as it was uploaded — preserving encryption boundaries.
+  /// Returns null for #BlobStorage chunks (frontend downloads from gateway directly).
   public func getChunk(fs : T.FileSystemStore, self : T.FileMetadataStore, chunkIndex : Nat, version : ?Nat) : ?Blob {
     let ver = getVersion(self, version);
     switch (ver) {
       case (?v) {
         if (chunkIndex >= v.chunks.size()) return null;
-        let (address, size) = v.chunks[chunkIndex];
-        ?MemoryRegion.loadBlob(fs.region, address, size);
+        switch (v.chunks[chunkIndex]) {
+          case (#OnChain(address, size)) ?MemoryRegion.loadBlob(fs.region, address, size);
+          case (#BlobStorage _) null;
+        };
       };
       case _ null;
     };

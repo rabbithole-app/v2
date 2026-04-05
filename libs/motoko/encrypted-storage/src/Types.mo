@@ -6,7 +6,6 @@ import MemoryRegion "mo:memory-region/MemoryRegion";
 import CertifiedAssets "mo:certified-assets/Stable";
 
 import V1 "Migrations/V1/Types";
-import V2 "Migrations/V2/Types";
 import Migrations "Migrations/lib";
 
 module {
@@ -15,13 +14,13 @@ module {
   public type VersionedStableStore = Migrations.VersionedStableStore;
   public type UpgradeOptions = Migrations.UpgradeOptions;
 
-  /* -------------- Re-exports from V2 (current stable types) --------------- */
+  /* -------------- Re-exports from V1 (current stable types) --------------- */
 
-  public type StableStore = V2.StableStore;
-  public type SubscriptionStatus = V2.SubscriptionStatus;
-  public type SubscriptionCache = V2.SubscriptionCache;
-  public type Plan = V2.Plan;
-  public type CycleAlertLevel = V2.CycleAlertLevel;
+  public type StableStore = V1.StableStore;
+  public type SubscriptionStatus = V1.SubscriptionStatus;
+  public type SubscriptionCache = V1.SubscriptionCache;
+  public type Plan = V1.Plan;
+  public type CycleAlertLevel = V1.CycleAlertLevel;
   public type FileSystemStore = V1.FileSystemStore;
   public type NodeStore = V1.NodeStore;
   public type NodeKey = V1.NodeKey;
@@ -116,7 +115,7 @@ module {
 
   /* ---------------------------------- File ---------------------------------- */
 
-  public type StorageBackend = { #Inline; #BlobStorage; #External };
+  public type StorageBackend = { #OnChain; #BlobStorage };
 
   public type FileMetadata = {
     sha256 : ?Blob;
@@ -196,6 +195,7 @@ module {
     rootPermissions : [(Principal, Permission)];
     certs : ?CertifiedAssets.StableStore;
     backendId : ?Principal;
+    storageBackendType : StorageBackend;
   };
 
   public type StorageStatus = {
@@ -203,6 +203,28 @@ module {
     subscriptionStatus : ?SubscriptionStatus;
     encryptedBytesUsed : Nat;
     backendId : ?Principal;
+    storageBackendType : StorageBackend;
+  };
+
+  /* ----------------------------- Caffeine API ------------------------------ */
+
+  public type CreateCertificateResult = {
+    method : Text;
+    blob_hash : Text;
+  };
+
+  public type CommitCaffeineUploadArgs = {
+    entry : Entry;
+    sha256 : Blob;
+    rootHash : Text;
+    contentType : Text;
+    size : Nat;
+  };
+
+  public type BlobDownloadInfo = {
+    blobHash : Text;
+    size : Nat;
+    contentType : Text;
   };
 
   public type Entry = ({ #File; #Directory }, Text);

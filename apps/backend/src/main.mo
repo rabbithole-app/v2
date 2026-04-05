@@ -65,8 +65,12 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   let storageOrchestrator = StorageDeployerOrchestrator.new({
     github = Option.get(initArgs.github, defaultGithub);
     assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar")])];
+    vetKeyName = initArgs.vetKeyName;
+    cashierCanisterId = initArgs.cashierCanisterId;
   });
   storageOrchestrator.canisterId := ?canisterId;
+  storageOrchestrator.vetKeyName := ?initArgs.vetKeyName;
+  storageOrchestrator.cashierCanisterId := ?initArgs.cashierCanisterId;
 
   // --- Mixins (order matters: dependencies first) ---
 

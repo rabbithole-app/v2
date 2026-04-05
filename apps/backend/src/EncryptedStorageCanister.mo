@@ -1,6 +1,7 @@
 import Cycles "mo:core/Cycles";
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
+import Prim "mo:prim";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Result "mo:core/Result";
@@ -16,6 +17,7 @@ import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
 import Sha256 "mo:sha2/Sha256";
 import Json "mo:json";
+import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
 
 import EncryptedStorage "mo:encrypted-storage";
 import EncryptedStorageClass "mo:encrypted-storage/Class";
@@ -26,14 +28,23 @@ import HttpAssetsMixin "HttpAssetsMixin";
 
 shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
     owner : Principal;
-    vetKeyName : Text;
-    backendId : Principal;
+    storageBackendType : ?T.StorageBackend;
   }) = this {
   let owner = initArgs.owner;
 
+  // Read from environment variables (set by StorageDeployer before WASM install)
+  let vetKeyName = switch (Prim.envVar<system>("VETKEY_NAME")) {
+    case (?name) name;
+    case null "dfx_test_key"; // fallback for local dev
+  };
+  let backendId : ?Principal = switch (Prim.envVar<system>("RABBITHOLE_BACKEND_ID")) {
+    case (?id) ?Principal.fromText(id);
+    case null null;
+  };
+
   let keyId : ManagementCanister.VetKdKeyid = {
     curve = #bls12_381_g2;
-    name = initArgs.vetKeyName;
+    name = vetKeyName;
   };
   let canisterId = Principal.fromActor(this);
 
@@ -52,10 +63,14 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     region = MemoryRegion.new();
     rootPermissions = [(owner, #ReadWriteManage), (canisterId, #ReadWriteManage)];
     certs = ?httpAssetsState.fs.certs;
-    backendId = ?initArgs.backendId;
+    backendId;
+    storageBackendType = switch (initArgs.storageBackendType) {
+      case (?t) t;
+      case null #BlobStorage;
+    };
   });
   versionedStorage := EncryptedStorage.upgradeStableStore(versionedStorage, {
-    backendId = ?initArgs.backendId;
+    backendId;
   });
   transient let storage = EncryptedStorage.fromVersion(versionedStorage);
 
@@ -326,6 +341,34 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       case (#ok _) {};
       case (#err(message)) throw Error.reject(message);
     };
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /*                      Caffeine Blob Storage Protocol                        */
+  /* -------------------------------------------------------------------------- */
+
+  // Mixin provides: _immutableObjectStorageCreateCertificate,
+  // _immutableObjectStorageBlobsAreLive, _immutableObjectStorageBlobsToDelete,
+  // _immutableObjectStorageConfirmBlobDeletion, _immutableObjectStorageUpdateGatewayPrincipals,
+  // _immutableObjectStorageRefillCashier
+  include MixinObjectStorage();
+
+  public shared ({ caller }) func commitCaffeineUpload(args : T.CommitCaffeineUploadArgs) : async () {
+    switch (es.commitCaffeineUpload(caller, args)) {
+      case (#ok _) { reportLowCyclesIfNeeded<system>() };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getBlobDownloadInfo(args : T.GetChunkArguments) : async T.BlobDownloadInfo {
+    switch (es.getBlobDownloadInfo(caller, args)) {
+      case (#ok info) info;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query func getStorageBackendType() : async T.StorageBackend {
+    es.getStorageBackendType();
   };
 
   /* -------------------------------------------------------------------------- */

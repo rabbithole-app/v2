@@ -122,5 +122,16 @@ module {
 
     public func setThumbnail(caller : T.Caller, args : T.SetThumbnailArguments) : Result.Result<T.NodeDetails, Text> =
       Lib.setThumbnail(store, caller, args);
+
+    // --- Caffeine Blob Storage ---
+
+    public func commitCaffeineUpload(caller : Principal, args : T.CommitCaffeineUploadArgs) : Result.Result<(), Text> =
+      Lib.commitCaffeineUpload(store, caller, args);
+
+    public func getBlobDownloadInfo(caller : Principal, args : T.GetChunkArguments) : Result.Result<T.BlobDownloadInfo, Text> =
+      Lib.getBlobDownloadInfo(store, caller, args);
+
+    public func getStorageBackendType() : T.StorageBackend =
+      store.storageBackendType;
   };
 };

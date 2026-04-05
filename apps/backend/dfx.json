@@ -9,7 +9,7 @@
       "main": "src/main.mo",
       "type": "motoko",
       "gzip": true,
-      "init_arg" : "(record { github = opt record { apiUrl = \"http://mock-server:8080\"; owner = \"user\"; repo = \"repo\"; token = null : opt text } })"
+      "init_arg" : "(record { github = opt record { apiUrl = \"http://mock-server:8080\"; owner = \"user\"; repo = \"repo\"; token = null : opt text }; vetKeyName = \"dfx_test_key\"; cashierCanisterId = principal \"xc7sj-uyaaa-aaaaf-qbrja-cai\" })"
     },
     "rabbithole-frontend": {
       "dependencies": [],
@@ -30,7 +30,7 @@
       "type": "motoko",
       "args": "--max-stable-pages 3276800",
       "gzip": true,
-      "init_arg" : "(record { vetKeyName = \"dfx_test_key\"; owner = principal \"hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe\" })"
+      "init_arg" : "(record { owner = principal \"hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe\" })"
     }
   },
   "defaults": {

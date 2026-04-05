@@ -32,6 +32,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     // Otherwise, use null.
     certs = null;
     backendId = null; // standalone mode — no backend
+    storageBackendType = #OnChain;
   });
   versionedStore := EncryptedStorage.upgradeStableStore(versionedStore, { backendId = null });
   transient let storage = EncryptedStorage.fromVersion(versionedStore);

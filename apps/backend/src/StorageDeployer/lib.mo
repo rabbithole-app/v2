@@ -16,6 +16,7 @@ import Sha256 "mo:sha2/Sha256";
 import IC "mo:ic";
 import Vector "mo:vector";
 
+import ICManagement "../Types/ICManagement";
 import GitHubReleases "GitHubReleases";
 import HttpDownloader "HttpDownloader";
 import StorageDeployer "StorageDeployer";
@@ -95,6 +96,10 @@ module StorageDeployerOrchestrator {
     var canisterId : ?Principal;
     region : MemoryRegion.MemoryRegion;
 
+    // Environment variables for storage canisters
+    var vetKeyName : ?Text;
+    var cashierCanisterId : ?Principal;
+
     // Subsystems
     githubReleases : GitHubReleases.Store;
     wasmInstaller : WasmInstaller.Store;
@@ -146,12 +151,16 @@ module StorageDeployerOrchestrator {
     config : {
       github : GitHubReleases.GithubOptions;
       assets : [(GitHubReleases.ReleaseSelector, [GitHubReleases.GithubAsset])];
+      vetKeyName : Text;
+      cashierCanisterId : Principal;
     }
   ) : Store {
     let region = MemoryRegion.new();
     {
       var canisterId = null;
       region;
+      var vetKeyName : ?Text = ?config.vetKeyName;
+      var cashierCanisterId : ?Principal = ?config.cashierCanisterId;
       githubReleases = GitHubReleases.new({
         github = config.github;
         assets = config.assets;
@@ -182,6 +191,18 @@ module StorageDeployerOrchestrator {
       case (?id) Timer.cancelTimer(id);
       case null {};
     };
+  };
+
+  /// Build environment variables for storage canisters from orchestrator config.
+  func buildEnvironmentVariables(store : Store) : ?[{ name : Text; value : Text }] {
+    let ?backendId = store.canisterId else return null;
+    let ?vetKey = store.vetKeyName else return null;
+    let ?cashier = store.cashierCanisterId else return null;
+    ?[
+      { name = "RABBITHOLE_BACKEND_ID"; value = Principal.toText(backendId) },
+      { name = "VETKEY_NAME"; value = vetKey },
+      { name = "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL"; value = Principal.toText(cashier) },
+    ];
   };
 
   /// Reset transient state that should not survive canister upgrades.
@@ -627,9 +648,11 @@ module StorageDeployerOrchestrator {
   func updateCanisterSettings(
     storageCanisterId : Principal,
     userPrincipal : Principal,
+    environmentVariables : ?[{ name : Text; value : Text }],
   ) : async Result.Result<(), Text> {
+    let ic : ICManagement.Self = actor ("aaaaa-aa");
     try {
-      await IC.ic.update_settings({
+      await ic.update_settings({
         canister_id = storageCanisterId;
         sender_canister_version = null;
         settings = {
@@ -638,9 +661,11 @@ module StorageDeployerOrchestrator {
           wasm_memory_threshold = null;
           reserved_cycles_limit = null;
           log_visibility = null;
+          snapshot_visibility = null;
           wasm_memory_limit = null;
           memory_allocation = null;
           compute_allocation = null;
+          environment_variables = environmentVariables;
         };
       });
       #ok(());
@@ -822,7 +847,8 @@ module StorageDeployerOrchestrator {
           };
         };
 
-        switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId)) {
+        let envVars = buildEnvironmentVariables(store);
+        switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId, envVars)) {
           case (#ok(canisterId)) {
             record.canisterId := ?canisterId;
             record.status := #CanisterCreated({ canisterId });
@@ -862,7 +888,8 @@ module StorageDeployerOrchestrator {
       case (#UpdateControllers({ canisterId })) {
         record.status := #UpdatingControllers({ canisterId });
 
-        switch (await updateCanisterSettings(canisterId, task.owner)) {
+        // env vars already set at canister creation; null = don't overwrite
+        switch (await updateCanisterSettings(canisterId, task.owner, null)) {
           case (#ok) {
             finalizeCompletion(store, record, canisterId);
           };

@@ -36,6 +36,7 @@ module {
     caller : Principal,
     initialCycles : Nat,
     subnetId : ?Principal,
+    environmentVariables : ?[{ name : Text; value : Text }],
   ) : async Result.Result<Principal, CreateCanisterError> {
     let ledger = actor (LEDGER_CANISTER_ID) : LedgerTypes.Self;
     let cmc = actor (CYCLE_MINTING_CANISTER_ID) : CMCTypes.Self;
@@ -98,7 +99,7 @@ module {
         controllers = ?[deployerCanisterId, caller];
         freezing_threshold = null;
         wasm_memory_threshold = null;
-        environment_variables = null;
+        environment_variables = environmentVariables;
         reserved_cycles_limit = null;
         log_visibility = null;
         log_memory_limit = null;

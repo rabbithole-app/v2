@@ -20,12 +20,13 @@ module {
   public type Permission = VetKeys.AccessRights;
   public type PermissionMap = Map.Map<Principal, Permission>;
 
-  /* ----------------------------- Content Ref ------------------------------ */
+  /* ----------------------------- Storage Backend ----------------------------- */
+
+  public type StorageBackend = { #OnChain; #BlobStorage };
 
   public type ContentRef = {
-    #Inline : SizedPointer;
+    #OnChain : SizedPointer;
     #BlobStorage : { blobId : Blob; size : Nat };
-    #External : { uri : Text; size : Nat; sha256 : ?Blob };
   };
 
   public type EncryptionMode = {
@@ -34,14 +35,42 @@ module {
   };
 
   public type FileVersion = {
-    /// Each chunk is stored as a separate (address, size) pointer in MemoryRegion.
-    /// getChunk(i) returns chunks[i] as-is, preserving original upload boundaries.
-    /// This is critical for per-chunk encryption where each chunk is an independent AES-GCM ciphertext.
-    chunks : [SizedPointer];
+    /// For #OnChain: each chunk is a separate (address, size) pointer in MemoryRegion.
+    /// For #BlobStorage: single entry with Caffeine blob hash.
+    /// getChunk(i) preserves original upload boundaries (critical for per-chunk AES-GCM encryption).
+    chunks : [ContentRef];
     sha256 : ?Blob;
     size : Nat;
     contentType : Text;
     createdAt : Time.Time;
+  };
+
+  /* ---------------------- Subscription & Cycle Types ---------------------- */
+
+  public type Plan = {
+    #Free;
+    #Trial;
+    #License;
+    #Pro;
+  };
+
+  public type SubscriptionStatus = {
+    #active : { plan : Plan };
+    #trial : { remainingBytes : Nat };
+    #expired;
+    #free;
+    #invalidWasm;
+    #unknownCanister;
+  };
+
+  public type SubscriptionCache = {
+    status : SubscriptionStatus;
+    checkedAt : Time.Time;
+  };
+
+  public type CycleAlertLevel = {
+    #warning;
+    #critical;
   };
 
   /* ---------------------------------- Node ---------------------------------- */
@@ -165,5 +194,18 @@ module {
     vetKdKeyId : ManagementCanister.VetKdKeyid;
     domainSeparatorBytes : Blob;
     var streamingCallback : ?StreamingCallback;
+
+    /* === Subscription & Backend (ex-V2) === */
+    var backendId : ?Principal;
+    var subscriptionCache : ?SubscriptionCache;
+    var encryptedBytesUsed : Nat;
+    var unreportedTrialBytes : Nat;
+    var cachedModuleHash : ?Blob;
+    var lastCycleAlertAt : Time.Time;
+    var lastCycleAlertLevel : ?CycleAlertLevel;
+    var cachedIdleBurnPerDay : ?Nat;
+
+    /* === Caffeine Blob Storage === */
+    storageBackendType : StorageBackend;
   };
 };
