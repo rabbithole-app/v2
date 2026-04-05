@@ -4,6 +4,12 @@
   "sourceRoot": "libs/encrypted-storage/src",
   "projectType": "library",
   "targets": {
+    "test": {
+      "executor": "@nx/vitest:test",
+      "options": {
+        "config": "libs/encrypted-storage/vitest.config.ts"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {

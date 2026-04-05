@@ -5,7 +5,7 @@ import {
   EncryptedVetKey,
   TransportSecretKey,
 } from '@dfinity/vetkeys';
-import { Actor, ActorSubclass } from '@icp-sdk/core/agent';
+import { Actor, ActorSubclass, HttpAgent } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { sha256 } from '@noble/hashes/sha2';
 import { Derived, Store } from '@tanstack/store';
@@ -17,8 +17,11 @@ import {
   EncryptedStorageActorService,
   encryptedStorageIdlFactory,
   Entry as EntryRaw,
+  StorageBackend,
 } from '@rabbithole/declarations';
 
+import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
+import { BlobHashTree, YHash } from './blob-storage/merkle-tree';
 import {
   EncryptedStorageConfig,
   Entry,
@@ -39,25 +42,44 @@ import {
 import { convertTreeNodes } from './utils';
 import { limit, LimitFn } from './utils/limit';
 
+/** Blob storage protocol chunk size: 1 MiB */
+const CAFFEINE_CHUNK_SIZE = 1_048_576;
+/** AES-GCM overhead per chunk: 12 bytes IV + 16 bytes auth tag */
+const AES_GCM_OVERHEAD = 28;
+/** Max plaintext that fits in one blob storage chunk after AES-GCM encryption */
+const CAFFEINE_PLAINTEXT_CHUNK_SIZE = CAFFEINE_CHUNK_SIZE - AES_GCM_OVERHEAD;
+
 export class EncryptedStorage {
   readonly #actor: ActorSubclass<EncryptedStorageActorService>;
+  readonly #blobStorageClient?: BlobStorageGatewayClient;
   readonly #domainSeparator = 'file_storage_dapp';
   readonly #limit: LimitFn;
   readonly #maxChunkSize: number;
   readonly #origin: string;
   #progress = new Store<Record<string, Progress>>({});
   #sha256: Record<string, ReturnType<typeof sha256.create>> = {};
+  #storageBackend?: StorageBackend;
 
   /**
    * Create assets canister manager instance
    * @param config Additional configuration options, canister id is required
    */
   constructor(config: EncryptedStorageConfig) {
-    const { concurrency, maxChunkSize, origin, ...actorConfig } = config;
+    const { concurrency, maxChunkSize, origin, blobStorageGatewayUrl, ...actorConfig } = config;
     this.#actor = Actor.createActor<EncryptedStorageActorService>(encryptedStorageIdlFactory, actorConfig);
     this.#origin = origin;
     this.#maxChunkSize = maxChunkSize ?? 1_900_000;
     this.#limit = limit(concurrency ?? 16);
+
+    if (blobStorageGatewayUrl && actorConfig.canisterId) {
+      this.#blobStorageClient = new BlobStorageGatewayClient({
+        agent: actorConfig.agent as HttpAgent,
+        canisterId: typeof actorConfig.canisterId === 'string'
+          ? actorConfig.canisterId
+          : actorConfig.canisterId.toText(),
+        gatewayUrl: blobStorageGatewayUrl,
+      });
+    }
   }
 
   async createDirectory(
@@ -86,11 +108,11 @@ export class EncryptedStorage {
       keyId?: [Principal, Uint8Array];
       onProgress?: (chunkIndex: number, totalChunks: number) => void;
       signal?: AbortSignal;
+      storageBackend?: 'BlobStorage' | 'OnChain';
       totalChunks: number;
       version?: number;
     },
   ): AsyncGenerator<Uint8Array> {
-    const totalChunks = options?.totalChunks ?? 1;
     const isEncrypted = options?.encrypted !== false;
 
     let derivedKeyMaterial: DerivedKeyMaterial | undefined;
@@ -101,6 +123,49 @@ export class EncryptedStorage {
     }
 
     const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
+
+    // ── BlobStorage download flow ──
+    if (options?.storageBackend === 'BlobStorage' && this.#blobStorageClient) {
+      const entryRaw = toEntryRaw(entry);
+      const info = await this.#actor.getBlobDownloadInfo({
+        entry: entryRaw,
+        chunkIndex: 0n,
+        version: options.version !== undefined ? [BigInt(options.version)] : [],
+      });
+
+      if (options.signal?.aborted) throw new Error('Download aborted');
+
+      const url = this.#blobStorageClient.getDownloadUrl(info.blobHash);
+      const response = await fetch(url, { signal: options.signal });
+      if (!response.ok) {
+        throw new Error(`Blob storage download failed: ${response.status} ${response.statusText}`);
+      }
+
+      const allBytes = new Uint8Array(await response.arrayBuffer());
+      const encChunkSize = CAFFEINE_CHUNK_SIZE;
+      const totalChunks = Math.max(1, Math.ceil(allBytes.byteLength / encChunkSize));
+
+      for (let i = 0; i < totalChunks; i++) {
+        if (options.signal?.aborted) throw new Error('Download aborted');
+
+        const start = i * encChunkSize;
+        const end = Math.min(start + encChunkSize, allBytes.byteLength);
+        const chunkBytes = allBytes.slice(start, end);
+
+        if (isEncrypted && derivedKeyMaterial) {
+          const decrypted = await derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator);
+          yield Uint8Array.from(decrypted);
+        } else {
+          yield chunkBytes;
+        }
+
+        options.onProgress?.(i + 1, totalChunks);
+      }
+      return;
+    }
+
+    // ── Inline (on-chain) download flow ──
+    const totalChunks = options?.totalChunks ?? 1;
 
     for (let i = 0; i < totalChunks; i++) {
       if (options?.signal?.aborted) {
@@ -208,6 +273,14 @@ export class EncryptedStorage {
     );
 
     return vetkey.asDerivedKeyMaterial();
+  }
+
+  /** Query and cache the storage backend type for this canister. */
+  async getStorageBackend(): Promise<StorageBackend> {
+    if (!this.#storageBackend) {
+      this.#storageBackend = await this.#actor.getStorageBackendType();
+    }
+    return this.#storageBackend;
   }
 
   async grantPermission({ user, permission, entry }: GrantStoragePermission) {
@@ -418,6 +491,90 @@ export class EncryptedStorage {
         );
     }
 
+    const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
+    const backend = await this.getStorageBackend();
+
+    // ── BlobStorage upload flow ──
+    // Chunks go directly to the blob storage gateway, not through the canister.
+    if ('BlobStorage' in backend && this.#blobStorageClient) {
+      const chunkSize = isEncrypted ? CAFFEINE_PLAINTEXT_CHUNK_SIZE : CAFFEINE_CHUNK_SIZE;
+      const chunkCount = Math.max(1, Math.ceil(bytes.byteLength / chunkSize));
+
+      // Step 1: Encrypt chunks + compute content hash
+      const encryptedChunks: Uint8Array[] = [];
+      const contentHash = sha256.create();
+      for (let i = 0; i < chunkCount; i++) {
+        if (config.signal?.aborted) throw new Error('Upload aborted');
+        const plain = bytes.slice(i * chunkSize, Math.min((i + 1) * chunkSize, bytes.byteLength));
+        const encrypted = isEncrypted && derivedKeyMaterial
+          ? await derivedKeyMaterial.encryptMessage(plain, domainSeparator)
+          : plain;
+        contentHash.update(encrypted);
+        encryptedChunks.push(encrypted);
+      }
+
+      // Step 2: Build Merkle tree
+      const chunkHashes = await Promise.all(
+        encryptedChunks.map((chunk) => YHash.fromChunk(chunk)),
+      );
+      const totalEncryptedSize = encryptedChunks.reduce((sum, c) => sum + c.length, 0);
+      const blobTree = await BlobHashTree.build(chunkHashes, {
+        'Content-Type': config.contentType,
+        'Content-Length': totalEncryptedSize.toString(),
+      });
+      const rootHash = blobTree.tree.hash.toShaString();
+
+      // Step 3: Get IC certificate from canister
+      this.#progress.setState((state) => ({
+        ...state,
+        [key]: { status: UploadState.FINALIZING },
+      }));
+      const certificate = await this.#blobStorageClient.createCertificate(rootHash);
+
+      // Step 4: Upload blob tree to gateway
+      await this.#blobStorageClient.uploadBlobTree({
+        blobTree,
+        certificate,
+        totalSize: totalEncryptedSize,
+      });
+
+      // Step 5: Upload chunks to gateway in parallel
+      this.#progress.setState((state) => ({
+        ...state,
+        [key]: { status: UploadState.IN_PROGRESS, current: 0, total: bytes.byteLength },
+      }));
+      await this.#blobStorageClient.uploadChunks(
+        encryptedChunks,
+        chunkHashes,
+        rootHash,
+        (completedChunks, totalChunks) => {
+          const current = Math.round((completedChunks / totalChunks) * bytes.byteLength);
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: { status: UploadState.IN_PROGRESS, current, total: bytes.byteLength },
+          }));
+        },
+      );
+
+      // Step 6: Commit metadata on-chain
+      this.#progress.setState((state) => ({
+        ...state,
+        [key]: { status: UploadState.FINALIZING },
+      }));
+      await this.#actor.commitCaffeineUpload({
+        entry,
+        sha256: new Uint8Array(contentHash.digest()),
+        rootHash,
+        contentType: config.contentType,
+        size: BigInt(totalEncryptedSize),
+      });
+
+      unmount();
+      return;
+    }
+
+    // ── Inline (on-chain) upload flow ──
+
     // create batch
     const { batchId } = await this.#limit(
       () => this.#actor.createStorageBatch({ entry, totalSize: BigInt(bytes.byteLength) }),
@@ -425,9 +582,6 @@ export class EncryptedStorage {
     );
 
     // Per-chunk encryption: split plaintext first, encrypt each chunk independently.
-    // The canister stores each uploaded chunk as a separate blob and returns it
-    // as-is via getChunk(i), preserving encryption boundaries.
-    const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
     const chunkCount = Math.max(1, Math.ceil(bytes.byteLength / this.#maxChunkSize));
 
     // Step 1: Encrypt and hash sequentially (bounded CPU, deterministic SHA).

@@ -10,6 +10,7 @@ import { messageByAction } from '../operators';
 // which exports services that import from injectors
 import { UploadRegistryService } from '../services/upload-registry.service';
 import { WorkerService } from '../services/worker.service';
+import { BLOB_STORAGE_CONFIG_TOKEN } from '../tokens/main';
 import { WORKER } from '../tokens';
 import {
   CoreWorkerMessageIn,
@@ -29,6 +30,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
       WorkerService<CoreWorkerMessageIn, CoreWorkerMessageOut>
     >(WorkerService, { self: true });
     const uploadRegistry = inject(UploadRegistryService);
+    const blobStorageConfig = inject(BLOB_STORAGE_CONFIG_TOKEN, { optional: true });
     assertWorker(workerService.worker);
     effect(() => {
       if (authService.isAuthenticated()) {
@@ -48,7 +50,8 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
         const payload: WorkerConfigIn = {
           httpAgentOptions,
           concurrentUploads: 3,
-          concurrentDownloads: 2
+          concurrentDownloads: 2,
+          ...(blobStorageConfig ? { blobStorageGatewayUrl: blobStorageConfig.gatewayUrl } : {}),
         };
         workerService.postMessage({ action: 'worker:config', payload });
       });

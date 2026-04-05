@@ -135,9 +135,11 @@ export type Icrc1Timestamp = bigint;
 export type Icrc1Tokens = bigint;
 export interface InitArgs {
   'solConfig' : [] | [SolConfig],
+  'vetKeyName' : string,
   'evmConfig' : [] | [EvmConfig],
   'icpaySecretKey' : [] | [Uint8Array | number[]],
   'github' : [] | [GithubOptions],
+  'cashierCanisterId' : Principal,
 }
 export interface KnownWasmHash {
   'hash' : Uint8Array | number[],
@@ -221,7 +223,7 @@ export interface Rabbithole {
     [Uint8Array | number[]],
     SubscriptionCheckResult
   >,
-  'createProfile' : ActorMethod<[CreateProfileArgs], bigint>,
+  'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array | number[]>,
   'createStorage' : ActorMethod<[CreateStorageOptions], Result_4>,
   'deleteProfile' : ActorMethod<[], undefined>,
   'deleteStorage' : ActorMethod<[bigint], Result_3>,

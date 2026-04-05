@@ -11,4 +11,6 @@ export const environment = {
   production: false,
   scheme: 'rabbithole',
   backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
+  blobStorageGatewayUrl: 'https://dev-blob.caffeine.ai',
+  blobStorageCashierCanisterId: 'xc7sj-uyaaa-aaaaf-qbrja-cai',
 };

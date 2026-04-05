@@ -29,6 +29,7 @@
     <ng-container [ngTemplateOutlet]="selectModeTemplate" />
   }
   @case ('configure') {
+    <ng-container [ngTemplateOutlet]="storageBackendTemplate" />
     @if (deploymentMode() === 'existing') {
       <ng-container [ngTemplateOutlet]="existingCanisterTemplate" />
     } @else {
@@ -79,6 +80,68 @@
     }
   </hlm-dialog-footer>
 }
+
+<!-- Storage Backend Selector -->
+<ng-template #storageBackendTemplate>
+  <div hlmField class="mt-4">
+    <label hlmFieldLabel>Storage type</label>
+    <hlm-field-content>
+      <hlm-radio-group [value]="storageBackend()" (valueChange)="$event && selectStorageBackend($event)">
+        <div
+          class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+          [attr.data-checked]="storageBackend() === 'BlobStorage'"
+          role="button"
+          tabindex="0"
+          (click)="selectStorageBackend('BlobStorage')"
+          (keydown.enter)="selectStorageBackend('BlobStorage')"
+          (keydown.space)="selectStorageBackend('BlobStorage'); $event.preventDefault()"
+        >
+          <hlm-radio value="blobStorage" class="mt-0.5">
+            <hlm-radio-indicator />
+          </hlm-radio>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <ng-icon hlmIcon name="lucideCloud" size="sm" />
+              <span class="font-medium">Blob Storage</span>
+              <span class="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">Recommended</span>
+            </div>
+            <div class="text-muted-foreground text-sm mt-1">
+              Off-chain encrypted storage. ~$0.05/GB/month. Your files are encrypted end-to-end and stored on decentralized infrastructure.
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+          [attr.data-checked]="storageBackend() === 'OnChain'"
+          role="button"
+          tabindex="0"
+          (click)="selectStorageBackend('OnChain')"
+          (keydown.enter)="selectStorageBackend('OnChain')"
+          (keydown.space)="selectStorageBackend('OnChain'); $event.preventDefault()"
+        >
+          <hlm-radio value="inline" class="mt-0.5">
+            <hlm-radio-indicator />
+          </hlm-radio>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <ng-icon hlmIcon name="lucideDatabase" size="sm" />
+              <span class="font-medium">On-chain</span>
+            </div>
+            <div class="text-muted-foreground text-sm mt-1">
+              Full on-chain storage. ~$12.5/GB/year. Files stored directly in your canister's stable memory. Maximum sovereignty.
+            </div>
+          </div>
+        </div>
+      </hlm-radio-group>
+      <hlm-field-description>
+        <a href="https://docs.rabbithole.app/en/how-it-works/storage" target="_blank" rel="noopener" class="underline hover:text-foreground">
+          Learn more about storage options
+        </a>
+      </hlm-field-description>
+    </hlm-field-content>
+  </div>
+</ng-template>
 
 <!-- Step 1: Select Deployment Mode -->
 <ng-template #selectModeTemplate>

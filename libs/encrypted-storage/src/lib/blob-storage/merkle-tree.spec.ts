@@ -1,0 +1,182 @@
+import { describe, expect, it } from 'vitest';
+
+import { BlobHashTree, YHash } from './merkle-tree';
+
+describe('YHash', () => {
+  it('should create from 32 bytes', () => {
+    const bytes = new Uint8Array(32).fill(0xab);
+    const hash = new YHash(bytes);
+    expect(hash.bytes).toEqual(bytes);
+    expect(hash.bytes).not.toBe(bytes); // defensive copy
+  });
+
+  it('fromChunk hashes with "icfs-chunk/" domain separator', async () => {
+    const chunk = new Uint8Array([1, 2, 3]);
+    const hash = await YHash.fromChunk(chunk);
+    expect(hash.bytes.length).toBe(32);
+
+    // Verify domain separator: SHA-256("icfs-chunk/" + [1,2,3])
+    const prefix = new TextEncoder().encode('icfs-chunk/');
+    const combined = new Uint8Array(prefix.length + chunk.length);
+    combined.set(prefix);
+    combined.set(chunk, prefix.length);
+    const expected = new Uint8Array(await crypto.subtle.digest('SHA-256', combined));
+    expect(hash.bytes).toEqual(expected);
+  });
+
+  it('fromNodes hashes with "ynode/" domain separator', async () => {
+    const left = await YHash.fromChunk(new Uint8Array([1]));
+    const right = await YHash.fromChunk(new Uint8Array([2]));
+    const node = await YHash.fromNodes(left, right);
+    expect(node.bytes.length).toBe(32);
+
+    // Verify: SHA-256("ynode/" + left.bytes + right.bytes)
+    const prefix = new TextEncoder().encode('ynode/');
+    const combined = new Uint8Array(prefix.length + 32 + 32);
+    combined.set(prefix);
+    combined.set(left.bytes, prefix.length);
+    combined.set(right.bytes, prefix.length + 32);
+    const expected = new Uint8Array(await crypto.subtle.digest('SHA-256', combined));
+    expect(node.bytes).toEqual(expected);
+  });
+
+  it('fromNodes uses "UNBALANCED" for null children', async () => {
+    const left = await YHash.fromChunk(new Uint8Array([1]));
+    const node = await YHash.fromNodes(left, null);
+    expect(node.bytes.length).toBe(32);
+
+    // Verify: SHA-256("ynode/" + left.bytes + "UNBALANCED")
+    const prefix = new TextEncoder().encode('ynode/');
+    const unbalanced = new TextEncoder().encode('UNBALANCED');
+    const combined = new Uint8Array(prefix.length + 32 + unbalanced.length);
+    combined.set(prefix);
+    combined.set(left.bytes, prefix.length);
+    combined.set(unbalanced, prefix.length + 32);
+    const expected = new Uint8Array(await crypto.subtle.digest('SHA-256', combined));
+    expect(node.bytes).toEqual(expected);
+  });
+
+  it('fromHeaders sorts and hashes with "icfs-metadata/" separator', async () => {
+    const hash = await YHash.fromHeaders({
+      'Content-Type': 'text/plain',
+      'Content-Length': '42',
+    });
+    expect(hash.bytes.length).toBe(32);
+
+    // Headers sorted: Content-Length < Content-Type
+    const headerStr = 'Content-Length: 42\nContent-Type: text/plain\n';
+    const prefix = new TextEncoder().encode('icfs-metadata/');
+    const data = new TextEncoder().encode(headerStr);
+    const combined = new Uint8Array(prefix.length + data.length);
+    combined.set(prefix);
+    combined.set(data, prefix.length);
+    const expected = new Uint8Array(await crypto.subtle.digest('SHA-256', combined));
+    expect(hash.bytes).toEqual(expected);
+  });
+
+  it('toShaString formats as "sha256:<64 hex chars>"', async () => {
+    const hash = await YHash.fromChunk(new Uint8Array([0]));
+    const str = hash.toShaString();
+    expect(str).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it('fromHex decodes hex string to bytes', () => {
+    const hex = 'ab'.repeat(32);
+    const hash = YHash.fromHex(hex);
+    expect(hash.bytes).toEqual(new Uint8Array(32).fill(0xab));
+  });
+});
+
+describe('BlobHashTree', () => {
+  it('builds tree with 1 chunk', async () => {
+    const chunk = new Uint8Array([10, 20, 30]);
+    const chunkHash = await YHash.fromChunk(chunk);
+    const tree = await BlobHashTree.build([chunkHash]);
+
+    const json = tree.toJSON();
+    expect(json.tree_type).toBe('DSBMTWH');
+    expect(json.chunk_hashes).toHaveLength(1);
+    expect(json.chunk_hashes[0]).toBe(chunkHash.toShaString());
+    // Single chunk = leaf is root
+    expect(json.tree.hash).toBe(chunkHash.toShaString());
+    expect(json.tree.left).toBeNull();
+    expect(json.tree.right).toBeNull();
+  });
+
+  it('builds tree with 2 chunks', async () => {
+    const h1 = await YHash.fromChunk(new Uint8Array([1]));
+    const h2 = await YHash.fromChunk(new Uint8Array([2]));
+    const tree = await BlobHashTree.build([h1, h2]);
+
+    const json = tree.toJSON();
+    expect(json.chunk_hashes).toHaveLength(2);
+    // Root = ynode(h1, h2)
+    expect(json.tree.left?.hash).toBe(h1.toShaString());
+    expect(json.tree.right?.hash).toBe(h2.toShaString());
+    const expectedRoot = await YHash.fromNodes(h1, h2);
+    expect(json.tree.hash).toBe(expectedRoot.toShaString());
+  });
+
+  it('builds tree with 3 chunks (odd — uses UNBALANCED)', async () => {
+    const h1 = await YHash.fromChunk(new Uint8Array([1]));
+    const h2 = await YHash.fromChunk(new Uint8Array([2]));
+    const h3 = await YHash.fromChunk(new Uint8Array([3]));
+    const tree = await BlobHashTree.build([h1, h2, h3]);
+
+    const json = tree.toJSON();
+    expect(json.chunk_hashes).toHaveLength(3);
+    // Level 1: node(h1,h2), node(h3,UNBALANCED)
+    // Level 2: root = node(level1[0], level1[1])
+    expect(json.tree.left).not.toBeNull();
+    expect(json.tree.right).not.toBeNull();
+    // Left child has h1 and h2 as children
+    expect(json.tree.left!.left?.hash).toBe(h1.toShaString());
+    expect(json.tree.left!.right?.hash).toBe(h2.toShaString());
+    // Right child has h3 as left, null (no right node in JSON)
+    expect(json.tree.right!.left?.hash).toBe(h3.toShaString());
+    expect(json.tree.right!.right).toBeNull();
+  });
+
+  it('builds tree with headers — combined root', async () => {
+    const h1 = await YHash.fromChunk(new Uint8Array([1]));
+    const tree = await BlobHashTree.build([h1], {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': '100',
+    });
+
+    const json = tree.toJSON();
+    expect(json.headers).toEqual([
+      'Content-Length: 100',
+      'Content-Type: application/octet-stream',
+    ]);
+    // Root should be combined: ynode(chunksRoot, metadataRoot)
+    // Left = chunks root (h1), right = metadata leaf
+    expect(json.tree.left?.hash).toBe(h1.toShaString());
+    expect(json.tree.right).not.toBeNull();
+    // Root hash differs from chunk hash (combined with metadata)
+    expect(json.tree.hash).not.toBe(h1.toShaString());
+  });
+
+  it('builds tree with empty chunk list (sentinel hash)', async () => {
+    const tree = await BlobHashTree.build([]);
+
+    const json = tree.toJSON();
+    expect(json.chunk_hashes).toHaveLength(1);
+    // Sentinel hash from reference implementation
+    expect(json.tree.left).toBeNull();
+    expect(json.tree.right).toBeNull();
+  });
+
+  it('toJSON produces correct structure', async () => {
+    const h1 = await YHash.fromChunk(new Uint8Array([1]));
+    const tree = await BlobHashTree.build([h1]);
+    const json = tree.toJSON();
+
+    expect(json).toHaveProperty('tree_type', 'DSBMTWH');
+    expect(json).toHaveProperty('chunk_hashes');
+    expect(json).toHaveProperty('tree');
+    expect(json).toHaveProperty('headers');
+    expect(Array.isArray(json.chunk_hashes)).toBe(true);
+    expect(Array.isArray(json.headers)).toBe(true);
+  });
+});

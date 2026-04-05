@@ -20,6 +20,7 @@ import { TauriNativeAuthService } from '@rabbithole/auth/tauri';
 import {
   APP_NAME_TOKEN,
   AUTH_MAX_TIME_TO_LIVE,
+  BLOB_STORAGE_CONFIG_TOKEN,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
   IS_PRODUCTION_TOKEN,
@@ -76,6 +77,13 @@ export const appConfig: ApplicationConfig = {
         shouldFetchRootKey: !environment.production,
         host: environment.httpAgentHost,
       } satisfies HttpAgentOptions,
+    },
+    {
+      provide: BLOB_STORAGE_CONFIG_TOKEN,
+      useValue: {
+        gatewayUrl: environment.blobStorageGatewayUrl,
+        cashierCanisterId: environment.blobStorageCashierCanisterId,
+      },
     },
     FileSystemAccessService,
     {

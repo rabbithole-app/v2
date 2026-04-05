@@ -17,6 +17,8 @@ import {
   lucideArrowLeft,
   lucideCheck,
   lucideCircleAlert,
+  lucideCloud,
+  lucideDatabase,
   lucideExternalLink,
   lucideHardDrive,
   lucideLink,
@@ -28,12 +30,12 @@ import { toast } from 'ngx-sonner';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
+  type StorageBackendType,
   CopyToClipboardComponent,
   CyclesMintingCanisterService,
   E8S_PER_ICP,
   encodeStorageInitArgs,
   ICPLedgerService,
-  IS_PRODUCTION_TOKEN,
   isPrincipal,
   MAIN_CANISTER_ID_TOKEN,
   parseCanisterRejectError,
@@ -58,12 +60,12 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { CyclesBalanceInputComponent } from '../../../canisters/components';
 import { StorageCreationProgressComponent } from '../storage-creation-progress/storage-creation-progress.component';
 
-type DeploymentMode = 'existing' | 'new';
-type WizardStep = 'configure' | 'creating' | 'error' | 'select-mode';
-
 export interface CreateStorageDialogContext {
   retryCanisterId?: string;
 }
+type DeploymentMode = 'existing' | 'new';
+
+type WizardStep = 'configure' | 'creating' | 'error' | 'select-mode';
 
 const CANISTER_CREATION_COST_TC = 0.5;
 
@@ -107,11 +109,13 @@ interface NewCanisterFormModel {
       lucideArrowLeft,
       lucideCheck,
       lucideCircleAlert,
+      lucideCloud,
       lucideExternalLink,
       lucideHardDrive,
       lucideLink,
       lucidePlus,
       lucideRocket,
+      lucideDatabase,
     }),
   ],
   templateUrl: './create-storage-dialog.component.html',
@@ -155,27 +159,27 @@ export class CreateStorageDialogComponent {
   readonly deploymentMode = this.#deploymentMode.asReadonly();
 
   readonly #errorMessage = signal<string | null>(null);
-
-  // ═══════════════════════════════════════════════════════════════
-  // SIGNAL FORMS: EXISTING CANISTER
-  // ═══════════════════════════════════════════════════════════════
-
   readonly errorMessage = this.#errorMessage.asReadonly();
-
-  // ═══════════════════════════════════════════════════════════════
-  // SIGNAL FORMS: NEW CANISTER
-  // ═══════════════════════════════════════════════════════════════
 
   readonly newFormModel = signal<NewCanisterFormModel>({
     cyclesBalance: 0.8,
   });
+
+  // ═══════════════════════════════════════════════════════════════
+  // SIGNAL FORMS: EXISTING CANISTER
+  // ═══════════════════════════════════════════════════════════════
 
   readonly totalCyclesTC = computed(() => {
     const cyclesBalance = this.newFormModel().cyclesBalance;
     return CANISTER_CREATION_COST_TC + cyclesBalance;
   });
 
+  // ═══════════════════════════════════════════════════════════════
+  // SIGNAL FORMS: NEW CANISTER
+  // ═══════════════════════════════════════════════════════════════
+
   readonly #cmcService = inject(CyclesMintingCanisterService);
+
   readonly trillionRatio = computed(() => {
     const rate = this.#cmcService.icpXdrConversionRate.value();
     return rate ? Number(rate) / 1_000_000_000_000 : 0;
@@ -188,16 +192,16 @@ export class CreateStorageDialogComponent {
   });
   readonly #ledgerService = inject(ICPLedgerService);
 
-  // ═══════════════════════════════════════════════════════════════
-  // COMPUTED VALUES
-  // ═══════════════════════════════════════════════════════════════
-
   readonly walletBalance = computed(() => this.#ledgerService.balance.value());
-
   readonly walletBalanceICP = computed(() => {
     const balance = this.walletBalance();
     return (Number(balance) / Number(E8S_PER_ICP)).toFixed(2);
   });
+
+  // ═══════════════════════════════════════════════════════════════
+  // COMPUTED VALUES
+  // ═══════════════════════════════════════════════════════════════
+
   readonly insufficientBalance = computed(() => {
     const totalCost = parseFloat(this.totalCostICP());
     const balance = parseFloat(this.walletBalanceICP());
@@ -208,11 +212,11 @@ export class CreateStorageDialogComponent {
     const value = this.existingFormModel().canisterId;
     return value.trim() !== '' && isPrincipal(value.trim());
   });
-
   readonly isNewFormValid = computed(() => {
     const cyclesBalance = this.newFormModel().cyclesBalance;
     return cyclesBalance >= 0.1 && !this.insufficientBalance();
   });
+
   readonly isFormValid = computed(() => {
     const mode = this.deploymentMode();
     if (mode === 'existing') {
@@ -220,24 +224,26 @@ export class CreateStorageDialogComponent {
     }
     return this.isNewFormValid();
   });
+
   readonly newForm = form(this.newFormModel, (schema) => {
     required(schema.cyclesBalance, { message: 'Cycles balance is required' });
   });
-
   readonly #step = signal<WizardStep>('select-mode');
-
   readonly step = this.#step.asReadonly();
+
+  readonly #storageBackend = signal<StorageBackendType>('BlobStorage');
+
+  readonly storageBackend = this.#storageBackend.asReadonly();
 
   readonly #authService = inject(AUTH_SERVICE);
 
   readonly #context = injectBrnDialogContext<CreateStorageDialogContext | undefined>({ optional: true });
-  readonly #dialogRef = inject(BrnDialogRef);
 
   // ═══════════════════════════════════════════════════════════════
   // SERVICES
   // ═══════════════════════════════════════════════════════════════
 
-  readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
+  readonly #dialogRef = inject(BrnDialogRef);
   readonly #router = inject(Router);
 
   constructor() {
@@ -283,6 +289,7 @@ export class CreateStorageDialogComponent {
     this.#createdCanisterId.set(null);
     this.existingFormModel.set({ canisterId: '' });
     this.newFormModel.set({ cyclesBalance: 0.8 });
+    this.#storageBackend.set('BlobStorage');
   }
 
   async createStorage(): Promise<void> {
@@ -315,12 +322,14 @@ export class CreateStorageDialogComponent {
         };
       }
 
-      // Encode InitArgs with owner and vetKeyName
+      // Encode InitArgs (vetKeyName, backendId, cashierCanisterId are now env vars)
       const owner = this.#authService.identity().getPrincipal();
-      const vetKeyName = this.#isProduction ? 'key_1' : 'dfx_test_key';
       await this.#storagesService.createStorage({
         releaseSelector: { LatestDraft: null },
-        initArg: encodeStorageInitArgs({ owner, vetKeyName, backendId: this.backendCanisterId }),
+        initArg: encodeStorageInitArgs({
+          owner,
+          storageBackendType: this.storageBackend(),
+        }),
         target,
       });
 
@@ -343,16 +352,16 @@ export class CreateStorageDialogComponent {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // FORM HANDLERS
-  // ═══════════════════════════════════════════════════════════════
-
   goToNextStep(): void {
     const currentStep = this.#step();
     if (currentStep === 'select-mode') {
       this.#step.set('configure');
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // FORM HANDLERS
+  // ═══════════════════════════════════════════════════════════════
 
   onCyclesBalanceChange(value: number): void {
     this.newFormModel.update((m) => ({ ...m, cyclesBalance: value }));
@@ -362,6 +371,10 @@ export class CreateStorageDialogComponent {
     if (mode) {
       this.#deploymentMode.set(mode);
     }
+  }
+
+  selectStorageBackend(backend: StorageBackendType) {
+    this.#storageBackend.set(backend);
   }
 
   tryAgain(): void {

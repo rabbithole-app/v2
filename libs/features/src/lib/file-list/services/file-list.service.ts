@@ -179,6 +179,7 @@ export class FileListService {
           contentType: item.contentType,
           totalChunks: item.chunkCount,
           keyId: [item.keyId[0].toText(), Array.from(item.keyId[1])],
+          storageBackend: item.storageBackend,
         },
         this.#coreWorkerService,
         fileSize,
@@ -215,6 +216,7 @@ export class FileListService {
               totalChunks: item.chunkCount,
               fileSize: fileSizes[i],
               keyId: [item.keyId[0].toText(), Array.from(item.keyId[1])] as [string, number[]],
+              storageBackend: item.storageBackend,
             };
           }),
         },

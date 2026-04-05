@@ -64,6 +64,8 @@ export type ContentEncoding =
 
 export type EncryptedStorageConfig = {
   origin: string;
+  /** Blob storage gateway URL (e.g., "https://blob.caffeine.ai"). Required for BlobStorage backend. */
+  blobStorageGatewayUrl?: string;
 } & AssetManagerConfig;
 
 export type EncryptedStorageStoreConfig = Omit<StoreConfig, 'contentEncoding'>;

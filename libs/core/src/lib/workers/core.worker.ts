@@ -271,12 +271,13 @@ const agent$ = identity$.pipe(
 );
 const encryptedStorage = new ReplaySubject<PrincipalString>(1);
 const encryptedStorageInstances$ = encryptedStorage.asObservable().pipe(
-  combineLatestWith(agent$),
-  scan((acc, [canisterId, agent]) => {
+  combineLatestWith(agent$, workerConfig.asObservable()),
+  scan((acc, [canisterId, agent, config]) => {
     const encryptedStorage = new EncryptedStorage({
       agent,
       canisterId,
       origin: `https://${canisterId}.localhost`,
+      blobStorageGatewayUrl: config.blobStorageGatewayUrl,
     });
     const assetManager = new AssetManager({
       agent,
@@ -505,6 +506,7 @@ async function processDownload(
     const stream = encryptedStorage.downloadStream(request.entry, {
       encrypted: request.encrypted,
       totalChunks: request.totalChunks,
+      storageBackend: request.storageBackend,
       keyId: request.keyId
         ? [Principal.fromText(request.keyId[0]), new Uint8Array(request.keyId[1])]
         : undefined,
@@ -628,6 +630,7 @@ async function processArchiveDownload(
       const stream = encryptedStorage.downloadStream(file.entry, {
         encrypted: file.encrypted,
         totalChunks: file.totalChunks,
+        storageBackend: file.storageBackend,
         keyId: file.keyId
           ? [Principal.fromText(file.keyId[0]), new Uint8Array(file.keyId[1])]
           : undefined,

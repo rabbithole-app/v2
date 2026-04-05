@@ -36,6 +36,8 @@ export type {
 export { idlFactory as rabbitholeIdlFactory, init as initBackend } from './backend/rabbithole-backend.did';
 export type {
   BatchOperationKind,
+  BlobDownloadInfo,
+  CommitCaffeineUploadArgs,
   DirectoryColor,
   Entry,
   EncryptionMode,
@@ -44,6 +46,7 @@ export type {
   NodeDetails,
   Permission as EncryptedStorageHttpPermission,
   Permission__1 as StoragePermission,
+  StorageBackend,
   TreeNode,
 } from './encrypted-storage/encrypted-storage.did';
 export { idlFactory as encryptedStorageIdlFactory, init as initEncryptedStorage } from './encrypted-storage/encrypted-storage.did';

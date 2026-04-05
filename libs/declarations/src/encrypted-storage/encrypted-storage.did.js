@@ -1,10 +1,36 @@
 export const idlFactory = ({ IDL }) => {
   const TreeNode = IDL.Rec();
+  const StorageBackend = IDL.Variant({
+    'OnChain' : IDL.Null,
+    'BlobStorage' : IDL.Null,
+  });
+  const _ImmutableObjectStorageCreateCertificateResult = IDL.Record({
+    'method' : IDL.Text,
+    'blob_hash' : IDL.Text,
+  });
+  const _ImmutableObjectStorageRefillInformation = IDL.Record({
+    'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const _ImmutableObjectStorageRefillResult = IDL.Record({
+    'success' : IDL.Opt(IDL.Bool),
+    'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
   const CertifiedTree = IDL.Record({
     'certificate' : IDL.Vec(IDL.Nat8),
     'tree' : IDL.Vec(IDL.Nat8),
   });
   const ClearArguments = IDL.Record({});
+  const Entry = IDL.Tuple(
+    IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
+    IDL.Text,
+  );
+  const CommitCaffeineUploadArgs = IDL.Record({
+    'sha256' : IDL.Vec(IDL.Nat8),
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+    'entry' : Entry,
+    'rootHash' : IDL.Text,
+  });
   const BatchId = IDL.Nat;
   const Key = IDL.Text;
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
@@ -64,10 +90,6 @@ export const idlFactory = ({ IDL }) => {
     'GetOrCreate' : IDL.Null,
     'CreateNew' : IDL.Null,
   });
-  const Entry = IDL.Tuple(
-    IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
-    IDL.Text,
-  );
   const EncryptionMode = IDL.Variant({
     'Encrypted' : IDL.Null,
     'Plaintext' : IDL.Null,
@@ -78,11 +100,6 @@ export const idlFactory = ({ IDL }) => {
     'encryptionMode' : IDL.Opt(EncryptionMode),
   });
   const Time = IDL.Int;
-  const StorageBackend = IDL.Variant({
-    'External' : IDL.Null,
-    'BlobStorage' : IDL.Null,
-    'Inline' : IDL.Null,
-  });
   const FileMetadata = IDL.Record({
     'storageBackend' : StorageBackend,
     'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -170,6 +187,16 @@ export const idlFactory = ({ IDL }) => {
     'content_encoding' : IDL.Text,
     'total_length' : IDL.Nat,
   });
+  const GetChunkArguments = IDL.Record({
+    'chunkIndex' : IDL.Nat,
+    'entry' : Entry,
+    'version' : IDL.Opt(IDL.Nat),
+  });
+  const BlobDownloadInfo = IDL.Record({
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+    'blobHash' : IDL.Text,
+  });
   const TransportKey = IDL.Vec(IDL.Nat8);
   const VetKey = IDL.Vec(IDL.Nat8);
   const Plan = IDL.Variant({
@@ -191,11 +218,7 @@ export const idlFactory = ({ IDL }) => {
     'encryptedBytesUsed' : IDL.Nat,
     'subscriptionStatus' : IDL.Opt(SubscriptionStatus),
     'backendId' : IDL.Opt(IDL.Principal),
-  });
-  const GetChunkArguments = IDL.Record({
-    'chunkIndex' : IDL.Nat,
-    'entry' : Entry,
-    'version' : IDL.Opt(IDL.Nat),
+    'storageBackendType' : StorageBackend,
   });
   const ChunkContent = IDL.Record({ 'content' : IDL.Vec(IDL.Nat8) });
   const VetKeyVerificationKey = IDL.Vec(IDL.Nat8);
@@ -344,10 +367,37 @@ export const idlFactory = ({ IDL }) => {
   });
   const Result = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
   const EncryptedStorageCanister = IDL.Service({
+    '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [IDL.Vec(IDL.Bool)],
+        ['query'],
+      ),
+    '_immutableObjectStorageBlobsToDelete' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        ['query'],
+      ),
+    '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [],
+        [],
+      ),
+    '_immutableObjectStorageCreateCertificate' : IDL.Func(
+        [IDL.Text],
+        [_ImmutableObjectStorageCreateCertificateResult],
+        [],
+      ),
+    '_immutableObjectStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_ImmutableObjectStorageRefillInformation)],
+        [_ImmutableObjectStorageRefillResult],
+        [],
+      ),
+    '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     'api_version' : IDL.Func([], [IDL.Nat16], ['query']),
     'certified_tree' : IDL.Func([IDL.Record({})], [CertifiedTree], []),
     'clear' : IDL.Func([ClearArguments], [], []),
     'clearStorage' : IDL.Func([], [], []),
+    'commitCaffeineUpload' : IDL.Func([CommitCaffeineUploadArgs], [], []),
     'commit_batch' : IDL.Func([CommitBatchArguments], [], []),
     'commit_proposed_batch' : IDL.Func([CommitProposedBatchArguments], [], []),
     'compute_evidence' : IDL.Func(
@@ -384,10 +434,16 @@ export const idlFactory = ({ IDL }) => {
     'delete_batch' : IDL.Func([DeleteBatchArguments], [], []),
     'fsTree' : IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     'get' : IDL.Func([GetArgs], [EncodedAsset], ['query']),
+    'getBlobDownloadInfo' : IDL.Func(
+        [GetChunkArguments],
+        [BlobDownloadInfo],
+        ['query'],
+      ),
     'getCycleBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
     'getModuleHash' : IDL.Func([], [IDL.Opt(IDL.Vec(IDL.Nat8))], []),
     'getStatus' : IDL.Func([], [StorageStatus], ['query']),
+    'getStorageBackendType' : IDL.Func([], [StorageBackend], ['query']),
     'getStorageChunk' : IDL.Func(
         [GetChunkArguments],
         [ChunkContent],
@@ -471,11 +527,14 @@ export const idlFactory = ({ IDL }) => {
   return EncryptedStorageCanister;
 };
 export const init = ({ IDL }) => {
+  const StorageBackend = IDL.Variant({
+    'OnChain' : IDL.Null,
+    'BlobStorage' : IDL.Null,
+  });
   return [
     IDL.Record({
-      'vetKeyName' : IDL.Text,
       'owner' : IDL.Principal,
-      'backendId' : IDL.Principal,
+      'storageBackendType' : IDL.Opt(StorageBackend),
     }),
   ];
 };

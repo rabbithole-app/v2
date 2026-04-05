@@ -1,6 +1,6 @@
 import { Principal } from '@icp-sdk/core/principal';
 
-import { ExtractVariantKeys } from '@rabbithole/core';
+import { ExtractVariantKeys, type StorageBackendType } from '@rabbithole/core';
 import { DirectoryColor as DirectoryColorRaw } from '@rabbithole/declarations';
 import { StoragePermission } from '@rabbithole/encrypted-storage';
 
@@ -33,7 +33,7 @@ export type FileNode = {
   encryptionMode: 'encrypted' | 'plaintext';
   sha256?: string;
   size: bigint;
-  storageBackend: 'inline' | 'blobStorage' | 'external';
+  storageBackend: StorageBackendType;
   thumbnailKey?: string;
   type: 'file';
   versionCount: number;

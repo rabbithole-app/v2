@@ -1,7 +1,7 @@
 import { fromNullable, uint8ArrayToHexString } from '@dfinity/utils';
 import { match, P } from 'ts-pattern';
 
-import { timeInNanosToDate } from '@rabbithole/core';
+import { type StorageBackendType, timeInNanosToDate } from '@rabbithole/core';
 import { NodeDetails } from '@rabbithole/declarations';
 import { StoragePermission } from '@rabbithole/encrypted-storage';
 
@@ -61,13 +61,7 @@ export function convertToNodeItem(
         ) as 'encrypted' | 'plaintext',
         versionCount: Number(file.versionCount),
         currentVersion: Number(file.currentVersion),
-        storageBackend: (
-          'Inline' in file.storageBackend
-            ? 'inline'
-            : 'BlobStorage' in file.storageBackend
-              ? 'blobStorage'
-              : 'external'
-        ) as 'inline' | 'blobStorage' | 'external',
+        storageBackend: Object.keys(file.storageBackend)[0] as StorageBackendType,
       };
     })
     .with({ Directory: P.select() }, (directory) => {

@@ -64,6 +64,7 @@ export const downloadRequestSchema = type({
   'contentType?': 'string',
   totalChunks: 'number',
   'keyId?': type(['string', type('number').array()]),
+  'storageBackend?': "'OnChain' | 'BlobStorage'",
 });
 
 export const downloadCancelSchema = downloadRequestSchema.pick('id');
@@ -101,6 +102,7 @@ export const archiveDownloadRequestSchema = type({
     totalChunks: 'number',
     fileSize: 'number',
     'keyId?': type(['string', type('number').array()]),
+    'storageBackend?': "'OnChain' | 'BlobStorage'",
   }).array().atLeastLength(1),
 });
 
@@ -134,6 +136,7 @@ export const workerConfigSchema = type({
   }),
   'concurrentUploads?': 'number',
   'concurrentDownloads?': 'number',
+  'blobStorageGatewayUrl?': 'string',
   // canisters: type.Record("'encryptedStorage'", principalSchema),
 });
 

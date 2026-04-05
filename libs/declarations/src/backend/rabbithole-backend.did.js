@@ -22,9 +22,11 @@ export const idlFactory = ({ IDL }) => {
   });
   const InitArgs = IDL.Record({
     'solConfig' : IDL.Opt(SolConfig),
+    'vetKeyName' : IDL.Text,
     'evmConfig' : IDL.Opt(EvmConfig),
     'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'github' : IDL.Opt(GithubOptions),
+    'cashierCanisterId' : IDL.Principal,
   });
   const Plan = IDL.Variant({
     'Pro' : IDL.Null,
@@ -544,7 +546,7 @@ export const idlFactory = ({ IDL }) => {
         [SubscriptionCheckResult],
         [],
       ),
-    'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Nat], []),
+    'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Vec(IDL.Nat8)], []),
     'createStorage' : IDL.Func([CreateStorageOptions], [Result_4], []),
     'deleteProfile' : IDL.Func([], [], []),
     'deleteStorage' : IDL.Func([IDL.Nat], [Result_3], []),
@@ -667,9 +669,11 @@ export const init = ({ IDL }) => {
   });
   const InitArgs = IDL.Record({
     'solConfig' : IDL.Opt(SolConfig),
+    'vetKeyName' : IDL.Text,
     'evmConfig' : IDL.Opt(EvmConfig),
     'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'github' : IDL.Opt(GithubOptions),
+    'cashierCanisterId' : IDL.Principal,
   });
   return [InitArgs];
 };

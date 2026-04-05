@@ -22,6 +22,11 @@ export type BatchOperationKind = {
   { 'DeleteAsset' : DeleteAssetArguments } |
   { 'SetAssetContent' : SetAssetContentArguments } |
   { 'Clear' : ClearArguments };
+export interface BlobDownloadInfo {
+  'contentType' : string,
+  'size' : bigint,
+  'blobHash' : string,
+}
 export interface CallbackStreamingStrategy {
   'token' : StreamingToken,
   'callback' : [Principal, string],
@@ -36,6 +41,13 @@ export type ClearArguments = {};
 export interface CommitBatchArguments {
   'batch_id' : BatchId,
   'operations' : Array<BatchOperationKind>,
+}
+export interface CommitCaffeineUploadArgs {
+  'sha256' : Uint8Array | number[],
+  'contentType' : string,
+  'size' : bigint,
+  'entry' : Entry,
+  'rootHash' : string,
 }
 export interface CommitProposedBatchArguments {
   'batch_id' : BatchId,
@@ -110,10 +122,32 @@ export interface EncodedAsset {
   'total_length' : bigint,
 }
 export interface EncryptedStorageCanister {
+  '_immutableObjectStorageBlobsAreLive' : ActorMethod<
+    [Array<Uint8Array | number[]>],
+    Array<boolean>
+  >,
+  '_immutableObjectStorageBlobsToDelete' : ActorMethod<
+    [],
+    Array<Uint8Array | number[]>
+  >,
+  '_immutableObjectStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array | number[]>],
+    undefined
+  >,
+  '_immutableObjectStorageCreateCertificate' : ActorMethod<
+    [string],
+    _ImmutableObjectStorageCreateCertificateResult
+  >,
+  '_immutableObjectStorageRefillCashier' : ActorMethod<
+    [[] | [_ImmutableObjectStorageRefillInformation]],
+    _ImmutableObjectStorageRefillResult
+  >,
+  '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   'api_version' : ActorMethod<[], number>,
   'certified_tree' : ActorMethod<[{}], CertifiedTree>,
   'clear' : ActorMethod<[ClearArguments], undefined>,
   'clearStorage' : ActorMethod<[], undefined>,
+  'commitCaffeineUpload' : ActorMethod<[CommitCaffeineUploadArgs], undefined>,
   'commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
   'commit_proposed_batch' : ActorMethod<
     [CommitProposedBatchArguments],
@@ -142,6 +176,7 @@ export interface EncryptedStorageCanister {
   'delete_batch' : ActorMethod<[DeleteBatchArguments], undefined>,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'get' : ActorMethod<[GetArgs], EncodedAsset>,
+  'getBlobDownloadInfo' : ActorMethod<[GetChunkArguments], BlobDownloadInfo>,
   'getCycleBalance' : ActorMethod<[], bigint>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
   /**
@@ -150,6 +185,7 @@ export interface EncryptedStorageCanister {
    */
   'getModuleHash' : ActorMethod<[], [] | [Uint8Array | number[]]>,
   'getStatus' : ActorMethod<[], StorageStatus>,
+  'getStorageBackendType' : ActorMethod<[], StorageBackend>,
   'getStorageChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'get_chunk' : ActorMethod<[GetChunkArgs], ChunkContent>,
@@ -356,14 +392,14 @@ export interface SetAssetPropertiesArguments {
   'max_age' : [] | [[] | [bigint]],
 }
 export interface SharingInfo { 'sharedWith' : bigint }
-export type StorageBackend = { 'External' : null } |
-  { 'BlobStorage' : null } |
-  { 'Inline' : null };
+export type StorageBackend = { 'OnChain' : null } |
+  { 'BlobStorage' : null };
 export interface StorageStatus {
   'cycleBalance' : bigint,
   'encryptedBytesUsed' : bigint,
   'subscriptionStatus' : [] | [SubscriptionStatus],
   'backendId' : [] | [Principal],
+  'storageBackendType' : StorageBackend,
 }
 export interface StoreArgs {
   'key' : Key,
@@ -417,6 +453,17 @@ export type UpdateArguments = {
   };
 export type VetKey = Uint8Array | number[];
 export type VetKeyVerificationKey = Uint8Array | number[];
+export interface _ImmutableObjectStorageCreateCertificateResult {
+  'method' : string,
+  'blob_hash' : string,
+}
+export interface _ImmutableObjectStorageRefillInformation {
+  'proposed_top_up_amount' : [] | [bigint],
+}
+export interface _ImmutableObjectStorageRefillResult {
+  'success' : [] | [boolean],
+  'topped_up_amount' : [] | [bigint],
+}
 export interface _SERVICE extends EncryptedStorageCanister {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
