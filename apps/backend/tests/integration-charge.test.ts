@@ -3,51 +3,59 @@
  * Tests full payment flows: deposit, webhook, charge, auto-renew, grace period.
  * Tests chargeForService with ICP (CMC rate), ETH/SOL (XRC rate), and topUpFromBalance.
  */
-import { createIdentity } from '@dfinity/pic';
+import { Actor, createIdentity } from '@dfinity/pic';
 import { principalToSubAccount } from '@dfinity/utils';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { resolve } from 'node:path';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
+import {
+  encryptedStorageIdlFactory,
+  initBackend,
+  initEncryptedStorage,
+  type NotificationsPage,
+  type RabbitholeActorService,
+  rabbitholeIdlFactory,
+  type StoredNotification,
+  type TypedEvent,
+} from '@rabbithole/declarations';
 import {
   BaseManager,
   E8S_PER_ICP,
-  ICP_TRANSACTION_FEE,
   minterIdentity,
 } from '@rabbithole/testing';
+import { waitWithAutoProgress } from '@rabbithole/testing';
+import { fundWithSol } from '@rabbithole/testing/sol';
+
 import {
-  type RabbitholeActorService,
-  initBackend,
-  rabbitholeIdlFactory,
-  encryptedStorageIdlFactory,
-  initEncryptedStorage,
-} from '@rabbithole/declarations';
+  BackendManager,
+  buildBaseChainConfig,
+  buildSolanaChainConfig,
+} from './setup/backend-manager.ts';
+import {
+  BASE_SEPOLIA_CHAIN_ID,
+  BASE_SEPOLIA_RPC,
+  BASE_SEPOLIA_USDC,
+  BASE_SEPOLIA_USDT,
+  CASHIER_CANISTER_ID,
+  CKETH_CANISTER_ID,
+  CKUSDC_CANISTER_ID,
+  STORAGE_WASM_PATH as ENCRYPTED_STORAGE_WASM_PATH,
+  fundWithEth,
+  INFLATED_ETH_RATE,
+  INFLATED_SOL_RATE,
+  ONE_TRILLION_CYCLES,
+  SOL_DEVNET_USDC_MINT,
+  SOL_DEVNET_USDT_MINT,
+  SOLANA_DEVNET_RPC,
+} from './setup/constants.ts';
 import { runHttpDownloaderQueueProcessor } from './setup/github-outcalls.ts';
 import {
   ICPAY_SECRET,
   makePaymentCompletedEvent,
   signWebhookPayload,
 } from './setup/helpers.ts';
-import { BackendManager } from './setup/backend-manager.ts';
-import {
-  BASE_SEPOLIA_CHAIN_ID,
-  BASE_SEPOLIA_RPC,
-  BASE_SEPOLIA_USDC,
-  BASE_SEPOLIA_USDT,
-  CKETH_CANISTER_ID,
-  CKUSDC_CANISTER_ID,
-  INFLATED_ETH_RATE,
-  INFLATED_SOL_RATE,
-  SOLANA_DEVNET_RPC,
-  SOL_DEVNET_USDC_MINT,
-  SOL_DEVNET_USDT_MINT,
-  STORAGE_WASM_PATH as ENCRYPTED_STORAGE_WASM_PATH,
-  ONE_TRILLION_CYCLES,
-  fundWithEth,
-} from './setup/constants.ts';
-import { runWithProxy } from '@rabbithole/testing';
-import { fundWithSol } from '@rabbithole/testing/sol';
 
 const WASM_PATH = resolve(
   import.meta.dirname,
@@ -66,6 +74,16 @@ const l1Identity = createIdentity('integ-l1');
 
 // ---- Helpers ----
 
+type BackendActor = RabbitholeActorService;
+
+type NotificationKey = keyof TypedEvent;
+
+type NotificationOf<Key extends NotificationKey> = {
+  event: Extract<TypedEvent, Record<Key, unknown>>;
+} & StoredNotification;
+type TopUpFromBalanceResult = Awaited<
+  ReturnType<BackendActor['topUpFromBalance']>
+>;
 function buildHttpRequest(body: string, signature: string) {
   return {
     url: '/webhook',
@@ -78,12 +96,66 @@ function buildHttpRequest(body: string, signature: string) {
     certificate_version: [],
   };
 }
+function encodeStorageInitArg(owner: Principal, backendId: Principal): Uint8Array {
+  const [initArgsIdl] = initEncryptedStorage({ IDL });
+  return new Uint8Array(
+    IDL.encode([initArgsIdl], [
+      {
+        owner,
+        vetKeyName: ['dfx_test_key'],
+        backendId: [backendId],
+        storageBackendType: [{ OnChain: null }],
+      },
+    ]),
+  );
+}
+
+function expectTopUpError(result: TopUpFromBalanceResult): string {
+  expect(result).toHaveProperty('err');
+  if (!('err' in result)) {
+    throw new Error('Expected top-up error result');
+  }
+  return result.err;
+}
+
+function expectTopUpSuccess(result: TopUpFromBalanceResult): { cyclesAdded: bigint } {
+  expect(result).toHaveProperty('ok');
+  if (!('ok' in result)) {
+    throw new Error(`Expected top-up success, got error: ${result.err}`);
+  }
+  return result.ok;
+}
+
+function findNotification<Key extends NotificationKey>(
+  notifications: NotificationsPage['data'],
+  key: Key,
+): NotificationOf<Key> | undefined {
+  return notifications.find((notification): notification is NotificationOf<Key> =>
+    hasNotificationEvent(notification, key),
+  );
+}
+
+function hasAnyNotification<Key extends NotificationKey>(
+  notifications: NotificationsPage['data'],
+  key: Key,
+): boolean {
+  return notifications.some((notification) =>
+    hasNotificationEvent(notification, key),
+  );
+}
+
+function hasNotificationEvent<Key extends NotificationKey>(
+  notification: StoredNotification,
+  key: Key,
+): notification is NotificationOf<Key> {
+  return key in notification.event;
+}
 
 // ========== Test Suite 1: Deposit + Wallet + Settings ==========
 
 describe('Integration: deposit + wallet + settings', () => {
   let manager: BaseManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   beforeAll(async () => {
@@ -92,10 +164,11 @@ describe('Integration: deposit + wallet + settings', () => {
       wasm: WASM_PATH,
       idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
       arg: IDL.encode(initBackend({ IDL }), [{
+        thresholdKeyName: 'dfx_test_key',
         github: [],
         icpaySecretKey: [],
-        evmConfig: [],
-        solConfig: [],
+        chains: [],
+        cashierCanisterId: CASHIER_CANISTER_ID,
       }]),
     });
     actor = fixture.actor;
@@ -159,7 +232,7 @@ describe('Integration: deposit + wallet + settings', () => {
 
 describe('Integration: webhook license/pro → subscription', () => {
   let manager: BaseManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   beforeAll(async () => {
@@ -170,10 +243,11 @@ describe('Integration: webhook license/pro → subscription', () => {
       wasm: WASM_PATH,
       idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
       arg: IDL.encode(initBackend({ IDL }), [{
+        thresholdKeyName: 'dfx_test_key',
         github: [],
         icpaySecretKey: [Array.from(secretBytes)],
-        evmConfig: [],
-        solConfig: [],
+        chains: [],
+        cashierCanisterId: CASHIER_CANISTER_ID,
       }]),
     });
     actor = fixture.actor;
@@ -202,12 +276,10 @@ describe('Integration: webhook license/pro → subscription', () => {
   afterAll(async () => { await manager?.afterAll(); });
 
   async function getPicTimestamp(): Promise<number> {
-    await manager.pic.setTime(new Date().getTime());
-    await manager.pic.tick();
     return Math.floor((await manager.pic.getTime()) / 1000);
   }
 
-  test('webhook license → activates License subscription', async () => {
+  test('webhook license → creates license record', async () => {
     const ts = await getPicTimestamp();
     const body = makePaymentCompletedEvent({
       purpose: 'license',
@@ -224,12 +296,12 @@ describe('Integration: webhook license/pro → subscription', () => {
     actor.setIdentity(manager.ownerIdentity);
     await actor.flushPaymentQueue();
 
-    // Verify subscription activated
+    // Verify license created (not subscription)
     actor.setIdentity(userIdentity);
-    const sub = await actor.getSubscription();
-    expect(sub).toHaveLength(1);
-    expect(sub[0].plan).toEqual({ License: null });
-    expect(sub[0].status).toEqual({ Active: null });
+    const licenses = await actor.listLicenses();
+    expect(licenses).toHaveLength(1);
+    expect(licenses[0].canisterId).toHaveLength(0); // unbound
+    expect(licenses[0].receipt.paymentId).toBe('pay-license-integ');
   });
 
   test('webhook pro_monthly → activates Pro subscription with expiry', async () => {
@@ -289,7 +361,7 @@ describe('Integration: webhook license/pro → subscription', () => {
 
     // But notification received
     const notifs = await actor.getNotifications([], 10n);
-    const depositNotif = notifs.data.find((n: any) => 'depositReceived' in n.event);
+    const depositNotif = findNotification(notifs.data, 'depositReceived');
     expect(depositNotif).toBeDefined();
   });
 
@@ -297,7 +369,7 @@ describe('Integration: webhook license/pro → subscription', () => {
     // Check that the license activation from earlier created a paymentReceived notification
     actor.setIdentity(userIdentity);
     const notifs = await actor.getNotifications([], 10n);
-    const paymentNotif = notifs.data.find((n: any) => 'paymentReceived' in n.event);
+    const paymentNotif = findNotification(notifs.data, 'paymentReceived');
     expect(paymentNotif).toBeDefined();
     expect(paymentNotif.event.paymentReceived.purpose).toBe('license');
   });
@@ -306,24 +378,14 @@ describe('Integration: webhook license/pro → subscription', () => {
 // ========== Test Suite 3: Auto-renew + Grace Period ==========
 
 describe('Integration: auto-renew and grace period', () => {
-  let manager: BaseManager;
-  let actor: any;
-  let backendCanisterId: Principal;
+  let manager: BackendManager;
+  let actor: Actor<BackendActor>;
 
   beforeAll(async () => {
-    manager = await BaseManager.create();
-    const fixture = await manager.setupCanister<RabbitholeActorService>({
-      wasm: WASM_PATH,
-      idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
-      arg: IDL.encode(initBackend({ IDL }), [{
-        github: [],
-        icpaySecretKey: [],
-        evmConfig: [],
-        solConfig: [],
-      }]),
-    });
+    manager = await BackendManager.create();
+    await manager.deployXrcMock();
+    const fixture = await manager.initBackendCanister();
     actor = fixture.actor;
-    backendCanisterId = fixture.canisterId;
     await manager.pic.tick();
   });
 
@@ -385,7 +447,7 @@ describe('Integration: auto-renew and grace period', () => {
     // chargeForService fails → balanceLow notification
     actor.setIdentity(user);
     const notifs = await actor.getNotifications([], 10n);
-    const lowNotif = notifs.data.find((n: any) => 'balanceLow' in n.event);
+    const lowNotif = findNotification(notifs.data, 'balanceLow');
     expect(lowNotif).toBeDefined();
   });
 
@@ -436,7 +498,7 @@ describe('Integration: auto-renew and grace period', () => {
 
     // Should have subscriptionExpired notification
     const notifs = await actor.getNotifications([], 10n);
-    const expiredNotif = notifs.data.find((n: any) => 'subscriptionExpired' in n.event);
+    const expiredNotif = findNotification(notifs.data, 'subscriptionExpired');
     expect(expiredNotif).toBeDefined();
   });
 
@@ -467,22 +529,14 @@ describe('Integration: auto-renew and grace period', () => {
 // ========== Test Suite 4: Auto-renew with ICP (CMC rate) ==========
 
 describe('Integration: auto-renew with ICP at CMC rate', () => {
-  let manager: BaseManager;
-  let actor: any;
+  let manager: BackendManager;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   beforeAll(async () => {
-    manager = await BaseManager.create();
-    const fixture = await manager.setupCanister<RabbitholeActorService>({
-      wasm: WASM_PATH,
-      idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
-      arg: IDL.encode(initBackend({ IDL }), [{
-        github: [],
-        icpaySecretKey: [],
-        evmConfig: [],
-        solConfig: [],
-      }]),
-    });
+    manager = await BackendManager.create();
+    await manager.deployXrcMock();
+    const fixture = await manager.initBackendCanister();
     actor = fixture.actor;
     backendCanisterId = fixture.canisterId;
     await manager.pic.tick();
@@ -554,7 +608,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
 
     // Verify notification
     const notifs = await actor.getNotifications([], 10n);
-    const renewNotif = notifs.data.find((n: any) => 'subscriptionRenewed' in n.event);
+    const renewNotif = findNotification(notifs.data, 'subscriptionRenewed');
     expect(renewNotif).toBeDefined();
   });
 
@@ -598,7 +652,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
     // Should have balanceLow notification
     actor.setIdentity(user);
     const notifs = await actor.getNotifications([], 10n);
-    const lowNotif = notifs.data.find((n: any) => 'balanceLow' in n.event);
+    const lowNotif = findNotification(notifs.data, 'balanceLow');
     expect(lowNotif).toBeDefined();
   });
 
@@ -611,16 +665,16 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
-    // Get CMC rate
-    const cmcRate = await manager.cmcActor.get_icp_xdr_conversion_rate();
-    const xdrPermyriadPerIcp = cmcRate.data.xdr_permyriad_per_icp;
-
-    // Calculate expected ICP for $9.90 (990 cents)
-    // usdCentsToIcpE8s: numerator = 990 * 100_000_000 * 10_000 * 100
-    //                   denominator = xdrPermyriadPerIcp * 13_300
-    const numerator = 990n * 100_000_000n * 10_000n * 100n;
-    const denominator = xdrPermyriadPerIcp * 13_300n;
-    const expectedIcpE8s = (numerator + denominator - 1n) / denominator;
+    // XRC mock returns rate=10_000_000_000 (9 decimals = $10/ICP)
+    // usdCentsToTokenAmount(990, rate, 9, 8):
+    //   numerator = 990 * 10^8 * 10^9 = 99_000_000_000_000_000_000
+    //   denominator = 10_000_000_000 * 100 = 1_000_000_000_000
+    //   result = ceil(99_000_000_000_000_000_000 / 1_000_000_000_000) = 99_000_000
+    const xrcRate = 10_000_000_000n; // default XRC mock rate
+    const xrcDecimals = 9n;
+    const numerator = 990n * (10n ** 8n) * (10n ** xrcDecimals);
+    const denom = xrcRate * 100n;
+    const expectedIcpE8s = (numerator + denom - 1n) / denom;
 
     // Fund generously
     const fundAmount = 100n * E8S_PER_ICP;
@@ -699,7 +753,9 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
     // Exactly one renewal notification
     actor.setIdentity(user);
     const notifs = await actor.getNotifications([], 20n);
-    const renewNotifs = notifs.data.filter((n: any) => 'subscriptionRenewed' in n.event);
+    const renewNotifs = notifs.data.filter((notification): notification is NotificationOf<'subscriptionRenewed'> =>
+      hasNotificationEvent(notification, 'subscriptionRenewed'),
+    );
     expect(renewNotifs).toHaveLength(1);
     expect(renewNotifs[0].event.subscriptionRenewed.plan).toEqual({ Pro: null });
   });
@@ -709,7 +765,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
 
 describe('Integration: topUpFromBalance', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   beforeAll(async () => {
@@ -756,7 +812,7 @@ describe('Integration: topUpFromBalance', () => {
       ONE_TRILLION_CYCLES,
     );
     expect(result).toHaveProperty('err');
-    expect((result as any).err).toContain('do not own');
+    expect(expectTopUpError(result)).toContain('do not own');
   });
 });
 
@@ -764,14 +820,14 @@ describe('Integration: topUpFromBalance', () => {
 
 describe('Integration: chargeForService with ckETH (XRC)', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   // ETH rate: $2500 at 9 decimals = 2_500_000_000_000
   const ETH_USD_RATE = 2_500_000_000_000n;
 
   beforeAll(async () => {
-    manager = await BackendManager.create({ fiduciary: true });
+    manager = await BackendManager.create();
 
     // Deploy ckETH ledger and XRC mock before backend
     await manager.deployCkEthLedger();
@@ -819,7 +875,7 @@ describe('Integration: chargeForService with ckETH (XRC)', () => {
     expect(sub[0].status).toEqual({ Active: null });
 
     const notifs = await actor.getNotifications([], 10n);
-    const renewNotif = notifs.data.find((n: any) => 'subscriptionRenewed' in n.event);
+    const renewNotif = findNotification(notifs.data, 'subscriptionRenewed');
     expect(renewNotif).toBeDefined();
   });
 
@@ -872,13 +928,14 @@ describe('Integration: chargeForService with ckETH (XRC)', () => {
 
 describe('Integration: ICP insufficient falls to ckUSDC', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   beforeAll(async () => {
     manager = await BackendManager.create({ fiduciary: true });
 
-    // Deploy ckUSDC ledger
+    // Deploy XRC mock and ckUSDC ledger
+    await manager.deployXrcMock();
     await manager.deployCkUsdcLedger();
 
     const fixture = await manager.initBackendCanister();
@@ -931,7 +988,7 @@ describe('Integration: ICP insufficient falls to ckUSDC', () => {
     expect(sub[0].status).toEqual({ Active: null });
 
     const notifs = await actor.getNotifications([], 10n);
-    const renewNotif = notifs.data.find((n: any) => 'subscriptionRenewed' in n.event);
+    const renewNotif = findNotification(notifs.data, 'subscriptionRenewed');
     expect(renewNotif).toBeDefined();
   });
 
@@ -1042,7 +1099,7 @@ describe('Integration: ICP insufficient falls to ckUSDC', () => {
 
 describe('Integration: topUpFromBalance full flow', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
   let storageCanisterId: Principal;
   const storageUser = createIdentity('topup-storage-user');
@@ -1050,7 +1107,8 @@ describe('Integration: topUpFromBalance full flow', () => {
   beforeAll(async () => {
     manager = await BackendManager.create({ fiduciary: true });
 
-    // Deploy ckUSDC ledger for charging
+    // Deploy XRC mock and ckUSDC ledger for charging
+    await manager.deployXrcMock();
     await manager.deployCkUsdcLedger();
 
     const fixture = await manager.initBackendCanister();
@@ -1084,16 +1142,14 @@ describe('Integration: topUpFromBalance full flow', () => {
 
     // Deploy storage canister directly via PocketIC
     // initEncryptedStorage and encryptedStorageIdlFactory imported statically at top of file
-    const storageInitArg = (() => {
-      const [InitArgsIDL] = initEncryptedStorage({ IDL });
-      return new Uint8Array(IDL.encode([InitArgsIDL], [
-        { owner: storageUser.getPrincipal(), vetKeyName: "dfx_test_key", backendId: backendCanisterId },
-      ]));
-    })();
+    const storageInitArg = encodeStorageInitArg(
+      storageUser.getPrincipal(),
+      backendCanisterId,
+    );
 
     const storageFixture = await manager.pic.setupCanister({
       wasm: ENCRYPTED_STORAGE_WASM_PATH,
-      sender: manager.ownerIdentity.getPrincipal(),
+      sender: storageUser.getPrincipal(),
       idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
       arg: storageInitArg,
     });
@@ -1139,7 +1195,7 @@ describe('Integration: topUpFromBalance full flow', () => {
     await manager.pic.tick(10);
 
     expect(result).toHaveProperty('ok');
-    expect((result as any).ok.cyclesAdded).toBeGreaterThan(0n);
+    expect(expectTopUpSuccess(result).cyclesAdded).toBeGreaterThan(0n);
 
     const cyclesAfter = await manager.getCyclesBalance(storageCanisterId);
     expect(cyclesAfter).toBeGreaterThan(cyclesBefore);
@@ -1216,7 +1272,7 @@ describe('Integration: topUpFromBalance full flow', () => {
     // topUpFailed notification
     actor.setIdentity(storageUser);
     const notifs = await actor.getNotifications([], 10n);
-    const failNotif = notifs.data.find((n: any) => 'topUpFailed' in n.event);
+    const failNotif = findNotification(notifs.data, 'topUpFailed');
     expect(failNotif).toBeDefined();
   });
 
@@ -1232,15 +1288,13 @@ describe('Integration: topUpFromBalance full flow', () => {
 
     // Register storage under this user
     // initEncryptedStorage and encryptedStorageIdlFactory imported statically at top of file
-    const partialStorageInitArg = (() => {
-      const [InitArgsIDL] = initEncryptedStorage({ IDL });
-      return new Uint8Array(IDL.encode([InitArgsIDL], [
-        { owner: partialUser.getPrincipal(), vetKeyName: "dfx_test_key", backendId: backendCanisterId },
-      ]));
-    })();
+    const partialStorageInitArg = encodeStorageInitArg(
+      partialUser.getPrincipal(),
+      backendCanisterId,
+    );
     const partialStorage = await manager.pic.setupCanister({
       wasm: ENCRYPTED_STORAGE_WASM_PATH,
-      sender: manager.ownerIdentity.getPrincipal(),
+      sender: partialUser.getPrincipal(),
       idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
       arg: partialStorageInitArg,
     });
@@ -1258,7 +1312,7 @@ describe('Integration: topUpFromBalance full flow', () => {
     await manager.pic.tick(10);
 
     expect(result).toHaveProperty('ok');
-    const cyclesAdded = (result as any).ok.cyclesAdded;
+    const cyclesAdded = expectTopUpSuccess(result).cyclesAdded;
     expect(cyclesAdded).toBeGreaterThan(0n);
     expect(cyclesAdded).toBeLessThan(ONE_TRILLION_CYCLES);
   });
@@ -1278,7 +1332,7 @@ describe('Integration: topUpFromBalance full flow', () => {
       autoRenew: false, autoTopUp: true, topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
-    // storageUser needs a Pro or License subscription for auto-topup
+    // storageUser needs a Pro subscription for auto-topup
     actor.setIdentity(manager.ownerIdentity);
     const picTimeMs = await manager.pic.getTime();
     const now = BigInt(picTimeMs) * 1_000_000n;
@@ -1292,13 +1346,6 @@ describe('Integration: topUpFromBalance full flow', () => {
     );
 
     const cyclesBefore = await manager.getCyclesBalance(storageCanisterId);
-
-    // Simulate storage canister calling onStorageLowCycles
-    const storageFixture = manager.pic.createActor(
-      rabbitholeIdlFactory,
-      backendCanisterId,
-    );
-    (storageFixture as any).setIdentity(storageUser); // won't work — need to call AS storage canister
 
     // Call onStorageLowCycles from the storage canister's identity
     // PocketIC allows calling with any sender via updateCall
@@ -1319,7 +1366,7 @@ describe('Integration: topUpFromBalance full flow', () => {
     // Notification
     actor.setIdentity(storageUser);
     const notifs = await actor.getNotifications([], 20n);
-    const topUpNotif = notifs.data.find((n: any) => 'autoTopUpCompleted' in n.event);
+    const topUpNotif = findNotification(notifs.data, 'autoTopUpCompleted');
     expect(topUpNotif).toBeDefined();
   });
 
@@ -1366,7 +1413,7 @@ describe('Integration: topUpFromBalance full flow', () => {
     // For explicit coverage, we verify the settings were saved correctly
     const settings = await actor.getSettings();
     expect(settings.autoTopUp).toBe(true);
-    // Free users can enable autoTopUp but it won't fire without Pro/License
+    // Free users can enable autoTopUp but it won't fire without Pro subscription
   });
 });
 
@@ -1374,11 +1421,12 @@ describe('Integration: topUpFromBalance full flow', () => {
 
 describe('Integration: pendingRefunds and ambassador distribution', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   beforeAll(async () => {
-    manager = await BackendManager.create();
+    manager = await BackendManager.create({ fiduciary: true });
+    await manager.deployXrcMock();
     const fixture = await manager.initBackendCanister();
     actor = fixture.actor;
     backendCanisterId = fixture.canisterId;
@@ -1413,7 +1461,7 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
     expect(processed).toBe(0n);
   });
 
-  test('ambassador distribution: 80/15/5 split verified via distributionLog', async () => {
+  test('ambassador distribution: 85/15/0 split verified via distributionLog', async () => {
     // Setup: L1 ambassador registers and creates profile (for referralCode)
     const l1 = createIdentity('dist-l1');
     actor.setIdentity(l1);
@@ -1473,12 +1521,12 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
     const record = log[0];
     expect(record.totalAmount).toBeGreaterThan(0n);
 
-    // Verify 80/15/5 split (default distribution config: l1Bps=1500, l2Bps=500)
+    // Verify 85/15/0 split (default distribution config: l1Bps=1500, l2Bps=0)
     // Treasury gets remainder after L1+L2 deductions (ceiling division may shift ±2)
     const total = record.totalAmount;
-    const expectedTreasury = total * 8000n / 10000n;
+    const expectedTreasury = total * 8500n / 10000n;
     const expectedL1 = total * 1500n / 10000n;
-    const expectedL2 = total * 500n / 10000n;
+    const expectedL2 = 0n;
 
     // Allow 2 units rounding tolerance (ceiling division in treasury)
     expect(record.treasuryAmount).toBeGreaterThanOrEqual(expectedTreasury - 2n);
@@ -1500,9 +1548,11 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
 
 // ========== Test Suite 9: chargeForService with BaseETH (EVM testnet) ==========
 
+// Per-user renewal timers keep each renewal in its own message,
+// staying within the per-message instruction limit for EVM RPC calls.
 describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
   const evmUser = createIdentity('evm-charge-user');
 
@@ -1514,14 +1564,15 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
     const evmRpcCanisterId = await manager.deployEvmRpc();
 
     const fixture = await manager.initBackendCanister({
-      evmConfig: {
-        chainId: BASE_SEPOLIA_CHAIN_ID,
-        ecdsaKeyName: "dfx_test_key",
-        evmRpcCanisterId: evmRpcCanisterId.toText(),
-        usdcContract: BASE_SEPOLIA_USDC,
-        usdtContract: BASE_SEPOLIA_USDT,
-        rpcUrls: [BASE_SEPOLIA_RPC],
-      },
+      chains: [
+        buildBaseChainConfig({
+          chainId: BASE_SEPOLIA_CHAIN_ID,
+          evmRpcCanisterId: evmRpcCanisterId.toText(),
+          usdcContract: BASE_SEPOLIA_USDC,
+          usdtContract: BASE_SEPOLIA_USDT,
+          rpcUrls: [BASE_SEPOLIA_RPC],
+        }),
+      ],
     });
     actor = fixture.actor;
     backendCanisterId = fixture.canisterId;
@@ -1553,23 +1604,23 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
   afterAll(async () => { await manager?.afterAll(); });
 
   test('chargeForService routes to BaseETH and renews subscription', async () => {
-    const deferred = manager.createDeferredBackendActor();
-    deferred.setIdentity(manager.ownerIdentity);
+    // triggerAutoRenewals schedules per-user timer; auto-progress processes it.
+    // Timing can produce either #Renewed (if sub still Active when charged) or
+    // #Reactivated (if sub expired during HTTP outcall). Both are correct outcomes.
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.triggerAutoRenewals();
 
-    await runWithProxy(manager.pic, async (proxy) => {
-      const result = await deferred.triggerAutoRenewals();
-      return proxy(result);
+    await waitWithAutoProgress(manager.pic, async () => {
+      actor.setIdentity(evmUser);
+      const notifs = await actor.getNotifications([], 10n);
+      return hasAnyNotification(notifs.data, 'subscriptionRenewed')
+        || hasAnyNotification(notifs.data, 'subscriptionActivated');
     });
 
-    // Subscription should be renewed
     actor.setIdentity(evmUser);
     const sub = await actor.getSubscription();
     expect(sub[0].plan).toEqual({ Pro: null });
     expect(sub[0].status).toEqual({ Active: null });
-
-    const notifs = await actor.getNotifications([], 10n);
-    const renewNotif = notifs.data.find((n: any) => 'subscriptionRenewed' in n.event);
-    expect(renewNotif).toBeDefined();
   }, 300_000);
 
   test('BaseETH insufficient → falls to ICP', async () => {
@@ -1600,12 +1651,17 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
       owner: backendCanisterId, subaccount: [userSubaccount],
     });
 
-    // Trigger auto-renew via proxy (getBalance for BaseETH is HTTPS outcall)
-    const deferred = manager.createDeferredBackendActor();
-    deferred.setIdentity(manager.ownerIdentity);
-    await runWithProxy(manager.pic, async (proxy) => {
-      const result = await deferred.triggerAutoRenewals();
-      return proxy(result);
+    // triggerAutoRenewals schedules per-user timer; auto-progress handles EVM RPC outcalls
+    await actor.triggerAutoRenewals();
+
+    // Poll for subscriptionRenewed (ICP fallback) or balanceLow notification
+    await waitWithAutoProgress(manager.pic, async () => {
+      actor.setIdentity(fallbackUser);
+      const notifs = await actor.getNotifications([], 10n);
+      return (
+        hasAnyNotification(notifs.data, 'subscriptionRenewed') ||
+        hasAnyNotification(notifs.data, 'balanceLow')
+      );
     });
 
     // ICP should have been charged (fallback from BaseETH)
@@ -1624,9 +1680,11 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
 
 // ========== Test Suite 10: chargeForService with SOL (Solana testnet) ==========
 
+// Per-user renewal timers keep each renewal in its own message,
+// staying within the per-message instruction limit for Solana RPC calls.
 describe('Integration: chargeForService with SOL (Solana testnet)', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
   const solUser = createIdentity('sol-charge-user');
 
@@ -1638,13 +1696,14 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
     const solRpcCanisterId = await manager.deploySolRpc();
 
     const fixture = await manager.initBackendCanister({
-      solConfig: {
-        schnorrKeyName: "dfx_test_key",
-        solRpcCanisterId: solRpcCanisterId.toText(),
-        usdcMint: SOL_DEVNET_USDC_MINT,
-        usdtMint: SOL_DEVNET_USDT_MINT,
-        rpcUrl: [SOLANA_DEVNET_RPC],
-      },
+      chains: [
+        buildSolanaChainConfig({
+          solRpcCanisterId: solRpcCanisterId.toText(),
+          usdcMint: SOL_DEVNET_USDC_MINT,
+          usdtMint: SOL_DEVNET_USDT_MINT,
+          rpcUrl: [SOLANA_DEVNET_RPC],
+        }),
+      ],
     });
     actor = fixture.actor;
     backendCanisterId = fixture.canisterId;
@@ -1675,23 +1734,23 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
   afterAll(async () => { await manager?.afterAll(); });
 
   test('chargeForService routes to SOL and renews subscription', async () => {
-    const deferred = manager.createDeferredBackendActor();
-    deferred.setIdentity(manager.ownerIdentity);
+    // triggerAutoRenewals schedules per-user timer; auto-progress processes it.
+    // Timing can produce either #Renewed (if sub still Active when charged) or
+    // #Reactivated (if sub expired during HTTP outcall). Both are correct outcomes.
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.triggerAutoRenewals();
 
-    await runWithProxy(manager.pic, async (proxy) => {
-      const result = await deferred.triggerAutoRenewals();
-      return proxy(result);
+    await waitWithAutoProgress(manager.pic, async () => {
+      actor.setIdentity(solUser);
+      const notifs = await actor.getNotifications([], 10n);
+      return hasAnyNotification(notifs.data, 'subscriptionRenewed')
+        || hasAnyNotification(notifs.data, 'subscriptionActivated');
     });
 
-    // Subscription should be renewed
     actor.setIdentity(solUser);
     const sub = await actor.getSubscription();
     expect(sub[0].plan).toEqual({ Pro: null });
     expect(sub[0].status).toEqual({ Active: null });
-
-    const notifs = await actor.getNotifications([], 10n);
-    const renewNotif = notifs.data.find((n: any) => 'subscriptionRenewed' in n.event);
-    expect(renewNotif).toBeDefined();
   }, 300_000);
 
   test('SOL insufficient → balanceLow notification', async () => {
@@ -1709,18 +1768,19 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
     const now = BigInt(picTimeMs) * 1_000_000n;
     await actor.activateSubscription(noFundsUser.getPrincipal(), { Pro: null }, [now + 3_600_000_000_000n]);
 
-    // Trigger auto-renew — SOL balance = 0, should produce balanceLow
-    const deferred = manager.createDeferredBackendActor();
-    deferred.setIdentity(manager.ownerIdentity);
-    await runWithProxy(manager.pic, async (proxy) => {
-      const result = await deferred.triggerAutoRenewals();
-      return proxy(result);
+    // triggerAutoRenewals schedules per-user timer; auto-progress handles Solana RPC outcalls
+    await actor.triggerAutoRenewals();
+
+    await waitWithAutoProgress(manager.pic, async () => {
+      actor.setIdentity(noFundsUser);
+      const notifs = await actor.getNotifications([], 10n);
+      return hasAnyNotification(notifs.data, 'balanceLow');
     });
 
     // Should have balanceLow notification
     actor.setIdentity(noFundsUser);
     const notifs = await actor.getNotifications([], 10n);
-    const lowNotif = notifs.data.find((n: any) => 'balanceLow' in n.event);
+    const lowNotif = findNotification(notifs.data, 'balanceLow');
     expect(lowNotif).toBeDefined();
   }, 300_000);
 });
@@ -1729,7 +1789,7 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
 
 describe('Integration: purchaseSubscription (direct balance purchase)', () => {
   let manager: BackendManager;
-  let actor: any;
+  let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
 
   beforeAll(async () => {
@@ -1745,11 +1805,11 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
 
   test('purchaseSubscription: anonymous caller rejected', async () => {
     // Create a separate actor without identity set (defaults to anonymous)
-    const anonActor = manager.pic.createActor(
-      rabbitholeIdlFactory as any,
+    const anonActor = manager.pic.createActor<BackendActor>(
+      rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
       backendCanisterId,
     );
-    await expect(anonActor.purchaseSubscription({ License: null })).rejects.toThrow();
+    await expect(anonActor.purchaseSubscription({ Pro: null })).rejects.toThrow();
   });
 
   test('purchaseSubscription: Free plan returns InvalidPlan', async () => {
@@ -1781,59 +1841,9 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
-    const result = await actor.purchaseSubscription({ License: null });
+    const result = await actor.purchaseSubscription({ Pro: null });
     expect(result).toHaveProperty('err');
     expect(result.err).toHaveProperty('InsufficientFunds');
-  });
-
-  test('purchaseSubscription: License with ICP → activates License', async () => {
-    const user = createIdentity('purchase-license-icp');
-    actor.setIdentity(user);
-    await actor.register([]);
-    await actor.updateSettings({
-      spendingPriority: [{ ICP: null }],
-      autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
-    });
-
-    // Fund user's ICP subaccount
-    const userSubaccount = principalToSubAccount(user.getPrincipal());
-    manager.icpLedgerActor.setIdentity(minterIdentity);
-    await manager.icpLedgerActor.icrc1_transfer({
-      to: { owner: backendCanisterId, subaccount: [userSubaccount] },
-      fee: [], memo: [], from_subaccount: [], created_at_time: [],
-      amount: 10n * E8S_PER_ICP,
-    });
-
-    // Check balance before
-    const balanceBefore = await manager.icpLedgerActor.icrc1_balance_of({
-      owner: backendCanisterId,
-      subaccount: [userSubaccount],
-    });
-
-    // Purchase License
-    actor.setIdentity(user);
-    const result = await actor.purchaseSubscription({ License: null });
-    expect(result).toHaveProperty('ok');
-
-    // Verify subscription
-    const sub = await actor.getSubscription();
-    expect(sub).toHaveLength(1);
-    expect(sub[0].plan).toEqual({ License: null });
-    expect(sub[0].status).toEqual({ Active: null });
-    expect(sub[0].expiresAt).toHaveLength(0); // License has no expiry
-
-    // Balance should have decreased
-    const balanceAfter = await manager.icpLedgerActor.icrc1_balance_of({
-      owner: backendCanisterId,
-      subaccount: [userSubaccount],
-    });
-    expect(balanceAfter).toBeLessThan(balanceBefore);
-
-    // Should have subscriptionActivated notification
-    const notifs = await actor.getNotifications([], 10n);
-    const activatedNotif = notifs.data.find((n: any) => 'subscriptionActivated' in n.event);
-    expect(activatedNotif).toBeDefined();
-    expect(activatedNotif.event.subscriptionActivated.plan).toEqual({ License: null });
   });
 
   test('purchaseSubscription: Pro with ICP → activates Pro with 30d expiry', async () => {
@@ -1865,23 +1875,56 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
     expect(sub[0].expiresAt[0]).toBeGreaterThan(0n);
   });
 
-  test('purchaseSubscription: already active → AlreadyActive error', async () => {
-    const user = createIdentity('purchase-already-active');
+  test('purchaseSubscription: Active Pro → renews from currentExpiresAt', async () => {
+    const user = createIdentity('purchase-renew-active');
     actor.setIdentity(user);
     await actor.register([]);
 
-    // Admin activates License
-    actor.setIdentity(manager.ownerIdentity);
-    await actor.activateSubscription(user.getPrincipal(), { License: null }, []);
+    // Fund user so they can purchase twice
+    const depositAmount = 10n * E8S_PER_ICP;
+    const subaccount = principalToSubAccount(user.getPrincipal());
+    manager.icpLedgerActor.setIdentity(minterIdentity);
+    await manager.icpLedgerActor.icrc1_transfer({
+      to: { owner: backendCanisterId, subaccount: [subaccount] },
+      fee: [], memo: [], from_subaccount: [], created_at_time: [],
+      amount: depositAmount,
+    });
 
-    // Try to purchase again
+    // First purchase
     actor.setIdentity(user);
-    const result = await actor.purchaseSubscription({ Pro: null });
-    expect(result).toHaveProperty('err');
-    expect(result.err).toHaveProperty('AlreadyActive');
+    await actor.updateSettings({
+      spendingPriority: [{ ICP: null }],
+      autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+    const result1 = await actor.purchaseSubscription({ Pro: null });
+    expect(result1).toHaveProperty('ok');
+
+    const sub1 = await actor.getSubscription();
+    expect(sub1[0].plan).toEqual({ Pro: null });
+    expect(sub1[0].status).toEqual({ Active: null });
+    const firstExpiresAt = sub1[0].expiresAt[0];
+    expect(firstExpiresAt).toBeDefined();
+
+    // Second purchase (renew) — should extend from firstExpiresAt, not from now
+    const result2 = await actor.purchaseSubscription({ Pro: null });
+    expect(result2).toHaveProperty('ok');
+
+    const sub2 = await actor.getSubscription();
+    expect(sub2[0].plan).toEqual({ Pro: null });
+    expect(sub2[0].status).toEqual({ Active: null });
+    const secondExpiresAt = sub2[0].expiresAt[0];
+    expect(secondExpiresAt).toBeDefined();
+
+    // secondExpiresAt should be ~firstExpiresAt + 30 days (not now + 30 days)
+    const thirtyDaysNs = 30n * 24n * 60n * 60n * 1_000_000_000n;
+    expect(secondExpiresAt).toBeGreaterThan(firstExpiresAt);
+    // Allow 1 minute tolerance for timing
+    const tolerance = 60n * 1_000_000_000n;
+    expect(secondExpiresAt).toBeGreaterThanOrEqual(firstExpiresAt + thirtyDaysNs - tolerance);
+    expect(secondExpiresAt).toBeLessThanOrEqual(firstExpiresAt + thirtyDaysNs + tolerance);
   });
 
-  test('purchaseSubscription: ambassador distribution works (80/15/5)', async () => {
+  test('purchaseSubscription: ambassador distribution works (85/15/0)', async () => {
     // Create L1 ambassador with profile (referralCode is generated on createProfile)
     const ambassador = createIdentity('purchase-ambassador');
     actor.setIdentity(ambassador);
@@ -1912,9 +1955,9 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
       amount: 10n * E8S_PER_ICP,
     });
 
-    // Purchase
+    // Purchase Pro
     actor.setIdentity(buyer);
-    const result = await actor.purchaseSubscription({ License: null });
+    const result = await actor.purchaseSubscription({ Pro: null });
     expect(result).toHaveProperty('ok');
 
     // Verify ambassador got their share via distribution log
@@ -1923,11 +1966,11 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
       limit: 10n,
       offset: 0n,
     });
-    const purchaseEntry = log.find((r: any) =>
+    const purchaseEntry = log.find((r) =>
       r.payer.toText() === buyer.getPrincipal().toText()
     );
     expect(purchaseEntry).toBeDefined();
-    // 80% treasury, 15% L1, 5% L2 (no L2 here)
+    // 85% treasury, 15% L1, 0% L2 (no L2 distribution)
     expect(purchaseEntry.treasuryAmount).toBeGreaterThan(0n);
     expect(purchaseEntry.l1Amount).toBeGreaterThan(0n);
   });

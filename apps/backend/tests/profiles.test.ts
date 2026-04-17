@@ -9,6 +9,7 @@ import { faker } from "@faker-js/faker";
 import type { Identity } from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
+import { CASHIER_CANISTER_ID } from "./setup/constants";
 import { addDays, subDays } from "date-fns";
 import { resolve } from "node:path";
 import { filter, isEmpty, pick, prop, sortBy, splice, take } from "remeda";
@@ -38,7 +39,7 @@ async function createPic(): Promise<[PocketIc, CanisterFixture<RabbitholeActorSe
     wasm: WASM_PATH,
     sender: ownerIdentity.getPrincipal(),
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
-    arg: IDL.encode(initBackend({ IDL }), [{ github: [], icpaySecretKey: [], evmConfig: [], solConfig: [] }]),
+    arg: IDL.encode(initBackend({ IDL }), [{ thresholdKeyName: 'dfx_test_key', github: [], icpaySecretKey: [], chains: [], cashierCanisterId: CASHIER_CANISTER_ID }]),
   });
 
   // next block to init ecdsa keypair in the canister
@@ -97,7 +98,9 @@ describe("Profiles", () => {
     const { identity, args } = createRandomUser();
     actor.setIdentity(identity);
     const id = await actor.createProfile(args);
-    expect(id).toBe(10n);
+    // ZenDB DocumentId is now Blob (Uint8Array), not Nat
+    expect(id).toBeInstanceOf(Uint8Array);
+    expect(id.length).toBeGreaterThan(0);
   });
 
   test("should read profile", async () => {

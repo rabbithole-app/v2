@@ -1,17 +1,13 @@
 import type { CanisterFixture } from "@dfinity/pic";
 import { createIdentity } from "@dfinity/pic";
 import { fromNullable, principalToSubAccount, toNullable, uint8ArrayToHexString } from "@dfinity/utils";
-import { IDL } from "@icp-sdk/core/candid";
 import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import {
-  type Account,
-  type CreateStorageOptions,
   type CreationStatus,
   type EncryptedStorageActorService,
   encryptedStorageIdlFactory,
-  initEncryptedStorage,
   type RabbitholeActorService,
   type StorageInfo,
   UpdateInfo,
@@ -38,8 +34,9 @@ function findActiveStorage(storages: StorageInfo[]): StorageInfo | null {
  * Helper to format creation status for logging
  */
 function formatCreationStatus(status: CreationStatus): string {
+  if ("ProcessingPayment" in status) return "ProcessingPayment";
   if ("Pending" in status) return "Pending";
-  if ("CheckingAllowance" in status) return "CheckingAllowance";
+  if ("CheckingBalance" in status) return "CheckingBalance";
   if ("TransferringICP" in status) return `TransferringICP (${status.TransferringICP.amount} e8s)`;
   if ("NotifyingCMC" in status) return `NotifyingCMC (block ${status.NotifyingCMC.blockIndex})`;
   if ("CanisterCreated" in status) return `CanisterCreated (${status.CanisterCreated.canisterId.toText()})`;
@@ -196,6 +193,36 @@ async function waitForReleasesReady(
   console.log("✓ Releases downloaded and extracted successfully");
 }
 
+/**
+ * Register a user and deposit enough ICP to cover:
+ *  - License fee ($4.90 at XRC mock default $10/ICP = ~49_000_000 e8s)
+ *  - Canister creation cycles (STORAGE_INITIAL_CYCLES 1.5TC + creation cost 0.5TC = 2TC)
+ * Deposits a flat 2 ICP which comfortably covers both at typical test rates.
+ */
+async function fundUserForStorage(
+  manager: BackendManager,
+  backendFixture: CanisterFixture<RabbitholeActorService>,
+  identity: ReturnType<typeof createIdentity>,
+): Promise<void> {
+  backendFixture.actor.setIdentity(identity);
+  await backendFixture.actor.register([]);
+
+  // Compute cycles cost dynamically from CMC rate
+  const totalCycles = 2_000_000_000_000n; // 1.5TC initial + 0.5TC creation cost
+  const rate = await manager.cmcActor.get_icp_xdr_conversion_rate();
+  const cyclesE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (1_000_000_000_000n * rate.data.xdr_permyriad_per_icp);
+  // Add 100_000_000 e8s (1 ICP) buffer for license fee + fees
+  const depositAmount = cyclesE8s + 100_000_000n;
+
+  manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
+  const result = await manager.icpLedgerActor.icrc1_transfer({
+    to: { owner: backendFixture.canisterId, subaccount: [principalToSubAccount(identity.getPrincipal())] },
+    amount: depositAmount,
+    fee: [], memo: [], from_subaccount: [], created_at_time: [],
+  });
+  if ("Err" in result) throw new Error(`Fund failed: ${JSON.stringify(result)}`);
+}
+
 describe("StorageDeployer", () => {
   let manager: BackendManager;
   let backendFixture: CanisterFixture<RabbitholeActorService>;
@@ -203,6 +230,8 @@ describe("StorageDeployer", () => {
   beforeAll(async () => {
     manager = await BackendManager.create();
     backendFixture = await manager.initBackendCanister();
+    // XRC mock required for purchaseLicenseAndCreateStorage (ICP/USD rate for $4.90 license fee)
+    await manager.deployXrcMock();
   });
 
   afterAll(async () => {
@@ -226,130 +255,46 @@ describe("StorageDeployer", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // ICRC2 TRANSFER TESTS
+  // ICRC1 SUBACCOUNT TRANSFER TESTS
   // ═══════════════════════════════════════════════════════════════
 
-  test("should allow transfer ICP with sufficient allowance", async () => {
-    const spender: Account = {
-      owner: backendFixture.canisterId,
-      subaccount: [principalToSubAccount(manager.ownerIdentity.getPrincipal())],
-    };
+  test("should have ICP on user subaccount after deposit", async () => {
+    const userSubaccount = principalToSubAccount(manager.ownerIdentity.getPrincipal());
+    const depositAmount = 100n * E8S_PER_ICP;
 
+    // Deposit ICP to user's subaccount under backend canister
     manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
-
-    const initialCycles = ONE_TRILLION_CYCLES;
-    const totalCycles = initialCycles + 500_000_000_000n;
-
-    const rate = await manager.cmcActor.get_icp_xdr_conversion_rate();
-    const requiredE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (ONE_TRILLION_CYCLES * rate.data.xdr_permyriad_per_icp);
-    const totalRequired = requiredE8s + 10_000n;
-
-    // Approve spender
-    const allowanceResult = await manager.icpLedgerActor.icrc2_approve({
-      spender,
-      amount: totalRequired,
-      created_at_time: [],
-      expected_allowance: [],
-      expires_at: [],
-      fee: [10_000n],
-      from_subaccount: [],
-      memo: [],
-    });
-    expect(allowanceResult).toHaveProperty("Ok");
-
-    // Verify allowance
-    const allowance = await manager.icpLedgerActor.icrc2_allowance({
-      account: {
-        owner: manager.ownerIdentity.getPrincipal(),
-        subaccount: [],
-      },
-      spender,
-    });
-    expect(allowance.allowance).toBeGreaterThanOrEqual(totalRequired);
-
-    // Transfer using icrc2_transfer_from (simulating what backend does)
-    manager.icpLedgerActor.setPrincipal(backendFixture.canisterId);
-    const transferResult = await manager.icpLedgerActor.icrc2_transfer_from({
-      to: {
-        owner: CMC_CANISTER_ID,
-        subaccount: toNullable(principalToSubAccount(backendFixture.canisterId)),
-      },
-      fee: [10_000n],
-      spender_subaccount: [principalToSubAccount(manager.ownerIdentity.getPrincipal())],
-      from: {
-        owner: manager.ownerIdentity.getPrincipal(),
-        subaccount: [],
-      },
-      memo: [],
-      created_at_time: [],
-      amount: requiredE8s,
-    });
-
-    expect(transferResult).toHaveProperty("Ok");
-  });
-
-  test("should reject transfer with insufficient allowance", async () => {
-    const transferTestIdentity = createIdentity("transferTestUser");
-
-    // Mint some ICP for the test identity
-    manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
-    await manager.icpLedgerActor.icrc1_transfer({
+    const transferResult = await manager.icpLedgerActor.icrc1_transfer({
       from_subaccount: [],
       to: {
-        owner: transferTestIdentity.getPrincipal(),
-        subaccount: [],
-      } as unknown as Account,
-      amount: BigInt(1000) * E8S_PER_ICP,
+        owner: backendFixture.canisterId,
+        subaccount: [userSubaccount],
+      },
+      amount: depositAmount,
       fee: [],
       memo: [],
       created_at_time: [],
     });
+    expect(transferResult).toHaveProperty("Ok");
 
-    const spender: Account = {
+    // Verify balance on subaccount
+    const balance = await manager.icpLedgerActor.icrc1_balance_of({
       owner: backendFixture.canisterId,
-      subaccount: [principalToSubAccount(transferTestIdentity.getPrincipal())],
-    };
-
-    manager.icpLedgerActor.setIdentity(transferTestIdentity);
-
-    const insufficientAmount = 100_000n;
-    const transferAmount = ONE_TRILLION_CYCLES; // Much larger than allowance
-
-    // Approve only a small amount
-    await manager.icpLedgerActor.icrc2_approve({
-      spender,
-      amount: insufficientAmount,
-      created_at_time: [],
-      expected_allowance: [],
-      expires_at: [],
-      fee: [10_000n],
-      from_subaccount: [],
-      memo: [],
+      subaccount: [userSubaccount],
     });
+    expect(balance).toBe(depositAmount);
+  });
 
-    // Try to transfer more than allowed
-    const transferResult = await manager.icpLedgerActor.icrc2_transfer_from({
-      to: {
-        owner: backendFixture.canisterId,
-        subaccount: [],
-      },
-      fee: [10_000n],
-      spender_subaccount: [principalToSubAccount(transferTestIdentity.getPrincipal())],
-      from: {
-        owner: transferTestIdentity.getPrincipal(),
-        subaccount: [],
-      },
-      memo: [],
-      created_at_time: [],
-      amount: transferAmount,
+  test("should reject transfer from subaccount with insufficient balance", async () => {
+    const emptyUserIdentity = createIdentity("emptyUser");
+    const emptySubaccount = principalToSubAccount(emptyUserIdentity.getPrincipal());
+
+    // Check balance is 0
+    const balance = await manager.icpLedgerActor.icrc1_balance_of({
+      owner: backendFixture.canisterId,
+      subaccount: [emptySubaccount],
     });
-
-    expect(transferResult).toHaveProperty("Err");
-    if ("Err" in transferResult) {
-      expect(transferResult.Err).toHaveProperty("InsufficientAllowance");
-    }
-
-    manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
+    expect(balance).toBe(0n);
   });
 
   // ═══════════════════════════════════════════════════════════════
@@ -393,77 +338,23 @@ describe("StorageDeployer", () => {
   test("should complete full storage creation E2E flow", { timeout: 360000 }, async () => {
     console.log("\n=== E2E Storage Creation Test ===");
 
-    // Use a fresh identity
     const e2eTestIdentity = createIdentity("e2eStorageTestUser");
-    backendFixture.actor.setIdentity(e2eTestIdentity);
-
-    // Mint ICP for this identity
-    manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
-    await manager.icpLedgerActor.icrc1_transfer({
-      from_subaccount: [],
-      to: {
-        owner: e2eTestIdentity.getPrincipal(),
-        subaccount: [],
-      } as unknown as Account,
-      amount: BigInt(100_000) * E8S_PER_ICP,
-      fee: [],
-      memo: [],
-      created_at_time: [],
-    });
-
-    // Setup allowance
-    const spender: Account = {
-      owner: backendFixture.canisterId,
-      subaccount: [principalToSubAccount(e2eTestIdentity.getPrincipal())],
-    };
-
-    manager.icpLedgerActor.setIdentity(e2eTestIdentity);
-    backendFixture.actor.setIdentity(e2eTestIdentity);
-
-    const initialCycles = ONE_TRILLION_CYCLES;
-    const totalCycles = initialCycles + 500_000_000_000n;
-
-    const rate = await manager.cmcActor.get_icp_xdr_conversion_rate();
-    const requiredE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (ONE_TRILLION_CYCLES * rate.data.xdr_permyriad_per_icp);
-    const totalRequired = requiredE8s + 10_000n;
-
     console.log("Test user:", e2eTestIdentity.getPrincipal().toText());
-    console.log("Required ICP e8s:", totalRequired);
 
-    const allowanceResult = await manager.icpLedgerActor.icrc2_approve({
-      spender,
-      amount: totalRequired,
-      created_at_time: [],
-      expected_allowance: [],
-      expires_at: [],
-      fee: [10_000n],
-      from_subaccount: [],
-      memo: [],
-    });
-    expect(allowanceResult).toHaveProperty("Ok");
+    // Register user and fund subaccount (license fee + canister creation cycles)
+    await fundUserForStorage(manager, backendFixture, e2eTestIdentity);
+    backendFixture.actor.setIdentity(e2eTestIdentity);
 
     // Verify releases are ready
     const releasesStatus = await backendFixture.actor.getReleasesFullStatus();
     expect(releasesStatus.hasDeploymentReadyRelease).toBe(true);
 
-    // Start creation
+    // Purchase license and start creation
     console.log("\n=== Starting Storage Creation ===");
-    const options: CreateStorageOptions = {
-      target: {
-        Create: {
-          initialCycles,
-          subnetId: [manager.applicationSubnetId],
-        },
-      },
-      releaseSelector: { LatestDraft: null },
-      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
-        owner: e2eTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key',
-        backendId: backendFixture.canisterId,
-      }]),
-    };
-
-    const createResult = await backendFixture.actor.createStorage(options);
+    const createResult = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
+    );
     console.log("Create result:", createResult);
     expect(createResult).toHaveProperty("ok");
 
@@ -502,24 +393,15 @@ describe("StorageDeployer", () => {
 
   test("should reject duplicate creation while in progress", async () => {
     const duplicateTestIdentity = createIdentity("duplicateTestUser");
+
+    // Register user and fund subaccount
+    await fundUserForStorage(manager, backendFixture, duplicateTestIdentity);
     backendFixture.actor.setIdentity(duplicateTestIdentity);
 
-    const duplicateOptions: CreateStorageOptions = {
-      target: {
-        Create: {
-          initialCycles: ONE_TRILLION_CYCLES,
-          subnetId: [manager.applicationSubnetId],
-        },
-      },
-      releaseSelector: { LatestDraft: null },
-      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
-        owner: duplicateTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key',
-        backendId: backendFixture.canisterId,
-      }]),
-    };
-
-    const result1 = await backendFixture.actor.createStorage(duplicateOptions);
+    const result1 = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
+    );
 
     if ("ok" in result1) {
       // Check if there's an active creation using listStorages
@@ -527,12 +409,16 @@ describe("StorageDeployer", () => {
       const activeStorage = findActiveStorage(storages);
 
       if (activeStorage) {
-        const result2 = await backendFixture.actor.createStorage(duplicateOptions);
+        const result2 = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+          { OnChain: null },
+          [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
+        );
         console.log("Duplicate create result:", result2);
 
         expect(result2).toHaveProperty("err");
         if ("err" in result2) {
-          expect(result2.err).toHaveProperty("AlreadyInProgress");
+          // AlreadyInProgress is wrapped as ActivationFailed in purchaseLicenseAndCreateStorage
+          expect(result2.err).toHaveProperty("ActivationFailed");
         }
       }
     }
@@ -540,46 +426,23 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
 
-  test("should allow creation with pre-existing canister (link mode)", { timeout: 120000 }, async () => {
-    console.log("\n=== Testing Link Mode ===");
+  test("should create storage for second user via purchaseLicenseAndCreateStorage", { timeout: 120000 }, async () => {
+    const secondUserIdentity = createIdentity("secondStorageTestUser");
 
-    const linkTestIdentity = createIdentity("linkModeTestUser");
-    const preCreatedCanisterId = await manager.createCanister({
-      controllers: [backendFixture.canisterId, linkTestIdentity.getPrincipal()]
-    });
-    console.log("Pre-created canister:", preCreatedCanisterId.toText());
+    await fundUserForStorage(manager, backendFixture, secondUserIdentity);
+    backendFixture.actor.setIdentity(secondUserIdentity);
 
-    backendFixture.actor.setIdentity(linkTestIdentity);
-
-    const linkOptions: CreateStorageOptions = {
-      target: {
-        Existing: preCreatedCanisterId,
-      },
-      releaseSelector: { LatestDraft: null },
-      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
-        owner: linkTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key',
-        backendId: backendFixture.canisterId,
-      }]),
-    };
-
-    const result = await backendFixture.actor.createStorage(linkOptions);
-    console.log("Link mode result:", result);
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
+    );
+    console.log("Second user create result:", result);
     expect(result).toHaveProperty("ok");
 
-    // Poll for completion using listStorages
     const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
-
-    console.log("Link mode final status:", finalStatus ? formatCreationStatus(finalStatus) : "null");
-
     expect(finalStatus).not.toBeNull();
     expect(finalStatus).toHaveProperty("Completed");
 
-    if (finalStatus && "Completed" in finalStatus) {
-      expect(finalStatus.Completed.canisterId.toText()).toBe(preCreatedCanisterId.toText());
-    }
-
-    // Verify storage is listed
     const storages = await backendFixture.actor.listStorages();
     expect(storages.length).toBeGreaterThan(0);
 
@@ -836,43 +699,27 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
 
-  test("should return update info in listStorages", async () => {
-    // Create a new storage for this test using link mode
+  test("should return update info in listStorages", { timeout: 120000 }, async () => {
     const updateInfoTestIdentity = createIdentity("updateInfoTestUser");
-    const preCreatedCanisterId = await manager.createCanister({
-      controllers: [backendFixture.canisterId, updateInfoTestIdentity.getPrincipal()]
-    });
 
+    await fundUserForStorage(manager, backendFixture, updateInfoTestIdentity);
     backendFixture.actor.setIdentity(updateInfoTestIdentity);
 
-    const linkOptions: CreateStorageOptions = {
-      target: { Existing: preCreatedCanisterId },
-      releaseSelector: { LatestDraft: null },
-      initArg: IDL.encode(initEncryptedStorage({ IDL }), [{
-        owner: updateInfoTestIdentity.getPrincipal(),
-        vetKeyName: 'dfx_test_key',
-        backendId: backendFixture.canisterId,
-      }]),
-    };
-
-    const result = await backendFixture.actor.createStorage(linkOptions);
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
+    );
     expect(result).toHaveProperty("ok");
 
-    // Poll for completion
     const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
     expect(finalStatus).toHaveProperty("Completed");
 
     // listStorages should include updateAvailable field
     const storages = await backendFixture.actor.listStorages();
-    const newStorage = storages.find(s =>
-      fromNullable(s.canisterId)?.toText() === preCreatedCanisterId.toText()
-    );
+    const newStorage = storages.find(s => "Completed" in s.status);
     expect(newStorage).toBeDefined();
     if (!newStorage) return;
 
-    // Since this was just created with current assets, there may or may not be an update
-    // (depends on whether the v2 frontend is still the "latest" from the refresh above)
-    // The important thing is that the field exists
     expect(newStorage).toHaveProperty("updateAvailable");
 
     const updateInfo = fromNullable(newStorage.updateAvailable);

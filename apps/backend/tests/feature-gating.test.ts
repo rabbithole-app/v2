@@ -34,7 +34,7 @@ function encodeStorageInitArg(
   const [InitArgsIDL] = initEncryptedStorage({ IDL });
   return new Uint8Array(
     IDL.encode([InitArgsIDL], [
-      { owner, vetKeyName: "dfx_test_key", backendId },
+      { owner, vetKeyName: ["dfx_test_key"], backendId: [backendId], storageBackendType: [{OnChain: null}] },
     ]),
   );
 }
@@ -205,8 +205,9 @@ describe("Feature Gating", () => {
     });
 
     test("grantPermission blocked when subscription expired", async () => {
-      // Expire trial (jump 15 days past 14-day trial)
-      await manager.pic.setCertifiedTime(new Date("2026-06-16T00:00:00Z"));
+      // Expire trial: advance 15 days past 14-day trial
+      await manager.pic.advanceTime(15 * 24 * 60 * 60 * 1000);
+      await manager.pic.tick(10);
       await storageActor.refreshSubscription();
 
       const status = await storageActor.getStatus();
@@ -251,17 +252,20 @@ describe("Feature Gating", () => {
     });
 
     test("#active (Pro) — grantPermission works after reactivation", async () => {
-      // Advance time so Trial subscription is expired (>14 days)
-      await manager.pic.setTime(new Date("2026-07-01T00:00:00Z").getTime());
-      await manager.pic.tick(2);
-
+      // Trial already expired from previous test (15 days advance)
       backendActor.setIdentity(manager.ownerIdentity);
+      const proTimeMs = await manager.pic.getTime();
+      const proNow = BigInt(proTimeMs) * 1_000_000n;
+      const twoDays = 2n * 24n * 60n * 60n * 1_000_000_000n;
       await backendActor.activateSubscription(
         manager.ownerIdentity.getPrincipal(),
         { Pro: null },
-        [],
+        [proNow + twoDays],
       );
 
+      // Expire subscription cache (24h TTL) then refresh
+      await manager.pic.advanceTime(25 * 60 * 60 * 1000);
+      await manager.pic.tick(10);
       storageActor.setIdentity(manager.ownerIdentity);
       await storageActor.refreshSubscription();
 
@@ -320,11 +324,20 @@ describe("Feature Gating", () => {
     });
 
     test("encrypted createBatch rejects file exceeding trial limit", async () => {
-      // Expire current subscription so we can re-activate as trial
-      await manager.pic.setTime(new Date("2027-01-01T00:00:00Z").getTime());
-      await manager.pic.tick(2);
+      // Advance time so Pro (1h expiry) is expired and subscription cache (24h TTL) is stale
+      await manager.pic.advanceTime(25 * 60 * 60 * 1000); // 25 hours
+      await manager.pic.tick(10);
+
+      // Re-activate as Trial via admin
       backendActor.setIdentity(manager.ownerIdentity);
-      await backendActor.activateTrial();
+      const picTimeMs = await manager.pic.getTime();
+      const now = BigInt(picTimeMs) * 1_000_000n;
+      const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
+      await backendActor.activateSubscription(
+        manager.ownerIdentity.getPrincipal(),
+        { Trial: null },
+        [now + fourteenDays],
+      );
       storageActor.setIdentity(manager.ownerIdentity);
       await storageActor.refreshSubscription();
 
@@ -444,6 +457,89 @@ describe("Feature Gating", () => {
       expect(status.subscriptionStatus[0]).not.toEqual({
         unknownCanister: null,
       });
+    });
+  });
+
+  // ===================== checkSubscription variants =====================
+
+  describe("checkSubscription direct variants", () => {
+    const CheckResultIDL = IDL.Variant({
+      active: IDL.Record({ plan: IDL.Variant({ Free: IDL.Null, Trial: IDL.Null, Pro: IDL.Null }) }),
+      trial: IDL.Record({ remainingBytes: IDL.Nat }),
+      expired: IDL.Null,
+      free: IDL.Null,
+      invalidWasm: IDL.Null,
+      unknownCanister: IDL.Null,
+    });
+
+    test("checkSubscription returns #invalidWasm for unrecognized wasm hash", async () => {
+      // Call checkSubscription from the storage canister with a fake wasm hash
+      const fakeHash = new Uint8Array(32).fill(0xff);
+      const response = await manager.pic.updateCall({
+        canisterId: backend.canisterId,
+        sender: storage.canisterId,
+        method: "checkSubscription",
+        arg: IDL.encode([IDL.Vec(IDL.Nat8)], [fakeHash]),
+      });
+      const [result] = IDL.decode([CheckResultIDL], response);
+      expect(result).toEqual({ invalidWasm: null });
+    });
+  });
+
+  // ===================== reportTrialBytes positive =====================
+
+  describe("reportTrialBytes positive case", () => {
+    test("reportTrialBytes records bytes and reduces remaining trial bytes", async () => {
+      // Ensure trial is active (from earlier "Subscription Check and Cache" tests)
+      // Expire cache and refresh to get current trial state
+      await manager.pic.advanceTime(25 * 60 * 60 * 1000);
+      await manager.pic.tick(10);
+
+      // Re-activate trial if needed (previous tests may have changed state)
+      backendActor.setIdentity(manager.ownerIdentity);
+      const sub = await backendActor.getSubscription();
+      const currentPlan = sub.length > 0 ? sub[0] : null;
+
+      // If not on trial, activate one via admin
+      if (!currentPlan || !("Trial" in currentPlan.plan) || "Expired" in currentPlan.status) {
+        const picTimeMs = await manager.pic.getTime();
+        const now = BigInt(picTimeMs) * 1_000_000n;
+        const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
+        await backendActor.activateSubscription(
+          manager.ownerIdentity.getPrincipal(),
+          { Trial: null },
+          [now + fourteenDays],
+        );
+      }
+
+      // Refresh subscription cache on storage
+      storageActor.setIdentity(manager.ownerIdentity);
+      await storageActor.refreshSubscription();
+
+      const statusBefore = await storageActor.getStatus();
+      expect(statusBefore.subscriptionStatus[0]).toHaveProperty("trial");
+      const remainingBefore = (statusBefore.subscriptionStatus[0] as any).trial.remainingBytes;
+
+      // Report 10MB of trial bytes from the storage canister
+      const reportedBytes = 10_000_000n;
+      await manager.pic.updateCall({
+        canisterId: backend.canisterId,
+        sender: storage.canisterId,
+        method: "reportTrialBytes",
+        arg: IDL.encode([IDL.Nat], [reportedBytes]),
+      });
+      await manager.pic.tick();
+
+      // Expire cache and refresh to pick up updated bytes
+      await manager.pic.advanceTime(25 * 60 * 60 * 1000);
+      await manager.pic.tick();
+      await storageActor.refreshSubscription();
+
+      const statusAfter = await storageActor.getStatus();
+      expect(statusAfter.subscriptionStatus[0]).toHaveProperty("trial");
+      const remainingAfter = (statusAfter.subscriptionStatus[0] as any).trial.remainingBytes;
+
+      expect(remainingAfter).toBe(remainingBefore - reportedBytes);
     });
   });
 });

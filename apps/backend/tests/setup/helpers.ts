@@ -9,10 +9,12 @@ import { resolve } from "node:path";
 import { inject } from "vitest";
 
 import {
-  type RabbitholeActorService,
   initBackend,
+  type RabbitholeActorService,
   rabbitholeIdlFactory,
 } from "@rabbithole/declarations";
+
+import { CASHIER_CANISTER_ID } from "./constants";
 
 export const WASM_PATH = resolve(
   import.meta.dirname,
@@ -39,10 +41,11 @@ export async function createPic(): Promise<
     sender: ownerIdentity.getPrincipal(),
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
     arg: IDL.encode(initBackend({ IDL }), [{
+      thresholdKeyName: 'dfx_test_key',
       github: [],
       icpaySecretKey: [],
-      evmConfig: [],
-      solConfig: [],
+      chains: [],
+      cashierCanisterId: CASHIER_CANISTER_ID,
     }]),
   });
   await pic.tick();
@@ -63,31 +66,24 @@ export async function createPicWithWebhook(): Promise<
     sender: ownerIdentity.getPrincipal(),
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
     arg: IDL.encode(initBackend({ IDL }), [{
+      thresholdKeyName: 'dfx_test_key',
       github: [],
       icpaySecretKey: [Array.from(secretBytes)],
-      evmConfig: [],
-      solConfig: [],
+      chains: [],
+      cashierCanisterId: CASHIER_CANISTER_ID,
     }]),
   });
   await pic.tick();
   return [pic, fixture];
 }
 
-/** Sign a webhook payload with HMAC-SHA256 */
-export function signWebhookPayload(secret: string, body: string, timestamp?: number): string {
-  const ts = timestamp ?? Math.floor(Date.now() / 1000);
-  const signedPayload = `${ts}.${body}`;
-  const hex = createHmac("sha256", secret).update(signedPayload, "utf8").digest("hex");
-  return `t=${ts},v1=${hex}`;
-}
-
 /** Create a payment.completed webhook event payload */
 export function makePaymentCompletedEvent(overrides: {
+  amount?: bigint;
+  network?: string;
   paymentId?: string;
   purpose?: string;
   userId?: string;
-  amount?: bigint;
-  network?: string;
 }): string {
   const eventId = `evt_${Math.random().toString(36).slice(2, 14)}`;
   return JSON.stringify({
@@ -117,4 +113,12 @@ export function makePaymentCompletedEvent(overrides: {
     type: "payment.completed",
     livemode: false,
   });
+}
+
+/** Sign a webhook payload with HMAC-SHA256 */
+export function signWebhookPayload(secret: string, body: string, timestamp?: number): string {
+  const ts = timestamp ?? Math.floor(Date.now() / 1000);
+  const signedPayload = `${ts}.${body}`;
+  const hex = createHmac("sha256", secret).update(signedPayload, "utf8").digest("hex");
+  return `t=${ts},v1=${hex}`;
 }

@@ -29,6 +29,7 @@ describe("Notifications", () => {
 
   test("activateTrial does not break notifications", async () => {
     actor.setIdentity(userAlice);
+    await actor.register([]);
     await actor.activateTrial();
 
     const count = await actor.getUnreadCount();

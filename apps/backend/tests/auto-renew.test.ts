@@ -2,8 +2,8 @@ import { type CanisterFixture, PocketIc } from '@dfinity/pic';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { RabbitholeActorService } from '@rabbithole/declarations';
-import { ONE_TRILLION_CYCLES } from './setup/constants.ts';
 
+import { ONE_TRILLION_CYCLES } from './setup/constants.ts';
 import { createPic, ownerIdentity, userAlice } from './setup/helpers.ts';
 
 describe('Auto-renew & Auto-topup settings', () => {
@@ -42,6 +42,7 @@ describe('Auto-renew & Auto-topup settings', () => {
 
   test('subscription + autoRenew settings are independent', async () => {
     actor.setIdentity(userAlice);
+    await actor.register([]);
     await actor.activateTrial();
 
     const sub = await actor.getSubscription();
@@ -148,7 +149,7 @@ describe('Auto-renew & Auto-topup settings', () => {
 
   // ---- Only Pro has auto-renew ----
 
-  test('triggerAutoRenewals skips Trial and License plans', async () => {
+  test('triggerAutoRenewals skips Trial plan', async () => {
     actor.setIdentity(userAlice);
     await actor.register([]);
     await actor.updateSettings({

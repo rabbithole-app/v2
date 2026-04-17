@@ -1,16 +1,24 @@
-import { type CanisterFixture, type Actor, type DeferredActor, SubnetStateType, createIdentity } from "@dfinity/pic";
+import { type CanisterFixture, createIdentity, type DeferredActor, SubnetStateType } from "@dfinity/pic";
 import { principalToSubAccount } from "@dfinity/utils";
 import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
 
 import {
+  IcrcIcrc1Service,
+  idlFactoryEvmRpc,
+  idlFactoryIcrcLedger,
+  idlFactoryXrcMock,
   initBackend,
+  initEvmRpc,
+  initIcrcLedger,
+  initXrc,
   type RabbitholeActorService,
   rabbitholeIdlFactory,
 } from "@rabbithole/declarations";
 import { BaseManager, minterIdentity } from "@rabbithole/testing";
 
 import {
+  CASHIER_CANISTER_ID,
   CKETH_CANISTER_ID,
   CKUSDC_CANISTER_ID,
   CMC_CANISTER_ID,
@@ -22,39 +30,29 @@ import {
   XRC_CANISTER_ID,
   XRC_MOCK_WASM_PATH,
 } from "./constants.ts";
-import {
-  xrcMockIdlFactory,
-  encodeXrcMockInitArg,
-} from "@rabbithole/declarations";
-import {
-  idlFactory as icrc1LedgerIdlFactory,
-  init as icrc1LedgerInit,
-  type _SERVICE as IcrcLedgerService,
-} from "@rabbithole/declarations/icrc-ledger";
-// @ts-expect-error — JS IDL factory without TS types
-import { idlFactory as evmRpcIdlFactory, init as evmRpcInit } from "../../../../libs/motoko/treasury/declarations/evm_rpc/evm_rpc.did.js";
 
 export interface BackendInitConfig {
-  evmConfig?: {
-    chainId: bigint;
-    ecdsaKeyName: string;
-    evmRpcCanisterId: string;
-    usdcContract: string;
-    usdtContract: string;
-    rpcUrls: string[];
-  };
-  solConfig?: {
-    schnorrKeyName: string;
-    solRpcCanisterId: string;
-    usdcMint: string;
-    usdtMint: string;
-    rpcUrl: string[];
-  };
+  chains?: Array<Record<string, unknown>>;
 }
 
 export class BackendManager extends BaseManager {
+  get backendCanisterId(): Principal {
+    if (!this._backendCanisterId) throw new Error("Call initBackendCanister first");
+    return this._backendCanisterId;
+  }
+  get evmRpcCanisterId(): Principal {
+    if (!this._evmRpcCanisterId) throw new Error("Call deployEvmRpc first");
+    return this._evmRpcCanisterId;
+  }
+  get solRpcCanisterId(): Principal {
+    if (!this._solRpcCanisterId) throw new Error("Call deploySolRpc first");
+    return this._solRpcCanisterId;
+  }
+
   private _backendCanisterId?: Principal;
+
   private _evmRpcCanisterId?: Principal;
+
   private _solRpcCanisterId?: Principal;
 
   static override async create(opts?: {
@@ -69,10 +67,6 @@ export class BackendManager extends BaseManager {
       ...(opts?.ingressMaxRetries ? { ingressMaxRetries: opts.ingressMaxRetries } : {}),
     });
 
-    // Chrono router advancement — backend-specific setup.
-    await base.pic.advanceTime(240 * 60 * 1000);
-    await base.pic.tick(240);
-
     return new BackendManager(
       base.pic,
       base.ownerIdentity,
@@ -82,26 +76,69 @@ export class BackendManager extends BaseManager {
     );
   }
 
-  /** Deploy the XRC mock canister with a default rate. */
-  async deployXrcMock(defaultRate: bigint = 10_000_000_000n): Promise<void> {
-    await this.pic.setupCanister({
-      idlFactory: xrcMockIdlFactory,
-      wasm: XRC_MOCK_WASM_PATH,
-      targetCanisterId: XRC_CANISTER_ID,
-      arg: encodeXrcMockInitArg(defaultRate),
+  /** Create a DeferredActor for calls that trigger HTTPS outcalls. */
+  createDeferredBackendActor(): DeferredActor<RabbitholeActorService> {
+    if (!this._backendCanisterId) throw new Error("Call initBackendCanister first");
+    return this.pic.createDeferredActor<RabbitholeActorService>(
+      rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
+      this._backendCanisterId,
+    );
+  }
+
+  /** Create a typed ICRC-1 ledger actor */
+  createIcrcLedgerActor(canisterId: Principal) {
+    return this.pic.createActor<IcrcIcrc1Service>(idlFactoryIcrcLedger, canisterId);
+  }
+
+  /** Deploy ckETH ledger (18 decimals) */
+  async deployCkEthLedger() {
+    await this.deployIcrc1Ledger({
+      canisterId: CKETH_CANISTER_ID,
+      symbol: "ckETH",
+      name: "Chain-Key Ether",
+      decimals: 18,
+      fee: 2_000_000_000_000n, // 0.000002 ETH
     });
-    await this.pic.addCycles(XRC_CANISTER_ID, 10_000_000_000_000);
+  }
+
+  /** Deploy ckUSDC ledger (6 decimals, 0.01 fee) */
+  async deployCkUsdcLedger() {
+    await this.deployIcrc1Ledger({
+      canisterId: CKUSDC_CANISTER_ID,
+      symbol: "ckUSDC",
+      name: "Chain-Key USDC",
+      decimals: 6,
+      fee: 10_000n,
+    });
+  }
+
+  /** Deploy the evm_rpc canister in Demo mode. Requires II subnet. */
+  async deployEvmRpc(): Promise<Principal> {
+    const fixture = await this.pic.setupCanister({
+      idlFactory: idlFactoryEvmRpc,
+      wasm: EVM_RPC_WASM_PATH,
+      arg: IDL.encode(initEvmRpc({ IDL }), [{
+        demo: [true],
+        manageApiKeys: [],
+        logFilter: [],
+        overrideProvider: [],
+        nodesInSubnet: [1],
+      }]),
+      sender: this.ownerIdentity.getPrincipal(),
+    });
+    this._evmRpcCanisterId = fixture.canisterId;
+    return fixture.canisterId;
   }
 
   /** Deploy an ICRC-1 ledger as a mock for ckUSDC, ckETH, etc. */
   async deployIcrc1Ledger(opts: {
     canisterId: Principal;
-    symbol: string;
-    name: string;
     decimals: number;
     fee: bigint;
-  }): Promise<void> {
-    const initArg = IDL.encode(icrc1LedgerInit({ IDL }), [
+    name: string;
+    symbol: string;
+  }) {
+    const initArg = IDL.encode(initIcrcLedger({ IDL }), [
       {
         Init: {
           decimals: [opts.decimals],
@@ -135,76 +172,10 @@ export class BackendManager extends BaseManager {
       targetCanisterId: opts.canisterId,
       ...(fiduciarySubnet ? { targetSubnetId: fiduciarySubnet.id } : {}),
       wasm: ICRC1_LEDGER_WASM_PATH,
-      idlFactory: icrc1LedgerIdlFactory,
+      idlFactory: idlFactoryIcrcLedger,
       arg: initArg,
       sender: this.ownerIdentity.getPrincipal(),
     });
-  }
-
-  /** Deploy ckUSDC ledger (6 decimals, 0.01 fee) */
-  async deployCkUsdcLedger(): Promise<void> {
-    await this.deployIcrc1Ledger({
-      canisterId: CKUSDC_CANISTER_ID,
-      symbol: "ckUSDC",
-      name: "Chain-Key USDC",
-      decimals: 6,
-      fee: 10_000n,
-    });
-  }
-
-  /** Deploy ckETH ledger (18 decimals) */
-  async deployCkEthLedger(): Promise<void> {
-    await this.deployIcrc1Ledger({
-      canisterId: CKETH_CANISTER_ID,
-      symbol: "ckETH",
-      name: "Chain-Key Ether",
-      decimals: 18,
-      fee: 2_000_000_000_000n, // 0.000002 ETH
-    });
-  }
-
-  /** Mint ICRC-1 tokens to a user's subaccount on the backend canister */
-  async mintToUserSubaccount(
-    ledgerCanisterId: Principal,
-    userPrincipal: Principal,
-    amount: bigint,
-  ): Promise<void> {
-    if (!this._backendCanisterId) throw new Error("Call initBackendCanister first");
-    const ledgerActor = this.pic.createActor<IcrcLedgerService>(
-      icrc1LedgerIdlFactory,
-      ledgerCanisterId,
-    );
-    ledgerActor.setIdentity(minterIdentity);
-    const subaccount = principalToSubAccount(userPrincipal);
-    const result = await ledgerActor.icrc1_transfer({
-      to: { owner: this._backendCanisterId, subaccount: [subaccount] },
-      fee: [], memo: [], from_subaccount: [], created_at_time: [],
-      amount,
-    });
-    if ("Err" in result) throw new Error(`Mint failed: ${JSON.stringify(result.Err)}`);
-  }
-
-  /** Create a typed ICRC-1 ledger actor */
-  createIcrcLedgerActor(canisterId: Principal) {
-    return this.pic.createActor<IcrcLedgerService>(icrc1LedgerIdlFactory, canisterId);
-  }
-
-  /** Deploy the evm_rpc canister in Demo mode. Requires II subnet. */
-  async deployEvmRpc(): Promise<Principal> {
-    const fixture = await this.pic.setupCanister({
-      idlFactory: evmRpcIdlFactory as IDL.InterfaceFactory,
-      wasm: EVM_RPC_WASM_PATH,
-      arg: IDL.encode(evmRpcInit({ IDL }), [{
-        demo: [true],
-        manageApiKeys: [],
-        logFilter: [],
-        overrideProvider: [],
-        nodesInSubnet: [1],
-      }]),
-      sender: this.ownerIdentity.getPrincipal(),
-    });
-    this._evmRpcCanisterId = fixture.canisterId;
-    return fixture.canisterId;
   }
 
   /** Deploy the sol_rpc canister in Demo mode. Requires II subnet. */
@@ -225,23 +196,36 @@ export class BackendManager extends BaseManager {
     return canisterId;
   }
 
-  get evmRpcCanisterId(): Principal {
-    if (!this._evmRpcCanisterId) throw new Error("Call deployEvmRpc first");
-    return this._evmRpcCanisterId;
-  }
-
-  get solRpcCanisterId(): Principal {
-    if (!this._solRpcCanisterId) throw new Error("Call deploySolRpc first");
-    return this._solRpcCanisterId;
-  }
-
-  /** Create a DeferredActor for calls that trigger HTTPS outcalls. */
-  createDeferredBackendActor(): DeferredActor<RabbitholeActorService> {
-    if (!this._backendCanisterId) throw new Error("Call initBackendCanister first");
-    return this.pic.createDeferredActor<RabbitholeActorService>(
-      rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
-      this._backendCanisterId,
-    );
+  /** Deploy the XRC mock canister with a default rate. */
+  async deployXrcMock(rate = 10_000_000_000n) {
+    await this.pic.setupCanister({
+      idlFactory: idlFactoryXrcMock,
+      wasm: XRC_MOCK_WASM_PATH,
+      targetCanisterId: XRC_CANISTER_ID,
+      arg: IDL.encode(initXrc({ IDL }), [
+        {
+          response: {
+            ExchangeRate: {
+              base_asset: [],
+              quote_asset: [],
+              metadata: [
+                {
+                  decimals: 9,
+                  base_asset_num_received_rates: 5n,
+                  base_asset_num_queried_sources: 5n,
+                  quote_asset_num_received_rates: 5n,
+                  quote_asset_num_queried_sources: 5n,
+                  standard_deviation: 0n,
+                  forex_timestamp: [],
+                },
+              ],
+              rate,
+            },
+          },
+        },
+      ]),
+    });
+    await this.pic.addCycles(XRC_CANISTER_ID, 10_000_000_000_000n);
   }
 
   /**
@@ -280,12 +264,11 @@ export class BackendManager extends BaseManager {
         idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
         wasm: RABBITHOLE_BACKEND_WASM_PATH,
         arg: IDL.encode(initBackend({ IDL }), [{
+          thresholdKeyName: "dfx_test_key",
           github: [],
           icpaySecretKey: [],
-          evmConfig: config?.evmConfig ? [config.evmConfig] : [],
-          solConfig: config?.solConfig
-            ? [{ ...config.solConfig, rpcUrl: config.solConfig.rpcUrl.length > 0 ? [config.solConfig.rpcUrl[0]] : [] }]
-            : [],
+          chains: config?.chains ?? [],
+          cashierCanisterId: CASHIER_CANISTER_ID,
         }]),
       });
 
@@ -316,19 +299,39 @@ export class BackendManager extends BaseManager {
     return { actor, canisterId };
   }
 
-  get backendCanisterId(): Principal {
+  /** Mint ICRC-1 tokens to a user's subaccount on the backend canister */
+  async mintToUserSubaccount(
+    ledgerCanisterId: Principal,
+    userPrincipal: Principal,
+    amount: bigint,
+  ) {
     if (!this._backendCanisterId) throw new Error("Call initBackendCanister first");
-    return this._backendCanisterId;
+    const ledgerActor = this.pic.createActor<IcrcIcrc1Service>(
+      idlFactoryIcrcLedger,
+      ledgerCanisterId,
+    );
+    ledgerActor.setIdentity(minterIdentity);
+    const subaccount = principalToSubAccount(userPrincipal);
+    const result = await ledgerActor.icrc1_transfer({
+      to: { owner: this._backendCanisterId, subaccount: [subaccount] },
+      fee: [], memo: [], from_subaccount: [], created_at_time: [],
+      amount,
+    });
+    if ("Err" in result) throw new Error(`Mint failed: ${JSON.stringify(result.Err)}`);
   }
 
-  async upgradeBackendCanister(
-    fixture: CanisterFixture<RabbitholeActorService>,
-  ): Promise<void> {
+  async upgradeBackendCanister(fixture: CanisterFixture<RabbitholeActorService>) {
     await this.pic.upgradeCanister({
       sender: this.ownerIdentity.getPrincipal(),
       canisterId: fixture.canisterId,
       wasm: RABBITHOLE_BACKEND_WASM_PATH,
-      arg: IDL.encode(initBackend({ IDL }), [{ github: [], icpaySecretKey: [], evmConfig: [], solConfig: [] }]),
+      arg: IDL.encode(initBackend({ IDL }), [{
+        thresholdKeyName: "dfx_test_key",
+        github: [],
+        icpaySecretKey: [],
+        chains: [],
+        cashierCanisterId: CASHIER_CANISTER_ID,
+      }]),
       upgradeModeOptions: {
         skip_pre_upgrade: [],
         wasm_memory_persistence: [{ keep: null }],
@@ -336,3 +339,77 @@ export class BackendManager extends BaseManager {
     });
   }
 }
+
+function buildBaseChainConfig(config: {
+  chainId: bigint;
+  evmRpcCanisterId: string;
+  rpcUrls: string[];
+  usdcContract: string;
+  usdtContract: string;
+}) {
+  return {
+    Evm: {
+      networkId: "base-sepolia",
+      chainId: config.chainId,
+      evmRpcCanisterId: config.evmRpcCanisterId,
+      rpcUrls: config.rpcUrls,
+      assets: [
+        {
+          tokenId: { BaseETH: null },
+          symbol: "ETH",
+          decimals: 18,
+          locator: { Native: null },
+        },
+        {
+          tokenId: { BaseUSDC: null },
+          symbol: "USDC",
+          decimals: 6,
+          locator: { Contract: config.usdcContract },
+        },
+        {
+          tokenId: { BaseUSDT: null },
+          symbol: "USDT",
+          decimals: 6,
+          locator: { Contract: config.usdtContract },
+        },
+      ],
+    },
+  };
+}
+
+function buildSolanaChainConfig(config: {
+  rpcUrl: string[];
+  solRpcCanisterId: string;
+  usdcMint: string;
+  usdtMint: string;
+}) {
+  return {
+    Solana: {
+      networkId: "devnet",
+      solRpcCanisterId: config.solRpcCanisterId,
+      rpcUrl: config.rpcUrl.length > 0 ? [config.rpcUrl[0]] : [],
+      assets: [
+        {
+          tokenId: { SOL: null },
+          symbol: "SOL",
+          decimals: 9,
+          locator: { Native: null },
+        },
+        {
+          tokenId: { SolUSDC: null },
+          symbol: "USDC",
+          decimals: 6,
+          locator: { Mint: config.usdcMint },
+        },
+        {
+          tokenId: { SolUSDT: null },
+          symbol: "USDT",
+          decimals: 6,
+          locator: { Mint: config.usdtMint },
+        },
+      ],
+    },
+  };
+}
+
+export { buildBaseChainConfig, buildSolanaChainConfig };

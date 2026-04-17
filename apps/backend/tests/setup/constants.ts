@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 export { CMC_CANISTER_ID, E8S_PER_ICP, GOVERNANCE_CANISTER_ID, ICP_LEDGER_CANISTER_ID, ICP_TRANSACTION_FEE, NNS_ROOT_CANISTER_ID, NNS_STATE_PATH, ONE_TRILLION_CYCLES } from "@rabbithole/testing";
 
 export const XRC_CANISTER_ID = Principal.fromText("uf6dk-hyaaa-aaaaq-qaaaq-cai");
+export const CASHIER_CANISTER_ID = Principal.fromText("xc7sj-uyaaa-aaaaf-qbrja-cai");
 
 export const RABBITHOLE_BACKEND_WASM_PATH = resolve(
   import.meta.dirname,
