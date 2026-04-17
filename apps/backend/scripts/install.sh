@@ -11,6 +11,10 @@ source /infra/entrypoint-base.sh
 MINTER_ACCOUNT_ID=$(dfx ledger account-id)
 echo "Minter account: $MINTER_ACCOUNT_ID"
 
+# Deploy XRC (exchange rate canister) — needed for balance-to-USD conversion
+echo "Deploying XRC canister..."
+dfx deploy --network local xrc --no-wallet || echo "WARNING: XRC deploy failed."
+
 # Deploy canisters (non-fatal — container stays alive for manual builds)
 echo "Deploying canisters..."
 if ! dfx deploy --network local rabbithole-backend; then
