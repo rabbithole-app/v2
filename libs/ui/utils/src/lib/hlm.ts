@@ -18,7 +18,6 @@ export function hlm(...inputs: ClassValue[]) {
 
 // Global map to track class managers per element
 const elementClassManagers = new WeakMap<HTMLElement, ElementClassManager>();
-
 // Global mutation observer for all elements
 let globalObserver: MutationObserver | null = null;
 const observedElements = new Set<HTMLElement>();
@@ -29,7 +28,14 @@ interface ElementClassManager {
   hasInitialized: boolean;
   isUpdating: boolean;
   nextOrder: number;
+  /** Original inline transition value to restore after suppression (empty string = none was set) */
+  previousTransition: string;
+  /** Original inline transition priority to preserve !important when restoring */
+  previousTransitionPriority: string;
+  restoreRafId: number | null;
   sources: Map<number, { classes: Set<string>; order: number }>;
+  /** Transitions are suppressed until the first effect writes correct classes */
+  transitionsSuppressed: boolean;
 }
 
 let sourceCounter = 0;
@@ -82,12 +88,28 @@ export function classes(
         isUpdating: false,
         nextOrder: 0,
         hasInitialized: false,
+        restoreRafId: null,
+        transitionsSuppressed: false,
+        previousTransition: '',
+        previousTransitionPriority: '',
       };
       elementClassManagers.set(element, manager);
 
       // Setup global observer if needed and register this element
       setupGlobalObserver(platformId);
       observedElements.add(element);
+
+      // Suppress transitions until the first effect writes correct classes and
+      // the browser has painted them. This prevents CSS transition animations
+      // during hydration when classes change from SSR state to client state.
+      if (isPlatformBrowser(platformId)) {
+        manager.previousTransition =
+          element.style.getPropertyValue('transition');
+        manager.previousTransitionPriority =
+          element.style.getPropertyPriority('transition');
+        element.style.setProperty('transition', 'none', 'important');
+        manager.transitionsSuppressed = true;
+      }
     }
 
     // Assign order once at registration time
@@ -105,10 +127,31 @@ export function classes(
 
       // Update the element
       updateElement(manager!);
+
+      // Re-enable transitions after the first effect writes correct classes.
+      // Deferred to next animation frame so the browser paints the class change
+      // with transitions disabled first, then re-enables them.
+      if (manager!.transitionsSuppressed) {
+        manager!.transitionsSuppressed = false;
+        manager!.restoreRafId = requestAnimationFrame(() => {
+          manager!.restoreRafId = null;
+          restoreTransitionSuppression(manager!);
+        });
+      }
     }
 
     // Register cleanup with DestroyRef
     destroyRef.onDestroy(() => {
+      if (manager!.restoreRafId !== null) {
+        cancelAnimationFrame(manager!.restoreRafId);
+        manager!.restoreRafId = null;
+      }
+
+      if (manager!.transitionsSuppressed) {
+        manager!.transitionsSuppressed = false;
+        restoreTransitionSuppression(manager!);
+      }
+
       // Remove this source from the manager
       manager!.sources.delete(sourceId);
 
@@ -139,6 +182,19 @@ function cleanupManager(element: HTMLElement): void {
   if (observedElements.size === 0 && globalObserver) {
     globalObserver.disconnect();
     globalObserver = null;
+  }
+}
+
+function restoreTransitionSuppression(manager: ElementClassManager): void {
+  const prev = manager.previousTransition;
+  if (prev) {
+    manager.element.style.setProperty(
+      'transition',
+      prev,
+      manager.previousTransitionPriority || undefined,
+    );
+  } else {
+    manager.element.style.removeProperty('transition');
   }
 }
 
@@ -234,7 +290,7 @@ function updateElement(manager: ElementClassManager): void {
   // Combine base classes with all source classes, ensuring base classes take precedence
   const classesToApply =
     allSourceClasses.length > 0 || manager.baseClasses.size > 0
-      ? twMerge(clsx([...allSourceClasses, ...manager.baseClasses]))
+      ? hlm([...allSourceClasses, ...manager.baseClasses])
       : '';
 
   // Apply the classes to the element

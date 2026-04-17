@@ -1,48 +1,110 @@
+import { BooleanInput } from '@angular/cdk/coercion';
 import {
+  booleanAttribute,
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
+  EffectRef,
+  inject,
   input,
+  OnDestroy,
 } from '@angular/core';
-import type { ClassValue } from 'clsx';
+import { BrnField, BrnFieldA11yService } from '@spartan-ng/brain/field';
+import { ClassValue } from 'clsx';
 
-import { hlm } from '@spartan-ng/helm/utils';
+import { classes } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'hlm-field-error',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    role: 'alert',
+    'data-slot': 'field-error',
+    '[attr.id]': 'id()',
+    '[hidden]': '!_display()',
+  },
   template: `
-    <div role="alert" data-slot="field-error" [class]="_computedClass()">
-      <ng-content>
-        @if (_uniqueErrors().length === 1) {
-          {{ _uniqueErrors()[0]?.message }}
-        } @else if (_uniqueErrors().length > 1) {
-          <ul class="ml-4 flex list-disc flex-col gap-1">
-            @for (error of _uniqueErrors(); track $index) {
-              @if (error?.message) {
-                <li>{{ error?.message }}</li>
-              }
-            }
-          </ul>
-        }
-      </ng-content>
-    </div>
+    @if (_display()) {
+      <ng-content />
+    }
   `,
 })
-export class HlmFieldError {
-  public readonly error = input<Array<{ message: string } | undefined>>();
+export class HlmFieldError implements OnDestroy {
+  private static _id = 0;
+
+  /** Forces the error message to be visible regardless of the control's validation state. */
+  public readonly forceShow = input<boolean, BooleanInput>(false, {
+    transform: booleanAttribute,
+  });
+  /** The unique ID for the field error. If none is supplied, it will be auto-generated. */
+  public readonly id = input<string>(`hlm-field-error-${HlmFieldError._id++}`);
+
+  /** Additional CSS classes to apply to the field error element. */
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
-  protected readonly _computedClass = computed(() =>
-    hlm('text-destructive text-sm font-normal', this.userClass()),
+  /**
+   * The name of the specific validator error key to match (e.g. 'required').
+   * When omitted, the error is shown if any validation error is present.
+   */
+  public readonly validator = input<string>();
+
+  private readonly _field = inject(BrnField, { optional: true });
+
+  protected readonly _hasError = computed(() => {
+    const errors = this._field?.errors();
+    if (!errors) return false;
+
+    const validator = this.validator();
+    const spartanInvalid = this._field?.controlState()?.spartanInvalid;
+
+    if (!spartanInvalid) return false;
+
+    return validator ? validator in errors : Object.keys(errors).length > 0;
+  });
+
+  private readonly _hasParentField = !!this._field;
+
+  protected readonly _display = computed(
+    () => !this._hasParentField || this.forceShow() || this._hasError(),
   );
 
-  protected readonly _uniqueErrors = computed(() => {
-    const errors = this.error();
-    if (!errors?.length) {
-      return [];
-    }
-
-    return [...new Map(errors.map((err) => [err?.message, err])).values()];
+  private readonly _a11y = inject(BrnFieldA11yService, {
+    optional: true,
+    host: true,
   });
+
+  private _registeredId?: string;
+
+  private readonly _cleanup: EffectRef | null = this._a11y
+    ? effect(() => {
+        const a11y = this._a11y;
+        if (!a11y) return;
+
+        const id = this.id();
+        const hasError = this._hasError();
+
+        if (this._registeredId && (this._registeredId !== id || !hasError)) {
+          a11y.unregisterError(this._registeredId);
+          this._registeredId = undefined;
+        }
+
+        if (hasError && this._registeredId !== id) {
+          a11y.registerError(id);
+          this._registeredId = id;
+        }
+      })
+    : null;
+
+  constructor() {
+    classes(() => ['text-destructive text-sm font-normal', this.userClass()]);
+  }
+
+  ngOnDestroy() {
+    this._cleanup?.destroy();
+
+    if (this._registeredId) {
+      this._a11y?.unregisterError(this._registeredId);
+    }
+  }
 }

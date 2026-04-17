@@ -34,8 +34,9 @@ import { HlmInputGroupImports } from '@spartan-ng/helm/input-group';
         brnAutocompleteInput
         #autocompleteInput="brnAutocompleteInput"
         hlmInputGroupInput
+        [id]="inputId()"
         [placeholder]="placeholder()"
-        [attr.aria-invalid]="ariaInvalid() ? 'true' : null"
+        [aria-invalid]="ariaInvalidOverride()"
       />
 
       @if (showSearch()) {
@@ -66,11 +67,21 @@ import { HlmInputGroupImports } from '@spartan-ng/helm/input-group';
   `,
 })
 export class HlmAutocompleteInput {
-  // TODO input and input-group styles need to support aria-invalid directly
-  public readonly ariaInvalid = input<boolean, BooleanInput>(false, {
-    transform: booleanAttribute,
+  private static _id = 0;
+
+  /** Manual override for aria-invalid. When not set, auto-detects from the parent autocomplete error state. */
+  public readonly ariaInvalidOverride = input<
+    boolean | undefined,
+    BooleanInput
+  >(undefined, {
+    transform: (v: BooleanInput) =>
+      v === '' || v === undefined ? undefined : booleanAttribute(v),
     alias: 'aria-invalid',
   });
+
+  public readonly inputId = input<string>(
+    `hlm-autocomplete-input-${HlmAutocompleteInput._id++}`,
+  );
 
   public readonly placeholder = input<string>('');
   public readonly showClear = input<boolean, BooleanInput>(false, {

@@ -17,7 +17,12 @@ import { hlm } from '@spartan-ng/helm/utils';
   providers: [provideIcons({ lucideEllipsis })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span role="presentation" aria-hidden="true" [class]="_computedClass()">
+    <span
+      data-slot="breadcrumb-ellipsis"
+      role="presentation"
+      aria-hidden="true"
+      [class]="_computedClass()"
+    >
       <ng-icon hlm size="sm" name="lucideEllipsis" />
       <span class="sr-only">{{ srOnlyText() }}</span>
     </span>
@@ -29,6 +34,9 @@ export class HlmBreadcrumbEllipsis {
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly _computedClass = computed(() =>
-    hlm('flex size-9 items-center justify-center', this.userClass()),
+    hlm(
+      'size-5 [&>ng-icon]:text-[calc(var(--spacing)*4)] flex items-center justify-center',
+      this.userClass(),
+    ),
   );
 }

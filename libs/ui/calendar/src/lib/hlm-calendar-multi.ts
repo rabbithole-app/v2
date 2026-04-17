@@ -19,7 +19,6 @@ import {
   type Weekday,
 } from '@spartan-ng/brain/calendar';
 import { injectDateAdapter } from '@spartan-ng/brain/date-time';
-import { BrnSelectImports } from '@spartan-ng/brain/select';
 import type { ClassValue } from 'clsx';
 
 import { buttonVariants } from '@spartan-ng/helm/button';
@@ -34,7 +33,6 @@ import { hlm } from '@spartan-ng/helm/utils';
     NgIcon,
     HlmIcon,
     NgTemplateOutlet,
-    BrnSelectImports,
     HlmSelectImports,
   ],
   viewProviders: [provideIcons({ lucideChevronLeft, lucideChevronRight })],
@@ -59,28 +57,36 @@ import { hlm } from '@spartan-ng/helm/utils';
           <div class="relative flex items-center justify-center pt-1">
             <div class="flex w-full items-center justify-center gap-1.5">
               <ng-template #month>
-                <brn-select brnCalendarMonthSelect>
+                <hlm-select brnCalendarMonthSelect>
                   <hlm-select-trigger size="sm" [class]="_selectClass">
-                    <brn-select-value />
+                    <hlm-select-value />
                   </hlm-select-trigger>
-                  <hlm-select-content class="max-h-80">
-                    @for (month of _i18n.config().months(); track month) {
-                      <hlm-option [value]="month">{{ month }}</hlm-option>
-                    }
+                  <hlm-select-content *hlmSelectPortal class="max-h-80">
+                    <hlm-select-group>
+                      @for (month of _i18n.config().months(); track month) {
+                        <hlm-select-item [value]="month">{{
+                          month
+                        }}</hlm-select-item>
+                      }
+                    </hlm-select-group>
                   </hlm-select-content>
-                </brn-select>
+                </hlm-select>
               </ng-template>
               <ng-template #year>
-                <brn-select brnCalendarYearSelect>
+                <hlm-select brnCalendarYearSelect>
                   <hlm-select-trigger size="sm" [class]="_selectClass">
-                    <brn-select-value />
+                    <hlm-select-value />
                   </hlm-select-trigger>
-                  <hlm-select-content class="max-h-80">
-                    @for (year of _i18n.config().years(); track year) {
-                      <hlm-option [value]="year">{{ year }}</hlm-option>
-                    }
+                  <hlm-select-content *hlmSelectPortal class="max-h-80">
+                    <hlm-select-group>
+                      @for (year of _i18n.config().years(); track year) {
+                        <hlm-select-item [value]="year">{{
+                          year
+                        }}</hlm-select-item>
+                      }
+                    </hlm-select-group>
                   </hlm-select-content>
-                </brn-select>
+                </hlm-select>
               </ng-template>
               @let heading = _heading();
               @switch (captionLayout()) {

@@ -5,6 +5,7 @@ import {
   Component,
   computed,
   forwardRef,
+  inject,
   input,
   linkedSignal,
   numberAttribute,
@@ -15,6 +16,11 @@ import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { provideIcons } from '@ng-icons/core';
 import { lucideChevronDown } from '@ng-icons/lucide';
 import type { BrnDialogState } from '@spartan-ng/brain/dialog';
+import {
+  BrnFieldControl,
+  BrnFieldControlDescribedBy,
+  provideBrnLabelable,
+} from '@spartan-ng/brain/field';
 import type { ChangeFn, TouchFn } from '@spartan-ng/brain/forms';
 import type { ClassValue } from 'clsx';
 
@@ -35,12 +41,19 @@ let nextId = 0;
 
 @Component({
   selector: 'hlm-date-picker-multi',
-  imports: [HlmIconImports, HlmPopoverImports, HlmCalendarMulti],
+  imports: [
+    HlmIconImports,
+    HlmPopoverImports,
+    HlmCalendarMulti,
+    BrnFieldControlDescribedBy,
+  ],
   providers: [
     HLM_DATE_PICKER_MUTLI_VALUE_ACCESSOR,
     provideIcons({ lucideChevronDown }),
+    provideBrnLabelable(HlmDatePickerMulti),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  hostDirectives: [BrnFieldControl],
   host: {
     class: 'block',
   },
@@ -49,13 +62,22 @@ let nextId = 0;
       sideOffset="5"
       [state]="_popoverState()"
       (stateChanged)="_popoverState.set($event)"
+      (closed)="_onTouched?.()"
     >
       <button
         [id]="buttonId()"
         type="button"
         [class]="_computedClass()"
         [disabled]="_mutableDisabled()"
+        [attr.aria-invalid]="_ariaInvalid()"
+        [attr.data-invalid]="_ariaInvalid()"
+        [attr.data-dirty]="_dirty?.() ? 'true' : null"
+        [attr.data-touched]="_touched?.() ? 'true' : null"
+        [attr.data-matches-spartan-invalid]="
+          _spartanInvalid?.() ? 'true' : null
+        "
         hlmPopoverTrigger
+        brnFieldControlDescribedBy
       >
         <span class="truncate">
           @if (_formattedDate(); as formattedDate) {
@@ -68,7 +90,7 @@ let nextId = 0;
         <ng-icon hlm size="sm" name="lucideChevronDown" />
       </button>
 
-      <hlm-popover-content class="w-auto p-0" *hlmPopoverPortal="let ctx">
+      <hlm-popover-content class="w-fit p-0" *hlmPopoverPortal="let ctx">
         <hlm-calendar-multi
           calendarClass="border-0 rounded-none"
           [date]="_mutableDate()"
@@ -86,7 +108,6 @@ let nextId = 0;
 })
 export class HlmDatePickerMulti<T> implements ControlValueAccessor {
   private readonly _config = injectHlmDatePickerMultiConfig<T>();
-
   /** If true, the date picker will close when the max selection of dates is reached. */
   public readonly autoCloseOnMaxSelection = input<boolean, BooleanInput>(
     this._config.autoCloseOnMaxSelection,
@@ -94,29 +115,27 @@ export class HlmDatePickerMulti<T> implements ControlValueAccessor {
       transform: booleanAttribute,
     },
   );
+
   /** The id of the button that opens the date picker. */
   public readonly buttonId = input<string>(`hlm-date-picker-multi-${++nextId}`);
-
   /** Show dropdowns to navigate between months or years. */
   public readonly captionLayout = input<
     'dropdown-months' | 'dropdown-years' | 'dropdown' | 'label'
   >('label');
-
   /** The selected value. */
   public readonly date = input<T[]>();
-
   public readonly dateChange = output<T[]>();
 
   /** Determine if the date picker is disabled. */
   public readonly disabled = input<boolean, BooleanInput>(false, {
     transform: booleanAttribute,
   });
-
   /** Defines how the date should be displayed in the UI.  */
   public readonly formatDates = input<(date: T[]) => string>(
     this._config.formatDates,
   );
 
+  public readonly labelableId = this.buttonId;
   /** The maximum date that can be selected. */
   public readonly max = input<T>();
 
@@ -140,15 +159,34 @@ export class HlmDatePickerMulti<T> implements ControlValueAccessor {
 
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
 
+  private readonly _fieldControl = inject(BrnFieldControl, { optional: true });
+
+  private readonly _invalid = this._fieldControl?.invalid;
+
+  protected readonly _ariaInvalid = computed(() =>
+    this._invalid?.() ? 'true' : null,
+  );
+
+  protected readonly _spartanInvalid = this._fieldControl?.spartanInvalid;
+
+  protected readonly _errorStateClass = computed(() =>
+    this._spartanInvalid?.()
+      ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40'
+      : '',
+  );
+
   protected readonly _computedClass = computed(() =>
     hlm(
-      'ring-offset-background border-input bg-background hover:bg-accent dark:bg-input/30 dark:hover:bg-input/50 hover:text-accent-foreground inline-flex h-9 w-[280px] cursor-default items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm font-normal whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50',
+      'ring-offset-background border-input bg-background hover:bg-accent dark:bg-input/30 dark:hover:bg-input/50 inline-flex h-9 w-[280px] cursor-default items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm font-normal whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50',
       'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
       'disabled:pointer-events-none disabled:opacity-50',
       '[&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0',
+      this._errorStateClass(),
       this.userClass(),
     ),
   );
+
+  protected readonly _dirty = this._fieldControl?.dirty;
 
   protected readonly _mutableDate = linkedSignal(this.date);
 
@@ -162,7 +200,9 @@ export class HlmDatePickerMulti<T> implements ControlValueAccessor {
   protected _onChange?: ChangeFn<T[]>;
 
   protected _onTouched?: TouchFn;
+
   protected readonly _popoverState = signal<BrnDialogState | null>(null);
+  protected readonly _touched = this._fieldControl?.touched;
 
   public close() {
     this._popoverState.set('closed');

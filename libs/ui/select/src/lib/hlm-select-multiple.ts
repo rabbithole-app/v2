@@ -1,12 +1,12 @@
 import { Directive } from '@angular/core';
 import { provideBrnDialogDefaultOptions } from '@spartan-ng/brain/dialog';
 import { BrnPopover, provideBrnPopoverConfig } from '@spartan-ng/brain/popover';
-import { BrnSelect } from '@spartan-ng/brain/select';
+import { BrnSelectMultiple } from '@spartan-ng/brain/select';
 
 import { classes } from '@spartan-ng/helm/utils';
 
 @Directive({
-  selector: '[hlmSelect],hlm-select',
+  selector: '[hlmSelectMultiple],hlm-select-multiple',
   providers: [
     provideBrnPopoverConfig({
       align: 'start',
@@ -18,7 +18,7 @@ import { classes } from '@spartan-ng/helm/utils';
   ],
   hostDirectives: [
     {
-      directive: BrnSelect,
+      directive: BrnSelectMultiple,
       inputs: ['disabled', 'value', 'isItemEqualToValue', 'itemToString'],
       outputs: ['valueChange'],
     },
@@ -41,7 +41,7 @@ import { classes } from '@spartan-ng/helm/utils';
     'data-slot': 'select',
   },
 })
-export class HlmSelect {
+export class HlmSelectMultiple {
   constructor() {
     classes(() => 'block');
   }

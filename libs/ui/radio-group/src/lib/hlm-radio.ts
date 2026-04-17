@@ -14,7 +14,11 @@ import {
   PLATFORM_ID,
   Renderer2,
 } from '@angular/core';
-import { BrnRadio, type BrnRadioChange } from '@spartan-ng/brain/radio-group';
+import {
+  BrnRadio,
+  type BrnRadioChange,
+  BrnRadioGroup,
+} from '@spartan-ng/brain/radio-group';
 import type { ClassValue } from 'clsx';
 
 import { hlm } from '@spartan-ng/helm/utils';
@@ -38,6 +42,13 @@ import { hlm } from '@spartan-ng/helm/utils';
       [value]="value()"
       [required]="required()"
       [disabled]="disabled()"
+      [attr.aria-invalid]="_ariaInvalid() ? 'true' : null"
+      [attr.data-invalid]="_ariaInvalid() ? 'true' : null"
+      [attr.data-dirty]="_dirty() ? 'true' : null"
+      [attr.data-touched]="_touched() ? 'true' : null"
+      [attr.data-matches-spartan-invalid]="
+        _groupSpartanInvalid() ? 'true' : null
+      "
       [aria-label]="ariaLabel()"
       [aria-labelledby]="ariaLabelledby()"
       [aria-describedby]="ariaDescribedby()"
@@ -66,11 +77,11 @@ export class HlmRadio<T = unknown> {
    */
   // eslint-disable-next-line @angular-eslint/no-output-native
   public readonly change = output<BrnRadioChange<T>>();
-
   /** Whether the checkbox is disabled. */
   public readonly disabled = input<boolean, BooleanInput>(false, {
     transform: booleanAttribute,
   });
+
   /** Used to set the id on the underlying brn element. */
   public readonly id = input<string | undefined>(undefined);
 
@@ -78,20 +89,40 @@ export class HlmRadio<T = unknown> {
   public readonly required = input<boolean, BooleanInput>(false, {
     transform: booleanAttribute,
   });
-
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
   /**
    * The value this radio button represents.
    */
   public readonly value = input.required<T>();
+
+  private readonly _radioGroup = inject(BrnRadioGroup, { optional: true });
+
+  protected readonly _ariaInvalid = computed(
+    () => this._radioGroup?.controlState?.()?.invalid,
+  );
+  protected readonly _groupSpartanInvalid = computed(
+    () => this._radioGroup?.controlState?.()?.spartanInvalid,
+  );
+
+  protected readonly _errorStateClass = computed(() =>
+    this._groupSpartanInvalid() ? 'text-destructive' : '',
+  );
 
   protected readonly _computedClass = computed(() =>
     hlm(
       'group relative flex items-center gap-x-3',
       'data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50',
       this.userClass(),
+      this._errorStateClass(),
     ),
+  );
+
+  protected readonly _dirty = computed(
+    () => this._radioGroup?.controlState?.()?.dirty,
+  );
+
+  protected readonly _touched = computed(
+    () => this._radioGroup?.controlState?.()?.touched,
   );
 
   private readonly _document = inject(DOCUMENT);

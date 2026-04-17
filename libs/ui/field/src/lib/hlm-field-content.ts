@@ -11,7 +11,7 @@ import { classes } from '@spartan-ng/helm/utils';
 export class HlmFieldContent {
   constructor() {
     classes(
-      () => 'group/field-content flex flex-1 flex-col gap-1.5 leading-snug',
+      () => 'group/field-content flex flex-1 flex-col gap-1 leading-snug',
     );
   }
 }

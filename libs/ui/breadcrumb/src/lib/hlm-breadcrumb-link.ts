@@ -23,6 +23,9 @@ import { classes } from '@spartan-ng/helm/utils';
       ],
     },
   ],
+  host: {
+    'data-slot': 'breadcrumb-link',
+  },
 })
 export class HlmBreadcrumbLink {
   /** The link to navigate to the page. */

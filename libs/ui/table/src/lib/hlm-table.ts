@@ -1,4 +1,3 @@
-// src/app/directives/hlm-table-directives.ts
 import {
   computed,
   Directive,

@@ -1,6 +1,7 @@
 import { inject, InjectionToken, type ValueProvider } from '@angular/core';
 
 export interface HlmSidebarConfig {
+  closeMobileSidebarOnMenuButtonClick: boolean;
   mobileBreakpoint: string;
   sidebarCookieMaxAge: number;
   sidebarCookieName: string;
@@ -18,6 +19,7 @@ const defaultConfig: HlmSidebarConfig = {
   sidebarCookieMaxAge: 60 * 60 * 24 * 7, // 7 days in seconds
   sidebarKeyboardShortcut: 'b',
   mobileBreakpoint: '768px',
+  closeMobileSidebarOnMenuButtonClick: false,
 };
 
 const HlmSidebarConfigToken = new InjectionToken<HlmSidebarConfig>(

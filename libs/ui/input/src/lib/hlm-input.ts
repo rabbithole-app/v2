@@ -1,21 +1,7 @@
-import {
-  computed,
-  Directive,
-  type DoCheck,
-  effect,
-  forwardRef,
-  inject,
-  Injector,
-  input,
-  linkedSignal,
-  signal,
-  untracked,
-} from '@angular/core';
-import { FormGroupDirective, NgControl, NgForm } from '@angular/forms';
-import { BrnFormFieldControl } from '@spartan-ng/brain/form-field';
-import { ErrorStateMatcher, ErrorStateTracker } from '@spartan-ng/brain/forms';
+import { Directive, input, linkedSignal } from '@angular/core';
+import { BrnFieldControlDescribedBy } from '@spartan-ng/brain/field';
+import { BrnInput } from '@spartan-ng/brain/input';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
 
 import { classes } from '@spartan-ng/helm/utils';
 
@@ -24,7 +10,7 @@ export const inputVariants = cva(
   {
     variants: {
       error: {
-        auto: '[&.ng-invalid.ng-touched]:border-destructive [&.ng-invalid.ng-touched]:ring-destructive/20 dark:[&.ng-invalid.ng-touched]:ring-destructive/40',
+        auto: 'data-[matches-spartan-invalid=true]:border-destructive data-[matches-spartan-invalid=true]:ring-destructive/20 dark:data-[matches-spartan-invalid=true]:ring-destructive/40',
         true: 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
       },
     },
@@ -37,77 +23,20 @@ type InputVariants = VariantProps<typeof inputVariants>;
 
 @Directive({
   selector: '[hlmInput]',
-  providers: [
-    {
-      provide: BrnFormFieldControl,
-      useExisting: forwardRef(() => HlmInput),
-    },
+  hostDirectives: [
+    { directive: BrnInput, inputs: ['id'] },
+    BrnFieldControlDescribedBy,
   ],
 })
-export class HlmInput implements BrnFormFieldControl, DoCheck {
+export class HlmInput {
+  /** Controls the error visual state of the input.
+   * Defaults to 'auto', which infers the state from the associated form control.
+   */
   public readonly error = input<InputVariants['error']>('auto');
-  private readonly _errorStateTracker: ErrorStateTracker;
 
-  public readonly errorState = computed(() =>
-    this._errorStateTracker.errorState(),
-  );
-
-  private readonly _injector = inject(Injector);
-  public readonly ngControl: NgControl | null = this._injector.get(
-    NgControl,
-    null,
-  );
   protected readonly _state = linkedSignal(() => ({ error: this.error() }));
 
-  private readonly _additionalClasses = signal<ClassValue>('');
-
-  private readonly _defaultErrorStateMatcher = inject(ErrorStateMatcher);
-
-  private readonly _parentForm = inject(NgForm, { optional: true });
-
-  private readonly _parentFormGroup = inject(FormGroupDirective, {
-    optional: true,
-  });
-
   constructor() {
-    this._errorStateTracker = new ErrorStateTracker(
-      this._defaultErrorStateMatcher,
-      this.ngControl,
-      this._parentFormGroup,
-      this._parentForm,
-    );
-
-    classes(() => [
-      inputVariants({ error: this._state().error }),
-      this._additionalClasses(),
-    ]);
-
-    effect(() => {
-      const error = this._errorStateTracker.errorState();
-      untracked(() => {
-        if (this.ngControl) {
-          const shouldShowError =
-            error &&
-            this.ngControl.invalid &&
-            (this.ngControl.touched || this.ngControl.dirty);
-          this._errorStateTracker.errorState.set(
-            shouldShowError ? true : false,
-          );
-          this.setError(shouldShowError ? true : 'auto');
-        }
-      });
-    });
-  }
-
-  ngDoCheck() {
-    this._errorStateTracker.updateErrorState();
-  }
-
-  setClass(classes: string): void {
-    this._additionalClasses.set(classes);
-  }
-
-  setError(error: InputVariants['error']) {
-    this._state.set({ error });
+    classes(() => inputVariants({ error: this._state().error }));
   }
 }

@@ -3,19 +3,26 @@ import {
   booleanAttribute,
   computed,
   Directive,
+  effect,
   inject,
   input,
 } from '@angular/core';
 import {
   BrnTooltip,
+  BrnTooltipPosition,
   provideBrnTooltipDefaultOptions,
 } from '@spartan-ng/brain/tooltip';
 import { cva } from 'class-variance-authority';
 
-import { DEFAULT_TOOLTIP_CONTENT_CLASSES } from '@spartan-ng/helm/tooltip';
-import { classes } from '@spartan-ng/helm/utils';
+import {
+  DEFAULT_TOOLTIP_CONTENT_CLASSES,
+  DEFAULT_TOOLTIP_SVG_CLASS,
+  tooltipPositionVariants,
+} from '@spartan-ng/helm/tooltip';
+import { classes, hlm } from '@spartan-ng/helm/utils';
 
 import { HlmSidebarService } from './hlm-sidebar.service';
+import { injectHlmSidebarConfig } from './hlm-sidebar.token';
 
 const sidebarMenuButtonVariants = cva(
   'peer/menu-button ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground flex w-full items-center justify-start gap-2 overflow-hidden rounded-md p-2 text-left text-sm transition-[width,height,padding] outline-none group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 hover:cursor-pointer focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 disabled:hover:cursor-default aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:font-medium [&>_ng-icon]:size-4 [&>_ng-icon]:shrink-0 group-data-[collapsible=icon]:[&>span]:hidden [&>span:last-child]:truncate',
@@ -46,7 +53,10 @@ const sidebarMenuButtonVariants = cva(
       showDelay: 150,
       hideDelay: 0,
       tooltipContentClasses: DEFAULT_TOOLTIP_CONTENT_CLASSES,
-      position: 'left',
+      svgClasses: DEFAULT_TOOLTIP_SVG_CLASS,
+      arrowClasses: (position: BrnTooltipPosition) =>
+        hlm(tooltipPositionVariants({ position })),
+      position: 'right',
     }),
   ],
   hostDirectives: [
@@ -60,9 +70,15 @@ const sidebarMenuButtonVariants = cva(
     'data-sidebar': 'menu-button',
     '[attr.data-size]': 'size()',
     '[attr.data-active]': 'isActive()',
+    '(click)': 'onClick()',
   },
 })
 export class HlmSidebarMenuButton {
+  private readonly _config = injectHlmSidebarConfig();
+  public readonly closeMobileSidebarOnClick = input<boolean, BooleanInput>(
+    this._config.closeMobileSidebarOnMenuButtonClick,
+    { transform: booleanAttribute },
+  );
   public readonly isActive = input<boolean, BooleanInput>(false, {
     transform: booleanAttribute,
   });
@@ -70,16 +86,26 @@ export class HlmSidebarMenuButton {
   public readonly size = input<'default' | 'lg' | 'sm'>('default');
   public readonly variant = input<'default' | 'outline'>('default');
   private readonly _sidebarService = inject(HlmSidebarService);
-
   protected readonly _isTooltipHidden = computed(
     () =>
       this._sidebarService.state() !== 'collapsed' ||
       this._sidebarService.isMobile(),
   );
 
+  private readonly _brnTooltip = inject(BrnTooltip);
+
   constructor() {
     classes(() =>
       sidebarMenuButtonVariants({ variant: this.variant(), size: this.size() }),
     );
+    effect(() =>
+      this._brnTooltip.mutableTooltipDisabled.set(this._isTooltipHidden()),
+    );
+  }
+
+  protected onClick(): void {
+    if (this.closeMobileSidebarOnClick()) {
+      this._sidebarService.setOpenMobile(false);
+    }
   }
 }
