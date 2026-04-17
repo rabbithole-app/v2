@@ -3,6 +3,8 @@ import Principal "mo:core/Principal";
 
 import IC "mo:ic";
 
+import TreasuryTypes "mo:treasury/Types";
+
 import LedgerTypes "../Types/LedgerTypes";
 import CMCTypes "../Types/CMCTypes";
 import GitHubReleasesTypes "GitHubReleasesTypes";
@@ -76,10 +78,13 @@ module {
   ///   initArg = to_candid({});
   /// };
   /// ```
+  public type EnvPair = { name : Text; value : Text };
+
   public type CreateStorageOptions = {
     target : TargetCanister;
     releaseSelector : ReleaseSelector;
     initArg : Blob;
+    envPairs : ?[EnvPair];
   };
 
   /// Errors that can occur during storage creation
@@ -87,8 +92,8 @@ module {
     #ReleaseNotFound;
     #AlreadyInProgress;
     #CanisterAlreadyUsed : { canisterId : Principal };
-    #InsufficientAllowance : { required : Nat; available : Nat };
-    #TransferFailed : LedgerTypes.TransferFromError;
+    #InsufficientBalance : { required : Nat; available : Nat };
+    #TransferFailed : LedgerTypes.Icrc1TransferError;
     #NotifyFailed : CMCTypes.NotifyError;
     #WasmInstallFailed : Text;
     #FrontendInstallFailed : Text;
@@ -99,13 +104,14 @@ module {
   public type AddStorageError = {
     #CanisterAlreadyUsed : { canisterId : Principal };
     #InvalidWasm : Text;
+    #NotController;
   };
 
   /// Errors that can occur when deleting a storage record
   public type DeleteStorageError = {
     #NotFound;
     #NotOwner;
-    #NotFailed; // Can only delete Failed records
+    #NotFailed;
   };
 
   // -- Update Types --
@@ -132,10 +138,26 @@ module {
 
   // -- Creation Status --
 
+  /// Payment receipt — proof that a license was paid for this storage creation
+  public type PaymentReceipt = {
+    tokenId : TreasuryTypes.TokenId;
+    amount : Nat;
+    paymentId : Text;
+    paidAt : Time.Time;
+  };
+
+  /// License — one per storage canister, lives independently of StorageCreationRecord
+  public type License = {
+    canisterId : ?Principal;  // null = unbound, ?id = bound to canister
+    receipt : PaymentReceipt;
+    createdAt : Time.Time;
+  };
+
   /// Current status of a storage creation process
   public type CreationStatus = {
+    #ProcessingPayment;
     #Pending;
-    #CheckingAllowance;
+    #CheckingBalance;
     #TransferringICP : { amount : Nat };
     #NotifyingCMC : { blockIndex : Nat };
     #CanisterCreated : { canisterId : Principal };
@@ -158,6 +180,7 @@ module {
     owner : Principal;
     releaseTag : Text;
     initArg : Blob;
+    envPairs : ?[EnvPair];
     createdAt : Time.Time;
     canisterId : ?Principal;
     wasmHash : ?Blob;

@@ -1,4 +1,6 @@
 import Array "mo:core/Array";
+import Order "mo:core/Order";
+import Set "mo:core/Set";
 import Blob "mo:core/Blob";
 import Map "mo:core/Map";
 import Queue "mo:core/Queue";
@@ -56,6 +58,8 @@ module StorageDeployerOrchestrator {
   };
   public type UpdateInfo = Types.UpdateInfo;
   public type UpgradeStorageError = Types.UpgradeStorageError;
+  public type PaymentReceipt = Types.PaymentReceipt;
+  public type License = Types.License;
 
   /// Delay between unified queue operations (ms)
   let UNIFIED_QUEUE_DELAY_MS : Nat = 100;
@@ -69,11 +73,11 @@ module StorageDeployerOrchestrator {
   // -- Internal Types --
 
   type StorageCreationRecordMutable = {
-    /// Unique ID for this creation process
     id : Nat;
     owner : Principal;
     releaseTag : Text;
     initArg : Blob;
+    envPairs : ?[Types.EnvPair];
     createdAt : Time.Time;
     var canisterId : ?Principal;
     var wasmHash : ?Blob;
@@ -87,6 +91,8 @@ module StorageDeployerOrchestrator {
     var upgradeIncludesFrontend : Bool;
     /// Last upgrade error message (preserved after revert to Completed)
     var lastUpgradeError : ?Text;
+    /// License paymentId — links this creation to a License record
+    var licensePaymentId : ?Text;
   };
 
   // -- Store --
@@ -132,6 +138,8 @@ module StorageDeployerOrchestrator {
     // Index: owner → list of creationIds
     creationsByOwner : Map.Map<Principal, Vector.Vector<Nat>>;
 
+    // Licenses: owner → list of licenses (independent of creation records)
+    licenses : Map.Map<Principal, Vector.Vector<Types.License>>;
   };
 
   // -- Initialization --
@@ -181,6 +189,7 @@ module StorageDeployerOrchestrator {
       var nextCreationId = 0;
       creations = Map.empty();
       creationsByOwner = Map.empty();
+      licenses = Map.empty();
     };
   };
 
@@ -193,16 +202,33 @@ module StorageDeployerOrchestrator {
     };
   };
 
-  /// Build environment variables for storage canisters from orchestrator config.
-  func buildEnvironmentVariables(store : Store) : ?[{ name : Text; value : Text }] {
+  func compareEnvPairByName(a : Types.EnvPair, b : Types.EnvPair) : Order.Order {
+    Text.compare(a.name, b.name);
+  };
+
+  func buildEnvironmentVariables(store : Store, custom : ?[Types.EnvPair]) : ?[Types.EnvPair] {
     let ?backendId = store.canisterId else return null;
     let ?vetKey = store.vetKeyName else return null;
     let ?cashier = store.cashierCanisterId else return null;
-    ?[
-      { name = "RABBITHOLE_BACKEND_ID"; value = Principal.toText(backendId) },
-      { name = "VETKEY_NAME"; value = vetKey },
-      { name = "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL"; value = Principal.toText(cashier) },
-    ];
+
+    let set = Set.fromArray<Types.EnvPair>(
+      [
+        { name = "RABBITHOLE_BACKEND_ID"; value = Principal.toText(backendId) },
+        { name = "VETKEY_NAME"; value = vetKey },
+        {
+          name = "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL";
+          value = Principal.toText(cashier);
+        },
+      ],
+      compareEnvPairByName,
+    );
+
+    switch (custom) {
+      case (?pairs) Set.addAll(set, compareEnvPairByName, pairs.vals());
+      case null {};
+    };
+
+    ?Set.toArray(set);
   };
 
   /// Reset transient state that should not survive canister upgrades.
@@ -232,10 +258,16 @@ module StorageDeployerOrchestrator {
     for ((_, record) in Map.entries(store.creations)) {
       switch (record.status) {
         case (#Completed _ or #Failed _) {};
+        case (#ProcessingPayment) {
+          // Payment may or may not have completed before upgrade
+          switch (record.licensePaymentId) {
+            case (?_) record.status := #Failed("Interrupted by upgrade after payment. License preserved for recovery.");
+            case null record.status := #Failed("Interrupted by upgrade during payment processing");
+          };
+        };
         case _ {
           let errorMsg = "Interrupted by canister upgrade";
           if (record.isUpgrade) {
-            // Upgrade interrupted — canister still works, revert to Completed
             switch (record.canisterId) {
               case (?canisterId) {
                 record.status := #Completed({ canisterId });
@@ -524,6 +556,7 @@ module StorageDeployerOrchestrator {
       var canisterId = existingCanisterId;
       releaseTag;
       initArg = options.initArg;
+      envPairs = options.envPairs;
       var wasmHash = null;
       var frontendHash = null;
       var installedReleaseTag = null;
@@ -533,6 +566,7 @@ module StorageDeployerOrchestrator {
       var isUpgrade = false;
       var upgradeIncludesFrontend = false;
       var lastUpgradeError = null;
+      var licensePaymentId = null;
     };
 
     // Store record
@@ -570,6 +604,117 @@ module StorageDeployerOrchestrator {
     #ok;
   };
 
+  /// Create a storage record with #ProcessingPayment status (no tasks queued).
+  /// Used by purchaseLicenseAndCreateStorage: record is visible in listStorages immediately.
+  public func createStorageRecord<system>(
+    store : Store,
+    caller : Principal,
+    options : CreateStorageOptions,
+  ) : Result.Result<Nat, CreateStorageError> {
+    let releaseTag = switch (findReleaseTag(store, options.releaseSelector)) {
+      case (?tag) tag;
+      case null return #err(#ReleaseNotFound);
+    };
+
+    switch (findActiveCreation(store, caller)) {
+      case (?_) return #err(#AlreadyInProgress);
+      case null {};
+    };
+
+    let creationId = store.nextCreationId;
+    store.nextCreationId += 1;
+
+    let record : StorageCreationRecordMutable = {
+      id = creationId;
+      owner = caller;
+      var canisterId = null;
+      releaseTag;
+      initArg = options.initArg;
+      envPairs = options.envPairs;
+      var wasmHash = null;
+      var frontendHash = null;
+      var installedReleaseTag = null;
+      var status : CreationStatus = #ProcessingPayment;
+      createdAt = Time.now();
+      var completedAt = null;
+      var isUpgrade = false;
+      var upgradeIncludesFrontend = false;
+      var lastUpgradeError = null;
+      var licensePaymentId = null;
+    };
+
+    Map.add(store.creations, Nat.compare, creationId, record);
+
+    switch (Map.get(store.creationsByOwner, Principal.compare, caller)) {
+      case (?ids) Vector.add(ids, creationId);
+      case null {
+        let ids = Vector.new<Nat>();
+        Vector.add(ids, creationId);
+        Map.add(store.creationsByOwner, Principal.compare, caller, ids);
+      };
+    };
+
+    #ok(creationId);
+  };
+
+  /// Link a creation record to a license via paymentId.
+  public func setLicensePaymentId(store : Store, creationId : Nat, paymentId : Text) {
+    switch (getCreationById(store, creationId)) {
+      case (?record) record.licensePaymentId := ?paymentId;
+      case null {};
+    };
+  };
+
+  /// Mark a creation record as failed.
+  public func failCreation(store : Store, creationId : Nat, reason : Text) {
+    switch (getCreationById(store, creationId)) {
+      case (?record) record.status := #Failed(reason);
+      case null {};
+    };
+  };
+
+  /// Start creation tasks for a record (transition from #ProcessingPayment → #Pending).
+  public func startStorageCreation<system>(
+    store : Store,
+    creationId : Nat,
+    options : CreateStorageOptions,
+  ) : Result.Result<(), Text> {
+    let ?record = getCreationById(store, creationId) else return #err("Creation record not found");
+
+    switch (record.status) {
+      case (#ProcessingPayment or #Pending) {};
+      case (#Failed _) {
+        // Allow retry of failed records (admin recovery)
+        switch (record.licensePaymentId) {
+          case (?_) {}; // Has license link — retry allowed
+          case null return #err("Cannot retry failed creation without license");
+        };
+      };
+      case (status) return #err("Cannot start creation from status " # debug_show status);
+    };
+
+    record.status := #Pending;
+
+    let taskType : TaskType = switch (options.target) {
+      case (#Existing(existingId)) #LinkCanister({ canisterId = existingId });
+      case (#Create(_)) #CreateCanister({ options });
+    };
+
+    let task : UnifiedTask = {
+      id = store.nextTaskId;
+      creationId;
+      owner = record.owner;
+      taskType = #Orchestrator({ owner = record.owner; taskType });
+      var attempts = 0;
+    };
+    store.nextTaskId += 1;
+    Queue.pushBack(store.unifiedQueue, task);
+
+    ensureUnifiedTimer<system>(store);
+
+    #ok;
+  };
+
   /// Register an externally deployed storage canister.
   /// Verifies WASM hash via canister_info against known hashes.
   /// Creates a record so findOwnerByCanister resolves this canister to the caller.
@@ -597,6 +742,12 @@ module StorageDeployerOrchestrator {
       return #err(#InvalidWasm("WASM hash does not match any known release"));
     };
 
+    // Verify caller controls the canister
+    let isController = Array.find(info.controllers, func(c : Principal) : Bool { c == caller }) |> Option.isSome(_);
+    if (not isController) {
+      return #err(#NotController);
+    };
+
     let creationId = store.nextCreationId;
     store.nextCreationId += 1;
 
@@ -606,6 +757,7 @@ module StorageDeployerOrchestrator {
       var canisterId = ?canisterId;
       releaseTag = "external";
       initArg;
+      envPairs = null;
       var wasmHash = ?wasmHash;
       var frontendHash = null;
       var installedReleaseTag = null;
@@ -615,6 +767,7 @@ module StorageDeployerOrchestrator {
       var isUpgrade = false;
       var upgradeIncludesFrontend = false;
       var lastUpgradeError = null;
+      var licensePaymentId = null;
     };
 
     Map.add(store.creations, Nat.compare, creationId, record);
@@ -689,7 +842,9 @@ module StorageDeployerOrchestrator {
             };
             case (#WasmUploadChunk(args)) {
               switch (await WasmInstaller.executeUploadChunk(store.wasmInstaller, args)) {
-                case (#ok(_)) {};
+                case (#ok(_)) {
+                  syncWasmProgressStatus(store, task.creationId, args.canisterId);
+                };
                 case (#err(e)) {
                   handleTaskFailure(store, task.creationId, "WASM chunk upload failed: " # e);
                 };
@@ -726,32 +881,7 @@ module StorageDeployerOrchestrator {
             case (#FrontendUploadChunks(args)) {
               switch (await FrontendInstaller.executeUploadChunks(store.frontendInstaller, args.canisterId, args.files)) {
                 case (#ok) {
-                  // Update status
-                  switch (getCreationById(store, task.creationId)) {
-                    case (?record) {
-                      switch (FrontendInstaller.getInstallationStatus(store.frontendInstaller, args.canisterId)) {
-                        case (?#Uploading(progress)) {
-                          let progressInfo = {
-                            processed = progress.processed;
-                            total = progress.total;
-                          };
-                          record.status := if (record.isUpgrade) {
-                            #UpgradingFrontend({
-                              canisterId = args.canisterId;
-                              progress = progressInfo;
-                            });
-                          } else {
-                            #UploadingFrontend({
-                              canisterId = args.canisterId;
-                              progress = progressInfo;
-                            });
-                          };
-                        };
-                        case _ {};
-                      };
-                    };
-                    case null {};
-                  };
+                  syncFrontendProgressStatus(store, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
                   handleTaskFailure(store, task.creationId, "Frontend upload chunks failed: " # e);
@@ -826,6 +956,59 @@ module StorageDeployerOrchestrator {
     };
   };
 
+  func syncWasmProgressStatus(store : Store, creationId : Nat, canisterId : Principal) {
+    let ?record = getCreationById(store, creationId) else return;
+
+    let syncVariant = func(progress : Types.Progress) : Types.CreationStatus {
+      if (record.isUpgrade) {
+        #UpgradingWasm({ canisterId; progress });
+      } else {
+        #InstallingWasm({ canisterId; progress });
+      };
+    };
+
+    switch (WasmInstaller.getStatus(store.wasmInstaller, canisterId)) {
+      case (?#UploadingChunks(progress)) {
+        record.status := syncVariant({
+          processed = progress.uploaded;
+          total = progress.total;
+        });
+      };
+      case (?#Pending) {
+        record.status := syncVariant({ processed = 0; total = 0 });
+      };
+      case (?#Installing) {
+        record.status := syncVariant({ processed = 0; total = 0 });
+      };
+      case _ {};
+    };
+  };
+
+  func syncFrontendProgressStatus(store : Store, creationId : Nat, canisterId : Principal) {
+    let ?record = getCreationById(store, creationId) else return;
+
+    switch (FrontendInstaller.getInstallationStatus(store.frontendInstaller, canisterId)) {
+      case (?#Uploading(progress)) {
+        let progressInfo = {
+          processed = progress.processed;
+          total = progress.total;
+        };
+        record.status := if (record.isUpgrade) {
+          #UpgradingFrontend({
+            canisterId;
+            progress = progressInfo;
+          });
+        } else {
+          #UploadingFrontend({
+            canisterId;
+            progress = progressInfo;
+          });
+        };
+      };
+      case _ {};
+    };
+  };
+
   /// Process high-level orchestrator tasks
   func processOrchestratorTask<system>(store : Store, creationId : Nat, task : OrchestratorTask) : async () {
     let ?record = getCreationById(store, creationId) else return;
@@ -837,7 +1020,7 @@ module StorageDeployerOrchestrator {
           return;
         };
 
-        record.status := #CheckingAllowance;
+        record.status := #CheckingBalance;
 
         let { initialCycles; subnetId } = switch (options.target) {
           case (#Create(params)) params;
@@ -847,18 +1030,24 @@ module StorageDeployerOrchestrator {
           };
         };
 
-        let envVars = buildEnvironmentVariables(store);
+        let envVars = buildEnvironmentVariables(store, record.envPairs);
         switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId, envVars)) {
           case (#ok(canisterId)) {
             record.canisterId := ?canisterId;
             record.status := #CanisterCreated({ canisterId });
+
+            // Bind license to canister
+            switch (record.licensePaymentId) {
+              case (?paymentId) bindLicense(store, task.owner, paymentId, canisterId);
+              case null {};
+            };
 
             // Queue WASM installation tasks
             queueWasmTasks(store, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
           };
           case (#err(e)) {
             let errorMsg = switch (e) {
-              case (#InsufficientAllowance(_)) "Insufficient allowance";
+              case (#InsufficientBalance(_)) "Insufficient balance";
               case (#TransferFailed(_)) "Transfer failed";
               case (#NotifyFailed(_)) "CMC notification failed";
             };
@@ -913,11 +1102,11 @@ module StorageDeployerOrchestrator {
     let statusVariant = switch (mode) {
       case (#install or #reinstall) #InstallingWasm({
         canisterId;
-        progress = { processed = 0; total = 100 };
+        progress = { processed = 0; total = 0 };
       });
       case (#upgrade(_)) #UpgradingWasm({
         canisterId;
-        progress = { processed = 0; total = 100 };
+        progress = { processed = 0; total = 0 };
       });
     };
     record.status := statusVariant;
@@ -952,6 +1141,8 @@ module StorageDeployerOrchestrator {
           Queue.pushBack(store.unifiedQueue, taskWithCreationId);
           store.nextTaskId += 1;
         };
+
+        syncWasmProgressStatus(store, creationId, canisterId);
       };
       case (#err(e)) {
         record.status := #Failed("Failed to get WASM: " # e);
@@ -976,7 +1167,7 @@ module StorageDeployerOrchestrator {
   func queueFrontendTasks<system>(store : Store, creationId : Nat, canisterId : Principal) {
     let ?record = getCreationById(store, creationId) else return;
 
-    let value = { canisterId; progress = { processed = 0; total = 100 } };
+    let value = { canisterId; progress = { processed = 0; total = 0 } };
     record.status := if (record.isUpgrade) #UpgradingFrontend(value) else #UploadingFrontend(value);
 
     let versionKey = "storage-frontend@latest";
@@ -995,6 +1186,8 @@ module StorageDeployerOrchestrator {
           Queue.pushBack(store.unifiedQueue, taskWithCreationId);
           store.nextTaskId += 1;
         };
+
+        syncFrontendProgressStatus(store, creationId, canisterId);
       };
       case (#err(e)) {
         record.status := #Failed("Failed to generate frontend tasks: " # e);
@@ -1228,6 +1421,7 @@ module StorageDeployerOrchestrator {
       owner = record.owner;
       releaseTag = record.releaseTag;
       initArg = record.initArg;
+      envPairs = record.envPairs;
       createdAt = record.createdAt;
       canisterId = record.canisterId;
       wasmHash = record.wasmHash;
@@ -1267,6 +1461,79 @@ module StorageDeployerOrchestrator {
         )
         |> Iter.toArray(_);
       };
+      case null [];
+    };
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // LICENSE MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Add a license for a user. Rejects duplicates by paymentId.
+  public func addLicense(store : Store, owner : Principal, receipt : Types.PaymentReceipt) : Result.Result<(), { #DuplicatePayment }> {
+    let licenses = switch (Map.get(store.licenses, Principal.compare, owner)) {
+      case (?vec) vec;
+      case null {
+        let vec = Vector.new<Types.License>();
+        Map.add(store.licenses, Principal.compare, owner, vec);
+        vec;
+      };
+    };
+
+    // Check uniqueness by paymentId
+    for (lic in Vector.vals(licenses)) {
+      if (Text.equal(lic.receipt.paymentId, receipt.paymentId)) {
+        return #err(#DuplicatePayment);
+      };
+    };
+
+    Vector.add(
+      licenses,
+      {
+        canisterId = null;
+        receipt;
+        createdAt = Time.now();
+      },
+    );
+    #ok;
+  };
+
+  /// Bind a license to a canister ID after successful creation.
+  public func bindLicense(store : Store, owner : Principal, paymentId : Text, canisterId : Principal) {
+    switch (Map.get(store.licenses, Principal.compare, owner)) {
+      case (?licenses) {
+        var i = 0;
+        let size = Vector.size(licenses);
+        while (i < size) {
+          let lic = Vector.get(licenses, i);
+          if (Text.equal(lic.receipt.paymentId, paymentId) and lic.canisterId == null) {
+            Vector.put(licenses, i, { lic with canisterId = ?canisterId });
+            return;
+          };
+          i += 1;
+        };
+      };
+      case null {};
+    };
+  };
+
+  /// Find an unbound license for a user.
+  public func findUnboundLicense(store : Store, owner : Principal) : ?Types.License {
+    switch (Map.get(store.licenses, Principal.compare, owner)) {
+      case (?licenses) {
+        for (lic in Vector.vals(licenses)) {
+          if (lic.canisterId == null) return ?lic;
+        };
+        null;
+      };
+      case null null;
+    };
+  };
+
+  /// List all licenses for a user.
+  public func listLicenses(store : Store, owner : Principal) : [Types.License] {
+    switch (Map.get(store.licenses, Principal.compare, owner)) {
+      case (?licenses) Vector.toArray(licenses);
       case null [];
     };
   };

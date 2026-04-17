@@ -7,7 +7,7 @@ import Vector "mo:vector";
 
 module {
   public type TypedEvent = {
-    #subscriptionActivated : { plan : { #Free; #Trial; #License; #Pro } };
+    #subscriptionActivated : { plan : { #Free; #Trial; #Pro } };
     #subscriptionExpired;
     #trialStarted : { limitBytes : Nat };
     #lowCycles : {
@@ -19,7 +19,7 @@ module {
     #updateAvailable : { canisterId : Principal; releaseTag : Text };
     #paymentReceived : { purpose : Text; amount : Nat; tokenId : Text };
     #depositReceived : { amount : Nat; tokenId : Text };
-    #subscriptionRenewed : { plan : { #Free; #Trial; #License; #Pro }; expiresAt : ?Int };
+    #subscriptionRenewed : { plan : { #Free; #Trial; #Pro }; expiresAt : ?Int };
     #balanceLow : { requiredAmount : Nat };
     #autoRenewFailed : { reason : Text };
     #topUpCompleted : { canisterId : Principal; cyclesAmount : Nat };

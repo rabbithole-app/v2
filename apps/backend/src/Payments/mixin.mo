@@ -27,7 +27,10 @@ mixin(
     notifyUser : (Principal, Notifications.TypedEvent) -> ();
     getAmbassadorChain : (Principal) -> Users.AmbassadorChain;
     activateSubscription : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>;
+    grantPaidPeriod : (Principal, Subscriptions.Plan, Time.Time) -> Result.Result<Subscriptions.PaidPeriodResult, Text>;
     distributePayment : (TreasuryTypes.DistributePaymentArgs) -> async* TreasuryTypes.DistributePaymentResult;
+    createStorageForUser : <system>(Principal, Blob, ?[{ name : Text; value : Text }]) -> Result.Result<(), Text>;
+    addLicense : (Principal, { tokenId : TreasuryTypes.TokenId; amount : Nat; paymentId : Text; paidAt : Int }) -> Result.Result<(), { #DuplicatePayment }>;
   },
 ) {
   // ---- Persistent state ----
@@ -120,8 +123,6 @@ mixin(
           deps.notifyUser(userId, #depositReceived({ amount = payment.amount; tokenId = tokenIdText }));
         };
         case (#license) {
-          // ICPay delivered funds to backend main account.
-          // Distribute (splits) from main account.
           let chain = deps.getAmbassadorChain(userId);
           ignore await* deps.distributePayment({
             paymentId = payment.id;
@@ -132,8 +133,30 @@ mixin(
             ambassadorL2 = chain.l2;
             metadata = ?"license";
           });
-          ignore deps.activateSubscription(userId, #License, null);
+          ignore deps.addLicense(userId, {
+            tokenId;
+            amount = payment.amount;
+            paymentId = payment.id;
+            paidAt = Time.now();
+          });
+          // Activate Trial if user has no active subscription
+          switch (deps.activateSubscription(userId, #Trial, null)) {
+            case (#ok() or #err(#AlreadyActive)) {};
+            case _ {};
+          };
           deps.notifyUser(userId, #paymentReceived({ purpose = "license"; amount = payment.amount; tokenId = tokenIdText }));
+
+          switch (Payments.extractStorageConfig(payment.metadata)) {
+            case (?config) {
+              let initArg = Payments.encodeStorageInitArg(userId, ?config.storageBackendType);
+              let envPairs = Payments.extractEnvPairs(payment.metadata);
+              switch (deps.createStorageForUser<system>(userId, initArg, envPairs)) {
+                case (#ok()) Debug.print("Auto-created storage for " # Principal.toText(userId));
+                case (#err(e)) Debug.print("Storage auto-create failed for " # Principal.toText(userId) # ": " # e);
+              };
+            };
+            case null {};
+          };
         };
         case (#pro_monthly) {
           let chain = deps.getAmbassadorChain(userId);
@@ -146,9 +169,18 @@ mixin(
             ambassadorL2 = chain.l2;
             metadata = ?"pro_monthly";
           });
-          let thirtyDays = 30 * 24 * 60 * 60 * 1_000_000_000;
-          ignore deps.activateSubscription(userId, #Pro, ?(Time.now() + thirtyDays));
-          deps.notifyUser(userId, #paymentReceived({ purpose = "pro_monthly"; amount = payment.amount; tokenId = tokenIdText }));
+          switch (deps.grantPaidPeriod(userId, #Pro, Subscriptions.THIRTY_DAYS_NS)) {
+            case (#ok(result)) {
+              switch (result.action) {
+                case (#Created or #Reactivated) deps.notifyUser(userId, #subscriptionActivated({ plan = #Pro }));
+                case (#Renewed) deps.notifyUser(userId, #subscriptionRenewed({ plan = #Pro; expiresAt = ?result.expiresAt }));
+              };
+            };
+            case (#err(e)) {
+              Debug.print("Payment " # payment.id # ": grantPaidPeriod failed, manual intervention required: " # e);
+              deps.notifyUser(userId, #paymentReceived({ purpose = "pro_monthly"; amount = payment.amount; tokenId = tokenIdText }));
+            };
+          };
         };
       };
     };

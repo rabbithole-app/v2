@@ -18,6 +18,8 @@ import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
 
+import TreasuryTypes "mo:treasury/Types";
+import Payments "Payments/lib";
 import StorageDeployerOrchestrator "StorageDeployer";
 import CMCTypes "Types/CMCTypes";
 import LedgerTypes "Types/LedgerTypes";
@@ -65,11 +67,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   let storageOrchestrator = StorageDeployerOrchestrator.new({
     github = Option.get(initArgs.github, defaultGithub);
     assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar")])];
-    vetKeyName = initArgs.vetKeyName;
+    vetKeyName = initArgs.thresholdKeyName;
     cashierCanisterId = initArgs.cashierCanisterId;
   });
   storageOrchestrator.canisterId := ?canisterId;
-  storageOrchestrator.vetKeyName := ?initArgs.vetKeyName;
+  storageOrchestrator.vetKeyName := ?initArgs.thresholdKeyName;
   storageOrchestrator.cashierCanisterId := ?initArgs.cashierCanisterId;
 
   // --- Mixins (order matters: dependencies first) ---
@@ -89,8 +91,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     {
       canisterId;
       admin = installer;
-      evmConfig = initArgs.evmConfig;
-      solConfig = initArgs.solConfig;
+      thresholdKeyName = initArgs.thresholdKeyName;
+      chains = initArgs.chains;
     },
     assertAdmin,
   );
@@ -102,8 +104,32 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       isKnownWasm;
       hasUsedTrial;
       markTrialUsed;
+      userExists;
     },
   );
+  let STORAGE_INITIAL_CYCLES : Nat = 1_500_000_000_000;
+
+  // --- Internal: create storage for a user (called after license payment) ---
+  func createStorageForUserInternal<system>(userId : Principal, initArg : Blob, envPairs : ?[{ name : Text; value : Text }]) : Result.Result<(), Text> {
+    let result = StorageDeployerOrchestrator.createStorage<system>(
+      storageOrchestrator,
+      userId,
+      {
+        releaseSelector = #Latest;
+        initArg;
+        envPairs;
+        target = #Create({
+          initialCycles = STORAGE_INITIAL_CYCLES;
+          subnetId = null;
+        });
+      },
+    );
+    switch (result) {
+      case (#ok()) #ok();
+      case (#err(e)) #err(debug_show e);
+    };
+  };
+
   include PaymentsMixin(
     initArgs.icpaySecretKey,
     { assertAdmin },
@@ -111,7 +137,17 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       notifyUser;
       getAmbassadorChain;
       activateSubscription = activateSubscriptionInternal;
+      grantPaidPeriod = grantPaidPeriodInternal;
       distributePayment = treasuryDistributePayment;
+      createStorageForUser = createStorageForUserInternal;
+      addLicense = func(owner : Principal, receipt : { tokenId : TreasuryTypes.TokenId; amount : Nat; paymentId : Text; paidAt : Int }) : Result.Result<(), { #DuplicatePayment }> {
+        StorageDeployerOrchestrator.addLicense(storageOrchestrator, owner, {
+          tokenId = receipt.tokenId;
+          amount = receipt.amount;
+          paymentId = receipt.paymentId;
+          paidAt = receipt.paidAt;
+        });
+      };
     },
   );
   // --- Exchange rate & top-up helpers for BalanceMixin ---
@@ -194,6 +230,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       activate = activateSubscriptionInternal;
       renew = renewSubscriptionInternal;
       get = getSubscriptionInternal;
+      grantPaidPeriod = grantPaidPeriodInternal;
     },
     {
       chargeAndDistribute = treasuryChargeAndDistribute;
@@ -257,17 +294,99 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       notifyUser(userId, #subscriptionExpired);
     };
     syncLatestWasmHash();
-    await processAutoRenewals();
+    processAutoRenewals<system>();
   });
 
-  // --- Storage Deployer API ---
-
-  public shared ({ caller }) func createStorage(
-    options : StorageDeployerOrchestrator.CreateStorageOptions,
-  ) : async Result.Result<(), StorageDeployerOrchestrator.CreateStorageError> {
+  /// Purchase a license from balance and immediately create a storage canister.
+  /// Flow: create record (#ProcessingPayment) → charge → save receipt → activate → start creation.
+  public shared ({ caller }) func purchaseLicenseAndCreateStorage(
+    storageBackendType : Payments.StorageBackendType,
+    envPairs : ?[{ name : Text; value : Text }],
+  ) : async Result.Result<(), PurchaseError> {
     assert not Principal.isAnonymous(caller);
-    StorageDeployerOrchestrator.createStorage<system>(storageOrchestrator, caller, options);
+
+    let initArg = Payments.encodeStorageInitArg(caller, ?storageBackendType);
+    let options : StorageDeployerOrchestrator.CreateStorageOptions = {
+      releaseSelector = #Latest;
+      initArg;
+      envPairs;
+      target = #Create({
+        initialCycles = STORAGE_INITIAL_CYCLES;
+        subnetId = null;
+      });
+    };
+
+    // 1. Create record with #ProcessingPayment (visible in listStorages immediately)
+    let creationId = switch (StorageDeployerOrchestrator.createStorageRecord<system>(storageOrchestrator, caller, options)) {
+      case (#ok(id)) id;
+      case (#err(#AlreadyInProgress)) return #err(#ActivationFailed("Storage creation already in progress"));
+      case (#err(#ReleaseNotFound)) return #err(#ActivationFailed("No release available"));
+      case (#err(e)) return #err(#ActivationFailed(debug_show e));
+    };
+
+    // 2. Charge for license
+    let chargeResult = await* chargeForLicense(caller);
+    switch (chargeResult) {
+      case (#ok(charged)) {
+        // 3. Create license (independent of creation record)
+        let receipt : StorageDeployerOrchestrator.PaymentReceipt = {
+          tokenId = charged.tokenId;
+          amount = charged.amount;
+          paymentId = charged.paymentId;
+          paidAt = Time.now();
+        };
+        switch (StorageDeployerOrchestrator.addLicense(storageOrchestrator, caller, receipt)) {
+          case (#ok()) {};
+          case (#err(#DuplicatePayment)) {}; // Idempotent — already added
+        };
+
+        // 4. Link creation record to license
+        StorageDeployerOrchestrator.setLicensePaymentId(storageOrchestrator, creationId, charged.paymentId);
+
+        // 5. Activate Trial if user has no active subscription (#AlreadyActive = skip)
+        ignore activateSubscriptionInternal(caller, #Trial, null);
+      };
+      case (#insufficientFunds(details)) {
+        StorageDeployerOrchestrator.failCreation(storageOrchestrator, creationId, "Insufficient funds");
+        return #err(#InsufficientFunds({ required = details.required }));
+      };
+      case (#err(msg)) {
+        StorageDeployerOrchestrator.failCreation(storageOrchestrator, creationId, "Charge failed: " # msg);
+        return #err(#ChargeFailed(msg));
+      };
+    };
+
+    // 5. Start storage creation tasks
+    switch (StorageDeployerOrchestrator.startStorageCreation<system>(storageOrchestrator, creationId, options)) {
+      case (#ok()) #ok();
+      case (#err(e)) {
+        // Payment was taken but tasks failed to queue — receipt preserved for recovery
+        #err(#ActivationFailed("Storage creation failed to start: " # e));
+      };
+    };
   };
+
+  /// Admin: retry a failed storage creation that has a license.
+  public shared ({ caller }) func retryStorageCreation(creationId : Nat) : async Result.Result<(), Text> {
+    assertAdmin(caller);
+    StorageDeployerOrchestrator.startStorageCreation<system>(storageOrchestrator, creationId, {
+      releaseSelector = #Latest;
+      initArg = Blob.fromArray([]);
+      envPairs = null;
+      target = #Create({
+        initialCycles = STORAGE_INITIAL_CYCLES;
+        subnetId = null;
+      });
+    });
+  };
+
+  /// List all licenses for the caller.
+  public query ({ caller }) func listLicenses() : async [StorageDeployerOrchestrator.License] {
+    assert not Principal.isAnonymous(caller);
+    StorageDeployerOrchestrator.listLicenses(storageOrchestrator, caller);
+  };
+
+  // --- Storage Deployer API ---
 
   public query ({ caller }) func listStorages() : async [StorageDeployerOrchestrator.StorageInfo] {
     assert not Principal.isAnonymous(caller);

@@ -13,41 +13,17 @@ mixin(
   config : {
     canisterId : Principal;
     admin : Principal;
-    evmConfig : ?Types.EvmConfig;
-    solConfig : ?Types.SolConfig;
+    thresholdKeyName : Types.ThresholdKeyName;
+    chains : [Types.ChainConfig];
   },
   assertAdmin : (Principal) -> (),
 ) {
-  // Convert backend config types to treasury config types
-  let treasuryEvmConfig : ?TreasuryTypes.EvmConfig = switch (config.evmConfig) {
-    case (?cfg) ?{
-      chainId = cfg.chainId;
-      ecdsaKeyName = cfg.ecdsaKeyName;
-      evmRpcCanisterId = cfg.evmRpcCanisterId;
-      usdcContract = cfg.usdcContract;
-      usdtContract = cfg.usdtContract;
-      rpcUrls = cfg.rpcUrls;
-    };
-    case null null;
-  };
-
-  let treasurySolConfig : ?TreasuryTypes.SolConfig = switch (config.solConfig) {
-    case (?cfg) ?{
-      schnorrKeyName = cfg.schnorrKeyName;
-      solRpcCanisterId = cfg.solRpcCanisterId;
-      usdcMint = cfg.usdcMint;
-      usdtMint = cfg.usdtMint;
-      rpcUrl = cfg.rpcUrl;
-    };
-    case null null;
-  };
-
   // Treasury stable store — persistent across upgrades
   var treasuryStableStore = Treasury.initStableStore({
     admin = config.admin;
-    evmConfig = treasuryEvmConfig;
-    solConfig = treasurySolConfig;
-    distributionConfig = null; // uses defaults (80/15/5)
+    thresholdKeyName = config.thresholdKeyName;
+    chains = config.chains;
+    distributionConfig = null; // uses defaults (85/15/0)
   });
   treasuryStableStore := Treasury.upgradeStableStore(treasuryStableStore);
 

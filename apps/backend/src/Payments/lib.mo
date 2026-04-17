@@ -1,6 +1,8 @@
+import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 
 import ICPayWebhooks "mo:icpay-webhooks";
+import Json "mo:json";
 import TreasuryTypes "mo:treasury/Types";
 
 module {
@@ -8,6 +10,34 @@ module {
     #deposit;
     #license;
     #pro_monthly;
+  };
+
+  public type StorageBackendType = { #BlobStorage; #OnChain };
+
+  public func parseStorageBackendType(text : Text) : ?StorageBackendType {
+    if (text == "BlobStorage") ?#BlobStorage
+    else if (text == "OnChain") ?#OnChain
+    else null;
+  };
+
+  public func encodeStorageInitArg(owner : Principal, storageBackendType : ?StorageBackendType) : Blob {
+    to_candid ({ owner; storageBackendType });
+  };
+
+  public func extractEnvPairs(metadata : Json.Json) : ?[{ name : Text; value : Text }] {
+    let ?#string(vetKeyName) = Json.get(metadata, "vetKeyName") else return null;
+    ?[{ name = "VETKEY_NAME"; value = vetKeyName }];
+  };
+
+  public func extractStorageConfig(metadata : Json.Json) : ?{
+    storageBackendType : StorageBackendType;
+  } {
+    let sbtText = switch (Json.get(metadata, "storageBackendType")) {
+      case (?#string(s)) s;
+      case _ return null;
+    };
+    let ?sbt = parseStorageBackendType(sbtText) else return null;
+    ?{ storageBackendType = sbt };
   };
 
   public func parsePurpose(text : Text) : ?PaymentPurpose {

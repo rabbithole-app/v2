@@ -18,6 +18,7 @@ core = "2.4.0"
 hex = "1.0.2"
 candid = "2.4.2"
 caffeineai-object-storage = "0.1.1"
+json = "1.4.0"
 
 [toolchain]
 moc = "1.4.1"

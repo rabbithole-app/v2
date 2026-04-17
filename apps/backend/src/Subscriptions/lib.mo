@@ -13,7 +13,6 @@ module {
   public type Plan = {
     #Free;
     #Trial;
-    #License;
     #Pro;
   };
 
@@ -50,6 +49,16 @@ module {
     #TrialAlreadyUsed;
   };
 
+  public type PaidPeriodAction = { #Created; #Renewed; #Reactivated };
+
+  public type PaidPeriodResult = {
+    expiresAt : Time.Time;
+    previousExpiresAt : ?Time.Time;
+    action : PaidPeriodAction;
+  };
+
+  public let THIRTY_DAYS_NS : Time.Time = 2_592_000_000_000_000; // 30 * 24 * 60 * 60 * 1_000_000_000
+
   public type ListOptions = {
     filter : {
       userId : ?[Principal];
@@ -72,7 +81,7 @@ module {
 
   let SubscriptionSchema : ZenDB.Types.Schema = #Record([
     ("userId", #Principal),
-    ("plan", #Variant([("Free", #Null), ("Trial", #Null), ("License", #Null), ("Pro", #Null)])),
+    ("plan", #Variant([("Free", #Null), ("Trial", #Null), ("Pro", #Null)])),
     ("status", #Variant([("Active", #Null), ("Expired", #Null), ("Cancelled", #Null)])),
     ("activatedAt", #Int),
     ("expiresAt", #Option(#Int)),
@@ -110,7 +119,6 @@ module {
           switch plan {
             case (#Free) #Text("Free");
             case (#Trial) #Text("Trial");
-            case (#License) #Text("License");
             case (#Pro) #Text("Pro");
           };
         });
@@ -148,7 +156,7 @@ module {
     dbQuery;
   };
 
-  public class Subscriptions(db : ZenDB.Database, hasUsedTrial : (Principal) -> Bool, markTrialUsed : (Principal) -> ()) {
+  public class Subscriptions(db : ZenDB.Database, hasUsedTrial : (Principal) -> Bool, markTrialUsed : (Principal) -> (), userExists : (Principal) -> Bool) {
     let #ok(collection) = db.createCollection<Subscription>("subscriptions", SubscriptionSchema, candifySubscriptions, ?{ schema_constraints = schemaConstraints }) else Runtime.unreachable();
 
     func findSubscription(userId : Principal) : ?(ZenDB.Types.DocumentId, Subscription) {
@@ -181,13 +189,73 @@ module {
       #ok();
     };
 
+    /// Apply a paid period to a user's subscription. Single source of truth for paid Pro logic.
+    /// Active Pro with future expiresAt → extends from currentExpiresAt.
+    /// Everything else (no sub, Free, Trial, Expired) → starts from now.
+    public func grantPaidPeriod(userId : Principal, plan : Plan, durationNs : Time.Time) : Result.Result<PaidPeriodResult, Text> {
+      switch (plan) {
+        case (#Free or #Trial) return #err("Only paid plans can be granted");
+        case _ {};
+      };
+
+      let now = Time.now();
+
+      switch (findSubscription(userId)) {
+        case null {
+          let newExpiresAt = now + durationNs;
+          let sub : Subscription = {
+            userId;
+            plan;
+            status = #Active;
+            activatedAt = now;
+            expiresAt = ?newExpiresAt;
+            autoRenew = true;
+            trialUsedBytes = 0;
+            createdAt = now;
+            updatedAt = now;
+          };
+          ignore collection.insert(sub);
+          #ok({ expiresAt = newExpiresAt; previousExpiresAt = null; action = #Created });
+        };
+        case (?(docId, sub)) {
+          let effective = withEffectiveStatus(sub);
+
+          let isActivePaidSamePlan = switch (effective.status, effective.plan) {
+            case (#Active, #Pro) effective.plan == plan;
+            case _ false;
+          };
+
+          let base = if (isActivePaidSamePlan) {
+            switch (sub.expiresAt) { case (?exp) exp; case null now };
+          } else now;
+
+          let newExpiresAt = base + durationNs;
+          let action : PaidPeriodAction = if (isActivePaidSamePlan) #Renewed else #Reactivated;
+
+          // For #Renewed — preserve activatedAt (subscription is continuing, not re-activating).
+          // For #Reactivated — bump activatedAt to now (new activation after expiry/cancel/plan change).
+          let newActivatedAt = if (isActivePaidSamePlan) sub.activatedAt else now;
+
+          ignore collection.replace(docId, {
+            sub with
+            plan;
+            status = #Active;
+            activatedAt = newActivatedAt;
+            expiresAt = ?newExpiresAt;
+            updatedAt = now;
+          });
+          #ok({ expiresAt = newExpiresAt; previousExpiresAt = sub.expiresAt; action });
+        };
+      };
+    };
+
     public func activateSubscription(userId : Principal, plan : Plan, expiresAt : ?Time.Time) : Result.Result<(), ActivateError> {
       let now = Time.now();
 
       switch (findSubscription(userId)) {
         case (?(docId, sub)) {
           let effective = withEffectiveStatus(sub);
-          if (effective.status == #Active) return #err(#AlreadyActive);
+          if (effective.status == #Active and effective.plan == plan) return #err(#AlreadyActive);
           ignore collection.replace(docId, {
             sub with
             plan;
@@ -218,6 +286,7 @@ module {
     };
 
     public func activateTrial(userId : Principal) : Result.Result<(), ActivateError> {
+      if (not userExists(userId)) return #err(#UserNotFound);
       // Check persistent trial-used flag in Users (survives plan changes like Trial → Free)
       if (hasUsedTrial(userId)) return #err(#TrialAlreadyUsed);
 
@@ -242,6 +311,7 @@ module {
       let now = Time.now();
       let q = ZenDB.QueryBuilder()
         .Where("status", #eq(#Text("Active")))
+        .Where("expiresAt", #gte(#Option(#Int(0))))
         .Where("expiresAt", #lte(#Option(#Int(now))));
 
       let #ok({ documents }) = collection.search(q) else return [];

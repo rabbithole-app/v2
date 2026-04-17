@@ -9,6 +9,7 @@ import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import Time "mo:core/Time";
+import Timer "mo:core/Timer";
 
 import Vector "mo:vector";
 
@@ -28,6 +29,7 @@ mixin (
     activate : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>;
     renew : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Text>;
     get : (Principal) -> ?Subscriptions.Subscription;
+    grantPaidPeriod : (Principal, Subscriptions.Plan, Time.Time) -> Result.Result<Subscriptions.PaidPeriodResult, Text>;
   },
   treasury : {
     chargeAndDistribute : (TreasuryTypes.ChargeAndDistributeArgs) -> async* TreasuryTypes.ChargeAndDistributeResult;
@@ -121,7 +123,7 @@ mixin (
   // ---- Charge for service (with ambassador distribution) ----
 
   /// Charge user for a subscription/license. Tries each token in spending priority order.
-  /// Distributes to treasury + ambassadors (80/15/5).
+  /// Distributes to treasury + ambassadors (85/15/0).
   func chargeForService(
     userId : Principal,
     usdAmountCents : Nat,
@@ -306,6 +308,10 @@ mixin (
     processed;
   };
 
+  // ---- Auto-renew in-flight lock ----
+
+  transient let renewalsInFlight = Set.empty<Principal>();
+
   // ---- Payment ID counter ----
 
   var nextPaymentId : Nat = 0;
@@ -331,46 +337,48 @@ mixin (
     #ActivationFailed : Text;
   };
 
-  /// Purchase a subscription by charging from user's deposited balance.
-  /// ICPay fallback: user deposits tokens to their derived wallet, then calls this.
-  public shared ({ caller }) func purchaseSubscription(
-    plan : Subscriptions.Plan,
-  ) : async Result.Result<(), PurchaseError> {
-    assert not Principal.isAnonymous(caller);
+  /// Charge for a license from user's deposited balance.
+  /// Returns the charged token, amount, and paymentId, or an error.
+  func chargeForLicense(userId : Principal) : async* Balance.ChargeResultWithId {
+    let paymentId = generatePaymentId("license", userId);
+    let result = await* chargeForService(userId, LICENSE_PRICE_CENTS, "license", paymentId);
+    switch (result) {
+      case (#ok(charged)) #ok({ tokenId = charged.tokenId; amount = charged.amount; paymentId });
+      case (#insufficientFunds(details)) #insufficientFunds(details);
+      case (#err(msg)) #err(msg);
+    };
+  };
 
-    // Validate plan
-    let (amountCents, expiresAt) : (Nat, ?Int) = switch (plan) {
-      case (#License) (LICENSE_PRICE_CENTS, null);
-      case (#Pro) {
-        let thirtyDays = 30 * 24 * 60 * 60 * 1_000_000_000;
-        (PRO_MONTHLY_PRICE_CENTS, ?(Time.now() + thirtyDays));
-      };
+  /// Internal: purchase a subscription for a given userId.
+  /// Repeat-purchase safe: Active Pro → extends by 30d from current expiresAt.
+  func purchaseSubscriptionInternal(
+    userId : Principal,
+    plan : Subscriptions.Plan,
+  ) : async* Result.Result<(), PurchaseError> {
+    // Validate plan — only paid plans allowed
+    let amountCents = switch (plan) {
+      case (#Pro) PRO_MONTHLY_PRICE_CENTS;
       case (#Free or #Trial) return #err(#InvalidPlan("Cannot purchase Free or Trial plans"));
     };
 
-    // Check not already active
-    switch (subscriptions.get(caller)) {
-      case (?sub) {
-        if (sub.status == #Active) return #err(#AlreadyActive);
-      };
-      case null {};
-    };
-
     // Charge from balance (with ambassador distribution)
-    let paymentId = generatePaymentId("purchase", caller);
-    let chargeResult = await* chargeForService(caller, amountCents, debug_show plan, paymentId);
+    let paymentId = generatePaymentId("purchase", userId);
+    let chargeResult = await* chargeForService(userId, amountCents, debug_show plan, paymentId);
 
     switch (chargeResult) {
       case (#ok(charged)) {
-        switch (subscriptions.activate(caller, plan, expiresAt)) {
-          case (#ok()) {
-            deps.notifyUser(caller, #subscriptionActivated({ plan }));
+        switch (subscriptions.grantPaidPeriod(userId, plan, Subscriptions.THIRTY_DAYS_NS)) {
+          case (#ok(result)) {
+            switch (result.action) {
+              case (#Created or #Reactivated) deps.notifyUser(userId, #subscriptionActivated({ plan }));
+              case (#Renewed) deps.notifyUser(userId, #subscriptionRenewed({ plan; expiresAt = ?result.expiresAt }));
+            };
             #ok();
           };
           case (#err(e)) {
-            // Charge succeeded but activation failed — refund
-            await* safeRefund(caller, charged.tokenId, charged.amount, "purchaseSubscription activation failed");
-            #err(#ActivationFailed(debug_show e));
+            // Charge succeeded but grant failed — refund
+            await* safeRefund(userId, charged.tokenId, charged.amount, "purchaseSubscription grantPaidPeriod failed");
+            #err(#ActivationFailed(e));
           };
         };
       };
@@ -383,49 +391,75 @@ mixin (
     };
   };
 
+  /// Purchase a subscription by charging from user's deposited balance.
+  /// ICPay fallback: user deposits tokens to their derived wallet, then calls this.
+  public shared ({ caller }) func purchaseSubscription(
+    plan : Subscriptions.Plan,
+  ) : async Result.Result<(), PurchaseError> {
+    assert not Principal.isAnonymous(caller);
+    await* purchaseSubscriptionInternal(caller, plan);
+  };
+
   // ---- Auto-renew ----
 
-  func processAutoRenewals() : async () {
-    let expiring = subscriptions.getExpiring(24);
+  /// Process a single user's auto-renewal. Runs in its own timer message
+  /// to stay within the per-message instruction limit (important for EVM/SOL RPC calls).
+  func processOneRenewal(userId : Principal, plan : Subscriptions.Plan, amountCents : Nat) : async () {
+    try {
+      let paymentId = generatePaymentId("auto", userId);
+      let result = await* chargeForService(userId, amountCents, "auto_renew", paymentId);
 
-    label renewals for ((userId, sub) in expiring.vals()) {
-      try {
-        let settings = deps.getUserSettings(userId);
-        if (not settings.autoRenew) continue renewals;
-
-        let (amountCents, plan) : (Nat, Subscriptions.Plan) = switch (sub.plan) {
-          case (#Pro) (990, #Pro);
-          case _ continue renewals;
-        };
-
-        let paymentId = generatePaymentId("auto", userId);
-        let result = await* chargeForService(userId, amountCents, "auto_renew", paymentId);
-
-        switch (result) {
-          case (#ok(charged)) {
-            let thirtyDays = 30 * 24 * 60 * 60 * 1_000_000_000;
-            let newExpiry = Time.now() + thirtyDays;
-            switch (subscriptions.renew(userId, plan, ?newExpiry)) {
-              case (#ok()) {
-                deps.notifyUser(userId, #subscriptionRenewed({ plan; expiresAt = ?newExpiry }));
-              };
-              case (#err(msg)) {
-                // Charge succeeded but renewal failed — refund the user
-                await* safeRefund(userId, charged.tokenId, charged.amount, "renewal failed after charge: " # msg);
-                deps.notifyUser(userId, #autoRenewFailed({ reason = "Charged but renewal failed, refund initiated: " # msg }));
+      switch (result) {
+        case (#ok(charged)) {
+          switch (subscriptions.grantPaidPeriod(userId, plan, Subscriptions.THIRTY_DAYS_NS)) {
+            case (#ok(grantResult)) {
+              switch (grantResult.action) {
+                case (#Renewed) deps.notifyUser(userId, #subscriptionRenewed({ plan; expiresAt = ?grantResult.expiresAt }));
+                case (#Created or #Reactivated) deps.notifyUser(userId, #subscriptionActivated({ plan }));
               };
             };
-          };
-          case (#insufficientFunds(details)) {
-            deps.notifyUser(userId, #balanceLow({ requiredAmount = details.required }));
-          };
-          case (#err(msg)) {
-            deps.notifyUser(userId, #autoRenewFailed({ reason = msg }));
+            case (#err(msg)) {
+              // Charge succeeded but grant failed — refund the user
+              await* safeRefund(userId, charged.tokenId, charged.amount, "renewal failed after charge: " # msg);
+              deps.notifyUser(userId, #autoRenewFailed({ reason = "Charged but renewal failed, refund initiated: " # msg }));
+            };
           };
         };
-      } catch (e) {
-        Debug.print("processAutoRenewals error for user " # Principal.toText(userId) # ": " # Error.message(e));
+        case (#insufficientFunds(details)) {
+          deps.notifyUser(userId, #balanceLow({ requiredAmount = details.required }));
+        };
+        case (#err(msg)) {
+          deps.notifyUser(userId, #autoRenewFailed({ reason = msg }));
+        };
       };
+    } catch (e) {
+      Debug.print("processOneRenewal error for user " # Principal.toText(userId) # ": " # Error.message(e));
+    };
+  };
+
+  /// Schedule per-user renewal timers + handle grace period downgrades.
+  /// Each renewal runs in a separate message to avoid exceeding instruction limits
+  /// when routing through EVM RPC or Solana RPC.
+  func processAutoRenewals<system>() {
+    let expiring = subscriptions.getExpiring(24);
+
+    for ((userId, sub) in expiring.vals()) {
+      if (Set.contains(renewalsInFlight, Principal.compare, userId)) continue;
+
+      let settings = deps.getUserSettings(userId);
+      if (not settings.autoRenew) continue;
+
+      let (amountCents, plan) : (Nat, Subscriptions.Plan) = switch (sub.plan) {
+        case (#Pro) (990, #Pro);
+        case _ continue;
+      };
+
+      Set.add(renewalsInFlight, Principal.compare, userId);
+
+      ignore Timer.setTimer<system>(#seconds 0, func() : async () {
+        await processOneRenewal(userId, plan, amountCents);
+        ignore Set.delete(renewalsInFlight, Principal.compare, userId);
+      });
     };
 
     // Grace period: downgrade subscriptions expired > 3 days
@@ -446,7 +480,7 @@ mixin (
 
   public shared ({ caller }) func triggerAutoRenewals() : async () {
     admin.assertAdmin(caller);
-    await processAutoRenewals();
+    processAutoRenewals<system>();
   };
 
   // ---- Top-up from balance ----
@@ -530,7 +564,7 @@ mixin (
     let eligible = switch (subscriptions.get(storageOwner)) {
       case (?sub) {
         switch (sub.plan) {
-          case (#Pro or #License) true;
+          case (#Pro or #Trial) true;
           case _ false;
         };
       };

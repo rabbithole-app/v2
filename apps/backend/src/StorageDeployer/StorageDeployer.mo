@@ -24,13 +24,13 @@ module {
   let CANISTER_CREATION_COST : Nat = 500_000_000_000;
 
   public type CreateCanisterError = {
-    #InsufficientAllowance : { required : Nat; available : Nat };
-    #TransferFailed : LedgerTypes.TransferFromError;
+    #InsufficientBalance : { required : Nat; available : Nat };
+    #TransferFailed : LedgerTypes.Icrc1TransferError;
     #NotifyFailed : CMCTypes.NotifyError;
   };
 
-  /// Transfer ICP to CMC and create a new canister.
-  /// All inter-canister calls are inlined to avoid nested self-calls.
+  /// Transfer ICP from user's derived subaccount to CMC and create a new canister.
+  /// The backend canister owns the subaccount, so it uses icrc1_transfer (not transferFrom).
   public func transferAndCreateCanister(
     deployerCanisterId : Principal,
     caller : Principal,
@@ -50,33 +50,29 @@ module {
     let requiredIcpE8s = numerator / denominator;
     let totalRequired = requiredIcpE8s + FEE;
 
-    // --- Step 2: Check allowance ---
-    let spenderAccount : LedgerTypes.Account = {
+    // --- Step 2: Check balance on user's subaccount ---
+    let userSubaccount = Account.principalToSubaccount(caller);
+    let balance = await ledger.icrc1_balance_of({
       owner = deployerCanisterId;
-      subaccount = ?Account.principalToSubaccount(caller);
-    };
-    let allowanceResponse = await ledger.icrc2_allowance({
-      account = { owner = caller; subaccount = null };
-      spender = spenderAccount;
+      subaccount = ?userSubaccount;
     });
-    if (allowanceResponse.allowance < totalRequired) {
-      return #err(#InsufficientAllowance({
+    if (balance < totalRequired) {
+      return #err(#InsufficientBalance({
         required = totalRequired;
-        available = allowanceResponse.allowance;
+        available = balance;
       }));
     };
 
-    // --- Step 3: Transfer ICP to CMC ---
+    // --- Step 3: Transfer ICP from user subaccount to CMC ---
     let memoBlob = ByteUtils.LE.fromNat64(MEMO_CREATE_CANISTER) |> Blob.fromArray(_);
     let cmcSubaccount = Account.principalToSubaccount(deployerCanisterId);
-    let transferResult = await ledger.icrc2_transfer_from({
+    let transferResult = await ledger.icrc1_transfer({
       to = {
         owner = Principal.fromText(CYCLE_MINTING_CANISTER_ID);
         subaccount = ?cmcSubaccount;
       };
       fee = ?FEE;
-      spender_subaccount = ?Account.principalToSubaccount(caller);
-      from = { owner = caller; subaccount = null };
+      from_subaccount = ?userSubaccount;
       memo = ?memoBlob;
       created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
       amount = requiredIcpE8s;

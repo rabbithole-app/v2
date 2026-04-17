@@ -6,6 +6,8 @@ import Order "mo:core/Order";
 import Principal "mo:core/Principal";
 
 import Map "mo:map/Map";
+import JSON "mo:json";
+import Sha256 "mo:sha2/Sha256";
 
 import T "Types";
 
@@ -49,5 +51,21 @@ module {
 
   public func divCeiling(a : Nat, b : Nat) : Nat {
     (a + (b - 1)) / b;
+  };
+
+  /// Build a deterministic JSON body and its SHA-256 hash for blob-info certification.
+  /// Returns (body : Blob, bodyHash : Blob).
+  public func blobInfoJson(blobHash : Text, contentType : Text, size : Nat) : (Blob, Blob) {
+    let json = JSON.stringify(
+      JSON.obj([
+        ("blobHash", JSON.str(blobHash)),
+        ("contentType", JSON.str(contentType)),
+        ("size", JSON.int(size)),
+      ]),
+      null,
+    );
+    let body = Text.encodeUtf8(json);
+    let hash = Sha256.fromBlob(#sha256, body);
+    (body, hash);
   };
 };

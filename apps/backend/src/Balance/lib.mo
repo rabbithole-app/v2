@@ -20,6 +20,12 @@ module {
     #err : Text;
   };
 
+  public type ChargeResultWithId = {
+    #ok : { tokenId : TreasuryTypes.TokenId; amount : Nat; paymentId : Text };
+    #insufficientFunds : { required : Nat };
+    #err : Text;
+  };
+
   /// XRC rate pair: (rate, decimals). Rate is scaled by 10^decimals.
   public type XrcRate = (Nat64, Nat32);
 

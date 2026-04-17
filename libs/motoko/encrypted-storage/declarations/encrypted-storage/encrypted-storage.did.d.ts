@@ -140,9 +140,8 @@ export interface SetThumbnailArguments {
   'entry' : Entry,
 }
 export interface SharingInfo { 'sharedWith' : bigint }
-export type StorageBackend = { 'External' : null } |
-  { 'BlobStorage' : null } |
-  { 'Inline' : null };
+export type StorageBackend = { 'OnChain' : null } |
+  { 'BlobStorage' : null };
 export type Time = bigint;
 export type TransportKey = Uint8Array | number[];
 export interface TreeNode {

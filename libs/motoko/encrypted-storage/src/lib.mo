@@ -192,6 +192,38 @@ module EncryptedFileStorage {
     .hash(hash).status(200);
   };
 
+  func blobInfoEndpoint(keyId : T.KeyId, bodyHash : Blob) : CertifiedAssets.Endpoint {
+    let ?tid = Text.decodeUtf8(keyId.1) else Runtime.unreachable();
+    let key = "/" # Text.join(Iter.fromArray(["blob-info", Principal.toText(keyId.0), tid]), "/");
+    CertifiedAssets.Endpoint(key, null)
+    .no_request_certification()
+    .response_header("content-type", "application/json")
+    .hash(bodyHash)
+    .status(200);
+  };
+
+  func decertifyBlobInfo(self : T.StableStore, keyId : T.KeyId, version : T.FileVersion) {
+    switch (version.chunks[0]) {
+      case (#BlobStorage { blobId; size }) {
+        let ?hash = Text.decodeUtf8(blobId) else return;
+        let (_, jsonHash) = Utils.blobInfoJson(hash, version.contentType, size);
+        CertifiedAssets.remove(self.certs, blobInfoEndpoint(keyId, jsonHash));
+      };
+      case _ {};
+    };
+  };
+
+  func certifyBlobInfo(self : T.StableStore, keyId : T.KeyId, version : T.FileVersion) {
+    switch (version.chunks[0]) {
+      case (#BlobStorage { blobId; size }) {
+        let ?hash = Text.decodeUtf8(blobId) else return;
+        let (_, jsonHash) = Utils.blobInfoJson(hash, version.contentType, size);
+        CertifiedAssets.certify(self.certs, blobInfoEndpoint(keyId, jsonHash));
+      };
+      case _ {};
+    };
+  };
+
   /// Sets the streaming callback for the assets library.
   public func setStreamingCallback(self : T.StableStore, callback : T.StreamingCallback) {
     self.streamingCallback := ?callback;
@@ -334,7 +366,42 @@ module EncryptedFileStorage {
       case (#ok _) {};
       case (#err message) return #err message;
     };
-    FileSystem.restoreVersion(self.fs, args.entry, args.version);
+
+    // Get node (for keyId) and current version BEFORE mutation
+    let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+    let #File(file) = node.metadata else return #err("Expected file, got directory");
+
+    // Decertify old current version
+    switch (File.getCurrentVersion(file)) {
+      case (?prevVer) {
+        decertifyBlobInfo(self, node.keyId, prevVer);
+        switch (prevVer.sha256) {
+          case (?sha) CertifiedAssets.remove(self.certs, endpoint(node.keyId, sha));
+          case null {};
+        };
+      };
+      case null {};
+    };
+
+    // Switch version
+    switch (FileSystem.restoreVersion(self.fs, args.entry, args.version)) {
+      case (#err msg) return #err msg;
+      case (#ok) {};
+    };
+
+    // Certify new current version
+    switch (File.getCurrentVersion(file)) {
+      case (?newVer) {
+        certifyBlobInfo(self, node.keyId, newVer);
+        switch (newVer.sha256) {
+          case (?sha) CertifiedAssets.certify(self.certs, endpoint(node.keyId, sha));
+          case null {};
+        };
+      };
+      case null {};
+    };
+
+    #ok;
   };
 
   /// Updates data for a file or directory.
@@ -414,6 +481,12 @@ module EncryptedFileStorage {
           chunkPointers,
           func(address : Nat, size : Nat) : Blob = MemoryRegion.loadBlob(self.upload.region, address, size),
         );
+
+        // Decertify stale blob-info from previous version (if BlobStorage)
+        switch (File.getCurrentVersion(file)) {
+          case (?prevVer) decertifyBlobInfo(self, keyId, prevVer);
+          case null {};
+        };
 
         File.addVersion(self.fs, file, chunks.vals(), totalLength, hash, contentType);
         CertifiedAssets.certify(self.certs, endpoint(keyId, hash));
@@ -511,8 +584,26 @@ module EncryptedFileStorage {
     };
 
     switch (FileSystem.delete(self.fs, args)) {
-      case (#ok(?{ metadata = #File(file) })) {
-        File.deallocateAll(self.fs, file);
+      case (#ok(?node)) {
+        switch (node.metadata) {
+          case (#File(file)) {
+            // Decertify endpoints before deallocation
+            switch (File.getCurrentVersion(file)) {
+              case (?version) {
+                // Decertify /encrypted/ endpoint
+                switch (version.sha256) {
+                  case (?sha) CertifiedAssets.remove(self.certs, endpoint(node.keyId, sha));
+                  case null {};
+                };
+                // Decertify /blob-info/ endpoint
+                decertifyBlobInfo(self, node.keyId, version);
+              };
+              case null {};
+            };
+            File.deallocateAll(self.fs, file);
+          };
+          case _ {};
+        };
       };
       case (#err(message)) return #err message;
       case _ {};
@@ -533,8 +624,18 @@ module EncryptedFileStorage {
     let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
     let #File(file) = node.metadata else return #err("Expected file, got directory");
 
+    // Decertify stale blob-info from previous version (if BlobStorage)
+    switch (File.getCurrentVersion(file)) {
+      case (?prevVer) decertifyBlobInfo(self, node.keyId, prevVer);
+      case null {};
+    };
+
     File.addVersionBlobStorage(self.fs, file, Text.encodeUtf8(args.rootHash), args.size, args.sha256, args.contentType);
     CertifiedAssets.certify(self.certs, endpoint(node.keyId, args.sha256));
+
+    // Certify blob-info for new BlobStorage version
+    let (_, blobInfoHash) = Utils.blobInfoJson(args.rootHash, args.contentType, args.size);
+    CertifiedAssets.certify(self.certs, blobInfoEndpoint(node.keyId, blobInfoHash));
 
     if (file.encryptionMode == #Encrypted) {
       self.encryptedBytesUsed += args.size;
@@ -551,31 +652,6 @@ module EncryptedFileStorage {
     #ok;
   };
 
-  /// Returns download info for a Caffeine-stored file.
-  /// Frontend uses blobHash to construct the gateway download URL.
-  public func getBlobDownloadInfo(self : T.StableStore, caller : Principal, args : T.GetChunkArguments) : Result.Result<T.BlobDownloadInfo, Text> {
-    switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
-      case (#ok _) {};
-      case (#err message) return #err message;
-    };
-
-    let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
-    let #File(file) = node.metadata else return #err("Expected file, got directory");
-
-    let ?version = File.getCurrentVersion(file) else return #err("No version available");
-
-    switch (version.chunks[0]) {
-      case (#BlobStorage { blobId; size }) {
-        let ?hash = Text.decodeUtf8(blobId) else return #err("Invalid blob hash encoding");
-        #ok({
-          blobHash = hash;
-          size;
-          contentType = version.contentType;
-        });
-      };
-      case _ #err("File is not stored on Caffeine Blob Storage");
-    };
-  };
 
   /// Creates a batch for subsequent linking of chunks of the file
   ///

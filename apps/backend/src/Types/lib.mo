@@ -1,4 +1,8 @@
+import TreasuryConfigTypes "mo:treasury/ConfigTypes";
+
 module {
+  public type ThresholdKeyName = TreasuryConfigTypes.ThresholdKeyName;
+
   public type GithubOptions = {
     apiUrl : Text;
     owner : Text;
@@ -6,30 +10,17 @@ module {
     token : ?Text;
   };
 
-  public type EvmConfig = {
-    chainId : Nat;
-    ecdsaKeyName : Text;
-    evmRpcCanisterId : Text;
-    usdcContract : Text;
-    usdtContract : Text;
-    rpcUrls : [Text];
-  };
-
-  public type SolConfig = {
-    schnorrKeyName : Text;
-    solRpcCanisterId : Text;
-    usdcMint : Text;
-    usdtMint : Text;
-    rpcUrl : ?Text;
-  };
+  public type AssetLocator = TreasuryConfigTypes.AssetLocator;
+  public type SupportedAsset = TreasuryConfigTypes.SupportedAsset;
+  public type EvmChainConfig = TreasuryConfigTypes.EvmChainConfig;
+  public type SolanaChainConfig = TreasuryConfigTypes.SolanaChainConfig;
+  public type ChainConfig = TreasuryConfigTypes.ChainConfig;
 
   public type InitArgs = {
     github : ?GithubOptions;
     icpaySecretKey : ?Blob;
-    evmConfig : ?EvmConfig;
-    solConfig : ?SolConfig;
-    /// VetKey name for storage canisters: "key_1" (prod) / "dfx_test_key" (dev)
-    vetKeyName : Text;
+    thresholdKeyName : ThresholdKeyName;
+    chains : [ChainConfig];
     /// Caffeine cashier canister ID for blob storage protocol
     cashierCanisterId : Principal;
   };

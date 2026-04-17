@@ -115,11 +115,57 @@ module {
     };
   };
 
+  public func buildBlobInfoResponse(
+    self : T.StableStore,
+    path : Text,
+    keyId : T.KeyId,
+    httpReq : T.HttpRequest,
+  ) : Result.Result<T.HttpResponse, Text> {
+    let file = switch (FileSystem.get(self.fs, #keyId(keyId))) {
+      case (?{ metadata = #File(file) }) file;
+      case _ return #err("File not found");
+    };
+
+    let ?version = File.getCurrentVersion(file) else return #err("No version");
+    let (#BlobStorage { blobId; size }) = version.chunks[0] else return #err("Not a BlobStorage file");
+    let ?blobHash = Text.decodeUtf8(blobId) else return #err("Invalid blob hash");
+
+    let (body, bodyHash) = Utils.blobInfoJson(blobHash, version.contentType, size);
+
+    let headersVector = Vector.fromArray<(Text, Text)>([("content-type", "application/json")]);
+
+    let httpRes = {
+      status_code : Nat16 = 200;
+      headers = Vector.toArray(headersVector);
+      body;
+      upgrade = null;
+      streaming_strategy = null;
+    };
+
+    switch (CertifiedAssets.get_certificate(self.certs, httpReq, httpRes, ?bodyHash)) {
+      case (#ok(certHeaders)) {
+        for ((key, value) in certHeaders.vals()) {
+          Vector.add(headersVector, (key, value));
+        };
+        #ok({ httpRes with headers = Vector.toArray(headersVector) });
+      };
+      case (#err msg) #err("Certificate error: " # msg);
+    };
+  };
+
   public func buildHttpResponse(self : T.StableStore, _req : T.HttpRequest, url : HttpParser.URL) : Result.Result<T.HttpResponse, Text> {
     let path = url.path.original;
     var req = _req;
 
     let list = Path.fromText(path) |> List.fromArray(_.segments);
+    switch (List.size(list), List.get(list, 0), List.get(list, 1), List.get(list, 2)) {
+      case (3, ?"blob-info", ?keyOwner, ?keyName) {
+        let keyId : T.KeyId = (Principal.fromText(keyOwner), Text.encodeUtf8(keyName));
+        return buildBlobInfoResponse(self, path, keyId, req);
+      };
+      case _ {};
+    };
+
     let keyId : T.KeyId = switch (List.size(list), List.get(list, 0), List.get(list, 1), List.get(list, 2)) {
       case (3, ?"encrypted", ?keyOwner, ?keyName) (Principal.fromText(keyOwner), Text.encodeUtf8(keyName));
       case _ return #err("Failed to parse path '" # path # "' into keyId");
@@ -146,8 +192,6 @@ module {
     };
 
     buildOkResponse(self, path, keyId, file, 0, etagValues, req);
-
-    // #err("No encoding found for " # debug_show url.path.original);
   };
 
   public func httpRequestStreamingCallback(self : T.StableStore, rawToken : T.StreamingToken) : Result.Result<T.StreamingCallbackResponse, Text> {

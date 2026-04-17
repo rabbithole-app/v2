@@ -1,6 +1,7 @@
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
+import Time "mo:core/Time";
 import Subscriptions "lib";
 import ZenDB "mo:zendb";
 
@@ -12,9 +13,10 @@ mixin(
     isKnownWasm : (Blob) -> Bool;
     hasUsedTrial : (Principal) -> Bool;
     markTrialUsed : (Principal) -> ();
+    userExists : (Principal) -> Bool;
   },
 ) {
-  transient let subscriptions = Subscriptions.Subscriptions(db, deps.hasUsedTrial, deps.markTrialUsed);
+  transient let subscriptions = Subscriptions.Subscriptions(db, deps.hasUsedTrial, deps.markTrialUsed, deps.userExists);
 
   /// Expire overdue subscriptions. Available to other mixins in the actor.
   func expireOverdueSubscriptions() : [Principal] {
@@ -67,6 +69,11 @@ mixin(
     subscriptions.renewSubscription(userId, plan, expiresAt);
   };
 
+  /// Apply a paid period (e.g. 30 days Pro). Extends from current expiresAt if Active Pro, otherwise from now.
+  func grantPaidPeriodInternal(userId : Principal, plan : Subscriptions.Plan, durationNs : Time.Time) : Result.Result<Subscriptions.PaidPeriodResult, Text> {
+    subscriptions.grantPaidPeriod(userId, plan, durationNs);
+  };
+
   /// Internal: get subscription for a user. Available to sibling mixins.
   func getSubscriptionInternal(userId : Principal) : ?Subscriptions.Subscription {
     subscriptions.getSubscription(userId);
@@ -105,5 +112,37 @@ mixin(
   public shared ({ caller }) func reportTrialBytes(bytes : Nat) : async () {
     let ?reportOwner = deps.findOwnerByCanister(caller) else return;
     subscriptions.recordTrialBytes(reportOwner, bytes);
+  };
+
+  // --- Admin endpoints (for testing + manual admin ops) ---
+
+  /// Admin: trigger expiration of overdue subscriptions
+  public shared ({ caller }) func triggerExpireOverdue() : async [Principal] {
+    admin.assertAdmin(caller);
+    subscriptions.expireOverdue();
+  };
+
+  /// Admin: renew an Active/Expired subscription with new plan/expiry.
+  /// Users renew through purchaseSubscription (which charges balance first).
+  public shared ({ caller }) func renewSubscription(
+    userId : Principal,
+    plan : Subscriptions.Plan,
+    expiresAt : ?Int,
+  ) : async () {
+    admin.assertAdmin(caller);
+    let #err(e) = subscriptions.renewSubscription(userId, plan, expiresAt) else return;
+    throw Error.reject(e);
+  };
+
+  /// Admin: query subscriptions expiring within N hours
+  public query ({ caller }) func queryExpiringSubscriptions(hoursAhead : Nat) : async [(Principal, Subscriptions.Subscription)] {
+    admin.assertAdmin(caller);
+    subscriptions.getExpiring(hoursAhead);
+  };
+
+  /// Admin: query subscriptions with Expired status
+  public query ({ caller }) func queryExpiredSubscriptions() : async [(Principal, Subscriptions.Subscription)] {
+    admin.assertAdmin(caller);
+    subscriptions.getExpired();
   };
 };

@@ -19,9 +19,8 @@ export const idlFactory = ({ IDL }) => {
   });
   const Time = IDL.Int;
   const StorageBackend = IDL.Variant({
-    'External' : IDL.Null,
+    'OnChain' : IDL.Null,
     'BlobStorage' : IDL.Null,
-    'Inline' : IDL.Null,
   });
   const FileMetadata = IDL.Record({
     'storageBackend' : StorageBackend,

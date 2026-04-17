@@ -128,9 +128,6 @@ module {
     public func commitCaffeineUpload(caller : Principal, args : T.CommitCaffeineUploadArgs) : Result.Result<(), Text> =
       Lib.commitCaffeineUpload(store, caller, args);
 
-    public func getBlobDownloadInfo(caller : Principal, args : T.GetChunkArguments) : Result.Result<T.BlobDownloadInfo, Text> =
-      Lib.getBlobDownloadInfo(store, caller, args);
-
     public func getStorageBackendType() : T.StorageBackend =
       store.storageBackendType;
   };

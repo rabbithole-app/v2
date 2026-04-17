@@ -221,11 +221,6 @@ module {
     size : Nat;
   };
 
-  public type BlobDownloadInfo = {
-    blobHash : Text;
-    size : Nat;
-    contentType : Text;
-  };
 
   public type Entry = ({ #File; #Directory }, Text);
 

@@ -29,17 +29,22 @@ import HttpAssetsMixin "HttpAssetsMixin";
 shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
     owner : Principal;
     storageBackendType : ?T.StorageBackend;
+    vetKeyName : ?Text;
+    backendId : ?Principal;
   }) = this {
   let owner = initArgs.owner;
 
-  // Read from environment variables (set by StorageDeployer before WASM install)
+  // Env var (set by StorageDeployer) takes priority, initArgs as fallback (for tests)
   let vetKeyName = switch (Prim.envVar<system>("VETKEY_NAME")) {
     case (?name) name;
-    case null "dfx_test_key"; // fallback for local dev
+    case null switch (initArgs.vetKeyName) {
+      case (?name) name;
+      case null "dfx_test_key";
+    };
   };
   let backendId : ?Principal = switch (Prim.envVar<system>("RABBITHOLE_BACKEND_ID")) {
     case (?id) ?Principal.fromText(id);
-    case null null;
+    case null initArgs.backendId;
   };
 
   let keyId : ManagementCanister.VetKdKeyid = {
@@ -356,13 +361,6 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   public shared ({ caller }) func commitCaffeineUpload(args : T.CommitCaffeineUploadArgs) : async () {
     switch (es.commitCaffeineUpload(caller, args)) {
       case (#ok _) { reportLowCyclesIfNeeded<system>() };
-      case (#err(message)) throw Error.reject(message);
-    };
-  };
-
-  public query ({ caller }) func getBlobDownloadInfo(args : T.GetChunkArguments) : async T.BlobDownloadInfo {
-    switch (es.getBlobDownloadInfo(caller, args)) {
-      case (#ok info) info;
       case (#err(message)) throw Error.reject(message);
     };
   };
