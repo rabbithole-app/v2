@@ -1,0 +1,11 @@
+--- a/.mops/evm-txs@0.1.3/src/utils/ArrayUtils.mo
++++ b/.mops/evm-txs@0.1.3/src/utils/ArrayUtils.mo
+@@ -73,6 +73,7 @@
+         label L while(offset < arr.size()) {
+             if(not strip(arr[offset])) {
+                 break L;
+             };
++            offset += 1;
+         };
+         
+         let elms = Nat.sub(arr.size(), offset);
