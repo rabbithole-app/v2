@@ -53,6 +53,15 @@ export default createConfig(
       },
       resolve: {
         extensions: ['.wasm', '...'],
+        alias: {
+          // ICPay SDK depends on @dfinity/* but project uses @icp-sdk/core
+          '@dfinity/identity': '@icp-sdk/core/identity',
+          '@dfinity/auth-client': '@icp-sdk/auth/client',
+        },
+        fallback: {
+          // ICPay x402 module conditionally requires Node crypto — not needed in browser
+          crypto: false,
+        },
       },
       module: {
         parser: {
@@ -105,13 +114,27 @@ export default createConfig(
     },
   },
   {
+    staging: {
+      options: {
+        outputHashing: 'all',
+        sourceMap: true,
+        devServer: {},
+        fileReplacements: [
+          {
+            replace: './src/environments/environment.ts',
+            with: './src/environments/environment.staging.ts',
+          },
+        ],
+      },
+    },
+
     production: {
       options: {
         budgets: [
           {
             type: 'initial',
             maximumWarning: '500kb',
-            maximumError: '2mb',
+            maximumError: '2.5mb',
           },
           {
             type: 'anyComponentStyle',

@@ -4,5 +4,6 @@
 export * from './lib/allowances';
 export * from './lib/canisters';
 export * from './lib/file-list';
+export * from './lib/payment';
 export * from './lib/releases';
 export * from './lib/storages';

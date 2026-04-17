@@ -1,0 +1,86 @@
+<rbth-drawer side="right" [hasBackdrop]="true">
+  <rbth-drawer-content *brnSheetContent="let ctx">
+    <rbth-drawer-header>
+      <h2 rbthDrawerTitle>{{ title() }}</h2>
+    </rbth-drawer-header>
+
+    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+      @switch (step()) {
+        <!-- Step: Select payment method -->
+        @case ('select') {
+          <div class="space-y-1">
+            <p class="text-lg font-semibold">Pro Plan — {{ proPriceLabel }}/month</p>
+            <p class="text-sm text-muted-foreground">
+              Covers all your storages. Cancel anytime.
+            </p>
+          </div>
+
+          <!-- Method 1: ICPay -->
+          <rbth-frame>
+            <header rbthFrameHeader>
+              <div rbthFrameTitle>Pay with crypto</div>
+              <div rbthFrameDescription>Use any wallet via ICPay widget.</div>
+            </header>
+            <div rbthFramePanel>
+              <icpay-pay-button #icpayPayBtn></icpay-pay-button>
+            </div>
+          </rbth-frame>
+
+          <!-- Method 2: From balance -->
+          <core-wallet-balance-payment-panel
+            [requiredUsd]="PRO_MONTHLY_PRICE_USD"
+            [payButtonLabel]="payFromBalanceLabel()"
+            (payRequested)="purchaseFromBalance()"
+          />
+
+          <!-- Trust footer -->
+          <p class="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+            <ng-icon name="lucideLock" hlmIcon size="xs" />
+            Processed on-chain. Data stays on IC.
+          </p>
+        }
+
+        <!-- Step: Confirming purchase -->
+        @case ('confirming') {
+          <div class="flex flex-col items-center gap-4 py-8">
+            <hlm-spinner size="lg" />
+            <p class="text-lg font-medium">Processing subscription...</p>
+          </div>
+        }
+
+        <!-- Step: Success -->
+        @case ('success') {
+          <div class="flex flex-col items-center gap-4 py-8">
+            <div class="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-3xl">
+              ✓
+            </div>
+            <p class="text-lg font-medium">You're now on Pro!</p>
+            <p class="text-sm text-muted-foreground text-center">
+              All your storages are covered.
+              Encryption and sharing are now unlimited.
+            </p>
+            <button hlmBtn class="w-full" (click)="goToDashboard()">
+              Go to Dashboard
+            </button>
+          </div>
+        }
+
+        <!-- Step: Error -->
+        @case ('error') {
+          <div class="flex flex-col items-center gap-4 py-8">
+            <div class="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-3xl">
+              ✕
+            </div>
+            <p class="text-lg font-medium">Something went wrong</p>
+            @if (errorMessage(); as msg) {
+              <p class="text-sm text-muted-foreground text-center">{{ msg }}</p>
+            }
+            <button hlmBtn variant="outline" class="w-full" (click)="retry()">
+              Try Again
+            </button>
+          </div>
+        }
+      }
+    </div>
+  </rbth-drawer-content>
+</rbth-drawer>

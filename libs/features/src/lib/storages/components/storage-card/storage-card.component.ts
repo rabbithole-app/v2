@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
@@ -46,7 +47,6 @@ import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import { type CreateStorageDialogContext } from '../create-storage-dialog/create-storage-dialog.component';
 import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade-storage-dialog.component';
 
 @Component({
@@ -135,6 +135,7 @@ export class StorageCardComponent {
     return 'Frontend';
   });
   readonly #dialogService = inject(HlmDialogService);
+  readonly retryRequested = output();
   readonly #router = inject(Router);
 
   readonly #storagesService = inject(StoragesService);
@@ -151,21 +152,9 @@ export class StorageCardComponent {
   }
 
   async retryFailedStorage(): Promise<void> {
-    const canisterId = this.canisterIdText();
-    if (!canisterId) return;
-
     try {
-      // Delete the failed record first
       await this.#storagesService.deleteStorage(this.storage().id);
-
-      // Open create dialog pre-configured for existing canister
-      const { CreateStorageDialogComponent } = await import(
-        '../create-storage-dialog/create-storage-dialog.component'
-      );
-      this.#dialogService.open(CreateStorageDialogComponent, {
-        contentClass: 'min-w-[500px] sm:max-w-[600px]',
-        context: { retryCanisterId: canisterId } satisfies CreateStorageDialogContext,
-      });
+      this.retryRequested.emit();
     } catch {
       // deleteStorage already shows toast on error
     }
@@ -220,7 +209,7 @@ export class StorageCardComponent {
 function getUserFriendlyLabel(status: StorageCreationStatus): string {
   switch (status.type) {
     case 'CanisterCreated':
-    case 'CheckingAllowance':
+    case 'CheckingBalance':
     case 'NotifyingCMC':
     case 'Pending':
     case 'TransferringICP':

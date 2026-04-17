@@ -31,13 +31,13 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 })
 export class LandingNavbarComponent {
   readonly #authService = inject(AUTH_SERVICE);
-  readonly #router = inject(Router);
-  readonly ctaText = computed(() =>
-    this.#authService.isAuthenticated() ? 'My Files' : 'Open App',
-  );
   readonly ctaLink = computed(() =>
     this.#authService.isAuthenticated() ? '/dashboard' : '/login',
   );
+  readonly ctaText = computed(() =>
+    this.#authService.isAuthenticated() ? 'My Files' : 'Open App',
+  );
+  readonly #router = inject(Router);
   readonly #currentUrl = toSignal(
     this.#router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),

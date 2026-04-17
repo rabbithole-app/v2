@@ -231,19 +231,15 @@
 
                   @if (wasmMemoryPersistenceEnabled()) {
                     <div class="ml-6">
-                      <brn-select
+                      <hlm-select
                         [value]="wasmMemoryPersistence()"
                         (valueChange)="onWasmMemoryPersistenceChange($event)"
                       >
                         <hlm-select-trigger class="w-48">
-                          <hlm-select-value>
-                            <ng-template hlmSelectValue let-selected>
-                              {{ selected === 'keep' ? 'Keep' : 'Replace' }}
-                            </ng-template>
-                          </hlm-select-value>
+                          <hlm-select-value />
                         </hlm-select-trigger>
                         <hlm-select-content class="w-64">
-                          <hlm-option
+                          <hlm-select-item
                             value="keep"
                             class="flex flex-col items-start gap-0 py-2"
                           >
@@ -251,8 +247,8 @@
                             <span class="text-muted-foreground text-xs"
                               >Preserve existing WASM memory</span
                             >
-                          </hlm-option>
-                          <hlm-option
+                          </hlm-select-item>
+                          <hlm-select-item
                             value="replace"
                             class="flex flex-col items-start gap-0 py-2"
                           >
@@ -260,9 +256,9 @@
                             <span class="text-muted-foreground text-xs"
                               >Replace WASM memory with new module</span
                             >
-                          </hlm-option>
+                          </hlm-select-item>
                         </hlm-select-content>
-                      </brn-select>
+                      </hlm-select>
                     </div>
                   }
                 </div>

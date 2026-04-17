@@ -2,16 +2,16 @@ import { toNullable } from '@dfinity/utils';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 
-import { type StorageBackend, initEncryptedStorage } from '@rabbithole/declarations';
+import { initEncryptedStorage, type StorageBackend } from '@rabbithole/declarations';
 
 import type { ExtractVariantKeys } from '../types';
-
-export type StorageBackendType = ExtractVariantKeys<StorageBackend>;
 
 export type EncryptedStorageInitArgs = {
   owner: Principal;
   storageBackendType?: StorageBackendType;
 }
+
+export type StorageBackendType = ExtractVariantKeys<StorageBackend>;
 
 /**
  * Encode EncryptedStorageInitArgs to Candid binary format.

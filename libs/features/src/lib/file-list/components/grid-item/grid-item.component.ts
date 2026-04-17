@@ -79,19 +79,30 @@ export type DownloadProgressState = {
   styles: [
     `
       :host.cdk-drop-list-dragging {
-        @apply border-2 border-dashed border-sky-500 bg-sky-50/50 dark:bg-sky-950/20;
+        border-width: 2px;
+        border-style: dashed;
+        border-color: rgb(14 165 233);
+        background-color: rgb(14 165 233 / 0.08);
+      }
+      :host-context(.dark).cdk-drop-list-dragging {
+        background-color: rgb(8 47 73 / 0.2);
       }
       :host.cdk-drag-preview {
-        @apply box-border rounded shadow-[0_5px_5px_-3px_rgba(0,0,0,0.2),0_8px_10px_1px_rgba(0,0,0,0.14),0_3px_14px_2px_rgba(0,0,0,0.12)];
+        box-sizing: border-box;
+        border-radius: 0.25rem;
+        box-shadow:
+          0 5px 5px -3px rgba(0, 0, 0, 0.2),
+          0 8px 10px 1px rgba(0, 0, 0, 0.14),
+          0 3px 14px 2px rgba(0, 0, 0, 0.12);
       }
       :host.cdk-drag-animating {
-        @apply transition-transform duration-[250ms] ease-[cubic-bezier(0,0,0.2,1)];
+        transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
       }
       :host.cdk-drag-placeholder {
-        @apply opacity-0;
+        opacity: 0;
       }
       :host.cdk-drag-dragging {
-        @apply z-1;
+        z-index: 1;
       }
     `,
   ],

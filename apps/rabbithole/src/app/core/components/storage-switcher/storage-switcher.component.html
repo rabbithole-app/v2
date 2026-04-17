@@ -47,7 +47,7 @@
               </hlm-dropdown-menu-group>
               <hlm-dropdown-menu-separator />
               <hlm-dropdown-menu-group>
-                <button hlmDropdownMenuItem (click)="openCreateStorageDialog()">
+                <button hlmDropdownMenuItem (click)="openCreateStorage()">
                   <ng-icon hlm name="lucidePlus" hlmMenuIcon size="sm" />
                   <span>New Storage</span>
                 </button>
@@ -57,7 +57,7 @@
         </li>
       } @else {
         <li hlmSidebarMenuItem [class]="menuItemClass">
-          <button hlmSidebarMenuButton (click)="openCreateStorageDialog()">
+          <button hlmSidebarMenuButton (click)="openCreateStorage()">
             <ng-icon hlmIcon name="lucidePlus" size="sm" hlmMenuIcon />
             <span class="group-data-[collapsible=icon]:hidden">Create Storage</span>
           </button>

@@ -14,7 +14,10 @@ import {
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { AccountMenuComponent } from '../../account/account-menu/account-menu.component';
+import { NotificationBellComponent } from '../../ui/notification-bell/notification-bell.component';
 import { SidebarHeaderComponent } from '../sidebar-header/sidebar-header.component';
+import { ExpiredBannerComponent } from './expired-banner.component';
+import { SidebarSubscriptionFooterComponent } from './sidebar-subscription-footer.component';
 
 @Component({
   selector: 'core-sidebar-layout',
@@ -28,6 +31,9 @@ import { SidebarHeaderComponent } from '../sidebar-header/sidebar-header.compone
     NgIcon,
     HlmIcon,
     RbthSidebarMenuButton,
+    SidebarSubscriptionFooterComponent,
+    ExpiredBannerComponent,
+    NotificationBellComponent,
   ],
   providers: [provideIcons({ lucideBookOpen, lucideGithub })],
   templateUrl: './sidebar.component.html',

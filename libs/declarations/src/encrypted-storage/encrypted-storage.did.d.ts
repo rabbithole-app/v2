@@ -22,11 +22,6 @@ export type BatchOperationKind = {
   { 'DeleteAsset' : DeleteAssetArguments } |
   { 'SetAssetContent' : SetAssetContentArguments } |
   { 'Clear' : ClearArguments };
-export interface BlobDownloadInfo {
-  'contentType' : string,
-  'size' : bigint,
-  'blobHash' : string,
-}
 export interface CallbackStreamingStrategy {
   'token' : StreamingToken,
   'callback' : [Principal, string],
@@ -176,7 +171,6 @@ export interface EncryptedStorageCanister {
   'delete_batch' : ActorMethod<[DeleteBatchArguments], undefined>,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'get' : ActorMethod<[GetArgs], EncodedAsset>,
-  'getBlobDownloadInfo' : ActorMethod<[GetChunkArguments], BlobDownloadInfo>,
   'getCycleBalance' : ActorMethod<[], bigint>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
   /**

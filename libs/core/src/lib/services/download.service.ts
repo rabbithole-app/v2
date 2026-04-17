@@ -13,12 +13,12 @@ export interface DownloadState {
   fileName: string;
   fileSize?: number;
   id: string;
-  progress: ArchiveDownloadProgress | DownloadProgress;
-  totalChunks: number;
-  /** Created lazily when the first chunk arrives. */
-  port?: MessagePort;
   /** Hidden iframe that keeps the SW fetch alive. Created with port. */
   iframe?: HTMLIFrameElement;
+  /** Created lazily when the first chunk arrives. */
+  port?: MessagePort;
+  progress: ArchiveDownloadProgress | DownloadProgress;
+  totalChunks: number;
 }
 
 type WorkerLike = Pick<WorkerService<CoreWorkerMessageIn, CoreWorkerMessageOut>, 'postMessage' | 'workerMessage$'>;
@@ -39,9 +39,9 @@ export class DownloadService {
     }
     return count;
   });
+  readonly #archiveProgressCallbacks = new Map<string, (progress: ArchiveDownloadProgress) => void>();
   readonly #destroyRef = inject(DestroyRef);
   readonly #entryPathIndex = new Map<string, string>();
-  readonly #archiveProgressCallbacks = new Map<string, (progress: ArchiveDownloadProgress) => void>();
   /** Prevents double stream init when multiple chunks arrive before the first init completes. */
   readonly #streamInitPromises = new Map<string, Promise<{ iframe: HTMLIFrameElement; port: MessagePort }>>();
 
@@ -146,7 +146,7 @@ export class DownloadService {
         messageByAction('download:archive-chunk'),
         takeUntilDestroyed(this.#destroyRef),
       )
-      .subscribe(({ payload }: { payload: { id: string; chunk: ArrayBuffer } }) => {
+      .subscribe(({ payload }: { payload: { chunk: ArrayBuffer; id: string; } }) => {
         this.#handleArchiveChunk(payload);
       });
   }
@@ -160,31 +160,6 @@ export class DownloadService {
 
   getDownloadState(id: string) {
     return this.#downloads.get(id);
-  }
-
-  async startDownload(request: DownloadRequest, workerService: WorkerLike, fileSize?: number) {
-    this.connectWorker(workerService);
-
-    // Pre-register SW so it's ready when the first chunk arrives
-    await this.#ensureServiceWorker();
-
-    const entryPath = request.entry[1];
-    this.#entryPathIndex.set(entryPath, request.id);
-
-    this.#downloads.set(request.id, {
-      id: request.id,
-      entryPath,
-      fileName: request.fileName,
-      contentType: request.contentType,
-      fileSize,
-      progress: { id: request.id, status: 'queued' },
-      totalChunks: request.totalChunks,
-    });
-
-    workerService.postMessage({
-      action: 'download:start',
-      payload: request,
-    });
   }
 
   async startArchiveDownload(
@@ -210,6 +185,31 @@ export class DownloadService {
 
     workerService.postMessage({
       action: 'download:archive',
+      payload: request,
+    });
+  }
+
+  async startDownload(request: DownloadRequest, workerService: WorkerLike, fileSize?: number) {
+    this.connectWorker(workerService);
+
+    // Pre-register SW so it's ready when the first chunk arrives
+    await this.#ensureServiceWorker();
+
+    const entryPath = request.entry[1];
+    this.#entryPathIndex.set(entryPath, request.id);
+
+    this.#downloads.set(request.id, {
+      id: request.id,
+      entryPath,
+      fileName: request.fileName,
+      contentType: request.contentType,
+      fileSize,
+      progress: { id: request.id, status: 'queued' },
+      totalChunks: request.totalChunks,
+    });
+
+    workerService.postMessage({
+      action: 'download:start',
       payload: request,
     });
   }
@@ -281,18 +281,7 @@ export class DownloadService {
     this.#cleanup(id, 3000);
   }
 
-  #handleFailed(id: string, fileName: string, errorMessage: string) {
-    console.error(`Download failed [${fileName}]:`, errorMessage);
-    toast.error(`Download failed: ${fileName}`, { description: errorMessage });
-
-    const state = this.#downloads.get(id);
-    if (state?.port) {
-      state.port.postMessage('abort');
-    }
-    this.#cleanup(id, 5000);
-  }
-
-  async #handleArchiveChunk(payload: { id: string; chunk: ArrayBuffer }) {
+  async #handleArchiveChunk(payload: { chunk: ArrayBuffer; id: string; }) {
     const current = this.#downloads.get(payload.id);
     if (!current) return;
     if (current.progress.status === 'failed') return;
@@ -352,6 +341,17 @@ export class DownloadService {
       state.port.postMessage('end');
       this.#cleanup(payload.id, 3000);
     }
+  }
+
+  #handleFailed(id: string, fileName: string, errorMessage: string) {
+    console.error(`Download failed [${fileName}]:`, errorMessage);
+    toast.error(`Download failed: ${fileName}`, { description: errorMessage });
+
+    const state = this.#downloads.get(id);
+    if (state?.port) {
+      state.port.postMessage('abort');
+    }
+    this.#cleanup(id, 5000);
   }
 
   async #initStreamDownload(

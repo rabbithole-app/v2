@@ -10,8 +10,8 @@ import { messageByAction } from '../operators';
 // which exports services that import from injectors
 import { UploadRegistryService } from '../services/upload-registry.service';
 import { WorkerService } from '../services/worker.service';
-import { BLOB_STORAGE_CONFIG_TOKEN } from '../tokens/main';
 import { WORKER } from '../tokens';
+import { BLOB_STORAGE_CONFIG_TOKEN } from '../tokens/main';
 import {
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,

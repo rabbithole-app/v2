@@ -1,0 +1,153 @@
+<hlm-tabs [tab]="activeTab()" class="w-full">
+  <hlm-tabs-list class="!h-auto w-fit max-w-full items-stretch">
+    @for (network of networks(); track network.id) {
+      <button
+        [hlmTabsTrigger]="network.id"
+        class="h-auto min-h-10 whitespace-nowrap px-3 py-2 text-center leading-tight"
+        (click)="selectTab(network.id)"
+      >
+        {{ network.tabLabel }}
+      </button>
+    }
+  </hlm-tabs-list>
+
+  @for (network of networks(); track network.id) {
+    <div [hlmTabsContent]="network.id" class="mt-6">
+      <ng-template hlmTabsContentLazy>
+        <div class="space-y-6">
+          @if (network.address; as address) {
+            <div hlmField>
+              <div hlmFieldContent class="gap-3">
+                <div hlmFieldTitle>{{ network.addressLabel }}</div>
+                <core-copy-to-clipboard
+                  [content]="address"
+                  class="w-full rounded-2xl bg-muted px-4 py-4 text-base [&>[data-slot=copy-content]]:text-base"
+                >
+                  {{ address }}
+                </core-copy-to-clipboard>
+                <div class="flex flex-wrap gap-2">
+                  @for (token of network.acceptedAssets; track token) {
+                    <span hlmBadge variant="outline">{{ token }}</span>
+                  }
+                </div>
+                <p hlmFieldDescription class="text-xs">
+                  {{ network.note }}
+                </p>
+              </div>
+            </div>
+          } @else if (network.id === 'ic') {
+            <div
+              hlmEmpty
+              class="rounded-2xl border border-dashed bg-background/50 py-8"
+            >
+              <div hlmEmptyHeader>
+                <div hlmEmptyMedia variant="icon">
+                  <hlm-spinner />
+                </div>
+                <div hlmEmptyTitle>Loading IC account</div>
+                <div hlmEmptyDescription>{{ network.emptyDescription }}</div>
+              </div>
+            </div>
+          } @else {
+            <div hlmItem variant="outline">
+              <div hlmItemMedia variant="icon">
+                <ng-icon hlm name="lucideWallet" size="sm" />
+              </div>
+              <div hlmItemContent>
+                <div hlmItemTitle>No {{ network.title }} wallet yet</div>
+                <p hlmItemDescription>{{ network.emptyDescription }}</p>
+              </div>
+              <div hlmItemActions>
+                <button
+                  hlmBtn
+                  size="sm"
+                  [disabled]="isGenerating(network.id)"
+                  (click)="generateAddress(network.id)"
+                >
+                  @if (isGenerating(network.id)) {
+                    <hlm-spinner class="size-4" />
+                    Generating...
+                  } @else {
+                    {{ network.generateLabel }}
+                  }
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (network.address) {
+            <div
+              hlmAlert
+              class="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-50"
+            >
+              <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+              <p hlmAlertDescription>
+                {{ networkWarning(network.id) }}
+              </p>
+            </div>
+          }
+
+          <div class="space-y-3">
+            <p class="text-sm font-medium">Assets</p>
+
+            @if (network.balances.length > 0) {
+              <table hlmTable class="w-full">
+                <thead hlmTHead>
+                  <tr hlmTr>
+                    <th hlmTh>Asset</th>
+                    <th hlmTh class="text-right">Balance</th>
+                    <th hlmTh class="text-right">Value</th>
+                  </tr>
+                </thead>
+                <tbody hlmTBody>
+                  @for (token of network.balances; track token.label) {
+                    <tr hlmTr>
+                      <td hlmTd class="font-mono text-sm font-medium">
+                        {{ token.label }}
+                      </td>
+                      <td
+                        hlmTd
+                        class="text-right font-mono text-muted-foreground"
+                      >
+                        {{ formatBalance(token.balance, token.decimals) }}
+                      </td>
+                      <td hlmTd class="text-right font-medium">
+                        {{ formatUsd(token.usdValue) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+                <tfoot hlmTFoot>
+                  <tr hlmTr>
+                    <td hlmTd [attr.colSpan]="2">Total</td>
+                    <td hlmTd class="text-right">
+                      {{ formatUsd(network.totalUsd) }}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            } @else {
+              <div hlmEmpty class="border border-dashed">
+                <div hlmEmptyHeader>
+                  <div hlmEmptyMedia variant="icon">
+                    <ng-icon hlm name="lucideCoins" size="sm" />
+                  </div>
+                  <div hlmEmptyTitle>No assets yet</div>
+                  <div hlmEmptyDescription>
+                    @if (hideZero()) {
+                      Zero balances are hidden. Deposit supported assets to
+                      fund this wallet.
+                    } @else {
+                      This network is ready for deposits, but nothing has
+                      arrived yet.
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  }
+</hlm-tabs>

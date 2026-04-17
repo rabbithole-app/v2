@@ -60,10 +60,10 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 })
 export class HeroSectionComponent {
   readonly #authService = inject(AUTH_SERVICE);
-  readonly ctaText = computed(() =>
-    this.#authService.isAuthenticated() ? 'My Files' : 'Open App',
-  );
   readonly ctaLink = computed(() =>
     this.#authService.isAuthenticated() ? '/dashboard' : '/login',
+  );
+  readonly ctaText = computed(() =>
+    this.#authService.isAuthenticated() ? 'My Files' : 'Open App',
   );
 }

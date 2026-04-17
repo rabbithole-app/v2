@@ -184,6 +184,47 @@ export class BlobHashTree {
 }
 
 // -------------------------------------------------------------------
+// Verification
+// -------------------------------------------------------------------
+
+/**
+ * Verify the integrity of a blob downloaded from the storage gateway.
+ *
+ * Re-computes the DSBMTWH Merkle root from the raw bytes (splitting into
+ * `chunkSize`-byte chunks) and compares it against the on-chain `blobHash`.
+ * This catches any tampering by the gateway or an intermediary CDN.
+ *
+ * @param allBytes    - The complete downloaded blob (encrypted ciphertext).
+ * @param blobHash    - The expected root hash from the canister (`"sha256:…"`).
+ * @param contentType - The file content-type (used in the metadata header).
+ * @param chunkSize   - Protocol chunk size (default 1 MiB).
+ * @returns `true` if the root hash matches; `false` otherwise.
+ */
+export async function verifyBlobIntegrity(
+  allBytes: Uint8Array,
+  blobHash: string,
+  contentType: string,
+  chunkSize = 1_048_576,
+): Promise<boolean> {
+  const chunkCount = Math.max(1, Math.ceil(allBytes.byteLength / chunkSize));
+
+  const chunkHashes = await Promise.all(
+    Array.from({ length: chunkCount }, (_, i) => {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, allBytes.byteLength);
+      return YHash.fromChunk(allBytes.subarray(start, end));
+    }),
+  );
+
+  const tree = await BlobHashTree.build(chunkHashes, {
+    'Content-Type': contentType,
+    'Content-Length': allBytes.byteLength.toString(),
+  });
+
+  return tree.tree.hash.toShaString() === blobHash;
+}
+
+// -------------------------------------------------------------------
 // Helpers
 // -------------------------------------------------------------------
 

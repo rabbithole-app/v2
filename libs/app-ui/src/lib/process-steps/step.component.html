@@ -1,0 +1,92 @@
+@let currentStep = step();
+
+<div rbthFramePanel [class]="stepPanelClass(currentStep.status)">
+  <div hlmItem class="w-full gap-3 rounded-none border-0 bg-transparent p-0">
+    <div hlmItemMedia>
+      @switch (currentStep.status) {
+        @case ('completed') {
+          <ng-icon hlm name="lucideCircleCheck" />
+        }
+        @case ('in-progress') {
+          <hlm-spinner icon="lucideLoader2" class="text-xl text-primary" />
+        }
+        @case ('error') {
+          <ng-icon hlm name="lucideCircleX" />
+        }
+        @case ('skipped') {
+          <ng-icon hlm name="lucideCircleMinus" />
+        }
+        @default {
+          <ng-icon hlm name="lucideCircleDashed" [strokeWidth]="2" />
+        }
+      }
+    </div>
+
+    <div hlmItemContent>
+      <div hlmItemHeader>
+        <h4 hlmItemTitle [class]="stepTitleClass(currentStep.status)">
+          {{ currentStep.title }}
+        </h4>
+        @switch (currentStep.status) {
+          @case ('completed') {
+            <span
+              hlmBadge
+              class="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+            >
+              Completed
+            </span>
+          }
+          @case ('in-progress') {
+            <span hlmBadge variant="secondary"> In progress </span>
+          }
+          @case ('error') {
+            <span hlmBadge variant="destructive"> Failed </span>
+          }
+          @case ('skipped') {
+            <span hlmBadge variant="outline"> Skipped </span>
+          }
+          @default {
+            <span hlmBadge variant="outline"> Queued </span>
+          }
+        }
+      </div>
+
+      @if (description(); as descriptionText) {
+        @if (isActive() || hasError() || isComplete()) {
+          <p hlmItemDescription>
+            {{ descriptionText }}
+          </p>
+        }
+      }
+
+      @if (metaTemplate(); as template) {
+        <ng-container
+          [ngTemplateOutlet]="template.templateRef"
+          [ngTemplateOutletContext]="metaContext()"
+        />
+      }
+
+      @if (currentStep.progress && isActive()) {
+        <div hlmProgress [value]="progressPercent()" class="mt-2 h-1.5">
+          <hlm-progress-indicator />
+        </div>
+
+        @if (progressTemplate(); as template) {
+          <ng-container
+            [ngTemplateOutlet]="template.templateRef"
+            [ngTemplateOutletContext]="progressContext()"
+          />
+        } @else {
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-xs text-muted-foreground">
+              {{ progressCopy() }}
+            </p>
+            <p class="text-xs font-medium tabular-nums text-foreground">
+              {{ progressPercent() }}%
+            </p>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</div>

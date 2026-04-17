@@ -28,6 +28,13 @@ export const appRoutes: Route[] = [
         canActivate: [loginGuard],
       },
       {
+        path: 'pricing',
+        loadComponent: () =>
+          import('@rabbithole/pages/pricing').then(
+            (m) => m.PricingComponent,
+          ),
+      },
+      {
         path: 'delegation',
         loadComponent: () =>
           import('./pages/delegation/delegation.component').then(
@@ -67,6 +74,23 @@ export const appRoutes: Route[] = [
         path: 'profile',
         loadComponent: () =>
           import('@rabbithole/pages/profile').then((m) => m.ProfileComponent),
+      },
+      {
+        path: 'subscription',
+        loadComponent: () =>
+          import('@rabbithole/pages/subscription').then(
+            (m) => m.SubscriptionPageComponent,
+          ),
+      },
+      {
+        path: 'wallet',
+        loadComponent: () =>
+          import('@rabbithole/pages/wallet').then((m) => m.WalletPageComponent),
+      },
+      {
+        path: 'demo',
+        loadComponent: () =>
+          import('./pages/demo/demo.component').then((m) => m.DemoComponent),
       },
       {
         path: 'allowances',
@@ -127,5 +151,6 @@ export const appRoutes: Route[] = [
         (m) => m.IiBridgeComponent,
       ),
   },
+  { path: 'demo', pathMatch: 'full', redirectTo: 'dashboard/demo' },
   { path: '**', pathMatch: 'full', redirectTo: 'dashboard' },
 ];

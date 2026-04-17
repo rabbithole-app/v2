@@ -1,6 +1,5 @@
 import { computed, Injectable, resource } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { catchError, map, of } from 'rxjs';
 import {
   AbstractControl,
   AsyncValidatorFn,
@@ -9,6 +8,7 @@ import {
 import { fromNullable } from '@dfinity/utils';
 import { Actor } from '@icp-sdk/core/agent';
 import { toast } from 'ngx-sonner';
+import { catchError, map, of } from 'rxjs';
 
 import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
 

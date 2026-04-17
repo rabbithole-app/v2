@@ -1,0 +1,38 @@
+<div class="mx-auto max-w-5xl space-y-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div class="space-y-1">
+      <h1 class="text-2xl font-semibold tracking-tight">Wallet</h1>
+      <p class="max-w-2xl text-sm text-muted-foreground">
+        Review balances, manage deposit addresses, and inspect supported assets
+        across Internet Computer, Base, and Solana.
+      </p>
+    </div>
+
+    <a hlmBtn variant="outline" routerLink="/dashboard/subscription">
+      Subscription Settings
+    </a>
+  </div>
+
+  <div
+    class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+  >
+    <core-wallet-summary-header size="md" />
+
+    <div class="flex flex-wrap items-center gap-3">
+      <label class="flex items-center gap-3 text-sm">
+        <span class="text-muted-foreground">Hide zero balances</span>
+        <hlm-switch
+          [checked]="hideZero()"
+          (checkedChange)="toggleHideZero($event)"
+        />
+      </label>
+
+      <button hlmBtn variant="outline" size="sm" (click)="refresh()">
+        <ng-icon hlm name="lucideRefreshCw" class="mr-2" size="sm" />
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <core-wallet-networks-view />
+</div>

@@ -76,7 +76,7 @@ export const idlFactory = ({ IDL }) => {
     from_user: IDL.Record({ user_id: IDL.Principal }),
     from_canister: IDL.Record({
       canister_version: IDL.Opt(IDL.Nat64),
-      canister_id: IDL.Principal,
+      canister_id: canister_id,
     }),
   });
   const snapshot_id = IDL.Vec(IDL.Nat8);
@@ -102,6 +102,16 @@ export const idlFactory = ({ IDL }) => {
       from_canister_id: IDL.Opt(IDL.Principal),
       taken_at_timestamp: IDL.Nat64,
       snapshot_id: snapshot_id,
+    }),
+    rename_canister: IDL.Record({
+      rename_to: IDL.Record({
+        canister_id: canister_id,
+        version: IDL.Nat64,
+        total_num_changes: IDL.Nat64,
+      }),
+      canister_id: canister_id,
+      requested_by: IDL.Principal,
+      total_num_changes: IDL.Nat64,
     }),
     controllers_change: IDL.Record({
       controllers: IDL.Vec(IDL.Principal),
@@ -135,6 +145,11 @@ export const idlFactory = ({ IDL }) => {
     public: IDL.Null,
     allowed_viewers: IDL.Vec(IDL.Principal),
   });
+  const snapshot_visibility = IDL.Variant({
+    controllers: IDL.Null,
+    public: IDL.Null,
+    allowed_viewers: IDL.Vec(IDL.Principal),
+  });
   const definite_canister_settings = IDL.Record({
     freezing_threshold: IDL.Nat,
     wasm_memory_threshold: IDL.Nat,
@@ -142,6 +157,7 @@ export const idlFactory = ({ IDL }) => {
     controllers: IDL.Vec(IDL.Principal),
     reserved_cycles_limit: IDL.Nat,
     log_visibility: log_visibility,
+    snapshot_visibility: snapshot_visibility,
     wasm_memory_limit: IDL.Nat,
     memory_allocation: IDL.Nat,
     compute_allocation: IDL.Nat,
@@ -185,6 +201,7 @@ export const idlFactory = ({ IDL }) => {
     controllers: IDL.Opt(IDL.Vec(IDL.Principal)),
     reserved_cycles_limit: IDL.Opt(IDL.Nat),
     log_visibility: IDL.Opt(log_visibility),
+    snapshot_visibility: IDL.Opt(snapshot_visibility),
     wasm_memory_limit: IDL.Opt(IDL.Nat),
     memory_allocation: IDL.Opt(IDL.Nat),
     compute_allocation: IDL.Opt(IDL.Nat),
@@ -229,8 +246,10 @@ export const idlFactory = ({ IDL }) => {
     url: IDL.Text,
     method: IDL.Variant({
       get: IDL.Null,
+      put: IDL.Null,
       head: IDL.Null,
       post: IDL.Null,
+      delete: IDL.Null,
     }),
     max_response_bytes: IDL.Opt(IDL.Nat64),
     body: IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -437,7 +456,7 @@ export const idlFactory = ({ IDL }) => {
     sender_canister_version: IDL.Opt(IDL.Nat64),
   });
   const update_settings_args = IDL.Record({
-    canister_id: IDL.Principal,
+    canister_id: canister_id,
     settings: canister_settings,
     sender_canister_version: IDL.Opt(IDL.Nat64),
   });
@@ -484,7 +503,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const upload_chunk_args = IDL.Record({
     chunk: IDL.Vec(IDL.Nat8),
-    canister_id: IDL.Principal,
+    canister_id: canister_id,
   });
   const upload_chunk_result = chunk_hash;
   const vetkd_curve = IDL.Variant({ bls12_381_g2: IDL.Null });

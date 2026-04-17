@@ -1,0 +1,37 @@
+<div class="w-full max-w-lg">
+  <rbth-steps>
+    <div rbthStepsHeader>
+      <div rbthStepsTitle class="text-balance text-foreground">
+        {{ title() }}
+      </div>
+      <div rbthStepsDescription class="text-xs">
+        {{ headerStatusLabel() }}
+      </div>
+    </div>
+
+    @for (step of steps(); track step.id) {
+      <rbth-step [step]="step" />
+    }
+
+    @if (errorStep(); as step) {
+      @if (step.error) {
+        <div rbthStepsFooter class="flex items-center justify-between gap-3">
+          <p class="text-xs leading-relaxed text-destructive">
+            {{ step.error }}
+          </p>
+          @if (showRetry()) {
+            <button
+              hlmBtn
+              variant="destructive"
+              class="shrink-0"
+              (click)="retryClicked.emit(step)"
+            >
+              <ng-icon hlm name="lucideRotateCcw" size="xs" class="mr-1" />
+              Retry
+            </button>
+          }
+        </div>
+      }
+    }
+  </rbth-steps>
+</div>

@@ -25,8 +25,9 @@ export function convertCreationStatus(
 ): StorageCreationStatus {
   return match(status)
     .returnType<StorageCreationStatus>()
+    .with({ ProcessingPayment: P._ }, () => ({ type: 'ProcessingPayment' }))
     .with({ Pending: P._ }, () => ({ type: 'Pending' }))
-    .with({ CheckingAllowance: P._ }, () => ({ type: 'CheckingAllowance' }))
+    .with({ CheckingBalance: P._ }, () => ({ type: 'CheckingBalance' }))
     .with({ TransferringICP: P.select() }, ({ amount }) => ({
       amount,
       type: 'TransferringICP',

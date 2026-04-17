@@ -5,6 +5,7 @@ import { AnonymousIdentity, HttpAgent, uint8ToBuf } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import photonInit, { crop, PhotonImage, resize } from '@silvia-odwyer/photon';
 import { type } from 'arktype';
+import { Zip, ZipPassThrough } from 'fflate';
 import { isNonNull } from 'remeda';
 import {
     defer,
@@ -38,7 +39,6 @@ import {
     EncryptedStorage,
     Entry,
 } from '@rabbithole/encrypted-storage';
-import { Zip, ZipPassThrough } from 'fflate';
 
 import {
     MAX_AVATAR_HEIGHT,

@@ -2,9 +2,8 @@ import type { Principal } from '@icp-sdk/core/principal';
 import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 
-export type AddStorageError = {
-    'CanisterAlreadyUsed' : { 'canisterId' : Principal }
-  } |
+export type AddStorageError = { 'NotController' : null } |
+  { 'CanisterAlreadyUsed' : { 'canisterId' : Principal } } |
   { 'InvalidWasm' : string };
 export interface AmbassadorChain {
   'l1' : [] | [Principal],
@@ -28,12 +27,16 @@ export interface AssetFullStatus {
   'downloadStatus' : AssetDownloadStatus,
   'extractionStatus' : [] | [ExtractionStatus],
 }
+export type AssetLocator = { 'Contract' : string } |
+  { 'Mint' : string } |
+  { 'Native' : null };
 export interface BalanceEntry { 'tokenId' : TokenId, 'balance' : bigint }
-export type BlockIndex = bigint;
 export interface CallbackStreamingStrategy {
   'token' : StreamingToken,
   'callback' : [Principal, string],
 }
+export type ChainConfig = { 'Evm' : EvmChainConfig } |
+  { 'Solana' : SolanaChainConfig };
 export interface CreateProfileArgs {
   'username' : string,
   'displayName' : [] | [string],
@@ -44,31 +47,18 @@ export interface CreateProfileAvatarArgs {
   'contentType' : string,
   'filename' : string,
 }
-export type CreateStorageError = { 'NotifyFailed' : NotifyError } |
-  { 'FrontendInstallFailed' : string } |
-  { 'CanisterAlreadyUsed' : { 'canisterId' : Principal } } |
-  { 'InsufficientAllowance' : { 'available' : bigint, 'required' : bigint } } |
-  { 'AlreadyInProgress' : null } |
-  { 'UpdateControllersFailed' : string } |
-  { 'WasmInstallFailed' : string } |
-  { 'ReleaseNotFound' : null } |
-  { 'TransferFailed' : TransferFromError };
-export interface CreateStorageOptions {
-  'releaseSelector' : ReleaseSelector,
-  'target' : TargetCanister,
-  'initArg' : Uint8Array | number[],
-}
 export type CreationStatus = { 'Failed' : string } |
   { 'UpdatingControllers' : { 'canisterId' : Principal } } |
   { 'UpgradingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
   { 'CanisterCreated' : { 'canisterId' : Principal } } |
   { 'RevokingInstallerPermission' : { 'canisterId' : Principal } } |
-  { 'CheckingAllowance' : null } |
+  { 'CheckingBalance' : null } |
   {
     'UploadingFrontend' : { 'progress' : Progress, 'canisterId' : Principal }
   } |
   { 'TransferringICP' : { 'amount' : bigint } } |
   { 'NotifyingCMC' : { 'blockIndex' : bigint } } |
+  { 'ProcessingPayment' : null } |
   {
     'UpgradingFrontend' : { 'progress' : Progress, 'canisterId' : Principal }
   } |
@@ -96,13 +86,12 @@ export interface DistributionRecord {
 }
 export type DistributionStatus = { 'completed' : null } |
   { 'partial' : null };
-export interface EvmConfig {
+export interface EvmChainConfig {
   'evmRpcCanisterId' : string,
+  'assets' : Array<SupportedAsset>,
   'rpcUrls' : Array<string>,
-  'usdcContract' : string,
-  'usdtContract' : string,
-  'ecdsaKeyName' : string,
   'chainId' : bigint,
+  'networkId' : string,
 }
 export type ExtractionStatus = { 'Idle' : null } |
   { 'Complete' : Array<FileMetadata> } |
@@ -130,14 +119,10 @@ export interface GithubOptions {
   'apiUrl' : string,
 }
 export type Header = [string, string];
-export type Icrc1BlockIndex = bigint;
-export type Icrc1Timestamp = bigint;
-export type Icrc1Tokens = bigint;
 export interface InitArgs {
-  'solConfig' : [] | [SolConfig],
-  'vetKeyName' : string,
-  'evmConfig' : [] | [EvmConfig],
+  'thresholdKeyName' : ThresholdKeyName,
   'icpaySecretKey' : [] | [Uint8Array | number[]],
+  'chains' : Array<ChainConfig>,
   'github' : [] | [GithubOptions],
   'cashierCanisterId' : Principal,
 }
@@ -145,6 +130,11 @@ export interface KnownWasmHash {
   'hash' : Uint8Array | number[],
   'releaseTag' : string,
   'registeredAt' : Time,
+}
+export interface License {
+  'receipt' : PaymentReceipt,
+  'createdAt' : Time,
+  'canisterId' : [] | [Principal],
 }
 export interface ListOptions {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
@@ -173,13 +163,12 @@ export interface NotificationsPage {
   'data' : Array<StoredNotification>,
   'unreadCount' : bigint,
 }
-export type NotifyError = {
-    'Refunded' : { 'block_index' : [] | [BlockIndex], 'reason' : string }
-  } |
-  { 'InvalidTransaction' : string } |
-  { 'Other' : { 'error_message' : string, 'error_code' : bigint } } |
-  { 'Processing' : null } |
-  { 'TransactionTooOld' : BlockIndex };
+export interface PaymentReceipt {
+  'tokenId' : TokenId,
+  'paymentId' : string,
+  'amount' : bigint,
+  'paidAt' : Time,
+}
 export interface PendingRefund {
   'tokenId' : TokenId,
   'userId' : Principal,
@@ -189,7 +178,6 @@ export interface PendingRefund {
 }
 export type Plan = { 'Pro' : null } |
   { 'Free' : null } |
-  { 'License' : null } |
   { 'Trial' : null };
 export interface Profile {
   'id' : Principal,
@@ -224,9 +212,8 @@ export interface Rabbithole {
     SubscriptionCheckResult
   >,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array | number[]>,
-  'createStorage' : ActorMethod<[CreateStorageOptions], Result_4>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_3>,
+  'deleteStorage' : ActorMethod<[bigint], Result_4>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
   'getDistributionLog' : ActorMethod<
@@ -266,6 +253,10 @@ export interface Rabbithole {
   'isStorageDeployerRunning' : ActorMethod<[], boolean>,
   'listAdmins' : ActorMethod<[], Array<Principal>>,
   'listKnownWasmHashes' : ActorMethod<[], Array<KnownWasmHash>>,
+  /**
+   * / List all licenses for the caller.
+   */
+  'listLicenses' : ActorMethod<[], Array<License>>,
   'listProfiles' : ActorMethod<[ListOptions__1], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
   'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
@@ -276,7 +267,23 @@ export interface Rabbithole {
     undefined
   >,
   'processPendingRefunds' : ActorMethod<[], bigint>,
-  'purchaseSubscription' : ActorMethod<[Plan], Result_2>,
+  /**
+   * / Purchase a license from balance and immediately create a storage canister.
+   * / Flow: create record (#ProcessingPayment) → charge → save receipt → activate → start creation.
+   */
+  'purchaseLicenseAndCreateStorage' : ActorMethod<
+    [StorageBackendType, [] | [Array<{ 'value' : string, 'name' : string }>]],
+    Result_3
+  >,
+  'purchaseSubscription' : ActorMethod<[Plan], Result_3>,
+  'queryExpiredSubscriptions' : ActorMethod<
+    [],
+    Array<[Principal, Subscription]>
+  >,
+  'queryExpiringSubscriptions' : ActorMethod<
+    [bigint],
+    Array<[Principal, Subscription]>
+  >,
   'refreshReleases' : ActorMethod<[], undefined>,
   'register' : ActorMethod<[[] | [string]], undefined>,
   /**
@@ -284,12 +291,21 @@ export interface Rabbithole {
    */
   'registerLatestWasmHash' : ActorMethod<[], undefined>,
   'removeAdmin' : ActorMethod<[Principal], undefined>,
+  'renewSubscription' : ActorMethod<
+    [Principal, Plan, [] | [bigint]],
+    undefined
+  >,
   'reportTrialBytes' : ActorMethod<[bigint], undefined>,
+  /**
+   * / Admin: retry a failed storage creation that has a license.
+   */
+  'retryStorageCreation' : ActorMethod<[bigint], Result_2>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'topUpFromBalance' : ActorMethod<[Principal, bigint], Result_1>,
   'triggerAutoRenewals' : ActorMethod<[], undefined>,
+  'triggerExpireOverdue' : ActorMethod<[], Array<Principal>>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
   'updateSettings' : ActorMethod<[UserSettings], undefined>,
   'upgradeStorage' : ActorMethod<[Principal], Result>,
@@ -333,10 +349,6 @@ export interface ReleaseFullStatus {
   'draft' : boolean,
   'prerelease' : boolean,
 }
-export type ReleaseSelector = { 'LatestPrerelease' : null } |
-  { 'Version' : string } |
-  { 'Latest' : null } |
-  { 'LatestDraft' : null };
 export interface ReleasesFullStatus {
   'defaultVersionKey' : string,
   'releasesCount' : bigint,
@@ -351,25 +363,26 @@ export type Result = { 'ok' : null } |
 export type Result_1 = { 'ok' : { 'cyclesAdded' : bigint } } |
   { 'err' : string };
 export type Result_2 = { 'ok' : null } |
-  { 'err' : PurchaseError };
+  { 'err' : string };
 export type Result_3 = { 'ok' : null } |
-  { 'err' : DeleteStorageError };
+  { 'err' : PurchaseError };
 export type Result_4 = { 'ok' : null } |
-  { 'err' : CreateStorageError };
+  { 'err' : DeleteStorageError };
 export type Result_5 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
-export interface SolConfig {
-  'usdcMint' : string,
+export interface SolanaChainConfig {
   'solRpcCanisterId' : string,
+  'assets' : Array<SupportedAsset>,
   'rpcUrl' : [] | [string],
-  'schnorrKeyName' : string,
-  'usdtMint' : string,
+  'networkId' : string,
 }
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
 export type Status = { 'Active' : null } |
   { 'Cancelled' : null } |
   { 'Expired' : null };
+export type StorageBackendType = { 'OnChain' : null } |
+  { 'BlobStorage' : null };
 export interface StorageInfo {
   'id' : bigint,
   'status' : CreationStatus,
@@ -415,8 +428,13 @@ export type SubscriptionCheckResult = {
   { 'free' : null } |
   { 'unknownCanister' : null } |
   { 'invalidWasm' : null };
-export type TargetCanister = { 'Existing' : Principal } |
-  { 'Create' : { 'initialCycles' : bigint, 'subnetId' : [] | [Principal] } };
+export interface SupportedAsset {
+  'decimals' : number,
+  'tokenId' : TokenId,
+  'locator' : AssetLocator,
+  'symbol' : string,
+}
+export type ThresholdKeyName = string;
 export type Time = bigint;
 export type TokenId = { 'ICP' : null } |
   { 'SOL' : null } |
@@ -428,17 +446,6 @@ export type TokenId = { 'ICP' : null } |
   { 'BaseUSDC' : null } |
   { 'BaseUSDT' : null } |
   { 'BaseETH' : null };
-export type TransferFromError = {
-    'GenericError' : { 'message' : string, 'error_code' : bigint }
-  } |
-  { 'TemporarilyUnavailable' : null } |
-  { 'InsufficientAllowance' : { 'allowance' : Icrc1Tokens } } |
-  { 'BadBurn' : { 'min_burn_amount' : Icrc1Tokens } } |
-  { 'Duplicate' : { 'duplicate_of' : Icrc1BlockIndex } } |
-  { 'BadFee' : { 'expected_fee' : Icrc1Tokens } } |
-  { 'CreatedInFuture' : { 'ledger_time' : Icrc1Timestamp } } |
-  { 'TooOld' : null } |
-  { 'InsufficientFunds' : { 'balance' : Icrc1Tokens } };
 export interface TransferRecord {
   'tokenId' : TokenId,
   'solSignature' : [] | [string],
@@ -467,7 +474,6 @@ export type TypedEvent = {
       'expiresAt' : [] | [bigint],
       'plan' : { 'Pro' : null } |
         { 'Free' : null } |
-        { 'License' : null } |
         { 'Trial' : null },
     }
   } |
@@ -483,7 +489,6 @@ export type TypedEvent = {
     'subscriptionActivated' : {
       'plan' : { 'Pro' : null } |
         { 'Free' : null } |
-        { 'License' : null } |
         { 'Trial' : null },
     }
   } |

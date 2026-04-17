@@ -187,16 +187,6 @@ export const idlFactory = ({ IDL }) => {
     'content_encoding' : IDL.Text,
     'total_length' : IDL.Nat,
   });
-  const GetChunkArguments = IDL.Record({
-    'chunkIndex' : IDL.Nat,
-    'entry' : Entry,
-    'version' : IDL.Opt(IDL.Nat),
-  });
-  const BlobDownloadInfo = IDL.Record({
-    'contentType' : IDL.Text,
-    'size' : IDL.Nat,
-    'blobHash' : IDL.Text,
-  });
   const TransportKey = IDL.Vec(IDL.Nat8);
   const VetKey = IDL.Vec(IDL.Nat8);
   const Plan = IDL.Variant({
@@ -219,6 +209,11 @@ export const idlFactory = ({ IDL }) => {
     'subscriptionStatus' : IDL.Opt(SubscriptionStatus),
     'backendId' : IDL.Opt(IDL.Principal),
     'storageBackendType' : StorageBackend,
+  });
+  const GetChunkArguments = IDL.Record({
+    'chunkIndex' : IDL.Nat,
+    'entry' : Entry,
+    'version' : IDL.Opt(IDL.Nat),
   });
   const ChunkContent = IDL.Record({ 'content' : IDL.Vec(IDL.Nat8) });
   const VetKeyVerificationKey = IDL.Vec(IDL.Nat8);
@@ -434,11 +429,6 @@ export const idlFactory = ({ IDL }) => {
     'delete_batch' : IDL.Func([DeleteBatchArguments], [], []),
     'fsTree' : IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     'get' : IDL.Func([GetArgs], [EncodedAsset], ['query']),
-    'getBlobDownloadInfo' : IDL.Func(
-        [GetChunkArguments],
-        [BlobDownloadInfo],
-        ['query'],
-      ),
     'getCycleBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
     'getModuleHash' : IDL.Func([], [IDL.Opt(IDL.Vec(IDL.Nat8))], []),
@@ -533,7 +523,9 @@ export const init = ({ IDL }) => {
   });
   return [
     IDL.Record({
+      'vetKeyName' : IDL.Opt(IDL.Text),
       'owner' : IDL.Principal,
+      'backendId' : IDL.Opt(IDL.Principal),
       'storageBackendType' : IDL.Opt(StorageBackend),
     }),
   ];

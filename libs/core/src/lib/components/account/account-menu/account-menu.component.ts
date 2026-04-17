@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideLogOut, lucideUser } from '@ng-icons/lucide';
+import { lucideLogOut, lucideUser, lucideWallet } from '@ng-icons/lucide';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -36,6 +36,7 @@ import { AccountMenuTriggerContentComponent } from '../account-menu-trigger-cont
     provideIcons({
       lucideLogOut,
       lucideUser,
+      lucideWallet,
     }),
   ],
   templateUrl: './account-menu.component.html',
@@ -64,5 +65,9 @@ export class AccountMenuComponent {
 
   navigateToProfile(): void {
     this.#router.navigate(['profile'], { relativeTo: this.#route });
+  }
+
+  navigateToWallet(): void {
+    this.#router.navigate(['wallet'], { relativeTo: this.#route });
   }
 }

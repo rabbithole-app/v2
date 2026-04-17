@@ -33,8 +33,8 @@ import {
 } from '@spartan-ng/helm/alert-dialog';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { hlm } from '@spartan-ng/helm/utils';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';

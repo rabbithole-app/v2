@@ -94,6 +94,7 @@ export interface canister_settings {
   controllers: [] | [Array<Principal>];
   reserved_cycles_limit: [] | [bigint];
   log_visibility: [] | [log_visibility];
+  snapshot_visibility: [] | [snapshot_visibility];
   wasm_memory_limit: [] | [bigint];
   memory_allocation: [] | [bigint];
   compute_allocation: [] | [bigint];
@@ -156,6 +157,18 @@ export type change_details =
         snapshot_id: snapshot_id;
       };
     }
+  | {
+      rename_canister: {
+        rename_to: {
+          canister_id: canister_id;
+          version: bigint;
+          total_num_changes: bigint;
+        };
+        canister_id: canister_id;
+        requested_by: Principal;
+        total_num_changes: bigint;
+      };
+    }
   | { controllers_change: { controllers: Array<Principal> } }
   | { code_uninstall: null };
 export type change_origin =
@@ -163,7 +176,7 @@ export type change_origin =
   | {
       from_canister: {
         canister_version: [] | [bigint];
-        canister_id: Principal;
+        canister_id: canister_id;
       };
     };
 export interface chunk_hash {
@@ -186,6 +199,7 @@ export interface definite_canister_settings {
   controllers: Array<Principal>;
   reserved_cycles_limit: bigint;
   log_visibility: log_visibility;
+  snapshot_visibility: snapshot_visibility;
   wasm_memory_limit: bigint;
   memory_allocation: bigint;
   compute_allocation: bigint;
@@ -226,7 +240,12 @@ export interface http_header {
 }
 export interface http_request_args {
   url: string;
-  method: { get: null } | { head: null } | { post: null };
+  method:
+    | { get: null }
+    | { put: null }
+    | { head: null }
+    | { post: null }
+    | { delete: null };
   max_response_bytes: [] | [bigint];
   body: [] | [Uint8Array];
   transform: [] | [{ function: [Principal, string]; context: Uint8Array }];
@@ -375,6 +394,10 @@ export interface snapshot {
   taken_at_timestamp: bigint;
 }
 export type snapshot_id = Uint8Array;
+export type snapshot_visibility =
+  | { controllers: null }
+  | { public: null }
+  | { allowed_viewers: Array<Principal> };
 export interface start_canister_args {
   canister_id: canister_id;
 }
@@ -404,7 +427,7 @@ export interface uninstall_code_args {
   sender_canister_version: [] | [bigint];
 }
 export interface update_settings_args {
-  canister_id: Principal;
+  canister_id: canister_id;
   settings: canister_settings;
   sender_canister_version: [] | [bigint];
 }
@@ -446,7 +469,7 @@ export interface upload_canister_snapshot_metadata_response {
 }
 export interface upload_chunk_args {
   chunk: Uint8Array;
-  canister_id: Principal;
+  canister_id: canister_id;
 }
 export type upload_chunk_result = chunk_hash;
 export interface utxo {

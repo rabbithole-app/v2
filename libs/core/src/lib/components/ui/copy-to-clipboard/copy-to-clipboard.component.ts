@@ -16,12 +16,12 @@ import { map, mergeWith, switchMap } from 'rxjs/operators';
 
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { hlm } from '@spartan-ng/helm/utils';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'core-copy-to-clipboard',
-  template: `<span class="min-w-0 flex-1 font-mono text-xs truncate">
+  template: `<span data-slot="copy-content">
       <ng-content />
     </span>
     <button
@@ -73,7 +73,15 @@ export class CopyToClipboardComponent {
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected _computedClass = computed(() =>
-    hlm('flex min-w-0 items-center gap-1', this.userClass()),
+    hlm(
+      'flex min-w-0 items-center gap-1',
+      '[&>[data-slot=copy-content]]:min-w-0',
+      '[&>[data-slot=copy-content]]:flex-1',
+      '[&>[data-slot=copy-content]]:truncate',
+      '[&>[data-slot=copy-content]]:font-mono',
+      '[&>[data-slot=copy-content]]:text-xs',
+      this.userClass(),
+    ),
   );
   #clipboard = inject(Clipboard);
 

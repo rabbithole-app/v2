@@ -1,305 +1,200 @@
 @let currentStep = step();
 
-<hlm-dialog-header>
-  <h3 hlmDialogTitle>Create Storage</h3>
-  <p hlmDialogDescription>
-    @switch (currentStep) {
-      @case ('select-mode') {
-        Choose how you want to deploy your encrypted storage.
-      }
-      @case ('configure') {
-        @if (deploymentMode() === 'existing') {
-          Link your existing canister to deploy storage.
-        } @else {
-          Configure your new storage canister settings.
+<rbth-drawer side="right" [hasBackdrop]="true">
+  <rbth-drawer-content *brnSheetContent="let ctx">
+    <rbth-drawer-header>
+      <h2 rbthDrawerTitle>{{ drawerTitle() }}</h2>
+    </rbth-drawer-header>
+
+    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+      @switch (currentStep) {
+        <!-- ═══ STEP 1: CONFIGURE ═══ -->
+        @case ('configure') {
+          <!-- Storage Backend -->
+          <div hlmField>
+            <label hlmFieldLabel>Storage type</label>
+            <hlm-field-content>
+              <hlm-radio-group [value]="storageBackend()" (valueChange)="$event && selectStorageBackend($event)">
+                <div
+                  class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+                  [attr.data-checked]="storageBackend() === 'BlobStorage'"
+                  role="button" tabindex="0"
+                  (click)="selectStorageBackend('BlobStorage')"
+                  (keydown.enter)="selectStorageBackend('BlobStorage')"
+                  (keydown.space)="selectStorageBackend('BlobStorage'); $event.preventDefault()"
+                >
+                  <hlm-radio value="BlobStorage" class="mt-0.5"><hlm-radio-indicator /></hlm-radio>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <ng-icon hlmIcon name="lucideCloud" size="sm" />
+                      <span class="font-medium">Blob Storage</span>
+                      <span class="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">Recommended</span>
+                    </div>
+                    <div class="text-muted-foreground text-sm mt-1">Off-chain encrypted storage. ~$0.05/GB/month.</div>
+                  </div>
+                </div>
+
+                <div
+                  class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+                  [attr.data-checked]="storageBackend() === 'OnChain'"
+                  role="button" tabindex="0"
+                  (click)="selectStorageBackend('OnChain')"
+                  (keydown.enter)="selectStorageBackend('OnChain')"
+                  (keydown.space)="selectStorageBackend('OnChain'); $event.preventDefault()"
+                >
+                  <hlm-radio value="OnChain" class="mt-0.5"><hlm-radio-indicator /></hlm-radio>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <ng-icon hlmIcon name="lucideDatabase" size="sm" />
+                      <span class="font-medium">On-chain</span>
+                    </div>
+                    <div class="text-muted-foreground text-sm mt-1">Full on-chain storage. ~$12.5/GB/year. Maximum sovereignty.</div>
+                  </div>
+                </div>
+              </hlm-radio-group>
+            </hlm-field-content>
+          </div>
+
+          <!-- VetKey Security Level -->
+          <div hlmField>
+            <label hlmFieldLabel>VetKey security level</label>
+            <hlm-field-content>
+              <hlm-radio-group [value]="vetKeyLevel()" (valueChange)="$event && selectVetKeyLevel($event)">
+                <div
+                  class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+                  [attr.data-checked]="vetKeyLevel() === 'standard'"
+                  role="button" tabindex="0"
+                  (click)="selectVetKeyLevel('standard')"
+                  (keydown.enter)="selectVetKeyLevel('standard')"
+                  (keydown.space)="selectVetKeyLevel('standard'); $event.preventDefault()"
+                >
+                  <hlm-radio value="standard" class="mt-0.5"><hlm-radio-indicator /></hlm-radio>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <ng-icon hlmIcon name="lucideShield" size="sm" />
+                      <span class="font-medium">Standard</span>
+                      <span class="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">Recommended</span>
+                    </div>
+                    <div class="text-muted-foreground text-sm mt-1">13-node subnet. ~$0.014 per key derivation.</div>
+                  </div>
+                </div>
+
+                <div
+                  class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
+                  [attr.data-checked]="vetKeyLevel() === 'high-replication'"
+                  role="button" tabindex="0"
+                  (click)="selectVetKeyLevel('high-replication')"
+                  (keydown.enter)="selectVetKeyLevel('high-replication')"
+                  (keydown.space)="selectVetKeyLevel('high-replication'); $event.preventDefault()"
+                >
+                  <hlm-radio value="high-replication" class="mt-0.5"><hlm-radio-indicator /></hlm-radio>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <ng-icon hlmIcon name="lucideShieldCheck" size="sm" />
+                      <span class="font-medium">High Replication</span>
+                    </div>
+                    <div class="text-muted-foreground text-sm mt-1">34-node subnet. ~$0.035 per key derivation. Higher fault tolerance.</div>
+                  </div>
+                </div>
+              </hlm-radio-group>
+              <hlm-field-description>
+                <a href="https://docs.rabbithole.app/en/how-it-works/storage" target="_blank" rel="noopener" class="underline hover:text-foreground">
+                  Learn more about VetKey security levels
+                </a>
+              </hlm-field-description>
+            </hlm-field-content>
+          </div>
         }
-      }
-      @case ('creating') {
-        Please wait while your storage is being created...
-      }
-      @case ('error') {
-        Something went wrong during storage creation.
-      }
-    }
-  </p>
-</hlm-dialog-header>
 
-@switch (currentStep) {
-  @case ('select-mode') {
-    <ng-container [ngTemplateOutlet]="selectModeTemplate" />
-  }
-  @case ('configure') {
-    <ng-container [ngTemplateOutlet]="storageBackendTemplate" />
-    @if (deploymentMode() === 'existing') {
-      <ng-container [ngTemplateOutlet]="existingCanisterTemplate" />
-    } @else {
-      <ng-container [ngTemplateOutlet]="newCanisterTemplate" />
-    }
-  }
-  @case ('creating') {
-    <ng-container [ngTemplateOutlet]="creatingTemplate" />
-  }
-  @case ('error') {
-    <ng-container [ngTemplateOutlet]="errorTemplate" />
-  }
-}
+        <!-- ═══ STEP 2: PAYMENT ═══ -->
+        @case ('payment') {
+          <div class="space-y-1">
+            <p class="text-sm font-medium">Storage License — {{ licensePriceLabel }}</p>
+            <p class="text-xs text-muted-foreground">
+              Personal canister + 14-day Pro trial + 100 MB encrypted storage.
+            </p>
+          </div>
 
-@if (currentStep !== 'creating' || creationStatus()?.type === 'Completed') {
-  <hlm-dialog-footer class="mt-4">
-    @switch (currentStep) {
-      @case ('select-mode') {
-        <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
-        <button hlmBtn (click)="goToNextStep()">Next</button>
-      }
-      @case ('configure') {
-        <button hlmBtn variant="outline" (click)="goBack()">
-          <ng-icon hlmIcon name="lucideArrowLeft" size="sm" />
-          Back
-        </button>
-        <button hlmBtn [disabled]="!isFormValid()" (click)="createStorage()">
-          <ng-icon hlmIcon name="lucideRocket" size="sm" />
-          Create Storage
-        </button>
-      }
-      @case ('creating') {
-        @if (creationStatus()?.type === 'Completed') {
-          <button hlmBtn variant="outline" (click)="createAnother()">
-            <ng-icon hlmIcon name="lucidePlus" size="sm" />
-            Create Another
-          </button>
-          <button hlmBtn (click)="viewStorage()">
-            <ng-icon hlmIcon name="lucideExternalLink" size="sm" />
-            View Storage
-          </button>
-        }
-      }
-      @case ('error') {
-        <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
-        <button hlmBtn (click)="tryAgain()">Try Again</button>
-      }
-    }
-  </hlm-dialog-footer>
-}
-
-<!-- Storage Backend Selector -->
-<ng-template #storageBackendTemplate>
-  <div hlmField class="mt-4">
-    <label hlmFieldLabel>Storage type</label>
-    <hlm-field-content>
-      <hlm-radio-group [value]="storageBackend()" (valueChange)="$event && selectStorageBackend($event)">
-        <div
-          class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
-          [attr.data-checked]="storageBackend() === 'BlobStorage'"
-          role="button"
-          tabindex="0"
-          (click)="selectStorageBackend('BlobStorage')"
-          (keydown.enter)="selectStorageBackend('BlobStorage')"
-          (keydown.space)="selectStorageBackend('BlobStorage'); $event.preventDefault()"
-        >
-          <hlm-radio value="blobStorage" class="mt-0.5">
-            <hlm-radio-indicator />
-          </hlm-radio>
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <ng-icon hlmIcon name="lucideCloud" size="sm" />
-              <span class="font-medium">Blob Storage</span>
-              <span class="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">Recommended</span>
+          <!-- Method 1: ICPay -->
+          <rbth-frame>
+            <header rbthFrameHeader>
+              <div rbthFrameTitle>Pay with crypto</div>
+              <div rbthFrameDescription>Use any wallet via ICPay widget.</div>
+            </header>
+            <div rbthFramePanel>
+              <icpay-pay-button #icpayPayBtn></icpay-pay-button>
             </div>
-            <div class="text-muted-foreground text-sm mt-1">
-              Off-chain encrypted storage. ~$0.05/GB/month. Your files are encrypted end-to-end and stored on decentralized infrastructure.
-            </div>
-          </div>
-        </div>
+          </rbth-frame>
 
-        <div
-          class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
-          [attr.data-checked]="storageBackend() === 'OnChain'"
-          role="button"
-          tabindex="0"
-          (click)="selectStorageBackend('OnChain')"
-          (keydown.enter)="selectStorageBackend('OnChain')"
-          (keydown.space)="selectStorageBackend('OnChain'); $event.preventDefault()"
-        >
-          <hlm-radio value="inline" class="mt-0.5">
-            <hlm-radio-indicator />
-          </hlm-radio>
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <ng-icon hlmIcon name="lucideDatabase" size="sm" />
-              <span class="font-medium">On-chain</span>
-            </div>
-            <div class="text-muted-foreground text-sm mt-1">
-              Full on-chain storage. ~$12.5/GB/year. Files stored directly in your canister's stable memory. Maximum sovereignty.
-            </div>
-          </div>
-        </div>
-      </hlm-radio-group>
-      <hlm-field-description>
-        <a href="https://docs.rabbithole.app/en/how-it-works/storage" target="_blank" rel="noopener" class="underline hover:text-foreground">
-          Learn more about storage options
-        </a>
-      </hlm-field-description>
-    </hlm-field-content>
-  </div>
-</ng-template>
+          <!-- Method 2: From balance -->
+          <core-wallet-balance-payment-panel
+            [requiredUsd]="LICENSE_PRICE_USD"
+            [payButtonLabel]="payFromBalanceLabel"
+            (payRequested)="purchaseFromBalance()"
+          />
 
-<!-- Step 1: Select Deployment Mode -->
-<ng-template #selectModeTemplate>
-  <div class="mt-4 space-y-3">
-    <hlm-radio-group [value]="deploymentMode()" (valueChange)="selectMode($event)">
-      <!-- Create New Canister Option -->
-      <div
-        class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
-        [attr.data-checked]="deploymentMode() === 'new'"
-        role="button"
-        tabindex="0"
-        (click)="selectMode('new')"
-        (keydown.enter)="selectMode('new')"
-        (keydown.space)="selectMode('new'); $event.preventDefault()"
-      >
-        <hlm-radio value="new" class="mt-0.5">
-          <hlm-radio-indicator />
-        </hlm-radio>
-        <div class="flex-1">
-          <div class="flex items-center gap-2">
-            <ng-icon hlmIcon name="lucidePlus" size="sm" />
-            <span class="font-medium">Create new canister</span>
-          </div>
-          <div class="text-muted-foreground text-sm mt-1">
-            Create a brand new canister with ICP and deploy storage to it
-          </div>
-        </div>
-      </div>
-
-      <!-- Use Existing Canister Option -->
-      <div
-        class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
-        [attr.data-checked]="deploymentMode() === 'existing'"
-        role="button"
-        tabindex="0"
-        (click)="selectMode('existing')"
-        (keydown.enter)="selectMode('existing')"
-        (keydown.space)="selectMode('existing'); $event.preventDefault()"
-      >
-        <hlm-radio value="existing" class="mt-0.5">
-          <hlm-radio-indicator />
-        </hlm-radio>
-        <div class="flex-1">
-          <div class="flex items-center gap-2">
-            <ng-icon hlmIcon name="lucideLink" size="sm" />
-            <span class="font-medium">Use existing canister</span>
-          </div>
-          <div class="text-muted-foreground text-sm mt-1">
-            Install storage on a canister you already own
-          </div>
-        </div>
-      </div>
-    </hlm-radio-group>
-  </div>
-</ng-template>
-
-<!-- Step 2a: Existing Canister Form -->
-<ng-template #existingCanisterTemplate>
-  <div class="mt-4 space-y-4">
-    <div hlmField>
-      <label hlmFieldLabel for="canisterId">Canister ID</label>
-      <hlm-field-content>
-        <input
-          hlmInput
-          id="canisterId"
-          type="text"
-          placeholder="ryjl3-tyaaa-aaaaa-aaaba-cai"
-          [formField]="existingForm.canisterId"
-          [attr.aria-invalid]="canisterIdError()"
-          class="w-full"
-        />
-        @if (canisterIdError(); as error) {
-          <hlm-field-error>{{ error }}</hlm-field-error>
-        }
-      </hlm-field-content>
-    </div>
-
-    <div hlmAlert>
-      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
-      <h4 hlmAlertTitle>Important: Add Backend as Controller</h4>
-      <p hlmAlertDesc>
-        Before proceeding, you must add the backend canister as a controller of
-        your canister. Copy the backend canister ID below and add it to your
-        canister's controllers:
-        <core-copy-to-clipboard [content]="backendCanisterId.toText()">
-          {{ backendCanisterId.toText() }}
-        </core-copy-to-clipboard>
-      </p>
-    </div>
-  </div>
-</ng-template>
-
-<!-- Step 2b: New Canister Form -->
-<ng-template #newCanisterTemplate>
-  <div class="mt-4 space-y-4">
-    <div hlmField orientation="responsive">
-      <label hlmFieldLabel for="cyclesBalance">Starting cycles balance</label>
-      <hlm-field-content>
-        <rbth-feat-canisters-cycles-balance-input
-          id="cyclesBalance"
-          [ngModel]="newFormModel().cyclesBalance"
-          (ngModelChange)="onCyclesBalanceChange($event)"
-          [min]="0.1"
-          [step]="0.1"
-          [max]="100"
-        />
-        <hlm-field-description>
-          Canister creation cost: {{ CANISTER_CREATION_COST_TC }} TC
-        </hlm-field-description>
-      </hlm-field-content>
-    </div>
-
-    <div hlmAlert [variant]="insufficientBalance() ? 'destructive' : 'default'">
-      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
-      <h4 hlmAlertTitle>Cost Summary</h4>
-      <div hlmAlertDesc class="space-y-1">
-        <div class="flex justify-between">
-          <span>Total cost:</span>
-          <span class="font-medium">{{ totalCostICP() }} ICP ({{ totalCyclesTC() }} TC)</span>
-        </div>
-        <div class="flex justify-between">
-          <span>Your balance:</span>
-          <span class="font-medium">{{ walletBalanceICP() }} ICP</span>
-        </div>
-        @if (insufficientBalance()) {
-          <p class="mt-2">
-            Insufficient balance. Please top up your wallet.
+          <!-- Trust footer -->
+          <p class="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
+            <ng-icon name="lucideLock" hlmIcon size="xs" />
+            Processed on-chain. Data stays on IC.
           </p>
         }
-      </div>
+
+        <!-- ═══ STEP 3: CREATING ═══ -->
+        @case ('creating') {
+          @if (creationStatus(); as status) {
+            <rbth-feat-storages-creation-progress [status]="status" />
+          } @else {
+            <hlm-empty>
+              <hlm-empty-header>
+                <hlm-empty-media variant="icon">
+                  <hlm-spinner />
+                </hlm-empty-media>
+                <h4 hlmEmptyTitle>Processing...</h4>
+                <p hlmEmptyDescription>Setting up your storage canister...</p>
+              </hlm-empty-header>
+            </hlm-empty>
+          }
+        }
+
+        <!-- ═══ ERROR ═══ -->
+        @case ('error') {
+          <div hlmAlert variant="destructive">
+            <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+            <h4 hlmAlertTitle>Creation Failed</h4>
+            <p hlmAlertDesc>{{ errorMessage() }}</p>
+          </div>
+        }
+      }
     </div>
-  </div>
-</ng-template>
 
-<!-- Creating State -->
-<ng-template #creatingTemplate>
-  <div class="mt-4">
-    @if (creationStatus(); as status) {
-      <rbth-feat-storages-creation-progress [status]="status" />
-    } @else {
-      <hlm-empty>
-        <hlm-empty-header>
-          <hlm-empty-media variant="icon">
-            <hlm-spinner />
-          </hlm-empty-media>
-          <h4 hlmEmptyTitle>Initializing...</h4>
-          <p hlmEmptyDescription>Preparing to create your storage...</p>
-        </hlm-empty-header>
-      </hlm-empty>
+    <!-- ═══ FOOTER ═══ -->
+    @if (currentStep === 'configure') {
+      <rbth-drawer-footer>
+        <button hlmBtn variant="outline" (click)="close()">Cancel</button>
+        <button hlmBtn (click)="goToPayment()">Next</button>
+      </rbth-drawer-footer>
+    } @else if (currentStep === 'payment') {
+      <rbth-drawer-footer>
+        <button hlmBtn variant="outline" (click)="goBackToConfigure()">Back</button>
+        <span></span>
+      </rbth-drawer-footer>
+    } @else if (currentStep === 'creating' && creationStatus()?.type === 'Completed') {
+      <rbth-drawer-footer>
+        <button hlmBtn variant="outline" (click)="createAnother()">
+          <ng-icon hlmIcon name="lucidePlus" size="sm" />
+          Create Another
+        </button>
+        <button hlmBtn (click)="viewStorage()">
+          <ng-icon hlmIcon name="lucideExternalLink" size="sm" />
+          View Storage
+        </button>
+      </rbth-drawer-footer>
+    } @else if (currentStep === 'error') {
+      <rbth-drawer-footer>
+        <button hlmBtn variant="outline" (click)="close()">Cancel</button>
+        <button hlmBtn (click)="tryAgain()">Try Again</button>
+      </rbth-drawer-footer>
     }
-  </div>
-</ng-template>
-
-<!-- Error State -->
-<ng-template #errorTemplate>
-  <div hlmAlert variant="destructive" class="mt-4">
-    <ng-icon hlm hlmAlertIcon name="lucideCircleAlert" />
-    <h4 hlmAlertTitle>Creation Failed</h4>
-    <p hlmAlertDescription>{{ errorMessage() }}</p>
-  </div>
-</ng-template>
+  </rbth-drawer-content>
+</rbth-drawer>

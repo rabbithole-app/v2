@@ -172,8 +172,8 @@ export class CanisterDetailComponent implements OnInit {
     this.#icManagementService.removeController(principal);
   }
 
-  protected _onCanisterChange(canisterId: string[] | string | undefined) {
-    if (typeof canisterId === 'string') {
+  protected _onCanisterChange(canisterId: string | null) {
+    if (canisterId) {
       this.#router.navigate(['/dashboard', canisterId, 'canister']);
     }
   }

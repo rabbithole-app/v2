@@ -5,13 +5,11 @@ import {
   input,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import {
-  lucideCheck,
-  lucideCircleX,
-} from '@ng-icons/lucide';
+import { lucideCheck, lucideCircleX } from '@ng-icons/lucide';
 
 import { CopyToClipboardComponent } from '@rabbithole/core';
 import type { StorageCreationStatus } from '@rabbithole/core';
+import { formatBytes } from '@rabbithole/core';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
@@ -22,6 +20,7 @@ interface StageInfo {
   canisterId?: string;
   description: string;
   progress?: number;
+  progressDetails?: string;
   stage: UserStage;
   title: string;
 }
@@ -64,7 +63,12 @@ export class StorageCreationProgressComponent {
     if (this.mode() === 'upgrade') {
       return ['upgrading-wasm', 'upgrading-frontend', 'finalizing'];
     }
-    return ['creating-canister', 'installing-wasm', 'uploading-frontend', 'finalizing'];
+    return [
+      'creating-canister',
+      'installing-wasm',
+      'uploading-frontend',
+      'finalizing',
+    ];
   });
 
   readonly status = input.required<StorageCreationStatus>();
@@ -85,21 +89,26 @@ export class StorageCreationProgressComponent {
           stage,
           title: 'Storage Ready',
           description: 'Your encrypted storage is ready to use!',
-          canisterId: status.type === 'Completed' ? status.canisterId.toText() : undefined,
+          canisterId:
+            status.type === 'Completed'
+              ? status.canisterId.toText()
+              : undefined,
         };
 
       case 'creating-canister':
         return {
           stage,
           title: 'Creating Canister',
-          description: 'Setting up your storage canister on the Internet Computer...',
+          description:
+            'Setting up your storage canister on the Internet Computer...',
         };
 
       case 'failed':
         return {
           stage,
           title: 'Setup Failed',
-          description: status.type === 'Failed' ? status.message : 'An error occurred',
+          description:
+            status.type === 'Failed' ? status.message : 'An error occurred',
         };
 
       case 'finalizing':
@@ -113,8 +122,10 @@ export class StorageCreationProgressComponent {
         return {
           stage,
           title: 'Installing Storage Module',
-          description: 'Deploying the encrypted storage module to your canister...',
+          description:
+            'Deploying the encrypted storage module to your canister...',
           progress: this.#getProgress(status),
+          progressDetails: this.#getProgressDetails(status),
         };
 
       case 'upgrading-frontend':
@@ -123,6 +134,7 @@ export class StorageCreationProgressComponent {
           title: 'Upgrading Interface',
           description: 'Uploading updated interface assets...',
           progress: this.#getProgress(status),
+          progressDetails: this.#getProgressDetails(status),
         };
 
       case 'upgrading-wasm':
@@ -131,6 +143,7 @@ export class StorageCreationProgressComponent {
           title: 'Upgrading Storage Module',
           description: 'Installing the updated storage module...',
           progress: this.#getProgress(status),
+          progressDetails: this.#getProgressDetails(status),
         };
 
       case 'uploading-frontend':
@@ -139,6 +152,7 @@ export class StorageCreationProgressComponent {
           title: 'Setting Up Interface',
           description: 'Uploading the user interface assets...',
           progress: this.#getProgress(status),
+          progressDetails: this.#getProgressDetails(status),
         };
     }
   });
@@ -154,15 +168,42 @@ export class StorageCreationProgressComponent {
       if (total > 0) {
         return Math.round((processed * 100) / total);
       }
-      return 0;
+      return undefined;
     }
     return undefined;
+  }
+
+  #getProgressDetails(status: StorageCreationStatus): string | undefined {
+    switch (status.type) {
+      case 'InstallingWasm':
+      case 'UpgradingWasm': {
+        const { processed, total } = status.progress;
+        if (total <= 0) {
+          return undefined;
+        }
+
+        return `${processed} / ${total} chunks uploaded`;
+      }
+
+      case 'UpgradingFrontend':
+      case 'UploadingFrontend': {
+        const { processed, total } = status.progress;
+        if (total <= 0) {
+          return undefined;
+        }
+
+        return `${formatBytes(processed)} / ${formatBytes(total)} uploaded`;
+      }
+
+      default:
+        return undefined;
+    }
   }
 
   #getUserStage(status: StorageCreationStatus): UserStage {
     switch (status.type) {
       case 'CanisterCreated':
-      case 'CheckingAllowance':
+      case 'CheckingBalance':
       case 'NotifyingCMC':
       case 'Pending':
       case 'TransferringICP':

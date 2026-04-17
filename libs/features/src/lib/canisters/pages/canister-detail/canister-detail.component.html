@@ -6,26 +6,22 @@
         <h1 class="text-2xl font-semibold">Canister Management</h1>
 
         <div hlmButtonGroup>
-          <brn-select
+          <hlm-select
             class="[&>div>hlm-select-trigger>button]:rounded-r-none"
             [value]="currentCanisterId()"
             (valueChange)="_onCanisterChange($event)"
           >
             <hlm-select-trigger class="w-64">
-              <hlm-select-value>
-                <ng-template hlmSelectValue let-selected>
-                  {{ selected || 'Select canister' }}
-                </ng-template>
-              </hlm-select-value>
+              <hlm-select-value />
             </hlm-select-trigger>
             <hlm-select-content>
               @for (canisterId of canisterList(); track canisterId) {
-                <hlm-option [value]="canisterId">
+                <hlm-select-item [value]="canisterId">
                   {{ canisterId }}
-                </hlm-option>
+                </hlm-select-item>
               }
             </hlm-select-content>
-          </brn-select>
+          </hlm-select>
           <button
             hlmBtn
             variant="outline"

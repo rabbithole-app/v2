@@ -1,11 +1,10 @@
 import { computed } from '@angular/core';
 import { Actor } from '@icp-sdk/core/agent';
-import { IDL } from '@icp-sdk/core/candid';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import {
-  IcpLedgerActorService,
-  icpLedgerIdlFactory,
+  IcpLedgerService,
+  idlFactoryIcpLedger,
 } from '@rabbithole/declarations';
 
 import { LEDGER_CANISTER_ID } from '../constants';
@@ -18,12 +17,9 @@ export const [
   const httpAgent = injectHttpAgent();
 
   return computed(() =>
-    Actor.createActor<IcpLedgerActorService>(
-      icpLedgerIdlFactory as unknown as IDL.InterfaceFactory,
-      {
-        agent: httpAgent(),
-        canisterId: LEDGER_CANISTER_ID,
-      },
-    ),
+    Actor.createActor<IcpLedgerService>(idlFactoryIcpLedger, {
+      agent: httpAgent(),
+      canisterId: LEDGER_CANISTER_ID,
+    }),
   );
 });

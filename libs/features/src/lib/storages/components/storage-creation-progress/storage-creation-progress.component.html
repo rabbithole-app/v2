@@ -27,13 +27,21 @@
   </hlm-empty-header>
 
   <!-- Progress bar for WASM/Frontend stages -->
-  @if (info.progress !== undefined && info.stage !== 'completed' && info.stage !== 'failed') {
+  @if (
+    info.progress !== undefined &&
+    info.stage !== 'completed' &&
+    info.stage !== 'failed'
+  ) {
     <div class="mt-3 w-full max-w-xs mx-auto">
       <div hlmProgress [value]="info.progress" class="h-2">
         <hlm-progress-indicator />
       </div>
       <p class="mt-1 text-xs text-muted-foreground text-center">
-        {{ info.progress }}%
+        @if (info.progressDetails) {
+          {{ info.progressDetails }}
+        } @else {
+          {{ info.progress }}%
+        }
       </p>
     </div>
   }

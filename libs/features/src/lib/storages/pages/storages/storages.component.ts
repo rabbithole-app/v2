@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideHardDrive,
@@ -10,13 +10,12 @@ import {
 import { StoragesService } from '@rabbithole/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
-import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import {
-  CreateStorageDialogComponent,
+  CreateStorageDrawerComponent,
   StorageCardComponent,
 } from '../../components';
 
@@ -30,6 +29,7 @@ import {
     ...HlmButtonGroupImports,
     ...HlmEmptyImports,
     StorageCardComponent,
+    CreateStorageDrawerComponent,
   ],
   providers: [
     provideIcons({
@@ -52,20 +52,15 @@ export class StoragesComponent {
   readonly isCreating = this.#storagesService.isCreating;
   readonly isLoading = this.#storagesService.isLoading;
   readonly storages = this.#storagesService.storages;
-  readonly #dialogService = inject(HlmDialogService);
+
+  readonly createStorageDrawer = viewChild(CreateStorageDrawerComponent);
 
   constructor() {
     this.#storagesService.reload();
   }
 
-  openCreateDialog(): void {
-    const dialogRef = this.#dialogService.open(CreateStorageDialogComponent, {
-      contentClass: 'min-w-[500px] sm:max-w-[600px]',
-    });
-
-    dialogRef.closed$.subscribe(() => {
-      // Dialog closed, refresh if needed
-    });
+  openCreateDrawer(): void {
+    this.createStorageDrawer()?.open();
   }
 
   refresh(): void {

@@ -30,9 +30,9 @@ const INITIAL_VALUE: State = {
 export class PermissionsService {
   encryptedStorage = injectEncryptedStorage();
   #state = signal(INITIAL_VALUE);
-  state = this.#state.asReadonly();
   permitted = computed(() => this.#state().permitted);
   permittedLoading = computed(() => this.#state().permittedLoading);
+  state = this.#state.asReadonly();
   #grantPermission = new Subject<Omit<GrantStoragePermission, 'entry'>>();
   #revokePermission = new Subject<Omit<RevokeStoragePermission, 'entry'>>();
 
@@ -54,14 +54,6 @@ export class PermissionsService {
     this.#grantPermission.next(args);
   }
 
-  revokePermission(args: Omit<RevokeStoragePermission, 'entry'>) {
-    this.#revokePermission.next(args);
-  }
-
-  setEntry(entry: Entry | null) {
-    this.#state.update((state) => ({ ...state, entry, permitted: [] }));
-  }
-
   async loadPermitted() {
     const encryptedStorage = this.encryptedStorage();
     const { entry } = this.#state();
@@ -73,6 +65,14 @@ export class PermissionsService {
     } catch {
       this.#state.update((s) => ({ ...s, permitted: [], permittedLoading: false }));
     }
+  }
+
+  revokePermission(args: Omit<RevokeStoragePermission, 'entry'>) {
+    this.#revokePermission.next(args);
+  }
+
+  setEntry(entry: Entry | null) {
+    this.#state.update((state) => ({ ...state, entry, permitted: [] }));
   }
 
 

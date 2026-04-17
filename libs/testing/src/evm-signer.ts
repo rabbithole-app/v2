@@ -65,6 +65,52 @@ export function encodeErc20Transfer(to: string, amount: bigint): Uint8Array {
 }
 
 /**
+ * Fund an EVM address with ETH from the test funder wallet on Base Sepolia.
+ * Sends a real transaction, waits for it to be mined.
+ */
+export async function fundWithEth(
+  toAddress: string,
+  amountWei: bigint,
+): Promise<string> {
+  const { nonce, gasPrice } = await getEvmTxParams(BASE_SEPOLIA_RPC, TEST_FUNDER_ADDRESS);
+  const txHash = await signTransaction({
+    rpcUrl: BASE_SEPOLIA_RPC,
+    privateKey: TEST_FUNDER_PRIVATE_KEY,
+    to: toAddress,
+    value: amountWei,
+    nonce,
+    gasPrice,
+    gasLimit: 21_000n,
+    chainId: Number(BASE_SEPOLIA_CHAIN_ID),
+  });
+  await waitForTx(BASE_SEPOLIA_RPC, txHash);
+  return txHash;
+}
+
+/**
+ * Fund an EVM address with ERC-20 tokens (USDC) from the test funder wallet on Base Sepolia.
+ * Sends a real transaction, waits for it to be mined.
+ */
+export async function fundWithUsdc(
+  toAddress: string,
+  amount: bigint,
+): Promise<string> {
+  const { nonce, gasPrice } = await getEvmTxParams(BASE_SEPOLIA_RPC, TEST_FUNDER_ADDRESS);
+  const txHash = await sendErc20({
+    rpcUrl: BASE_SEPOLIA_RPC,
+    privateKey: TEST_FUNDER_PRIVATE_KEY,
+    contract: BASE_SEPOLIA_USDC,
+    to: toAddress,
+    amount,
+    nonce,
+    gasPrice,
+    chainId: Number(BASE_SEPOLIA_CHAIN_ID),
+  });
+  await waitForTx(BASE_SEPOLIA_RPC, txHash);
+  return txHash;
+}
+
+/**
  * Get nonce and gas price from RPC.
  */
 export async function getEvmTxParams(
@@ -224,52 +270,6 @@ export async function waitForTx(
     await new Promise((r) => setTimeout(r, 2_000));
   }
   throw new Error(`Transaction ${txHash} not mined within ${timeoutMs}ms`);
-}
-
-/**
- * Fund an EVM address with ETH from the test funder wallet on Base Sepolia.
- * Sends a real transaction, waits for it to be mined.
- */
-export async function fundWithEth(
-  toAddress: string,
-  amountWei: bigint,
-): Promise<string> {
-  const { nonce, gasPrice } = await getEvmTxParams(BASE_SEPOLIA_RPC, TEST_FUNDER_ADDRESS);
-  const txHash = await signTransaction({
-    rpcUrl: BASE_SEPOLIA_RPC,
-    privateKey: TEST_FUNDER_PRIVATE_KEY,
-    to: toAddress,
-    value: amountWei,
-    nonce,
-    gasPrice,
-    gasLimit: 21_000n,
-    chainId: Number(BASE_SEPOLIA_CHAIN_ID),
-  });
-  await waitForTx(BASE_SEPOLIA_RPC, txHash);
-  return txHash;
-}
-
-/**
- * Fund an EVM address with ERC-20 tokens (USDC) from the test funder wallet on Base Sepolia.
- * Sends a real transaction, waits for it to be mined.
- */
-export async function fundWithUsdc(
-  toAddress: string,
-  amount: bigint,
-): Promise<string> {
-  const { nonce, gasPrice } = await getEvmTxParams(BASE_SEPOLIA_RPC, TEST_FUNDER_ADDRESS);
-  const txHash = await sendErc20({
-    rpcUrl: BASE_SEPOLIA_RPC,
-    privateKey: TEST_FUNDER_PRIVATE_KEY,
-    contract: BASE_SEPOLIA_USDC,
-    to: toAddress,
-    amount,
-    nonce,
-    gasPrice,
-    chainId: Number(BASE_SEPOLIA_CHAIN_ID),
-  });
-  await waitForTx(BASE_SEPOLIA_RPC, txHash);
-  return txHash;
 }
 
 // ---- Internal helpers ----

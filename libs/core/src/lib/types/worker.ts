@@ -140,6 +140,10 @@ export const workerConfigSchema = type({
   // canisters: type.Record("'encryptedStorage'", principalSchema),
 });
 
+export type ArchiveDownloadProgress = typeof archiveDownloadProgressSchema.infer;
+
+export type ArchiveDownloadRequest = typeof archiveDownloadRequestSchema.infer;
+
 export type CoreWorkerActionsIn = Prettify<
   {
     'download:archive': { payload: ArchiveDownloadRequest };
@@ -159,7 +163,7 @@ export type CoreWorkerActionsIn = Prettify<
 
 export type CoreWorkerActionsOut = Prettify<
   {
-    'download:archive-chunk': { payload: { id: string; chunk: ArrayBuffer } };
+    'download:archive-chunk': { payload: { chunk: ArrayBuffer; id: string; } };
     'download:archive-progress': { payload: ArchiveDownloadProgress };
     'download:chunk': { payload: DownloadChunk };
     'download:progress': { payload: DownloadProgress };
@@ -179,10 +183,6 @@ export type CoreWorkerMessageIn = Message<CoreWorkerActionsIn>;
 export type CoreWorkerMessageOut = Message<CoreWorkerActionsOut>;
 
 export type CoreWorkerMessages = CoreWorkerMessageIn | CoreWorkerMessageOut;
-
-export type ArchiveDownloadProgress = typeof archiveDownloadProgressSchema.infer;
-
-export type ArchiveDownloadRequest = typeof archiveDownloadRequestSchema.infer;
 
 export type DownloadChunk = typeof downloadChunkSchema.infer;
 

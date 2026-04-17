@@ -19,20 +19,16 @@
           [attr.aria-invalid]="userControl.invalid"
           class="not-aria-invalid:-me-px rounded-e-none shadow-none focus-visible:z-10 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive peer"
         />
-        <brn-select
+        <hlm-select
           placeholder="Select a permission"
           formControlName="permission"
         >
           <hlm-select-trigger class="w-fit rounded-s-none shadow-none">
-            <hlm-select-value>
-              <ng-template hlmSelectValue let-selected>
-                {{ selected }}
-              </ng-template>
-            </hlm-select-value>
+            <hlm-select-value />
           </hlm-select-trigger>
           <hlm-select-content class="w-64 min-w-48">
             @for (option of permissions; track option.value) {
-              <hlm-option
+              <hlm-select-item
                 [value]="option.value"
                 class="flex flex-col items-start gap-0 justify-center"
               >
@@ -40,10 +36,10 @@
                 <span class="text-muted-foreground text-xs">{{
                   option.description
                 }}</span>
-              </hlm-option>
+              </hlm-select-item>
             }
           </hlm-select-content>
-        </brn-select>
+        </hlm-select>
       </div>
     </form>
     <hlm-dialog-footer>

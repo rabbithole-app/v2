@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BlobHashTree, YHash } from './merkle-tree';
+import { BlobHashTree, verifyBlobIntegrity, YHash } from './merkle-tree';
 
 describe('YHash', () => {
   it('should create from 32 bytes', () => {
@@ -178,5 +178,83 @@ describe('BlobHashTree', () => {
     expect(json).toHaveProperty('headers');
     expect(Array.isArray(json.chunk_hashes)).toBe(true);
     expect(Array.isArray(json.headers)).toBe(true);
+  });
+});
+
+describe('verifyBlobIntegrity', () => {
+  it('returns true for unmodified data', async () => {
+    const data = new Uint8Array([10, 20, 30, 40, 50]);
+    const contentType = 'application/octet-stream';
+
+    // Build expected hash the same way upload does
+    const chunkHash = await YHash.fromChunk(data);
+    const tree = await BlobHashTree.build([chunkHash], {
+      'Content-Type': contentType,
+      'Content-Length': data.byteLength.toString(),
+    });
+    const expectedHash = tree.tree.hash.toShaString();
+
+    const result = await verifyBlobIntegrity(data, expectedHash, contentType);
+    expect(result).toBe(true);
+  });
+
+  it('returns false when data is tampered', async () => {
+    const data = new Uint8Array([10, 20, 30, 40, 50]);
+    const contentType = 'application/octet-stream';
+
+    const chunkHash = await YHash.fromChunk(data);
+    const tree = await BlobHashTree.build([chunkHash], {
+      'Content-Type': contentType,
+      'Content-Length': data.byteLength.toString(),
+    });
+    const expectedHash = tree.tree.hash.toShaString();
+
+    // Tamper with one byte
+    const tampered = new Uint8Array(data);
+    tampered[2] = 0xff;
+
+    const result = await verifyBlobIntegrity(tampered, expectedHash, contentType);
+    expect(result).toBe(false);
+  });
+
+  it('returns false when content-type differs', async () => {
+    const data = new Uint8Array([1, 2, 3]);
+    const contentType = 'text/plain';
+
+    const chunkHash = await YHash.fromChunk(data);
+    const tree = await BlobHashTree.build([chunkHash], {
+      'Content-Type': contentType,
+      'Content-Length': data.byteLength.toString(),
+    });
+    const expectedHash = tree.tree.hash.toShaString();
+
+    const result = await verifyBlobIntegrity(data, expectedHash, 'image/png');
+    expect(result).toBe(false);
+  });
+
+  it('verifies multi-chunk data correctly', async () => {
+    const chunkSize = 16;
+    // 2.5 chunks worth of data
+    const data = new Uint8Array(40);
+    for (let i = 0; i < data.length; i++) data[i] = i;
+    const contentType = 'application/octet-stream';
+
+    // Build hash with same chunk size
+    const chunks = [data.subarray(0, 16), data.subarray(16, 32), data.subarray(32, 40)];
+    const chunkHashes = await Promise.all(chunks.map(c => YHash.fromChunk(c)));
+    const tree = await BlobHashTree.build(chunkHashes, {
+      'Content-Type': contentType,
+      'Content-Length': data.byteLength.toString(),
+    });
+    const expectedHash = tree.tree.hash.toShaString();
+
+    const result = await verifyBlobIntegrity(data, expectedHash, contentType, chunkSize);
+    expect(result).toBe(true);
+
+    // Tamper with last chunk
+    const tampered = new Uint8Array(data);
+    tampered[35] = 0xff;
+    const resultTampered = await verifyBlobIntegrity(tampered, expectedHash, contentType, chunkSize);
+    expect(resultTampered).toBe(false);
   });
 });

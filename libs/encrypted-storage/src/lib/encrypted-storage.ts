@@ -21,7 +21,7 @@ import {
 } from '@rabbithole/declarations';
 
 import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
-import { BlobHashTree, YHash } from './blob-storage/merkle-tree';
+import { BlobHashTree, verifyBlobIntegrity, YHash } from './blob-storage/merkle-tree';
 import {
   EncryptedStorageConfig,
   Entry,
@@ -41,6 +41,7 @@ import {
 } from './types';
 import { convertTreeNodes } from './utils';
 import { limit, LimitFn } from './utils/limit';
+import { verifyIcCertificate } from './utils/verify-ic-certificate';
 
 /** Blob storage protocol chunk size: 1 MiB */
 const CAFFEINE_CHUNK_SIZE = 1_048_576;
@@ -101,10 +102,51 @@ export class EncryptedStorage {
     });
   }
 
+  async #fetchCertifiedBlobInfo(
+    keyId: [Principal, Uint8Array],
+  ): Promise<{ blobHash: string; contentType: string; size: number }> {
+    const keyName = new TextDecoder().decode(keyId[1]);
+    const path = `/blob-info/${keyId[0].toText()}/${keyName}`;
+
+    // Call http_request via actor (Candid query — returns response with IC-Certificate headers)
+    const response = await this.#actor.http_request({
+      method: 'GET',
+      url: path,
+      headers: [],
+      body: new Uint8Array(),
+      certificate_version: [], // [] → v1 branch in certified-assets@0.6.0
+    });
+
+    if (response.status_code !== 200) {
+      throw new Error(
+        `Blob info HTTP request failed: ${response.status_code}`,
+      );
+    }
+
+    // Verify IC certificate and get trusted body
+    const agent = Actor.agentOf(this.#actor) as HttpAgent;
+    const canisterId = Actor.canisterIdOf(this.#actor);
+    const verifiedBody = await verifyIcCertificate(
+      response,
+      path,
+      agent,
+      canisterId,
+    );
+
+    return JSON.parse(new TextDecoder().decode(verifiedBody));
+  }
+
+  /**
+   * Download a file as a stream of decrypted chunks.
+   *
+   * @param entry The file entry to download
+   * @param options Download options. `keyId` is required when `storageBackend === 'BlobStorage'`.
+   */
   async *downloadStream(
     entry: Entry,
     options?: {
       encrypted?: boolean;
+      /** Required for BlobStorage downloads — used to construct certified HTTP path. */
       keyId?: [Principal, Uint8Array];
       onProgress?: (chunkIndex: number, totalChunks: number) => void;
       signal?: AbortSignal;
@@ -126,12 +168,11 @@ export class EncryptedStorage {
 
     // ── BlobStorage download flow ──
     if (options?.storageBackend === 'BlobStorage' && this.#blobStorageClient) {
-      const entryRaw = toEntryRaw(entry);
-      const info = await this.#actor.getBlobDownloadInfo({
-        entry: entryRaw,
-        chunkIndex: 0n,
-        version: options.version !== undefined ? [BigInt(options.version)] : [],
-      });
+      if (!options.keyId) {
+        throw new Error('keyId is required for BlobStorage downloads');
+      }
+
+      const info = await this.#fetchCertifiedBlobInfo(options.keyId);
 
       if (options.signal?.aborted) throw new Error('Download aborted');
 
@@ -142,6 +183,20 @@ export class EncryptedStorage {
       }
 
       const allBytes = new Uint8Array(await response.arrayBuffer());
+
+      // Verify Merkle root against the on-chain hash before decryption
+      const isValid = await verifyBlobIntegrity(
+        allBytes,
+        info.blobHash,
+        info.contentType,
+        CAFFEINE_CHUNK_SIZE,
+      );
+      if (!isValid) {
+        throw new Error(
+          'Blob integrity verification failed: downloaded data does not match on-chain hash',
+        );
+      }
+
       const encChunkSize = CAFFEINE_CHUNK_SIZE;
       const totalChunks = Math.max(1, Math.ceil(allBytes.byteLength / encChunkSize));
 

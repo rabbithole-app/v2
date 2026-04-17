@@ -274,10 +274,8 @@ export class WasmInstallComponent {
     }
   }
 
-  onWasmMemoryPersistenceChange(
-    value: ('keep' | 'replace')[] | 'keep' | 'replace' | undefined,
-  ) {
-    if (value && !Array.isArray(value)) {
+  onWasmMemoryPersistenceChange(value: 'keep' | 'replace' | null) {
+    if (value) {
       this.wasmMemoryPersistence.set(value);
     }
   }

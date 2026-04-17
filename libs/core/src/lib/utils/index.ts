@@ -7,6 +7,7 @@ export * from './format-number';
 export * from './get-file-icon';
 export * from './is-photon-supported-mime-type';
 export * from './parse-canister-reject-error';
+export * from './payment-eligibility';
 export * from './principal';
 export * from './storage-init-args';
 export * from './time';

@@ -8,17 +8,15 @@ import {
   SubnetStateType,
   type SystemSubnetConfig,
 } from "@dfinity/pic";
-import { IDL } from "@icp-sdk/core/candid";
+import { toNullable } from "@dfinity/utils";
 import { Principal } from "@icp-sdk/core/principal";
 import { inject } from "vitest";
 
 import type {
-  Account,
-  CMCActorService,
-  IcpLedgerActorService,
-  TransferResult,
+  CmcService,
+  IcpLedgerService,
 } from "@rabbithole/declarations";
-import { cmcIdlFactory, icpLedgerIdlFactory } from "@rabbithole/declarations";
+import { idlFactoryCmc, idlFactoryIcpLedger } from "@rabbithole/declarations";
 
 import {
   CMC_CANISTER_ID,
@@ -30,10 +28,10 @@ import {
 import { minterIdentity } from "./nns-identity.ts";
 
 export interface CreateManagerOptions {
-  /** Enable II subnet (provides threshold ECDSA keys like dfx_test_key) */
-  ii?: boolean;
   /** Enable fiduciary subnet (allows targetCanisterId for ck-token ledger canister IDs) */
   fiduciary?: boolean;
+  /** Enable II subnet (provides threshold ECDSA keys like dfx_test_key) */
+  ii?: boolean;
   /** Max rounds for awaitCall() in DeferredActor (default: 100, increase for multi-step EVM calls) */
   ingressMaxRetries?: number;
   /** Initial ICP balance for owner in e8s (default: 1_000_000 * E8S_PER_ICP) */
@@ -46,16 +44,16 @@ export interface CreateManagerOptions {
 
 export class BaseManager {
   readonly applicationSubnetId: Principal;
-  readonly cmcActor: Actor<CMCActorService>;
-  readonly icpLedgerActor: Actor<IcpLedgerActorService>;
+  readonly cmcActor: Actor<CmcService>;
+  readonly icpLedgerActor: Actor<IcpLedgerService>;
   readonly ownerIdentity: ReturnType<typeof createIdentity>;
   readonly pic: PocketIc;
 
   protected constructor(
     pic: PocketIc,
     ownerIdentity: ReturnType<typeof createIdentity>,
-    icpLedgerActor: Actor<IcpLedgerActorService>,
-    cmcActor: Actor<CMCActorService>,
+    icpLedgerActor: Actor<IcpLedgerService>,
+    cmcActor: Actor<CmcService>,
     applicationSubnetId: Principal,
   ) {
     this.pic = pic;
@@ -84,15 +82,14 @@ export class BaseManager {
     });
 
     const applicationSubnets = await pic.getApplicationSubnets();
-    await pic.setTime(new Date().getTime());
     await pic.tick();
 
     const identity =
       opts?.ownerIdentity ?? createIdentity("superSecretAlicePassword");
 
     // Setup ICP ledger actor
-    const icpLedgerActor = pic.createActor<IcpLedgerActorService>(
-      icpLedgerIdlFactory,
+    const icpLedgerActor = pic.createActor<IcpLedgerService>(
+      idlFactoryIcpLedger,
       ICP_LEDGER_CANISTER_ID,
     );
     icpLedgerActor.setIdentity(minterIdentity);
@@ -105,7 +102,7 @@ export class BaseManager {
       to: {
         owner: identity.getPrincipal(),
         subaccount: [],
-      } as unknown as Account,
+      },
       amount: mintAmount,
       fee: [],
       memo: [],
@@ -113,8 +110,8 @@ export class BaseManager {
     });
 
     // Setup CMC actor
-    const cmcActor = pic.createActor<CMCActorService>(
-      cmcIdlFactory as unknown as IDL.InterfaceFactory,
+    const cmcActor = pic.createActor<CmcService>(
+      idlFactoryCmc,
       CMC_CANISTER_ID,
     );
     cmcActor.setIdentity(minterIdentity);
@@ -169,10 +166,10 @@ export class BaseManager {
   }
 
   async getMyBalances() {
-    const account: Account = {
+    const account = {
       owner: this.ownerIdentity.getPrincipal(),
-      subaccount: [],
-    } as unknown as Account;
+      subaccount: toNullable<Uint8Array>(),
+    };
     return await this.icpLedgerActor.icrc1_balance_of(account);
   }
 
@@ -181,7 +178,7 @@ export class BaseManager {
     return BigInt(Math.trunc(time));
   }
 
-  async sendIcp(to: Account, amount: bigint): Promise<TransferResult> {
+  async sendIcp(to: Parameters<typeof this.icpLedgerActor.icrc1_transfer>[0]['to'], amount: bigint) {
     const txresp = await this.icpLedgerActor.icrc1_transfer({
       from_subaccount: [],
       to: to,

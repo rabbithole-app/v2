@@ -16,7 +16,6 @@ import {
 import { filter, map, startWith } from 'rxjs';
 
 import { isPrincipal, StoragesService } from '@rabbithole/core';
-import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
@@ -66,7 +65,6 @@ export class StorageSwitcherComponent {
   readonly menuItemClass =
     'group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center';
 
-  readonly #dialogService = inject(HlmDialogService);
 
   readonly #upgradingCanisterIds = computed(() => {
     const upgrading = new Set<string>();
@@ -91,12 +89,7 @@ export class StorageSwitcherComponent {
     this.#router.navigate(['/dashboard', canisterId, 'drive']);
   }
 
-  async openCreateStorageDialog(): Promise<void> {
-    const { CreateStorageDialogComponent } = await import(
-      '@rabbithole/features/storages'
-    );
-    this.#dialogService.open(CreateStorageDialogComponent, {
-      contentClass: 'min-w-[500px] sm:max-w-[600px]',
-    });
+  openCreateStorage(): void {
+    this.#router.navigate(['/dashboard', { outlets: { dialog: 'create-storage' } }]);
   }
 }

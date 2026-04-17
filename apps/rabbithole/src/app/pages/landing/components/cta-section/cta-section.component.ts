@@ -68,7 +68,6 @@ import { HlmSeparator } from '@spartan-ng/helm/separator';
   `,
 })
 export class CtaSectionComponent {
-  readonly year = new Date().getFullYear();
   readonly #authService = inject(AUTH_SERVICE);
   readonly ctaLink = computed(() =>
     this.#authService.isAuthenticated()
@@ -80,4 +79,5 @@ export class CtaSectionComponent {
       ? null
       : { redirectUrl: '/dashboard/(dialog:create-storage)' },
   );
+  readonly year = new Date().getFullYear();
 }

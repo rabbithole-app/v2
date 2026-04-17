@@ -8,6 +8,11 @@ export type FileUploadWithStatus = {
   preview?: string;
 } & UploadStatus;
 
+export interface IAssetUploadService extends IUploadService {
+  hasPermission: Signal<boolean>;
+  reloadPermissions(): void;
+}
+
 export interface IUploadService {
   add(item: { file: File; path?: string }): Promise<void>;
   cancel(id: UploadId): void;
@@ -15,11 +20,6 @@ export interface IUploadService {
   remove(id: UploadId): void;
   retry(id: UploadId): void;
   state: Signal<UploadServiceState>;
-}
-
-export interface IAssetUploadService extends IUploadService {
-  hasPermission: Signal<boolean>;
-  reloadPermissions(): void;
 }
 
 export type UploadServiceState = {

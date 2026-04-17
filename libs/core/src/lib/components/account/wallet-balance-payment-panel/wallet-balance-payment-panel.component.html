@@ -1,0 +1,52 @@
+<rbth-frame>
+  <header rbthFrameHeader>
+    <div rbthFrameTitle>Pay from balance</div>
+    <div rbthFrameDescription>{{ eligibility().hint }}</div>
+  </header>
+
+  <div rbthFramePanel>
+    <hlm-collapsible
+      [expanded]="expanded()"
+      (expandedChange)="expanded.set($event)"
+      class="group/collapsible block"
+    >
+      <button
+        hlmCollapsibleTrigger
+        class="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <core-wallet-summary-header
+          [requiredUsd]="requiredUsd()"
+          size="sm"
+          class="flex-1"
+        />
+        <ng-icon
+          hlm
+          name="lucideChevronDown"
+          size="sm"
+          class="shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-180"
+        />
+      </button>
+
+      <hlm-collapsible-content>
+        <div class="mt-4">
+          <core-wallet-networks-view />
+        </div>
+      </hlm-collapsible-content>
+    </hlm-collapsible>
+  </div>
+
+  <footer rbthFrameFooter>
+    @if (canPay()) {
+      <button hlmBtn class="w-full" (click)="payRequested.emit()">
+        {{ payButtonLabel() }}
+      </button>
+    } @else {
+      <span
+        class="inline-flex w-full"
+        [hlmTooltip]="eligibility().hint"
+      >
+        <button hlmBtn class="w-full" disabled>{{ payButtonLabel() }}</button>
+      </span>
+    }
+  </footer>
+</rbth-frame>

@@ -238,6 +238,51 @@ export async function runWithProxy<T>(
 }
 
 /**
+ * Enable auto-progress, poll until a condition is met, then disable auto-progress.
+ *
+ * Useful for timer-based flows where the canister schedules work via Timer.setTimer
+ * and that work involves HTTPS outcalls (EVM RPC, Solana RPC, XRC).
+ * Auto-progress mode lets PocketIC tick and proxy outcalls automatically.
+ *
+ * Usage:
+ * ```ts
+ * await actor.triggerAutoRenewals(); // schedules timers
+ * await waitWithAutoProgress(pic, async () => {
+ *   const sub = await actor.getSubscription();
+ *   return sub[0]?.status?.Active !== undefined;
+ * });
+ * ```
+ */
+export async function waitWithAutoProgress(
+  pic: PocketIc,
+  condition: () => Promise<boolean>,
+  opts?: { pollIntervalMs?: number; timeoutMs?: number; },
+): Promise<void> {
+  const timeoutMs = opts?.timeoutMs ?? 120_000;
+  const pollIntervalMs = opts?.pollIntervalMs ?? 500;
+
+  await enableAutoProgress(pic);
+  try {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, pollIntervalMs));
+      try {
+        if (await condition()) return;
+      } catch {
+        // condition may throw while timers are still in progress
+      }
+    }
+    throw new Error(`waitWithAutoProgress: condition not met within ${timeoutMs}ms`);
+  } finally {
+    try {
+      await disableAutoProgress(pic);
+    } catch (e) {
+      console.log(`[waitWithAutoProgress] warning: stop_progress failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+}
+
+/**
  * Disable PocketIC auto-progress mode for the given instance.
  */
 async function disableAutoProgress(pic: PocketIc): Promise<void> {

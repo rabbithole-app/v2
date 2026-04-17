@@ -1,4 +1,4 @@
-import { inject, Injectable, computed, resource } from '@angular/core';
+import { computed, inject, Injectable, resource } from '@angular/core';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
 import {

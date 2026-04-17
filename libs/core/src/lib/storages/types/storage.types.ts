@@ -26,17 +26,19 @@ export type StorageCreationStatus =
   | { canisterId: Principal; type: 'RevokingInstallerPermission'; }
   | { canisterId: Principal; type: 'UpdatingControllers'; }
   | { message: string; type: 'Failed'; }
-  | { type: 'CheckingAllowance' }
-  | { type: 'Pending' };
+  | { type: 'CheckingBalance' }
+  | { type: 'Pending' }
+  | { type: 'ProcessingPayment' };
 
 export type StorageCreationStatusType =
   | 'CanisterCreated'
-  | 'CheckingAllowance'
+  | 'CheckingBalance'
   | 'Completed'
   | 'Failed'
   | 'InstallingWasm'
   | 'NotifyingCMC'
   | 'Pending'
+  | 'ProcessingPayment'
   | 'RevokingInstallerPermission'
   | 'TransferringICP'
   | 'UpdatingControllers'

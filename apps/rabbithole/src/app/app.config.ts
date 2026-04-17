@@ -23,9 +23,11 @@ import {
   BLOB_STORAGE_CONFIG_TOKEN,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
+  ICPAY_CONFIG_TOKEN,
   IS_PRODUCTION_TOKEN,
   MAIN_BACKEND_URL_TOKEN,
   MAIN_CANISTER_ID_TOKEN,
+  MULTI_CHAIN_RPC_CONFIG_TOKEN,
   provideCoreWorker,
   provideIcAuthSignOutHandler,
   provideReferralCapture,
@@ -99,6 +101,17 @@ export const appConfig: ApplicationConfig = {
     {
       provide: IS_PRODUCTION_TOKEN,
       useValue: environment.production,
+    },
+    {
+      provide: ICPAY_CONFIG_TOKEN,
+      useValue: environment.icpay,
+    },
+    {
+      provide: MULTI_CHAIN_RPC_CONFIG_TOKEN,
+      useValue: {
+        evmRpcUrl: environment.evmRpcUrl,
+        solanaRpcUrl: environment.solanaRpcUrl,
+      },
     },
   ],
 };

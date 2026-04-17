@@ -33,6 +33,13 @@
           <ng-icon hlm name="lucideUser" />
           <span>{{ profile() ? 'Profile' : 'Set up profile' }}</span>
         </button>
+        <button
+          hlmDropdownMenuItem
+          (click)="navigateToWallet(); ctx.close()"
+        >
+          <ng-icon hlm name="lucideWallet" />
+          <span>Wallet</span>
+        </button>
       </hlm-dropdown-menu-group>
       <hlm-dropdown-menu-separator />
       <hlm-dropdown-menu-group>

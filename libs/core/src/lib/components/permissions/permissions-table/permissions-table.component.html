@@ -106,7 +106,7 @@
       {{ _table.getRowCount() }} row(s) selected
     </span>
     <div class="flex items-center gap-3">
-      <brn-select
+      <hlm-select
         [ngModel]="_table.getState().pagination.pageSize"
         (ngModelChange)="_table.setPageSize($event); _table.resetPageIndex()"
       >
@@ -115,12 +115,12 @@
         </hlm-select-trigger>
         <hlm-select-content>
           @for (size of _availablePageSizes; track size) {
-            <hlm-option [value]="size">
+            <hlm-select-item [value]="size">
               {{ size === 10000 ? 'All' : size }}
-            </hlm-option>
+            </hlm-select-item>
           }
         </hlm-select-content>
-      </brn-select>
+      </hlm-select>
 
       <div class="flex space-x-1">
         <button

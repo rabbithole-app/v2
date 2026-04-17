@@ -180,8 +180,8 @@ export class UsersTableComponent {
     this.pageChange.emit({ pageIndex, pageSize: this.currentPageSize() });
   }
 
-  protected _onPageSizeChange(pageSize: number[] | number | undefined) {
-    if (typeof pageSize === 'number') {
+  protected _onPageSizeChange(pageSize: number | null) {
+    if (pageSize) {
       this.pageChange.emit({ pageIndex: 0, pageSize });
     }
   }

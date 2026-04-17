@@ -18,7 +18,7 @@
       hlmBtn
       variant="outline"
       [disabled]="isCreating() || hasActiveCreation()"
-      (click)="openCreateDialog()"
+      (click)="openCreateDrawer()"
     >
       <ng-icon hlmIcon name="lucidePlus" size="sm" />
       Create Storage
@@ -30,7 +30,7 @@
 @if (storages().length > 0) {
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
     @for (storage of storages(); track storage.id) {
-      <rbth-feat-storages-storage-card [storage]="storage" />
+      <rbth-feat-storages-storage-card [storage]="storage" (retryRequested)="openCreateDrawer()" />
     }
   </div>
 } @else if (isLoading()) {
@@ -59,4 +59,6 @@
     </div>
   </div>
 }
+
+<rbth-feat-storages-create-storage-drawer />
 
