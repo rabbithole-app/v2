@@ -95,6 +95,36 @@ describe('Treasury Canister — EVM', () => {
     expect(l1Addr[0]).not.toEqual(treasuryEvmAddress);
   });
 
+  test('getEvmAddress: derives address when wallet cache exists without evmAddress', async () => {
+    const dualManager = await TreasuryManager.createWithEvmAndSol();
+    try {
+      dualManager.deferredTreasuryActor.setIdentity(l2Identity);
+
+      const getSolResult = await dualManager.deferredTreasuryActor.getSolAddress();
+      for (let i = 0; i < 10; i++) {
+        await dualManager.pic.tick(2);
+      }
+      const solAddr = await getSolResult();
+
+      expect(solAddr).toHaveLength(1);
+
+      const getEvmResult = await dualManager.deferredTreasuryActor.getEvmAddress();
+      for (let i = 0; i < 10; i++) {
+        await dualManager.pic.tick(2);
+      }
+      const evmAddr = await getEvmResult();
+
+      expect(evmAddr).toHaveLength(1);
+      expect(evmAddr[0]).toMatch(/^0x[0-9a-fA-F]{40}$/);
+
+      dualManager.treasuryActor.setIdentity(l2Identity);
+      const cachedSolAddr = await dualManager.treasuryActor.getSolAddress();
+      expect(cachedSolAddr).toEqual(solAddr);
+    } finally {
+      await dualManager.afterAll();
+    }
+  });
+
   test('distributePayment: unauthorized caller returns #Unauthorized', async () => {
     manager.treasuryActor.setIdentity(randomIdentity);
     const result = await manager.treasuryActor.distributePayment({
@@ -270,7 +300,7 @@ describe('Treasury Canister — EVM', () => {
     expect(record.status).toEqual({ completed: null });
   });
 
-  test('distributePayment: BaseUSDC with L1 + L2 ambassadors', async () => {
+  test('distributePayment: BaseUSDC with L1 ambassador and disabled L2 share', async () => {
     manager.deferredTreasuryActor.setIdentity(manager.adminIdentity);
     const amount = 20_000n; // $0.02 USDC
 
@@ -292,15 +322,15 @@ describe('Treasury Canister — EVM', () => {
     }
     expect(result).toHaveProperty('ok');
     const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
-    const grossL1 = (amount * 2000n) / 10000n; // 20%
-    const grossL2 = (amount * 500n) / 10000n;  // 5%
-    const grossTreasury = amount - grossL1 - grossL2; // 75%
+    const grossL1 = (amount * 1500n) / 10000n; // 15%
+    const grossL2 = 0n;
+    const grossTreasury = amount - grossL1; // 85%
     expect(record.l1Amount).toBe(grossL1);
     expect(record.l2Amount).toBe(grossL2);
     expect(record.treasuryAmount).toBe(grossTreasury);
 
     const transfers: TransferRecord[] = record.transfers;
-    expect(transfers).toHaveLength(3);
+    expect(transfers).toHaveLength(2);
     for (const t of transfers) {
       expect(t.evmAddress).toHaveLength(1);
       expect(t.error).toEqual([]);

@@ -13,10 +13,10 @@ const randomIdentity = createIdentity('charge-random');
 
 const FEE = ICP_TRANSACTION_FEE;
 
-// New splits: 80% treasury, 15% L1, 5% L2
-const TREASURY_BPS = 8000n;
+// Current splits: 85% treasury, 15% L1, 0% L2
+const TREASURY_BPS = 8500n;
 const L1_BPS = 1500n;
-const L2_BPS = 500n;
+const L2_BPS = 0n;
 const BPS_BASE = 10000n;
 
 describe('chargeAndDistribute', () => {
@@ -30,7 +30,7 @@ describe('chargeAndDistribute', () => {
     await manager?.afterAll();
   });
 
-  test('ICP: full split (80/15/5) from user subaccount', async () => {
+  test('ICP: current split (85/15/0) from user subaccount', async () => {
     const chargeAmount = 10n * E8S_PER_ICP;
     // Fund user's subaccount (not treasury main)
     await manager.mintToUserSubaccount(userIdentity.getPrincipal(), chargeAmount + 3n * FEE);
@@ -70,7 +70,7 @@ describe('chargeAndDistribute', () => {
     expect(l1After - l1Before).toBe(expectedL1 - FEE);
 
     const l2After = await manager.getSubaccountBalance(l2Identity.getPrincipal());
-    expect(l2After - l2Before).toBe(expectedL2 - FEE);
+    expect(l2After - l2Before).toBe(0n);
   });
 
   test('ICP: no ambassadors -> 100% to admin', async () => {
@@ -189,9 +189,8 @@ describe('chargeAndDistribute edge cases', () => {
     await manager?.afterAll();
   });
 
-  test('small amount: L2 share below fee is skipped, treasury + L1 succeed', async () => {
-    // Amount where L2 share (5%) < fee. Pre-check counts all 3 fees, so fund enough.
-    const chargeAmount = 100_000n; // 0.001 ICP — L2 share = 5000 < fee 10000
+  test('small amount: L2 stays disabled, treasury + L1 succeed', async () => {
+    const chargeAmount = 100_000n; // 0.001 ICP
     // Fund enough for pre-check: totalAmount + 3*fee (pre-check is conservative)
     await manager.mintToUserSubaccount(userIdentity.getPrincipal(), chargeAmount + 3n * FEE);
 
@@ -206,10 +205,10 @@ describe('chargeAndDistribute edge cases', () => {
       metadata: [],
     });
 
-    // Should succeed — L2 transfer is just skipped (amount < fee), not a failure
+    // Should succeed — only treasury + L1 are active
     expect(result).toHaveProperty('ok');
     const record = (result as Extract<ChargeAndDistributeResult, { ok: DistributionRecord }>).ok;
-    // Treasury + L1 transfers (L2 skipped because l2Amount < fee)
+    // Treasury + L1 transfers only
     expect(record.transfers.length).toBe(2);
     expect(record.status).toEqual({ completed: null });
   });
@@ -226,7 +225,7 @@ describe('chargeAndDistribute ckUSDC', () => {
     await manager?.afterAll();
   });
 
-  test('ckUSDC: full split (80/15/5)', async () => {
+  test('ckUSDC: current split (85/15/0)', async () => {
     // Use small amounts for testing — $1 = 1_000_000 (6 decimals)
     const chargeAmount = 1_000_000n; // $1
     const ckusdcFee = 10_000n;
@@ -266,7 +265,7 @@ describe('chargeAndDistribute ckUSDC', () => {
     expect(l1After - l1Before).toBe(expectedL1 - ckusdcFee);
 
     const l2After = await manager.getCkUsdcSubaccountBalance(l2Identity.getPrincipal());
-    expect(l2After - l2Before).toBe(expectedL2 - ckusdcFee);
+    expect(l2After - l2Before).toBe(0n);
   });
 });
 

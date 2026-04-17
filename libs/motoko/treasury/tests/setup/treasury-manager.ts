@@ -106,12 +106,35 @@ export const SOL_DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncD
 /** Placeholder USDT mint on Solana Devnet (no official token). */
 export const SOL_DEVNET_USDT_MINT = "11111111111111111111111111111111";
 
+const DEFAULT_DISTRIBUTION_CONFIG = [
+  {
+    l1Bps: 1500n,
+    l2Bps: 0n,
+    minWithdraw: {
+      icp: 10_000n,
+      ckUsdc: 1_000n,
+      ckUsdt: 1_000n,
+      ckEth: 1_000_000_000_000n,
+      baseEth: 1_000_000_000_000n,
+      baseUsdc: 1_000n,
+      baseUsdt: 1_000n,
+      sol: 1_000_000n,
+      solUsdc: 1_000n,
+      solUsdt: 1_000n,
+    },
+  },
+] as const;
+
 export class TreasuryManager extends BaseManager {
+  _ckUsdcCanisterId?: Principal;
+  _nnsSubnetId?: Principal;
   readonly adminIdentity: ReturnType<typeof createIdentity>;
   readonly deferredTreasuryActor: DeferredActor<TreasuryService>;
   readonly evmRpcCanisterId?: Principal;
   readonly solRpcCanisterId?: Principal;
+
   readonly treasuryActor: Actor<TreasuryService>;
+
   readonly treasuryCanisterId: Principal;
 
   private constructor(
@@ -148,8 +171,8 @@ export class TreasuryManager extends BaseManager {
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
           admin: adminIdentity.getPrincipal(),
-          evmConfig: [],
-          solConfig: [],
+          thresholdKeyName: "dfx_test_key",
+          chains: [],
           distributionConfig: [],
         },
       ]),
@@ -168,6 +191,86 @@ export class TreasuryManager extends BaseManager {
       fixture.canisterId,
       adminIdentity,
     );
+  }
+
+  /** Deploy ckUSDC ICRC-1 ledger on fiduciary subnet with mainnet canister ID. */
+  static async createWithCkUsdc(): Promise<TreasuryManager> {
+    const adminIdentity = createIdentity("treasury-admin");
+    // Fiduciary subnet allows targetCanisterId for mainnet ckUSDC canister ID
+    const base = await BaseManager.create({ fiduciary: true });
+
+    // Get fiduciary subnet
+    const fiduciarySubnet = await base.pic.getFiduciarySubnet();
+    if (!fiduciarySubnet) throw new Error("Fiduciary subnet not found. Use BaseManager.create({ fiduciary: true })");
+
+    // Deploy ckUSDC ICRC-1 ledger with mainnet canister ID on fiduciary subnet
+    const ckUsdcCanisterId = Principal.fromText("xevnm-gaaaa-aaaar-qafnq-cai");
+    const initArg = IDL.encode(icrc1LedgerInit({ IDL }), [
+      {
+        Init: {
+          decimals: [6],
+          token_symbol: "ckUSDC",
+          transfer_fee: CKUSDC_FEE,
+          metadata: [],
+          minting_account: { owner: minterIdentity.getPrincipal(), subaccount: [] },
+          initial_balances: [],
+          fee_collector_account: [],
+          archive_options: {
+            num_blocks_to_archive: 1000n,
+            max_transactions_per_response: [],
+            trigger_threshold: 2000n,
+            more_controller_ids: [],
+            max_message_size_bytes: [],
+            cycles_for_archive_creation: [],
+            node_max_memory_size_bytes: [],
+            controller_id: adminIdentity.getPrincipal(),
+          },
+          max_memo_length: [],
+          index_principal: [],
+          token_name: "Chain-Key USDC",
+          feature_flags: [{ icrc2: true }],
+        },
+      },
+    ]);
+
+    await base.pic.setupCanister({
+      targetCanisterId: ckUsdcCanisterId,
+      targetSubnetId: fiduciarySubnet.id,
+      wasm: ICRC1_LEDGER_WASM_PATH,
+      idlFactory: icrc1LedgerIdlFactory,
+      arg: initArg,
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    // Deploy treasury on application subnet (uses hardcoded ckUSDC canister ID from Const.mo)
+    const fixture = await base.setupCanister<TreasuryService>({
+      idlFactory: treasuryIdlFactory,
+      wasm: TREASURY_WASM_PATH,
+      arg: IDL.encode(treasuryInit({ IDL }), [
+        {
+          admin: adminIdentity.getPrincipal(),
+          thresholdKeyName: "dfx_test_key",
+          chains: [],
+          distributionConfig: [],
+        },
+      ]),
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    const deferredActor = base.pic.createDeferredActor<TreasuryService>(
+      treasuryIdlFactory,
+      fixture.canisterId,
+    );
+
+    const manager = new TreasuryManager(
+      base,
+      fixture.actor,
+      deferredActor,
+      fixture.canisterId,
+      adminIdentity,
+    );
+    manager._ckUsdcCanisterId = ckUsdcCanisterId;
+    return manager;
   }
 
   /** Create TreasuryManager with EVM support (real evm_rpc canister). */
@@ -193,42 +296,16 @@ export class TreasuryManager extends BaseManager {
       sender: adminIdentity.getPrincipal(),
     });
 
-    // Deploy treasury with evmConfig pointing to evm_rpc canister
+    // Deploy treasury with Base EVM chain pointing to evm_rpc canister
     const fixture = await base.setupCanister<TreasuryService>({
       idlFactory: treasuryIdlFactory,
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
           admin: adminIdentity.getPrincipal(),
-          evmConfig: [
-            {
-              chainId: BASE_SEPOLIA_CHAIN_ID,
-              ecdsaKeyName: "dfx_test_key",
-              evmRpcCanisterId: evmRpcFixture.canisterId.toText(),
-              usdcContract: BASE_SEPOLIA_USDC,
-              usdtContract: BASE_SEPOLIA_USDT,
-              rpcUrls: [BASE_SEPOLIA_RPC],
-            },
-          ],
-          solConfig: [],
-          distributionConfig: [
-            {
-              l1Bps: 2000n, // 20%
-              l2Bps: 500n, // 5%
-              minWithdraw: {
-                icp: 10_000n, // 0.0001 ICP
-                ckUsdc: 1_000n, // $0.001
-                ckUsdt: 1_000n,
-                ckEth: 1_000_000_000_000n, // 0.000001 ETH
-                baseEth: 1_000_000_000_000n,
-                baseUsdc: 1_000n,
-                baseUsdt: 1_000n,
-                sol: 1_000_000n, // 0.001 SOL
-                solUsdc: 1_000n,
-                solUsdt: 1_000n,
-              },
-            },
-          ],
+          thresholdKeyName: "dfx_test_key",
+          chains: [baseChainConfig(evmRpcFixture.canisterId.toText())],
+          distributionConfig: DEFAULT_DISTRIBUTION_CONFIG,
         },
       ]),
       sender: adminIdentity.getPrincipal(),
@@ -246,6 +323,72 @@ export class TreasuryManager extends BaseManager {
       fixture.canisterId,
       adminIdentity,
       evmRpcFixture.canisterId,
+    );
+  }
+
+  /** Create TreasuryManager with both EVM and Solana support. */
+  static async createWithEvmAndSol(): Promise<TreasuryManager> {
+    const adminIdentity = createIdentity("treasury-admin");
+    const base = await BaseManager.create({ ii: true, ingressMaxRetries: 500 });
+
+    const evmRpcFixture = await base.setupCanister<EvmRpcService>({
+      idlFactory: evmRpcIdlFactory,
+      wasm: EVM_RPC_WASM_PATH,
+      arg: IDL.encode(evmRpcInit({ IDL }), [
+        {
+          demo: [true],
+          manageApiKeys: [],
+          logFilter: [],
+          overrideProvider: [],
+          nodesInSubnet: [1],
+        },
+      ]),
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    const solRpcCanisterId = await base.pic.createCanister({
+      sender: adminIdentity.getPrincipal(),
+    });
+    await base.pic.installCode({
+      canisterId: solRpcCanisterId,
+      wasm: SOL_RPC_WASM_PATH,
+      arg: IDL.encode(
+        [IDL.Record({ mode: IDL.Opt(IDL.Variant({ Demo: IDL.Null, Normal: IDL.Null })) })],
+        [{ mode: [{ Demo: null }] }],
+      ),
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    const fixture = await base.setupCanister<TreasuryService>({
+      idlFactory: treasuryIdlFactory,
+      wasm: TREASURY_WASM_PATH,
+      arg: IDL.encode(treasuryInit({ IDL }), [
+        {
+          admin: adminIdentity.getPrincipal(),
+          thresholdKeyName: "dfx_test_key",
+          chains: [
+            baseChainConfig(evmRpcFixture.canisterId.toText()),
+            solanaDevnetChainConfig(solRpcCanisterId.toText()),
+          ],
+          distributionConfig: DEFAULT_DISTRIBUTION_CONFIG,
+        },
+      ]),
+      sender: adminIdentity.getPrincipal(),
+    });
+
+    const deferredActor = base.pic.createDeferredActor<TreasuryService>(
+      treasuryIdlFactory,
+      fixture.canisterId,
+    );
+
+    return new TreasuryManager(
+      base,
+      fixture.actor,
+      deferredActor,
+      fixture.canisterId,
+      adminIdentity,
+      evmRpcFixture.canisterId,
+      solRpcCanisterId,
     );
   }
 
@@ -269,41 +412,16 @@ export class TreasuryManager extends BaseManager {
       sender: adminIdentity.getPrincipal(),
     });
 
-    // Deploy treasury with solConfig pointing to sol_rpc canister
+    // Deploy treasury with Solana chain pointing to sol_rpc canister
     const fixture = await base.setupCanister<TreasuryService>({
       idlFactory: treasuryIdlFactory,
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
           admin: adminIdentity.getPrincipal(),
-          evmConfig: [],
-          solConfig: [
-            {
-              schnorrKeyName: "dfx_test_key",
-              solRpcCanisterId: solRpcCanisterId.toText(),
-              usdcMint: SOL_DEVNET_USDC_MINT,
-              usdtMint: SOL_DEVNET_USDT_MINT,
-              rpcUrl: [SOLANA_DEVNET_RPC],
-            },
-          ],
-          distributionConfig: [
-            {
-              l1Bps: 2000n, // 20%
-              l2Bps: 500n, // 5%
-              minWithdraw: {
-                icp: 10_000n,
-                ckUsdc: 1_000n,
-                ckUsdt: 1_000n,
-                ckEth: 1_000_000_000_000n,
-                baseEth: 1_000_000_000_000n,
-                baseUsdc: 1_000n,
-                baseUsdt: 1_000n,
-                sol: 1_000_000n, // 0.001 SOL
-                solUsdc: 1_000n,
-                solUsdt: 1_000n,
-              },
-            },
-          ],
+          thresholdKeyName: "dfx_test_key",
+          chains: [solanaDevnetChainConfig(solRpcCanisterId.toText())],
+          distributionConfig: DEFAULT_DISTRIBUTION_CONFIG,
         },
       ]),
       sender: adminIdentity.getPrincipal(),
@@ -384,6 +502,17 @@ export class TreasuryManager extends BaseManager {
     return txHash;
   }
 
+  /** Get ckUSDC balance of a subaccount under the Treasury canister. */
+  async getCkUsdcSubaccountBalance(userPrincipal: Principal): Promise<bigint> {
+    if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed.");
+    const ckUsdcActor = this.pic.createActor(icrc1LedgerIdlFactory, this._ckUsdcCanisterId);
+    const subaccount = principalToSubAccount(userPrincipal);
+    return ckUsdcActor.icrc1_balance_of({
+      owner: this.treasuryCanisterId,
+      subaccount: [subaccount],
+    }) as Promise<bigint>;
+  }
+
   /** Get ICP balance of a subaccount under the Treasury canister. */
   async getSubaccountBalance(principal: Principal): Promise<bigint> {
     const subaccount = principalToSubAccount(principal);
@@ -430,7 +559,6 @@ export class TreasuryManager extends BaseManager {
     }
     return address[0];
   }
-
   /**
    * Get the treasury canister's derived Solana address for a caller.
    * Uses DeferredActor + ticks since getSolAddress involves threshold Schnorr
@@ -468,89 +596,6 @@ export class TreasuryManager extends BaseManager {
     return address[0];
   }
 
-  /** Deploy ckUSDC ICRC-1 ledger on fiduciary subnet with mainnet canister ID. */
-  static async createWithCkUsdc(): Promise<TreasuryManager> {
-    const adminIdentity = createIdentity("treasury-admin");
-    // Fiduciary subnet allows targetCanisterId for mainnet ckUSDC canister ID
-    const base = await BaseManager.create({ fiduciary: true });
-
-    // Get fiduciary subnet
-    const fiduciarySubnet = await base.pic.getFiduciarySubnet();
-    if (!fiduciarySubnet) throw new Error("Fiduciary subnet not found. Use BaseManager.create({ fiduciary: true })");
-
-    // Deploy ckUSDC ICRC-1 ledger with mainnet canister ID on fiduciary subnet
-    const ckUsdcCanisterId = Principal.fromText("xevnm-gaaaa-aaaar-qafnq-cai");
-    const initArg = IDL.encode(icrc1LedgerInit({ IDL }), [
-      {
-        Init: {
-          decimals: [6],
-          token_symbol: "ckUSDC",
-          transfer_fee: CKUSDC_FEE,
-          metadata: [],
-          minting_account: { owner: minterIdentity.getPrincipal(), subaccount: [] },
-          initial_balances: [],
-          fee_collector_account: [],
-          archive_options: {
-            num_blocks_to_archive: 1000n,
-            max_transactions_per_response: [],
-            trigger_threshold: 2000n,
-            more_controller_ids: [],
-            max_message_size_bytes: [],
-            cycles_for_archive_creation: [],
-            node_max_memory_size_bytes: [],
-            controller_id: adminIdentity.getPrincipal(),
-          },
-          max_memo_length: [],
-          index_principal: [],
-          token_name: "Chain-Key USDC",
-          feature_flags: [{ icrc2: true }],
-        },
-      },
-    ]);
-
-    await base.pic.setupCanister({
-      targetCanisterId: ckUsdcCanisterId,
-      targetSubnetId: fiduciarySubnet.id,
-      wasm: ICRC1_LEDGER_WASM_PATH,
-      idlFactory: icrc1LedgerIdlFactory,
-      arg: initArg,
-      sender: adminIdentity.getPrincipal(),
-    });
-
-    // Deploy treasury on application subnet (uses hardcoded ckUSDC canister ID from Const.mo)
-    const fixture = await base.setupCanister<TreasuryService>({
-      idlFactory: treasuryIdlFactory,
-      wasm: TREASURY_WASM_PATH,
-      arg: IDL.encode(treasuryInit({ IDL }), [
-        {
-          admin: adminIdentity.getPrincipal(),
-          evmConfig: [],
-          solConfig: [],
-          distributionConfig: [],
-        },
-      ]),
-      sender: adminIdentity.getPrincipal(),
-    });
-
-    const deferredActor = base.pic.createDeferredActor<TreasuryService>(
-      treasuryIdlFactory,
-      fixture.canisterId,
-    );
-
-    const manager = new TreasuryManager(
-      base,
-      fixture.actor,
-      deferredActor,
-      fixture.canisterId,
-      adminIdentity,
-    );
-    manager._ckUsdcCanisterId = ckUsdcCanisterId;
-    return manager;
-  }
-
-  _ckUsdcCanisterId?: Principal;
-  _nnsSubnetId?: Principal;
-
   /** Mint ckUSDC to a user's subaccount on the Treasury canister. */
   async mintCkUsdcToUserSubaccount(userPrincipal: Principal, amount: bigint): Promise<void> {
     if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed. Use createWithCkUsdc().");
@@ -568,17 +613,6 @@ export class TreasuryManager extends BaseManager {
     if (!("Ok" in (result as Record<string, unknown>))) {
       throw new Error(`mintCkUsdcToUserSubaccount failed: ${JSON.stringify(result)}`);
     }
-  }
-
-  /** Get ckUSDC balance of a subaccount under the Treasury canister. */
-  async getCkUsdcSubaccountBalance(userPrincipal: Principal): Promise<bigint> {
-    if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed.");
-    const ckUsdcActor = this.pic.createActor(icrc1LedgerIdlFactory, this._ckUsdcCanisterId);
-    const subaccount = principalToSubAccount(userPrincipal);
-    return ckUsdcActor.icrc1_balance_of({
-      owner: this.treasuryCanisterId,
-      subaccount: [subaccount],
-    }) as Promise<bigint>;
   }
 
   /** Mint ICP to Treasury canister's default account (simulating ICPay deposit). */
@@ -613,4 +647,65 @@ export class TreasuryManager extends BaseManager {
       throw new Error(`mintToUserSubaccount failed: ${JSON.stringify(result)}`);
     }
   }
+}
+
+function baseChainConfig(evmRpcCanisterId: string) {
+  return {
+    Evm: {
+      networkId: "base-sepolia",
+      chainId: BASE_SEPOLIA_CHAIN_ID,
+      evmRpcCanisterId,
+      rpcUrls: [BASE_SEPOLIA_RPC],
+      assets: [
+        {
+          tokenId: { BaseETH: null },
+          symbol: "ETH",
+          decimals: 18,
+          locator: { Native: null },
+        },
+        {
+          tokenId: { BaseUSDC: null },
+          symbol: "USDC",
+          decimals: 6,
+          locator: { Contract: BASE_SEPOLIA_USDC },
+        },
+        {
+          tokenId: { BaseUSDT: null },
+          symbol: "USDT",
+          decimals: 6,
+          locator: { Contract: BASE_SEPOLIA_USDT },
+        },
+      ],
+    },
+  };
+}
+
+function solanaDevnetChainConfig(solRpcCanisterId: string) {
+  return {
+    Solana: {
+      networkId: "devnet",
+      solRpcCanisterId,
+      rpcUrl: [SOLANA_DEVNET_RPC],
+      assets: [
+        {
+          tokenId: { SOL: null },
+          symbol: "SOL",
+          decimals: 9,
+          locator: { Native: null },
+        },
+        {
+          tokenId: { SolUSDC: null },
+          symbol: "USDC",
+          decimals: 6,
+          locator: { Mint: SOL_DEVNET_USDC_MINT },
+        },
+        {
+          tokenId: { SolUSDT: null },
+          symbol: "USDT",
+          decimals: 6,
+          locator: { Mint: SOL_DEVNET_USDT_MINT },
+        },
+      ],
+    },
+  };
 }

@@ -285,9 +285,9 @@ describe('Treasury Canister — SOL (with outcalls)', () => {
     expect(record.status).toEqual({ completed: null });
   });
 
-  test('distributePayment: SOL with L1 + L2 ambassadors', async () => {
+  test('distributePayment: SOL with L1 ambassador and disabled L2 share', async () => {
     manager.deferredTreasuryActor.setIdentity(manager.adminIdentity);
-    const amount = 20_000_000n; // 0.02 SOL — L2 (5%) = 1_000_000 lamports, above rent-exemption minimum
+    const amount = 20_000_000n; // 0.02 SOL
 
     const result = await runWithProxy(manager.pic, async (proxy) => {
       const getResult = await manager.deferredTreasuryActor.distributePayment({
@@ -307,15 +307,15 @@ describe('Treasury Canister — SOL (with outcalls)', () => {
     }
     expect(result).toHaveProperty('ok');
     const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
-    const grossL1 = (amount * 2000n) / 10000n; // 20%
-    const grossL2 = (amount * 500n) / 10000n;  // 5%
-    const grossTreasury = amount - grossL1 - grossL2; // 75%
+    const grossL1 = (amount * 1500n) / 10000n; // 15%
+    const grossL2 = 0n;
+    const grossTreasury = amount - grossL1; // 85%
     expect(record.l1Amount).toBe(grossL1);
     expect(record.l2Amount).toBe(grossL2);
     expect(record.treasuryAmount).toBe(grossTreasury);
 
     const transfers: TransferRecord[] = record.transfers;
-    expect(transfers).toHaveLength(3);
+    expect(transfers).toHaveLength(2);
     for (const t of transfers) {
       expect(t.solAddress).toHaveLength(1);
       expect(t.error).toEqual([]);

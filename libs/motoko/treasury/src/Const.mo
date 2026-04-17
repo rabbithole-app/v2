@@ -53,8 +53,8 @@ module {
   // ---- Distribution (all tokens) ----
 
   // Distribution percentages (basis points, 10000 = 100%)
-  public let TREASURY_BPS : Nat = 8000;
+  public let TREASURY_BPS : Nat = 8500;
   public let L1_BPS       : Nat = 1500;
-  public let L2_BPS       : Nat = 500;
+  public let L2_BPS       : Nat = 0;
   public let BPS_BASE     : Nat = 10000;
 };

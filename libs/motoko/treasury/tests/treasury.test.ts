@@ -89,9 +89,9 @@ describe('Treasury Canister', () => {
     expect(treasuryAfter - treasuryBefore).toBe(paymentAmount - FEE);
   });
 
-  // ---- Distribution with L1 only (80% treasury, 20% L1) ----
+  // ---- Distribution with L1 only (85% treasury, 15% L1) ----
 
-  test('distributePayment: L1 only -> 80% treasury, 20% L1', async () => {
+  test('distributePayment: L1 only -> 85% treasury, 15% L1', async () => {
     const paymentAmount = 10n * E8S_PER_ICP;
     await manager.mintToTreasury(paymentAmount);
 
@@ -126,9 +126,9 @@ describe('Treasury Canister', () => {
     expect(l1After - l1Before).toBe(grossL1 - FEE);
   });
 
-  // ---- Distribution with L1 + L2 (75% treasury, 20% L1, 5% L2) ----
+  // ---- Distribution with L1 + L2 input still yields 85% treasury, 15% L1, 0% L2 ----
 
-  test('distributePayment: L1 + L2 -> 75% treasury, 20% L1, 5% L2', async () => {
+  test('distributePayment: L1 + L2 input -> 85% treasury, 15% L1, 0% L2', async () => {
     const paymentAmount = 10n * E8S_PER_ICP;
     await manager.mintToTreasury(paymentAmount);
 
@@ -150,8 +150,8 @@ describe('Treasury Canister', () => {
     expect(result).toHaveProperty('ok');
     const record = (result as Extract<DistributePaymentResult, { ok: DistributionRecord }>).ok;
     const grossL1 = paymentAmount * 1500n / 10000n;
-    const grossL2 = paymentAmount * 500n / 10000n;
-    const grossTreasury = paymentAmount - grossL1 - grossL2;
+    const grossL2 = 0n;
+    const grossTreasury = paymentAmount - grossL1;
     expect(record.l1Amount).toBe(grossL1);
     expect(record.l2Amount).toBe(grossL2);
     expect(record.treasuryAmount).toBe(grossTreasury);
@@ -165,7 +165,7 @@ describe('Treasury Canister', () => {
     expect(l1After - l1Before).toBe(grossL1 - FEE);
 
     const l2After = await manager.getSubaccountBalance(l2Identity.getPrincipal());
-    expect(l2After - l2Before).toBe(grossL2 - FEE);
+    expect(l2After - l2Before).toBe(0n);
   });
 
   // ---- Idempotency ----

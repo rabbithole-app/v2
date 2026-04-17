@@ -1,4 +1,5 @@
 import Array "mo:core/Array";
+import Debug "mo:core/Debug";
 import Runtime "mo:core/Runtime";
 import Ecmult "mo:libsecp256k1/core/ecmult";
 import Int "mo:core/Int";
@@ -56,8 +57,8 @@ module Treasury {
       distributions = Vector.new<Types.DistributionRecord>();
       var nextDistributionId = 0;
       admin = args.admin;
-      evmConfig = args.evmConfig;
-      solConfig = args.solConfig;
+      thresholdKeyName = args.thresholdKeyName;
+      chains = args.chains;
       distributionConfig = config;
       walletCache = Map.empty<Principal, V1Types.WalletAddresses>();
     });
@@ -92,7 +93,14 @@ module Treasury {
 
   public func fromVersion(versionedStore : StableStore, canisterId : Principal) : Treasury {
     let store = Migrations.getCurrentState(versionedStore);
-    { store; canisterId; var ecCtx = null; ecdsaApi = EvmRpc.createEcdsaApi(); schnorrApi = SolRpc.createSchnorrApi(); var lastNonce = null };
+    {
+      store;
+      canisterId;
+      var ecCtx = null;
+      ecdsaApi = EvmRpc.createEcdsaApi();
+      schnorrApi = SolRpc.createSchnorrApi();
+      var lastNonce = null;
+    };
   };
 
   // ---- Token classification ----
@@ -109,6 +117,108 @@ module Treasury {
       case (#SOL or #SolUSDC or #SolUSDT) true;
       case _ false;
     };
+  };
+
+  func getSupportedAsset(
+    assets : [Types.SupportedAsset],
+    tokenId : Types.TokenId,
+  ) : ?Types.SupportedAsset {
+    Array.find<Types.SupportedAsset>(
+      assets,
+      func(asset : Types.SupportedAsset) : Bool {
+        asset.tokenId == tokenId;
+      },
+    );
+  };
+
+  func getEvmChainConfig(
+    chains : [Types.ChainConfig],
+    tokenId : Types.TokenId,
+  ) : ?Types.EvmChainConfig {
+    for (chain in chains.vals()) {
+      switch (chain) {
+        case (#Evm(config)) {
+          switch (getSupportedAsset(config.assets, tokenId)) {
+            case (?_) return ?config;
+            case null {};
+          };
+        };
+        case (#Solana(_)) {};
+      };
+    };
+    null;
+  };
+
+  func getSolanaChainConfig(
+    chains : [Types.ChainConfig],
+    tokenId : Types.TokenId,
+  ) : ?Types.SolanaChainConfig {
+    for (chain in chains.vals()) {
+      switch (chain) {
+        case (#Solana(config)) {
+          switch (getSupportedAsset(config.assets, tokenId)) {
+            case (?_) return ?config;
+            case null {};
+          };
+        };
+        case (#Evm(_)) {};
+      };
+    };
+    null;
+  };
+
+  func hasEvmChain(chains : [Types.ChainConfig]) : Bool {
+    switch (
+      Array.find<Types.ChainConfig>(
+        chains,
+        func(chain : Types.ChainConfig) : Bool {
+          switch (chain) {
+            case (#Evm(_)) true;
+            case (#Solana(_)) false;
+          };
+        },
+      )
+    ) {
+      case (?_) true;
+      case null false;
+    };
+  };
+
+  func hasSolanaChain(chains : [Types.ChainConfig]) : Bool {
+    switch (
+      Array.find<Types.ChainConfig>(
+        chains,
+        func(chain : Types.ChainConfig) : Bool {
+          switch (chain) {
+            case (#Solana(_)) true;
+            case (#Evm(_)) false;
+          };
+        },
+      )
+    ) {
+      case (?_) true;
+      case null false;
+    };
+  };
+
+  func getAnyEvmChainConfig(chains : [Types.ChainConfig]) : ?Types.EvmChainConfig {
+    for (chain in chains.vals()) {
+      switch (chain) {
+        case (#Evm(config)) return ?config;
+        case (#Solana(_)) {};
+      };
+    };
+    null;
+  };
+
+  func getAnySolanaChainConfig(chains : [Types.ChainConfig]) : ?Types.SolanaChainConfig {
+    for (chain in chains.vals()) {
+      switch (chain) {
+        case (#Solana(config)) return ?config;
+        case (#Evm(_)) {};
+      };
+    };
+    null;
   };
 
   // ---- IC Ledger resolution ----
@@ -154,12 +264,12 @@ module Treasury {
 
   // ---- EVM helpers ----
 
-  func getEvmContract(tokenId : Types.TokenId, evmConfig : Types.EvmConfig) : ?Text {
-    switch (tokenId) {
-      case (#BaseUSDC) ?evmConfig.usdcContract;
-      case (#BaseUSDT) ?evmConfig.usdtContract;
-      case (#BaseETH) null;
-      case _ Runtime.trap("Not an EVM token");
+  func getEvmContract(tokenId : Types.TokenId, evmConfig : Types.EvmChainConfig) : ?Text {
+    let ?asset = getSupportedAsset(evmConfig.assets, tokenId) else Runtime.trap("EVM token is not configured");
+    switch (asset.locator) {
+      case (#Contract(address)) ?address;
+      case (#Native) null;
+      case (#Mint(_)) Runtime.trap("Unexpected mint locator for EVM token");
     };
   };
 
@@ -171,7 +281,7 @@ module Treasury {
     };
   };
 
-  func buildRpcServices(evmConfig : Types.EvmConfig) : EvmRpc.RpcServices {
+  func buildRpcServices(evmConfig : Types.EvmChainConfig) : EvmRpc.RpcServices {
     // If custom RPC URLs are provided, always use #Custom
     if (evmConfig.rpcUrls.size() > 0) {
       return #Custom({
@@ -198,28 +308,72 @@ module Treasury {
   func resolveEvmAddress(
     treasury : Treasury,
     principal : Principal,
-    evmConfig : Types.EvmConfig,
+    _evmConfig : Types.EvmChainConfig,
     api : EvmRpc.IcEcdsaApi,
   ) : async* ?Text {
+    Debug.print(
+      "resolveEvmAddress: caller="
+      # Principal.toText(principal)
+    );
+
     // Check cache
     switch (Map.get(treasury.store.walletCache, Principal.compare, principal)) {
-      case (?wallet) return wallet.evmAddress;
-      case null {};
+      case (?wallet) {
+        switch (wallet.evmAddress) {
+          case (?addr) {
+            Debug.print(
+              "resolveEvmAddress: cache hit, returning cached address="
+              # addr
+            );
+            return ?addr;
+          };
+          case null {
+            Debug.print(
+              "resolveEvmAddress: cache entry exists but evmAddress is null, deriving new address",
+            );
+          };
+        };
+      };
+      case null {
+        Debug.print("resolveEvmAddress: no cache entry, deriving new address");
+      };
     };
 
     // Derive
-    let result = await* EvmRpc.deriveEvmAddress(evmConfig.ecdsaKeyName, principal, api);
+    let result = await* EvmRpc.deriveEvmAddress(treasury.store.thresholdKeyName, principal, api);
     switch (result) {
       case (#ok((address, _publicKey))) {
-        let wallet : V1Types.WalletAddresses = {
-          icSubaccount = Account.principalToSubaccount(principal);
-          evmAddress = ?address;
-          solAddress = null;
+        Debug.print(
+          "resolveEvmAddress: derived address="
+          # address,
+        );
+        let existing = Map.get(treasury.store.walletCache, Principal.compare, principal);
+        let wallet : V1Types.WalletAddresses = switch (existing) {
+          case (?w) {
+            {
+              icSubaccount = w.icSubaccount;
+              evmAddress = ?address;
+              solAddress = w.solAddress;
+            };
+          };
+          case null {
+            {
+              icSubaccount = Account.principalToSubaccount(principal);
+              evmAddress = ?address;
+              solAddress = null;
+            };
+          };
         };
         Map.add(treasury.store.walletCache, Principal.compare, principal, wallet);
         ?address;
       };
-      case (#err(_)) null;
+      case (#err(err)) {
+        Debug.print(
+          "resolveEvmAddress: derive failed="
+          # debug_show (err),
+        );
+        null;
+      };
     };
   };
 
@@ -227,11 +381,11 @@ module Treasury {
   func getCachedPublicKey(
     _treasury : Treasury,
     principal : Principal,
-    evmConfig : Types.EvmConfig,
+    thresholdKeyName : Types.ThresholdKeyName,
     api : EvmRpc.IcEcdsaApi,
   ) : async* ?[Nat8] {
     // We need the public key for signing. Re-derive (ecdsa_public_key is free).
-    let result = await* EvmRpc.deriveEvmAddress(evmConfig.ecdsaKeyName, principal, api);
+    let result = await* EvmRpc.deriveEvmAddress(thresholdKeyName, principal, api);
     switch (result) {
       case (#ok((_address, publicKey))) ?publicKey;
       case (#err(_)) null;
@@ -240,7 +394,8 @@ module Treasury {
 
   /// Send an EVM transfer (ERC-20 or native ETH).
   func sendEvmTransfer(
-    evmConfig : Types.EvmConfig,
+    thresholdKeyName : Types.ThresholdKeyName,
+    evmConfig : Types.EvmChainConfig,
     rpcServices : EvmRpc.RpcServices,
     tokenId : Types.TokenId,
     derivationPath : [Blob],
@@ -259,7 +414,7 @@ module Treasury {
       case (?contract) {
         await* EvmRpc.sendErc20Transfer(
           {
-            ecdsaKeyName = evmConfig.ecdsaKeyName;
+            ecdsaKeyName = thresholdKeyName;
             evmRpcCanisterId = evmConfig.evmRpcCanisterId;
             rpcServices;
             chainId = evmConfig.chainId;
@@ -280,7 +435,7 @@ module Treasury {
       case null {
         await* EvmRpc.sendEthTransfer(
           {
-            ecdsaKeyName = evmConfig.ecdsaKeyName;
+            ecdsaKeyName = thresholdKeyName;
             evmRpcCanisterId = evmConfig.evmRpcCanisterId;
             rpcServices;
             chainId = evmConfig.chainId;
@@ -300,30 +455,58 @@ module Treasury {
     };
   };
 
+  func sendEvmTransferStep(
+    thresholdKeyName : Types.ThresholdKeyName,
+    evmConfig : Types.EvmChainConfig,
+    rpcServices : EvmRpc.RpcServices,
+    tokenId : Types.TokenId,
+    derivationPath : [Blob],
+    senderPubKey : [Nat8],
+    toAddress : Text,
+    amount : Nat,
+    nonce : Nat,
+    maxFeePerGas : Nat,
+    maxPriorityFeePerGas : Nat,
+    ecCtx : Ecmult.ECMultContext,
+    api : EvmRpc.IcEcdsaApi,
+  ) : async Result.Result<Text, Text> {
+    await* sendEvmTransfer(
+      thresholdKeyName,
+      evmConfig,
+      rpcServices,
+      tokenId,
+      derivationPath,
+      senderPubKey,
+      toAddress,
+      amount,
+      nonce,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+      ecCtx,
+      api,
+    );
+  };
+
   // ---- Solana helpers ----
 
   /// Get SPL mint address for a Solana token.
-  func getSolMintAddress(tokenId : Types.TokenId, solConfig : Types.SolConfig) : ?Text {
-    switch (tokenId) {
-      case (#SolUSDC) ?solConfig.usdcMint;
-      case (#SolUSDT) ?solConfig.usdtMint;
-      case (#SOL) null;
-      case _ Runtime.trap("Not a SOL token");
+  func getSolMintAddress(tokenId : Types.TokenId, solConfig : Types.SolanaChainConfig) : ?Text {
+    let ?asset = getSupportedAsset(solConfig.assets, tokenId) else Runtime.trap("Solana token is not configured");
+    switch (asset.locator) {
+      case (#Mint(address)) ?address;
+      case (#Native) null;
+      case (#Contract(_)) Runtime.trap("Unexpected contract locator for Solana token");
     };
   };
 
   /// Get SPL token decimals.
-  func getSolTokenDecimals(tokenId : Types.TokenId) : Nat8 {
-    switch (tokenId) {
-      case (#SOL) 9; // not used for SPL, but consistent
-      case (#SolUSDC) 6;
-      case (#SolUSDT) 6;
-      case _ Runtime.trap("Not a SOL token");
-    };
+  func getSolTokenDecimals(tokenId : Types.TokenId, solConfig : Types.SolanaChainConfig) : Nat8 {
+    let ?asset = getSupportedAsset(solConfig.assets, tokenId) else Runtime.trap("Solana token is not configured");
+    asset.decimals;
   };
 
   /// Build RPC sources for SOL RPC canister.
-  func buildSolRpcSources(solConfig : Types.SolConfig) : SolRpc.RpcSources {
+  func buildSolRpcSources(solConfig : Types.SolanaChainConfig) : SolRpc.RpcSources {
     // If custom RPC URL is provided, always use #Custom
     switch (solConfig.rpcUrl) {
       case (?url) {
@@ -332,7 +515,7 @@ module Treasury {
       case null {};
     };
     // Otherwise use built-in sol_rpc provider sets
-    if (solConfig.schnorrKeyName == "dfx_test_key") {
+    if (Text.equal(solConfig.networkId, "devnet") or Text.equal(solConfig.networkId, "testnet")) {
       #Default(#Devnet);
     } else {
       #Default(#Mainnet);
@@ -343,7 +526,7 @@ module Treasury {
   func resolveSolAddress(
     treasury : Treasury,
     principal : Principal,
-    solConfig : Types.SolConfig,
+    _solConfig : Types.SolanaChainConfig,
     api : SolRpc.IcSchnorrApi,
   ) : async* ?Text {
     // Check cache
@@ -358,7 +541,7 @@ module Treasury {
     };
 
     // Derive
-    let result = await* SolRpc.deriveSolAddress(solConfig.schnorrKeyName, principal, api);
+    let result = await* SolRpc.deriveSolAddress(treasury.store.thresholdKeyName, principal, api);
     switch (result) {
       case (#ok((address, _publicKey))) {
         // Update existing cache entry or create new one
@@ -376,7 +559,7 @@ module Treasury {
 
   /// Get SOL or SPL token balance for an address.
   func getSolTokenBalance(
-    solConfig : Types.SolConfig,
+    solConfig : Types.SolanaChainConfig,
     tokenId : Types.TokenId,
     address : Text,
   ) : async* Result.Result<Nat, Text> {
@@ -396,6 +579,23 @@ module Treasury {
         Result.mapOk<Nat64, Nat, Text>(result, func(lamports : Nat64) : Nat { Nat64.toNat(lamports) });
       };
     };
+  };
+
+  func getSolTokenBalanceStep(
+    solConfig : Types.SolanaChainConfig,
+    tokenId : Types.TokenId,
+    address : Text,
+  ) : async Result.Result<Nat, Text> {
+    await* getSolTokenBalance(solConfig, tokenId, address);
+  };
+
+  func getEvmTokenBalanceStep(
+    evmConfig : Types.EvmChainConfig,
+    tokenId : Types.TokenId,
+    address : Text,
+  ) : async Result.Result<Nat, Text> {
+    let rpcServices = buildRpcServices(evmConfig);
+    await* getEvmTokenBalance(evmConfig, rpcServices, tokenId, address);
   };
 
   // ---- Distribution ----
@@ -500,7 +700,7 @@ module Treasury {
     treasury : Treasury,
     args : Types.DistributePaymentArgs,
   ) : async* Types.DistributePaymentResult {
-    let evmConfig = switch (treasury.store.evmConfig) {
+    let evmConfig = switch (getEvmChainConfig(treasury.store.chains, args.tokenId)) {
       case (?cfg) cfg;
       case null return #err(#EvmNotConfigured);
     };
@@ -512,7 +712,7 @@ module Treasury {
     let rpcServices = buildRpcServices(evmConfig);
 
     // Derive treasury EVM address + public key (sender of all EVM transfers)
-    let (treasuryEvmAddr, treasuryPubKey) = switch (await* EvmRpc.deriveTreasuryAddress(evmConfig.ecdsaKeyName, api)) {
+    let (treasuryEvmAddr, treasuryPubKey) = switch (await* EvmRpc.deriveTreasuryAddress(treasury.store.thresholdKeyName, api)) {
       case (#ok(pair)) pair;
       case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
     };
@@ -521,19 +721,21 @@ module Treasury {
 
     // Resolve EVM addresses for all recipients
     let adminEvmAddr = await* resolveEvmAddress(treasury, treasury.store.admin, evmConfig, api);
-    let l1EvmAddr = switch (args.ambassadorL1) {
+    let l1EvmAddr = if (l1Amount == 0) {
+      null;
+    } else switch (args.ambassadorL1) {
       case (?l1) await* resolveEvmAddress(treasury, l1, evmConfig, api);
       case null null;
     };
-    let l2EvmAddr = switch (args.ambassadorL2) {
+    let l2EvmAddr = if (l2Amount == 0) {
+      null;
+    } else switch (args.ambassadorL2) {
       case (?l2) await* resolveEvmAddress(treasury, l2, evmConfig, api);
       case null null;
     };
 
     // Force a commit point between ECDSA/address resolution and EVM RPC calls.
     // Ensures HTTPS outcalls happen in a separate tick from ECDSA callbacks.
-    await async ();
-
     let remoteNonce = switch (await* EvmRpc.getNonce(evmConfig.evmRpcCanisterId, rpcServices, treasuryEvmAddr)) {
       case (#ok(n)) n;
       case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
@@ -552,7 +754,7 @@ module Treasury {
     switch (adminEvmAddr) {
       case (?addr) {
         if (treasuryAmount > 0) {
-          let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+          let result = await* sendEvmTransfer(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
           Vector.add(transfers, makeEvmTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
           nonce += 1;
         };
@@ -561,36 +763,39 @@ module Treasury {
     };
 
     // Transfer L1 share
-    switch (args.ambassadorL1) {
-      case (?l1) {
-        switch (l1EvmAddr) {
-          case (?addr) {
-            if (l1Amount > 0) {
-              let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, l1Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+    if (l1Amount > 0) {
+      switch (args.ambassadorL1) {
+        case (?l1) {
+          switch (l1EvmAddr) {
+            case (?addr) {
+              // Each EVM send includes signing and raw tx submission.
+              // Split transfers across messages to stay under instruction limits.
+              let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, l1Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
               Vector.add(transfers, makeEvmTransferRecord(l1, addr, l1Amount, args.tokenId, result));
               nonce += 1;
             };
+            case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive EVM address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive EVM address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     // Transfer L2 share
-    switch (args.ambassadorL2) {
-      case (?l2) {
-        switch (l2EvmAddr) {
-          case (?addr) {
-            if (l2Amount > 0) {
-              let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, l2Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+    if (l2Amount > 0) {
+      switch (args.ambassadorL2) {
+        case (?l2) {
+          switch (l2EvmAddr) {
+            case (?addr) {
+              let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, l2Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
               Vector.add(transfers, makeEvmTransferRecord(l2, addr, l2Amount, args.tokenId, result));
+              nonce += 1;
             };
+            case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive EVM address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive EVM address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     // Track the next expected nonce so subsequent calls don't get NonceTooLow
@@ -604,7 +809,7 @@ module Treasury {
     treasury : Treasury,
     args : Types.DistributePaymentArgs,
   ) : async* Types.DistributePaymentResult {
-    let solConfig = switch (treasury.store.solConfig) {
+    let solConfig = switch (getSolanaChainConfig(treasury.store.chains, args.tokenId)) {
       case (?cfg) cfg;
       case null return #err(#SolNotConfigured);
     };
@@ -615,7 +820,7 @@ module Treasury {
     let rpcSources = buildSolRpcSources(solConfig);
 
     // Derive treasury Solana address + public key (sender of all SOL transfers)
-    let (treasurySolAddr, treasuryPubKey) = switch (await* SolRpc.deriveTreasurySolAddress(solConfig.schnorrKeyName, api)) {
+    let (treasurySolAddr, treasuryPubKey) = switch (await* SolRpc.deriveTreasurySolAddress(treasury.store.thresholdKeyName, api)) {
       case (#ok(pair)) pair;
       case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
     };
@@ -625,20 +830,22 @@ module Treasury {
 
     // Resolve Solana addresses for all recipients
     let adminSolAddr = await* resolveSolAddress(treasury, treasury.store.admin, solConfig, api);
-    let l1SolAddr = switch (args.ambassadorL1) {
+    let l1SolAddr = if (l1Amount == 0) {
+      null;
+    } else switch (args.ambassadorL1) {
       case (?l1) await* resolveSolAddress(treasury, l1, solConfig, api);
       case null null;
     };
-    let l2SolAddr = switch (args.ambassadorL2) {
+    let l2SolAddr = if (l2Amount == 0) {
+      null;
+    } else switch (args.ambassadorL2) {
       case (?l2) await* resolveSolAddress(treasury, l2, solConfig, api);
       case null null;
     };
 
     // Force a commit point between Schnorr/address resolution and SOL RPC calls.
-    await async ();
-
     // Helper to send a SOL/SPL transfer
-    func sendSolOrSplTransfer(toAddr : Text, amount : Nat) : async* Result.Result<Text, Text> {
+    func sendSolOrSplTransfer(toAddr : Text, amount : Nat) : async Result.Result<Text, Text> {
       switch (getSolMintAddress(args.tokenId, solConfig)) {
         case (?mintAddress) {
           // SPL transfer
@@ -646,13 +853,13 @@ module Treasury {
             {
               solRpcCanisterId = solConfig.solRpcCanisterId;
               rpcSources;
-              schnorrKeyName = solConfig.schnorrKeyName;
+              schnorrKeyName = treasury.store.thresholdKeyName;
               derivationPath = [];
               senderPubKey = treasuryPubKey;
               mintAddress;
               toAddress = toAddr;
               amount = Nat64.fromNat(amount);
-              decimals = getSolTokenDecimals(args.tokenId);
+              decimals = getSolTokenDecimals(args.tokenId, solConfig);
             },
             api,
           );
@@ -663,7 +870,7 @@ module Treasury {
             {
               solRpcCanisterId = solConfig.solRpcCanisterId;
               rpcSources;
-              schnorrKeyName = solConfig.schnorrKeyName;
+              schnorrKeyName = treasury.store.thresholdKeyName;
               derivationPath = [];
               senderPubKey = treasuryPubKey;
               toAddress = toAddr;
@@ -679,7 +886,7 @@ module Treasury {
     switch (adminSolAddr) {
       case (?addr) {
         if (treasuryAmount > 0) {
-          let result = await* sendSolOrSplTransfer(addr, treasuryAmount);
+          let result = await sendSolOrSplTransfer(addr, treasuryAmount);
           Vector.add(transfers, makeSolTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
         };
       };
@@ -687,35 +894,35 @@ module Treasury {
     };
 
     // Transfer L1 share
-    switch (args.ambassadorL1) {
-      case (?l1) {
-        switch (l1SolAddr) {
-          case (?addr) {
-            if (l1Amount > 0) {
-              let result = await* sendSolOrSplTransfer(addr, l1Amount);
+    if (l1Amount > 0) {
+      switch (args.ambassadorL1) {
+        case (?l1) {
+          switch (l1SolAddr) {
+            case (?addr) {
+              let result = await sendSolOrSplTransfer(addr, l1Amount);
               Vector.add(transfers, makeSolTransferRecord(l1, addr, l1Amount, args.tokenId, result));
             };
+            case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive SOL address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive SOL address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     // Transfer L2 share
-    switch (args.ambassadorL2) {
-      case (?l2) {
-        switch (l2SolAddr) {
-          case (?addr) {
-            if (l2Amount > 0) {
-              let result = await* sendSolOrSplTransfer(addr, l2Amount);
+    if (l2Amount > 0) {
+      switch (args.ambassadorL2) {
+        case (?l2) {
+          switch (l2SolAddr) {
+            case (?addr) {
+              let result = await sendSolOrSplTransfer(addr, l2Amount);
               Vector.add(transfers, makeSolTransferRecord(l2, addr, l2Amount, args.tokenId, result));
             };
+            case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive SOL address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive SOL address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     finalizeDistribution(treasury, args, treasuryAmount, l1Amount, l2Amount, transfers);
@@ -838,7 +1045,7 @@ module Treasury {
     caller : Principal,
     args : Types.WithdrawArgs,
   ) : async* Types.WithdrawResult {
-    let evmConfig = switch (treasury.store.evmConfig) {
+    let evmConfig = switch (getEvmChainConfig(treasury.store.chains, args.tokenId)) {
       case (?cfg) cfg;
       case null return #err(#EvmNotConfigured);
     };
@@ -853,7 +1060,7 @@ module Treasury {
     let ecCtx = getEcCtx(treasury);
     let rpcServices = buildRpcServices(evmConfig);
 
-    let callerPubKey = switch (await* getCachedPublicKey(treasury, caller, evmConfig, api)) {
+    let callerPubKey = switch (await* getCachedPublicKey(treasury, caller, treasury.store.thresholdKeyName, api)) {
       case (?pk) pk;
       case null return #err(#TransferFailed("Failed to derive caller public key"));
     };
@@ -863,14 +1070,7 @@ module Treasury {
       case null return #err(#TransferFailed("Failed to derive caller EVM address"));
     };
 
-    // Force a commit point so that the ECDSA callback (which may resolve
-    // instantly when the key is cached) and the EVM RPC call (which creates
-    // an HTTPS outcall) happen in **different** PocketIC ticks.
-    // Without this, both can land in the same tick causing a deadlock:
-    // tick waits for mock → mock can only be provided after tick returns.
-    await async ();
-
-    let balance = switch (await* getEvmTokenBalance(evmConfig, rpcServices, args.tokenId, callerEvmAddr)) {
+    let balance = switch (await getEvmTokenBalanceStep(evmConfig, args.tokenId, callerEvmAddr)) {
       case (#ok(b)) b;
       case (#err(e)) return #err(#TransferFailed(e));
     };
@@ -885,7 +1085,7 @@ module Treasury {
     let maxFeePerGas = 1_000_000_000;
     let maxPriorityFeePerGas = 100_000_000;
 
-    let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, [Principal.toBlob(caller)], callerPubKey, toAddress, args.amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+    let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, [Principal.toBlob(caller)], callerPubKey, toAddress, args.amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
 
     switch (result) {
       case (#ok(_txHash)) #ok(0);
@@ -898,7 +1098,7 @@ module Treasury {
     caller : Principal,
     args : Types.WithdrawArgs,
   ) : async* Types.WithdrawResult {
-    let solConfig = switch (treasury.store.solConfig) {
+    let solConfig = switch (getSolanaChainConfig(treasury.store.chains, args.tokenId)) {
       case (?cfg) cfg;
       case null return #err(#SolNotConfigured);
     };
@@ -919,17 +1119,15 @@ module Treasury {
     };
 
     // Get caller's Solana public key for signing
-    let callerPubKeyResult = await* SolRpc.deriveSolAddress(solConfig.schnorrKeyName, caller, api);
+    let callerPubKeyResult = await* SolRpc.deriveSolAddress(treasury.store.thresholdKeyName, caller, api);
     let callerPubKey = switch (callerPubKeyResult) {
       case (#ok((_addr, pubKey))) pubKey;
       case (#err(e)) return #err(#TransferFailed("Failed to derive caller public key: " # e));
     };
 
     // Force a commit point between Schnorr/address resolution and SOL RPC calls.
-    await async ();
-
     // Check balance
-    let balance = switch (await* getSolTokenBalance(solConfig, args.tokenId, callerSolAddr)) {
+    let balance = switch (await getSolTokenBalanceStep(solConfig, args.tokenId, callerSolAddr)) {
       case (#ok(b)) b;
       case (#err(e)) return #err(#TransferFailed(e));
     };
@@ -944,13 +1142,13 @@ module Treasury {
           {
             solRpcCanisterId = solConfig.solRpcCanisterId;
             rpcSources;
-            schnorrKeyName = solConfig.schnorrKeyName;
+            schnorrKeyName = treasury.store.thresholdKeyName;
             derivationPath = [Principal.toBlob(caller)];
             senderPubKey = callerPubKey;
             mintAddress;
             toAddress;
             amount = Nat64.fromNat(args.amount);
-            decimals = getSolTokenDecimals(args.tokenId);
+            decimals = getSolTokenDecimals(args.tokenId, solConfig);
           },
           api,
         );
@@ -960,7 +1158,7 @@ module Treasury {
           {
             solRpcCanisterId = solConfig.solRpcCanisterId;
             rpcSources;
-            schnorrKeyName = solConfig.schnorrKeyName;
+            schnorrKeyName = treasury.store.thresholdKeyName;
             derivationPath = [Principal.toBlob(caller)];
             senderPubKey = callerPubKey;
             toAddress;
@@ -1033,7 +1231,11 @@ module Treasury {
     let now = Time.now();
 
     // Pre-check: ensure user has enough balance
-    let totalFees = fee * (1 + (switch (args.ambassadorL1) { case (?_) 1; case null 0 }) + (switch (args.ambassadorL2) { case (?_) 1; case null 0 }));
+    let totalFees = fee * (
+      1
+      + (if (l1Amount > 0 and args.ambassadorL1 != null) 1 else 0)
+      + (if (l2Amount > 0 and args.ambassadorL2 != null) 1 else 0)
+    );
     let balance = await ledger.icrc1_balance_of({
       owner = treasury.canisterId;
       subaccount = ?userSubaccount;
@@ -1106,7 +1308,7 @@ module Treasury {
     args : Types.ChargeAndDistributeArgs,
     distArgs : Types.DistributePaymentArgs,
   ) : async* Types.ChargeAndDistributeResult {
-    let evmConfig = switch (treasury.store.evmConfig) {
+    let evmConfig = switch (getEvmChainConfig(treasury.store.chains, args.tokenId)) {
       case (?cfg) cfg;
       case null return #err(#EvmNotConfigured);
     };
@@ -1117,7 +1319,7 @@ module Treasury {
     let rpcServices = buildRpcServices(evmConfig);
 
     // Derive user's public key and EVM address (sender)
-    let userPubKey = switch (await* getCachedPublicKey(treasury, args.userId, evmConfig, api)) {
+    let userPubKey = switch (await* getCachedPublicKey(treasury, args.userId, treasury.store.thresholdKeyName, api)) {
       case (?pk) pk;
       case null return #err(#TransferFailed({ recipient = "user"; error = "Failed to derive user public key" }));
     };
@@ -1128,13 +1330,11 @@ module Treasury {
 
     // Resolve recipient EVM addresses
     let adminEvmAddr = await* resolveEvmAddress(treasury, treasury.store.admin, evmConfig, api);
-    let l1EvmAddr = switch (args.ambassadorL1) { case (?l1) await* resolveEvmAddress(treasury, l1, evmConfig, api); case null null };
-    let l2EvmAddr = switch (args.ambassadorL2) { case (?l2) await* resolveEvmAddress(treasury, l2, evmConfig, api); case null null };
-
-    await async (); // commit point
+    let l1EvmAddr = if (l1Amount == 0) { null } else switch (args.ambassadorL1) { case (?l1) await* resolveEvmAddress(treasury, l1, evmConfig, api); case null null };
+    let l2EvmAddr = if (l2Amount == 0) { null } else switch (args.ambassadorL2) { case (?l2) await* resolveEvmAddress(treasury, l2, evmConfig, api); case null null };
 
     // Pre-check balance
-    let balance = switch (await* getEvmTokenBalance(evmConfig, rpcServices, args.tokenId, userEvmAddr)) {
+    let balance = switch (await getEvmTokenBalanceStep(evmConfig, args.tokenId, userEvmAddr)) {
       case (#ok(b)) b;
       case (#err(e)) return #err(#TransferFailed({ recipient = "pre-check"; error = e }));
     };
@@ -1155,7 +1355,7 @@ module Treasury {
     // Treasury share
     switch (adminEvmAddr) {
       case (?addr) {
-        let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, addr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+        let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, addr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
         Vector.add(transfers, makeEvmTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
         nonce += 1;
       };
@@ -1163,36 +1363,37 @@ module Treasury {
     };
 
     // L1 share
-    switch (args.ambassadorL1) {
-      case (?l1) {
-        switch (l1EvmAddr) {
-          case (?addr) {
-            if (l1Amount > 0) {
-              let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, addr, l1Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+    if (l1Amount > 0) {
+      switch (args.ambassadorL1) {
+        case (?l1) {
+          switch (l1EvmAddr) {
+            case (?addr) {
+              let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, addr, l1Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
               Vector.add(transfers, makeEvmTransferRecord(l1, addr, l1Amount, args.tokenId, result));
               nonce += 1;
             };
+            case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive L1 EVM address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive L1 EVM address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     // L2 share
-    switch (args.ambassadorL2) {
-      case (?l2) {
-        switch (l2EvmAddr) {
-          case (?addr) {
-            if (l2Amount > 0) {
-              let result = await* sendEvmTransfer(evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, addr, l2Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+    if (l2Amount > 0) {
+      switch (args.ambassadorL2) {
+        case (?l2) {
+          switch (l2EvmAddr) {
+            case (?addr) {
+              let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, addr, l2Amount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
               Vector.add(transfers, makeEvmTransferRecord(l2, addr, l2Amount, args.tokenId, result));
+              nonce += 1;
             };
+            case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive L2 EVM address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive L2 EVM address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     finalizeDistribution(treasury, distArgs, treasuryAmount, l1Amount, l2Amount, transfers);
@@ -1204,7 +1405,7 @@ module Treasury {
     args : Types.ChargeAndDistributeArgs,
     distArgs : Types.DistributePaymentArgs,
   ) : async* Types.ChargeAndDistributeResult {
-    let solConfig = switch (treasury.store.solConfig) {
+    let solConfig = switch (getSolanaChainConfig(treasury.store.chains, args.tokenId)) {
       case (?cfg) cfg;
       case null return #err(#SolNotConfigured);
     };
@@ -1218,7 +1419,7 @@ module Treasury {
       case (?addr) addr;
       case null return #err(#TransferFailed({ recipient = "user"; error = "Failed to derive user SOL address" }));
     };
-    let userPubKeyResult = await* SolRpc.deriveSolAddress(solConfig.schnorrKeyName, args.userId, api);
+    let userPubKeyResult = await* SolRpc.deriveSolAddress(treasury.store.thresholdKeyName, args.userId, api);
     let userPubKey = switch (userPubKeyResult) {
       case (#ok((_, pk))) pk;
       case (#err(e)) return #err(#TransferFailed({ recipient = "user"; error = "Failed to derive user public key: " # e }));
@@ -1226,13 +1427,11 @@ module Treasury {
 
     // Resolve recipient addresses
     let adminSolAddr = await* resolveSolAddress(treasury, treasury.store.admin, solConfig, api);
-    let l1SolAddr = switch (args.ambassadorL1) { case (?l1) await* resolveSolAddress(treasury, l1, solConfig, api); case null null };
-    let l2SolAddr = switch (args.ambassadorL2) { case (?l2) await* resolveSolAddress(treasury, l2, solConfig, api); case null null };
-
-    await async (); // commit point
+    let l1SolAddr = if (l1Amount == 0) { null } else switch (args.ambassadorL1) { case (?l1) await* resolveSolAddress(treasury, l1, solConfig, api); case null null };
+    let l2SolAddr = if (l2Amount == 0) { null } else switch (args.ambassadorL2) { case (?l2) await* resolveSolAddress(treasury, l2, solConfig, api); case null null };
 
     // Pre-check balance
-    let balance = switch (await* getSolTokenBalance(solConfig, args.tokenId, userSolAddr)) {
+    let balance = switch (await getSolTokenBalanceStep(solConfig, args.tokenId, userSolAddr)) {
       case (#ok(b)) b;
       case (#err(e)) return #err(#TransferFailed({ recipient = "pre-check"; error = e }));
     };
@@ -1242,17 +1441,17 @@ module Treasury {
 
     let userDerivationPath = [Principal.toBlob(args.userId)];
 
-    func sendSolOrSplTransfer(toAddr : Text, amount : Nat) : async* Result.Result<Text, Text> {
+    func sendSolOrSplTransfer(toAddr : Text, amount : Nat) : async Result.Result<Text, Text> {
       switch (getSolMintAddress(args.tokenId, solConfig)) {
         case (?mintAddress) {
           await* SolRpc.sendSplTransfer(
-            { solRpcCanisterId = solConfig.solRpcCanisterId; rpcSources; schnorrKeyName = solConfig.schnorrKeyName; derivationPath = userDerivationPath; senderPubKey = userPubKey; mintAddress; toAddress = toAddr; amount = Nat64.fromNat(amount); decimals = getSolTokenDecimals(args.tokenId) },
+            { solRpcCanisterId = solConfig.solRpcCanisterId; rpcSources; schnorrKeyName = treasury.store.thresholdKeyName; derivationPath = userDerivationPath; senderPubKey = userPubKey; mintAddress; toAddress = toAddr; amount = Nat64.fromNat(amount); decimals = getSolTokenDecimals(args.tokenId, solConfig) },
             api,
           );
         };
         case null {
           await* SolRpc.sendSolTransfer(
-            { solRpcCanisterId = solConfig.solRpcCanisterId; rpcSources; schnorrKeyName = solConfig.schnorrKeyName; derivationPath = userDerivationPath; senderPubKey = userPubKey; toAddress = toAddr; lamports = Nat64.fromNat(amount) },
+            { solRpcCanisterId = solConfig.solRpcCanisterId; rpcSources; schnorrKeyName = treasury.store.thresholdKeyName; derivationPath = userDerivationPath; senderPubKey = userPubKey; toAddress = toAddr; lamports = Nat64.fromNat(amount) },
             api,
           );
         };
@@ -1264,42 +1463,42 @@ module Treasury {
     // Treasury share
     switch (adminSolAddr) {
       case (?addr) {
-        let result = await* sendSolOrSplTransfer(addr, treasuryAmount);
+        let result = await sendSolOrSplTransfer(addr, treasuryAmount);
         Vector.add(transfers, makeSolTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
       };
       case null return #err(#TransferFailed({ recipient = "admin"; error = "Failed to derive admin SOL address" }));
     };
 
     // L1 share
-    switch (args.ambassadorL1) {
-      case (?l1) {
-        switch (l1SolAddr) {
-          case (?addr) {
-            if (l1Amount > 0) {
-              let result = await* sendSolOrSplTransfer(addr, l1Amount);
+    if (l1Amount > 0) {
+      switch (args.ambassadorL1) {
+        case (?l1) {
+          switch (l1SolAddr) {
+            case (?addr) {
+              let result = await sendSolOrSplTransfer(addr, l1Amount);
               Vector.add(transfers, makeSolTransferRecord(l1, addr, l1Amount, args.tokenId, result));
             };
+            case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive L1 SOL address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l1"; error = "Failed to derive L1 SOL address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     // L2 share
-    switch (args.ambassadorL2) {
-      case (?l2) {
-        switch (l2SolAddr) {
-          case (?addr) {
-            if (l2Amount > 0) {
-              let result = await* sendSolOrSplTransfer(addr, l2Amount);
+    if (l2Amount > 0) {
+      switch (args.ambassadorL2) {
+        case (?l2) {
+          switch (l2SolAddr) {
+            case (?addr) {
+              let result = await sendSolOrSplTransfer(addr, l2Amount);
               Vector.add(transfers, makeSolTransferRecord(l2, addr, l2Amount, args.tokenId, result));
             };
+            case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive L2 SOL address" }));
           };
-          case null return #err(#TransferFailed({ recipient = "l2"; error = "Failed to derive L2 SOL address" }));
         };
+        case null {};
       };
-      case null {};
     };
 
     finalizeDistribution(treasury, distArgs, treasuryAmount, l1Amount, l2Amount, transfers);
@@ -1418,7 +1617,7 @@ module Treasury {
         subaccount = ?subaccount;
       });
     } else if (isSolToken(tokenId)) {
-      let solConfig = switch (treasury.store.solConfig) {
+      let solConfig = switch (getSolanaChainConfig(treasury.store.chains, tokenId)) {
         case (?cfg) cfg;
         case null return 0;
       };
@@ -1426,24 +1625,20 @@ module Treasury {
         case (?addr) addr;
         case null return 0;
       };
-      await async ();
-      switch (await* getSolTokenBalance(solConfig, tokenId, callerSolAddr)) {
+      switch (await getSolTokenBalanceStep(solConfig, tokenId, callerSolAddr)) {
         case (#ok(b)) b;
         case (#err(_)) 0;
       };
     } else {
-      let evmConfig = switch (treasury.store.evmConfig) {
+      let evmConfig = switch (getEvmChainConfig(treasury.store.chains, tokenId)) {
         case (?cfg) cfg;
         case null return 0;
       };
-      let rpcServices = buildRpcServices(evmConfig);
       let callerEvmAddr = switch (await* resolveEvmAddress(treasury, caller, evmConfig, treasury.ecdsaApi)) {
         case (?addr) addr;
         case null return 0;
       };
-      // Force commit point between ECDSA/address resolution and EVM RPC call.
-      await async ();
-      switch (await* getEvmTokenBalance(evmConfig, rpcServices, tokenId, callerEvmAddr)) {
+      switch (await getEvmTokenBalanceStep(evmConfig, tokenId, callerEvmAddr)) {
         case (#ok(b)) b;
         case (#err(_)) 0;
       };
@@ -1473,7 +1668,7 @@ module Treasury {
 
   /// Get EVM token balance for an address.
   func getEvmTokenBalance(
-    evmConfig : Types.EvmConfig,
+    evmConfig : Types.EvmChainConfig,
     rpcServices : EvmRpc.RpcServices,
     tokenId : Types.TokenId,
     address : Text,
@@ -1491,7 +1686,10 @@ module Treasury {
     treasury : Treasury,
     principal : Principal,
   ) : async* ?Text {
-    let evmConfig = switch (treasury.store.evmConfig) {
+    if (not hasEvmChain(treasury.store.chains)) {
+      return null;
+    };
+    let evmConfig = switch (getAnyEvmChainConfig(treasury.store.chains)) {
       case (?cfg) cfg;
       case null return null;
     };
@@ -1503,11 +1701,10 @@ module Treasury {
   public func getTreasurySigningAddress(
     treasury : Treasury,
   ) : async* ?Text {
-    let evmConfig = switch (treasury.store.evmConfig) {
-      case (?cfg) cfg;
-      case null return null;
+    if (not hasEvmChain(treasury.store.chains)) {
+      return null;
     };
-    let result = await* EvmRpc.deriveTreasuryAddress(evmConfig.ecdsaKeyName, treasury.ecdsaApi);
+    let result = await* EvmRpc.deriveTreasuryAddress(treasury.store.thresholdKeyName, treasury.ecdsaApi);
     switch (result) {
       case (#ok((address, _publicKey))) ?address;
       case (#err(_)) null;
@@ -1521,7 +1718,10 @@ module Treasury {
     treasury : Treasury,
     principal : Principal,
   ) : async* ?Text {
-    let solConfig = switch (treasury.store.solConfig) {
+    if (not hasSolanaChain(treasury.store.chains)) {
+      return null;
+    };
+    let solConfig = switch (getAnySolanaChainConfig(treasury.store.chains)) {
       case (?cfg) cfg;
       case null return null;
     };
@@ -1533,11 +1733,10 @@ module Treasury {
   public func getTreasurySolSigningAddress(
     treasury : Treasury,
   ) : async* ?Text {
-    let solConfig = switch (treasury.store.solConfig) {
-      case (?cfg) cfg;
-      case null return null;
+    if (not hasSolanaChain(treasury.store.chains)) {
+      return null;
     };
-    let result = await* SolRpc.deriveTreasurySolAddress(solConfig.schnorrKeyName, treasury.schnorrApi);
+    let result = await* SolRpc.deriveTreasurySolAddress(treasury.store.thresholdKeyName, treasury.schnorrApi);
     switch (result) {
       case (#ok((address, _publicKey))) ?address;
       case (#err(_)) null;
@@ -1600,11 +1799,6 @@ module Treasury {
       return #err(#Unauthorized);
     };
 
-    let evmConfig = switch (treasury.store.evmConfig) {
-      case (?cfg) cfg;
-      case null return #err(#EvmNotConfigured);
-    };
-
     // Find the distribution record
     let total = Vector.size(treasury.store.distributions);
     var record : ?Types.DistributionRecord = null;
@@ -1621,6 +1815,11 @@ module Treasury {
     let dist = switch (record) {
       case (?r) r;
       case null return #err(#NotFound);
+    };
+
+    let evmConfig = switch (getEvmChainConfig(treasury.store.chains, dist.tokenId)) {
+      case (?cfg) cfg;
+      case null return #err(#EvmNotConfigured);
     };
 
     let rpcServices = buildRpcServices(evmConfig);

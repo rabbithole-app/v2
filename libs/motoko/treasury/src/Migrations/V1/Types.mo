@@ -10,8 +10,8 @@ module {
     distributions : Vector.Vector<Types.DistributionRecord>;
     var nextDistributionId : Nat;
     admin : Principal;
-    evmConfig : ?Types.EvmConfig;
-    solConfig : ?Types.SolConfig;
+    thresholdKeyName : Types.ThresholdKeyName;
+    chains : [Types.ChainConfig];
     distributionConfig : Types.DistributionConfig;
     walletCache : Map.Map<Principal, WalletAddresses>;
   };

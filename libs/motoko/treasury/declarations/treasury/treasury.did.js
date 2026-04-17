@@ -1,19 +1,5 @@
 export const idlFactory = ({ IDL }) => {
-  const SolConfig = IDL.Record({
-    'usdcMint' : IDL.Text,
-    'solRpcCanisterId' : IDL.Text,
-    'rpcUrl' : IDL.Opt(IDL.Text),
-    'schnorrKeyName' : IDL.Text,
-    'usdtMint' : IDL.Text,
-  });
-  const EvmConfig = IDL.Record({
-    'evmRpcCanisterId' : IDL.Text,
-    'rpcUrls' : IDL.Vec(IDL.Text),
-    'usdcContract' : IDL.Text,
-    'usdtContract' : IDL.Text,
-    'ecdsaKeyName' : IDL.Text,
-    'chainId' : IDL.Nat,
-  });
+  const ThresholdKeyName = IDL.Text;
   const MinWithdrawConfig = IDL.Record({
     'icp' : IDL.Nat,
     'sol' : IDL.Nat,
@@ -31,12 +17,6 @@ export const idlFactory = ({ IDL }) => {
     'l2Bps' : IDL.Nat,
     'minWithdraw' : MinWithdrawConfig,
   });
-  const InitArgs = IDL.Record({
-    'solConfig' : IDL.Opt(SolConfig),
-    'admin' : IDL.Principal,
-    'evmConfig' : IDL.Opt(EvmConfig),
-    'distributionConfig' : IDL.Opt(DistributionConfig),
-  });
   const TokenId = IDL.Variant({
     'ICP' : IDL.Null,
     'SOL' : IDL.Null,
@@ -48,6 +28,40 @@ export const idlFactory = ({ IDL }) => {
     'BaseUSDC' : IDL.Null,
     'BaseUSDT' : IDL.Null,
     'BaseETH' : IDL.Null,
+  });
+  const AssetLocator = IDL.Variant({
+    'Contract' : IDL.Text,
+    'Mint' : IDL.Text,
+    'Native' : IDL.Null,
+  });
+  const SupportedAsset = IDL.Record({
+    'decimals' : IDL.Nat8,
+    'tokenId' : TokenId,
+    'locator' : AssetLocator,
+    'symbol' : IDL.Text,
+  });
+  const EvmChainConfig = IDL.Record({
+    'evmRpcCanisterId' : IDL.Text,
+    'assets' : IDL.Vec(SupportedAsset),
+    'rpcUrls' : IDL.Vec(IDL.Text),
+    'chainId' : IDL.Nat,
+    'networkId' : IDL.Text,
+  });
+  const SolanaChainConfig = IDL.Record({
+    'solRpcCanisterId' : IDL.Text,
+    'assets' : IDL.Vec(SupportedAsset),
+    'rpcUrl' : IDL.Opt(IDL.Text),
+    'networkId' : IDL.Text,
+  });
+  const ChainConfig = IDL.Variant({
+    'Evm' : EvmChainConfig,
+    'Solana' : SolanaChainConfig,
+  });
+  const InitArgs = IDL.Record({
+    'thresholdKeyName' : ThresholdKeyName,
+    'admin' : IDL.Principal,
+    'distributionConfig' : IDL.Opt(DistributionConfig),
+    'chains' : IDL.Vec(ChainConfig),
   });
   const ChargeAndDistributeArgs = IDL.Record({
     'tokenId' : TokenId,
@@ -199,21 +213,7 @@ export const idlFactory = ({ IDL }) => {
   return TreasuryCanister;
 };
 export const init = ({ IDL }) => {
-  const SolConfig = IDL.Record({
-    'usdcMint' : IDL.Text,
-    'solRpcCanisterId' : IDL.Text,
-    'rpcUrl' : IDL.Opt(IDL.Text),
-    'schnorrKeyName' : IDL.Text,
-    'usdtMint' : IDL.Text,
-  });
-  const EvmConfig = IDL.Record({
-    'evmRpcCanisterId' : IDL.Text,
-    'rpcUrls' : IDL.Vec(IDL.Text),
-    'usdcContract' : IDL.Text,
-    'usdtContract' : IDL.Text,
-    'ecdsaKeyName' : IDL.Text,
-    'chainId' : IDL.Nat,
-  });
+  const ThresholdKeyName = IDL.Text;
   const MinWithdrawConfig = IDL.Record({
     'icp' : IDL.Nat,
     'sol' : IDL.Nat,
@@ -231,11 +231,51 @@ export const init = ({ IDL }) => {
     'l2Bps' : IDL.Nat,
     'minWithdraw' : MinWithdrawConfig,
   });
+  const TokenId = IDL.Variant({
+    'ICP' : IDL.Null,
+    'SOL' : IDL.Null,
+    'SolUSDC' : IDL.Null,
+    'SolUSDT' : IDL.Null,
+    'ckETH' : IDL.Null,
+    'ckUSDC' : IDL.Null,
+    'ckUSDT' : IDL.Null,
+    'BaseUSDC' : IDL.Null,
+    'BaseUSDT' : IDL.Null,
+    'BaseETH' : IDL.Null,
+  });
+  const AssetLocator = IDL.Variant({
+    'Contract' : IDL.Text,
+    'Mint' : IDL.Text,
+    'Native' : IDL.Null,
+  });
+  const SupportedAsset = IDL.Record({
+    'decimals' : IDL.Nat8,
+    'tokenId' : TokenId,
+    'locator' : AssetLocator,
+    'symbol' : IDL.Text,
+  });
+  const EvmChainConfig = IDL.Record({
+    'evmRpcCanisterId' : IDL.Text,
+    'assets' : IDL.Vec(SupportedAsset),
+    'rpcUrls' : IDL.Vec(IDL.Text),
+    'chainId' : IDL.Nat,
+    'networkId' : IDL.Text,
+  });
+  const SolanaChainConfig = IDL.Record({
+    'solRpcCanisterId' : IDL.Text,
+    'assets' : IDL.Vec(SupportedAsset),
+    'rpcUrl' : IDL.Opt(IDL.Text),
+    'networkId' : IDL.Text,
+  });
+  const ChainConfig = IDL.Variant({
+    'Evm' : EvmChainConfig,
+    'Solana' : SolanaChainConfig,
+  });
   const InitArgs = IDL.Record({
-    'solConfig' : IDL.Opt(SolConfig),
+    'thresholdKeyName' : ThresholdKeyName,
     'admin' : IDL.Principal,
-    'evmConfig' : IDL.Opt(EvmConfig),
     'distributionConfig' : IDL.Opt(DistributionConfig),
+    'chains' : IDL.Vec(ChainConfig),
   });
   return [InitArgs];
 };

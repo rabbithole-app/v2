@@ -1,28 +1,15 @@
 import Result "mo:core/Result";
+import ConfigTypes "ConfigTypes";
 
 module {
-  /// Supported tokens across chains.
-  public type TokenId = {
-    // Phase 1: IC (ICRC-1)
-    #ICP;
-    #ckUSDC;
-    #ckUSDT;
-    #ckETH;
-    // Phase 2: Base EVM
-    #BaseETH;
-    #BaseUSDC;
-    #BaseUSDT;
-    // Phase 3: Solana
-    #SOL;
-    #SolUSDC;
-    #SolUSDT;
-  };
+  public type ThresholdKeyName = ConfigTypes.ThresholdKeyName;
+  public type TokenId = ConfigTypes.TokenId;
 
   /// Distribution and withdrawal configuration.
   public type DistributionConfig = {
-    /// L1 ambassador share in basis points (10000 = 100%). Default: 2000 (20%)
+    /// L1 ambassador share in basis points (10000 = 100%). Default: 1500 (15%)
     l1Bps : Nat;
-    /// L2 ambassador share in basis points. Default: 500 (5%)
+    /// L2 ambassador share in basis points. Default: 0
     l2Bps : Nat;
     /// Minimum withdrawal amounts per token (in smallest unit).
     minWithdraw : MinWithdrawConfig;
@@ -41,34 +28,22 @@ module {
     solUsdt : Nat;
   };
 
+  public type AssetLocator = ConfigTypes.AssetLocator;
+  public type SupportedAsset = ConfigTypes.SupportedAsset;
+
   /// EVM chain configuration, provided at deploy time via InitArgs.
-  public type EvmConfig = {
-    chainId : Nat;
-    ecdsaKeyName : Text;
-    evmRpcCanisterId : Text;
-    usdcContract : Text;
-    usdtContract : Text;
-    /// Custom RPC URLs. If empty, built-in evm_rpc providers are used
-    /// (BaseMainnet, EthMainnet, EthSepolia). Required for custom/testnet chains.
-    rpcUrls : [Text];
-  };
+  public type EvmChainConfig = ConfigTypes.EvmChainConfig;
 
   /// Solana configuration, provided at deploy time via InitArgs.
-  public type SolConfig = {
-    schnorrKeyName : Text;
-    solRpcCanisterId : Text;
-    usdcMint : Text;
-    usdtMint : Text;
-    /// Custom RPC URL. If empty, built-in sol_rpc providers are used.
-    /// Required for devnet/testnet when sol_rpc API keys are not configured.
-    rpcUrl : ?Text;
-  };
+  public type SolanaChainConfig = ConfigTypes.SolanaChainConfig;
+
+  public type ChainConfig = ConfigTypes.ChainConfig;
 
   /// Init args for the Treasury canister.
   public type InitArgs = {
     admin : Principal;
-    evmConfig : ?EvmConfig;
-    solConfig : ?SolConfig;
+    thresholdKeyName : ThresholdKeyName;
+    chains : [ChainConfig];
     distributionConfig : ?DistributionConfig;
   };
 

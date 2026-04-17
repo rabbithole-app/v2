@@ -2,7 +2,12 @@ import type { Principal } from '@icp-sdk/core/principal';
 import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 
+export type AssetLocator = { 'Contract' : string } |
+  { 'Mint' : string } |
+  { 'Native' : null };
 export interface BalanceEntry { 'tokenId' : TokenId, 'balance' : bigint }
+export type ChainConfig = { 'Evm' : EvmChainConfig } |
+  { 'Solana' : SolanaChainConfig };
 export interface ChargeAndDistributeArgs {
   'tokenId' : TokenId,
   'metadata' : [] | [string],
@@ -55,19 +60,18 @@ export interface DistributionRecord {
 }
 export type DistributionStatus = { 'completed' : null } |
   { 'partial' : null };
-export interface EvmConfig {
+export interface EvmChainConfig {
   'evmRpcCanisterId' : string,
+  'assets' : Array<SupportedAsset>,
   'rpcUrls' : Array<string>,
-  'usdcContract' : string,
-  'usdtContract' : string,
-  'ecdsaKeyName' : string,
   'chainId' : bigint,
+  'networkId' : string,
 }
 export interface InitArgs {
-  'solConfig' : [] | [SolConfig],
+  'thresholdKeyName' : ThresholdKeyName,
   'admin' : Principal,
-  'evmConfig' : [] | [EvmConfig],
   'distributionConfig' : [] | [DistributionConfig],
+  'chains' : Array<ChainConfig>,
 }
 export interface MinWithdrawConfig {
   'icp' : bigint,
@@ -81,13 +85,19 @@ export interface MinWithdrawConfig {
   'solUsdc' : bigint,
   'solUsdt' : bigint,
 }
-export interface SolConfig {
-  'usdcMint' : string,
+export interface SolanaChainConfig {
   'solRpcCanisterId' : string,
+  'assets' : Array<SupportedAsset>,
   'rpcUrl' : [] | [string],
-  'schnorrKeyName' : string,
-  'usdtMint' : string,
+  'networkId' : string,
 }
+export interface SupportedAsset {
+  'decimals' : number,
+  'tokenId' : TokenId,
+  'locator' : AssetLocator,
+  'symbol' : string,
+}
+export type ThresholdKeyName = string;
 export type TokenId = { 'ICP' : null } |
   { 'SOL' : null } |
   { 'SolUSDC' : null } |

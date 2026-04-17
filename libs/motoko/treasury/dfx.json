@@ -4,7 +4,7 @@
       "main": "src/main.mo",
       "type": "motoko",
       "gzip": true,
-      "init_arg": "(record { admin = principal \"hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe\"; evmConfig = null; solConfig = null; distributionConfig = null })",
+      "init_arg": "(record { admin = principal \"hpikg-6exdt-jn33w-ndty3-fc7jc-tl2lr-buih3-cs3y7-tftkp-sfp62-gqe\"; thresholdKeyName = \"dfx_test_key\"; chains = vec {}; distributionConfig = null })",
       "declarations": {
         "bindings": ["js", "ts"],
         "node_compatibility": true,
