@@ -1,16 +1,17 @@
 ---
 name: extension-email-marketing
 description: Send personalised marketing emails to subscribers with an unsubscribe link.
-version: 0.1.4
+version: 0.1.5
 compatibility:
   mops:
-    caffeineai-email-marketing: "~0.1.0"
-    caffeineai-authorization: "~0.1.0"
-    caffeineai-email-verification: "~0.1.0"
+    caffeineai-email-marketing: "~0.1.1"
+    caffeineai-authorization: "~0.1.1"
+    caffeineai-email-verification: "~0.1.1"
 caffeineai-subscription: [plus, pro]
 ---
 
 # Email — Marketing
+Marketing email extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

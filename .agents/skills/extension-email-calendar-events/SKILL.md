@@ -1,15 +1,16 @@
 ---
 name: extension-email-calendar-events
 description: Support for organising events/meetings and sending invitations by email.
-version: 0.1.4
+version: 0.1.5
 compatibility:
   mops:
-    caffeineai-email-calendar-events: "~0.1.0"
-    caffeineai-authorization: "~0.1.0"
+    caffeineai-email-calendar-events: "~0.1.1"
+    caffeineai-authorization: "~0.1.1"
 caffeineai-subscription: [plus, pro]
 ---
 
 # Email — Calendar Events
+Calendar events email extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

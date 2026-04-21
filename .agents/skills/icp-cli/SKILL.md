@@ -13,6 +13,8 @@ metadata:
 
 The `icp` command-line tool builds and deploys applications on the Internet Computer. It replaces the legacy `dfx` tool with YAML configuration, a recipe system for reusable build templates, and an environment model that separates deployment targets from network connections. Never use `dfx` — always use `icp`.
 
+Before generating any `icp` command not explicitly documented here, run `icp --help` or `icp <subcommand> --help` to verify the command and its flags exist. Do not infer flags from `dfx` equivalents — the CLIs are not flag-compatible.
+
 ## Installation
 
 **Recommended (npm)** — requires [Node.js](https://nodejs.org/) >= 22:
@@ -44,7 +46,12 @@ ic-wasm --version
 ## Prerequisites
 
 - For Rust canisters: `rustup target add wasm32-unknown-unknown`
-- For Motoko canisters: `npm i -g ic-mops` and `moc` version defined in `mops.toml` (templates include this; for manual projects add `[toolchain]` with `moc = "<version>"`)
+- For Motoko canisters: `npm i -g ic-mops` and a `mops.toml` at the project root with the Motoko compiler version:
+  ```toml
+  [toolchain]
+  moc = "1.3.0"
+  ```
+  The `@dfinity/motoko` recipe uses this to resolve the compiler. Without `mops.toml`, the recipe fails because `moc` is not found. Templates include `mops.toml` automatically; for manual projects, create it before running `icp build`.
 
 ## Common Pitfalls
 
@@ -89,13 +96,38 @@ ic-wasm --version
 
 5. **Not committing `.icp/data/` to version control.** Mainnet canister IDs are stored in `.icp/data/mappings/<environment>.ids.json`. Losing this file means losing the mapping between canister names and on-chain IDs. Always commit `.icp/data/` — never delete it. Add `.icp/cache/` to `.gitignore` (it is ephemeral and rebuilt automatically).
 
-6. **Using `icp identity use` instead of `icp identity default`.** The dfx command `dfx identity use` became `icp identity default`. Similarly, `dfx identity get-principal` became `icp identity principal`, and `dfx identity remove` became `icp identity delete`.
+6. **Using `icp identity use` instead of `icp identity default`.** The dfx command `dfx identity use <name>` became `icp identity default <name>` (setter). `icp identity default` with no argument is the getter — it prints the current default identity, equivalent to `dfx identity whoami`. The command `icp identity use` does not exist. Similarly, `dfx identity get-principal` became `icp identity principal`, and `dfx identity remove` became `icp identity delete`.
 
 7. **Confusing networks and environments.** A network is a connection endpoint (URL). An environment combines a network + canisters + settings. You deploy to environments (`-e`), not networks. Multiple environments can target the same network with different settings (e.g., staging and production both on `ic`).
 
-8. **Forgetting that local networks are project-local.** Unlike dfx which runs one shared global network, icp-cli runs a local network per project. You must run `icp network start -d` in your project directory before deploying locally. The local network auto-starts with system canisters and seeds accounts with ICP and cycles.
+8. **Writing `networks` or `environments` as a YAML map instead of an array.** Both `networks` and `environments` are arrays of objects in `icp.yaml`, not maps:
+   ```yaml
+   # Wrong — map syntax
+   networks:
+     local:
+       mode: managed
+   environments:
+     staging:
+       network: ic
 
-9. **Not specifying build commands for asset canisters.** dfx automatically runs `npm run build` for asset canisters. icp-cli requires explicit build commands in the recipe configuration:
+   # Correct — array syntax
+   networks:
+     - name: local
+       mode: managed
+   environments:
+     - name: staging
+       network: ic
+       canisters: [backend, frontend]
+   ```
+
+9. **Forgetting that local networks are project-local.** Unlike dfx which runs one shared global network, icp-cli runs a local network per project. You must run `icp network start -d` in your project directory before deploying locally. The local network auto-starts with system canisters and seeds accounts with ICP and cycles. Stop it when done:
+   ```bash
+   icp network start -d  # start background network
+   icp deploy            # build + deploy + sync
+   icp network stop      # stop when done
+   ```
+
+10. **Not specifying build commands for asset canisters.** dfx automatically runs `npm run build` for asset canisters. icp-cli requires explicit build commands in the recipe configuration:
     ```yaml
     canisters:
       - name: frontend
@@ -108,11 +140,40 @@ ic-wasm --version
               - npm run build
     ```
 
-10. **Expecting `output_env_file` or `.env` with canister IDs.** dfx writes canister IDs to a `.env` file (`CANISTER_ID_BACKEND=...`) via `output_env_file`. icp-cli does not generate `.env` files. Instead, it injects canister IDs as environment variables (`PUBLIC_CANISTER_ID:<name>`) directly into canisters during `icp deploy`. Frontends read these from the `ic_env` cookie set by the asset canister. Remove `output_env_file` from your config and any code that reads `CANISTER_ID_*` from `.env` — use the `ic_env` cookie instead (see Canister Environment Variables below).
+11. **Expecting `output_env_file` or `.env` with canister IDs.** dfx writes canister IDs to a `.env` file (`CANISTER_ID_BACKEND=...`) via `output_env_file`. icp-cli does not generate `.env` files. Instead, it injects canister IDs as environment variables (`PUBLIC_CANISTER_ID:<name>`) directly into canisters during `icp deploy`. Frontends read these from the `ic_env` cookie set by the asset canister. Remove `output_env_file` from your config and any code that reads `CANISTER_ID_*` from `.env` — use the `ic_env` cookie instead (see Canister Environment Variables below).
 
-11. **Expecting `dfx generate` for TypeScript bindings.** icp-cli does not have a `dfx generate` equivalent. Use `@icp-sdk/bindgen` (a Vite plugin) to generate TypeScript bindings from `.did` files at build time. The `.did` file must exist on disk — either commit it to the repo, or generate it with `icp build` first (recipes auto-generate it when `candid` is not specified). See `references/binding-generation.md` for setup details.
+12. **Expecting `dfx generate` for TypeScript bindings.** icp-cli does not have a `dfx generate` equivalent. Use `@icp-sdk/bindgen` (>= 0.3.0) with `@icp-sdk/core` (>= 5.0.0 — there is no 0.x or 1.x release) to generate TypeScript bindings from `.did` files at build time. Use `outDir: "./src/bindings"` so imports are clean (e.g., `./bindings/backend`). The `.did` file must exist on disk — either commit it to the repo, or generate it with `icp build` first (recipes auto-generate it when `candid` is not specified). See `references/binding-generation.md` for the full Vite plugin setup.
 
-12. **Misunderstanding Candid file generation with recipes.** When using the Rust or Motoko recipe:
+13. **Passing `{ agent }` to `createActor` from `@icp-sdk/bindgen`.** The old `@dfinity/agent` pattern was `createActor(canisterId, { agent })`. The `@icp-sdk/bindgen` pattern is `createActor(canisterId, { agentOptions: { host, rootKey } })` — the binding creates the agent internally. Passing `{ agent }` to the new API **silently creates an anonymous identity** — no error is thrown, but calls return empty data or access denied. See `references/binding-generation.md` for the correct pattern.
+
+14. **Mixing canister-level fields across config styles.** When using a recipe, the only valid canister-level fields are `name`, `recipe`, `sync`, `settings`, and `init_args`. Fields like `candid`, `build`, or `wasm` are **not** valid at canister level alongside a recipe — recipe-specific options go inside `recipe.configuration`. When using bare `build` (no recipe), valid canister-level fields are `name`, `build`, `sync`, `settings`, and `init_args`. The field `init_arg_file` does not exist — use `init_args.path` instead (e.g., `init_args: { path: ./args.bin, format: bin }`). For the authoritative field reference, consult the [icp-cli configuration reference](https://cli.internetcomputer.org/0.2/reference/configuration.md).
+    ```yaml
+    # Wrong — candid is not a canister-level field when using a recipe
+    canisters:
+      - name: backend
+        candid: backend/backend.did
+        recipe:
+          type: "@dfinity/rust@v3.2.0"
+          configuration:
+            package: backend
+
+    # Correct — candid goes inside recipe.configuration
+    canisters:
+      - name: backend
+        recipe:
+          type: "@dfinity/rust@v3.2.0"
+          configuration:
+            package: backend
+            candid: backend/backend.did
+    ```
+
+15. **Placing `mops.toml` where `mops` cannot find it.** `mops` searches upward from the build working directory. Where to place `mops.toml` depends on how the canister is defined:
+    - **Inline canisters** (defined directly in `icp.yaml`): build cwd is the project root. Place `mops.toml` at the project root next to `icp.yaml`. A `mops.toml` in `src/backend/` will not be found.
+    - **Path-based canisters** (referenced via `canisters/*` or `./my-canister`, each with its own `canister.yaml`): build cwd is the canister directory. Place `mops.toml` in each canister's directory for per-canister dependencies and compiler versions, or omit it to fall back to a shared `mops.toml` in a parent directory.
+
+    When `mops.toml` is not found, `mops toolchain bin moc` outputs an error instead of a path, causing a cryptic `sh: Error:: command not found` build failure.
+
+16. **Misunderstanding Candid file generation with recipes.** When using the Rust or Motoko recipe:
     - If `candid` is **specified**: the file must already exist (checked in or manually created). The recipe uses it as-is and does **not** generate one.
     - If `candid` is **omitted**: the recipe auto-generates the `.did` file from the compiled WASM (via `candid-extractor` for Rust, `moc` for Motoko). The generated file is placed in the build cache, not at a predictable project path.
 
@@ -130,11 +191,54 @@ ic-wasm --version
     $(mops toolchain bin moc) --idl $(mops sources) -o backend/backend.did backend/app.mo
     ```
 
+17. **Port 8000 already in use when starting the local network.** Two scenarios:
+
+    **Scenario A — another icp-cli project holds the port.** Stop that project's network using `--project-root-override` (a global flag available on all commands):
+    ```bash
+    icp network stop --project-root-override /path/to/other-project
+    ```
+
+    **Scenario B — a non-icp service holds the port.** Configure an alternate port in `icp.yaml` and read the actual URLs dynamically via `icp network status --json` rather than hardcoding localhost:8000:
+    ```yaml
+    networks:
+      - name: local
+        mode: managed
+        gateway:
+          port: 8001
+    ```
+    ```bash
+    icp network status --json  # returns gateway URL, replica URL, etc.
+    ```
+
+18. **`icp new` hangs in CI without `--silent`.** Without `--define` flags, `icp new` launches an interactive prompt that blocks indefinitely in non-interactive environments. Always pass `--subfolder`, `--define`, and `--silent` for scripted use:
+    ```bash
+    icp new my-project --subfolder rust --define project_name=my-project --silent
+    ```
+
+19. **Using the anonymous identity on mainnet.** The local network seeds all managed identities — including the anonymous identity, which is the default — with ICP and cycles on start, so local development works out of the box with no identity or cycles setup required. On mainnet this does not apply, and the anonymous identity should never be used: it is shared by anyone, meaning ICP sent to it is publicly accessible and canisters deployed under it are uncontrolled.
+
+    Before deploying to mainnet, switch to a named identity:
+    ```bash
+    icp identities list                                        # check available identities
+    icp identity default my-identity                           # switch to an existing one
+    # or: icp identity new my-identity && icp identity default my-identity
+    ```
+    Then verify it has funds — a new identity will need to be funded with ICP or cycles before proceeding:
+    ```bash
+    icp token balance -n ic    # check ICP balance on mainnet
+    icp cycles balance -n ic   # check cycles balance on mainnet
+    icp identity account-id    # get account ID to fund if needed
+    ```
+
 ## How It Works
 
 ### Project Creation
 
-`icp new` scaffolds projects from templates. Without flags, an interactive prompt launches. For scripted or non-interactive use, pass `--subfolder` and `--define` flags directly. Available templates and options: [dfinity/icp-cli-templates](https://github.com/dfinity/icp-cli-templates).
+`icp new` scaffolds projects from templates. Pass `--subfolder`, `--define`, and `--silent` for non-interactive use:
+```bash
+icp new my-project --subfolder rust --define project_name=my-project --silent
+```
+Available templates and options: [dfinity/icp-cli-templates](https://github.com/dfinity/icp-cli-templates).
 
 ### Build → Deploy → Sync
 
@@ -257,14 +361,14 @@ canisters:
 
 ### Available recipes
 
-| Recipe | Purpose |
-|--------|---------|
-| `@dfinity/rust` | Rust canisters with Cargo |
-| `@dfinity/motoko` | Motoko canisters |
-| `@dfinity/asset-canister` | Asset canisters for static files |
-| `@dfinity/prebuilt` | Pre-compiled WASM files |
+| Recipe | Type string | Required config | Optional config |
+|--------|------------|-----------------|-----------------|
+| Rust | `@dfinity/rust@v3.2.0` | `package` | `candid`, `locked`, `shrink`, `compress` |
+| Motoko | `@dfinity/motoko@v4.1.0` | `main` | `candid`, `args`, `shrink`, `compress` |
+| Asset | `@dfinity/asset-canister@v2.1.0` | `dir` | `build`, `version` |
+| Prebuilt | `@dfinity/prebuilt@v1.0.0` | `wasm` | `sha256`, `candid`, `shrink`, `compress` |
 
-Use `icp project show` to see the effective configuration after recipe expansion.
+Verify latest recipe versions at [dfinity/icp-cli-recipes releases](https://github.com/dfinity/icp-cli-recipes/releases). Use `icp project show` to see the effective configuration after recipe expansion.
 
 ### Canister Environment Variables
 
@@ -292,8 +396,10 @@ Note: variables are only updated for canisters being deployed. When adding a new
 
 ## Additional References
 
+For the complete CLI and configuration schema, consult the [icp-cli documentation index](https://cli.internetcomputer.org/llms.txt).
+
 For detailed guides on specific topics, consult these reference files when needed:
 
 - **`references/binding-generation.md`** — TypeScript binding generation with `@icp-sdk/bindgen` (Vite plugin, CLI, actor setup)
-- **`references/dev-server.md`** — Vite dev server configuration to simulate the `ic_env` cookie locally
+- **`references/dev-server.md`** — Vite dev server configuration to simulate the `ic_env` cookie locally. Important: wrap `getDevServerConfig()` in a `command === "serve"` guard so it only runs during `vite dev`, not `vite build`.
 - **`references/dfx-migration.md`** — Complete dfx → icp migration guide (command mapping, config mapping, identity/canister ID migration, frontend package migration, post-migration verification checklist)

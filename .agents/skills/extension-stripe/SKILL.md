@@ -1,16 +1,17 @@
 ---
 name: extension-stripe
 description: Payment support based on Stripe, supporting credit cards and debit cards
-version: 0.1.4
+version: 0.1.5
 compatibility:
   mops:
-    caffeineai-stripe: "~0.1.0"
-    caffeineai-http-outcalls: "~0.1.0"
-    caffeineai-authorization: "~0.1.0"
+    caffeineai-stripe: "~0.1.1"
+    caffeineai-http-outcalls: "~0.1.1"
+    caffeineai-authorization: "~0.1.1"
 caffeineai-subscription: [none]
 ---
 
 # Stripe Payment Integration
+Stripe payment extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

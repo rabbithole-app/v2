@@ -2,7 +2,7 @@
 name: certified-variables
 description: "Serve cryptographically verified responses from query calls using Merkle trees and subnet BLS signatures. Covers certified data API, RbTree/CertTree construction, witness generation, and frontend certificate validation. Use when query responses need verification, certified data, or response authenticity proofs."
 license: Apache-2.0
-compatibility: "icp-cli >= 0.1.0"
+compatibility: "icp-cli >= 0.2.2"
 metadata:
   title: Certified Variables
   category: Security
@@ -18,7 +18,7 @@ Query responses on the Internet Computer come from a single replica and are NOT 
 
 - Rust: `ic-certified-map` crate (for Merkle tree), `ic-cdk` (for `certified_data_set` / `data_certificate`)
 - Motoko: `CertifiedData` module (included in mo:core/mo:base), `ic-certification` package (`mops add ic-certification`) for Merkle tree with witness support
-- Frontend: `@icp-sdk/core` (agent, principal), `@dfinity/certificate-verification`
+- Frontend: `@icp-sdk/core` (>= 5.0.0) (agent, principal), `@dfinity/certificate-verification` (>= 3.1.0)
 
 ## Canister IDs
 

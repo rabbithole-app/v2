@@ -1,16 +1,17 @@
 ---
 name: extension-authorization
 description: Authorization system with role-based access control. Must-have for all apps that manage personal or access-restricted data.
-version: 0.1.4
+version: 0.2.1
 compatibility:
   mops:
-    caffeineai-authorization: "~0.1.0"
+    caffeineai-authorization: "~0.1.1"
   npm:
-    "@caffeineai/core-infrastructure": "~0.1.0"
+    "@caffeineai/core-infrastructure": "^0.2.1"
 caffeineai-subscription: [none]
 ---
 
 # Authorization
+Authorization extendsion for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 
@@ -186,63 +187,71 @@ export function useGetCallerUserProfile() {
 
 Then in your component:
 ```typescript
-const showProfileSetup = isLoginSuccess && !profileLoading && isFetched && userProfile === null;
+const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
 ```
+
+## Auth State Lifecycle
+
+The `useInternetIdentity` hook exposes two kinds of state — use the right one:
+
+| Scenario | `loginStatus` | `isAuthenticated` |
+|---|---|---|
+| Page load, no stored session | `"idle"` | `false` |
+| Page load, restoring stored session | `"initializing"` | `false` → `true` |
+| Stored session restored after reload | `"idle"` | `true` |
+| Interactive login in progress (popup open) | `"logging-in"` | `false` |
+| Interactive login just completed | `"success"` | `true` |
+| Login popup failed / cancelled | `"loginError"` | `false` |
+
+**IMPORTANT:** `isLoginSuccess` (`loginStatus === "success"`) is only `true` after an interactive login via the popup. It is **NOT** `true` when a stored identity is restored on page reload. Never use `isLoginSuccess` to gate authenticated vs. unauthenticated UI — always use `isAuthenticated`.
+
+Key states for the login button:
+- `isInitializing` — `AuthClient` is loading from IndexedDB; disable the button to prevent clicks before the client is ready.
+- `isLoggingIn` — the II popup is open; disable the button to prevent duplicate popups.
 
 ## Login Component
 
 ```typescript
-import React from 'react';
 import { useInternetIdentity } from '@caffeineai/core-infrastructure';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function LoginButton() {
-  const { login, clear, isLoginSuccess, identity } = useInternetIdentity();
+  const { login, clear, isAuthenticated, isInitializing, isLoggingIn } = useInternetIdentity();
   const queryClient = useQueryClient();
 
-  const isAuthenticated = !!identity;
-  const disabled = !isLoginSuccess && !isAuthenticated;
-  const text = !isAuthenticated && !isLoginSuccess ? 'Logging in...' : isAuthenticated ? 'Logout' : 'Login';
-
-  const handleAuth = async () => {
+  const handleAuth = () => {
     if (isAuthenticated) {
-      await clear();
+      clear();
       queryClient.clear();
     } else {
-      try {
-        await login();
-      } catch (error: any) {
-        console.error('Login error:', error);
-        if (error.message === 'User is already authenticated') {
-          await clear();
-          setTimeout(() => login(), 300);
-        }
-      }
+      login();
     }
   };
 
   return (
     <button
       onClick={handleAuth}
-      disabled={disabled}
+      disabled={isInitializing || isLoggingIn}
       className={`px-6 py-2 rounded-full transition-colors font-medium ${
         isAuthenticated
           ? 'bg-gray-200 hover:bg-gray-300 text-gray-800'
           : 'bg-blue-600 hover:bg-blue-700 text-white'
       } disabled:opacity-50`}
     >
-      {text}
+      {isInitializing ? 'Loading...' : isAuthenticated ? 'Logout' : 'Login'}
     </button>
   );
 }
 ```
 
-Gate authenticated UI on `isLoginSuccess`:
+The `login()` and `clear()` functions are fire-and-forget (they don't return promises that track the full flow). The hook's `isLoggingIn` / `isInitializing` states track the async lifecycle — do **not** wrap them in local `useState` / `isPending` logic.
+
+Gate authenticated UI on `isAuthenticated` (covers both fresh login and restored sessions on page reload):
 ```typescript
-{isLoginSuccess ? (
+{isAuthenticated ? (
   <AuthenticatedApp />
 ) : (
-  <LoginScreen onLogin={handleLogin} />
+  <LoginScreen />
 )}
 ```
 

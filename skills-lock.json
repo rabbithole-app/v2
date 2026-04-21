@@ -4,7 +4,12 @@
     "asset-canister": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "e09e7675cc54eb677b27e0eb127e10fb9432564b168ef3fa837a22aa86e27464"
+      "computedHash": "9c7d9f132a00440288123f76af21a50977178b65d3bd56d4077250ec008c71e7"
+    },
+    "canhelp": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "d7418dc6133afbf815501c1c46ce2129c6eb1e9332adbc485e0bdeef9f31505c"
     },
     "canister-security": {
       "source": "dfinity/icskills",
@@ -14,132 +19,147 @@
     "certified-variables": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "7f6342bbb88cf22b6459029ad5790ec8185ee23f5a441242f8bedf9284cea4d2"
+      "computedHash": "9c099d6cf8cebdb4dd7ee97f4f9fe200ea0e8c297b9c6bc062a8d9c6c8978d5a"
     },
     "ckbtc": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "104bf8fa0a43c8e1f83de00fd7e9fbe7a030be7c9a57164938b8c4007c61274f"
+      "computedHash": "549b31591c740983bde86c660d9574da50890525ecac764b26b440b2503727f3"
+    },
+    "custom-domains": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "005687085a6e2e57f7c3bb35481f6f1c2689a33c32b3ae1d58a7cf0ecec645f2"
     },
     "cycles-management": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "b14f8da81ce7bb78c10297b9051951d778fac20b9cf3b9c0e29c70fcf738d3c9"
+      "computedHash": "4b8f9ac545376886b6473084ae5de6c77edc4856c2da339f95d3a0b22528068d"
     },
     "evm-rpc": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "b1fee51e848d39e0d04395d654560dc26b4efd645e2eb8cf4ddd7bc97dec41f3"
+      "computedHash": "9099a405cda7f1ada279acfb2c04a322df90ec7701ddecae5a8f0e671fd3f340"
     },
     "extension-authorization": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "0e86afbd8b519030674deb7ec1187eba9749514abb547bd0c4f3ae81f54315ec"
+      "computedHash": "aa15271a95e97eaa31a79d629c285b94cf2b3a00a899f1d45854199b1a59ea6e"
     },
     "extension-camera": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "491e89b7f4107fcea317a0aaf93a32087781fa18644e5742a751484081ae7836"
+      "computedHash": "2bab7f8931257e22ad493442b4156bd6fee4ab54c444cf0a4aa82cbd6b0d1d99"
     },
     "extension-core-infrastructure": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "bbcac46aa95843931c09be100d6d29386eaf1192741f542518086ccdb808458a"
+      "computedHash": "6f246b48da87b22de09d2d0d68a5fae0455735a073e1b09864aa01f133d4bbdb"
     },
     "extension-email": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "f15e27b37b9f331c90cc4cbfc4240136024970d1368f41cac9eb134acd421890"
+      "computedHash": "fa9437c22f85b2ebccf289718f90df06cb35c3c406be1dfa2e70a15c2495caba"
     },
     "extension-email-calendar-events": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "c0859bd49b92860f83f44fe79f549cbe122d39668c44957680811f9e139ab79d"
+      "computedHash": "2b559bb1fd0081f4c229797ad7c99795e6d3a901ca262f9a860ad0bab196d480"
     },
     "extension-email-marketing": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "f061b6a48d330a8053ce64a90cfb1c20be2b68f671888672cdd423613c645367"
+      "computedHash": "addef9df9f3b7cbc88391ace1dc38d8c876afefb4507b2fd05c0dc368775b993"
     },
     "extension-email-raw": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "c353620a4def1780392467634110e6d063b2469d5dcda027f1ce2f0d231dd82e"
+      "computedHash": "370cf78ad872f7ac14c9d6232aac980e8919c09840bd810a86cb5c3bcadd650e"
     },
     "extension-email-verification": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "d300d685e46f2ff7ada2296d195c212f3a5ec087e57658ff2fce6c2772e94253"
+      "computedHash": "a61ac2006ed45cc22354dbec743729ef2a459775d88dd3bf988d4f53b4cbd123"
     },
     "extension-http-outcalls": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "743838cf58a01a061e00a7a20fe7e6f59fc6de8321b1093d3bd451097d6337a4"
+      "computedHash": "80ae8890f42ed7833069ce16083dd81b68d738d94921cca78ddbf21e5cbae960"
     },
     "extension-invite-links": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "6c41a4cea6edda8eef4946471a9188b8fc449ae154e6fd389f2f56635a76d452"
+      "computedHash": "8c7a2d7aa943b4fd4be1c6057fb9a69921bc82aaf52cbaab7852a73e454b7f8f"
     },
     "extension-object-storage": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "13379e1cadb5255f85ec79d0baf27a50fbb120bde8108739f296f273d59b00c0"
+      "computedHash": "eada978d587ef8785b368302c8a5368e4ac387ba5fd086ca0312045e09aa575b"
     },
     "extension-qr-code": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "6e2d90420372f7a49ec3283d0cd5c555a07b70fa28ed16f5949f538a29594d61"
+      "computedHash": "e8db4672e4e3ca1ba21dd8e194dd17c67e4b9d1ce08a227c3de0ad7d303046bd"
     },
     "extension-stripe": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "994f5287ed17c44f1c6d45fd69acdfa0f2090006776c26cc510eb0df20b08467"
+      "computedHash": "afdb77cea0d3a661d30f4dc8a67772022edc24e5d0aee2e1beedf6607de1f7c5"
     },
     "extension-user-approval": {
       "source": "caffeinelabs/skills",
       "sourceType": "github",
-      "computedHash": "2f0aab2c6f6fa08965251ae6059e0b73a15b30f99863053c6c5b5a1ae47c4003"
+      "computedHash": "3fc3f0077fc47897203d7f6b85ff5a742f337e40c29504c85a60d8ace12e7522"
     },
     "https-outcalls": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "dd90859b2db2148630a7c04350549104f6f383072fdfc06ec3f75f463bad104a"
+      "computedHash": "0207638b0c3b0410900d355ad0dc63343f6ac1102b338b0349d430de34265118"
+    },
+    "ic-dashboard": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "ea969d231566b38d90c16a59f165d16496dd5f47faf3c7e939a051aeecc6fcb3"
     },
     "icp-cli": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "ba7d74190c7862c01e814ff5974f9c30d989f793bfafaa8e7375cbc97895fdcc"
+      "computedHash": "da74dbb9e76285fb7266119026d2e067329e19aa65b586a5437dffdc176a1701"
     },
     "icrc-ledger": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "675ba6259c4970d3dee2cc8aee678e9f31796a177b0b8a35f1a39c8e5728785b"
+      "computedHash": "0a87182ac37e596cdc8c0c329d18191483ae25a7e5dfd647fee717a08bd92d7e"
     },
     "internet-identity": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "f6fb4cd2ec4d10a061f9bc9a80a33bccc5643aefe81f2242ce73a121e7108442"
+      "computedHash": "7c2b67113bea9f53588786977c78c4429d7ee64261e264b6b4a43f4e55739b3f"
+    },
+    "motoko": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "computedHash": "4847670a56acc0264f22392edb3212c18fa12f07a803cd4b0f61b7d844d10376"
     },
     "multi-canister": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "72b81c31acec791302467cda7d340b730e9f4f0b0fcf0d4dfb2a7f0d82695146"
+      "computedHash": "278aff0df2bf5c20af2ca0c5ae64452c1784d3f770540c78f11481b3da9c443d"
     },
     "stable-memory": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "9f6cea447d4d6182113b7b0e16faf0e28d9311fa8a0bc1cbb3c1ad8219761b24"
+      "computedHash": "bc26d61750c8a22000fed6b7d752d82dfd773fc22889346e904e6cefd88b0078"
     },
     "vetkd": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "996470d1009af486e187e2a7c7135d2124c811b0fa64871e2fca3f7a5f9bd130"
+      "computedHash": "c80cee4c04d2b9e044e5cfd9436e7a8ac973ef895296c4e7824b3adfaafcccdd"
     },
     "wallet-integration": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "6d1c9076bb9d8139f6313ee80eda78c13f94e04e1dce7e7ce02a24e610c7a4e5"
+      "computedHash": "b4ba1162c10886dfead681286676d66e5c9bc0aa104e3ef45a03975e2a8d99a5"
     }
   }
 }

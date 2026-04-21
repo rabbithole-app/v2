@@ -1,14 +1,15 @@
 ---
 name: extension-http-outcalls
 description: HTTP outcalls performed by the backend canister (not in the frontend).
-version: 0.1.4
+version: 0.1.5
 compatibility:
   mops:
-    caffeineai-http-outcalls: "~0.1.0"
+    caffeineai-http-outcalls: "~0.1.1"
 caffeineai-subscription: [none]
 ---
 
 # HTTP Outcalls
+HTTP outcalls extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

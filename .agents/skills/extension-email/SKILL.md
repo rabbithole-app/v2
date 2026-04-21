@@ -1,14 +1,15 @@
 ---
 name: extension-email
 description: Support for sending service/transactional emails. Don't use this for sending marketing emails or verification emails.
-version: 0.1.4
+version: 0.1.5
 compatibility:
   mops:
-    caffeineai-email: "~0.1.0"
+    caffeineai-email: "~0.1.1"
 caffeineai-subscription: [plus, pro]
 ---
 
 # Email — Service/Transactional
+Service/transactional email extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

@@ -1,14 +1,15 @@
 ---
 name: extension-email-raw
 description: Send an email with multiple to, cc and bcc addresses.
-version: 0.1.4
+version: 0.1.5
 compatibility:
   mops:
-    caffeineai-email: "~0.1.0"
+    caffeineai-email: "~0.1.1"
 caffeineai-subscription: [plus, pro]
 ---
 
 # Email — Raw Multi-Recipient
+Raw multi-recipient email extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

@@ -1,15 +1,16 @@
 ---
 name: extension-user-approval
 description: Approval-based user management.
-version: 0.1.4
+version: 0.1.5
 compatibility:
   mops:
-    caffeineai-user-approval: "~0.1.0"
-    caffeineai-authorization: "~0.1.0"
+    caffeineai-user-approval: "~0.1.1"
+    caffeineai-authorization: "~0.1.1"
 caffeineai-subscription: [none]
 ---
 
 # User Approval
+User approval extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

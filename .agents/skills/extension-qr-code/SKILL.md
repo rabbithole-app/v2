@@ -1,14 +1,16 @@
 ---
 name: extension-qr-code
 description: QR code scanner using the camera.
-version: 0.1.2
+version: 0.1.4
 compatibility:
   npm:
-    "@caffeineai/qr-code": "~0.1.0"
-    "@caffeineai/camera": "~0.1.0"
+    "@caffeineai/qr-code": "~0.1.1"
+    "@caffeineai/camera": "~0.1.1"
+caffeineai-subscription: [none]
 ---
 
 # QR Code Scanner
+QR code scanner extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 

@@ -1,13 +1,15 @@
 ---
 name: extension-camera
 description: Web-camera support.
-version: 0.1.2
+version: 0.1.4
 compatibility:
   npm:
-    "@caffeineai/camera": "~0.1.0"
+    "@caffeineai/camera": "~0.1.1"
+caffeineai-subscription: [none]
 ---
 
 # Camera
+Camera extension for [Caffeine AI](https://caffeine.ai?utm_source=caffeine-skill&utm_medium=referral).
 
 ## Overview
 
