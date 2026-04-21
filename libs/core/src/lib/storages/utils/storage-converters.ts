@@ -4,6 +4,7 @@ import { match, P } from 'ts-pattern';
 
 import type {
   CreationStatus,
+  PaymentPhase as PaymentPhaseCandid,
   Progress as ProgressCandid,
   StorageInfo as StorageInfoCandid,
   UpdateInfo as UpdateInfoCandid,
@@ -11,9 +12,11 @@ import type {
 
 import { timeInNanosToDate } from '../../utils/time';
 import type {
+  PaymentPhase,
   Progress,
   StorageCreationStatus,
   StorageInfo,
+  TokenId,
   UpdateInfo,
 } from '../types/storage.types';
 
@@ -25,7 +28,10 @@ export function convertCreationStatus(
 ): StorageCreationStatus {
   return match(status)
     .returnType<StorageCreationStatus>()
-    .with({ ProcessingPayment: P._ }, () => ({ type: 'ProcessingPayment' }))
+    .with({ ProcessingPayment: P.select() }, (phase) => ({
+      phase: convertPaymentPhase(phase),
+      type: 'ProcessingPayment',
+    }))
     .with({ Pending: P._ }, () => ({ type: 'Pending' }))
     .with({ CheckingBalance: P._ }, () => ({ type: 'CheckingBalance' }))
     .with({ TransferringICP: P.select() }, ({ amount }) => ({
@@ -137,6 +143,26 @@ export function getStorageCanisterId(
   }
 
   return undefined;
+}
+
+/**
+ * Convert Candid PaymentPhase to TypeScript-friendly PaymentPhase.
+ */
+function convertPaymentPhase(phase: PaymentPhaseCandid): PaymentPhase {
+  return match(phase)
+    .returnType<PaymentPhase>()
+    .with({ Starting: P._ }, () => ({ type: 'Starting' }))
+    .with({ FetchingRates: P._ }, () => ({ type: 'FetchingRates' }))
+    .with({ CheckingBalances: P._ }, () => ({ type: 'CheckingBalances' }))
+    .with({ Charging: P.select() }, ({ tokenId, amount }) => ({
+      type: 'Charging',
+      amount,
+      tokenId: Object.keys(tokenId)[0] as TokenId,
+    }))
+    .with({ RecordingLicense: P._ }, () => ({ type: 'RecordingLicense' }))
+    .with({ Activating: P._ }, () => ({ type: 'Activating' }))
+    .with({ Queueing: P._ }, () => ({ type: 'Queueing' }))
+    .exhaustive();
 }
 
 /**

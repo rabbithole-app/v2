@@ -26,6 +26,8 @@ export type {
   WithdrawResult,
   // Storage deployer types
   CreationStatus,
+  PaymentPhase,
+  StatusEvent,
   StorageInfo,
   UpdateInfo,
   UpgradeStorageError,

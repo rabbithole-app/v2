@@ -58,23 +58,30 @@ export class StoragesService {
    */
   readonly #lastCreationId = signal<bigint | null>(null);
 
-  /** Current creation status - tracks both in-progress and recently completed */
+  /**
+   * Current creation status. Prefers the tracked creation id (set once the
+   * user triggers a purchase) over "first in-progress" so we never lose the
+   * thread as the record's status cycles through `Pending` or other states.
+   * Falls back to first in-progress creation for external callers that
+   * haven't registered a tracked id.
+   */
   readonly creationStatus = computed<StorageCreationStatus | null>(() => {
     const storages = this.storages();
     const lastId = this.#lastCreationId();
 
-    // First try to find actively creating storage
+    // Tracked id takes priority — it follows ONE specific creation through
+    // every status transition (ProcessingPayment phases → Pending →
+    // CheckingBalance → ... → Completed/Failed).
+    if (lastId !== null) {
+      const tracked = storages.find((s) => s.id === lastId);
+      if (tracked) return tracked.status;
+    }
+
+    // No tracked id — fall back to the first actively-creating storage so
+    // consumers that dropped in mid-flight still see something useful.
     const active = storages.find((s) => isStorageInProgress(s.status));
     if (active) {
       return active.status;
-    }
-
-    // If no active, check if we have a tracked creation that completed/failed
-    if (lastId !== null) {
-      const tracked = storages.find((s) => s.id === lastId);
-      if (tracked && (tracked.status.type === 'Completed' || tracked.status.type === 'Failed')) {
-        return tracked.status;
-      }
     }
 
     return null;
@@ -180,6 +187,18 @@ export class StoragesService {
    */
   clearTrackedCreation(): void {
     this.#lastCreationId.set(null);
+  }
+
+  /**
+   * Register a creation id returned by `purchaseLicenseAndCreateStorage`.
+   * The service then follows this specific record through every status
+   * transition, regardless of intermediate states like `Pending`.
+   */
+  trackCreation(creationId: bigint): void {
+    this.#lastCreationId.set(creationId);
+    // Force an immediate reload so the UI doesn't wait up to 2s for the
+    // next polling tick to see the new record.
+    this.storagesResource.reload();
   }
 
   /**

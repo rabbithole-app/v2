@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideChevronDown } from '@ng-icons/lucide';
+import { lucideChevronDown, lucideRefreshCw } from '@ng-icons/lucide';
 
 import {
   RbthFrameComponent,
@@ -45,7 +45,7 @@ import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-su
     ...HlmCollapsibleImports,
     ...HlmTooltipImports,
   ],
-  providers: [provideIcons({ lucideChevronDown })],
+  providers: [provideIcons({ lucideChevronDown, lucideRefreshCw })],
   host: { class: 'block' },
   templateUrl: './wallet-balance-payment-panel.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -68,4 +68,10 @@ export class WalletBalancePaymentPanelComponent {
   );
 
   readonly canPay = computed(() => this.eligibility().status === 'sufficient');
+
+  /** Re-fetch wallet addresses, FX rates, and on-chain balances. Use after
+   * topping up SOL/ETH/ICP so the UI shows the new funds without a page reload. */
+  refresh(): void {
+    this.#balanceService.reload();
+  }
 }

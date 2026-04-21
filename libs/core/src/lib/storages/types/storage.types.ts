@@ -14,6 +14,31 @@ export interface Progress {
   total: number;
 }
 
+/**
+ * Sub-phases of `ProcessingPayment`. Backend advances the record through
+ * these while running charge → addLicense → activateTrial → queueing deploy.
+ */
+export type PaymentPhase =
+  | { amount: bigint; tokenId: TokenId; type: 'Charging' }
+  | { type: 'Activating' }
+  | { type: 'CheckingBalances' }
+  | { type: 'FetchingRates' }
+  | { type: 'Queueing' }
+  | { type: 'RecordingLicense' }
+  | { type: 'Starting' };
+
+export type TokenId =
+  | 'BaseETH'
+  | 'BaseUSDC'
+  | 'BaseUSDT'
+  | 'ckETH'
+  | 'ckUSDC'
+  | 'ckUSDT'
+  | 'ICP'
+  | 'SOL'
+  | 'SolUSDC'
+  | 'SolUSDT';
+
 export type StorageCreationStatus =
   | { amount: bigint; type: 'TransferringICP'; }
   | { blockIndex: bigint; type: 'NotifyingCMC'; }
@@ -26,9 +51,9 @@ export type StorageCreationStatus =
   | { canisterId: Principal; type: 'RevokingInstallerPermission'; }
   | { canisterId: Principal; type: 'UpdatingControllers'; }
   | { message: string; type: 'Failed'; }
+  | { phase: PaymentPhase; type: 'ProcessingPayment' }
   | { type: 'CheckingBalance' }
-  | { type: 'Pending' }
-  | { type: 'ProcessingPayment' };
+  | { type: 'Pending' };
 
 export type StorageCreationStatusType =
   | 'CanisterCreated'
@@ -102,5 +127,8 @@ export function getStorageDisplayStatus(
 }
 
 export function isStorageInProgress(status: StorageCreationStatus): boolean {
-  return !['Completed', 'Failed', 'Pending'].includes(status.type);
+  // Terminal states only — `Pending` is a real intermediate step (record
+  // queued, orchestrator hasn't picked it up yet) and must stay in-progress
+  // so polling continues.
+  return status.type !== 'Completed' && status.type !== 'Failed';
 }

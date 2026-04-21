@@ -39,6 +39,7 @@ import {
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import type { StorageBackendType as CandidStorageBackendType } from '@rabbithole/declarations';
 import {
+  ProcessStepsComponent,
   RbthDrawerComponent,
   RbthDrawerContentComponent,
   RbthDrawerFooterComponent,
@@ -58,7 +59,7 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmRadioGroup, HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
-import { StorageCreationProgressComponent } from '../storage-creation-progress/storage-creation-progress.component';
+import { buildCreationSteps } from '../../utils';
 
 export type VetKeyLevel = 'high-replication' | 'standard';
 
@@ -77,7 +78,7 @@ type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
     ...HlmFieldImports,
     HlmRadioGroup,
     ...HlmRadioGroupImports,
-    StorageCreationProgressComponent,
+    ProcessStepsComponent,
     WalletBalancePaymentPanelComponent,
     RbthDrawerComponent,
     RbthDrawerContentComponent,
@@ -124,6 +125,23 @@ export class CreateStorageDrawerComponent {
 
   readonly #storagesService = inject(StoragesService);
   readonly creationStatus = computed(() => this.#storagesService.creationStatus());
+
+  /**
+   * Maps the live `creationStatus` + known canister id into a 5-step list
+   * consumed by `rbth-process-steps`. See buildCreationSteps for the exact
+   * mapping rules — including how it expands `#ProcessingPayment(phase)` into
+   * the "Payment" step's description so users see "Charging 0.054 SOL..."
+   * instead of a static label.
+   */
+  readonly creationSteps = computed(() => {
+    const status = this.creationStatus();
+    const canisterIdText = this.#createdCanisterId();
+    return buildCreationSteps(
+      status,
+      canisterIdText !== null,
+      canisterIdText ?? undefined,
+    );
+  });
 
   readonly #step = signal<WizardStep>('configure');
   readonly step = this.#step.asReadonly();
@@ -246,6 +264,15 @@ export class CreateStorageDrawerComponent {
     this.#errorMessage.set(null);
   }
 
+  /**
+   * Called when the user clicks Retry on a failed step inside
+   * `rbth-process-steps`. Forwards to `tryAgain` — same semantics as the
+   * legacy Error-state "Try Again" button.
+   */
+  retryFromError(): void {
+    this.tryAgain();
+  }
+
   viewStorage(): void {
     const canisterId = this.createdCanisterId();
     if (canisterId) {
@@ -283,6 +310,10 @@ export class CreateStorageDrawerComponent {
         [[{ name: 'VETKEY_NAME', value: vetKeyName }]],
       );
       if ('ok' in result) {
+        // Backend returns creationId immediately — register it so the
+        // service tracks THIS record through every status transition
+        // (ProcessingPayment phases → Pending → CheckingBalance → ...).
+        this.#storagesService.trackCreation(result.ok);
         await this.#pollForStorageCreation();
       } else {
         const errKey = Object.keys(result.err)[0];
@@ -304,6 +335,8 @@ export class CreateStorageDrawerComponent {
 
   async #onIcpaySuccess(): Promise<void> {
     this.#step.set('creating');
+    // ICPay route doesn't hand us the creationId — fall back to scanning
+    // the storages list; the first in-progress record is treated as ours.
     await this.#pollForStorageCreation();
   }
 

@@ -1,7 +1,20 @@
 <rbth-frame>
-  <header rbthFrameHeader>
-    <div rbthFrameTitle>Pay from balance</div>
-    <div rbthFrameDescription>{{ eligibility().hint }}</div>
+  <header rbthFrameHeader class="flex items-start justify-between gap-3">
+    <div class="min-w-0 flex-1">
+      <div rbthFrameTitle>Pay from balance</div>
+      <div rbthFrameDescription>{{ eligibility().hint }}</div>
+    </div>
+    <button
+      hlmBtn
+      variant="ghost"
+      size="sm"
+      class="shrink-0"
+      title="Refresh balances"
+      aria-label="Refresh balances"
+      (click)="refresh()"
+    >
+      <ng-icon hlm name="lucideRefreshCw" size="sm" />
+    </button>
   </header>
 
   <div rbthFramePanel>

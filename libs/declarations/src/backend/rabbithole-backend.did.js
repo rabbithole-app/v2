@@ -63,7 +63,7 @@ export const idlFactory = ({ IDL }) => {
     'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InvalidWasm' : IDL.Text,
   });
-  const Result_5 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const Result_7 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
   const UpdateInfo = IDL.Record({
     'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'wasmUpdateAvailable' : IDL.Bool,
@@ -90,7 +90,7 @@ export const idlFactory = ({ IDL }) => {
     'NotFound' : IDL.Null,
     'NotOwner' : IDL.Null,
   });
-  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
   const AmbassadorChain = IDL.Record({
     'l1' : IDL.Opt(IDL.Principal),
     'l2' : IDL.Opt(IDL.Principal),
@@ -132,6 +132,10 @@ export const idlFactory = ({ IDL }) => {
   });
   const Time = IDL.Int;
   const TypedEvent = IDL.Variant({
+    'backendLowCycles' : IDL.Record({
+      'threshold' : IDL.Nat,
+      'current' : IDL.Nat,
+    }),
     'topUpCompleted' : IDL.Record({
       'canisterId' : IDL.Principal,
       'cyclesAmount' : IDL.Nat,
@@ -141,6 +145,17 @@ export const idlFactory = ({ IDL }) => {
       'amount' : IDL.Nat,
     }),
     'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
+    'cmcNotifyStuck' : IDL.Record({
+      'blockIndex' : IDL.Nat,
+      'caller' : IDL.Principal,
+      'canisterId' : IDL.Principal,
+      'reason' : IDL.Text,
+    }),
+    'ambassadorPayoutFailed' : IDL.Record({
+      'owner' : IDL.Principal,
+      'creationId' : IDL.Nat,
+      'reason' : IDL.Text,
+    }),
     'subscriptionExpired' : IDL.Null,
     'autoRenewFailed' : IDL.Record({ 'reason' : IDL.Text }),
     'topUpFailed' : IDL.Record({
@@ -150,6 +165,17 @@ export const idlFactory = ({ IDL }) => {
     'autoTopUpCompleted' : IDL.Record({
       'canisterId' : IDL.Principal,
       'cyclesAmount' : IDL.Nat,
+    }),
+    'creationRefunded' : IDL.Record({
+      'tokenId' : IDL.Text,
+      'owner' : IDL.Principal,
+      'creationId' : IDL.Nat,
+      'amount' : IDL.Nat,
+    }),
+    'treasuryIcpLow' : IDL.Record({
+      'currentBalance' : IDL.Nat,
+      'reserve' : IDL.Nat,
+      'required' : IDL.Nat,
     }),
     'subscriptionRenewed' : IDL.Record({
       'expiresAt' : IDL.Opt(IDL.Int),
@@ -186,6 +212,7 @@ export const idlFactory = ({ IDL }) => {
       'remaining' : IDL.Nat,
       'canisterId' : IDL.Principal,
     }),
+    'backendSelfTopUpFailed' : IDL.Record({ 'reason' : IDL.Text }),
   });
   const StoredNotification = IDL.Record({
     'id' : IDL.Nat,
@@ -285,10 +312,16 @@ export const idlFactory = ({ IDL }) => {
     'autoRenew' : IDL.Bool,
   });
   const BalanceEntry = IDL.Record({ 'tokenId' : TokenId, 'balance' : IDL.Nat });
+  const Role = IDL.Variant({
+    'admin' : IDL.Null,
+    'moderator' : IDL.Null,
+    'user' : IDL.Null,
+  });
   const User = IDL.Record({
     'id' : IDL.Principal,
     'inviter' : IDL.Opt(IDL.Principal),
     'createdAt' : Time,
+    'role' : Role,
     'trialUsed' : IDL.Bool,
     'updatedAt' : Time,
   });
@@ -336,12 +369,139 @@ export const idlFactory = ({ IDL }) => {
     'streaming_strategy' : IDL.Opt(StreamingStrategy),
     'status_code' : IDL.Nat16,
   });
+  const SortDirection = IDL.Variant({
+    'Descending' : IDL.Null,
+    'Ascending' : IDL.Null,
+  });
+  const TimeRangeFilter = IDL.Record({
+    'max' : IDL.Opt(Time),
+    'min' : IDL.Opt(Time),
+  });
+  const ListCreationsOptions = IDL.Record({
+    'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
+    'count' : IDL.Bool,
+    'sort' : IDL.Vec(IDL.Tuple(IDL.Text, SortDirection)),
+    'filter' : IDL.Record({
+      'id' : IDL.Opt(IDL.Vec(IDL.Nat)),
+      'completedAt' : IDL.Opt(TimeRangeFilter),
+      'owner' : IDL.Opt(IDL.Vec(IDL.Principal)),
+      'createdAt' : IDL.Opt(TimeRangeFilter),
+      'ambassadorPayoutStatus' : IDL.Opt(IDL.Vec(IDL.Text)),
+      'hasLicense' : IDL.Opt(IDL.Bool),
+      'hasCanister' : IDL.Opt(IDL.Bool),
+      'statusTag' : IDL.Opt(IDL.Vec(IDL.Text)),
+      'releaseTag' : IDL.Opt(IDL.Text),
+      'canisterId' : IDL.Opt(IDL.Vec(IDL.Principal)),
+    }),
+  });
+  const Progress = IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat });
+  const PaymentPhase = IDL.Variant({
+    'CheckingBalances' : IDL.Null,
+    'Starting' : IDL.Null,
+    'Queueing' : IDL.Null,
+    'FetchingRates' : IDL.Null,
+    'Charging' : IDL.Record({ 'tokenId' : TokenId, 'amount' : IDL.Nat }),
+    'Activating' : IDL.Null,
+    'RecordingLicense' : IDL.Null,
+  });
+  const CreationStatus = IDL.Variant({
+    'Failed' : IDL.Text,
+    'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'UpgradingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'RevokingInstallerPermission' : IDL.Record({
+      'canisterId' : IDL.Principal,
+    }),
+    'CheckingBalance' : IDL.Null,
+    'UploadingFrontend' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
+    'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
+    'ProcessingPayment' : PaymentPhase,
+    'UpgradingFrontend' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'InstallingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'Pending' : IDL.Null,
+  });
+  const AmbassadorPayoutStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'skipped' : IDL.Null,
+    'completed' : IDL.Null,
+    'failed' : IDL.Text,
+  });
+  const StatusEvent = IDL.Record({
+    'status' : CreationStatus,
+    'timestamp' : Time,
+  });
+  const EnvPair = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const StorageCreationRecord = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : CreationStatus,
+    'completedAt' : IDL.Opt(Time),
+    'licensePaymentId' : IDL.Opt(IDL.Text),
+    'owner' : IDL.Principal,
+    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'createdAt' : Time,
+    'ambassadorPayoutStatus' : AmbassadorPayoutStatus,
+    'lastUpgradeError' : IDL.Opt(IDL.Text),
+    'isUpgrade' : IDL.Bool,
+    'statusTag' : IDL.Text,
+    'upgradeIncludesFrontend' : IDL.Bool,
+    'ambassadorPayoutStatusTag' : IDL.Text,
+    'events' : IDL.Vec(StatusEvent),
+    'releaseTag' : IDL.Text,
+    'frontendHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'initArg' : IDL.Vec(IDL.Nat8),
+    'envPairs' : IDL.Opt(IDL.Vec(EnvPair)),
+    'installedReleaseTag' : IDL.Opt(IDL.Text),
+    'canisterId' : IDL.Opt(IDL.Principal),
+  });
+  const GetCreationsResponse = IDL.Record({
+    'total' : IDL.Opt(IDL.Nat),
+    'data' : IDL.Vec(StorageCreationRecord),
+    'instructions' : IDL.Nat,
+  });
   const KnownWasmHash = IDL.Record({
     'hash' : IDL.Vec(IDL.Nat8),
     'releaseTag' : IDL.Text,
     'registeredAt' : Time,
   });
+  const ListLicensesOptions = IDL.Record({
+    'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
+    'count' : IDL.Bool,
+    'sort' : IDL.Vec(IDL.Tuple(IDL.Text, SortDirection)),
+    'filter' : IDL.Record({
+      'id' : IDL.Opt(IDL.Vec(IDL.Nat)),
+      'owner' : IDL.Opt(IDL.Vec(IDL.Principal)),
+      'createdAt' : IDL.Opt(TimeRangeFilter),
+      'hasCanister' : IDL.Opt(IDL.Bool),
+      'statusTag' : IDL.Opt(IDL.Vec(IDL.Text)),
+      'paymentId' : IDL.Opt(IDL.Text),
+      'paidAt' : IDL.Opt(TimeRangeFilter),
+      'canisterId' : IDL.Opt(IDL.Vec(IDL.Principal)),
+    }),
+  });
+  const PaymentStatus = IDL.Variant({
+    'completed' : IDL.Null,
+    'refunded' : IDL.Record({
+      'at' : Time,
+      'blockIndex' : IDL.Opt(IDL.Nat),
+      'reason' : IDL.Text,
+    }),
+  });
   const PaymentReceipt = IDL.Record({
+    'status' : PaymentStatus,
     'tokenId' : TokenId,
     'paymentId' : IDL.Text,
     'amount' : IDL.Nat,
@@ -349,12 +509,15 @@ export const idlFactory = ({ IDL }) => {
   });
   const License = IDL.Record({
     'receipt' : PaymentReceipt,
+    'owner' : IDL.Principal,
     'createdAt' : Time,
+    'statusTag' : IDL.Text,
     'canisterId' : IDL.Opt(IDL.Principal),
   });
-  const SortDirection = IDL.Variant({
-    'Descending' : IDL.Null,
-    'Ascending' : IDL.Null,
+  const GetLicensesResponse = IDL.Record({
+    'total' : IDL.Opt(IDL.Nat),
+    'data' : IDL.Vec(License),
+    'instructions' : IDL.Nat,
   });
   const ListOptions__1 = IDL.Record({
     'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
@@ -374,37 +537,6 @@ export const idlFactory = ({ IDL }) => {
     'total' : IDL.Opt(IDL.Nat),
     'data' : IDL.Vec(Profile),
     'instructions' : IDL.Nat,
-  });
-  const Progress = IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat });
-  const CreationStatus = IDL.Variant({
-    'Failed' : IDL.Text,
-    'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'UpgradingWasm' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'RevokingInstallerPermission' : IDL.Record({
-      'canisterId' : IDL.Principal,
-    }),
-    'CheckingBalance' : IDL.Null,
-    'UploadingFrontend' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
-    'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
-    'ProcessingPayment' : IDL.Null,
-    'UpgradingFrontend' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'InstallingWasm' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'Pending' : IDL.Null,
   });
   const StorageInfo = IDL.Record({
     'id' : IDL.Nat,
@@ -445,8 +577,14 @@ export const idlFactory = ({ IDL }) => {
     'AlreadyActive' : IDL.Null,
     'InsufficientFunds' : IDL.Record({ 'required' : IDL.Nat }),
   });
-  const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : PurchaseError });
-  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const Result_5 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : PurchaseError });
+  const Result_4 = IDL.Variant({ 'ok' : IDL.Null, 'err' : PurchaseError });
+  const RecoveryStrategy = IDL.Variant({
+    'resume' : IDL.Null,
+    'refund' : IDL.Null,
+  });
+  const Result_3 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text });
   const CreateProfileAvatarArgs = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
     'contentType' : IDL.Text,
@@ -497,8 +635,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'activateTrial' : IDL.Func([], [], []),
-    'addAdmin' : IDL.Func([IDL.Principal], [], []),
-    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_5], []),
+    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_7], []),
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
@@ -512,9 +649,10 @@ export const idlFactory = ({ IDL }) => {
       ),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Vec(IDL.Nat8)], []),
     'deleteProfile' : IDL.Func([], [], []),
-    'deleteStorage' : IDL.Func([IDL.Nat], [Result_4], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result_6], []),
     'flushPaymentQueue' : IDL.Func([], [], []),
     'getAmbassadorChainQuery' : IDL.Func([], [AmbassadorChain], ['query']),
+    'getBackendCyclesBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getDistributionLog' : IDL.Func(
         [DistributionLogOptions],
         [IDL.Vec(DistributionRecord)],
@@ -564,9 +702,17 @@ export const idlFactory = ({ IDL }) => {
     'isAdmin' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isKnownWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8)], [IDL.Bool], ['query']),
     'isStorageDeployerRunning' : IDL.Func([], [IDL.Bool], ['query']),
-    'listAdmins' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+    'listCreations' : IDL.Func(
+        [IDL.Opt(ListCreationsOptions)],
+        [GetCreationsResponse],
+        ['query'],
+      ),
     'listKnownWasmHashes' : IDL.Func([], [IDL.Vec(KnownWasmHash)], ['query']),
-    'listLicenses' : IDL.Func([], [IDL.Vec(License)], ['query']),
+    'listLicenses' : IDL.Func(
+        [IDL.Opt(ListLicensesOptions)],
+        [GetLicensesResponse],
+        ['query'],
+      ),
     'listProfiles' : IDL.Func(
         [ListOptions__1],
         [GetProfilesResponse],
@@ -578,6 +724,7 @@ export const idlFactory = ({ IDL }) => {
         [GetSubscriptionsResponse],
         ['query'],
       ),
+    'listUsersByRole' : IDL.Func([Role], [IDL.Vec(IDL.Principal)], ['query']),
     'markAllNotificationsAsRead' : IDL.Func([], [], []),
     'markNotificationsAsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
     'onStorageLowCycles' : IDL.Func(
@@ -597,10 +744,10 @@ export const idlFactory = ({ IDL }) => {
             IDL.Vec(IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text }))
           ),
         ],
-        [Result_3],
+        [Result_5],
         [],
       ),
-    'purchaseSubscription' : IDL.Func([Plan], [Result_3], []),
+    'purchaseSubscription' : IDL.Func([Plan], [Result_4], []),
     'queryExpiredSubscriptions' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Principal, Subscription))],
@@ -611,28 +758,48 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Principal, Subscription))],
         ['query'],
       ),
+    'recoverFailedStorage' : IDL.Func(
+        [IDL.Nat, RecoveryStrategy],
+        [Result_3],
+        [],
+      ),
     'refreshReleases' : IDL.Func([], [], []),
     'register' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
     'registerLatestWasmHash' : IDL.Func([], [], []),
-    'removeAdmin' : IDL.Func([IDL.Principal], [], []),
     'renewSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
         [],
         [],
       ),
     'reportTrialBytes' : IDL.Func([IDL.Nat], [], []),
-    'retryStorageCreation' : IDL.Func([IDL.Nat], [Result_2], []),
+    'retryAmbassadorPayout' : IDL.Func([IDL.Nat], [Result_3], []),
+    'retryCmcNotify' : IDL.Func(
+        [
+          IDL.Record({
+            'tokenId' : TokenId,
+            'blockIndex' : IDL.Nat,
+            'chargedAmount' : IDL.Nat,
+            'originalCaller' : IDL.Principal,
+            'canisterId' : IDL.Principal,
+          }),
+        ],
+        [Result_2],
+        [],
+      ),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
+    'setUserRole' : IDL.Func([IDL.Principal, Role], [], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
     'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result_1], []),
     'triggerAutoRenewals' : IDL.Func([], [], []),
     'triggerExpireOverdue' : IDL.Func([], [IDL.Vec(IDL.Principal)], []),
+    'triggerSelfTopUp' : IDL.Func([], [], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
     'updateSettings' : IDL.Func([UserSettings], [], []),
     'upgradeStorage' : IDL.Func([IDL.Principal], [Result], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'withdraw' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
+    'withdrawFromTreasury' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
   });
   return Rabbithole;
 };

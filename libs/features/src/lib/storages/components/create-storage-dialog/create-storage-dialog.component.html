@@ -115,16 +115,20 @@
             </p>
           </div>
 
-          <!-- Method 1: ICPay -->
-          <rbth-frame>
-            <header rbthFrameHeader>
-              <div rbthFrameTitle>Pay with crypto</div>
-              <div rbthFrameDescription>Use any wallet via ICPay widget.</div>
-            </header>
-            <div rbthFramePanel>
-              <icpay-pay-button #icpayPayBtn></icpay-pay-button>
-            </div>
-          </rbth-frame>
+          <!-- Method 1: ICPay — temporarily hidden while the integration is
+               being polished. Wallet-balance payment below covers the full
+               purchase flow reliably, so we ship with that only for now. -->
+          @if (false) {
+            <rbth-frame>
+              <header rbthFrameHeader>
+                <div rbthFrameTitle>Pay with crypto</div>
+                <div rbthFrameDescription>Use any wallet via ICPay widget.</div>
+              </header>
+              <div rbthFramePanel>
+                <icpay-pay-button #icpayPayBtn></icpay-pay-button>
+              </div>
+            </rbth-frame>
+          }
 
           <!-- Method 2: From balance -->
           <core-wallet-balance-payment-panel
@@ -142,19 +146,11 @@
 
         <!-- ═══ STEP 3: CREATING ═══ -->
         @case ('creating') {
-          @if (creationStatus(); as status) {
-            <rbth-feat-storages-creation-progress [status]="status" />
-          } @else {
-            <hlm-empty>
-              <hlm-empty-header>
-                <hlm-empty-media variant="icon">
-                  <hlm-spinner />
-                </hlm-empty-media>
-                <h4 hlmEmptyTitle>Processing...</h4>
-                <p hlmEmptyDescription>Setting up your storage canister...</p>
-              </hlm-empty-header>
-            </hlm-empty>
-          }
+          <rbth-process-steps
+            title="Deploying your storage canister"
+            [steps]="creationSteps()"
+            (retryClicked)="retryFromError()"
+          />
         }
 
         <!-- ═══ ERROR ═══ -->

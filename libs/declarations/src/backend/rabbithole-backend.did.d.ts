@@ -9,6 +9,10 @@ export interface AmbassadorChain {
   'l1' : [] | [Principal],
   'l2' : [] | [Principal],
 }
+export type AmbassadorPayoutStatus = { 'pending' : null } |
+  { 'skipped' : null } |
+  { 'completed' : null } |
+  { 'failed' : string };
 export type AssetDownloadStatus = { 'Error' : string } |
   {
     'Downloading' : {
@@ -58,7 +62,7 @@ export type CreationStatus = { 'Failed' : string } |
   } |
   { 'TransferringICP' : { 'amount' : bigint } } |
   { 'NotifyingCMC' : { 'blockIndex' : bigint } } |
-  { 'ProcessingPayment' : null } |
+  { 'ProcessingPayment' : PaymentPhase } |
   {
     'UpgradingFrontend' : { 'progress' : Progress, 'canisterId' : Principal }
   } |
@@ -86,6 +90,7 @@ export interface DistributionRecord {
 }
 export type DistributionStatus = { 'completed' : null } |
   { 'partial' : null };
+export interface EnvPair { 'value' : string, 'name' : string }
 export interface EvmChainConfig {
   'evmRpcCanisterId' : string,
   'assets' : Array<SupportedAsset>,
@@ -101,6 +106,16 @@ export interface FileMetadata {
   'sha256' : Uint8Array | number[],
   'contentType' : string,
   'size' : bigint,
+}
+export interface GetCreationsResponse {
+  'total' : [] | [bigint],
+  'data' : Array<StorageCreationRecord>,
+  'instructions' : bigint,
+}
+export interface GetLicensesResponse {
+  'total' : [] | [bigint],
+  'data' : Array<License>,
+  'instructions' : bigint,
 }
 export interface GetProfilesResponse {
   'total' : [] | [bigint],
@@ -133,8 +148,42 @@ export interface KnownWasmHash {
 }
 export interface License {
   'receipt' : PaymentReceipt,
+  'owner' : Principal,
   'createdAt' : Time,
+  'statusTag' : string,
   'canisterId' : [] | [Principal],
+}
+export interface ListCreationsOptions {
+  'pagination' : { 'offset' : bigint, 'limit' : bigint },
+  'count' : boolean,
+  'sort' : Array<[string, SortDirection]>,
+  'filter' : {
+    'id' : [] | [Array<bigint>],
+    'completedAt' : [] | [TimeRangeFilter],
+    'owner' : [] | [Array<Principal>],
+    'createdAt' : [] | [TimeRangeFilter],
+    'ambassadorPayoutStatus' : [] | [Array<string>],
+    'hasLicense' : [] | [boolean],
+    'hasCanister' : [] | [boolean],
+    'statusTag' : [] | [Array<string>],
+    'releaseTag' : [] | [string],
+    'canisterId' : [] | [Array<Principal>],
+  },
+}
+export interface ListLicensesOptions {
+  'pagination' : { 'offset' : bigint, 'limit' : bigint },
+  'count' : boolean,
+  'sort' : Array<[string, SortDirection]>,
+  'filter' : {
+    'id' : [] | [Array<bigint>],
+    'owner' : [] | [Array<Principal>],
+    'createdAt' : [] | [TimeRangeFilter],
+    'hasCanister' : [] | [boolean],
+    'statusTag' : [] | [Array<string>],
+    'paymentId' : [] | [string],
+    'paidAt' : [] | [TimeRangeFilter],
+    'canisterId' : [] | [Array<Principal>],
+  },
 }
 export interface ListOptions {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
@@ -163,12 +212,28 @@ export interface NotificationsPage {
   'data' : Array<StoredNotification>,
   'unreadCount' : bigint,
 }
+export type PaymentPhase = { 'CheckingBalances' : null } |
+  { 'Starting' : null } |
+  { 'Queueing' : null } |
+  { 'FetchingRates' : null } |
+  { 'Charging' : { 'tokenId' : TokenId, 'amount' : bigint } } |
+  { 'Activating' : null } |
+  { 'RecordingLicense' : null };
 export interface PaymentReceipt {
+  'status' : PaymentStatus,
   'tokenId' : TokenId,
   'paymentId' : string,
   'amount' : bigint,
   'paidAt' : Time,
 }
+export type PaymentStatus = { 'completed' : null } |
+  {
+    'refunded' : {
+      'at' : Time,
+      'blockIndex' : [] | [bigint],
+      'reason' : string,
+    }
+  };
 export interface PendingRefund {
   'tokenId' : TokenId,
   'userId' : Principal,
@@ -200,8 +265,38 @@ export interface Rabbithole {
     undefined
   >,
   'activateTrial' : ActorMethod<[], undefined>,
-  'addAdmin' : ActorMethod<[Principal], undefined>,
-  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_5>,
+  /**
+   * / Register an externally-deployed storage canister with this backend.
+   * /
+   * / Required: caller must be a controller of `canisterId`, and the
+   * / canister's `module_hash` must match one of the known Rabbithole
+   * / storage WASM releases.
+   * /
+   * / Ownership semantics — important:
+   * /   - `record.owner = caller` (the controller who registered it).
+   * /     This is the *billing owner* in our backend — who pays for
+   * /     managed services (auto-topup, notifications, listStorages).
+   * /   - The storage canister's internal `initArgs.owner` (who holds
+   * /     VetKey root permissions, data access) can be a DIFFERENT
+   * /     principal — controller ≠ data owner on IC.
+   * /   - That divergence is intentional. A controller registers the
+   * /     canister for managed services; data access stays gated by
+   * /     the storage canister's permission rules (see
+   * /     `grantStoragePermission` / `revokeStoragePermission`).
+   * /
+   * / Backend id trust — not verified:
+   * /   - Caller could have set `RABBITHOLE_BACKEND_ID` env var to a
+   * /     different backend, in which case the canister's subscription
+   * /     gates and auto-topup calls would route elsewhere. That's
+   * /     self-sabotage (controller loses Pro features), not a risk
+   * /     for us — so we don't verify.
+   * /
+   * / Trial — NOT auto-activated. Trial is part of the License offer
+   * / (strategy §3), not a freebie for any account registration.
+   * / Controller who wants Trial calls `activateTrial()` separately
+   * / (per-account, not per-storage; only once per account).
+   */
+  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_7>,
   'adminRegisterWasmHash' : ActorMethod<
     [Uint8Array | number[], string],
     undefined
@@ -213,9 +308,10 @@ export interface Rabbithole {
   >,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array | number[]>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_4>,
+  'deleteStorage' : ActorMethod<[bigint], Result_6>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
+  'getBackendCyclesBalance' : ActorMethod<[], bigint>,
   'getDistributionLog' : ActorMethod<
     [DistributionLogOptions],
     Array<DistributionRecord>
@@ -251,15 +347,30 @@ export interface Rabbithole {
   'isAdmin' : ActorMethod<[Principal], boolean>,
   'isKnownWasmHash' : ActorMethod<[Uint8Array | number[]], boolean>,
   'isStorageDeployerRunning' : ActorMethod<[], boolean>,
-  'listAdmins' : ActorMethod<[], Array<Principal>>,
+  /**
+   * / List creations with optional filter + pagination. Callers omit `options`
+   * / (`[]`) to get the caller's own creations with defaults. Non-admins are
+   * / pinned to their own `owner` regardless of filter.owner passed in.
+   * / Records include the full `events` timeline — no separate history query.
+   */
+  'listCreations' : ActorMethod<
+    [[] | [ListCreationsOptions]],
+    GetCreationsResponse
+  >,
   'listKnownWasmHashes' : ActorMethod<[], Array<KnownWasmHash>>,
   /**
-   * / List all licenses for the caller.
+   * / List licenses with optional filter + pagination. Callers omit `options`
+   * / (`[]`) to get the caller's own licenses with defaults. Non-admins are
+   * / pinned to their own `owner` regardless of filter.owner passed in.
    */
-  'listLicenses' : ActorMethod<[], Array<License>>,
+  'listLicenses' : ActorMethod<
+    [[] | [ListLicensesOptions]],
+    GetLicensesResponse
+  >,
   'listProfiles' : ActorMethod<[ListOptions__1], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
   'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
+  'listUsersByRole' : ActorMethod<[Role], Array<Principal>>,
   'markAllNotificationsAsRead' : ActorMethod<[], undefined>,
   'markNotificationsAsRead' : ActorMethod<[Array<bigint>], undefined>,
   'onStorageLowCycles' : ActorMethod<
@@ -268,14 +379,21 @@ export interface Rabbithole {
   >,
   'processPendingRefunds' : ActorMethod<[], bigint>,
   /**
-   * / Purchase a license from balance and immediately create a storage canister.
-   * / Flow: create record (#ProcessingPayment) → charge → save receipt → activate → start creation.
+   * / Purchase a license and kick off storage creation. Returns the creation
+   * / id immediately — charge + deploy run asynchronously on the orchestrator
+   * / side. Frontend polls `listCreations({filter.id=[id]})` to follow progress.
+   * /
+   * / The initial record is created with `#ProcessingPayment(#Starting)`. A
+   * / detached Timer picks up the flow on the next tick and transitions the
+   * / record through all payment phases (`FetchingRates`, `Charging`,
+   * / `RecordingLicense`, `Activating`, `Queueing`) before handing off to the
+   * / unified deploy queue.
    */
   'purchaseLicenseAndCreateStorage' : ActorMethod<
     [StorageBackendType, [] | [Array<{ 'value' : string, 'name' : string }>]],
-    Result_3
+    Result_5
   >,
-  'purchaseSubscription' : ActorMethod<[Plan], Result_3>,
+  'purchaseSubscription' : ActorMethod<[Plan], Result_4>,
   'queryExpiredSubscriptions' : ActorMethod<
     [],
     Array<[Principal, Subscription]>
@@ -284,33 +402,69 @@ export interface Rabbithole {
     [bigint],
     Array<[Principal, Subscription]>
   >,
+  /**
+   * / Recover a failed storage creation. Owner OR admin may call.
+   * /
+   * / Strategies:
+   * /   - `#resume`: re-queue the deploy. Checkpoint-aware —
+   * /     * `record.canisterId == null`  → `#CreateCanister` (treasury ICP intact)
+   * /     * `record.canisterId == ?id`   → `#LinkCanister(id)` (point-of-no-return crossed)
+   * /     Preserves original `initArg` + `envPairs`. Refuses if the license was refunded.
+   * /   - `#refund`: ICP goes back to the owner, license flips `#refunded`,
+   * /     creation record is deleted. Only allowed BEFORE `#CanisterCreated` —
+   * /     once the canister exists, cycles can't be recovered.
+   * /
+   * / Both strategies share the same per-creationId lock (`creationLocks`), so
+   * / concurrent recover calls on the same id serialize: the loser sees
+   * / "another refund or resume is in progress".
+   */
+  'recoverFailedStorage' : ActorMethod<[bigint, RecoveryStrategy], Result_3>,
   'refreshReleases' : ActorMethod<[], undefined>,
   'register' : ActorMethod<[[] | [string]], undefined>,
   /**
    * / Register the latest downloaded WASM hash as known.
    */
   'registerLatestWasmHash' : ActorMethod<[], undefined>,
-  'removeAdmin' : ActorMethod<[Principal], undefined>,
   'renewSubscription' : ActorMethod<
     [Principal, Plan, [] | [bigint]],
     undefined
   >,
   'reportTrialBytes' : ActorMethod<[bigint], undefined>,
   /**
-   * / Admin: retry a failed storage creation that has a license.
+   * / Admin-only retry for a creation whose deferred ambassador payout
+   * / landed in `#failed`. Re-invokes the payout; on success the record's
+   * / `ambassadorPayoutStatus` flips to `#completed` (or back to `#failed`
+   * / with the new reason). Idempotent via the treasury dedup set — if
+   * / the payout had actually succeeded and only the status-stamp failed,
+   * / treasury returns `#AlreadyProcessed` which we translate to `#completed`.
    */
-  'retryStorageCreation' : ActorMethod<[bigint], Result_2>,
+  'retryAmbassadorPayout' : ActorMethod<[bigint], Result_3>,
+  'retryCmcNotify' : ActorMethod<
+    [
+      {
+        'tokenId' : TokenId,
+        'blockIndex' : bigint,
+        'chargedAmount' : bigint,
+        'originalCaller' : Principal,
+        'canisterId' : Principal,
+      },
+    ],
+    Result_2
+  >,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
+  'setUserRole' : ActorMethod<[Principal, Role], undefined>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'topUpFromBalance' : ActorMethod<[Principal, bigint], Result_1>,
   'triggerAutoRenewals' : ActorMethod<[], undefined>,
   'triggerExpireOverdue' : ActorMethod<[], Array<Principal>>,
+  'triggerSelfTopUp' : ActorMethod<[], undefined>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
   'updateSettings' : ActorMethod<[UserSettings], undefined>,
   'upgradeStorage' : ActorMethod<[Principal], Result>,
   'usernameExists' : ActorMethod<[string], boolean>,
   'withdraw' : ActorMethod<[WithdrawArgs], WithdrawResult>,
+  'withdrawFromTreasury' : ActorMethod<[WithdrawArgs], WithdrawResult>,
 }
 export interface RawQueryHttpRequest {
   'url' : string,
@@ -338,6 +492,8 @@ export interface RawUpdateHttpResponse {
   'streaming_strategy' : [] | [StreamingStrategy],
   'status_code' : number,
 }
+export type RecoveryStrategy = { 'resume' : null } |
+  { 'refund' : null };
 export interface ReleaseFullStatus {
   'tagName' : string,
   'isDownloaded' : boolean,
@@ -362,14 +518,21 @@ export type Result = { 'ok' : null } |
   { 'err' : UpgradeStorageError };
 export type Result_1 = { 'ok' : { 'cyclesAdded' : bigint } } |
   { 'err' : string };
-export type Result_2 = { 'ok' : null } |
+export type Result_2 = { 'ok' : bigint } |
   { 'err' : string };
 export type Result_3 = { 'ok' : null } |
-  { 'err' : PurchaseError };
+  { 'err' : string };
 export type Result_4 = { 'ok' : null } |
-  { 'err' : DeleteStorageError };
+  { 'err' : PurchaseError };
 export type Result_5 = { 'ok' : bigint } |
+  { 'err' : PurchaseError };
+export type Result_6 = { 'ok' : null } |
+  { 'err' : DeleteStorageError };
+export type Result_7 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
+export type Role = { 'admin' : null } |
+  { 'moderator' : null } |
+  { 'user' : null };
 export interface SolanaChainConfig {
   'solRpcCanisterId' : string,
   'assets' : Array<SupportedAsset>,
@@ -381,8 +544,31 @@ export type SortDirection = { 'Descending' : null } |
 export type Status = { 'Active' : null } |
   { 'Cancelled' : null } |
   { 'Expired' : null };
+export interface StatusEvent { 'status' : CreationStatus, 'timestamp' : Time }
 export type StorageBackendType = { 'OnChain' : null } |
   { 'BlobStorage' : null };
+export interface StorageCreationRecord {
+  'id' : bigint,
+  'status' : CreationStatus,
+  'completedAt' : [] | [Time],
+  'licensePaymentId' : [] | [string],
+  'owner' : Principal,
+  'wasmHash' : [] | [Uint8Array | number[]],
+  'createdAt' : Time,
+  'ambassadorPayoutStatus' : AmbassadorPayoutStatus,
+  'lastUpgradeError' : [] | [string],
+  'isUpgrade' : boolean,
+  'statusTag' : string,
+  'upgradeIncludesFrontend' : boolean,
+  'ambassadorPayoutStatusTag' : string,
+  'events' : Array<StatusEvent>,
+  'releaseTag' : string,
+  'frontendHash' : [] | [Uint8Array | number[]],
+  'initArg' : Uint8Array | number[],
+  'envPairs' : [] | [Array<EnvPair>],
+  'installedReleaseTag' : [] | [string],
+  'canisterId' : [] | [Principal],
+}
 export interface StorageInfo {
   'id' : bigint,
   'status' : CreationStatus,
@@ -436,6 +622,7 @@ export interface SupportedAsset {
 }
 export type ThresholdKeyName = string;
 export type Time = bigint;
+export interface TimeRangeFilter { 'max' : [] | [Time], 'min' : [] | [Time] }
 export type TokenId = { 'ICP' : null } |
   { 'SOL' : null } |
   { 'SolUSDC' : null } |
@@ -459,15 +646,46 @@ export interface TransferRecord {
   'evmAddress' : [] | [string],
 }
 export type TypedEvent = {
-    'topUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint }
+    'backendLowCycles' : { 'threshold' : bigint, 'current' : bigint }
   } |
+  { 'topUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint } } |
   { 'depositReceived' : { 'tokenId' : string, 'amount' : bigint } } |
   { 'trialStarted' : { 'limitBytes' : bigint } } |
+  {
+    'cmcNotifyStuck' : {
+      'blockIndex' : bigint,
+      'caller' : Principal,
+      'canisterId' : Principal,
+      'reason' : string,
+    }
+  } |
+  {
+    'ambassadorPayoutFailed' : {
+      'owner' : Principal,
+      'creationId' : bigint,
+      'reason' : string,
+    }
+  } |
   { 'subscriptionExpired' : null } |
   { 'autoRenewFailed' : { 'reason' : string } } |
   { 'topUpFailed' : { 'canisterId' : Principal, 'reason' : string } } |
   {
     'autoTopUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint }
+  } |
+  {
+    'creationRefunded' : {
+      'tokenId' : string,
+      'owner' : Principal,
+      'creationId' : bigint,
+      'amount' : bigint,
+    }
+  } |
+  {
+    'treasuryIcpLow' : {
+      'currentBalance' : bigint,
+      'reserve' : bigint,
+      'required' : bigint,
+    }
   } |
   {
     'subscriptionRenewed' : {
@@ -502,7 +720,8 @@ export type TypedEvent = {
       'remaining' : bigint,
       'canisterId' : Principal,
     }
-  };
+  } |
+  { 'backendSelfTopUpFailed' : { 'reason' : string } };
 export interface UpdateInfo {
   'currentWasmHash' : [] | [Uint8Array | number[]],
   'wasmUpdateAvailable' : boolean,
@@ -525,6 +744,7 @@ export interface User {
   'id' : Principal,
   'inviter' : [] | [Principal],
   'createdAt' : Time,
+  'role' : Role,
   'trialUsed' : boolean,
   'updatedAt' : Time,
 }
