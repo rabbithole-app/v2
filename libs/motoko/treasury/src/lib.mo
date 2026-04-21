@@ -56,7 +56,6 @@ module Treasury {
       processedPayments = Set.empty<Text>();
       distributions = Vector.new<Types.DistributionRecord>();
       var nextDistributionId = 0;
-      admin = args.admin;
       thresholdKeyName = args.thresholdKeyName;
       chains = args.chains;
       distributionConfig = config;
@@ -602,15 +601,13 @@ module Treasury {
 
   /// Distribute a payment to treasury + ambassadors.
   /// Supports both IC (ICRC-1) and EVM (Base) tokens.
+  /// Distribute an already-received payment across treasury + ambassadors.
+  /// Access control is the parent canister's responsibility — treasury assumes
+  /// the call is authorised.
   public func distributePayment(
     treasury : Treasury,
-    caller : Principal,
     args : Types.DistributePaymentArgs,
   ) : async* Types.DistributePaymentResult {
-    if (not Principal.equal(caller, treasury.store.admin)) {
-      return #err(#Unauthorized);
-    };
-
     if (Set.contains(treasury.store.processedPayments, Text.compare, args.paymentId)) {
       return #err(#AlreadyProcessed);
     };
@@ -640,8 +637,8 @@ module Treasury {
 
     var transfers = Vector.new<Types.TransferRecord>();
 
-    // Transfer treasury share
-    let treasurySubaccount = Account.principalToSubaccount(treasury.store.admin);
+    // Transfer treasury share (to fixed treasury subaccount)
+    let treasurySubaccount = Const.treasurySubaccount();
     let treasuryNet = if (treasuryAmount > fee) { treasuryAmount - fee } else { 0 };
     let treasuryResult = await ledger.icrc1_transfer({
       to = { owner = treasury.canisterId; subaccount = ?treasurySubaccount };
@@ -651,7 +648,7 @@ module Treasury {
       created_at_time = ?Nat64.fromNat(Int.abs(now));
       amount = treasuryNet;
     });
-    Vector.add(transfers, makeIcTransferRecord(treasury.store.admin, ?treasurySubaccount, treasuryNet, args.tokenId, treasuryResult));
+    Vector.add(transfers, makeIcTransferRecord(treasury.canisterId, ?treasurySubaccount, treasuryNet, args.tokenId, treasuryResult));
 
     // Transfer L1 ambassador share
     switch (args.ambassadorL1) {
@@ -719,8 +716,9 @@ module Treasury {
 
     var transfers = Vector.new<Types.TransferRecord>();
 
-    // Resolve EVM addresses for all recipients
-    let adminEvmAddr = await* resolveEvmAddress(treasury, treasury.store.admin, evmConfig, api);
+    // Resolve EVM addresses for ambassador recipients only.
+    // Treasury share stays at `treasuryEvmAddr` (the fixed treasury pool derived
+    // with empty path) — no outbound transfer needed for the 85%.
     let l1EvmAddr = if (l1Amount == 0) {
       null;
     } else switch (args.ambassadorL1) {
@@ -750,16 +748,10 @@ module Treasury {
     let maxFeePerGas = 1_000_000_000; // 1 gwei
     let maxPriorityFeePerGas = 100_000_000; // 0.1 gwei
 
-    // Transfer treasury share
-    switch (adminEvmAddr) {
-      case (?addr) {
-        if (treasuryAmount > 0) {
-          let result = await* sendEvmTransfer(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, [], treasuryPubKey, addr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
-          Vector.add(transfers, makeEvmTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
-          nonce += 1;
-        };
-      };
-      case null return #err(#TransferFailed({ recipient = "admin"; error = "Failed to derive EVM address" }));
+    // Treasury share: recorded as retained (no outbound transfer — funds
+    // already sit at treasuryEvmAddr where they arrived).
+    if (treasuryAmount > 0) {
+      Vector.add(transfers, makeEvmTransferRecord(treasury.canisterId, treasuryEvmAddr, treasuryAmount, args.tokenId, #ok("retained-at-treasury-address")));
     };
 
     // Transfer L1 share
@@ -819,17 +811,16 @@ module Treasury {
     let api = treasury.schnorrApi;
     let rpcSources = buildSolRpcSources(solConfig);
 
-    // Derive treasury Solana address + public key (sender of all SOL transfers)
+    // Derive treasury Solana address + public key (sender of outgoing SOL transfers
+    // AND holder of the treasury share — funds stay here after distribution).
     let (treasurySolAddr, treasuryPubKey) = switch (await* SolRpc.deriveTreasurySolAddress(treasury.store.thresholdKeyName, api)) {
       case (#ok(pair)) pair;
       case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
     };
-    ignore treasurySolAddr; // used implicitly as the signer
 
     var transfers = Vector.new<Types.TransferRecord>();
 
-    // Resolve Solana addresses for all recipients
-    let adminSolAddr = await* resolveSolAddress(treasury, treasury.store.admin, solConfig, api);
+    // Resolve Solana addresses for ambassador recipients only.
     let l1SolAddr = if (l1Amount == 0) {
       null;
     } else switch (args.ambassadorL1) {
@@ -882,15 +873,9 @@ module Treasury {
       };
     };
 
-    // Transfer treasury share
-    switch (adminSolAddr) {
-      case (?addr) {
-        if (treasuryAmount > 0) {
-          let result = await sendSolOrSplTransfer(addr, treasuryAmount);
-          Vector.add(transfers, makeSolTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
-        };
-      };
-      case null return #err(#TransferFailed({ recipient = "admin"; error = "Failed to derive SOL address" }));
+    // Treasury share: retained at treasurySolAddr (funds already arrived there).
+    if (treasuryAmount > 0) {
+      Vector.add(transfers, makeSolTransferRecord(treasury.canisterId, treasurySolAddr, treasuryAmount, args.tokenId, #ok("retained-at-treasury-address")));
     };
 
     // Transfer L1 share
@@ -1179,16 +1164,11 @@ module Treasury {
 
   /// Charge from user's derived wallet and distribute to treasury + ambassadors in one step.
   /// Makes 1-3 transfers directly FROM user's wallet (subaccount/EVM/SOL)
-  /// TO admin and ambassador wallets. No intermediate storage.
+  /// TO treasury and ambassador wallets. Access control delegated to parent canister.
   public func chargeAndDistribute(
     treasury : Treasury,
-    caller : Principal,
     args : Types.ChargeAndDistributeArgs,
   ) : async* Types.ChargeAndDistributeResult {
-    if (not Principal.equal(caller, treasury.store.admin)) {
-      return #err(#Unauthorized);
-    };
-
     if (Set.contains(treasury.store.processedPayments, Text.compare, args.paymentId)) {
       return #err(#AlreadyProcessed);
     };
@@ -1215,6 +1195,157 @@ module Treasury {
     } else {
       await* chargeAndDistributeEvm(treasury, args, distArgs);
     };
+  };
+
+  /// Deferred ambassador payout for a previously-charged license.
+  ///
+  /// Contract: the original charge landed 100% in the treasury subaccount
+  /// (caller should have passed `null` ambassadors to `chargeAndDistribute`
+  /// for a refundable flow). This call transfers the L1/L2 ambassador shares
+  /// from the treasury subaccount to the ambassador subaccounts — completing
+  /// the two-phase payment once the transaction has moved past its refund
+  /// window (e.g. canister successfully created).
+  ///
+  /// Dedup: `"ambassador:" # paymentId` in `processedPayments`. This is a
+  /// separate key from the original charge so the two phases can coexist.
+  ///
+  /// Token scope: IC only for now. EVM/SOL returns `#ok` with an empty
+  /// record — those chains keep charge-time distribution because their
+  /// refund path is unsupported (see `simpleRefund`).
+  public func distributeAmbassadorShare(
+    treasury : Treasury,
+    args : Types.DistributeAmbassadorShareArgs,
+  ) : async* Types.DistributeAmbassadorShareResult {
+    if (args.totalAmount == 0) return #err(#InvalidAmount);
+
+    let dedupKey = "ambassador:" # args.paymentId;
+    if (Set.contains(treasury.store.processedPayments, Text.compare, dedupKey)) {
+      return #err(#AlreadyProcessed);
+    };
+
+    // Reuse DistributePaymentArgs shape for finalizeDistribution — we override
+    // `paymentId` with the prefixed dedup key so the log row for the payout
+    // phase is distinct from the charge phase row.
+    let distArgs : Types.DistributePaymentArgs = {
+      paymentId = dedupKey;
+      payer = args.payer;
+      tokenId = args.tokenId;
+      amount = args.totalAmount;
+      ambassadorL1 = args.ambassadorL1;
+      ambassadorL2 = args.ambassadorL2;
+      metadata = args.metadata;
+    };
+
+    if (isIcToken(args.tokenId)) {
+      await* distributeAmbassadorShareIc(treasury, args, distArgs);
+    } else {
+      // EVM/SOL: charge-time split still applies (no refund path breaks it),
+      // so the deferred payout is a no-op. Record an empty row for audit
+      // symmetry and mark the dedup key processed.
+      let emptyRecord : Types.DistributionRecord = {
+        id = treasury.store.nextDistributionId;
+        paymentId = dedupKey;
+        payer = args.payer;
+        tokenId = args.tokenId;
+        totalAmount = args.totalAmount;
+        treasuryAmount = 0;
+        l1Amount = 0;
+        l2Amount = 0;
+        ambassadorL1 = args.ambassadorL1;
+        ambassadorL2 = args.ambassadorL2;
+        timestamp = Time.now();
+        transfers = [];
+        status = #completed;
+      };
+      Vector.add(treasury.store.distributions, emptyRecord);
+      treasury.store.nextDistributionId += 1;
+      Set.add(treasury.store.processedPayments, Text.compare, dedupKey);
+      #ok(emptyRecord);
+    };
+  };
+
+  /// IC: transfer ambassador shares FROM treasury subaccount TO L1/L2
+  /// subaccounts. Treasury share is not moved — it already sits in the
+  /// treasury subaccount from the original charge.
+  func distributeAmbassadorShareIc(
+    treasury : Treasury,
+    args : Types.DistributeAmbassadorShareArgs,
+    distArgs : Types.DistributePaymentArgs,
+  ) : async* Types.DistributeAmbassadorShareResult {
+    let (_treasuryAmount, l1Amount, l2Amount) = calculateSplit(args.totalAmount, args.ambassadorL1, args.ambassadorL2, treasury.store.distributionConfig);
+
+    // No ambassadors → record an empty payout row for audit and return.
+    if (l1Amount == 0 and l2Amount == 0) {
+      let emptyRecord : Types.DistributionRecord = {
+        id = treasury.store.nextDistributionId;
+        paymentId = distArgs.paymentId;
+        payer = args.payer;
+        tokenId = args.tokenId;
+        totalAmount = args.totalAmount;
+        treasuryAmount = 0;
+        l1Amount = 0;
+        l2Amount = 0;
+        ambassadorL1 = null;
+        ambassadorL2 = null;
+        timestamp = Time.now();
+        transfers = [];
+        status = #completed;
+      };
+      Vector.add(treasury.store.distributions, emptyRecord);
+      treasury.store.nextDistributionId += 1;
+      Set.add(treasury.store.processedPayments, Text.compare, distArgs.paymentId);
+      return #ok(emptyRecord);
+    };
+
+    let ledger = getIcLedger(args.tokenId);
+    let fee = getIcFee(args.tokenId);
+    let treasurySubaccount = Const.treasurySubaccount();
+    let now = Time.now();
+
+    var transfers = Vector.new<Types.TransferRecord>();
+
+    // Transfer L1 share: treasury subaccount → L1 subaccount.
+    switch (args.ambassadorL1) {
+      case (?l1) {
+        if (l1Amount > fee) {
+          let l1Net = l1Amount - fee;
+          let l1Subaccount = Account.principalToSubaccount(l1);
+          let l1Result = await ledger.icrc1_transfer({
+            to = { owner = treasury.canisterId; subaccount = ?l1Subaccount };
+            fee = ?fee;
+            memo = null;
+            from_subaccount = ?treasurySubaccount;
+            created_at_time = ?Nat64.fromNat(Int.abs(now));
+            amount = l1Net;
+          });
+          Vector.add(transfers, makeIcTransferRecord(l1, ?l1Subaccount, l1Net, args.tokenId, l1Result));
+        };
+      };
+      case null {};
+    };
+
+    // Transfer L2 share: treasury subaccount → L2 subaccount.
+    switch (args.ambassadorL2) {
+      case (?l2) {
+        if (l2Amount > fee) {
+          let l2Net = l2Amount - fee;
+          let l2Subaccount = Account.principalToSubaccount(l2);
+          let l2Result = await ledger.icrc1_transfer({
+            to = { owner = treasury.canisterId; subaccount = ?l2Subaccount };
+            fee = ?fee;
+            memo = null;
+            from_subaccount = ?treasurySubaccount;
+            created_at_time = ?Nat64.fromNat(Int.abs(now) + 1);
+            amount = l2Net;
+          });
+          Vector.add(transfers, makeIcTransferRecord(l2, ?l2Subaccount, l2Net, args.tokenId, l2Result));
+        };
+      };
+      case null {};
+    };
+
+    // `treasuryAmount` in the payout row is 0 — no new treasury intake here.
+    finalizeDistribution(treasury, distArgs, 0, l1Amount, l2Amount, transfers);
   };
 
   /// IC: charge from user subaccount → admin/L1/L2 subaccounts
@@ -1246,18 +1377,18 @@ module Treasury {
 
     var transfers = Vector.new<Types.TransferRecord>();
 
-    // Transfer treasury share from user subaccount → admin subaccount
-    let adminSubaccount = Account.principalToSubaccount(treasury.store.admin);
+    // Transfer treasury share: user subaccount → fixed TREASURY_SUBACCOUNT
+    let treasurySubaccount = Const.treasurySubaccount();
     let treasuryNet = if (treasuryAmount > fee) { treasuryAmount - fee } else { 0 };
     let treasuryResult = await ledger.icrc1_transfer({
-      to = { owner = treasury.canisterId; subaccount = ?adminSubaccount };
+      to = { owner = treasury.canisterId; subaccount = ?treasurySubaccount };
       fee = ?fee;
       memo = null;
       from_subaccount = ?userSubaccount;
       created_at_time = ?Nat64.fromNat(Int.abs(now));
       amount = treasuryNet;
     });
-    Vector.add(transfers, makeIcTransferRecord(treasury.store.admin, ?adminSubaccount, treasuryNet, args.tokenId, treasuryResult));
+    Vector.add(transfers, makeIcTransferRecord(treasury.canisterId, ?treasurySubaccount, treasuryNet, args.tokenId, treasuryResult));
 
     // Transfer L1 share from user subaccount → L1 subaccount
     switch (args.ambassadorL1) {
@@ -1328,8 +1459,12 @@ module Treasury {
       case null return #err(#TransferFailed({ recipient = "user"; error = "Failed to derive user EVM address" }));
     };
 
-    // Resolve recipient EVM addresses
-    let adminEvmAddr = await* resolveEvmAddress(treasury, treasury.store.admin, evmConfig, api);
+    // Resolve recipient EVM addresses. Treasury destination = the fixed
+    // treasury-derived address (empty derivation path), not admin-derived.
+    let treasuryEvmAddr = switch (await* EvmRpc.deriveTreasuryAddress(treasury.store.thresholdKeyName, api)) {
+      case (#ok((addr, _))) addr;
+      case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
+    };
     let l1EvmAddr = if (l1Amount == 0) { null } else switch (args.ambassadorL1) { case (?l1) await* resolveEvmAddress(treasury, l1, evmConfig, api); case null null };
     let l2EvmAddr = if (l2Amount == 0) { null } else switch (args.ambassadorL2) { case (?l2) await* resolveEvmAddress(treasury, l2, evmConfig, api); case null null };
 
@@ -1352,15 +1487,10 @@ module Treasury {
 
     var transfers = Vector.new<Types.TransferRecord>();
 
-    // Treasury share
-    switch (adminEvmAddr) {
-      case (?addr) {
-        let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, addr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
-        Vector.add(transfers, makeEvmTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
-        nonce += 1;
-      };
-      case null return #err(#TransferFailed({ recipient = "admin"; error = "Failed to derive admin EVM address" }));
-    };
+    // Treasury share → fixed treasury EVM address
+    let result = await sendEvmTransferStep(treasury.store.thresholdKeyName, evmConfig, rpcServices, args.tokenId, userDerivationPath, userPubKey, treasuryEvmAddr, treasuryAmount, nonce, maxFeePerGas, maxPriorityFeePerGas, ecCtx, api);
+    Vector.add(transfers, makeEvmTransferRecord(treasury.canisterId, treasuryEvmAddr, treasuryAmount, args.tokenId, result));
+    nonce += 1;
 
     // L1 share
     if (l1Amount > 0) {
@@ -1425,8 +1555,12 @@ module Treasury {
       case (#err(e)) return #err(#TransferFailed({ recipient = "user"; error = "Failed to derive user public key: " # e }));
     };
 
-    // Resolve recipient addresses
-    let adminSolAddr = await* resolveSolAddress(treasury, treasury.store.admin, solConfig, api);
+    // Resolve recipient addresses. Treasury destination = fixed treasury-derived
+    // address (empty derivation path), not admin-derived.
+    let treasurySolAddr = switch (await* SolRpc.deriveTreasurySolAddress(treasury.store.thresholdKeyName, api)) {
+      case (#ok((addr, _))) addr;
+      case (#err(e)) return #err(#TransferFailed({ recipient = "treasury"; error = e }));
+    };
     let l1SolAddr = if (l1Amount == 0) { null } else switch (args.ambassadorL1) { case (?l1) await* resolveSolAddress(treasury, l1, solConfig, api); case null null };
     let l2SolAddr = if (l2Amount == 0) { null } else switch (args.ambassadorL2) { case (?l2) await* resolveSolAddress(treasury, l2, solConfig, api); case null null };
 
@@ -1460,14 +1594,9 @@ module Treasury {
 
     var transfers = Vector.new<Types.TransferRecord>();
 
-    // Treasury share
-    switch (adminSolAddr) {
-      case (?addr) {
-        let result = await sendSolOrSplTransfer(addr, treasuryAmount);
-        Vector.add(transfers, makeSolTransferRecord(treasury.store.admin, addr, treasuryAmount, args.tokenId, result));
-      };
-      case null return #err(#TransferFailed({ recipient = "admin"; error = "Failed to derive admin SOL address" }));
-    };
+    // Treasury share → fixed treasury SOL address
+    let result = await sendSolOrSplTransfer(treasurySolAddr, treasuryAmount);
+    Vector.add(transfers, makeSolTransferRecord(treasury.canisterId, treasurySolAddr, treasuryAmount, args.tokenId, result));
 
     // L1 share
     if (l1Amount > 0) {
@@ -1506,19 +1635,15 @@ module Treasury {
 
   // ---- Simple Transfer (no ambassador split) ----
 
-  /// Transfer from user subaccount → admin subaccount. Single ICRC-1 transfer.
+  /// Transfer from user subaccount → treasury subaccount. Single ICRC-1 transfer.
   /// Used for top-up charges where no ambassador distribution is needed.
-  /// Returns block index on success.
+  /// Returns block index on success. Access control delegated to parent canister.
   public func simpleTransfer(
     treasury : Treasury,
-    caller : Principal,
     userId : Principal,
     tokenId : Types.TokenId,
     amount : Nat,
   ) : async* Result.Result<Nat, Text> {
-    if (not Principal.equal(caller, treasury.store.admin)) {
-      return #err("Unauthorized");
-    };
     if (not isIcToken(tokenId)) {
       return #err("simpleTransfer only supports IC tokens");
     };
@@ -1526,12 +1651,12 @@ module Treasury {
     let ledger = getIcLedger(tokenId);
     let fee = getIcFee(tokenId);
     let userSubaccount = Account.principalToSubaccount(userId);
-    let adminSubaccount = Account.principalToSubaccount(treasury.store.admin);
+    let treasurySubaccount = Const.treasurySubaccount();
 
     if (amount <= fee) return #err("Amount too small to cover fee");
 
     let result = await ledger.icrc1_transfer({
-      to = { owner = treasury.canisterId; subaccount = ?adminSubaccount };
+      to = { owner = treasury.canisterId; subaccount = ?treasurySubaccount };
       fee = ?fee;
       memo = null;
       from_subaccount = ?userSubaccount;
@@ -1544,42 +1669,38 @@ module Treasury {
     };
   };
 
-  /// Refund from admin subaccount → user subaccount. Reverse of simpleTransfer.
-  /// Transfers up to `maxAmount` from admin back to user (minus ledger fee).
-  /// Checks actual admin balance to avoid InsufficientFunds errors.
+  /// Refund from treasury subaccount → user subaccount. Reverse of simpleTransfer.
+  /// Transfers up to `maxAmount` from treasury back to user (minus ledger fee).
+  /// Checks actual treasury balance to avoid InsufficientFunds errors.
   public func simpleRefund(
     treasury : Treasury,
-    caller : Principal,
     userId : Principal,
     tokenId : Types.TokenId,
     maxAmount : Nat,
   ) : async* Result.Result<(), Text> {
-    if (not Principal.equal(caller, treasury.store.admin)) {
-      return #err("Unauthorized");
-    };
     if (not isIcToken(tokenId)) {
       return #err("simpleRefund only supports IC tokens");
     };
 
     let ledger = getIcLedger(tokenId);
     let fee = getIcFee(tokenId);
-    let adminSubaccount = Account.principalToSubaccount(treasury.store.admin);
+    let treasurySubaccount = Const.treasurySubaccount();
     let userSubaccount = Account.principalToSubaccount(userId);
 
-    // Check actual admin balance to refund as much as possible
-    let adminBalance = await ledger.icrc1_balance_of({
+    // Check actual treasury balance to refund as much as possible
+    let treasuryBalance = await ledger.icrc1_balance_of({
       owner = treasury.canisterId;
-      subaccount = ?adminSubaccount;
+      subaccount = ?treasurySubaccount;
     });
 
-    let refundAmount = Nat.min(adminBalance, maxAmount);
+    let refundAmount = Nat.min(treasuryBalance, maxAmount);
     if (refundAmount <= fee) return #err("Refund amount too small to cover fee");
 
     let result = await ledger.icrc1_transfer({
       to = { owner = treasury.canisterId; subaccount = ?userSubaccount };
       fee = ?fee;
       memo = null;
-      from_subaccount = ?adminSubaccount;
+      from_subaccount = ?treasurySubaccount;
       created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
       amount = refundAmount - fee;
     });
@@ -1589,15 +1710,12 @@ module Treasury {
     };
   };
 
-  /// Get all non-zero balances for a user across all chains (admin-only wrapper).
+  /// Get all non-zero balances for a user across all chains.
+  /// Access control delegated to parent canister.
   public func getUserBalances(
     treasury : Treasury,
-    caller : Principal,
     userId : Principal,
   ) : async* [Types.BalanceEntry] {
-    if (not Principal.equal(caller, treasury.store.admin)) {
-      Runtime.trap("Unauthorized: only admin can query user balances");
-    };
     await* getBalances(treasury, userId);
   };
 
@@ -1619,28 +1737,54 @@ module Treasury {
     } else if (isSolToken(tokenId)) {
       let solConfig = switch (getSolanaChainConfig(treasury.store.chains, tokenId)) {
         case (?cfg) cfg;
-        case null return 0;
+        case null {
+          Debug.print("[getBalance " # debug_show tokenId # "] no Solana chain config for caller=" # Principal.toText(caller));
+          return 0;
+        };
       };
       let callerSolAddr = switch (await* resolveSolAddress(treasury, caller, solConfig, treasury.schnorrApi)) {
         case (?addr) addr;
-        case null return 0;
+        case null {
+          Debug.print("[getBalance " # debug_show tokenId # "] resolveSolAddress returned null for caller=" # Principal.toText(caller));
+          return 0;
+        };
       };
+      Debug.print("[getBalance " # debug_show tokenId # "] caller=" # Principal.toText(caller) # " solAddr=" # callerSolAddr);
       switch (await getSolTokenBalanceStep(solConfig, tokenId, callerSolAddr)) {
-        case (#ok(b)) b;
-        case (#err(_)) 0;
+        case (#ok(b)) {
+          Debug.print("[getBalance " # debug_show tokenId # "] solRpc ok balance=" # Nat.toText(b));
+          b;
+        };
+        case (#err(e)) {
+          Debug.print("[getBalance " # debug_show tokenId # "] solRpc err=" # e);
+          0;
+        };
       };
     } else {
       let evmConfig = switch (getEvmChainConfig(treasury.store.chains, tokenId)) {
         case (?cfg) cfg;
-        case null return 0;
+        case null {
+          Debug.print("[getBalance " # debug_show tokenId # "] no EVM chain config for caller=" # Principal.toText(caller));
+          return 0;
+        };
       };
       let callerEvmAddr = switch (await* resolveEvmAddress(treasury, caller, evmConfig, treasury.ecdsaApi)) {
         case (?addr) addr;
-        case null return 0;
+        case null {
+          Debug.print("[getBalance " # debug_show tokenId # "] resolveEvmAddress returned null for caller=" # Principal.toText(caller));
+          return 0;
+        };
       };
+      Debug.print("[getBalance " # debug_show tokenId # "] caller=" # Principal.toText(caller) # " evmAddr=" # callerEvmAddr);
       switch (await getEvmTokenBalanceStep(evmConfig, tokenId, callerEvmAddr)) {
-        case (#ok(b)) b;
-        case (#err(_)) 0;
+        case (#ok(b)) {
+          Debug.print("[getBalance " # debug_show tokenId # "] evmRpc ok balance=" # Nat.toText(b));
+          b;
+        };
+        case (#err(e)) {
+          Debug.print("[getBalance " # debug_show tokenId # "] evmRpc err=" # e);
+          0;
+        };
       };
     };
   };
@@ -1790,15 +1934,11 @@ module Treasury {
 
   /// Verify on-chain status of EVM transfers in a distribution.
   /// Checks `eth_getTransactionReceipt` for each transfer that has a txHash.
+  /// Access control delegated to parent canister.
   public func verifyDistribution(
     treasury : Treasury,
-    caller : Principal,
     paymentId : Text,
   ) : async* Types.VerifyDistributionResult {
-    if (not Principal.equal(caller, treasury.store.admin)) {
-      return #err(#Unauthorized);
-    };
-
     // Find the distribution record
     let total = Vector.size(treasury.store.distributions);
     var record : ?Types.DistributionRecord = null;
@@ -1850,9 +1990,81 @@ module Treasury {
     #ok(Vector.toArray(verifications));
   };
 
-  /// Get treasury operations account balances.
+  /// Get the treasury ICP balance (single token). Used for hot-path
+  /// reserve checks before debiting treasury for CMC top-ups — cheaper
+  /// than `getTreasuryBalances` (1 ledger call vs 4).
+  public func getTreasuryIcpBalance(treasury : Treasury) : async* Nat {
+    let ledger = getIcLedger(#ICP);
+    await ledger.icrc1_balance_of({
+      owner = treasury.canisterId;
+      subaccount = ?Const.treasurySubaccount();
+    });
+  };
+
+  /// Get treasury IC balances from the fixed TREASURY_SUBACCOUNT across all 4 IC tokens.
+  /// For EVM/SOL treasury pool balances use `getTreasuryEvmBalance` / `getTreasurySolBalance`.
   public func getTreasuryBalances(treasury : Treasury) : async* [Types.BalanceEntry] {
-    await* getBalances(treasury, treasury.store.admin);
+    let subaccount = Const.treasurySubaccount();
+    let tokens : [Types.TokenId] = [#ICP, #ckUSDC, #ckUSDT, #ckETH];
+    var results = Vector.new<Types.BalanceEntry>();
+    for (tokenId in tokens.vals()) {
+      let ledger = getIcLedger(tokenId);
+      let balance = await ledger.icrc1_balance_of({
+        owner = treasury.canisterId;
+        subaccount = ?subaccount;
+      });
+      Vector.add(results, { tokenId; balance });
+    };
+    Vector.toArray(results);
+  };
+
+  /// Withdraw from the fixed treasury pool (admin use via parent canister guard).
+  /// IC: source = TREASURY_SUBACCOUNT; EVM/SOL: source = treasury-derived address
+  /// (empty derivation path). Mirrors `withdraw()` but with fixed sender.
+  public func withdrawFromTreasury(
+    treasury : Treasury,
+    args : Types.WithdrawArgs,
+  ) : async* Types.WithdrawResult {
+    let minAmount = getMinWithdraw(args.tokenId, treasury.store.distributionConfig);
+    if (args.amount < minAmount) return #err(#BelowMinimum({ minimum = minAmount }));
+
+    if (isIcToken(args.tokenId)) {
+      let (toOwner, toSubaccount) = switch (args.to) {
+        case (#IC({ owner; subaccount })) (owner, subaccount);
+        case (#EVM(_)) return #err(#TransferFailed("IC token cannot be withdrawn to EVM"));
+        case (#SOL(_)) return #err(#TransferFailed("IC token cannot be withdrawn to SOL"));
+      };
+      let ledger = getIcLedger(args.tokenId);
+      let fee = getIcFee(args.tokenId);
+      let balance = await ledger.icrc1_balance_of({
+        owner = treasury.canisterId;
+        subaccount = ?Const.treasurySubaccount();
+      });
+      if (balance < args.amount + fee) return #err(#InsufficientBalance({ available = balance }));
+      let result = await ledger.icrc1_transfer({
+        to = { owner = toOwner; subaccount = toSubaccount };
+        fee = ?fee;
+        memo = null;
+        from_subaccount = ?Const.treasurySubaccount();
+        created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
+        amount = args.amount;
+      });
+      switch (result) {
+        case (#Ok(blockIndex)) #ok(blockIndex);
+        case (#Err(err)) #err(#TransferFailed(debug_show err));
+      };
+    } else {
+      // EVM/SOL treasury withdraw: use empty-path derivation (treasury address)
+      // as the signer. Reuses the existing withdraw machinery but with a synthetic
+      // "caller = canisterId" so withdrawEvm/withdrawSol derive from [Principal.toBlob(canisterId)]
+      // — NOT matching treasury empty-path address.
+      //
+      // For simplicity and to avoid cross-path derivation complexity, EVM/SOL
+      // treasury withdraws are deferred to a future release. Parent canister
+      // should expose a dedicated admin method that calls EvmRpc.deriveTreasuryAddress
+      // + signs directly. See issue tracker.
+      #err(#TransferFailed("Treasury EVM/SOL withdraw not yet implemented — use dedicated admin method"));
+    };
   };
 
   // ---- Helpers ----

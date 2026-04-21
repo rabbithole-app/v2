@@ -4,8 +4,19 @@ import Runtime "mo:core/Runtime";
 import Treasury "";
 import Types "Types";
 
+/// Standalone Treasury canister. The `installer` (deployer principal) is the
+/// sole admin — access control to privileged methods is enforced at this
+/// actor's boundary. Treasury library itself trusts its caller (this canister).
+///
+/// Primary use-case is Rabbithole backend that embeds Treasury as a mixin
+/// (see apps/backend/src/Treasury/mixin.mo); this standalone canister is
+/// retained for isolated testing and hypothetical standalone deployments.
 shared ({ caller = installer }) persistent actor class TreasuryCanister(initArgs : Types.InitArgs) = this {
   transient let canisterId = Principal.fromActor(this);
+
+  // Admin lives in this actor, NOT in the treasury store. Single-installer model;
+  // for multi-admin / rotation use the backend mixin which plugs in AdminManager.
+  let admin : Principal = installer;
 
   var versionedStore = Treasury.initStableStore(initArgs);
   versionedStore := Treasury.upgradeStableStore(versionedStore);
@@ -13,90 +24,80 @@ shared ({ caller = installer }) persistent actor class TreasuryCanister(initArgs
 
   // ---- Admin methods ----
 
-  /// Distribute a payment among treasury and ambassadors.
-  /// Only callable by the admin (Backend canister).
   public shared ({ caller }) func distributePayment(args : Types.DistributePaymentArgs) : async Types.DistributePaymentResult {
-    await* Treasury.distributePayment(treasury, caller, args);
+    assertAdmin(caller);
+    await* Treasury.distributePayment(treasury, args);
   };
 
-  /// Get distribution audit log with pagination. Admin only.
   public query ({ caller }) func getDistributionLog(opts : Types.DistributionLogOptions) : async [Types.DistributionRecord] {
     assertAdmin(caller);
     Treasury.getDistributionLog(treasury, opts);
   };
 
-  /// Get distributions related to a specific user. Admin only.
   public query ({ caller }) func getUserDistributions(user : Principal) : async [Types.DistributionRecord] {
     assertAdmin(caller);
     Treasury.getUserDistributions(treasury, user);
   };
 
-  /// Get treasury operations account balances. Admin only.
   public shared ({ caller }) func getTreasuryBalances() : async [Types.BalanceEntry] {
     assertAdmin(caller);
     await* Treasury.getTreasuryBalances(treasury);
   };
 
-  /// Charge from user's wallet and distribute to treasury + ambassadors in one step.
-  /// Admin only. Transfers directly from user's derived wallets.
-  public shared ({ caller }) func chargeAndDistribute(args : Types.ChargeAndDistributeArgs) : async Types.ChargeAndDistributeResult {
-    await* Treasury.chargeAndDistribute(treasury, caller, args);
+  public shared ({ caller }) func withdrawFromTreasury(args : Types.WithdrawArgs) : async Types.WithdrawResult {
+    assertAdmin(caller);
+    await* Treasury.withdrawFromTreasury(treasury, args);
   };
 
-  /// Get all balances for a user across IC tokens. Admin only.
+  public shared ({ caller }) func chargeAndDistribute(args : Types.ChargeAndDistributeArgs) : async Types.ChargeAndDistributeResult {
+    assertAdmin(caller);
+    await* Treasury.chargeAndDistribute(treasury, args);
+  };
+
   public shared ({ caller }) func getUserBalances(userId : Principal) : async [Types.BalanceEntry] {
-    await* Treasury.getUserBalances(treasury, caller, userId);
+    assertAdmin(caller);
+    await* Treasury.getUserBalances(treasury, userId);
+  };
+
+  public shared ({ caller }) func verifyDistribution(paymentId : Text) : async Types.VerifyDistributionResult {
+    assertAdmin(caller);
+    await* Treasury.verifyDistribution(treasury, paymentId);
   };
 
   // ---- User methods ----
 
-  /// Withdraw funds from caller's subaccount to an external ICRC account.
   public shared ({ caller }) func withdraw(args : Types.WithdrawArgs) : async Types.WithdrawResult {
     await* Treasury.withdraw(treasury, caller, args);
   };
 
-  /// Get caller's balance for a specific token.
   public shared ({ caller }) func getBalance(tokenId : Types.TokenId) : async Nat {
     await* Treasury.getBalance(treasury, caller, tokenId);
   };
 
-  /// Get caller's balances across all supported tokens.
   public shared ({ caller }) func getBalances() : async [Types.BalanceEntry] {
     await* Treasury.getBalances(treasury, caller);
   };
 
-  /// Get caller's EVM address (derived via threshold ECDSA, cached).
   public shared ({ caller }) func getEvmAddress() : async ?Text {
     await* Treasury.getOrDeriveEvmAddress(treasury, caller);
   };
 
-  /// Get the treasury canister's own EVM signing address.
-  /// This is the address used to sign ERC-20 transfers in distributePayment.
   public shared func getTreasurySigningAddress() : async ?Text {
     await* Treasury.getTreasurySigningAddress(treasury);
   };
 
-  /// Get caller's Solana address (derived via threshold Schnorr Ed25519, cached).
   public shared ({ caller }) func getSolAddress() : async ?Text {
     await* Treasury.getOrDeriveSolAddress(treasury, caller);
   };
 
-  /// Get the treasury canister's own Solana signing address.
-  /// This is the address used to sign SOL/SPL transfers in distributePayment.
   public shared func getTreasurySolSigningAddress() : async ?Text {
     await* Treasury.getTreasurySolSigningAddress(treasury);
-  };
-
-  /// Verify on-chain status of EVM transfers for a distribution.
-  /// Admin only. Checks eth_getTransactionReceipt for each transfer with a txHash.
-  public shared ({ caller }) func verifyDistribution(paymentId : Text) : async Types.VerifyDistributionResult {
-    await* Treasury.verifyDistribution(treasury, caller, paymentId);
   };
 
   // ---- Helpers ----
 
   func assertAdmin(caller : Principal) {
-    if (not Principal.equal(caller, treasury.store.admin)) {
+    if (not Principal.equal(caller, admin)) {
       Runtime.trap("Unauthorized: caller is not admin");
     };
   };

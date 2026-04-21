@@ -1,4 +1,24 @@
+import Blob "mo:core/Blob";
+
 module {
+  // ---- Treasury subaccount (fixed, app-wide) ----
+  //
+  // Layout: [0x00, "treasury" (8 bytes), 0-padding to 32 bytes].
+  // First byte 0 ensures it can never collide with principal-derived subaccounts
+  // (those store principal byte-length as first byte, always > 0 for real principals).
+  // Not all-zeros, so distinct from ICRC-1 null/default subaccount.
+  //
+  // Motoko disallows non-static expressions at module scope, so this is a
+  // function rather than a `let` binding.
+  public func treasurySubaccount() : Blob {
+    Blob.fromArray([
+      0x00, 0x74, 0x72, 0x65, 0x61, 0x73, 0x75, 0x72, 0x79, // \0 t r e a s u r y
+      0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0,
+    ]);
+  };
+
   // ---- Phase 1: IC (ICRC-1) ----
 
   // ICRC Ledger canister IDs

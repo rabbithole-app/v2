@@ -30,7 +30,6 @@ export interface DistributePaymentArgs {
 }
 export type DistributePaymentError = { 'InvalidAmount' : null } |
   { 'AlreadyProcessed' : null } |
-  { 'Unauthorized' : null } |
   { 'PartiallyCompleted' : DistributionRecord } |
   { 'TransferFailed' : { 'recipient' : string, 'error' : string } } |
   { 'EvmNotConfigured' : null } |
@@ -69,7 +68,6 @@ export interface EvmChainConfig {
 }
 export interface InitArgs {
   'thresholdKeyName' : ThresholdKeyName,
-  'admin' : Principal,
   'distributionConfig' : [] | [DistributionConfig],
   'chains' : Array<ChainConfig>,
 }
@@ -130,76 +128,30 @@ export interface TransferVerification {
   'txHash' : string,
 }
 export interface TreasuryCanister {
-  /**
-   * / Charge from user's wallet and distribute to treasury + ambassadors in one step.
-   * / Admin only. Transfers directly from user's derived wallets.
-   */
   'chargeAndDistribute' : ActorMethod<
     [ChargeAndDistributeArgs],
     ChargeAndDistributeResult
   >,
-  /**
-   * / Distribute a payment among treasury and ambassadors.
-   * / Only callable by the admin (Backend canister).
-   */
   'distributePayment' : ActorMethod<
     [DistributePaymentArgs],
     DistributePaymentResult
   >,
-  /**
-   * / Get caller's balance for a specific token.
-   */
   'getBalance' : ActorMethod<[TokenId], bigint>,
-  /**
-   * / Get caller's balances across all supported tokens.
-   */
   'getBalances' : ActorMethod<[], Array<BalanceEntry>>,
-  /**
-   * / Get distribution audit log with pagination. Admin only.
-   */
   'getDistributionLog' : ActorMethod<
     [DistributionLogOptions],
     Array<DistributionRecord>
   >,
-  /**
-   * / Get caller's EVM address (derived via threshold ECDSA, cached).
-   */
   'getEvmAddress' : ActorMethod<[], [] | [string]>,
-  /**
-   * / Get caller's Solana address (derived via threshold Schnorr Ed25519, cached).
-   */
   'getSolAddress' : ActorMethod<[], [] | [string]>,
-  /**
-   * / Get treasury operations account balances. Admin only.
-   */
   'getTreasuryBalances' : ActorMethod<[], Array<BalanceEntry>>,
-  /**
-   * / Get the treasury canister's own EVM signing address.
-   * / This is the address used to sign ERC-20 transfers in distributePayment.
-   */
   'getTreasurySigningAddress' : ActorMethod<[], [] | [string]>,
-  /**
-   * / Get the treasury canister's own Solana signing address.
-   * / This is the address used to sign SOL/SPL transfers in distributePayment.
-   */
   'getTreasurySolSigningAddress' : ActorMethod<[], [] | [string]>,
-  /**
-   * / Get all balances for a user across IC tokens. Admin only.
-   */
   'getUserBalances' : ActorMethod<[Principal], Array<BalanceEntry>>,
-  /**
-   * / Get distributions related to a specific user. Admin only.
-   */
   'getUserDistributions' : ActorMethod<[Principal], Array<DistributionRecord>>,
-  /**
-   * / Verify on-chain status of EVM transfers for a distribution.
-   * / Admin only. Checks eth_getTransactionReceipt for each transfer with a txHash.
-   */
   'verifyDistribution' : ActorMethod<[string], VerifyDistributionResult>,
-  /**
-   * / Withdraw funds from caller's subaccount to an external ICRC account.
-   */
   'withdraw' : ActorMethod<[WithdrawArgs], WithdrawResult>,
+  'withdrawFromTreasury' : ActorMethod<[WithdrawArgs], WithdrawResult>,
 }
 export type VerifyDistributionError = { 'NotFound' : null } |
   { 'Unauthorized' : null } |
@@ -223,6 +175,15 @@ export type WithdrawError = { 'BelowMinimum' : { 'minimum' : bigint } } |
   { 'SolNotConfigured' : null };
 export type WithdrawResult = { 'ok' : bigint } |
   { 'err' : WithdrawError };
+/**
+ * / Standalone Treasury canister. The `installer` (deployer principal) is the
+ * / sole admin — access control to privileged methods is enforced at this
+ * / actor's boundary. Treasury library itself trusts its caller (this canister).
+ * /
+ * / Primary use-case is Rabbithole backend that embeds Treasury as a mixin
+ * / (see apps/backend/src/Treasury/mixin.mo); this standalone canister is
+ * / retained for isolated testing and hypothetical standalone deployments.
+ */
 export interface _SERVICE extends TreasuryCanister {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

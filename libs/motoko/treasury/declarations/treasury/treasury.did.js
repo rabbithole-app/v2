@@ -59,7 +59,6 @@ export const idlFactory = ({ IDL }) => {
   });
   const InitArgs = IDL.Record({
     'thresholdKeyName' : ThresholdKeyName,
-    'admin' : IDL.Principal,
     'distributionConfig' : IDL.Opt(DistributionConfig),
     'chains' : IDL.Vec(ChainConfig),
   });
@@ -106,7 +105,6 @@ export const idlFactory = ({ IDL }) => {
   const DistributePaymentError = IDL.Variant({
     'InvalidAmount' : IDL.Null,
     'AlreadyProcessed' : IDL.Null,
-    'Unauthorized' : IDL.Null,
     'PartiallyCompleted' : DistributionRecord,
     'TransferFailed' : IDL.Record({
       'recipient' : IDL.Text,
@@ -209,6 +207,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'verifyDistribution' : IDL.Func([IDL.Text], [VerifyDistributionResult], []),
     'withdraw' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
+    'withdrawFromTreasury' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
   });
   return TreasuryCanister;
 };
@@ -273,7 +272,6 @@ export const init = ({ IDL }) => {
   });
   const InitArgs = IDL.Record({
     'thresholdKeyName' : ThresholdKeyName,
-    'admin' : IDL.Principal,
     'distributionConfig' : IDL.Opt(DistributionConfig),
     'chains' : IDL.Vec(ChainConfig),
   });

@@ -39,9 +39,10 @@ module {
 
   public type ChainConfig = ConfigTypes.ChainConfig;
 
-  /// Init args for the Treasury canister.
+  /// Init args for the Treasury canister/library.
+  /// Access control (who can call distributePayment/chargeAndDistribute/withdraw)
+  /// is enforced by the parent canister, not by treasury itself.
   public type InitArgs = {
-    admin : Principal;
     thresholdKeyName : ThresholdKeyName;
     chains : [ChainConfig];
     distributionConfig : ?DistributionConfig;
@@ -68,7 +69,6 @@ module {
     #PartiallyCompleted : DistributionRecord;
     #EvmNotConfigured;
     #SolNotConfigured;
-    #Unauthorized;
   };
 
   /// Status of a distribution: fully completed or partially failed.
@@ -122,6 +122,27 @@ module {
 
   /// Same result type as DistributePaymentResult.
   public type ChargeAndDistributeResult = DistributePaymentResult;
+
+  /// Args for deferred ambassador payout. Invoked after a refundable
+  /// charge (e.g. license) is confirmed unrefundable — typically at
+  /// canister-created time in the storage deployer. Transfers ambassador
+  /// shares from the treasury subaccount (not from the user) to the
+  /// L1/L2 subaccounts, using the original `totalAmount` to compute
+  /// the split.
+  public type DistributeAmbassadorShareArgs = {
+    paymentId : Text;
+    payer : Principal;
+    tokenId : TokenId;
+    totalAmount : Nat;
+    ambassadorL1 : ?Principal;
+    ambassadorL2 : ?Principal;
+    metadata : ?Text;
+  };
+
+  /// Same result shape as `DistributePaymentResult`. The returned record
+  /// reflects only the ambassador share (L1/L2 transfers); `treasuryAmount`
+  /// is 0 because no new treasury intake happened in this call.
+  public type DistributeAmbassadorShareResult = DistributePaymentResult;
 
   /// Withdraw destination — IC (ICRC-1), EVM, or Solana address.
   public type WithdrawDestination = {

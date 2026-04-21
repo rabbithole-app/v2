@@ -5,11 +5,13 @@ import Vector "mo:vector";
 import Types "../../Types";
 
 module {
+  /// V1: treasury funds live at a fixed `TREASURY_SUBACCOUNT` (see Const.mo).
+  /// Access control is enforced by the parent canister — treasury library does
+  /// not track an admin principal internally.
   public type StableStore = {
     processedPayments : Set.Set<Text>;
     distributions : Vector.Vector<Types.DistributionRecord>;
     var nextDistributionId : Nat;
-    admin : Principal;
     thresholdKeyName : Types.ThresholdKeyName;
     chains : [Types.ChainConfig];
     distributionConfig : Types.DistributionConfig;

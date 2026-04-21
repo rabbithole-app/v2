@@ -125,18 +125,19 @@ describe('Treasury Canister — EVM', () => {
     }
   });
 
-  test('distributePayment: unauthorized caller returns #Unauthorized', async () => {
+  test('distributePayment: unauthorized caller traps', async () => {
     manager.treasuryActor.setIdentity(randomIdentity);
-    const result = await manager.treasuryActor.distributePayment({
-      paymentId: 'evm-unauth',
-      payer: payerIdentity.getPrincipal(),
-      tokenId: { BaseUSDC: null },
-      amount: 1_000_000n,
-      ambassadorL1: [],
-      ambassadorL2: [],
-      metadata: [],
-    });
-    expect(result).toEqual({ err: { Unauthorized: null } });
+    await expect(
+      manager.treasuryActor.distributePayment({
+        paymentId: 'evm-unauth',
+        payer: payerIdentity.getPrincipal(),
+        tokenId: { BaseUSDC: null },
+        amount: 1_000_000n,
+        ambassadorL1: [],
+        ambassadorL2: [],
+        metadata: [],
+      }),
+    ).rejects.toThrow(/Unauthorized/);
   });
 
   test('distributePayment: zero amount returns #InvalidAmount', async () => {

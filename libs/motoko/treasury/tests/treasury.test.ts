@@ -28,18 +28,19 @@ describe('Treasury Canister', () => {
 
   // ---- Authorization ----
 
-  test('distributePayment: unauthorized caller returns #Unauthorized', async () => {
+  test('distributePayment: unauthorized caller traps', async () => {
     manager.treasuryActor.setIdentity(randomIdentity);
-    const result = await manager.treasuryActor.distributePayment({
-      paymentId: 'pay-001',
-      payer: payerIdentity.getPrincipal(),
-      tokenId: { ICP: null },
-      amount: 1_000_000n,
-      ambassadorL1: [],
-      ambassadorL2: [],
-      metadata: [],
-    });
-    expect(result).toEqual({ err: { Unauthorized: null } });
+    await expect(
+      manager.treasuryActor.distributePayment({
+        paymentId: 'pay-001',
+        payer: payerIdentity.getPrincipal(),
+        tokenId: { ICP: null },
+        amount: 1_000_000n,
+        ambassadorL1: [],
+        ambassadorL2: [],
+        metadata: [],
+      }),
+    ).rejects.toThrow(/Unauthorized/);
   });
 
   test('distributePayment: zero amount returns #InvalidAmount', async () => {
@@ -63,7 +64,7 @@ describe('Treasury Canister', () => {
     // Exactly amount — fee is deducted from recipient's share
     await manager.mintToTreasury(paymentAmount);
 
-    const treasuryBefore = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const treasuryBefore = await manager.getTreasuryPoolIcpBalance();
 
     manager.treasuryActor.setIdentity(manager.adminIdentity);
     const result = await manager.treasuryActor.distributePayment({
@@ -85,7 +86,7 @@ describe('Treasury Canister', () => {
     expect(record.status).toEqual({ completed: null });
 
     // Subaccount receives net = gross - fee
-    const treasuryAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const treasuryAfter = await manager.getTreasuryPoolIcpBalance();
     expect(treasuryAfter - treasuryBefore).toBe(paymentAmount - FEE);
   });
 
@@ -95,7 +96,7 @@ describe('Treasury Canister', () => {
     const paymentAmount = 10n * E8S_PER_ICP;
     await manager.mintToTreasury(paymentAmount);
 
-    const treasuryBefore = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const treasuryBefore = await manager.getTreasuryPoolIcpBalance();
     const l1Before = await manager.getSubaccountBalance(l1Identity.getPrincipal());
 
     manager.treasuryActor.setIdentity(manager.adminIdentity);
@@ -119,7 +120,7 @@ describe('Treasury Canister', () => {
     expect(record.status).toEqual({ completed: null });
 
     // Subaccounts receive net = gross - fee
-    const treasuryAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const treasuryAfter = await manager.getTreasuryPoolIcpBalance();
     expect(treasuryAfter - treasuryBefore).toBe(grossTreasury - FEE);
 
     const l1After = await manager.getSubaccountBalance(l1Identity.getPrincipal());
@@ -132,7 +133,7 @@ describe('Treasury Canister', () => {
     const paymentAmount = 10n * E8S_PER_ICP;
     await manager.mintToTreasury(paymentAmount);
 
-    const treasuryBefore = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const treasuryBefore = await manager.getTreasuryPoolIcpBalance();
     const l1Before = await manager.getSubaccountBalance(l1Identity.getPrincipal());
     const l2Before = await manager.getSubaccountBalance(l2Identity.getPrincipal());
 
@@ -158,7 +159,7 @@ describe('Treasury Canister', () => {
     expect(record.status).toEqual({ completed: null });
 
     // Subaccounts receive net = gross - fee
-    const treasuryAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const treasuryAfter = await manager.getTreasuryPoolIcpBalance();
     expect(treasuryAfter - treasuryBefore).toBe(grossTreasury - FEE);
 
     const l1After = await manager.getSubaccountBalance(l1Identity.getPrincipal());

@@ -35,7 +35,7 @@ describe('chargeAndDistribute', () => {
     // Fund user's subaccount (not treasury main)
     await manager.mintToUserSubaccount(userIdentity.getPrincipal(), chargeAmount + 3n * FEE);
 
-    const adminBefore = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const adminBefore = await manager.getTreasuryPoolIcpBalance();
     const l1Before = await manager.getSubaccountBalance(l1Identity.getPrincipal());
     const l2Before = await manager.getSubaccountBalance(l2Identity.getPrincipal());
 
@@ -63,7 +63,7 @@ describe('chargeAndDistribute', () => {
     expect(record.status).toEqual({ completed: null });
 
     // Verify balances increased
-    const adminAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const adminAfter = await manager.getTreasuryPoolIcpBalance();
     expect(adminAfter - adminBefore).toBe(expectedTreasury - FEE);
 
     const l1After = await manager.getSubaccountBalance(l1Identity.getPrincipal());
@@ -77,7 +77,7 @@ describe('chargeAndDistribute', () => {
     const chargeAmount = 5n * E8S_PER_ICP;
     await manager.mintToUserSubaccount(userIdentity.getPrincipal(), chargeAmount + FEE);
 
-    const adminBefore = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const adminBefore = await manager.getTreasuryPoolIcpBalance();
 
     manager.treasuryActor.setIdentity(manager.adminIdentity);
     const result = await manager.treasuryActor.chargeAndDistribute({
@@ -96,7 +96,7 @@ describe('chargeAndDistribute', () => {
     expect(record.l1Amount).toBe(0n);
     expect(record.l2Amount).toBe(0n);
 
-    const adminAfter = await manager.getSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const adminAfter = await manager.getTreasuryPoolIcpBalance();
     expect(adminAfter - adminBefore).toBe(chargeAmount - FEE);
   });
 
@@ -120,18 +120,19 @@ describe('chargeAndDistribute', () => {
     expect(err).toHaveProperty('TransferFailed');
   });
 
-  test('unauthorized caller returns error', async () => {
+  test('unauthorized caller traps', async () => {
     manager.treasuryActor.setIdentity(randomIdentity);
-    const result = await manager.treasuryActor.chargeAndDistribute({
-      paymentId: 'charge-unauth',
-      userId: userIdentity.getPrincipal(),
-      tokenId: { ICP: null },
-      totalAmount: 1n * E8S_PER_ICP,
-      ambassadorL1: [],
-      ambassadorL2: [],
-      metadata: [],
-    });
-    expect(result).toEqual({ err: { Unauthorized: null } });
+    await expect(
+      manager.treasuryActor.chargeAndDistribute({
+        paymentId: 'charge-unauth',
+        userId: userIdentity.getPrincipal(),
+        tokenId: { ICP: null },
+        totalAmount: 1n * E8S_PER_ICP,
+        ambassadorL1: [],
+        ambassadorL2: [],
+        metadata: [],
+      }),
+    ).rejects.toThrow(/Unauthorized/);
   });
 
   test('idempotency: same paymentId returns #AlreadyProcessed', async () => {
@@ -232,7 +233,7 @@ describe('chargeAndDistribute ckUSDC', () => {
     // Fund user with enough for charge + 3 fees
     await manager.mintCkUsdcToUserSubaccount(userIdentity.getPrincipal(), chargeAmount + 3n * ckusdcFee);
 
-    const adminBefore = await manager.getCkUsdcSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const adminBefore = await manager.getTreasuryPoolCkUsdcBalance();
     const l1Before = await manager.getCkUsdcSubaccountBalance(l1Identity.getPrincipal());
     const l2Before = await manager.getCkUsdcSubaccountBalance(l2Identity.getPrincipal());
 
@@ -258,7 +259,7 @@ describe('chargeAndDistribute ckUSDC', () => {
     expect(record.l2Amount).toBe(expectedL2);
     expect(record.treasuryAmount).toBe(expectedTreasury);
 
-    const adminAfter = await manager.getCkUsdcSubaccountBalance(manager.adminIdentity.getPrincipal());
+    const adminAfter = await manager.getTreasuryPoolCkUsdcBalance();
     expect(adminAfter - adminBefore).toBe(expectedTreasury - ckusdcFee);
 
     const l1After = await manager.getCkUsdcSubaccountBalance(l1Identity.getPrincipal());

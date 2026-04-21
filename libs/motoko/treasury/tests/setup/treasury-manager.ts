@@ -42,6 +42,17 @@ export { icrc1LedgerIdlFactory, icrc1LedgerInit, type IcrcLedgerService };
 
 const CKUSDC_FEE = 10_000n; // 0.01 USDC (6 decimals)
 
+/**
+ * Fixed treasury subaccount — mirrors `Const.treasurySubaccount()` in Motoko.
+ * Layout: [0x00, "treasury" (8 bytes), 0-padding to 32 bytes].
+ */
+export const TREASURY_SUBACCOUNT: Uint8Array = new Uint8Array([
+  0x00, 0x74, 0x72, 0x65, 0x61, 0x73, 0x75, 0x72, 0x79,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0,
+]);
+
 const TREASURY_WASM_PATH = resolve(
   import.meta.dirname,
   "..",
@@ -170,7 +181,6 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          admin: adminIdentity.getPrincipal(),
           thresholdKeyName: "dfx_test_key",
           chains: [],
           distributionConfig: [],
@@ -248,7 +258,6 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          admin: adminIdentity.getPrincipal(),
           thresholdKeyName: "dfx_test_key",
           chains: [],
           distributionConfig: [],
@@ -302,7 +311,6 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          admin: adminIdentity.getPrincipal(),
           thresholdKeyName: "dfx_test_key",
           chains: [baseChainConfig(evmRpcFixture.canisterId.toText())],
           distributionConfig: DEFAULT_DISTRIBUTION_CONFIG,
@@ -364,7 +372,6 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          admin: adminIdentity.getPrincipal(),
           thresholdKeyName: "dfx_test_key",
           chains: [
             baseChainConfig(evmRpcFixture.canisterId.toText()),
@@ -418,7 +425,6 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          admin: adminIdentity.getPrincipal(),
           thresholdKeyName: "dfx_test_key",
           chains: [solanaDevnetChainConfig(solRpcCanisterId.toText())],
           distributionConfig: DEFAULT_DISTRIBUTION_CONFIG,
@@ -520,6 +526,24 @@ export class TreasuryManager extends BaseManager {
       owner: this.treasuryCanisterId,
       subaccount: [subaccount],
     });
+  }
+
+  /** Get ICP balance at the fixed treasury subaccount (where all 85% shares end up). */
+  async getTreasuryPoolIcpBalance(): Promise<bigint> {
+    return this.icpLedgerActor.icrc1_balance_of({
+      owner: this.treasuryCanisterId,
+      subaccount: [TREASURY_SUBACCOUNT],
+    });
+  }
+
+  /** Get ckUSDC balance at the fixed treasury subaccount. */
+  async getTreasuryPoolCkUsdcBalance(): Promise<bigint> {
+    if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed.");
+    const ckUsdcActor = this.pic.createActor(icrc1LedgerIdlFactory, this._ckUsdcCanisterId);
+    return ckUsdcActor.icrc1_balance_of({
+      owner: this.treasuryCanisterId,
+      subaccount: [TREASURY_SUBACCOUNT],
+    }) as Promise<bigint>;
   }
 
   /**
