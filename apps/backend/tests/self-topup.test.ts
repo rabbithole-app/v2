@@ -52,18 +52,10 @@ describe("Backend self-topup from treasury", () => {
     await expect(backendFixture.actor.triggerSelfTopUp()).rejects.toThrow();
   });
 
-  test("retryCmcNotify: non-admin is rejected", async () => {
+  test("retryPendingCmcOp: non-admin is rejected", async () => {
     const stranger = createIdentity("retry-cmc-stranger");
     backendFixture.actor.setIdentity(stranger);
-    await expect(
-      backendFixture.actor.retryCmcNotify({
-        blockIndex: 0n,
-        canisterId: manager.ownerIdentity.getPrincipal(),
-        originalCaller: stranger.getPrincipal(),
-        tokenId: { ICP: null },
-        chargedAmount: 0n,
-      }),
-    ).rejects.toThrow();
+    await expect(backendFixture.actor.retryPendingCmcOp(0n)).rejects.toThrow();
   });
 
   test("triggerSelfTopUp: no-op when cycles already at/above target (fresh backend)", async () => {

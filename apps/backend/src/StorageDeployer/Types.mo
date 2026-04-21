@@ -95,7 +95,9 @@ module {
     #CanisterAlreadyUsed : { canisterId : Principal };
     #InsufficientBalance : { required : Nat; available : Nat };
     #TransferFailed : LedgerTypes.Icrc1TransferError;
-    #NotifyFailed : CMCTypes.NotifyError;
+    /// `blockIndex` is the CMC ICP deposit block — needed by CmcRecovery to
+    /// replay `notify_create_canister` on retry.
+    #NotifyFailed : { err : CMCTypes.NotifyError; blockIndex : Nat };
     #WasmInstallFailed : Text;
     #FrontendInstallFailed : Text;
     #UpdateControllersFailed : Text;
@@ -329,6 +331,12 @@ module {
     /// query compatibility. Kept in sync on every mutation via
     /// `setAmbassadorPayoutStatus`.
     ambassadorPayoutStatusTag : Text;
+    /// Subnet selection from the original `CreateCanister` task. Persisted
+    /// so CmcRecovery retry of `notify_create_canister` can pass the exact
+    /// same `subnet_selection` — otherwise an ambiguous retry could land
+    /// the canister on a different subnet than originally requested.
+    /// `null` means "CMC default subnet" (the 99% case).
+    subnetId : ?Principal;
   };
 
   /// Project `CreationStatus` variant to its index-friendly Text form. Inner

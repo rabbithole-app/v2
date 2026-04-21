@@ -18,6 +18,7 @@ import TreasuryTypes "mo:treasury/Types";
 
 import Balance "lib";
 import CMCTypes "../Types/CMCTypes";
+import CmcRecovery "../CmcRecovery/lib";
 import Settings "../Settings/lib";
 import Subscriptions "../Subscriptions/lib";
 import Notifications "../Notifications/lib";
@@ -57,9 +58,13 @@ mixin (
     /// balance has sufficient reserve (see `guardTreasuryIcpReserve`).
     transferIcpToCmc : (Nat, Principal) -> async Result.Result<Nat, Text>;
     /// Notify CMC of an ICP-for-cycles deposit. Returns `NotifyError` directly
-    /// (not a flat Text) so caller can classify by variant. See
-    /// `handleCmcNotifyError` for the branches.
+    /// (not a flat Text) so caller can classify by variant — delegated to
+    /// `cmcHandleNotifyError` below.
     notifyTopUp : (Nat64, Principal) -> async Result.Result<Nat, CMCTypes.NotifyError>;
+    /// Single entry point for all CMC `NotifyError` handling (classify +
+    /// refund OR enqueue pending op + admin notify). Wired from CmcRecovery
+    /// mixin's internal `handleCmcNotifyError`.
+    cmcHandleNotifyError : (CmcRecovery.CmcOpSource, Nat, ?CmcRecovery.RefundContext, CMCTypes.NotifyError) -> async* ();
     // Self-topup parameters — cycles.balance watermarks for the backend itself
     selfCanisterId : Principal;
     backendCyclesThreshold : Nat;
@@ -333,81 +338,6 @@ mixin (
       ?balance;
     } else {
       null;
-    };
-  };
-
-  /// Classify a CMC `notify_top_up` error:
-  /// - `#Refunded`: CMC returned the ICP to treasury; refund user in `tokenId`.
-  /// - `#InvalidTransaction`: malformed transfer, safe to refund.
-  /// - `#Processing` / `#TransactionTooOld` / `#Other`: ambiguous — cycles
-  ///   may or may not have been minted. Stay `#pending` and notify admin
-  ///   to verify before calling `retryCmcNotify`.
-  ///
-  /// `context` describes the flow (`"topUp"`, `"autoTopUp"`) — surfaced in
-  /// admin notifications and user-facing messages.
-  func handleCmcNotifyError(
-    ctx : {
-      caller : Principal;
-      canisterId : Principal;
-      tokenId : TreasuryTypes.TokenId;
-      chargedAmount : Nat;
-      blockIndex : Nat;
-      context : Text;
-    },
-    err : CMCTypes.NotifyError,
-  ) : async* () {
-    switch (err) {
-      case (#Refunded({ block_index = _; reason })) {
-        // CMC sent ICP back to treasury (same subaccount it came from).
-        // Refund the user in their `tokenId` from treasury.
-        Debug.print("[cmc notify] #Refunded for " # Principal.toText(ctx.canisterId) # " block=" # Nat.toText(ctx.blockIndex) # " (reason: " # reason # ")");
-        await* safeRefund(ctx.caller, ctx.tokenId, ctx.chargedAmount, ctx.context # " #Refunded: " # reason);
-      };
-      case (#Processing) {
-        // CMC still working. ICP is NOT refundable yet — might become cycles.
-        // Admin retries via retryCmcNotify once state is clear.
-        Debug.print("[cmc notify] #Processing for " # Principal.toText(ctx.canisterId) # " block=" # Nat.toText(ctx.blockIndex) # " — NOT refunding");
-        deps.notifyAdmins(#cmcNotifyStuck({
-          canisterId = ctx.canisterId;
-          blockIndex = ctx.blockIndex;
-          reason = "CMC #Processing — retry once state is final";
-          caller = ctx.caller;
-        }));
-      };
-      case (#TransactionTooOld(_)) {
-        // notify was submitted too late; CMC may or may not have credited cycles.
-        // Unsafe to refund — admin must verify canister balance before any recovery.
-        Debug.print("[cmc notify] #TransactionTooOld for " # Principal.toText(ctx.canisterId) # " block=" # Nat.toText(ctx.blockIndex) # " — NOT refunding");
-        deps.notifyAdmins(#cmcNotifyStuck({
-          canisterId = ctx.canisterId;
-          blockIndex = ctx.blockIndex;
-          reason = "CMC #TransactionTooOld — check canister cycles before retry";
-          caller = ctx.caller;
-        }));
-      };
-      case (#InvalidTransaction(msg)) {
-        // Terminal failure — ICP transfer is malformed from CMC's view,
-        // cycles cannot be minted from this block. Safe to refund from
-        // treasury (no double-credit risk).
-        await* safeRefund(ctx.caller, ctx.tokenId, ctx.chargedAmount, ctx.context # " #InvalidTransaction: " # msg);
-      };
-      case (#Other({ error_message; error_code })) {
-        // Ambiguous: CMC may or may not have minted cycles from this block.
-        // Auto-refunding is unsafe — if cycles DID arrive, user gets both
-        // cycles and refund (double credit from treasury). Stay `#pending`,
-        // escalate to admin with block + error details so they can verify
-        // the canister's actual cycles balance before deciding.
-        Debug.print(
-          "[cmc notify] #Other code=" # Nat64.toText(error_code) # " for " # Principal.toText(ctx.canisterId)
-          # " block=" # Nat.toText(ctx.blockIndex) # " — NOT refunding: " # error_message,
-        );
-        deps.notifyAdmins(#cmcNotifyStuck({
-          canisterId = ctx.canisterId;
-          blockIndex = ctx.blockIndex;
-          reason = "CMC #Other(" # Nat64.toText(error_code) # "): " # error_message # " — verify canister cycles before retry/refund";
-          caller = ctx.caller;
-        }));
-      };
     };
   };
 
@@ -704,18 +634,10 @@ mixin (
         #ok({ cyclesAdded = charged.actualCycles });
       };
       case (#err(err)) {
-        // Classify by CMC NotifyError variant: refund only for terminal failures,
-        // stay #pending + notify admin for retriable states, forward ICP for
-        // #Refunded. See `handleCmcNotifyError`.
-        await* handleCmcNotifyError(
-          {
-            caller;
-            canisterId;
-            tokenId = charged.tokenId;
-            chargedAmount = charged.amount;
-            blockIndex;
-            context = "topUpFromBalance";
-          },
+        await* deps.cmcHandleNotifyError(
+          #userTopUp({ canisterId }),
+          blockIndex,
+          ?{ payer = caller; tokenId = charged.tokenId; amount = charged.amount },
           err,
         );
         deps.notifyUser(caller, #topUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
@@ -819,16 +741,11 @@ mixin (
           deps.notifyUser(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
         };
         case (#err(err)) {
-          pendingCharge := null; // handleCmcNotifyError takes over (may refund, or leave pending)
-          await* handleCmcNotifyError(
-            {
-              caller = storageOwner;
-              canisterId;
-              tokenId = charged.tokenId;
-              chargedAmount = charged.amount;
-              blockIndex;
-              context = "processAutoTopUp";
-            },
+          pendingCharge := null; // cmcHandleNotifyError takes over (may refund, or enqueue pending op)
+          await* deps.cmcHandleNotifyError(
+            #autoTopUp({ canisterId }),
+            blockIndex,
+            ?{ payer = storageOwner; tokenId = charged.tokenId; amount = charged.amount },
             err,
           );
           deps.notifyUser(storageOwner, #autoTopUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
@@ -970,12 +887,9 @@ mixin (
         };
       };
       case (#err err) {
-        // Money left the treasury but cycles didn't arrive — admin intervention
-        // needed. This shouldn't happen in practice (CMC is idempotent) but
-        // we log and notify for visibility.
-        let reason = "CMC notify_top_up failed (ICP already debited, block " # Nat.toText(blockIndex) # "): " # debug_show err;
-        Debug.print("[selfTopUp] " # reason);
-        deps.notifyAdmins(#backendSelfTopUpFailed({ reason }));
+        // `null` refund: treasury auto-receives ICP on CMC `#Refunded`.
+        Debug.print("[selfTopUp] CMC notify failed block=" # Nat.toText(blockIndex) # ": " # debug_show err);
+        await* deps.cmcHandleNotifyError(#selfTopUp, blockIndex, null, err);
       };
     };
   };
@@ -990,49 +904,5 @@ mixin (
   public query ({ caller }) func getBackendCyclesBalance() : async Nat {
     admin.assertAdmin(caller);
     Cycles.balance();
-  };
-
-  /// Admin-only retry of a stuck CMC `notify_top_up`. Used when the
-  /// original top-up landed in `#Processing` / `#TransactionTooOld` /
-  /// `#Other` and the admin has verified actual state (via canister
-  /// cycles balance, ICP ledger, CMC subaccount). Takes the same
-  /// parameters the original call captured in the #cmcNotifyStuck
-  /// admin notification.
-  ///
-  /// On #ok — cycles were credited to the canister by CMC; we notify
-  /// the original caller. No token refund (treasury already burned).
-  /// On #err — classify again; the admin will see a fresh notification
-  /// or a refund.
-  public shared ({ caller }) func retryCmcNotify(
-    args : {
-      blockIndex : Nat;
-      canisterId : Principal;
-      originalCaller : Principal;
-      tokenId : TreasuryTypes.TokenId;
-      chargedAmount : Nat;
-    },
-  ) : async Result.Result<Nat, Text> {
-    admin.assertAdmin(caller);
-    let topUpResult = await deps.notifyTopUp(Nat64.fromNat(args.blockIndex), args.canisterId);
-    switch (topUpResult) {
-      case (#ok(cycles)) {
-        deps.notifyUser(args.originalCaller, #topUpCompleted({ canisterId = args.canisterId; cyclesAmount = cycles }));
-        #ok(cycles);
-      };
-      case (#err(err)) {
-        await* handleCmcNotifyError(
-          {
-            caller = args.originalCaller;
-            canisterId = args.canisterId;
-            tokenId = args.tokenId;
-            chargedAmount = args.chargedAmount;
-            blockIndex = args.blockIndex;
-            context = "retryCmcNotify";
-          },
-          err,
-        );
-        #err("retry CMC notify failed: " # debug_show err);
-      };
-    };
   };
 };

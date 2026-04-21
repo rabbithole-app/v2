@@ -117,6 +117,7 @@ module {
     ("events", #Array(StatusEventSchema)),
     ("ambassadorPayoutStatus", AmbassadorPayoutStatusSchema),
     ("ambassadorPayoutStatusTag", #Text),
+    ("subnetId", #Option(#Principal)),
   ]);
 
   let candifyCreations : ZenDB.Types.Candify<StorageCreationRecord> = {

@@ -143,12 +143,20 @@ module StorageDeployerOrchestrator {
   /// `creationId` is passed so the callback can mutate the record status.
   public type PayAmbassadorShare = (creationId : Nat, owner : Principal, paymentId : Text) -> async* ();
 
+  /// Fired when `notify_create_canister` returns an error. Callback owns
+  /// all CMC-recovery side effects (refund / enqueue pending op / admin
+  /// notify). Orchestrator awaits inline then decides on `#Failed` event
+  /// based on whether the creation record still exists (callback may have
+  /// removed it on terminal refund).
+  public type OnCmcNotifyFailed = (creationId : Nat, blockIndex : Nat, err : CMCTypes.NotifyError) -> async* ();
+
   /// Bundle of callbacks threaded through the orchestrator's async task
   /// machinery. Using a record (rather than separate params) keeps the
   /// signature stable as more hooks are added.
   public type OrchestratorCallbacks = {
     bindLicense : ?BindLicense;
     payAmbassadorShare : ?PayAmbassadorShare;
+    onCmcNotifyFailed : ?OnCmcNotifyFailed;
   };
 
   // -- Initialization --
@@ -212,7 +220,12 @@ module StorageDeployerOrchestrator {
     Text.compare(a.name, b.name);
   };
 
-  func buildEnvironmentVariables(store : Store, custom : ?[Types.EnvPair]) : ?[Types.EnvPair] {
+  /// Merge system-pinned env vars (RABBITHOLE_BACKEND_ID, VETKEY_NAME,
+  /// CAFFFEINE_STORAGE_CASHIER_PRINCIPAL) with caller-supplied custom pairs.
+  /// Public so CmcRecovery can rebuild the exact same `environment_variables`
+  /// when retrying `notify_create_canister` on ambiguous failure — otherwise
+  /// CMC might process a not-yet-resolved block with different env vars.
+  public func buildEnvironmentVariables(store : Store, custom : ?[Types.EnvPair]) : ?[Types.EnvPair] {
     let ?backendId = store.canisterId else return null;
     let ?vetKey = store.vetKeyName else return null;
     let ?cashier = store.cashierCanisterId else return null;
@@ -522,6 +535,7 @@ module StorageDeployerOrchestrator {
       events;
       ambassadorPayoutStatus;
       ambassadorPayoutStatusTag = Types.tagOfAmbassadorPayoutStatus(ambassadorPayoutStatus);
+      subnetId = null;
     };
   };
 
@@ -660,6 +674,17 @@ module StorageDeployerOrchestrator {
     };
 
     ignore creations.appendEvent(creationId, #Pending);
+
+    // Persist subnetId so CmcRecovery retry can reconstruct the exact
+    // original `subnet_selection` for `notify_create_canister`. Only the
+    // `#Create` target carries a subnet — `#Existing` inherits the
+    // subnet from the existing canister.
+    switch (options.target) {
+      case (#Create({ subnetId })) {
+        ignore creations.mutate(creationId, func(r) = { r with subnetId });
+      };
+      case (#Existing(_)) {};
+    };
 
     let taskType : TaskType = switch (options.target) {
       case (#Existing(existingId)) #LinkCanister({ canisterId = existingId });
@@ -990,6 +1015,7 @@ module StorageDeployerOrchestrator {
     let ?record = creations.get(creationId) else return;
     let bindLicense = callbacks.bindLicense;
     let payAmbassadorShare = callbacks.payAmbassadorShare;
+    let onCmcNotifyFailed = callbacks.onCmcNotifyFailed;
 
     switch (task.taskType) {
       case (#CreateCanister({ options })) {
@@ -1015,12 +1041,27 @@ module StorageDeployerOrchestrator {
             queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
           };
           case (#err(e)) {
-            let errorMsg = switch (e) {
-              case (#InsufficientBalance(_)) "Insufficient balance";
-              case (#TransferFailed(_)) "Transfer failed";
-              case (#NotifyFailed(_)) "CMC notification failed";
+            switch (e) {
+              case (#NotifyFailed({ err; blockIndex })) {
+                // Callback owns recovery side effects (refund / enqueue pending
+                // op / admin notify). Orchestrator then decides on #Failed
+                // event ONLY if creation still exists (terminal refund path
+                // may have deleted it).
+                switch (onCmcNotifyFailed) {
+                  case (?cb) await* cb(creationId, blockIndex, err);
+                  case null {};
+                };
+                if (Option.isSome(creations.get(creationId))) {
+                  ignore creations.appendEvent(creationId, #Failed("Canister creation failed: CMC notification failed"));
+                };
+              };
+              case (#InsufficientBalance(_)) {
+                ignore creations.appendEvent(creationId, #Failed("Canister creation failed: Insufficient balance"));
+              };
+              case (#TransferFailed(_)) {
+                ignore creations.appendEvent(creationId, #Failed("Canister creation failed: Transfer failed"));
+              };
             };
-            ignore creations.appendEvent(creationId, #Failed("Canister creation failed: " # errorMsg));
           };
         };
       };

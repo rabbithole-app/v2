@@ -26,7 +26,9 @@ module {
   public type CreateCanisterError = {
     #InsufficientBalance : { required : Nat; available : Nat };
     #TransferFailed : LedgerTypes.Icrc1TransferError;
-    #NotifyFailed : CMCTypes.NotifyError;
+    /// `blockIndex` is the CMC ICP deposit block — needed by CmcRecovery to
+    /// replay `notify_create_canister` on retry.
+    #NotifyFailed : { err : CMCTypes.NotifyError; blockIndex : Nat };
   };
 
   /// Transfer ICP to CMC and create a new canister. Funding sources, in order:
@@ -123,7 +125,7 @@ module {
     let result = await cmc.notify_create_canister(notifyArg);
     switch (result) {
       case (#Ok(canisterId)) #ok(canisterId);
-      case (#Err(err)) #err(#NotifyFailed(err));
+      case (#Err(err)) #err(#NotifyFailed({ err; blockIndex }));
     };
   };
 };

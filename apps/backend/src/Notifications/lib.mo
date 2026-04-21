@@ -36,7 +36,10 @@ module {
       tokenId : Text;
       amount : Nat;
     };
-    // Fired when selfTopUpFromTreasury rejects or traps.
+    // Fired for selfTopUpFromTreasury traps and outer (pre-CMC) failures only
+    // — treasury→CMC ICP transfer rejection, rate-fetch traps, etc. CMC-level
+    // `notify_top_up` errors are now routed through CmcRecovery and surface
+    // as `#cmcNotifyStuck { id }` with a retriable pending op.
     #backendSelfTopUpFailed : { reason : Text };
     // Fired when deferred ambassador payout for a creation fails. Admin
     // uses `retryAmbassadorPayout(creationId)` to re-attempt.
@@ -45,10 +48,11 @@ module {
       owner : Principal;
       reason : Text;
     };
-    // Fired when CMC notify_top_up lands in a non-terminal / unsafe-to-refund
-    // state (#Processing, #TransactionTooOld, or #Other with ambiguous error).
-    // `id` is the StuckCmcNotify row — admin calls `retryCmcNotify(id)` after
-    // verifying canister balance, or `dismissStuckCmcNotify(id)` to drop it.
+    // Fired when CMC notify_top_up / notify_create_canister lands in a
+    // non-terminal / unsafe-to-refund state (#Processing, #TransactionTooOld,
+    // or #Other with ambiguous error). `id` is the PendingCmcOp row — admin
+    // calls `retryPendingCmcOp(id)` after verifying canister balance, or
+    // `dismissPendingCmcOp(id)` to drop it.
     #cmcNotifyStuck : {
       id : Nat;
       canisterId : Principal;

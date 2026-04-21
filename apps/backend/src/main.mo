@@ -41,6 +41,8 @@ import SubscriptionsMixin "Subscriptions/mixin";
 import PaymentsMixin "Payments/mixin";
 import Balance "Balance/lib";
 import BalanceMixin "Balance/mixin";
+import CmcRecoveryMixin "CmcRecovery/mixin";
+import CmcRecovery "CmcRecovery/lib";
 import CreationsClass "StorageDeployer/Creations";
 import LicensesClass "StorageDeployer/Licenses";
 import Notifications "Notifications/lib";
@@ -218,9 +220,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       await* payAmbassadorShareForPayment(creationId, owner, paymentId);
     };
 
-  transient let orchestratorCallbacks : StorageDeployerOrchestrator.OrchestratorCallbacks = {
+  // `var` — onCmcNotifyFailed assigned after CmcRecoveryMixin include (below).
+  transient var orchestratorCallbacks : StorageDeployerOrchestrator.OrchestratorCallbacks = {
     bindLicense = ?bindLicenseCallback;
     payAmbassadorShare = ?payAmbassadorShareCallback;
+    onCmcNotifyFailed = null;
   };
 
   // --- Internal: create storage for a user (called after license payment) ---
@@ -358,8 +362,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
 
   /// Notify CMC of an ICP deposit → cycles credit. Raw `NotifyError`
-  /// variant passes through so callers can classify via
-  /// `handleCmcNotifyError`.
+  /// variant passes through so callers can classify via the CmcRecovery
+  /// classifier.
   func notifyTopUpCmc(blockIndex : Nat64, targetCanisterId : Principal) : async Result.Result<Nat, CMCTypes.NotifyError> {
     let cmc = actor (CMC_CANISTER_ID) : CMCTypes.Self;
     let result = await cmc.notify_top_up({
@@ -370,6 +374,207 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       case (#Ok(cycles)) #ok(cycles);
       case (#Err(err)) #err(err);
     };
+  };
+
+  /// Retry `notify_create_canister` with the original settings (controllers,
+  /// env vars, subnet). CMC applies these only if the block isn't yet
+  /// resolved — `null` would risk mis-configured canister in that window.
+  func retryCmcCreateCanisterForCreation(
+    creationId : Nat,
+    blockIndex : Nat,
+  ) : async Result.Result<Principal, CMCTypes.NotifyError> {
+    let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
+      return #err(#Other({ error_message = "creation record missing for id=" # Nat.toText(creationId); error_code = 0 }));
+    };
+    let envVars = StorageDeployerOrchestrator.buildEnvironmentVariables(storageOrchestrator, record.envPairs);
+    let subnetSelection : ?CMCTypes.SubnetSelection = switch (record.subnetId) {
+      case (?subnet) ?#Subnet({ subnet });
+      case null null;
+    };
+    let cmc = actor (CMC_CANISTER_ID) : CMCTypes.Self;
+    let result = await cmc.notify_create_canister({
+      block_index = Nat64.fromNat(blockIndex);
+      controller = canisterId;
+      subnet_selection = subnetSelection;
+      settings = ?{
+        controllers = ?[canisterId, record.owner];
+        freezing_threshold = null;
+        wasm_memory_threshold = null;
+        environment_variables = envVars;
+        reserved_cycles_limit = null;
+        log_visibility = null;
+        log_memory_limit = null;
+        wasm_memory_limit = null;
+        memory_allocation = null;
+        compute_allocation = null;
+      };
+      subnet_type = null;
+    });
+    switch (result) {
+      case (#Ok(cId)) #ok(cId);
+      case (#Err(err)) #err(err);
+    };
+  };
+
+  /// Per-creationId mutex shared between `#resume` and `#refund` strategies
+  /// of `recoverFailedStorage` AND the CmcRecovery Timer continuation.
+  /// Acquired synchronously at entry (before any `await`) so concurrent
+  /// calls on the same id see the lock and bail. Transient — on upgrade
+  /// the set resets (in-flight messages are lost anyway).
+  transient let creationLocks = Set.empty<Nat>();
+
+  /// Internal resume — no caller auth, shared by `recoverFailedStorage` and
+  /// CmcRecovery Timer continuation. Idempotent: invalid preconditions
+  /// (missing / non-failed / refunded creation) return `#err` with no side
+  /// effects. Takes `creationLocks` internally — concurrent invocations on
+  /// the same id serialize.
+  func resumeFailedCreationInternal(creationId : Nat) : async Result.Result<(), Text> {
+    if (Set.contains(creationLocks, Nat.compare, creationId)) {
+      return #err("another refund or resume is in progress for this creation");
+    };
+    Set.add(creationLocks, Nat.compare, creationId);
+
+    try {
+      let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
+        return #err("creation not found");
+      };
+      let isFailed = switch (record.status) { case (#Failed _) true; case _ false };
+      if (not isFailed) return #err("creation is not in failed state");
+      let ?paymentId = record.licensePaymentId else {
+        return #err("no license on record — use purchase flow instead");
+      };
+      let ?license = StorageDeployerOrchestrator.findLicenseByPaymentId(licenses, record.owner, paymentId) else {
+        return #err("license for payment not found");
+      };
+      switch (license.receipt.status) {
+        case (#completed) {};
+        case (#refunded _) return #err("license was refunded — cannot resume");
+      };
+
+      // Checkpoint-aware target: existing canister → Link, else → fresh Create.
+      let target : StorageDeployerOrchestrator.TargetCanister = switch (record.canisterId) {
+        case (?id) #Existing(id);
+        case null #Create({ initialCycles = STORAGE_INITIAL_CYCLES; subnetId = null });
+      };
+
+      ignore StorageDeployerOrchestrator.startStorageCreation<system>(
+        storageOrchestrator,
+        creations,
+        creationId,
+        {
+          releaseSelector = #Latest;
+          initArg = record.initArg;
+          envPairs = record.envPairs;
+          target;
+        },
+        orchestratorCallbacks,
+      );
+      #ok();
+    } finally {
+      Set.remove(creationLocks, Nat.compare, creationId);
+    };
+  };
+
+  /// Internal refund — idempotent contract. Missing / already-refunded /
+  /// post-canister-creation states return `#err` with no side effects. This
+  /// lets CmcRecovery retry race with parallel admin calls safely.
+  func refundFailedCreationInternal(creationId : Nat) : async Result.Result<(), Text> {
+    if (Set.contains(creationLocks, Nat.compare, creationId)) {
+      return #err("another refund or resume is in progress for this creation");
+    };
+    Set.add(creationLocks, Nat.compare, creationId);
+
+    try {
+      let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
+        return #err("creation not found");
+      };
+      let owner = record.owner;
+      let isFailed = switch (record.status) { case (#Failed _) true; case _ false };
+      if (not isFailed) return #err("creation is not in failed state");
+      if (record.canisterId != null) {
+        return #err("canister already created — cannot refund; use #resume instead");
+      };
+      let ?paymentId = record.licensePaymentId else {
+        return #err("no license on record");
+      };
+      let ?license = StorageDeployerOrchestrator.findLicenseByPaymentId(licenses, owner, paymentId) else {
+        return #err("license for payment not found");
+      };
+      switch (license.receipt.status) {
+        case (#completed) {};
+        case (#refunded _) return #err("already refunded");
+      };
+
+      try {
+        switch (await* treasurySimpleRefund(owner, license.receipt.tokenId, license.receipt.amount)) {
+          case (#err msg) #err("refund transfer failed: " # msg);
+          case (#ok _) {
+            ignore StorageDeployerOrchestrator.markLicenseRefunded(
+              licenses,
+              owner,
+              paymentId,
+              null,
+              "creation failed before canister existed",
+            );
+            ignore StorageDeployerOrchestrator.removeRefundedCreation(creations, creationId);
+            notifyAdmins(#creationRefunded({
+              creationId;
+              owner;
+              tokenId = debug_show license.receipt.tokenId;
+              amount = license.receipt.amount;
+            }));
+            #ok();
+          };
+        };
+      } catch (err) {
+        #err("refund rejected: " # Error.message(err));
+      };
+    } finally {
+      Set.remove(creationLocks, Nat.compare, creationId);
+    };
+  };
+
+  include CmcRecoveryMixin(
+    { assertAdmin },
+    { simpleRefund = treasurySimpleRefund },
+    {
+      notifyTopUp = notifyTopUpCmc;
+      notifyCreateCanisterForCreation = retryCmcCreateCanisterForCreation;
+    },
+    {
+      get = creations.get;
+      mutate = creations.mutate;
+    },
+    {
+      resumeFailedCreationInternal;
+      refundFailedCreationInternal;
+      notifyUser;
+      notifyAdmins;
+      selfCanisterId = canisterId;
+    },
+  );
+
+  orchestratorCallbacks := {
+    orchestratorCallbacks with
+    onCmcNotifyFailed = ?(
+      func(creationId : Nat, blockIndex : Nat, err : CMCTypes.NotifyError) : async* () {
+        let refund : ?CmcRecovery.RefundContext = switch (StorageDeployerOrchestrator.getCreationRecordById(creations, creationId)) {
+          case (?record) {
+            switch (record.licensePaymentId) {
+              case (?paymentId) {
+                switch (StorageDeployerOrchestrator.findLicenseByPaymentId(licenses, record.owner, paymentId)) {
+                  case (?license) ?{ payer = record.owner; tokenId = license.receipt.tokenId; amount = license.receipt.amount };
+                  case null null;
+                };
+              };
+              case null null;
+            };
+          };
+          case null null;
+        };
+        await* handleCmcNotifyError(#storageCreation({ creationId }), blockIndex, refund, err);
+      }
+    );
   };
 
   include BalanceMixin(
@@ -398,6 +603,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       verifyCanisterOwner;
       transferIcpToCmc;
       notifyTopUp = notifyTopUpCmc;
+      cmcHandleNotifyError = handleCmcNotifyError;
       selfCanisterId = canisterId;
       backendCyclesThreshold = BACKEND_CYCLES_THRESHOLD;
       backendCyclesTarget = BACKEND_CYCLES_TARGET;
@@ -577,18 +783,6 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
-  /// Per-creationId mutex shared between `#resume` and `#refund` strategies
-  /// of `recoverFailedStorage`. Acquired synchronously at function entry (before
-  /// any `await`) so concurrent calls on the same id see the lock and bail.
-  /// Prevents the TOCTOU where two parallel refunds both pass the `#completed`
-  /// check (double transfer) or a resume re-queues creation while a refund
-  /// is in its transfer await window.
-  ///
-  /// Transient: on upgrade the set is empty again. That's fine — in-flight
-  /// messages would have been lost anyway, so lingering lock state wouldn't
-  /// make sense post-upgrade.
-  transient let creationLocks = Set.empty<Nat>();
-
   public type RecoveryStrategy = { #resume; #refund };
 
   /// Recover a failed storage creation. Owner OR admin may call.
@@ -611,111 +805,18 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ) : async Result.Result<(), Text> {
     assert not Principal.isAnonymous(caller);
 
-    // Acquire lock synchronously — no await between check and add, so the
-    // pair is atomic within this message.
-    if (Set.contains(creationLocks, Nat.compare, creationId)) {
-      return #err("another refund or resume is in progress for this creation");
+    // Auth first — internal helpers skip this (Timer self-calls from
+    // CmcRecovery retry go through them directly).
+    let ?owner = StorageDeployerOrchestrator.getCreationOwner(creations, creationId) else {
+      return #err("creation not found");
     };
-    Set.add(creationLocks, Nat.compare, creationId);
+    if (not Principal.equal(caller, owner) and not isAdminPrincipal(caller)) {
+      return #err("not owner and not admin");
+    };
 
-    // `finally` collapses all early-exit cleanup paths into one release.
-    // NOTE: Motoko docs do not guarantee `finally` runs on trap — traps
-    // roll the entire message back to the last await commit, which leaves
-    // the lock held. That's acceptable: a stuck lock is recoverable via
-    // admin intervention / upgrade, whereas a prematurely-released lock
-    // would invite concurrent refunds.
-    try {
-      // Common preconditions: ownership + Failed state + license present.
-      let ?owner = StorageDeployerOrchestrator.getCreationOwner(creations, creationId) else {
-        return #err("creation not found");
-      };
-      if (not Principal.equal(caller, owner) and not isAdminPrincipal(caller)) {
-        return #err("not owner and not admin");
-      };
-
-      let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
-        return #err("creation not found");
-      };
-
-      let isFailed = switch (record.status) { case (#Failed _) true; case _ false };
-      if (not isFailed) return #err("creation is not in failed state");
-
-      let ?paymentId = record.licensePaymentId else {
-        return #err("no license on record — use purchase flow instead");
-      };
-      let ?license = StorageDeployerOrchestrator.findLicenseByPaymentId(licenses, owner, paymentId) else {
-        return #err("license for payment not found");
-      };
-
-      switch (strategy) {
-        case (#resume) {
-          switch (license.receipt.status) {
-            case (#completed) {};
-            case (#refunded _) return #err("license was refunded — cannot resume");
-          };
-
-          // Checkpoint-aware target: existing canister → Link, else → fresh Create.
-          let target : StorageDeployerOrchestrator.TargetCanister = switch (record.canisterId) {
-            case (?id) #Existing(id);
-            case null #Create({ initialCycles = STORAGE_INITIAL_CYCLES; subnetId = null });
-          };
-
-          ignore StorageDeployerOrchestrator.startStorageCreation<system>(
-            storageOrchestrator,
-            creations,
-            creationId,
-            {
-              releaseSelector = #Latest;
-              initArg = record.initArg;
-              envPairs = record.envPairs;
-              target;
-            },
-            orchestratorCallbacks,
-          );
-          #ok();
-        };
-        case (#refund) {
-          // Point of no return — after canister exists the cycles are spent.
-          if (record.canisterId != null) {
-            return #err("canister already created — cannot refund; use #resume instead");
-          };
-          switch (license.receipt.status) {
-            case (#completed) {};
-            case (#refunded _) return #err("already refunded");
-          };
-
-          // Lock held across await — no other caller (refund OR resume) can
-          // run until `finally` releases it. Post-processing
-          // (markLicenseRefunded, removeRefundedCreation) is a pair of ZenDB
-          // writes, trap-free on valid input.
-          try {
-            switch (await* treasurySimpleRefund(owner, license.receipt.tokenId, license.receipt.amount)) {
-              case (#err msg) #err("refund transfer failed: " # msg);
-              case (#ok _) {
-                ignore StorageDeployerOrchestrator.markLicenseRefunded(
-                  licenses,
-                  owner,
-                  paymentId,
-                  null,
-                  "creation failed before canister existed",
-                );
-                ignore StorageDeployerOrchestrator.removeRefundedCreation(creations, creationId);
-                notifyAdmins(#creationRefunded({
-                  creationId;
-                  owner;
-                  tokenId = debug_show license.receipt.tokenId;
-                  amount = license.receipt.amount;
-                }));
-                #ok();
-              };
-            };
-          } catch (err) {
-            #err("refund rejected: " # Error.message(err));
-          };
-        };
-      };
-    } finally {
-      Set.remove(creationLocks, Nat.compare, creationId);
+    switch (strategy) {
+      case (#resume) await resumeFailedCreationInternal(creationId);
+      case (#refund) await refundFailedCreationInternal(creationId);
     };
   };
 

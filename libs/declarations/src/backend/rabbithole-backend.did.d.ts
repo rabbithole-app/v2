@@ -41,6 +41,18 @@ export interface CallbackStreamingStrategy {
 }
 export type ChainConfig = { 'Evm' : EvmChainConfig } |
   { 'Solana' : SolanaChainConfig };
+export type CmcOpKind = { 'CreateCanister' : null } |
+  { 'TopUp' : null };
+export type CmcOpRetryResult = { 'scheduled' : { 'canisterId' : Principal } } |
+  { 'resolved' : null } |
+  { 'refunded' : null } |
+  { 'blockedByRefund' : null } |
+  { 'notFound' : null } |
+  { 'stillAmbiguous' : { 'attempts' : bigint } };
+export type CmcOpSource = { 'storageCreation' : { 'creationId' : bigint } } |
+  { 'selfTopUp' : null } |
+  { 'userTopUp' : { 'canisterId' : Principal } } |
+  { 'autoTopUp' : { 'canisterId' : Principal } };
 export interface CreateProfileArgs {
   'username' : string,
   'displayName' : [] | [string],
@@ -234,6 +246,17 @@ export type PaymentStatus = { 'completed' : null } |
       'reason' : string,
     }
   };
+export interface PendingCmcOp {
+  'id' : bigint,
+  'lastAttemptAt' : [] | [Time],
+  'source' : CmcOpSource,
+  'kind' : CmcOpKind,
+  'createdAt' : Time,
+  'attempts' : bigint,
+  'blockIndex' : bigint,
+  'lastError' : string,
+  'refund' : [] | [RefundContext],
+}
 export interface PendingRefund {
   'tokenId' : TokenId,
   'userId' : Principal,
@@ -296,7 +319,7 @@ export interface Rabbithole {
    * / Controller who wants Trial calls `activateTrial()` separately
    * / (per-account, not per-storage; only once per account).
    */
-  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_7>,
+  'addStorage' : ActorMethod<[Principal, Uint8Array | number[]], Result_6>,
   'adminRegisterWasmHash' : ActorMethod<
     [Uint8Array | number[], string],
     undefined
@@ -308,10 +331,16 @@ export interface Rabbithole {
   >,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array | number[]>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_6>,
+  'deleteStorage' : ActorMethod<[bigint], Result_5>,
+  'dismissPendingCmcOp' : ActorMethod<
+    [bigint],
+    { 'ok' : null } |
+      { 'notFound' : null }
+  >,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
   'getBackendCyclesBalance' : ActorMethod<[], bigint>,
+  'getCmcRecoveryStats' : ActorMethod<[], StatsView>,
   'getDistributionLog' : ActorMethod<
     [DistributionLogOptions],
     Array<DistributionRecord>
@@ -367,6 +396,10 @@ export interface Rabbithole {
     [[] | [ListLicensesOptions]],
     GetLicensesResponse
   >,
+  'listPendingCmcOps' : ActorMethod<
+    [{ 'limit' : [] | [bigint], 'afterId' : [] | [bigint] }],
+    Array<PendingCmcOp>
+  >,
   'listProfiles' : ActorMethod<[ListOptions__1], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
   'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
@@ -391,9 +424,9 @@ export interface Rabbithole {
    */
   'purchaseLicenseAndCreateStorage' : ActorMethod<
     [StorageBackendType, [] | [Array<{ 'value' : string, 'name' : string }>]],
-    Result_5
+    Result_4
   >,
-  'purchaseSubscription' : ActorMethod<[Plan], Result_4>,
+  'purchaseSubscription' : ActorMethod<[Plan], Result_3>,
   'queryExpiredSubscriptions' : ActorMethod<
     [],
     Array<[Principal, Subscription]>
@@ -418,7 +451,7 @@ export interface Rabbithole {
    * / concurrent recover calls on the same id serialize: the loser sees
    * / "another refund or resume is in progress".
    */
-  'recoverFailedStorage' : ActorMethod<[bigint, RecoveryStrategy], Result_3>,
+  'recoverFailedStorage' : ActorMethod<[bigint, RecoveryStrategy], Result_2>,
   'refreshReleases' : ActorMethod<[], undefined>,
   'register' : ActorMethod<[[] | [string]], undefined>,
   /**
@@ -438,19 +471,8 @@ export interface Rabbithole {
    * / the payout had actually succeeded and only the status-stamp failed,
    * / treasury returns `#AlreadyProcessed` which we translate to `#completed`.
    */
-  'retryAmbassadorPayout' : ActorMethod<[bigint], Result_3>,
-  'retryCmcNotify' : ActorMethod<
-    [
-      {
-        'tokenId' : TokenId,
-        'blockIndex' : bigint,
-        'chargedAmount' : bigint,
-        'originalCaller' : Principal,
-        'canisterId' : Principal,
-      },
-    ],
-    Result_2
-  >,
+  'retryAmbassadorPayout' : ActorMethod<[bigint], Result_2>,
+  'retryPendingCmcOp' : ActorMethod<[bigint], CmcOpRetryResult>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'setUserRole' : ActorMethod<[Principal, Role], undefined>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
@@ -494,6 +516,11 @@ export interface RawUpdateHttpResponse {
 }
 export type RecoveryStrategy = { 'resume' : null } |
   { 'refund' : null };
+export interface RefundContext {
+  'tokenId' : TokenId,
+  'payer' : Principal,
+  'amount' : bigint,
+}
 export interface ReleaseFullStatus {
   'tagName' : string,
   'isDownloaded' : boolean,
@@ -518,17 +545,15 @@ export type Result = { 'ok' : null } |
   { 'err' : UpgradeStorageError };
 export type Result_1 = { 'ok' : { 'cyclesAdded' : bigint } } |
   { 'err' : string };
-export type Result_2 = { 'ok' : bigint } |
+export type Result_2 = { 'ok' : null } |
   { 'err' : string };
 export type Result_3 = { 'ok' : null } |
-  { 'err' : string };
-export type Result_4 = { 'ok' : null } |
   { 'err' : PurchaseError };
-export type Result_5 = { 'ok' : bigint } |
+export type Result_4 = { 'ok' : bigint } |
   { 'err' : PurchaseError };
-export type Result_6 = { 'ok' : null } |
+export type Result_5 = { 'ok' : null } |
   { 'err' : DeleteStorageError };
-export type Result_7 = { 'ok' : bigint } |
+export type Result_6 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
 export type Role = { 'admin' : null } |
   { 'moderator' : null } |
@@ -541,6 +566,12 @@ export interface SolanaChainConfig {
 }
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
+export interface StatsView {
+  'totalResolved' : bigint,
+  'totalRefunded' : bigint,
+  'totalDismissed' : bigint,
+  'totalCreated' : bigint,
+}
 export type Status = { 'Active' : null } |
   { 'Cancelled' : null } |
   { 'Expired' : null };
@@ -559,6 +590,7 @@ export interface StorageCreationRecord {
   'lastUpgradeError' : [] | [string],
   'isUpgrade' : boolean,
   'statusTag' : string,
+  'subnetId' : [] | [Principal],
   'upgradeIncludesFrontend' : boolean,
   'ambassadorPayoutStatusTag' : string,
   'events' : Array<StatusEvent>,
@@ -653,6 +685,7 @@ export type TypedEvent = {
   { 'trialStarted' : { 'limitBytes' : bigint } } |
   {
     'cmcNotifyStuck' : {
+      'id' : bigint,
       'blockIndex' : bigint,
       'caller' : Principal,
       'canisterId' : Principal,
