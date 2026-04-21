@@ -299,6 +299,37 @@ export class BackendManager extends BaseManager {
     return { actor, canisterId };
   }
 
+  /**
+   * Fixed treasury subaccount — mirrors `libs/motoko/treasury/src/Const.mo`
+   * `treasurySubaccount()`. Layout: [0x00, "treasury" (8 bytes), 23 × 0].
+   */
+  static readonly TREASURY_SUBACCOUNT: Uint8Array = new Uint8Array([
+    0x00, 0x74, 0x72, 0x65, 0x61, 0x73, 0x75, 0x72, 0x79,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+  ]);
+
+  /** Mint ICRC-1 tokens to the backend's treasury subaccount (unified
+   *  ICP pool for CMC top-ups + ambassador payouts + refunds). */
+  async mintToTreasurySubaccount(
+    ledgerCanisterId: Principal,
+    amount: bigint,
+  ) {
+    if (!this._backendCanisterId) throw new Error("Call initBackendCanister first");
+    const ledgerActor = this.pic.createActor<IcrcIcrc1Service>(
+      idlFactoryIcrcLedger,
+      ledgerCanisterId,
+    );
+    ledgerActor.setIdentity(minterIdentity);
+    const result = await ledgerActor.icrc1_transfer({
+      to: { owner: this._backendCanisterId, subaccount: [BackendManager.TREASURY_SUBACCOUNT] },
+      fee: [], memo: [], from_subaccount: [], created_at_time: [],
+      amount,
+    });
+    if ("Err" in result) throw new Error(`Mint to treasury failed: ${JSON.stringify(result.Err)}`);
+  }
+
   /** Mint ICRC-1 tokens to a user's subaccount on the backend canister */
   async mintToUserSubaccount(
     ledgerCanisterId: Principal,

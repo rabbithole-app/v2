@@ -26,6 +26,14 @@ module {
     #err : Text;
   };
 
+  /// Sub-phase observable from within `chargeForService`. Callers can pass
+  /// an `onPhase` callback to surface these transitions on the UI.
+  public type ChargePhase = {
+    #fetchingRates;
+    #checkingBalances;
+    #charging : { tokenId : TreasuryTypes.TokenId; amount : Nat };
+  };
+
   /// XRC rate pair: (rate, decimals). Rate is scaled by 10^decimals.
   public type XrcRate = (Nat64, Nat32);
 
@@ -41,6 +49,15 @@ module {
   public func isStablecoin(tokenId : TreasuryTypes.TokenId) : Bool {
     switch (tokenId) {
       case (#ckUSDC or #ckUSDT or #BaseUSDC or #BaseUSDT or #SolUSDC or #SolUSDT) true;
+      case _ false;
+    };
+  };
+
+  /// IC-native token (lives on NNS/IC ledgers). Used to gate IC-only flows
+  /// like simpleRefund and deferred ambassador payout.
+  public func isIcToken(tokenId : TreasuryTypes.TokenId) : Bool {
+    switch (tokenId) {
+      case (#ICP or #ckUSDC or #ckUSDT or #ckETH) true;
       case _ false;
     };
   };

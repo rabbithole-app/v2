@@ -163,7 +163,8 @@ module {
       let q = ZenDB.QueryBuilder().Where("userId", #eq(#Principal(userId))).Limit(1);
       let #ok({ documents }) = collection.search(q) else return null;
       if (documents.size() == 0) return null;
-      ?documents[0];
+      let (docId, sub, _) = documents[0];
+      ?(docId, sub);
     };
 
     public func getSubscription(userId : Principal) : ?Subscription {
@@ -316,9 +317,9 @@ module {
 
       let #ok({ documents }) = collection.search(q) else return [];
 
-      let expired = Array.map<(ZenDB.Types.DocumentId, Subscription), Principal>(documents, func(_, sub) = sub.userId);
+      let expired = Array.map<(ZenDB.Types.DocumentId, Subscription, [ZenDB.Types.TextMatch]), Principal>(documents, func(_, sub, _) = sub.userId);
 
-      for ((docId, sub) in documents.vals()) {
+      for ((docId, sub, _) in documents.vals()) {
         ignore collection.replace(docId, { sub with status = #Expired; updatedAt = now });
       };
 
@@ -334,7 +335,7 @@ module {
         .Where("expiresAt", #gte(#Option(#Int(now))));
 
       let #ok({ documents }) = collection.search(q) else return [];
-      Array.map<(ZenDB.Types.DocumentId, Subscription), (Principal, Subscription)>(documents, func(_, sub) = (sub.userId, withEffectiveStatus(sub)));
+      Array.map<(ZenDB.Types.DocumentId, Subscription, [ZenDB.Types.TextMatch]), (Principal, Subscription)>(documents, func(_, sub, _) = (sub.userId, withEffectiveStatus(sub)));
     };
 
     /// Get subscriptions with Expired status (for grace period downgrade).
@@ -343,14 +344,14 @@ module {
         .Where("status", #eq(#Text("Expired")));
 
       let #ok({ documents }) = collection.search(q) else return [];
-      Array.map<(ZenDB.Types.DocumentId, Subscription), (Principal, Subscription)>(documents, func(_, sub) = (sub.userId, sub));
+      Array.map<(ZenDB.Types.DocumentId, Subscription, [ZenDB.Types.TextMatch]), (Principal, Subscription)>(documents, func(_, sub, _) = (sub.userId, sub));
     };
 
     public func recordTrialBytes(userId : Principal, bytes : Nat) {
       let q = ZenDB.QueryBuilder().Where("userId", #eq(#Principal(userId))).Limit(1);
       let #ok({ documents }) = collection.search(q) else return;
       if (documents.size() == 0) return;
-      let (docId, sub) = documents[0];
+      let (docId, sub, _) = documents[0];
 
       ignore collection.updateById(docId, [
         ("trialUsedBytes", #Nat(sub.trialUsedBytes + bytes)),
@@ -375,7 +376,7 @@ module {
       let instructions = IC.countInstructions(
         func() {
           data := switch (collection.search(dbQuery)) {
-            case (#ok({ documents })) Array.map<(ZenDB.Types.DocumentId, Subscription), Subscription>(documents, func(_, sub) = withEffectiveStatus(sub));
+            case (#ok({ documents })) Array.map<(ZenDB.Types.DocumentId, Subscription, [ZenDB.Types.TextMatch]), Subscription>(documents, func(_, sub, _) = withEffectiveStatus(sub));
             case (#err message) Runtime.trap("list failed: " # message);
           };
 

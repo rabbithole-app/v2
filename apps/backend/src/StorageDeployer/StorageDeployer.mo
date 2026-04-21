@@ -29,8 +29,12 @@ module {
     #NotifyFailed : CMCTypes.NotifyError;
   };
 
-  /// Transfer ICP from user's derived subaccount to CMC and create a new canister.
-  /// The backend canister owns the subaccount, so it uses icrc1_transfer (not transferFrom).
+  /// Transfer ICP to CMC and create a new canister. Funding sources, in order:
+  ///   1. User's derived ICP subaccount (legacy flow — user deposits ICP directly)
+  ///   2. Backend's default ICP account (application treasury — funded by admin,
+  ///      covers users who paid in SOL/ETH/USDC via chargeAndDistribute)
+  /// Picks the first source with enough balance. If neither has enough → #InsufficientBalance
+  /// reports the larger of the two balances so admin sees actionable info.
   public func transferAndCreateCanister(
     deployerCanisterId : Principal,
     caller : Principal,
@@ -50,20 +54,31 @@ module {
     let requiredIcpE8s = numerator / denominator;
     let totalRequired = requiredIcpE8s + FEE;
 
-    // --- Step 2: Check balance on user's subaccount ---
+    // --- Step 2: Pick funding source — user subaccount first, then backend treasury ---
     let userSubaccount = Account.principalToSubaccount(caller);
-    let balance = await ledger.icrc1_balance_of({
+    let userBalance = await ledger.icrc1_balance_of({
       owner = deployerCanisterId;
       subaccount = ?userSubaccount;
     });
-    if (balance < totalRequired) {
-      return #err(#InsufficientBalance({
-        required = totalRequired;
-        available = balance;
-      }));
+    let fromSubaccount : ?Blob = if (userBalance >= totalRequired) {
+      ?userSubaccount;
+    } else {
+      let treasuryBalance = await ledger.icrc1_balance_of({
+        owner = deployerCanisterId;
+        subaccount = null;
+      });
+      if (treasuryBalance >= totalRequired) {
+        null; // default subaccount
+      } else {
+        let available = if (treasuryBalance > userBalance) treasuryBalance else userBalance;
+        return #err(#InsufficientBalance({
+          required = totalRequired;
+          available;
+        }));
+      };
     };
 
-    // --- Step 3: Transfer ICP from user subaccount to CMC ---
+    // --- Step 3: Transfer ICP from chosen source to CMC ---
     let memoBlob = ByteUtils.LE.fromNat64(MEMO_CREATE_CANISTER) |> Blob.fromArray(_);
     let cmcSubaccount = Account.principalToSubaccount(deployerCanisterId);
     let transferResult = await ledger.icrc1_transfer({
@@ -72,7 +87,7 @@ module {
         subaccount = ?cmcSubaccount;
       };
       fee = ?FEE;
-      from_subaccount = ?userSubaccount;
+      from_subaccount = fromSubaccount;
       memo = ?memoBlob;
       created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
       amount = requiredIcpE8s;

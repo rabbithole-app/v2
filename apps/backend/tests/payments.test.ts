@@ -11,6 +11,10 @@ import {
   userAlice,
 } from './setup/helpers.ts';
 
+// Mirrors the backend `ICPAY_ENABLED` flag in main.mo. Webhook-dependent
+// tests skip while ICPay middleware is off.
+const ICPAY_ENABLED = false;
+
 describe('PaymentsMixin', () => {
   let pic: PocketIc;
   let actor: CanisterFixture<RabbitholeActorService>['actor'];
@@ -35,6 +39,7 @@ describe('PaymentsMixin', () => {
 
   // ---- Webhook HTTP tests ----
 
+  describe.skipIf(!ICPAY_ENABLED)('webhook HTTP', () => {
   function buildHttpRequest(body: string, signature: string) {
     const bodyBytes = new TextEncoder().encode(body);
     return {
@@ -184,5 +189,6 @@ describe('PaymentsMixin', () => {
       (n: any) => 'depositReceived' in n.event
     );
     expect(depositsAfter).toHaveLength(2);
+  });
   });
 });

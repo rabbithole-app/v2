@@ -1,3 +1,4 @@
+import Array "mo:core/Array";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
 
@@ -13,6 +14,32 @@ module {
   };
 
   public type StorageBackendType = { #BlobStorage; #OnChain };
+
+  /// Env-var names that `buildEnvironmentVariables` pins to system-derived
+  /// values (backend principal, etc.). User-provided pairs with these names
+  /// are silently dropped so the system default always wins.
+  public let RESERVED_ENV_NAMES : [Text] = ["RABBITHOLE_BACKEND_ID"];
+
+  func isReservedEnvName(name : Text) : Bool {
+    for (reserved in RESERVED_ENV_NAMES.vals()) {
+      if (Text.equal(name, reserved)) return true;
+    };
+    false;
+  };
+
+  /// Strip user-supplied envPairs of anything that would try to override a
+  /// system-pinned name. Non-destructive: everything else passes through
+  /// untouched, so the caller never sees an error from "slightly wrong"
+  /// input. The canister consuming the init arg is still free to apply its
+  /// own domain validation on lengths / character sets.
+  public func sanitizeEnvPairs(pairs : ?[{ name : Text; value : Text }]) : ?[{ name : Text; value : Text }] {
+    let ?arr = pairs else return null;
+    let filtered = Array.filter<{ name : Text; value : Text }>(
+      arr,
+      func(p) = not isReservedEnvName(p.name),
+    );
+    if (filtered.size() == 0) null else ?filtered;
+  };
 
   public func parseStorageBackendType(text : Text) : ?StorageBackendType {
     if (text == "BlobStorage") ?#BlobStorage

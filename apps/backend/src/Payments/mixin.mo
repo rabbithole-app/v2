@@ -149,7 +149,9 @@ mixin(
           switch (Payments.extractStorageConfig(payment.metadata)) {
             case (?config) {
               let initArg = Payments.encodeStorageInitArg(userId, ?config.storageBackendType);
-              let envPairs = Payments.extractEnvPairs(payment.metadata);
+              // Drop reserved-name entries coming from ICPay webhook metadata
+              // before forwarding to the canister init.
+              let envPairs = Payments.sanitizeEnvPairs(Payments.extractEnvPairs(payment.metadata));
               switch (deps.createStorageForUser<system>(userId, initArg, envPairs)) {
                 case (#ok()) Debug.print("Auto-created storage for " # Principal.toText(userId));
                 case (#err(e)) Debug.print("Storage auto-create failed for " # Principal.toText(userId) # ": " # e);

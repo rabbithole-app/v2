@@ -23,6 +23,7 @@ import {
 import {
   BaseManager,
   E8S_PER_ICP,
+  ICP_LEDGER_CANISTER_ID,
   minterIdentity,
 } from '@rabbithole/testing';
 import { waitWithAutoProgress } from '@rabbithole/testing';
@@ -229,8 +230,11 @@ describe('Integration: deposit + wallet + settings', () => {
 });
 
 // ========== Test Suite 2: Webhook → Subscription Activation ==========
+// Mirrors the backend `ICPAY_ENABLED` flag in main.mo — skipped while
+// ICPay middleware is off.
+const ICPAY_ENABLED = false;
 
-describe('Integration: webhook license/pro → subscription', () => {
+describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscription', () => {
   let manager: BaseManager;
   let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
@@ -298,7 +302,7 @@ describe('Integration: webhook license/pro → subscription', () => {
 
     // Verify license created (not subscription)
     actor.setIdentity(userIdentity);
-    const licenses = await actor.listLicenses();
+    const licenses = (await actor.listLicenses([])).data;
     expect(licenses).toHaveLength(1);
     expect(licenses[0].canisterId).toHaveLength(0); // unbound
     expect(licenses[0].receipt.paymentId).toBe('pay-license-integ');
@@ -1132,13 +1136,9 @@ describe('Integration: topUpFromBalance full flow', () => {
     }
     expect(ready).toBe(true);
 
-    // Fund backend's main account with ICP (for CMC transfers)
-    manager.icpLedgerActor.setIdentity(minterIdentity);
-    await manager.icpLedgerActor.icrc1_transfer({
-      to: { owner: backendCanisterId, subaccount: [] },
-      fee: [], memo: [], from_subaccount: [], created_at_time: [],
-      amount: 100n * E8S_PER_ICP,
-    });
+    // Fund backend's TREASURY subaccount with ICP (unified pool — CMC
+    // top-ups draw from treasury now, not default).
+    await manager.mintToTreasurySubaccount(ICP_LEDGER_CANISTER_ID, 100n * E8S_PER_ICP);
 
     // Deploy storage canister directly via PocketIC
     // initEncryptedStorage and encryptedStorageIdlFactory imported statically at top of file

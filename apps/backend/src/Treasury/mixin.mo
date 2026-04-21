@@ -5,22 +5,20 @@ import Result "mo:core/Result";
 import Treasury "mo:treasury";
 import TreasuryTypes "mo:treasury/Types";
 import Account "mo:treasury/common/Account";
-import V1Types "mo:treasury/Migrations/V1/Types";
-
 import Types "../Types/lib";
 
 mixin(
   config : {
     canisterId : Principal;
-    admin : Principal;
     thresholdKeyName : Types.ThresholdKeyName;
     chains : [Types.ChainConfig];
   },
-  assertAdmin : (Principal) -> (),
+  admin : { assertAdmin : (Principal) -> () },
 ) {
-  // Treasury stable store — persistent across upgrades
+  // Treasury stable store — persistent across upgrades.
+  // Treasury funds now live at a fixed subaccount (Const.TREASURY_SUBACCOUNT
+  // in the treasury library) instead of being keyed by an admin principal.
   var treasuryStableStore = Treasury.initStableStore({
-    admin = config.admin;
     thresholdKeyName = config.thresholdKeyName;
     chains = config.chains;
     distributionConfig = null; // uses defaults (85/15/0)
@@ -33,15 +31,15 @@ mixin(
   // ---- Internal functions for sibling mixins ----
 
   func treasuryDistributePayment(args : TreasuryTypes.DistributePaymentArgs) : async* TreasuryTypes.DistributePaymentResult {
-    await* Treasury.distributePayment(treasury, config.admin, args);
+    await* Treasury.distributePayment(treasury, args);
   };
 
   func treasuryChargeAndDistribute(args : TreasuryTypes.ChargeAndDistributeArgs) : async* TreasuryTypes.ChargeAndDistributeResult {
-    await* Treasury.chargeAndDistribute(treasury, config.admin, args);
+    await* Treasury.chargeAndDistribute(treasury, args);
   };
 
   func treasuryGetUserBalances(userId : Principal) : async* [TreasuryTypes.BalanceEntry] {
-    await* Treasury.getUserBalances(treasury, config.admin, userId);
+    await* Treasury.getUserBalances(treasury, userId);
   };
 
   func treasuryGetBalance(userId : Principal, tokenId : TreasuryTypes.TokenId) : async* Nat {
@@ -49,11 +47,24 @@ mixin(
   };
 
   func treasurySimpleTransfer(userId : Principal, tokenId : TreasuryTypes.TokenId, amount : Nat) : async* Result.Result<Nat, Text> {
-    await* Treasury.simpleTransfer(treasury, config.admin, userId, tokenId, amount);
+    await* Treasury.simpleTransfer(treasury, userId, tokenId, amount);
   };
 
   func treasurySimpleRefund(userId : Principal, tokenId : TreasuryTypes.TokenId, amount : Nat) : async* Result.Result<(), Text> {
-    await* Treasury.simpleRefund(treasury, config.admin, userId, tokenId, amount);
+    await* Treasury.simpleRefund(treasury, userId, tokenId, amount);
+  };
+
+  /// Treasury ICP balance — used by Balance mixin to guard the minimum
+  /// reserve before CMC top-up transfers (unified pool: treasury funds
+  /// both user top-ups and backend self-topup).
+  func treasuryGetIcpBalance() : async* Nat {
+    await* Treasury.getTreasuryIcpBalance(treasury);
+  };
+
+  func treasuryDistributeAmbassadorShare(
+    args : TreasuryTypes.DistributeAmbassadorShareArgs,
+  ) : async* TreasuryTypes.DistributeAmbassadorShareResult {
+    await* Treasury.distributeAmbassadorShare(treasury, args);
   };
 
   // ---- Public API ----
@@ -94,14 +105,22 @@ mixin(
     await* Treasury.getOrDeriveSolAddress(treasury, caller);
   };
 
-  // Admin queries
+  // ---- Admin API ----
+
   public shared ({ caller }) func getTreasuryBalances() : async [TreasuryTypes.BalanceEntry] {
-    assertAdmin(caller);
+    admin.assertAdmin(caller);
     await* Treasury.getTreasuryBalances(treasury);
   };
 
+  /// Withdraw from the app treasury pool. Supports IC tokens only for now;
+  /// EVM/SOL treasury withdrawals require the dedicated threshold-sign flow.
+  public shared ({ caller }) func withdrawFromTreasury(args : TreasuryTypes.WithdrawArgs) : async TreasuryTypes.WithdrawResult {
+    admin.assertAdmin(caller);
+    await* Treasury.withdrawFromTreasury(treasury, args);
+  };
+
   public query ({ caller }) func getDistributionLog(opts : TreasuryTypes.DistributionLogOptions) : async [TreasuryTypes.DistributionRecord] {
-    assertAdmin(caller);
+    admin.assertAdmin(caller);
     Treasury.getDistributionLog(treasury, opts);
   };
 };

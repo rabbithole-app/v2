@@ -8,7 +8,6 @@ import {
   ownerIdentity,
   userAlice,
   userBob,
-  userCharlie,
 } from "./setup/helpers.ts";
 
 describe("Users", () => {
@@ -23,7 +22,7 @@ describe("Users", () => {
     await pic?.tearDown();
   });
 
-  test("register creates User without referral", async () => {
+  test("register creates User without referral, defaults to role=user", async () => {
     actor.setIdentity(userAlice);
     await actor.register([]);
 
@@ -31,6 +30,14 @@ describe("Users", () => {
     expect(user).toHaveLength(1);
     expect(user[0]!.id.toText()).toBe(userAlice.getPrincipal().toText());
     expect(user[0]!.inviter).toHaveLength(0);
+    expect(user[0]!.role).toEqual({ user: null });
+  });
+
+  test("installer is bootstrapped with role=admin", async () => {
+    actor.setIdentity(ownerIdentity);
+    const user = await actor.getUser();
+    expect(user).toHaveLength(1);
+    expect(user[0]!.role).toEqual({ admin: null });
   });
 
   test("register is idempotent", async () => {

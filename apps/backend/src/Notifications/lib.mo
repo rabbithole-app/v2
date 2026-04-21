@@ -26,6 +26,45 @@ module {
     #topUpFailed : { canisterId : Principal; reason : Text };
     #autoTopUpCompleted : { canisterId : Principal; cyclesAmount : Nat };
     #autoTopUpFailed : { canisterId : Principal; reason : Text };
+    // --- Admin-targeted events (fanout to role=#admin) ------------------
+    // Fired once on crossing threshold → cleared when cycles recover above.
+    #backendLowCycles : { current : Nat; threshold : Nat };
+    // Fired after a user's license is refunded successfully.
+    #creationRefunded : {
+      creationId : Nat;
+      owner : Principal;
+      tokenId : Text;
+      amount : Nat;
+    };
+    // Fired when selfTopUpFromTreasury rejects or traps.
+    #backendSelfTopUpFailed : { reason : Text };
+    // Fired when deferred ambassador payout for a creation fails. Admin
+    // uses `retryAmbassadorPayout(creationId)` to re-attempt.
+    #ambassadorPayoutFailed : {
+      creationId : Nat;
+      owner : Principal;
+      reason : Text;
+    };
+    // Fired when CMC notify_top_up lands in a non-terminal / unsafe-to-refund
+    // state (#Processing, #TransactionTooOld, or #Other with ambiguous error).
+    // `id` is the StuckCmcNotify row — admin calls `retryCmcNotify(id)` after
+    // verifying canister balance, or `dismissStuckCmcNotify(id)` to drop it.
+    #cmcNotifyStuck : {
+      id : Nat;
+      canisterId : Principal;
+      blockIndex : Nat;
+      reason : Text;
+      caller : Principal;
+    };
+    // Fired when treasury ICP balance is too low to safely debit a
+    // requested CMC top-up without violating the refund/payout reserve.
+    // Admin should convert non-ICP revenue to ICP (manual DEX swap) or
+    // fund treasury subaccount directly.
+    #treasuryIcpLow : {
+      currentBalance : Nat;
+      required : Nat;
+      reserve : Nat;
+    };
   };
 
   public type StoredNotification = {

@@ -12,10 +12,12 @@ import Profiles "lib";
 mixin(
   db : ZenDB.Database,
   installer : Principal,
-  deleteAsset : (Text) -> (),
-  storeAsset : (Principal, HttpAssets.StoreArgs) -> (),
+  deps : {
+    deleteAsset : (Text) -> ();
+    storeAsset : (Principal, HttpAssets.StoreArgs) -> ();
+  },
 ) {
-  transient let profiles = Profiles.Profiles(db, deleteAsset);
+  transient let profiles = Profiles.Profiles(db, deps.deleteAsset);
 
   func resolveReferralCode(code : Text) : ?Principal {
     profiles.resolveReferralCode(code);
@@ -31,7 +33,7 @@ mixin(
       content_encoding = "identity";
       is_aliased = null;
     };
-    storeAsset(installer, args);
+    deps.storeAsset(installer, args);
     profiles.trackAvatar(caller, args.key);
     args.key;
   };

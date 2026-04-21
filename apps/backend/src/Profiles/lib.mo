@@ -199,7 +199,7 @@ module {
       let prevAvatarUrl : ?Text = switch (profilesCollection.search(callerQuery)) {
         case (#ok({ documents })) {
           if (documents.size() == 0) return #err("Profile not found");
-          let (_, profile) = documents[0];
+          let (_, profile, _) = documents[0];
           profile.avatarUrl;
         };
         case (#err message) return #err(message);
@@ -229,7 +229,7 @@ module {
 
       let #ok({ documents }) = profilesCollection.search(callerQuery) else return null;
       if (documents.size() == 0) return null;
-      let (_, profile) = documents[0];
+      let (_, profile, _) = documents[0];
       ?profile;
     };
 
@@ -256,7 +256,7 @@ module {
       let q = ZenDB.QueryBuilder().Where("referralCode", #eq(#Option(#Text(code)))).Limit(1);
       let #ok({ documents }) = profilesCollection.search(q) else return null;
       if (documents.size() == 0) return null;
-      let (_, profile) = documents[0];
+      let (_, profile, _) = documents[0];
       ?profile.id;
     };
 
@@ -269,7 +269,7 @@ module {
       let instructions = IC.countInstructions(
         func() {
           data := switch (profilesCollection.search(dbQuery)) {
-            case (#ok({ documents })) Array.map<(ZenDB.Types.DocumentId, Profile), Profile>(documents, func(_, profile) = profile);
+            case (#ok({ documents })) Array.map<(ZenDB.Types.DocumentId, Profile, [ZenDB.Types.TextMatch]), Profile>(documents, func(_, profile, _) = profile);
             case (#err message) Runtime.trap("list failed: " # message);
           };
 

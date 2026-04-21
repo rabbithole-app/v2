@@ -2,7 +2,6 @@ import Array "mo:core/Array";
 import Order "mo:core/Order";
 import Set "mo:core/Set";
 import Blob "mo:core/Blob";
-import Map "mo:core/Map";
 import Queue "mo:core/Queue";
 import Principal "mo:core/Principal";
 import Text "mo:core/Text";
@@ -11,16 +10,17 @@ import Time "mo:core/Time";
 import Option "mo:core/Option";
 import Result "mo:core/Result";
 import Error "mo:core/Error";
-import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import Sha256 "mo:sha2/Sha256";
 import IC "mo:ic";
-import Vector "mo:vector";
 
 import ICManagement "../Types/ICManagement";
+// ZenDB is used transitively through the `Creations` / `Licenses` class handles.
+import Creations "Creations";
 import GitHubReleases "GitHubReleases";
 import HttpDownloader "HttpDownloader";
+import Licenses "Licenses";
 import StorageDeployer "StorageDeployer";
 import WasmInstaller "WasmInstaller";
 import FrontendInstaller "FrontendInstaller";
@@ -55,11 +55,26 @@ module StorageDeployerOrchestrator {
 
   public type StartCallbacks = {
     onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ());
+    /// Callbacks attached to orchestrator async work (task queue).
+    /// `bindLicense` fires when a canister is minted and a license is
+    /// already attached, giving the actor a chance to bind the license
+    /// receipt to the new canister id.
+    orchestrator : OrchestratorCallbacks;
   };
   public type UpdateInfo = Types.UpdateInfo;
   public type UpgradeStorageError = Types.UpgradeStorageError;
   public type PaymentReceipt = Types.PaymentReceipt;
+  public type PaymentStatus = Types.PaymentStatus;
   public type License = Types.License;
+  public type StatusEvent = Types.StatusEvent;
+  public type AmbassadorPayoutStatus = Types.AmbassadorPayoutStatus;
+  public type ListLicensesOptions = Types.ListLicensesOptions;
+  public type GetLicensesResponse = Types.GetLicensesResponse;
+  public type ListCreationsOptions = Types.ListCreationsOptions;
+  public type GetCreationsResponse = Types.GetCreationsResponse;
+
+  public let DEFAULT_LIST_LICENSES_OPTIONS = Types.DEFAULT_LIST_LICENSES_OPTIONS;
+  public let DEFAULT_LIST_CREATIONS_OPTIONS = Types.DEFAULT_LIST_CREATIONS_OPTIONS;
 
   /// Delay between unified queue operations (ms)
   let UNIFIED_QUEUE_DELAY_MS : Nat = 100;
@@ -70,34 +85,11 @@ module StorageDeployerOrchestrator {
   /// Initial delay for retry backoff (seconds)
   let INITIAL_RETRY_DELAY_SECONDS : Nat = 5;
 
-  // -- Internal Types --
-
-  type StorageCreationRecordMutable = {
-    id : Nat;
-    owner : Principal;
-    releaseTag : Text;
-    initArg : Blob;
-    envPairs : ?[Types.EnvPair];
-    createdAt : Time.Time;
-    var canisterId : ?Principal;
-    var wasmHash : ?Blob;
-    var frontendHash : ?Blob;
-    var installedReleaseTag : ?Text;
-    var status : CreationStatus;
-    var completedAt : ?Time.Time;
-    /// Whether this is an upgrade (true) or initial creation (false)
-    var isUpgrade : Bool;
-    /// Whether the current upgrade includes frontend update
-    var upgradeIncludesFrontend : Bool;
-    /// Last upgrade error message (preserved after revert to Completed)
-    var lastUpgradeError : ?Text;
-    /// License paymentId — links this creation to a License record
-    var licensePaymentId : ?Text;
-  };
-
   // -- Store --
 
-  /// Orchestrator store containing all subsystems and state
+  /// Orchestrator store. Creation records live in the transient
+  /// `Creations` class (ZenDB-backed, passed per-call) — Store only
+  /// holds queues, timers, and the counters that feed those creations.
   public type Store = {
     var canisterId : ?Principal;
     region : MemoryRegion.MemoryRegion;
@@ -131,15 +123,32 @@ module StorageDeployerOrchestrator {
 
     // Creation ID counter
     var nextCreationId : Nat;
+  };
 
-    // Creation history: creationId → record
-    creations : Map.Map<Nat, StorageCreationRecordMutable>;
+  /// Callback invoked by the orchestrator when a fresh canister is created
+  /// and a license is already attached to the record. The actor-level code
+  /// wires this to `Licenses.bind(...)` — we use a callback instead of
+  /// storing a `Licenses` reference on the Store because class handles are
+  /// not stable-serializable.
+  public type BindLicense = (owner : Principal, paymentId : Text, canisterId : Principal) -> ();
 
-    // Index: owner → list of creationIds
-    creationsByOwner : Map.Map<Principal, Vector.Vector<Nat>>;
+  /// Fired the moment `canisterId` is assigned to a creation — this is
+  /// the refund point of no return (see `recoverFailedStorage(#refund)`,
+  /// which rejects once `record.canisterId != null`). The actor wires
+  /// this to `treasury.distributeAmbassadorShare`, closing out the
+  /// two-phase payment. `async*` so the orchestrator can await, but
+  /// payout failure is captured by the callback in the record's
+  /// `ambassadorPayoutStatus` — the creation task itself MUST succeed
+  /// regardless (canister is already live, license already committed).
+  /// `creationId` is passed so the callback can mutate the record status.
+  public type PayAmbassadorShare = (creationId : Nat, owner : Principal, paymentId : Text) -> async* ();
 
-    // Licenses: owner → list of licenses (independent of creation records)
-    licenses : Map.Map<Principal, Vector.Vector<Types.License>>;
+  /// Bundle of callbacks threaded through the orchestrator's async task
+  /// machinery. Using a record (rather than separate params) keeps the
+  /// signature stable as more hooks are added.
+  public type OrchestratorCallbacks = {
+    bindLicense : ?BindLicense;
+    payAmbassadorShare : ?PayAmbassadorShare;
   };
 
   // -- Initialization --
@@ -187,9 +196,6 @@ module StorageDeployerOrchestrator {
       var fetchRetryCount = 0;
       var nextTaskId = 0;
       var nextCreationId = 0;
-      creations = Map.empty();
-      creationsByOwner = Map.empty();
-      licenses = Map.empty();
     };
   };
 
@@ -233,7 +239,7 @@ module StorageDeployerOrchestrator {
 
   /// Reset transient state that should not survive canister upgrades.
   /// Called at the beginning of start() to ensure clean state.
-  func resetTransientState(store : Store) {
+  func resetTransientState(store : Store, creations : Creations.Creations) {
     // Reset timer IDs (old timer IDs are invalid after upgrade)
     store.githubTimerId := null;
     store.downloaderTimerId := null;
@@ -254,15 +260,17 @@ module StorageDeployerOrchestrator {
     FrontendInstaller.resetTransient(store.frontendInstaller);
     HttpDownloader.resetTransient(store.githubReleases.downloaderStore);
 
-    // Mark interrupted creations as failed (or revert upgrades to Completed)
-    for ((_, record) in Map.entries(store.creations)) {
+    // Mark interrupted creations as failed (or revert upgrades to Completed).
+    // `creations.all()` is a ZenDB query — safe to iterate and re-enter via
+    // `creations.mutate` because the class method does a fresh fetch per call.
+    for (record in creations.all().vals()) {
       switch (record.status) {
         case (#Completed _ or #Failed _) {};
-        case (#ProcessingPayment) {
+        case (#ProcessingPayment _) {
           // Payment may or may not have completed before upgrade
           switch (record.licensePaymentId) {
-            case (?_) record.status := #Failed("Interrupted by upgrade after payment. License preserved for recovery.");
-            case null record.status := #Failed("Interrupted by upgrade during payment processing");
+            case (?_) ignore creations.appendEvent(record.id, #Failed("Interrupted by upgrade after payment. License preserved for recovery."));
+            case null ignore creations.appendEvent(record.id, #Failed("Interrupted by upgrade during payment processing"));
           };
         };
         case _ {
@@ -270,18 +278,18 @@ module StorageDeployerOrchestrator {
           if (record.isUpgrade) {
             switch (record.canisterId) {
               case (?canisterId) {
-                record.status := #Completed({ canisterId });
-                record.lastUpgradeError := ?errorMsg;
+                ignore creations.appendEvent(record.id, #Completed({ canisterId }));
+                ignore creations.mutate(record.id, func(r) = { r with lastUpgradeError = ?errorMsg; isUpgrade = false; upgradeIncludesFrontend = false });
               };
               case null {
-                record.status := #Failed(errorMsg);
+                ignore creations.appendEvent(record.id, #Failed(errorMsg));
+                ignore creations.mutate(record.id, func(r) = { r with isUpgrade = false; upgradeIncludesFrontend = false });
               };
             };
           } else {
-            record.status := #Failed(errorMsg);
+            ignore creations.appendEvent(record.id, #Failed(errorMsg));
+            ignore creations.mutate(record.id, func(r) = { r with isUpgrade = false; upgradeIncludesFrontend = false });
           };
-          record.isUpgrade := false;
-          record.upgradeIncludesFrontend := false;
         };
       };
     };
@@ -291,11 +299,11 @@ module StorageDeployerOrchestrator {
   ///
   /// This starts GitHub release checking, download processing,
   /// and task queue processing
-  public func start<system>(store : Store, callbacks : StartCallbacks) : async () {
+  public func start<system>(store : Store, creations : Creations.Creations, callbacks : StartCallbacks) : async () {
     if (store.running) return;
 
     // Reset transient state (meaningless after canister upgrade)
-    resetTransientState(store);
+    resetTransientState(store, creations);
 
     store.running := true;
 
@@ -314,7 +322,7 @@ module StorageDeployerOrchestrator {
     ensureDownloaderTimer<system>(store, callbacks.onAssetDownloaded);
 
     // 3. Unified timer (activates when queue has items)
-    ensureUnifiedTimer<system>(store);
+    ensureUnifiedTimer<system>(store, creations, callbacks.orchestrator);
   };
 
   /// Stop all orchestrator timers and subsystems
@@ -397,15 +405,17 @@ module StorageDeployerOrchestrator {
     };
   };
 
-  // Ensure unified timer is running if there are pending tasks
-  func ensureUnifiedTimer<system>(store : Store) {
+  // Ensure unified timer is running if there are pending tasks.
+  // `callbacks` is captured by the timer closure and forwarded through to
+  // the per-task handler (processOrchestratorTask).
+  func ensureUnifiedTimer<system>(store : Store, creations : Creations.Creations, callbacks : OrchestratorCallbacks) {
     if (Queue.isEmpty(store.unifiedQueue)) {
       cancelTimer(store.unifiedTimerId);
       store.unifiedTimerId := null;
     } else if (Option.isNull(store.unifiedTimerId)) {
       store.unifiedTimerId := ?Timer.setTimer<system>(
         #milliseconds 0,
-        func() : async () { await processUnifiedQueue<system>(store) },
+        func() : async () { await processUnifiedQueue<system>(store, creations, callbacks) },
       );
     };
   };
@@ -471,53 +481,57 @@ module StorageDeployerOrchestrator {
 
   // -- Storage Creation --
 
-  /// Find active creation for a user (status is not Completed or Failed)
-  func findActiveCreation(store : Store, owner : Principal) : ?StorageCreationRecordMutable {
-    switch (Map.get(store.creationsByOwner, Principal.compare, owner)) {
-      case (?creationIds) {
-        for (creationId in Vector.vals(creationIds)) {
-          switch (Map.get(store.creations, Nat.compare, creationId)) {
-            case (?record) {
-              switch (record.status) {
-                case (#Completed _) {};
-                case (#Failed _) {};
-                case _ return ?record;
-              };
-            };
-            case null {};
-          };
-        };
-        null;
-      };
-      case null null;
+  /// Build an immutable record with default fields and the given overrides.
+  /// Used by the three creation entry points (createStorage, createStorageRecord,
+  /// addStorage) so we don't repeat the default layout.
+  ///
+  /// `ambassadorPayoutStatus` defaults to `#skipped` — most call sites don't
+  /// have a license yet; the license-bearing path (`createStorageRecord`)
+  /// overrides to `#pending` via the returned record.
+  func newRecord(
+    creationId : Nat,
+    owner : Principal,
+    releaseTag : Text,
+    initArg : Blob,
+    envPairs : ?[Types.EnvPair],
+    canisterId : ?Principal,
+    wasmHash : ?Blob,
+    status : CreationStatus,
+    completedAt : ?Time.Time,
+    events : [Types.StatusEvent],
+    ambassadorPayoutStatus : Types.AmbassadorPayoutStatus,
+  ) : StorageCreationRecord {
+    {
+      id = creationId;
+      owner;
+      releaseTag;
+      initArg;
+      envPairs;
+      createdAt = Time.now();
+      canisterId;
+      wasmHash;
+      frontendHash = null;
+      installedReleaseTag = null;
+      status;
+      statusTag = Types.tagOfCreationStatus(status);
+      completedAt;
+      licensePaymentId = null;
+      isUpgrade = false;
+      upgradeIncludesFrontend = false;
+      lastUpgradeError = null;
+      events;
+      ambassadorPayoutStatus;
+      ambassadorPayoutStatusTag = Types.tagOfAmbassadorPayoutStatus(ambassadorPayoutStatus);
     };
-  };
-
-  /// Get creation record by ID
-  func getCreationById(store : Store, creationId : Nat) : ?StorageCreationRecordMutable {
-    Map.get(store.creations, Nat.compare, creationId);
-  };
-
-  /// Check if a canister ID is already used in any storage
-  func isCanisterIdUsed(store : Store, canisterId : Principal) : Bool {
-    for ((_, record) in Map.entries(store.creations)) {
-      switch (record.canisterId) {
-        case (?existingId) {
-          if (Principal.equal(existingId, canisterId)) {
-            return true;
-          };
-        };
-        case null {};
-      };
-    };
-    false;
   };
 
   /// Start creating a new storage canister for the caller
   public func createStorage<system>(
     store : Store,
+    creations : Creations.Creations,
     caller : Principal,
     options : CreateStorageOptions,
+    callbacks : OrchestratorCallbacks,
   ) : Result.Result<(), CreateStorageError> {
     // 1. Check that release is downloaded
     let releaseTag = switch (findReleaseTag(store, options.releaseSelector)) {
@@ -526,7 +540,7 @@ module StorageDeployerOrchestrator {
     };
 
     // 2. Check for active creation
-    switch (findActiveCreation(store, caller)) {
+    switch (creations.findActiveByOwner(caller)) {
       case (?_) return #err(#AlreadyInProgress);
       case null {};
     };
@@ -534,7 +548,7 @@ module StorageDeployerOrchestrator {
     // 3. Check if canister ID is already used (for Existing target)
     switch (options.target) {
       case (#Existing(canisterId)) {
-        if (isCanisterIdUsed(store, canisterId)) {
+        if (creations.isCanisterUsed(canisterId)) {
           return #err(#CanisterAlreadyUsed({ canisterId }));
         };
       };
@@ -550,37 +564,10 @@ module StorageDeployerOrchestrator {
       case (#Create(_)) null;
     };
 
-    let record : StorageCreationRecordMutable = {
-      id = creationId;
-      owner = caller;
-      var canisterId = existingCanisterId;
-      releaseTag;
-      initArg = options.initArg;
-      envPairs = options.envPairs;
-      var wasmHash = null;
-      var frontendHash = null;
-      var installedReleaseTag = null;
-      var status = #Pending;
-      createdAt = Time.now();
-      var completedAt = null;
-      var isUpgrade = false;
-      var upgradeIncludesFrontend = false;
-      var lastUpgradeError = null;
-      var licensePaymentId = null;
-    };
-
-    // Store record
-    Map.add(store.creations, Nat.compare, creationId, record);
-
-    // Add to owner index
-    switch (Map.get(store.creationsByOwner, Principal.compare, caller)) {
-      case (?ids) Vector.add(ids, creationId);
-      case null {
-        let ids = Vector.new<Nat>();
-        Vector.add(ids, creationId);
-        Map.add(store.creationsByOwner, Principal.compare, caller, ids);
-      };
-    };
+    creations.add(
+      // createStorage (direct, no payment flow) → no license, no payout expected.
+      newRecord(creationId, caller, releaseTag, options.initArg, options.envPairs, existingCanisterId, null, #Pending, null, [], #skipped),
+    );
 
     // 5. Add initial orchestrator task
     let taskType : TaskType = switch (options.target) {
@@ -599,7 +586,7 @@ module StorageDeployerOrchestrator {
     Queue.pushBack(store.unifiedQueue, task);
 
     // 6. Start queue processing
-    ensureUnifiedTimer<system>(store);
+    ensureUnifiedTimer<system>(store, creations, callbacks);
 
     #ok;
   };
@@ -608,6 +595,7 @@ module StorageDeployerOrchestrator {
   /// Used by purchaseLicenseAndCreateStorage: record is visible in listStorages immediately.
   public func createStorageRecord<system>(
     store : Store,
+    creations : Creations.Creations,
     caller : Principal,
     options : CreateStorageOptions,
   ) : Result.Result<Nat, CreateStorageError> {
@@ -616,7 +604,7 @@ module StorageDeployerOrchestrator {
       case null return #err(#ReleaseNotFound);
     };
 
-    switch (findActiveCreation(store, caller)) {
+    switch (creations.findActiveByOwner(caller)) {
       case (?_) return #err(#AlreadyInProgress);
       case null {};
     };
@@ -624,65 +612,43 @@ module StorageDeployerOrchestrator {
     let creationId = store.nextCreationId;
     store.nextCreationId += 1;
 
-    let record : StorageCreationRecordMutable = {
-      id = creationId;
-      owner = caller;
-      var canisterId = null;
-      releaseTag;
-      initArg = options.initArg;
-      envPairs = options.envPairs;
-      var wasmHash = null;
-      var frontendHash = null;
-      var installedReleaseTag = null;
-      var status : CreationStatus = #ProcessingPayment;
-      createdAt = Time.now();
-      var completedAt = null;
-      var isUpgrade = false;
-      var upgradeIncludesFrontend = false;
-      var lastUpgradeError = null;
-      var licensePaymentId = null;
-    };
+    let initialStatus : CreationStatus = #ProcessingPayment(#Starting);
+    // Seed the timeline with the initial `Starting` event — subsequent
+    // appendEvent calls extend the history from here.
+    let seedEvent : Types.StatusEvent = { status = initialStatus; timestamp = Time.now() };
 
-    Map.add(store.creations, Nat.compare, creationId, record);
-
-    switch (Map.get(store.creationsByOwner, Principal.compare, caller)) {
-      case (?ids) Vector.add(ids, creationId);
-      case null {
-        let ids = Vector.new<Nat>();
-        Vector.add(ids, creationId);
-        Map.add(store.creationsByOwner, Principal.compare, caller, ids);
-      };
-    };
+    creations.add(
+      // createStorageRecord is the entry point for purchaseLicenseAndCreateStorage —
+      // a license charge is always attached. Ambassador payout is pending until
+      // the refund window closes at #CanisterCreated.
+      newRecord(creationId, caller, releaseTag, options.initArg, options.envPairs, null, null, initialStatus, null, [seedEvent], #pending),
+    );
 
     #ok(creationId);
   };
 
   /// Link a creation record to a license via paymentId.
-  public func setLicensePaymentId(store : Store, creationId : Nat, paymentId : Text) {
-    switch (getCreationById(store, creationId)) {
-      case (?record) record.licensePaymentId := ?paymentId;
-      case null {};
-    };
+  public func setLicensePaymentId(creations : Creations.Creations, creationId : Nat, paymentId : Text) {
+    ignore creations.mutate(creationId, func(r) = { r with licensePaymentId = ?paymentId });
   };
 
   /// Mark a creation record as failed.
-  public func failCreation(store : Store, creationId : Nat, reason : Text) {
-    switch (getCreationById(store, creationId)) {
-      case (?record) record.status := #Failed(reason);
-      case null {};
-    };
+  public func failCreation(creations : Creations.Creations, creationId : Nat, reason : Text) {
+    ignore creations.appendEvent(creationId, #Failed(reason));
   };
 
   /// Start creation tasks for a record (transition from #ProcessingPayment → #Pending).
   public func startStorageCreation<system>(
     store : Store,
+    creations : Creations.Creations,
     creationId : Nat,
     options : CreateStorageOptions,
+    callbacks : OrchestratorCallbacks,
   ) : Result.Result<(), Text> {
-    let ?record = getCreationById(store, creationId) else return #err("Creation record not found");
+    let ?record = creations.get(creationId) else return #err("Creation record not found");
 
     switch (record.status) {
-      case (#ProcessingPayment or #Pending) {};
+      case (#ProcessingPayment _ or #Pending) {};
       case (#Failed _) {
         // Allow retry of failed records (admin recovery)
         switch (record.licensePaymentId) {
@@ -693,7 +659,7 @@ module StorageDeployerOrchestrator {
       case (status) return #err("Cannot start creation from status " # debug_show status);
     };
 
-    record.status := #Pending;
+    ignore creations.appendEvent(creationId, #Pending);
 
     let taskType : TaskType = switch (options.target) {
       case (#Existing(existingId)) #LinkCanister({ canisterId = existingId });
@@ -710,7 +676,7 @@ module StorageDeployerOrchestrator {
     store.nextTaskId += 1;
     Queue.pushBack(store.unifiedQueue, task);
 
-    ensureUnifiedTimer<system>(store);
+    ensureUnifiedTimer<system>(store, creations, callbacks);
 
     #ok;
   };
@@ -720,12 +686,13 @@ module StorageDeployerOrchestrator {
   /// Creates a record so findOwnerByCanister resolves this canister to the caller.
   public func addStorage(
     store : Store,
+    creations : Creations.Creations,
     caller : Principal,
     canisterId : Principal,
     initArg : Blob,
     isKnownWasm : (Blob) -> Bool,
   ) : async Result.Result<Nat, Types.AddStorageError> {
-    if (isCanisterIdUsed(store, canisterId)) {
+    if (creations.isCanisterUsed(canisterId)) {
       return #err(#CanisterAlreadyUsed({ canisterId }));
     };
 
@@ -751,35 +718,22 @@ module StorageDeployerOrchestrator {
     let creationId = store.nextCreationId;
     store.nextCreationId += 1;
 
-    let record : StorageCreationRecordMutable = {
-      id = creationId;
-      owner = caller;
-      var canisterId = ?canisterId;
-      releaseTag = "external";
-      initArg;
-      envPairs = null;
-      var wasmHash = ?wasmHash;
-      var frontendHash = null;
-      var installedReleaseTag = null;
-      var status : Types.CreationStatus = #Completed({ canisterId });
-      createdAt = Time.now();
-      var completedAt = ?Time.now();
-      var isUpgrade = false;
-      var upgradeIncludesFrontend = false;
-      var lastUpgradeError = null;
-      var licensePaymentId = null;
-    };
-
-    Map.add(store.creations, Nat.compare, creationId, record);
-
-    switch (Map.get(store.creationsByOwner, Principal.compare, caller)) {
-      case (?ids) Vector.add(ids, creationId);
-      case null {
-        let ids = Vector.new<Nat>();
-        Vector.add(ids, creationId);
-        Map.add(store.creationsByOwner, Principal.compare, caller, ids);
-      };
-    };
+    creations.add(
+      newRecord(
+        creationId,
+        caller,
+        "external",
+        initArg,
+        null,
+        ?canisterId,
+        ?wasmHash,
+        #Completed({ canisterId }),
+        ?Time.now(),
+        [],
+        // addStorage: user registers a pre-existing canister, no license, no payout.
+        #skipped,
+      ),
+    );
 
     #ok(creationId);
   };
@@ -832,41 +786,41 @@ module StorageDeployerOrchestrator {
   // ═══════════════════════════════════════════════════════════════
 
   /// Process the unified queue - single timer, sequential execution
-  func processUnifiedQueue<system>(store : Store) : async () {
+  func processUnifiedQueue<system>(store : Store, creations : Creations.Creations, callbacks : OrchestratorCallbacks) : async () {
     switch (Queue.popFront(store.unifiedQueue)) {
       case (?task) {
         try {
           switch (task.taskType) {
             case (#Orchestrator(orchTask)) {
-              await processOrchestratorTask<system>(store, task.creationId, orchTask);
+              await processOrchestratorTask<system>(store, creations, task.creationId, orchTask, callbacks);
             };
             case (#WasmUploadChunk(args)) {
               switch (await WasmInstaller.executeUploadChunk(store.wasmInstaller, args)) {
                 case (#ok(_)) {
-                  syncWasmProgressStatus(store, task.creationId, args.canisterId);
+                  syncWasmProgressStatus(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, task.creationId, "WASM chunk upload failed: " # e);
+                  handleTaskFailure(store, creations, task.creationId, "WASM chunk upload failed: " # e);
                 };
               };
             };
             case (#WasmInstallCode(args)) {
               switch (await WasmInstaller.executeInstallCode(store.wasmInstaller, args)) {
                 case (#ok) {
-                  queuePostWasmTasks<system>(store, task.creationId, args.canisterId);
+                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, task.creationId, "WASM install failed: " # e);
+                  handleTaskFailure(store, creations, task.creationId, "WASM install failed: " # e);
                 };
               };
             };
             case (#WasmInstallChunked(args)) {
               switch (await WasmInstaller.executeInstallChunked(store.wasmInstaller, args)) {
                 case (#ok) {
-                  queuePostWasmTasks<system>(store, task.creationId, args.canisterId);
+                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, task.creationId, "WASM chunked install failed: " # e);
+                  handleTaskFailure(store, creations, task.creationId, "WASM chunked install failed: " # e);
                 };
               };
             };
@@ -874,17 +828,17 @@ module StorageDeployerOrchestrator {
               switch (await FrontendInstaller.executeCreateBatch(store.frontendInstaller, args.canisterId)) {
                 case (#ok(_)) {};
                 case (#err(e)) {
-                  handleTaskFailure(store, task.creationId, "Frontend create batch failed: " # e);
+                  handleTaskFailure(store, creations, task.creationId, "Frontend create batch failed: " # e);
                 };
               };
             };
             case (#FrontendUploadChunks(args)) {
               switch (await FrontendInstaller.executeUploadChunks(store.frontendInstaller, args.canisterId, args.files)) {
                 case (#ok) {
-                  syncFrontendProgressStatus(store, task.creationId, args.canisterId);
+                  syncFrontendProgressStatus(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, task.creationId, "Frontend upload chunks failed: " # e);
+                  handleTaskFailure(store, creations, task.creationId, "Frontend upload chunks failed: " # e);
                 };
               };
             };
@@ -892,28 +846,21 @@ module StorageDeployerOrchestrator {
               switch (await FrontendInstaller.executeCommitBatch(store.frontendInstaller, args.canisterId)) {
                 case (#ok) {
                   // Frontend complete - revoke installer permission, then update controllers
-                  queueRevokeInstallerPermission(store, task.creationId, args.canisterId);
+                  queueRevokeInstallerPermission(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, task.creationId, "Frontend commit failed: " # e);
+                  handleTaskFailure(store, creations, task.creationId, "Frontend commit failed: " # e);
                 };
               };
             };
             case (#RevokeInstallerPermission(args)) {
               let ?deployerCanisterId = store.canisterId else {
-                handleTaskFailure(store, task.creationId, "Deployer canister ID not set");
+                handleTaskFailure(store, creations, task.creationId, "Deployer canister ID not set");
                 return;
               };
 
               // Update status
-              switch (getCreationById(store, task.creationId)) {
-                case (?record) {
-                  record.status := #RevokingInstallerPermission({
-                    canisterId = args.canisterId;
-                  });
-                };
-                case null {};
-              };
+              ignore creations.appendEvent(task.creationId, #RevokingInstallerPermission({ canisterId = args.canisterId }));
 
               // Use http-assets interface to revoke permission
               let assetsCanister = actor (Principal.toText(args.canisterId)) : HttpAssetsTypes.AssetsInterface;
@@ -929,7 +876,7 @@ module StorageDeployerOrchestrator {
               };
 
               // After revoke - queue controller update
-              queueUpdateControllers(store, task.creationId, args.canisterId);
+              queueUpdateControllers(store, creations, task.creationId, args.canisterId);
             };
           };
         } catch (error) {
@@ -938,14 +885,14 @@ module StorageDeployerOrchestrator {
             task.attempts += 1;
             Queue.pushBack(store.unifiedQueue, task);
           } else {
-            handleTaskFailure(store, task.creationId, "Task failed after 3 attempts: " # errMsg);
+            handleTaskFailure(store, creations, task.creationId, "Task failed after 3 attempts: " # errMsg);
           };
         };
 
         // Schedule next iteration with delay
         store.unifiedTimerId := ?Timer.setTimer<system>(
           #milliseconds UNIFIED_QUEUE_DELAY_MS,
-          func() : async () { await processUnifiedQueue<system>(store) },
+          func() : async () { await processUnifiedQueue<system>(store, creations, callbacks) },
         );
       };
       case null {
@@ -956,8 +903,8 @@ module StorageDeployerOrchestrator {
     };
   };
 
-  func syncWasmProgressStatus(store : Store, creationId : Nat, canisterId : Principal) {
-    let ?record = getCreationById(store, creationId) else return;
+  func syncWasmProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+    let ?record = creations.get(creationId) else return;
 
     let syncVariant = func(progress : Types.Progress) : Types.CreationStatus {
       if (record.isUpgrade) {
@@ -969,63 +916,94 @@ module StorageDeployerOrchestrator {
 
     switch (WasmInstaller.getStatus(store.wasmInstaller, canisterId)) {
       case (?#UploadingChunks(progress)) {
-        record.status := syncVariant({
-          processed = progress.uploaded;
-          total = progress.total;
-        });
+        ignore creations.appendEvent(creationId, syncVariant({ processed = progress.uploaded; total = progress.total }));
       };
       case (?#Pending) {
-        record.status := syncVariant({ processed = 0; total = 0 });
+        ignore creations.appendEvent(creationId, syncVariant({ processed = 0; total = 0 }));
       };
       case (?#Installing) {
-        record.status := syncVariant({ processed = 0; total = 0 });
+        ignore creations.appendEvent(creationId, syncVariant({ processed = 0; total = 0 }));
       };
       case _ {};
     };
   };
 
-  func syncFrontendProgressStatus(store : Store, creationId : Nat, canisterId : Principal) {
-    let ?record = getCreationById(store, creationId) else return;
+  func syncFrontendProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+    let ?record = creations.get(creationId) else return;
 
     switch (FrontendInstaller.getInstallationStatus(store.frontendInstaller, canisterId)) {
       case (?#Uploading(progress)) {
-        let progressInfo = {
-          processed = progress.processed;
-          total = progress.total;
-        };
-        record.status := if (record.isUpgrade) {
-          #UpgradingFrontend({
-            canisterId;
-            progress = progressInfo;
-          });
+        let progressInfo = { processed = progress.processed; total = progress.total };
+        let newStatus = if (record.isUpgrade) {
+          #UpgradingFrontend({ canisterId; progress = progressInfo });
         } else {
-          #UploadingFrontend({
-            canisterId;
-            progress = progressInfo;
-          });
+          #UploadingFrontend({ canisterId; progress = progressInfo });
         };
+        ignore creations.appendEvent(creationId, newStatus);
       };
+      case _ {};
+    };
+  };
+
+  /// Shared tail for both creation branches (`#CreateCanister` minted a new
+  /// canister; `#LinkCanister` re-attached to an existing one on resume).
+  /// Bind canisterId onto the record, fire the `#CanisterCreated` event,
+  /// then invoke the two side-effect callbacks (license binding + deferred
+  /// ambassador payout) in a consistent order. Callers are responsible
+  /// for queueing WASM tasks afterwards.
+  func onCanisterAssigned(
+    creations : Creations.Creations,
+    creationId : Nat,
+    owner : Principal,
+    canisterId : Principal,
+    licensePaymentId : ?Text,
+    bindLicense : ?BindLicense,
+    payAmbassadorShare : ?PayAmbassadorShare,
+  ) : async* () {
+    ignore creations.mutate(creationId, func(r) = { r with canisterId = ?canisterId });
+    ignore creations.appendEvent(creationId, #CanisterCreated({ canisterId }));
+
+    // Bind license to canister via callback (if configured). The callback
+    // closes over the Licenses class in main.mo.
+    switch (licensePaymentId, bindLicense) {
+      case (?paymentId, ?cb) cb(owner, paymentId, canisterId);
+      case _ {};
+    };
+
+    // Deferred ambassador payout fires here — same trigger point as the
+    // refund block, so the amount the user can no longer reclaim is the
+    // amount the ambassador can now collect.
+    switch (licensePaymentId, payAmbassadorShare) {
+      case (?paymentId, ?cb) await* cb(creationId, owner, paymentId);
       case _ {};
     };
   };
 
   /// Process high-level orchestrator tasks
-  func processOrchestratorTask<system>(store : Store, creationId : Nat, task : OrchestratorTask) : async () {
-    let ?record = getCreationById(store, creationId) else return;
+  func processOrchestratorTask<system>(
+    store : Store,
+    creations : Creations.Creations,
+    creationId : Nat,
+    task : OrchestratorTask,
+    callbacks : OrchestratorCallbacks,
+  ) : async () {
+    let ?record = creations.get(creationId) else return;
+    let bindLicense = callbacks.bindLicense;
+    let payAmbassadorShare = callbacks.payAmbassadorShare;
 
     switch (task.taskType) {
       case (#CreateCanister({ options })) {
         let ?deployerCanisterId = store.canisterId else {
-          record.status := #Failed("Deployer canister ID not set");
+          ignore creations.appendEvent(creationId, #Failed("Deployer canister ID not set"));
           return;
         };
 
-        record.status := #CheckingBalance;
+        ignore creations.appendEvent(creationId, #CheckingBalance);
 
         let { initialCycles; subnetId } = switch (options.target) {
           case (#Create(params)) params;
           case (#Existing(_)) {
-            record.status := #Failed("CreateCanister task received Existing target");
+            ignore creations.appendEvent(creationId, #Failed("CreateCanister task received Existing target"));
             return;
           };
         };
@@ -1033,17 +1011,8 @@ module StorageDeployerOrchestrator {
         let envVars = buildEnvironmentVariables(store, record.envPairs);
         switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId, envVars)) {
           case (#ok(canisterId)) {
-            record.canisterId := ?canisterId;
-            record.status := #CanisterCreated({ canisterId });
-
-            // Bind license to canister
-            switch (record.licensePaymentId) {
-              case (?paymentId) bindLicense(store, task.owner, paymentId, canisterId);
-              case null {};
-            };
-
-            // Queue WASM installation tasks
-            queueWasmTasks(store, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
+            await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare);
+            queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
           };
           case (#err(e)) {
             let errorMsg = switch (e) {
@@ -1051,53 +1020,58 @@ module StorageDeployerOrchestrator {
               case (#TransferFailed(_)) "Transfer failed";
               case (#NotifyFailed(_)) "CMC notification failed";
             };
-            record.status := #Failed("Canister creation failed: " # errorMsg);
+            ignore creations.appendEvent(creationId, #Failed("Canister creation failed: " # errorMsg));
           };
         };
       };
 
       case (#LinkCanister({ canisterId })) {
-        record.canisterId := ?canisterId;
-        record.status := #CanisterCreated({ canisterId });
-
-        // Queue WASM installation tasks
-        queueWasmTasks(store, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
+        // Link path (resume of a failed creation whose canister was already
+        // minted) — same side effects as CreateCanister. Ambassador payout
+        // dedup protects against double-pay if the original CreateCanister
+        // already fired it.
+        await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare);
+        queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
       };
 
       case (#InstallWasm({ canisterId; releaseTag; initArg })) {
         // This case handles legacy flow - shouldn't be reached in new architecture
-        queueWasmTasks(store, { creationId; canisterId; releaseTag; initArg; mode = #install });
+        queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode = #install });
       };
 
       case (#InstallFrontend({ canisterId; releaseTag = _ })) {
         // This case handles legacy flow - shouldn't be reached in new architecture
-        queueFrontendTasks<system>(store, creationId, canisterId);
+        queueFrontendTasks<system>(store, creations, creationId, canisterId);
       };
 
       case (#UpdateControllers({ canisterId })) {
-        record.status := #UpdatingControllers({ canisterId });
+        ignore creations.appendEvent(creationId, #UpdatingControllers({ canisterId }));
 
         // env vars already set at canister creation; null = don't overwrite
         switch (await updateCanisterSettings(canisterId, task.owner, null)) {
           case (#ok) {
-            finalizeCompletion(store, record, canisterId);
+            finalizeCompletion(store, creations, creationId, canisterId);
           };
           case (#err(e)) {
-            record.status := #Failed("Controller update failed: " # e);
+            ignore creations.appendEvent(creationId, #Failed("Controller update failed: " # e));
           };
         };
       };
 
       case (#Complete({ canisterId })) {
-        finalizeCompletion(store, record, canisterId);
+        finalizeCompletion(store, creations, creationId, canisterId);
       };
     };
   };
 
   /// Queue WASM installation tasks
-  func queueWasmTasks(store : Store, args : { creationId : Nat; canisterId : Principal; releaseTag : Text; initArg : Blob; mode : IC.CanisterInstallMode }) {
+  func queueWasmTasks(
+    store : Store,
+    creations : Creations.Creations,
+    args : { creationId : Nat; canisterId : Principal; releaseTag : Text; initArg : Blob; mode : IC.CanisterInstallMode },
+  ) {
     let { creationId; canisterId; releaseTag; initArg; mode } = args;
-    let ?record = getCreationById(store, creationId) else return;
+    let ?record = creations.get(creationId) else return;
 
     let statusVariant = switch (mode) {
       case (#install or #reinstall) #InstallingWasm({
@@ -1109,7 +1083,7 @@ module StorageDeployerOrchestrator {
         progress = { processed = 0; total = 0 };
       });
     };
-    record.status := statusVariant;
+    ignore creations.appendEvent(creationId, statusVariant);
 
     switch (getWasmBlob(store, releaseTag)) {
       case (#ok(wasmBlob)) {
@@ -1142,33 +1116,34 @@ module StorageDeployerOrchestrator {
           store.nextTaskId += 1;
         };
 
-        syncWasmProgressStatus(store, creationId, canisterId);
+        syncWasmProgressStatus(store, creations, creationId, canisterId);
       };
       case (#err(e)) {
-        record.status := #Failed("Failed to get WASM: " # e);
+        ignore creations.appendEvent(creationId, #Failed("Failed to get WASM: " # e));
       };
     };
   };
 
   /// Decide what to do after WASM install — frontend or finalize directly
-  func queuePostWasmTasks<system>(store : Store, creationId : Nat, canisterId : Principal) {
-    let ?record = getCreationById(store, creationId) else return;
+  func queuePostWasmTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+    let ?record = creations.get(creationId) else return;
 
     if (record.isUpgrade and not record.upgradeIncludesFrontend) {
       // WASM-only upgrade — skip frontend, proceed to revoke + controllers
-      queueRevokeInstallerPermission(store, creationId, canisterId);
+      queueRevokeInstallerPermission(store, creations, creationId, canisterId);
     } else {
       // Full installation or upgrade with frontend — queue frontend
-      queueFrontendTasks<system>(store, creationId, canisterId);
+      queueFrontendTasks<system>(store, creations, creationId, canisterId);
     };
   };
 
   /// Queue frontend installation tasks
-  func queueFrontendTasks<system>(store : Store, creationId : Nat, canisterId : Principal) {
-    let ?record = getCreationById(store, creationId) else return;
+  func queueFrontendTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+    let ?record = creations.get(creationId) else return;
 
     let value = { canisterId; progress = { processed = 0; total = 0 } };
-    record.status := if (record.isUpgrade) #UpgradingFrontend(value) else #UploadingFrontend(value);
+    let newStatus = if (record.isUpgrade) #UpgradingFrontend(value) else #UploadingFrontend(value);
+    ignore creations.appendEvent(creationId, newStatus);
 
     let versionKey = "storage-frontend@latest";
 
@@ -1187,17 +1162,17 @@ module StorageDeployerOrchestrator {
           store.nextTaskId += 1;
         };
 
-        syncFrontendProgressStatus(store, creationId, canisterId);
+        syncFrontendProgressStatus(store, creations, creationId, canisterId);
       };
       case (#err(e)) {
-        record.status := #Failed("Failed to generate frontend tasks: " # e);
+        ignore creations.appendEvent(creationId, #Failed("Failed to generate frontend tasks: " # e));
       };
     };
   };
 
   /// Queue controller update task
-  func queueUpdateControllers(store : Store, creationId : Nat, canisterId : Principal) {
-    let ?record = getCreationById(store, creationId) else return;
+  func queueUpdateControllers(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+    let ?record = creations.get(creationId) else return;
 
     let task : UnifiedTask = {
       id = store.nextTaskId;
@@ -1214,8 +1189,8 @@ module StorageDeployerOrchestrator {
   };
 
   /// Queue task to revoke installer's Commit permission
-  func queueRevokeInstallerPermission(store : Store, creationId : Nat, canisterId : Principal) {
-    let ?record = getCreationById(store, creationId) else return;
+  func queueRevokeInstallerPermission(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+    let ?record = creations.get(creationId) else return;
 
     let task : UnifiedTask = {
       id = store.nextTaskId;
@@ -1231,24 +1206,23 @@ module StorageDeployerOrchestrator {
   /// Handle task failure
   /// For upgrades: revert to Completed (canister is still alive and functional)
   /// For initial creation: mark as Failed
-  func handleTaskFailure(store : Store, creationId : Nat, errorMsg : Text) {
-    switch (getCreationById(store, creationId)) {
-      case (?record) {
-        if (record.isUpgrade) {
-          // Upgrade failed — canister still exists and works, revert to Completed
-          let ?canisterId = record.canisterId else {
-            record.status := #Failed(errorMsg);
-            return;
-          };
-          record.isUpgrade := false;
-          record.upgradeIncludesFrontend := false;
-          record.lastUpgradeError := ?errorMsg;
-          record.status := #Completed({ canisterId });
-        } else {
-          record.status := #Failed(errorMsg);
-        };
+  func handleTaskFailure(store : Store, creations : Creations.Creations, creationId : Nat, errorMsg : Text) {
+    let ?record = creations.get(creationId) else return;
+    if (record.isUpgrade) {
+      // Upgrade failed — canister still exists and works, revert to Completed.
+      // Clear upgrade flags + stash the error BEFORE firing the event so the
+      // #Completed snapshot persists the explanation.
+      let ?canisterId = record.canisterId else {
+        ignore creations.appendEvent(creationId, #Failed(errorMsg));
+        return;
       };
-      case null {};
+      ignore creations.mutate(
+        creationId,
+        func(r) = { r with isUpgrade = false; upgradeIncludesFrontend = false; lastUpgradeError = ?errorMsg },
+      );
+      ignore creations.appendEvent(creationId, #Completed({ canisterId }));
+    } else {
+      ignore creations.appendEvent(creationId, #Failed(errorMsg));
     };
   };
 
@@ -1256,40 +1230,52 @@ module StorageDeployerOrchestrator {
   // COMPLETION & UPDATE LOGIC
   // ═══════════════════════════════════════════════════════════════
 
-  /// Finalize creation/upgrade process — update hashes and status
-  func finalizeCompletion(store : Store, record : StorageCreationRecordMutable, canisterId : Principal) {
-    // Update hashes on successful completion
-    // wasmHash — always safe to update: for initial install WASM is always installed;
-    // for frontend-only upgrade the hash is already equal to latest (no-op assignment)
-    switch (GitHubReleases.latestStorageWasm(store.githubReleases)) {
-      case (#ok(details)) { record.wasmHash := ?details.sha256 };
-      case (#err(_)) {};
+  /// Finalize creation/upgrade process — update hashes and status.
+  /// Ambassador payout is NOT fired here: it already happened at
+  /// #CanisterCreated (the refund point of no return).
+  func finalizeCompletion(
+    store : Store,
+    creations : Creations.Creations,
+    creationId : Nat,
+    canisterId : Principal,
+  ) {
+    let nextWasmHash = switch (GitHubReleases.latestStorageWasm(store.githubReleases)) {
+      case (#ok(details)) ?details.sha256;
+      case (#err(_)) null;
     };
-
-    // frontendHash — skip only for WASM-only upgrades
-    let skipFrontendHash = record.isUpgrade and not record.upgradeIncludesFrontend;
-
-    if (not skipFrontendHash) {
-      switch (GitHubReleases.latestStorageFrontend(store.githubReleases)) {
-        case (#ok(details)) { record.frontendHash := ?details.sha256 };
-        case (#err(_)) {};
-      };
+    let nextFrontendHash = switch (GitHubReleases.latestStorageFrontend(store.githubReleases)) {
+      case (#ok(details)) ?details.sha256;
+      case (#err(_)) null;
     };
+    let releaseTagName = GitHubReleases.getLatestReleaseTagName(store.githubReleases);
 
-    // Update installedReleaseTag
-    record.installedReleaseTag := GitHubReleases.getLatestReleaseTagName(store.githubReleases);
-
-    // Reset upgrade flags
-    record.isUpgrade := false;
-    record.upgradeIncludesFrontend := false;
-    record.lastUpgradeError := null;
-
-    record.status := #Completed({ canisterId });
-    record.completedAt := ?Time.now();
+    // One atomic mutate for hashes + upgrade flags + completedAt, preserving
+    // the existing value if GitHub state isn't available yet.
+    // `frontendHash` is skipped on WASM-only upgrades (keep the old hash).
+    ignore creations.mutate(
+      creationId,
+      func(r) {
+        let wasmHash = switch (nextWasmHash) { case (?h) ?h; case null r.wasmHash };
+        let skipFrontend = r.isUpgrade and not r.upgradeIncludesFrontend;
+        let frontendHash = if (skipFrontend) r.frontendHash else switch (nextFrontendHash) { case (?h) ?h; case null r.frontendHash };
+        let installedReleaseTag = switch (releaseTagName) { case (?t) ?t; case null r.installedReleaseTag };
+        {
+          r with
+          wasmHash;
+          frontendHash;
+          installedReleaseTag;
+          isUpgrade = false;
+          upgradeIncludesFrontend = false;
+          lastUpgradeError = null;
+          completedAt = ?Time.now();
+        };
+      },
+    );
+    ignore creations.appendEvent(creationId, #Completed({ canisterId }));
   };
 
   /// Get update info for a storage record
-  func getUpdateInfo(store : Store, record : StorageCreationRecordMutable) : ?UpdateInfo {
+  func getUpdateInfo(store : Store, record : StorageCreationRecord) : ?UpdateInfo {
     // Updates are only available for completed storages
     switch (record.status) {
       case (#Completed(_)) {};
@@ -1334,46 +1320,26 @@ module StorageDeployerOrchestrator {
 
   /// Public query — check for available updates by canisterId.
   /// Accessible from any frontend without authorization.
-  public func checkStorageUpdate(store : Store, canisterId : Principal) : ?UpdateInfo {
-    // Find record by canisterId
-    for ((_, record) in Map.entries(store.creations)) {
-      switch (record.canisterId) {
-        case (?id) {
-          if (Principal.equal(id, canisterId)) {
-            return getUpdateInfo(store, record);
-          };
-        };
-        case null {};
-      };
+  public func checkStorageUpdate(store : Store, creations : Creations.Creations, canisterId : Principal) : ?UpdateInfo {
+    switch (creations.findByCanister(canisterId)) {
+      case (?record) getUpdateInfo(store, record);
+      case null null;
     };
-    null;
-  };
-
-  /// Find record by canisterId and owner
-  func findRecordByCanisterAndOwner(store : Store, canisterId : Principal, owner : Principal) : ?(Nat, StorageCreationRecordMutable) {
-    for ((creationId, record) in Map.entries(store.creations)) {
-      switch (record.canisterId) {
-        case (?id) {
-          if (Principal.equal(id, canisterId) and Principal.equal(record.owner, owner)) {
-            return ?(creationId, record);
-          };
-        };
-        case null {};
-      };
-    };
-    null;
   };
 
   /// Start storage upgrade. Backend determines scope automatically from available updates.
   public func upgradeStorage<system>(
     store : Store,
+    creations : Creations.Creations,
     caller : Principal,
     canisterId : Principal,
+    callbacks : OrchestratorCallbacks,
   ) : Result.Result<(), UpgradeStorageError> {
     // 1. Find record
-    let ?(creationId, record) = findRecordByCanisterAndOwner(store, canisterId, caller) else {
+    let ?record = creations.findByCanisterAndOwner(canisterId, caller) else {
       return #err(#NotFound);
     };
+    let creationId = record.id;
 
     // 2. Check status — only completed storages can be upgraded
     switch (record.status) {
@@ -1391,22 +1357,24 @@ module StorageDeployerOrchestrator {
     let needsWasm = updateInfo.wasmUpdateAvailable;
     let needsFrontend = updateInfo.frontendUpdateAvailable;
 
-    record.isUpgrade := true;
-    record.upgradeIncludesFrontend := needsFrontend;
+    ignore creations.mutate(
+      creationId,
+      func(r) = { r with isUpgrade = true; upgradeIncludesFrontend = needsFrontend },
+    );
 
     // 5. Queue tasks
     if (needsWasm) {
       // WASM upgrade — mode = #upgrade, use original initArg (required for post_upgrade)
-      queueWasmTasks(store, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #upgrade(?{ wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false }) });
+      queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #upgrade(?{ wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false }) });
       // If frontend also needed, it will be queued after WASM completes
       // (queuePostWasmTasks handles this after #WasmInstallCode/#WasmInstallChunked)
     } else if (needsFrontend) {
       // Frontend only
-      queueFrontendTasks<system>(store, creationId, canisterId);
+      queueFrontendTasks<system>(store, creations, creationId, canisterId);
     };
 
     // Start queue processing
-    ensureUnifiedTimer<system>(store);
+    ensureUnifiedTimer<system>(store, creations, callbacks);
 
     #ok;
   };
@@ -1415,24 +1383,7 @@ module StorageDeployerOrchestrator {
   // QUERIES
   // ═══════════════════════════════════════════════════════════════
 
-  func mapStorageCreationRecord(record : StorageCreationRecordMutable) : StorageCreationRecord {
-    {
-      id = record.id;
-      owner = record.owner;
-      releaseTag = record.releaseTag;
-      initArg = record.initArg;
-      envPairs = record.envPairs;
-      createdAt = record.createdAt;
-      canisterId = record.canisterId;
-      wasmHash = record.wasmHash;
-      frontendHash = record.frontendHash;
-      installedReleaseTag = record.installedReleaseTag;
-      status = record.status;
-      completedAt = record.completedAt;
-    };
-  };
-
-  func mapToStorageInfo(store : Store, record : StorageCreationRecordMutable) : StorageInfo {
+  func mapToStorageInfo(store : Store, record : StorageCreationRecord) : StorageInfo {
     {
       id = record.id;
       canisterId = record.canisterId;
@@ -1446,23 +1397,11 @@ module StorageDeployerOrchestrator {
   };
 
   /// List all storages for a user with their current status
-  public func listStorages(store : Store, caller : Principal) : [StorageInfo] {
-    switch (Map.get(store.creationsByOwner, Principal.compare, caller)) {
-      case (?creationIds) {
-        Vector.vals(creationIds)
-        |> Iter.filterMap<Nat, StorageInfo>(
-          _,
-          func(creationId) {
-            switch (Map.get(store.creations, Nat.compare, creationId)) {
-              case (?record) ?mapToStorageInfo(store, record);
-              case null null;
-            };
-          },
-        )
-        |> Iter.toArray(_);
-      };
-      case null [];
-    };
+  public func listStorages(store : Store, creations : Creations.Creations, caller : Principal) : [StorageInfo] {
+    Array.map<StorageCreationRecord, StorageInfo>(
+      creations.listByOwner(caller),
+      func(r) = mapToStorageInfo(store, r),
+    );
   };
 
   // ═══════════════════════════════════════════════════════════════
@@ -1470,79 +1409,57 @@ module StorageDeployerOrchestrator {
   // ═══════════════════════════════════════════════════════════════
 
   /// Add a license for a user. Rejects duplicates by paymentId.
-  public func addLicense(store : Store, owner : Principal, receipt : Types.PaymentReceipt) : Result.Result<(), { #DuplicatePayment }> {
-    let licenses = switch (Map.get(store.licenses, Principal.compare, owner)) {
-      case (?vec) vec;
-      case null {
-        let vec = Vector.new<Types.License>();
-        Map.add(store.licenses, Principal.compare, owner, vec);
-        vec;
-      };
-    };
+  // --- License operations (delegated to ZenDB collection) ---
+  //
+  // `licenses` is a transient class handle owned by the actor (main.mo). We
+  // pass it as an argument rather than storing it on `Store` because class
+  // closures aren't stable-serializable — holding it on Store would force
+  // the whole orchestrator to be transient and lose creation-record
+  // persistence across upgrades.
 
-    // Check uniqueness by paymentId
-    for (lic in Vector.vals(licenses)) {
-      if (Text.equal(lic.receipt.paymentId, receipt.paymentId)) {
-        return #err(#DuplicatePayment);
-      };
-    };
-
-    Vector.add(
-      licenses,
-      {
-        canisterId = null;
-        receipt;
-        createdAt = Time.now();
-      },
-    );
-    #ok;
-  };
-
-  /// Bind a license to a canister ID after successful creation.
-  public func bindLicense(store : Store, owner : Principal, paymentId : Text, canisterId : Principal) {
-    switch (Map.get(store.licenses, Principal.compare, owner)) {
-      case (?licenses) {
-        var i = 0;
-        let size = Vector.size(licenses);
-        while (i < size) {
-          let lic = Vector.get(licenses, i);
-          if (Text.equal(lic.receipt.paymentId, paymentId) and lic.canisterId == null) {
-            Vector.put(licenses, i, { lic with canisterId = ?canisterId });
-            return;
-          };
-          i += 1;
-        };
-      };
-      case null {};
+  public func addLicense(licenses : Licenses.Licenses, owner : Principal, receipt : Types.PaymentReceipt) : Result.Result<(), { #DuplicatePayment }> {
+    switch (licenses.add(owner, receipt)) {
+      case (#ok) #ok;
+      case (#err e) #err(e);
     };
   };
 
-  /// Find an unbound license for a user.
-  public func findUnboundLicense(store : Store, owner : Principal) : ?Types.License {
-    switch (Map.get(store.licenses, Principal.compare, owner)) {
-      case (?licenses) {
-        for (lic in Vector.vals(licenses)) {
-          if (lic.canisterId == null) return ?lic;
-        };
-        null;
-      };
-      case null null;
-    };
+  public func findLicenseByPaymentId(licenses : Licenses.Licenses, owner : Principal, paymentId : Text) : ?Types.License {
+    licenses.findByPaymentId(owner, paymentId);
   };
 
-  /// List all licenses for a user.
-  public func listLicenses(store : Store, owner : Principal) : [Types.License] {
-    switch (Map.get(store.licenses, Principal.compare, owner)) {
-      case (?licenses) Vector.toArray(licenses);
-      case null [];
-    };
+  public func markLicenseRefunded(
+    licenses : Licenses.Licenses,
+    owner : Principal,
+    paymentId : Text,
+    blockIndex : ?Nat,
+    reason : Text,
+  ) : Bool {
+    licenses.markRefunded(owner, paymentId, blockIndex, reason);
   };
 
-  /// Delete a failed storage record
-  /// Only records with Failed status can be deleted
-  public func deleteStorage(store : Store, caller : Principal, storageId : Nat) : Result.Result<(), DeleteStorageError> {
+  public func findUnboundLicense(licenses : Licenses.Licenses, owner : Principal) : ?Types.License {
+    licenses.findUnbound(owner);
+  };
+
+  public func listLicenses(licenses : Licenses.Licenses, owner : Principal) : [Types.License] {
+    licenses.listByOwner(owner);
+  };
+
+  /// Flexible license query with pagination + filters. Enforces auth at the
+  /// API layer (main.mo) by pinning `filter.owner = [caller]` for non-admins.
+  public func listLicensesWithOptions(licenses : Licenses.Licenses, options : Types.ListLicensesOptions) : Types.GetLicensesResponse {
+    licenses.list(options);
+  };
+
+  /// Delete a storage record.
+  /// Allowed when:
+  ///   - status is #Failed, OR
+  ///   - status is #ProcessingPayment/#Pending AND no licensePaymentId
+  ///     (payment did not complete, so no receipt would be orphaned)
+  public func deleteStorage(creations : Creations.Creations, caller : Principal, storageId : Nat) : Result.Result<(), DeleteStorageError> {
     // 1. Find the record
-    let ?record = Map.get(store.creations, Nat.compare, storageId) else {
+    let ?record = creations.get(storageId) else {
       return #err(#NotFound);
     };
 
@@ -1551,54 +1468,89 @@ module StorageDeployerOrchestrator {
       return #err(#NotOwner);
     };
 
-    // 3. Check if status is Failed
-    switch (record.status) {
-      case (#Failed(_)) {};
+    // 3. Check status eligibility
+    switch (record.status, record.licensePaymentId) {
+      case (#Failed(_), _) {};
+      case (#ProcessingPayment _, null) {};
+      case (#Pending, null) {};
       case _ return #err(#NotFailed);
     };
 
-    // 4. Remove from creations map
-    ignore Map.delete(store.creations, Nat.compare, storageId);
-
-    // 5. Remove from owner index
-    switch (Map.get(store.creationsByOwner, Principal.compare, caller)) {
-      case (?creationIds) {
-        // Find and remove the storageId from the vector
-        let newIds = Vector.new<Nat>();
-        for (id in Vector.vals(creationIds)) {
-          if (id != storageId) {
-            Vector.add(newIds, id);
-          };
-        };
-        // Replace with filtered vector
-        ignore Map.delete(store.creationsByOwner, Principal.compare, caller);
-        Map.add(store.creationsByOwner, Principal.compare, caller, newIds);
-      };
-      case null {};
-    };
-
+    creations.remove(storageId);
     #ok;
   };
 
+  /// Advance record status with tag-based dedup. Every call persists to
+  /// ZenDB (no-op if the id is gone). This is a thin wrapper so callers
+  /// outside this module don't have to reach into `creations` directly.
+  public func appendEvent(
+    creations : Creations.Creations,
+    creationId : Nat,
+    status : CreationStatus,
+  ) {
+    ignore creations.appendEvent(creationId, status);
+  };
+
+  /// Update the deferred ambassador payout status on a creation record.
+  /// Called from the actor's `payAmbassadorShareForPayment` after the
+  /// treasury transfer lands. Keeps the ZenDB-filterable `tag` shadow
+  /// field in sync. No-op if the creation id is gone.
+  public func setAmbassadorPayoutStatus(
+    creations : Creations.Creations,
+    creationId : Nat,
+    status : Types.AmbassadorPayoutStatus,
+  ) {
+    ignore creations.mutate(
+      creationId,
+      func(r) = {
+        r with
+        ambassadorPayoutStatus = status;
+        ambassadorPayoutStatusTag = Types.tagOfAmbassadorPayoutStatus(status);
+      },
+    );
+  };
+
+  /// Lookup the owner of a creation record. Callers use this to decide
+  /// whether the requester is allowed to read/modify it.
+  public func getCreationOwner(creations : Creations.Creations, creationId : Nat) : ?Principal {
+    switch (creations.get(creationId)) {
+      case (?record) ?record.owner;
+      case null null;
+    };
+  };
+
+  /// Remove a refunded creation record. Unlike `deleteStorage`, this bypasses
+  /// status checks — caller is responsible for validating that the refund has
+  /// already happened (license receipt is `#refunded`).
+  public func removeRefundedCreation(creations : Creations.Creations, creationId : Nat) : Bool {
+    switch (creations.get(creationId)) {
+      case null false;
+      case (?_) {
+        creations.remove(creationId);
+        true;
+      };
+    };
+  };
+
+  /// Read-only view of a creation record. Returns null if not found.
+  public func getCreationRecordById(creations : Creations.Creations, creationId : Nat) : ?StorageCreationRecord {
+    creations.get(creationId);
+  };
+
   /// Get current active creation status for a user (in-progress creation)
-  public func getCreationStatus(store : Store, caller : Principal) : ?CreationStatus {
-    switch (findActiveCreation(store, caller)) {
+  public func getCreationStatus(creations : Creations.Creations, caller : Principal) : ?CreationStatus {
+    switch (creations.findActiveByOwner(caller)) {
       case (?record) ?record.status;
       case null null;
     };
   };
 
   /// Get creation status by ID
-  public func getCreationStatusById(store : Store, creationId : Nat) : ?CreationStatus {
-    switch (getCreationById(store, creationId)) {
+  public func getCreationStatusById(creations : Creations.Creations, creationId : Nat) : ?CreationStatus {
+    switch (creations.get(creationId)) {
       case (?record) ?record.status;
       case null null;
     };
-  };
-
-  /// Get all creation records (admin)
-  public func getAllCreations(store : Store) : [(Nat, StorageCreationRecord)] {
-    Map.entries(store.creations) |> Iter.map(_, func(k, v) = (k, mapStorageCreationRecord(v))) |> Iter.toArray(_);
   };
 
   // -- Extraction Status --
@@ -1709,15 +1661,7 @@ module StorageDeployerOrchestrator {
   };
 
   /// Find the owner of a canister by its ID (reverse lookup via creation records)
-  public func findOwnerByCanister(store : Store, canisterId : Principal) : ?Principal {
-    for ((_, record) in Map.entries(store.creations)) {
-      switch (record.canisterId) {
-        case (?id) {
-          if (Principal.equal(id, canisterId)) return ?record.owner;
-        };
-        case null {};
-      };
-    };
-    null;
+  public func findOwnerByCanister(creations : Creations.Creations, canisterId : Principal) : ?Principal {
+    creations.findOwnerByCanister(canisterId);
   };
 };

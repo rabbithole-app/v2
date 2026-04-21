@@ -4,6 +4,7 @@ import Principal "mo:core/Principal";
 import IC "mo:ic";
 
 import TreasuryTypes "mo:treasury/Types";
+import ZenDB "mo:zendb";
 
 import LedgerTypes "../Types/LedgerTypes";
 import CMCTypes "../Types/CMCTypes";
@@ -138,24 +139,139 @@ module {
 
   // -- Creation Status --
 
-  /// Payment receipt — proof that a license was paid for this storage creation
+  /// Payment lifecycle. `#completed` on initial charge; flips to `#refunded`
+  /// only via `recoverFailedStorage(#refund)` (owner-initiated) or admin
+  /// intervention. License charges land 100% in the treasury subaccount
+  /// (see Balance.chargeForLicense with `deferAmbassadorPayout = true`),
+  /// so refunds are a straight 1:1 transfer back to the payer — no
+  /// ambassador clawback is involved. Ambassador share is disbursed
+  /// separately at `#CanisterCreated` via `treasury.distributeAmbassadorShare`.
+  public type PaymentStatus = {
+    #completed;
+    #refunded : { at : Time.Time; blockIndex : ?Nat; reason : Text };
+  };
+
+  /// Payment receipt — proof that a license was paid for this storage creation.
+  /// Lifecycle is represented by `status`; amount/tokenId/paymentId are immutable.
   public type PaymentReceipt = {
     tokenId : TreasuryTypes.TokenId;
     amount : Nat;
     paymentId : Text;
     paidAt : Time.Time;
+    status : PaymentStatus;
   };
 
-  /// License — one per storage canister, lives independently of StorageCreationRecord
+  /// License — one per storage canister, lives independently of StorageCreationRecord.
+  /// `owner` is stored as a field (used to be the implicit Map key). `statusTag`
+  /// shadows `receipt.status` variant for ZenDB index queries — kept in sync on
+  /// every write. Never read by code; variant stays source of truth.
   public type License = {
+    owner : Principal;
     canisterId : ?Principal;  // null = unbound, ?id = bound to canister
     receipt : PaymentReceipt;
+    statusTag : Text;         // "completed" | "refunded"
     createdAt : Time.Time;
+  };
+
+  /// Outcome of the deferred ambassador payout for a license-backed
+  /// creation. Lifecycle:
+  ///   - `#skipped` — no license attached, or external `addStorage` path.
+  ///     No payout expected.
+  ///   - `#pending` — license attached, canister not yet created; payout
+  ///     is queued for `#CanisterCreated` (the refund point of no return).
+  ///   - `#completed` — ambassadors have been transferred their share from
+  ///     treasury (idempotent — dedup key `"ambassador:" # paymentId`).
+  ///   - `#failed : Text` — payout attempt returned an error. Admin can
+  ///     retry via `retryAmbassadorPayout(creationId)`.
+  public type AmbassadorPayoutStatus = {
+    #skipped;
+    #pending;
+    #completed;
+    #failed : Text;
+  };
+
+  /// Project `AmbassadorPayoutStatus` variant to its index-friendly Text
+  /// form. Used as a shadow field `ambassadorPayoutStatusTag` so admin
+  /// listings can filter "all failed payouts" via ZenDB `#anyOf([#Text("failed")])`.
+  /// (ZenDB Orchid encoder doesn't support `#eq` on variant fields, hence
+  /// the shadow.)
+  public func tagOfAmbassadorPayoutStatus(s : AmbassadorPayoutStatus) : Text {
+    switch (s) {
+      case (#skipped) "skipped";
+      case (#pending) "pending";
+      case (#completed) "completed";
+      case (#failed _) "failed";
+    };
+  };
+
+  /// Project `PaymentStatus` variant to its index-friendly Text form.
+  public func tagOfPaymentStatus(s : PaymentStatus) : Text {
+    switch (s) {
+      case (#completed) "completed";
+      case (#refunded _) "refunded";
+    };
+  };
+
+  // -- List options / responses --
+
+  /// Time-range filter used in ListCreationsOptions / ListLicensesOptions.
+  public type TimeRangeFilter = { min : ?Time.Time; max : ?Time.Time };
+
+  public type ListLicensesOptions = {
+    filter : {
+      id : ?[Nat];
+      owner : ?[Principal];
+      canisterId : ?[Principal];
+      paymentId : ?Text;
+      statusTag : ?[Text];
+      hasCanister : ?Bool;
+      createdAt : ?TimeRangeFilter;
+      paidAt : ?TimeRangeFilter;
+    };
+    sort : [(Text, ZenDB.Types.SortDirection)];
+    pagination : { limit : Nat; offset : Nat };
+    count : Bool;
+  };
+
+  public type GetLicensesResponse = {
+    data : [License];
+    total : ?Nat;
+    instructions : Nat;
+  };
+
+  public let DEFAULT_LIST_LICENSES_OPTIONS : ListLicensesOptions = {
+    filter = {
+      id = null;
+      owner = null;
+      canisterId = null;
+      paymentId = null;
+      statusTag = null;
+      hasCanister = null;
+      createdAt = null;
+      paidAt = null;
+    };
+    sort = [];
+    pagination = { limit = 100; offset = 0 };
+    count = false;
+  };
+
+  /// Sub-phases of `#ProcessingPayment`. Each phase has a distinct tag so the
+  /// timeline records a separate event when the record advances between them;
+  /// progress-only transitions (e.g. chunk counts inside `#InstallingWasm`)
+  /// still collapse into one event via tag-based dedup.
+  public type PaymentPhase = {
+    #Starting;
+    #FetchingRates;       // XRC calls for ICP/ETH/SOL prices
+    #CheckingBalances;    // iterating spending-priority tokens (HTTPS outcalls)
+    #Charging : { tokenId : TreasuryTypes.TokenId; amount : Nat };
+    #RecordingLicense;
+    #Activating;
+    #Queueing;
   };
 
   /// Current status of a storage creation process
   public type CreationStatus = {
-    #ProcessingPayment;
+    #ProcessingPayment : PaymentPhase;
     #Pending;
     #CheckingBalance;
     #TransferringICP : { amount : Nat };
@@ -171,9 +287,19 @@ module {
     #Failed : Text;
   };
 
+  /// One entry in the creation record's audit trail. Appended on every
+  /// meaningful status transition; all data is carried by the `status` variant.
+  public type StatusEvent = {
+    status : CreationStatus;
+    timestamp : Time.Time;
+  };
+
   // -- Storage Creation Record --
 
-  /// Record of a storage creation (for history/tracking)
+  /// Record of a storage creation (for history/tracking).
+  /// `statusTag` shadows `status` variant for ZenDB index queries — kept in
+  /// sync on every write. `events` is an append-only timeline of major
+  /// status transitions (dedup by tag in lib.mo:appendEvent).
   public type StorageCreationRecord = {
     /// Unique ID of this creation process
     id : Nat;
@@ -187,7 +313,94 @@ module {
     frontendHash : ?Blob;
     installedReleaseTag : ?Text;
     status : CreationStatus;
+    statusTag : Text;
     completedAt : ?Time.Time;
+    licensePaymentId : ?Text;
+    isUpgrade : Bool;
+    upgradeIncludesFrontend : Bool;
+    lastUpgradeError : ?Text;
+    events : [StatusEvent];
+    /// Deferred ambassador payout status. Set to #pending when a license
+    /// is attached, flips to #completed/#failed at #CanisterCreated when
+    /// the orchestrator fires the payout callback. #skipped for records
+    /// without a license (external addStorage path).
+    ambassadorPayoutStatus : AmbassadorPayoutStatus;
+    /// Shadow of `ambassadorPayoutStatus` variant tag — Text for ZenDB
+    /// query compatibility. Kept in sync on every mutation via
+    /// `setAmbassadorPayoutStatus`.
+    ambassadorPayoutStatusTag : Text;
+  };
+
+  /// Project `CreationStatus` variant to its index-friendly Text form. Inner
+  /// progress data (chunk counts) is NOT part of the tag — dedup happens on
+  /// tag alone, so a 100-chunk install yields one `"InstallingWasm"` event.
+  public func tagOfCreationStatus(s : CreationStatus) : Text {
+    switch (s) {
+      case (#ProcessingPayment(phase)) switch (phase) {
+        case (#Starting) "ProcessingPayment.Starting";
+        case (#FetchingRates) "ProcessingPayment.FetchingRates";
+        case (#CheckingBalances) "ProcessingPayment.CheckingBalances";
+        case (#Charging _) "ProcessingPayment.Charging";
+        case (#RecordingLicense) "ProcessingPayment.RecordingLicense";
+        case (#Activating) "ProcessingPayment.Activating";
+        case (#Queueing) "ProcessingPayment.Queueing";
+      };
+      case (#Pending) "Pending";
+      case (#CheckingBalance) "CheckingBalance";
+      case (#TransferringICP _) "TransferringICP";
+      case (#NotifyingCMC _) "NotifyingCMC";
+      case (#CanisterCreated _) "CanisterCreated";
+      case (#InstallingWasm _) "InstallingWasm";
+      case (#UploadingFrontend _) "UploadingFrontend";
+      case (#RevokingInstallerPermission _) "RevokingInstallerPermission";
+      case (#UpdatingControllers _) "UpdatingControllers";
+      case (#UpgradingWasm _) "UpgradingWasm";
+      case (#UpgradingFrontend _) "UpgradingFrontend";
+      case (#Completed _) "Completed";
+      case (#Failed _) "Failed";
+    };
+  };
+
+  public type ListCreationsOptions = {
+    filter : {
+      id : ?[Nat];
+      owner : ?[Principal];
+      canisterId : ?[Principal];
+      statusTag : ?[Text];
+      releaseTag : ?Text;
+      hasCanister : ?Bool;
+      hasLicense : ?Bool;
+      createdAt : ?TimeRangeFilter;
+      completedAt : ?TimeRangeFilter;
+      ambassadorPayoutStatus : ?[Text];
+    };
+    sort : [(Text, ZenDB.Types.SortDirection)];
+    pagination : { limit : Nat; offset : Nat };
+    count : Bool;
+  };
+
+  public type GetCreationsResponse = {
+    data : [StorageCreationRecord];
+    total : ?Nat;
+    instructions : Nat;
+  };
+
+  public let DEFAULT_LIST_CREATIONS_OPTIONS : ListCreationsOptions = {
+    filter = {
+      id = null;
+      owner = null;
+      canisterId = null;
+      statusTag = null;
+      releaseTag = null;
+      hasCanister = null;
+      hasLicense = null;
+      createdAt = null;
+      completedAt = null;
+      ambassadorPayoutStatus = null;
+    };
+    sort = [];
+    pagination = { limit = 100; offset = 0 };
+    count = false;
   };
 
   /// Storage info returned by listStorages (combines record with status)

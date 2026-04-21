@@ -1,10 +1,11 @@
 import Blob "mo:core/Blob";
 import Iter "mo:core/Iter";
 import Map "mo:core/Map";
+import Principal "mo:core/Principal";
 import Time "mo:core/Time";
 
 mixin(
-  assertAdmin : (Principal) -> (),
+  admin : { assertAdmin : (Principal) -> () },
 ) {
   public type KnownWasmHash = {
     hash : Blob;
@@ -38,7 +39,7 @@ mixin(
 
   /// Admin: manually register a WASM hash (for testing/bootstrapping).
   public shared ({ caller }) func adminRegisterWasmHash(hash : Blob, releaseTag : Text) : async () {
-    assertAdmin(caller);
+    admin.assertAdmin(caller);
     registerWasmHash(hash, releaseTag);
   };
 };
