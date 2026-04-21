@@ -9,7 +9,7 @@
       "main": "src/main.mo",
       "type": "motoko",
       "gzip": true,
-      "init_arg": "(record { github = opt record { apiUrl = \"http://mock-server:8080\"; owner = \"user\"; repo = \"repo\"; token = null : opt text }; thresholdKeyName = \"dfx_test_key\"; chains = vec { variant { Evm = record { networkId = \"base-sepolia\"; chainId = 84532; evmRpcCanisterId = \"7hfb6-caaaa-aaaar-qadga-cai\"; rpcUrls = vec { \"https://base-sepolia-rpc.publicnode.com\" }; assets = vec { record { symbol = \"ETH\"; decimals = 18 : nat8; tokenId = variant { BaseETH }; locator = variant { Native } }; record { symbol = \"USDC\"; decimals = 6 : nat8; tokenId = variant { BaseUSDC }; locator = variant { Contract = \"0x036CbD53842c5426634e7929541eC2318f3dCF7e\" } }; record { symbol = \"USDT\"; decimals = 6 : nat8; tokenId = variant { BaseUSDT }; locator = variant { Contract = \"0x0000000000000000000000000000000000000000\" } } } } }; variant { Solana = record { networkId = \"devnet\"; solRpcCanisterId = \"tghme-zyaaa-aaaar-qarca-cai\"; rpcUrl = opt \"https://api.devnet.solana.com\"; assets = vec { record { symbol = \"SOL\"; decimals = 9 : nat8; tokenId = variant { SOL }; locator = variant { Native } }; record { symbol = \"USDC\"; decimals = 6 : nat8; tokenId = variant { SolUSDC }; locator = variant { Mint = \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\" } }; record { symbol = \"USDT\"; decimals = 6 : nat8; tokenId = variant { SolUSDT }; locator = variant { Mint = \"11111111111111111111111111111111\" } } } } } }; cashierCanisterId = principal \"xc7sj-uyaaa-aaaaf-qbrja-cai\" })"
+      "init_arg": "(record { github = opt record { apiUrl = \"http://mock-server:8080\"; owner = \"user\"; repo = \"repo\"; token = null : opt text }; thresholdKeyName = \"dfx_test_key\"; chains = vec { variant { Evm = record { networkId = \"base-sepolia\"; chainId = 84532; evmRpcCanisterId = \"7hfb6-caaaa-aaaar-qadga-cai\"; rpcUrls = vec { \"https://sepolia.base.org\" }; assets = vec { record { symbol = \"ETH\"; decimals = 18 : nat8; tokenId = variant { BaseETH }; locator = variant { Native } }; record { symbol = \"USDC\"; decimals = 6 : nat8; tokenId = variant { BaseUSDC }; locator = variant { Contract = \"0x036CbD53842c5426634e7929541eC2318f3dCF7e\" } }; record { symbol = \"USDT\"; decimals = 6 : nat8; tokenId = variant { BaseUSDT }; locator = variant { Contract = \"0x0000000000000000000000000000000000000000\" } } } } }; variant { Solana = record { networkId = \"devnet\"; solRpcCanisterId = \"tghme-zyaaa-aaaar-qarca-cai\"; rpcUrl = opt \"https://api.devnet.solana.com\"; assets = vec { record { symbol = \"SOL\"; decimals = 9 : nat8; tokenId = variant { SOL }; locator = variant { Native } }; record { symbol = \"USDC\"; decimals = 6 : nat8; tokenId = variant { SolUSDC }; locator = variant { Mint = \"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU\" } }; record { symbol = \"USDT\"; decimals = 6 : nat8; tokenId = variant { SolUSDT }; locator = variant { Mint = \"11111111111111111111111111111111\" } } } } } }; cashierCanisterId = principal \"xc7sj-uyaaa-aaaaf-qbrja-cai\" })"
     },
     "rabbithole-frontend": {
       "dependencies": [],
@@ -22,18 +22,50 @@
     },
     "xrc": {
       "type": "custom",
-      "candid": "https://raw.githubusercontent.com/dfinity/exchange-rate-canister/refs/heads/main/src/xrc_mock/xrc.did",
-      "wasm": "https://github.com/dfinity/exchange-rate-canister/releases/download/2026.03.11/xrc_mock.wasm.gz",
+      "candid": "https://raw.githubusercontent.com/dfinity/exchange-rate-canister/refs/heads/main/src/xrc/xrc.did",
+      "wasm": "https://github.com/dfinity/exchange-rate-canister/releases/download/2026.03.11/xrc.wasm.gz",
       "remote": {
         "id": {
           "ic": "uf6dk-hyaaa-aaaaq-qaaaq-cai"
         }
       },
-      "init_arg": "(record { response = variant { ExchangeRate = record { rate = 2_500_000_000 : nat64; base_asset = null; quote_asset = null; metadata = opt record { decimals = 9 : nat32; base_asset_num_received_rates = 5 : nat64; base_asset_num_queried_sources = 5 : nat64; quote_asset_num_received_rates = 5 : nat64; quote_asset_num_queried_sources = 5 : nat64; standard_deviation = 0 : nat64; forex_timestamp = null } } } })",
+      "init_arg": "(null)",
       "declarations": {
         "bindings": ["js", "ts"],
         "node_compatibility": true,
         "output": "declarations/xrc-mock"
+      }
+    },
+    "sol_rpc": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/sol-rpc-canister/releases/download/sol_rpc_canister-v1.3.0/sol_rpc_canister.did",
+      "wasm": "https://github.com/dfinity/sol-rpc-canister/releases/download/sol_rpc_canister-v1.3.0/sol_rpc_canister.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "tghme-zyaaa-aaaar-qarca-cai"
+        }
+      },
+      "init_arg": "(record {})",
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "node_compatibility": true,
+        "output": "declarations/sol_rpc"
+      }
+    },
+    "evm_rpc": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/evm-rpc-canister/releases/download/evm_rpc-v2.8.0/evm_rpc.did",
+      "wasm": "https://github.com/dfinity/evm-rpc-canister/releases/download/evm_rpc-v2.8.0/evm_rpc.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "7hfb6-caaaa-aaaar-qadga-cai"
+        }
+      },
+      "init_arg": "(record {})",
+      "declarations": {
+        "bindings": ["js", "ts"],
+        "node_compatibility": true,
+        "output": "declarations/evm_rpc"
       }
     },
     "encrypted-storage": {

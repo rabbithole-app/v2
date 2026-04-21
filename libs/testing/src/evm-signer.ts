@@ -20,7 +20,7 @@ import {
 // ---- Constants ----
 
 /** Public RPC endpoint for Base Sepolia testnet. */
-export const BASE_SEPOLIA_RPC = "https://base-sepolia-rpc.publicnode.com";
+export const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 
 /** Chain ID for Base Sepolia testnet. */
 export const BASE_SEPOLIA_CHAIN_ID = 84532n;
