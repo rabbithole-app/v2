@@ -11,6 +11,7 @@ import Option "mo:core/Option";
 import Result "mo:core/Result";
 import Error "mo:core/Error";
 import Nat "mo:core/Nat";
+import Runtime "mo:core/Runtime";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import Sha256 "mo:sha2/Sha256";
 import IC "mo:ic";
@@ -172,20 +173,25 @@ module StorageDeployerOrchestrator {
   ///   assets = [(#Latest, [#StorageWASM("app.wasm")])];
   /// });
   /// ```
-  public func new(
+  func envText<system>(name : Text, fallback : Text) : Text {
+    switch (Runtime.envVar<system>(name)) {
+      case (?found) found;
+      case null fallback;
+    };
+  };
+
+  public func new<system>(
     config : {
       github : GitHubReleases.GithubOptions;
       assets : [(GitHubReleases.ReleaseSelector, [GitHubReleases.GithubAsset])];
-      vetKeyName : Text;
-      cashierCanisterId : Principal;
     }
   ) : Store {
     let region = MemoryRegion.new();
     {
       var canisterId = null;
       region;
-      var vetKeyName : ?Text = ?config.vetKeyName;
-      var cashierCanisterId : ?Principal = ?config.cashierCanisterId;
+      var vetKeyName : ?Text = ?envText<system>("THRESHOLD_KEY_NAME", "dfx_test_key");
+      var cashierCanisterId : ?Principal = ?Principal.fromText(envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
       githubReleases = GitHubReleases.new({
         github = config.github;
         assets = config.assets;
@@ -220,8 +226,8 @@ module StorageDeployerOrchestrator {
     Text.compare(a.name, b.name);
   };
 
-  /// Merge system-pinned env vars (RABBITHOLE_BACKEND_ID, VETKEY_NAME,
-  /// CAFFFEINE_STORAGE_CASHIER_PRINCIPAL) with caller-supplied custom pairs.
+  /// Merge system-pinned env vars (PUBLIC_CANISTER_ID:rabbithole-backend,
+  /// VETKEY_NAME, CAFFFEINE_STORAGE_CASHIER_PRINCIPAL) with caller-supplied custom pairs.
   /// Public so CmcRecovery can rebuild the exact same `environment_variables`
   /// when retrying `notify_create_canister` on ambiguous failure — otherwise
   /// CMC might process a not-yet-resolved block with different env vars.
@@ -232,7 +238,7 @@ module StorageDeployerOrchestrator {
 
     let set = Set.fromArray<Types.EnvPair>(
       [
-        { name = "RABBITHOLE_BACKEND_ID"; value = Principal.toText(backendId) },
+        { name = "PUBLIC_CANISTER_ID:rabbithole-backend"; value = Principal.toText(backendId) },
         { name = "VETKEY_NAME"; value = vetKey },
         {
           name = "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL";

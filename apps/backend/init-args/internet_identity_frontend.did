@@ -1,0 +1,11 @@
+(
+  record {
+    backend_canister_id = principal "aaaaa-aa";
+    backend_origin = "http://aaaaa-aa.localhost:8000";
+    related_origins = null;
+    fetch_root_key = opt true;
+    analytics_config = null;
+    dummy_auth = null;
+    dev_csp = opt true;
+  },
+)

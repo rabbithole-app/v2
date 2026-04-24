@@ -1,19 +1,42 @@
+import { execSync } from 'node:child_process';
+import { resolve } from 'node:path';
+
 import { createConfig } from '@nx/angular-rspack';
 import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
 import { rspack } from '@rspack/core';
 import CompressionPlugin from 'compression-webpack-plugin';
-import { config } from 'dotenv';
-const { parsed } = config({ path: '../backend/.env' });
 
-function getEnvVars() {
-  return Object.entries(parsed ?? {}).reduce(
-    (acc, [key, value]) => {
-      if (/^(CANISTER_ID|DFX)_/.test(key)) acc[key] = value;
-      return acc;
-    },
-    {} as Record<string, unknown>,
-  );
+// Canister IDs + root-key come from the running local launcher (via icp-cli).
+// Fails loudly with a helpful message if the backend stack isn't up, so
+// `npx nx serve rabbithole` only succeeds when the canisters are deployed.
+// On production builds there's no running network; we skip the lookup and
+// let environment.prod.ts provide concrete values.
+interface CanisterEnv {
+  canisterIds: Record<string, string>;
+  rootKey: string;
+  apiUrl: string;
+  cookieValue: string;
 }
+
+function loadCanisterEnv(): CanisterEnv | null {
+  if (process.env['NX_TASK_TARGET_TARGET'] !== 'serve') return null;
+  const helper = resolve(__dirname, '../backend/scripts/get-canister-env.mjs');
+  const environment = process.env['ICP_ENVIRONMENT'] ?? 'local';
+  try {
+    const out = execSync(`node "${helper}" ${environment}`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return JSON.parse(out) as CanisterEnv;
+  } catch (err) {
+    console.error('\n❌ Could not fetch canister IDs from icp-cli.');
+    console.error('   Make sure the backend stack is running and canisters are deployed:');
+    console.error('     npx nx serve backend\n');
+    throw err;
+  }
+}
+
+const canisterEnv = loadCanisterEnv();
 
 export default createConfig(
   {
@@ -97,7 +120,6 @@ export default createConfig(
       plugins: [
         new rspack.DefinePlugin({
           'import.meta.env': JSON.stringify({
-            ...getEnvVars(),
             NODE_ENV: process.env['NODE_ENV'],
           }),
         }),
@@ -188,6 +210,14 @@ export default createConfig(
         devServer: {
           host: '0.0.0.0',
           historyApiFallback: true,
+          // Mimic the asset canister: ship the `ic_env` cookie on every
+          // response so code using @icp-sdk/core/agent/canister-env works
+          // the same as on deployed canisters.
+          headers: canisterEnv
+            ? {
+                'Set-Cookie': `ic_env=${encodeURIComponent(canisterEnv.cookieValue)}; Path=/; SameSite=Lax`,
+              }
+            : undefined,
         },
         output: {
           publicPath: '/',

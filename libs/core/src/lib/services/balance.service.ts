@@ -4,7 +4,7 @@ import { Principal } from '@icp-sdk/core/principal';
 
 import type { TokenId } from '@rabbithole/declarations';
 
-import { LEDGER_CANISTER_ID } from '../constants';
+import { BACKEND_CANISTER_ID, LEDGER_CANISTER_ID } from '../constants';
 import { injectHttpAgent, injectMainActor } from '../injectors';
 import { MULTI_CHAIN_RPC_CONFIG_TOKEN } from '../tokens';
 
@@ -130,9 +130,7 @@ export class BalanceService {
             canisterId: config.canisterId!,
           });
           const balance = await ledger['icrc1_balance_of']({
-            owner: Principal.fromText(
-              (import.meta as any).env?.CANISTER_ID_RABBITHOLE_BACKEND ?? '',
-            ),
+            owner: Principal.fromText(BACKEND_CANISTER_ID),
             subaccount: [Array.from(wallet.icSubaccount)],
           });
           return { config, balance: balance as bigint };

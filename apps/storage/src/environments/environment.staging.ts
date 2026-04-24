@@ -1,14 +1,17 @@
-import { INTERNET_IDENTITY_CANISTER_ID } from '@rabbithole/core';
+import {
+  BACKEND_CANISTER_ID,
+  ENV_NAME,
+  FRONTEND_CANISTER_ID,
+  HTTP_AGENT_HOST,
+} from '@rabbithole/core';
 
 export const environment = {
-  identityProviderUrl: `https://${INTERNET_IDENTITY_CANISTER_ID}.localhost`,
-  appUrl: `https://${
-    import.meta.env.CANISTER_ID_RABBITHOLE_FRONTEND
-  }.localhost`,
+  identityProviderUrl: 'https://id.ai/authorize',
+  appUrl: `https://${FRONTEND_CANISTER_ID}.icp0.io`,
   appName: 'Rabbithole',
-  httpAgentHost: 'https://localhost',
-  envName: 'STAGING',
+  httpAgentHost: HTTP_AGENT_HOST,
+  envName: ENV_NAME,
   production: false,
   scheme: 'rabbithole',
-  backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
+  backendCanisterId: BACKEND_CANISTER_ID,
 };

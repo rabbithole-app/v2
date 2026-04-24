@@ -1,7 +1,7 @@
 import Cycles "mo:core/Cycles";
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
-import Prim "mo:prim";
+import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Result "mo:core/Result";
@@ -29,22 +29,18 @@ import HttpAssetsMixin "HttpAssetsMixin";
 shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
     owner : Principal;
     storageBackendType : ?T.StorageBackend;
-    vetKeyName : ?Text;
-    backendId : ?Principal;
   }) = this {
   let owner = initArgs.owner;
 
-  // Env var (set by StorageDeployer) takes priority, initArgs as fallback (for tests)
-  let vetKeyName = switch (Prim.envVar<system>("VETKEY_NAME")) {
+  // Dynamic storage deployments receive these through canister settings
+  // environment_variables, not through the install arg.
+  let vetKeyName = switch (Runtime.envVar<system>("VETKEY_NAME")) {
     case (?name) name;
-    case null switch (initArgs.vetKeyName) {
-      case (?name) name;
-      case null "dfx_test_key";
-    };
+    case null "dfx_test_key";
   };
-  let backendId : ?Principal = switch (Prim.envVar<system>("RABBITHOLE_BACKEND_ID")) {
+  let backendId : ?Principal = switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-backend")) {
     case (?id) ?Principal.fromText(id);
-    case null initArgs.backendId;
+    case null null;
   };
 
   let keyId : ManagementCanister.VetKdKeyid = {

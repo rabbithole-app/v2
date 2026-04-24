@@ -4,43 +4,20 @@
   "projectType": "application",
   "sourceRoot": "apps/backend",
   "targets": {
-    "build": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "apps/backend",
-        "command": "docker compose up",
-        "parallel": false
-      },
-      "dependsOn": [
-        {
-          "target": "build",
-          "projects": ["rabbithole"]
-        }
-      ]
-    },
     "compose": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/backend",
         "command": "docker compose",
-        "env": {
-          "COMPOSE_PROJECT_NAME": "rabbithole"
-        },
+        "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
         "parallel": false
       }
     },
-    "generate-declarations": {
+    "bootstrap": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/backend",
-        "commands": [
-          "docker compose exec backend dfx generate",
-          "cp -r declarations/rabbithole-backend ../../libs/declarations/src/backend",
-          "cp -r declarations/encrypted-storage ../../libs/declarations/src/encrypted-storage"
-        ],
-        "env": {
-          "COMPOSE_PROJECT_NAME": "rabbithole"
-        },
+        "command": "node scripts/bootstrap.mjs",
         "parallel": false
       }
     },
@@ -48,15 +25,49 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "apps/backend",
-        "command": "docker compose exec backend dfx deploy",
+        "commands": [
+          "docker compose up -d --wait",
+          "node scripts/bootstrap.mjs",
+          "icp deploy -e local --cycles 20t"
+        ],
+        "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
         "parallel": false
       },
       "dependsOn": [
-        {
-          "target": "build",
-          "projects": ["rabbithole"]
-        }
+        { "target": "build", "projects": ["rabbithole"] }
       ]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "cwd": "apps/backend",
+        "commands": [
+          "node scripts/generate-declarations.mjs",
+          "docker compose up -d --wait",
+          "node scripts/bootstrap.mjs",
+          "icp deploy -e local --cycles 20t",
+          "docker compose logs -f network caddy mock-server"
+        ],
+        "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
+        "parallel": false
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "icp build",
+        "parallel": false
+      }
+    },
+    "generate-declarations": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "node scripts/generate-declarations.mjs",
+        "parallel": false
+      }
     },
     "install-ca": {
       "executor": "nx:run-commands",
@@ -65,24 +76,13 @@
         "cwd": "apps/backend"
       }
     },
-    "serve": {
-      "executor": "nx:run-commands",
-      "continuous": true,
-      "options": {
-        "cwd": "apps/backend",
-        "command": "docker compose up",
-        "env": {
-          "COMPOSE_PROJECT_NAME": "rabbithole"
-        },
-        "parallel": false
-      }
-    },
     "generate-mock-assets": {
       "executor": "nx:run-commands",
       "options": {
         "commands": [
           "npx nx build storage --skip-nx-cache",
-          "cp apps/backend/.dfx/local/canisters/encrypted-storage/encrypted-storage.wasm.gz apps/backend/mock/assets/",
+          "icp build -e build encrypted-storage",
+          "cp apps/backend/.icp/cache/artifacts/encrypted-storage apps/backend/mock/assets/encrypted-storage.wasm.gz",
           "COPYFILE_DISABLE=1 tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
           "node apps/backend/mock/sync-release-metadata.mjs"
         ],

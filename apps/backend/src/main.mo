@@ -13,6 +13,7 @@ import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
+import Runtime "mo:core/Runtime";
 
 import Liminal "mo:liminal";
 import LiminalApp "mo:liminal/App";
@@ -52,6 +53,13 @@ import Types "Types";
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
 
+  func envText<system>(name : Text, fallback : Text) : Text {
+    switch (Runtime.envVar<system>(name)) {
+      case (?value) value;
+      case null fallback;
+    };
+  };
+
   // --- Assets & HTTP ---
 
   var assetStableData = HttpAssets.init_stable_store(canisterId, installer);
@@ -67,22 +75,18 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   // --- Storage Deployer ---
 
-  let defaultGithub : Types.GithubOptions = {
-    apiUrl = "https://api.github.com";
-    owner = "rabbithole-app";
-    repo = "v2";
-    token = null;
-  };
+  let backendThresholdKeyName = envText<system>("THRESHOLD_KEY_NAME", "dfx_test_key");
 
-  let storageOrchestrator = StorageDeployerOrchestrator.new({
-    github = Option.get(initArgs.github, defaultGithub);
+  let storageOrchestrator = StorageDeployerOrchestrator.new<system>({
+    github = {
+      apiUrl = envText<system>("GITHUB_API_URL", "https://api.github.com");
+      owner = envText<system>("GITHUB_OWNER", "rabbithole-app");
+      repo = envText<system>("GITHUB_REPO", "v2");
+      token = Runtime.envVar<system>("GITHUB_TOKEN");
+    };
     assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar")])];
-    vetKeyName = initArgs.thresholdKeyName;
-    cashierCanisterId = initArgs.cashierCanisterId;
   });
   storageOrchestrator.canisterId := ?canisterId;
-  storageOrchestrator.vetKeyName := ?initArgs.thresholdKeyName;
-  storageOrchestrator.cashierCanisterId := ?initArgs.cashierCanisterId;
 
   // Transient ZenDB class handles — recreated on every upgrade, backing
   // rows persist via the stable `db` store.
@@ -121,7 +125,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   include TreasuryMixin(
     {
       canisterId;
-      thresholdKeyName = initArgs.thresholdKeyName;
+      thresholdKeyName = backendThresholdKeyName;
       chains = initArgs.chains;
     },
     { assertAdmin },
@@ -275,7 +279,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   transient let CMC_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
   transient let ICP_LEDGER_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
-  transient let XRC_CANISTER_ID = "uf6dk-hyaaa-aaaaq-qaaaq-cai";
+  transient let XRC_CANISTER_ID = envText<system>("PUBLIC_CANISTER_ID:xrc", "uf6dk-hyaaa-aaaaq-qaaaq-cai");
   // XRC rejects calls with < 1B cycles attached (XRC_REQUEST_CYCLES_COST check).
   // Actual fee is 20M (cache hit) to 500M (stablecoin pair); unused is auto-refunded.
   transient let XRC_CYCLES_COST : Nat = 1_000_000_000;
@@ -859,11 +863,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ///     `grantStoragePermission` / `revokeStoragePermission`).
   ///
   /// Backend id trust — not verified:
-  ///   - Caller could have set `RABBITHOLE_BACKEND_ID` env var to a
-  ///     different backend, in which case the canister's subscription
-  ///     gates and auto-topup calls would route elsewhere. That's
-  ///     self-sabotage (controller loses Pro features), not a risk
-  ///     for us — so we don't verify.
+  ///   - Caller could have set `PUBLIC_CANISTER_ID:rabbithole-backend`
+  ///     env var to a different backend, in which case the canister's
+  ///     subscription gates and auto-topup calls would route elsewhere.
+  ///     That's self-sabotage (controller loses Pro features), not a
+  ///     risk for us — so we don't verify.
   ///
   /// Trial — NOT auto-activated. Trial is part of the License offer
   /// (strategy §3), not a freebie for any account registration.

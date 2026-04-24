@@ -1,0 +1,8 @@
+# root-key is (re)written by scripts at startup from the launcher's
+# .icp-status/status.json. The value below is only a placeholder that lets
+# `icp project show` validate on a fresh clone; it will NOT work for deploy
+# until the launcher has been started and the key refreshed.
+name: local
+mode: connected
+url: "http://localhost:8000"
+root-key: "308182301d060d2b0601040182dc7c0503010201060c2b0601040182dc7c050302010361008b52b4994f94c7ce4be1c1542d7c81dc79fea17d49efe8fa42e8566373581d4b969c4a59e96a0ef51b711fe5027ec01601182519d0a788f4bfe388e593b97cd1d7e44904de79422430bca686ac8c21305b3397b5ba4d7037d17877312fb7ee34"

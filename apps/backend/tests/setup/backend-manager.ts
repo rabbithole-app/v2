@@ -18,7 +18,7 @@ import {
 import { BaseManager, minterIdentity } from "@rabbithole/testing";
 
 import {
-  CASHIER_CANISTER_ID,
+  BACKEND_ENVIRONMENT_VARIABLES,
   CKETH_CANISTER_ID,
   CKUSDC_CANISTER_ID,
   CMC_CANISTER_ID,
@@ -263,12 +263,10 @@ export class BackendManager extends BaseManager {
       await this.setupCanister<RabbitholeActorService>({
         idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
         wasm: RABBITHOLE_BACKEND_WASM_PATH,
+        environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
         arg: IDL.encode(initBackend({ IDL }), [{
-          thresholdKeyName: "dfx_test_key",
-          github: [],
           icpaySecretKey: [],
           chains: config?.chains ?? [],
-          cashierCanisterId: CASHIER_CANISTER_ID,
         }]),
       });
 
@@ -357,11 +355,8 @@ export class BackendManager extends BaseManager {
       canisterId: fixture.canisterId,
       wasm: RABBITHOLE_BACKEND_WASM_PATH,
       arg: IDL.encode(initBackend({ IDL }), [{
-        thresholdKeyName: "dfx_test_key",
-        github: [],
         icpaySecretKey: [],
         chains: [],
-        cashierCanisterId: CASHIER_CANISTER_ID,
       }]),
       upgradeModeOptions: {
         skip_pre_upgrade: [],

@@ -2,5 +2,5 @@ localhost, *.localhost, *.raw.localhost {
     tls internal {
         on_demand
     }
-    reverse_proxy backend:4943
+    reverse_proxy network:4943
 }

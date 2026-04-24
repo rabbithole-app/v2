@@ -1,0 +1,154 @@
+networks:
+  - networks/local.yaml
+
+environments:
+  # encrypted-storage is a WASM template installed dynamically by
+  # rabbithole-backend into per-user storage canisters — it is NOT deployed
+  # standalone. It's listed in `canisters:` only so `icp build encrypted-storage`
+  # produces the wasm + did artifacts.
+  - name: local
+    network: local
+    canisters:
+      - rabbithole-backend
+      - rabbithole-frontend
+      - internet_identity_backend
+      - internet_identity_frontend
+      - xrc
+      - sol_rpc
+      - evm_rpc
+
+  - name: staging
+    network: ic
+    canisters:
+      - rabbithole-backend
+      - rabbithole-frontend
+    settings:
+      rabbithole-backend:
+        environment_variables:
+          THRESHOLD_KEY_NAME: "test_key_1"
+          GITHUB_API_URL: "https://api.github.com"
+          GITHUB_OWNER: "rabbithole-app"
+          GITHUB_REPO: "v2"
+          PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: "xc7sj-uyaaa-aaaaf-qbrja-cai"
+      rabbithole-frontend:
+        environment_variables:
+          PUBLIC_ENV_NAME: "STAGING"
+          PUBLIC_HTTP_AGENT_HOST: "https://icp-api.io"
+          PUBLIC_EVM_RPC_URL: "https://sepolia.base.org"
+          PUBLIC_SOL_RPC_URL: "https://api.devnet.solana.com"
+          PUBLIC_BLOB_STORAGE_GATEWAY_URL: "https://dev-blob.caffeine.ai"
+          PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: "xc7sj-uyaaa-aaaaf-qbrja-cai"
+          PUBLIC_ICPAY_PUBLISHABLE_KEY: "pk_GP6RSrfGQTRWxw2QeBXThqOGuYcPak3E"
+          PUBLIC_ICPAY_API_URL: "https://api.betterstripe.com"
+
+  - name: ic
+    network: ic
+    canisters:
+      - rabbithole-backend
+      - rabbithole-frontend
+    settings:
+      rabbithole-backend:
+        environment_variables:
+          THRESHOLD_KEY_NAME: "test_key_1"
+          GITHUB_API_URL: "https://api.github.com"
+          GITHUB_OWNER: "rabbithole-app"
+          GITHUB_REPO: "v2"
+          PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: "72ch2-fiaaa-aaaar-qbsvq-cai"
+      rabbithole-frontend:
+        environment_variables:
+          PUBLIC_ENV_NAME: "PROD"
+          PUBLIC_HTTP_AGENT_HOST: "https://icp-api.io"
+          PUBLIC_EVM_RPC_URL: "https://mainnet.base.org"
+          PUBLIC_SOL_RPC_URL: "https://api.mainnet-beta.solana.com"
+          PUBLIC_BLOB_STORAGE_GATEWAY_URL: "https://blob.caffeine.ai"
+          PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: "72ch2-fiaaa-aaaar-qbsvq-cai"
+          PUBLIC_ICPAY_PUBLISHABLE_KEY: ""
+          PUBLIC_ICPAY_API_URL: "https://api.icpay.org"
+
+  # Build-only environment для encrypted-storage (никуда не деплоится,
+  # wasm копируется в mock/assets/ через generate-mock-assets target)
+  - name: build
+    network: local
+    canisters:
+      - encrypted-storage
+
+canisters:
+  - name: rabbithole-backend
+    recipe:
+      type: "@dfinity/motoko@v4.1.0"
+      configuration:
+        main: src/main.mo
+        compress: true
+    init_args:
+      path: ./init-args/rabbithole-backend.bin
+      format: hex
+    settings:
+      environment_variables:
+        THRESHOLD_KEY_NAME: "dfx_test_key"
+        GITHUB_API_URL: "http://mock-server:8080"
+        GITHUB_OWNER: "user"
+        GITHUB_REPO: "repo"
+        PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: "xc7sj-uyaaa-aaaaf-qbrja-cai"
+
+  - name: encrypted-storage
+    recipe:
+      type: "@dfinity/motoko@v4.1.0"
+      configuration:
+        main: src/EncryptedStorageCanister.mo
+        args: --max-stable-pages 3276800
+        compress: true
+
+  - name: rabbithole-frontend
+    recipe:
+      type: "@dfinity/asset-canister@v2.1.0"
+      configuration:
+        dir: ../../dist/apps/rabbithole/browser
+        build:
+          - sh -c 'cd ../.. && npx nx build rabbithole'
+    settings:
+      environment_variables:
+        PUBLIC_ENV_NAME: "DEV"
+        PUBLIC_HTTP_AGENT_HOST: "https://localhost"
+        PUBLIC_EVM_RPC_URL: "https://sepolia.base.org"
+        PUBLIC_SOL_RPC_URL: "https://api.devnet.solana.com"
+        PUBLIC_BLOB_STORAGE_GATEWAY_URL: "https://dev-blob.caffeine.ai"
+        PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: "xc7sj-uyaaa-aaaaf-qbrja-cai"
+        PUBLIC_ICPAY_PUBLISHABLE_KEY: "pk_GP6RSrfGQTRWxw2QeBXThqOGuYcPak3E"
+        PUBLIC_ICPAY_API_URL: "https://api.betterstripe.com"
+
+  - name: internet_identity_backend
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-04-21/internet_identity_dev.wasm.gz
+    init_args: '(opt record { captcha_config = opt record { max_unsolved_captchas = 50:nat64; captcha_trigger = variant { Static = variant { CaptchaDisabled } } } })'
+
+  - name: internet_identity_frontend
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-04-21/internet_identity_frontend.wasm.gz
+    init_args:
+      path: ./init-args/internet_identity_frontend.did
+      format: candid
+
+  - name: xrc
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/dfinity/exchange-rate-canister/releases/download/2026.03.11/xrc.wasm.gz
+    init_args: "(null)"
+
+  - name: sol_rpc
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/dfinity/sol-rpc-canister/releases/download/sol_rpc_canister-v1.3.0/sol_rpc_canister.wasm.gz
+    init_args: "(record {})"
+
+  - name: evm_rpc
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/dfinity/evm-rpc-canister/releases/download/evm_rpc-v2.8.0/evm_rpc.wasm.gz
+    init_args: "(record {})"

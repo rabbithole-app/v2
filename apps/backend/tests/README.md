@@ -12,9 +12,9 @@ Ensure all canisters are built before running tests:
 npx nx build backend
 ```
 
-### Important: Run Tests Locally
+### Important: PocketIC Runtime
 
-⚠️ Running tests with NNS state inside a Docker container or sandbox environment may cause the internal PocketIC server to fail to start. It is **recommended to run tests directly on your local machine**.
+Tests pin a newer PocketIC runtime through `scripts/override-pocketic.mjs` and create NNS from scratch with PocketIC `icpFeatures`. Do not restore the old saved NNS snapshot.
 
 ## Project Structure
 
@@ -40,11 +40,11 @@ tests/
 
 Common test utilities live in `libs/testing` (`@rabbithole/testing`):
 
-- **`BaseManager`** — base class for PocketIC test setup (NNS state, ICP ledger, CMC, time/block control)
+- **`BaseManager`** — base class for PocketIC test setup (fresh NNS, ICP ledger, CMC, time/block control)
 - **`setupChunkedCanister` / `upgradeChunkedCanister`** — chunked WASM installation for large canisters
 - **`minterIdentity`** — pre-configured NNS minter identity
 - **Constants** — NNS canister IDs, fees, conversion rates
-- **NNS state** — pre-configured state at `libs/testing/state/nns_state/`
+- **NNS infrastructure** — fresh PocketIC NNS subnet with `registry`, `cyclesMinting`, and `icpToken` features enabled
 
 ## Test Files Overview
 
@@ -109,7 +109,7 @@ BaseManager (libs/testing)           — NNS/PocketIC infrastructure
 ```
 
 **`BaseManager`** (`@rabbithole/testing`) handles:
-- PocketIC instance with NNS subnet (from saved state)
+- PocketIC instance with a fresh NNS subnet and built-in ICP Ledger / CMC canisters
 - Application subnet creation
 - Pre-configured ICP Ledger and CMC actors
 - ICP minting and transfers
@@ -180,11 +180,11 @@ The `global-setup.ts` starts a PocketIC server before tests and provides the URL
 
 ## Troubleshooting
 
-### Error: NNS state not found
+### Error: broken overlay file in NNS state
 
-**Problem**: Tests fail with "state path not found" error.
+**Problem**: Tests fail with `No index provided in overlay file`.
 
-**Solution**: NNS state lives in `libs/testing/state/nns_state/`. Ensure it exists (copied during `libs/testing` setup).
+**Solution**: Do not load the old `libs/testing/src/state/nns_state` snapshot with the pinned PocketIC runtime. Tests use a fresh NNS subnet with PocketIC `icpFeatures` instead, because saved checkpoint formats are not stable across newer IC runtime artifacts.
 
 ### Error: WASM file not found
 

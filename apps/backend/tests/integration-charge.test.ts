@@ -35,11 +35,12 @@ import {
   buildSolanaChainConfig,
 } from './setup/backend-manager.ts';
 import {
+  BACKEND_ENVIRONMENT_VARIABLES,
   BASE_SEPOLIA_CHAIN_ID,
   BASE_SEPOLIA_RPC,
   BASE_SEPOLIA_USDC,
   BASE_SEPOLIA_USDT,
-  CASHIER_CANISTER_ID,
+  buildStorageEnvironmentVariables,
   CKETH_CANISTER_ID,
   CKUSDC_CANISTER_ID,
   STORAGE_WASM_PATH as ENCRYPTED_STORAGE_WASM_PATH,
@@ -61,11 +62,10 @@ import {
 const WASM_PATH = resolve(
   import.meta.dirname,
   '..',
-  '.dfx',
-  'local',
-  'canisters',
+  '.icp',
+  'cache',
+  'artifacts',
   'rabbithole-backend',
-  'rabbithole-backend.wasm.gz',
 );
 
 // ownerIdentity must match BaseManager's default owner (installer = admin)
@@ -97,14 +97,12 @@ function buildHttpRequest(body: string, signature: string) {
     certificate_version: [],
   };
 }
-function encodeStorageInitArg(owner: Principal, backendId: Principal): Uint8Array {
+function encodeStorageInitArg(owner: Principal): Uint8Array {
   const [initArgsIdl] = initEncryptedStorage({ IDL });
   return new Uint8Array(
     IDL.encode([initArgsIdl], [
       {
         owner,
-        vetKeyName: ['dfx_test_key'],
-        backendId: [backendId],
         storageBackendType: [{ OnChain: null }],
       },
     ]),
@@ -164,12 +162,10 @@ describe('Integration: deposit + wallet + settings', () => {
     const fixture = await manager.setupCanister<RabbitholeActorService>({
       wasm: WASM_PATH,
       idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
       arg: IDL.encode(initBackend({ IDL }), [{
-        thresholdKeyName: 'dfx_test_key',
-        github: [],
         icpaySecretKey: [],
         chains: [],
-        cashierCanisterId: CASHIER_CANISTER_ID,
       }]),
     });
     actor = fixture.actor;
@@ -246,12 +242,10 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     const fixture = await manager.setupCanister<RabbitholeActorService>({
       wasm: WASM_PATH,
       idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
       arg: IDL.encode(initBackend({ IDL }), [{
-        thresholdKeyName: 'dfx_test_key',
-        github: [],
         icpaySecretKey: [Array.from(secretBytes)],
         chains: [],
-        cashierCanisterId: CASHIER_CANISTER_ID,
       }]),
     });
     actor = fixture.actor;
@@ -1142,15 +1136,13 @@ describe('Integration: topUpFromBalance full flow', () => {
 
     // Deploy storage canister directly via PocketIC
     // initEncryptedStorage and encryptedStorageIdlFactory imported statically at top of file
-    const storageInitArg = encodeStorageInitArg(
-      storageUser.getPrincipal(),
-      backendCanisterId,
-    );
+    const storageInitArg = encodeStorageInitArg(storageUser.getPrincipal());
 
     const storageFixture = await manager.pic.setupCanister({
       wasm: ENCRYPTED_STORAGE_WASM_PATH,
       sender: storageUser.getPrincipal(),
       idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
       arg: storageInitArg,
     });
     storageCanisterId = storageFixture.canisterId;
@@ -1288,14 +1280,12 @@ describe('Integration: topUpFromBalance full flow', () => {
 
     // Register storage under this user
     // initEncryptedStorage and encryptedStorageIdlFactory imported statically at top of file
-    const partialStorageInitArg = encodeStorageInitArg(
-      partialUser.getPrincipal(),
-      backendCanisterId,
-    );
+    const partialStorageInitArg = encodeStorageInitArg(partialUser.getPrincipal());
     const partialStorage = await manager.pic.setupCanister({
       wasm: ENCRYPTED_STORAGE_WASM_PATH,
       sender: partialUser.getPrincipal(),
       idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
       arg: partialStorageInitArg,
     });
     actor.setIdentity(partialUser);

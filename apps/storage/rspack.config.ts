@@ -1,22 +1,38 @@
+import { execSync } from 'node:child_process';
+import { resolve } from 'node:path';
+
 import { createConfig } from '@nx/angular-rspack';
 import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
 import { rspack } from '@rspack/core';
 import CompressionPlugin from 'compression-webpack-plugin';
-import { config } from 'dotenv';
 
-const { parsed } = config({ path: '../backend/.env' });
-
-function getEnvVars() {
-  return Object.entries(parsed ?? {}).reduce(
-    (acc, [key, value]) => {
-      if (/^(CANISTER_ID|DFX)_/.test(key)) acc[key] = value;
-
-      return acc;
-    },
-
-    {} as Record<string, unknown>,
-  );
+// See apps/rabbithole/rspack.config.ts for the rationale. Same helper, same flow.
+interface CanisterEnv {
+  canisterIds: Record<string, string>;
+  rootKey: string;
+  apiUrl: string;
+  cookieValue: string;
 }
+
+function loadCanisterEnv(): CanisterEnv | null {
+  if (process.env['NX_TASK_TARGET_TARGET'] !== 'serve') return null;
+  const helper = resolve(__dirname, '../backend/scripts/get-canister-env.mjs');
+  const environment = process.env['ICP_ENVIRONMENT'] ?? 'local';
+  try {
+    const out = execSync(`node "${helper}" ${environment}`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return JSON.parse(out) as CanisterEnv;
+  } catch (err) {
+    console.error('\n❌ Could not fetch canister IDs from icp-cli.');
+    console.error('   Make sure the backend stack is running and canisters are deployed:');
+    console.error('     npx nx serve backend\n');
+    throw err;
+  }
+}
+
+const canisterEnv = loadCanisterEnv();
 
 export default createConfig(
   {
@@ -57,6 +73,10 @@ export default createConfig(
       },
       resolve: {
         extensions: ['.wasm', '...'],
+        fallback: {
+          // ICPay SDK can be pulled transitively through core; x402's Node crypto path is not used in browser.
+          crypto: false,
+        },
       },
       module: {
         parser: {
@@ -90,7 +110,6 @@ export default createConfig(
       plugins: [
         new rspack.DefinePlugin({
           'import.meta.env': JSON.stringify({
-            ...getEnvVars(),
             NODE_ENV: process.env['NODE_ENV'],
           }),
         }),
@@ -104,7 +123,7 @@ export default createConfig(
           {
             type: 'initial',
             maximumWarning: '500kb',
-            maximumError: '2mb',
+            maximumError: '2.5mb',
           },
           {
             type: 'anyComponentStyle',
@@ -155,6 +174,15 @@ export default createConfig(
         devServer: {},
       },
       rspackConfigOverrides: {
+        devServer: {
+          // Ship the `ic_env` cookie so frontend code using @icp-sdk/core/agent/canister-env
+          // sees the same values it would get from the deployed asset canister.
+          headers: canisterEnv
+            ? {
+                'Set-Cookie': `ic_env=${encodeURIComponent(canisterEnv.cookieValue)}; Path=/; SameSite=Lax`,
+              }
+            : undefined,
+        },
         output: {
           publicPath: '/',
         },

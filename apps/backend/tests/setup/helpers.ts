@@ -14,17 +14,16 @@ import {
   rabbitholeIdlFactory,
 } from "@rabbithole/declarations";
 
-import { CASHIER_CANISTER_ID } from "./constants";
+import { BACKEND_ENVIRONMENT_VARIABLES } from "./constants";
 
 export const WASM_PATH = resolve(
   import.meta.dirname,
   "..",
   "..",
-  ".dfx",
-  "local",
-  "canisters",
+  ".icp",
+  "cache",
+  "artifacts",
   "rabbithole-backend",
-  "rabbithole-backend.wasm.gz",
 );
 
 export const ownerIdentity = createIdentity("owner");
@@ -40,12 +39,10 @@ export async function createPic(): Promise<
     wasm: WASM_PATH,
     sender: ownerIdentity.getPrincipal(),
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
+    environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
     arg: IDL.encode(initBackend({ IDL }), [{
-      thresholdKeyName: 'dfx_test_key',
-      github: [],
       icpaySecretKey: [],
       chains: [],
-      cashierCanisterId: CASHIER_CANISTER_ID,
     }]),
   });
   await pic.tick();
@@ -65,12 +62,10 @@ export async function createPicWithWebhook(): Promise<
     wasm: WASM_PATH,
     sender: ownerIdentity.getPrincipal(),
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
+    environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
     arg: IDL.encode(initBackend({ IDL }), [{
-      thresholdKeyName: 'dfx_test_key',
-      github: [],
       icpaySecretKey: [Array.from(secretBytes)],
       chains: [],
-      cashierCanisterId: CASHIER_CANISTER_ID,
     }]),
   });
   await pic.tick();

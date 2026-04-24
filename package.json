@@ -82,6 +82,7 @@
     "@dfinity/pic": "^0.21.0",
     "@eslint/js": "^9.8.0",
     "@faker-js/faker": "^10.3.0",
+    "@icp-sdk/bindgen": "^0.3.0",
     "@nx/angular": "22.5.0",
     "@nx/angular-rspack": "22.5.0",
     "@nx/devkit": "22.5.0",

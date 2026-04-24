@@ -6,7 +6,6 @@ export {
   ICP_LEDGER_CANISTER_ID,
   ICP_TRANSACTION_FEE,
   NNS_ROOT_CANISTER_ID,
-  NNS_STATE_PATH,
   ONE_TRILLION_CYCLES,
 } from "./constants.ts";
 

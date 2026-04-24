@@ -4,7 +4,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { from, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-import { environment } from '../../../environments/environment';
+import { IC_ROOT_KEY } from '@rabbithole/core';
 
 export function createActor<T>({
   identity,
@@ -20,7 +20,7 @@ export function createActor<T>({
   return from(
     HttpAgent.create({
       identity,
-      shouldFetchRootKey: !environment.production,
+      rootKey: IC_ROOT_KEY,
       host,
     }),
   ).pipe(

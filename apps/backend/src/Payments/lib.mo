@@ -18,7 +18,10 @@ module {
   /// Env-var names that `buildEnvironmentVariables` pins to system-derived
   /// values (backend principal, etc.). User-provided pairs with these names
   /// are silently dropped so the system default always wins.
-  public let RESERVED_ENV_NAMES : [Text] = ["RABBITHOLE_BACKEND_ID"];
+  public let RESERVED_ENV_NAMES : [Text] = [
+    "PUBLIC_CANISTER_ID:rabbithole-backend",
+    "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL",
+  ];
 
   func isReservedEnvName(name : Text) : Bool {
     for (reserved in RESERVED_ENV_NAMES.vals()) {

@@ -14,7 +14,10 @@ import {
 } from "@rabbithole/declarations";
 
 import { BackendManager } from "./setup/backend-manager.ts";
-import { STORAGE_WASM_PATH } from "./setup/constants.ts";
+import {
+  buildStorageEnvironmentVariables,
+  STORAGE_WASM_PATH,
+} from "./setup/constants.ts";
 import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls.ts";
 import { userAlice } from "./setup/helpers.ts";
 
@@ -29,12 +32,11 @@ type StorageFixture = CanisterFixture<EncryptedStorageActorService>;
 
 function encodeStorageInitArg(
   owner: import("@icp-sdk/core/principal").Principal,
-  backendId: import("@icp-sdk/core/principal").Principal,
 ): Uint8Array {
   const [InitArgsIDL] = initEncryptedStorage({ IDL });
   return new Uint8Array(
     IDL.encode([InitArgsIDL], [
-      { owner, vetKeyName: ["dfx_test_key"], backendId: [backendId], storageBackendType: [{OnChain: null}] },
+      { owner, storageBackendType: [{OnChain: null}] },
     ]),
   );
 }
@@ -71,16 +73,14 @@ describe("Feature Gating", () => {
     expect(ready).toBe(true);
 
     // Deploy storage canister directly via PocketIC
-    const initArg = encodeStorageInitArg(
-      manager.ownerIdentity.getPrincipal(),
-      backend.canisterId,
-    );
+    const initArg = encodeStorageInitArg(manager.ownerIdentity.getPrincipal());
     storage = await manager.pic.setupCanister<EncryptedStorageActorService>(
       {
         wasm: STORAGE_WASM_PATH,
         sender: manager.ownerIdentity.getPrincipal(),
         idlFactory:
           encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+        environmentVariables: buildStorageEnvironmentVariables(backend.canisterId),
         arg: initArg,
       },
     );

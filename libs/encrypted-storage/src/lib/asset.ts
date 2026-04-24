@@ -10,6 +10,7 @@ import {
   lookupResultToBuffer,
   reconstruct,
 } from '@icp-sdk/core/agent';
+import { safeGetCanisterEnv } from '@icp-sdk/core/agent/canister-env';
 import { compare, lebDecode, PipeArrayBuffer } from '@icp-sdk/core/candid';
 import { sha256 } from '@noble/hashes/sha2';
 
@@ -68,7 +69,11 @@ export class Asset {
   async isCertified(): Promise<boolean> {
     // Below implementation is based on Internet Computer service worker
     console.log('isCertified');
-    const agent = Actor.agentOf(this._actor) ?? (await HttpAgent.create());
+    const agent =
+      Actor.agentOf(this._actor) ??
+      (await HttpAgent.create({
+        rootKey: safeGetCanisterEnv()?.IC_ROOT_KEY,
+      }));
     const canisterId = Actor.canisterIdOf(this._actor);
 
     if (!agent.rootKey) {

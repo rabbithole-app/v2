@@ -1,5 +1,6 @@
 export * from './auth';
 export * from './canister';
+export * from './canister-env';
 export * from './images';
 export * from './ledger';
 export * from './nns-canisters';

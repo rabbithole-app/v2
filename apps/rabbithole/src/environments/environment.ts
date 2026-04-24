@@ -1,20 +1,35 @@
-import { INTERNET_IDENTITY_CANISTER_ID } from '@rabbithole/core';
+import {
+  BACKEND_CANISTER_ID,
+  BLOB_STORAGE_CASHIER_CANISTER_ID,
+  BLOB_STORAGE_GATEWAY_URL,
+  ENV_NAME,
+  EVM_RPC_URL,
+  HTTP_AGENT_HOST,
+  ICPAY_API_URL,
+  ICPAY_PUBLISHABLE_KEY,
+  INTERNET_IDENTITY_FRONTEND_CANISTER_ID,
+  SOL_RPC_URL,
+} from '@rabbithole/core';
+
+if (!INTERNET_IDENTITY_FRONTEND_CANISTER_ID) {
+  throw new Error('Local environment requires PUBLIC_CANISTER_ID:internet_identity_frontend in ic_env.');
+}
 
 export const environment = {
-  identityProviderUrl: `https://${INTERNET_IDENTITY_CANISTER_ID}.localhost`,
+  identityProviderUrl: `https://${INTERNET_IDENTITY_FRONTEND_CANISTER_ID}.localhost`,
   appUrl: 'http://localhost:4200',
   appName: 'Rabbithole',
-  httpAgentHost: 'https://localhost',
-  evmRpcUrl: 'https://sepolia.base.org',
-  solanaRpcUrl: 'https://api.devnet.solana.com',
-  envName: 'DEV',
+  httpAgentHost: HTTP_AGENT_HOST,
+  evmRpcUrl: EVM_RPC_URL,
+  solanaRpcUrl: SOL_RPC_URL,
+  envName: ENV_NAME,
   production: false,
   scheme: 'rabbithole',
-  backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
-  blobStorageGatewayUrl: 'https://dev-blob.caffeine.ai',
-  blobStorageCashierCanisterId: 'xc7sj-uyaaa-aaaaf-qbrja-cai',
+  backendCanisterId: BACKEND_CANISTER_ID,
+  blobStorageGatewayUrl: BLOB_STORAGE_GATEWAY_URL,
+  blobStorageCashierCanisterId: BLOB_STORAGE_CASHIER_CANISTER_ID,
   icpay: {
-    publishableKey: 'pk_GP6RSrfGQTRWxw2QeBXThqOGuYcPak3E',
-    apiUrl: 'https://api.betterstripe.com',
+    publishableKey: ICPAY_PUBLISHABLE_KEY,
+    apiUrl: ICPAY_API_URL,
   },
 };

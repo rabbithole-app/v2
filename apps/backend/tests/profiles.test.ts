@@ -9,7 +9,7 @@ import { faker } from "@faker-js/faker";
 import type { Identity } from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
 import { Principal } from "@icp-sdk/core/principal";
-import { CASHIER_CANISTER_ID } from "./setup/constants";
+import { BACKEND_ENVIRONMENT_VARIABLES } from "./setup/constants";
 import { addDays, subDays } from "date-fns";
 import { resolve } from "node:path";
 import { filter, isEmpty, pick, prop, sortBy, splice, take } from "remeda";
@@ -17,15 +17,14 @@ import { afterEach, beforeEach, describe, expect, inject, test } from "vitest";
 
 import { type CreateProfileArgs, initBackend, ListOptions__1 as ListOptions, type RabbitholeActorService, rabbitholeIdlFactory } from "@rabbithole/declarations";
 
-// Define the path to your canister's WASM file
+// icp-cli artifact: apps/backend/.icp/cache/artifacts/rabbithole-backend (gzipped wasm, no extension)
 export const WASM_PATH = resolve(
   import.meta.dirname,
   "..",
-  ".dfx",
-  "local",
-  "canisters",
+  ".icp",
+  "cache",
+  "artifacts",
   "rabbithole-backend",
-  "rabbithole-backend.wasm.gz",
 );
 
 const ownerIdentity = createIdentity("owner");
@@ -39,7 +38,8 @@ async function createPic(): Promise<[PocketIc, CanisterFixture<RabbitholeActorSe
     wasm: WASM_PATH,
     sender: ownerIdentity.getPrincipal(),
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
-    arg: IDL.encode(initBackend({ IDL }), [{ thresholdKeyName: 'dfx_test_key', github: [], icpaySecretKey: [], chains: [], cashierCanisterId: CASHIER_CANISTER_ID }]),
+    environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
+    arg: IDL.encode(initBackend({ IDL }), [{ icpaySecretKey: [], chains: [] }]),
   });
 
   // next block to init ecdsa keypair in the canister

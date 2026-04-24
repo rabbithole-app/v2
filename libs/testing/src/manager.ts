@@ -3,6 +3,7 @@ import {
   type ActorInterface,
   type CreateCanisterOptions,
   createIdentity,
+  IcpFeaturesConfig,
   PocketIc,
   type SetupCanisterOptions,
   SubnetStateType,
@@ -23,14 +24,13 @@ import {
   E8S_PER_ICP,
   ICP_LEDGER_CANISTER_ID,
   NNS_ROOT_CANISTER_ID,
-  NNS_STATE_PATH,
 } from "./constants.ts";
 import { minterIdentity } from "./nns-identity.ts";
 
 export interface CreateManagerOptions {
   /** Enable fiduciary subnet (allows targetCanisterId for ck-token ledger canister IDs) */
   fiduciary?: boolean;
-  /** Enable II subnet (provides threshold ECDSA keys like dfx_test_key) */
+  /** Enable II subnet (provides threshold chain-key test subnets) */
   ii?: boolean;
   /** Max rounds for awaitCall() in DeferredActor (default: 100, increase for multi-step EVM calls) */
   ingressMaxRetries?: number;
@@ -67,9 +67,13 @@ export class BaseManager {
     const pic = await PocketIc.create(inject("PIC_URL" as never) as string, {
       nns: {
         state: {
-          type: SubnetStateType.FromPath,
-          path: NNS_STATE_PATH,
+          type: SubnetStateType.New,
         },
+      },
+      icpFeatures: {
+        registry: IcpFeaturesConfig.DefaultConfig,
+        cyclesMinting: IcpFeaturesConfig.DefaultConfig,
+        icpToken: IcpFeaturesConfig.DefaultConfig,
       },
       ...(opts?.system ? { system: opts.system } : {}),
       ...(opts?.ii ? { ii: { state: { type: SubnetStateType.New } } } : {}),

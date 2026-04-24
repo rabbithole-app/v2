@@ -1,19 +1,31 @@
+import {
+  BACKEND_CANISTER_ID,
+  BLOB_STORAGE_CASHIER_CANISTER_ID,
+  BLOB_STORAGE_GATEWAY_URL,
+  ENV_NAME,
+  EVM_RPC_URL,
+  FRONTEND_CANISTER_ID,
+  HTTP_AGENT_HOST,
+  ICPAY_API_URL,
+  ICPAY_PUBLISHABLE_KEY,
+  SOL_RPC_URL,
+} from '@rabbithole/core';
+
 export const environment = {
-  identityProviderUrl: 'https://identity.ic0.app',
-  appUrl: `https://${import.meta.env.CANISTER_ID_RABBITHOLE_FRONTEND}.icp0.io`,
+  identityProviderUrl: 'https://id.ai/authorize',
+  appUrl: `https://${FRONTEND_CANISTER_ID}.icp0.io`,
   appName: 'Rabbithole',
-  evmRpcUrl: 'https://mainnet.base.org',
-  solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
-  envName: 'PROD',
-  // Point to icp-api for the mainnet. Leaving host undefined will work for localhost
-  httpAgentHost: 'https://icp-api.io',
+  evmRpcUrl: EVM_RPC_URL,
+  solanaRpcUrl: SOL_RPC_URL,
+  envName: ENV_NAME,
+  httpAgentHost: HTTP_AGENT_HOST,
   production: true,
   scheme: 'rabbithole',
-  backendCanisterId: import.meta.env.CANISTER_ID_RABBITHOLE_BACKEND,
-  blobStorageGatewayUrl: 'https://blob.caffeine.ai',
-  blobStorageCashierCanisterId: '72ch2-fiaaa-aaaar-qbsvq-cai',
+  backendCanisterId: BACKEND_CANISTER_ID,
+  blobStorageGatewayUrl: BLOB_STORAGE_GATEWAY_URL,
+  blobStorageCashierCanisterId: BLOB_STORAGE_CASHIER_CANISTER_ID,
   icpay: {
-    publishableKey: '', // TODO: obtain from ICPay dashboard
-    apiUrl: 'https://api.icpay.org',
+    publishableKey: ICPAY_PUBLISHABLE_KEY,
+    apiUrl: ICPAY_API_URL,
   },
 };

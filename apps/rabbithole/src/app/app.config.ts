@@ -23,6 +23,7 @@ import {
   BLOB_STORAGE_CONFIG_TOKEN,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
+  IC_ROOT_KEY,
   ICPAY_CONFIG_TOKEN,
   IS_PRODUCTION_TOKEN,
   MAIN_BACKEND_URL_TOKEN,
@@ -76,7 +77,7 @@ export const appConfig: ApplicationConfig = {
     {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {
-        shouldFetchRootKey: !environment.production,
+        rootKey: IC_ROOT_KEY,
         host: environment.httpAgentHost,
       } satisfies HttpAgentOptions,
     },
