@@ -1,8 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import { APP_NAME_TOKEN } from '@rabbithole/core';
+import { AUTH_CONFIG, AUTH_SERVICE } from '@rabbithole/auth';
 
 import { DelegationComponent } from './delegation.component';
 
@@ -21,8 +20,24 @@ describe('DelegationComponent', () => {
       imports: [DelegationComponent],
       providers: [
         provideRouter([]),
-        { provide: AUTH_SERVICE, useValue: { isAuthenticated: () => true } },
-        { provide: APP_NAME_TOKEN, useValue: 'rabbithole' },
+        {
+          provide: AUTH_SERVICE,
+          useValue: {
+            identity: vi.fn(),
+            isAuthenticated: () => true,
+            principalId: () => '2vxsx-fae',
+            signIn: vi.fn(),
+            signOut: vi.fn(),
+          },
+        },
+        {
+          provide: AUTH_CONFIG,
+          useValue: {
+            appUrl: 'http://localhost:4200',
+            delegationPath: '/delegation',
+            scheme: 'rabbithole',
+          },
+        },
       ],
     }).compileComponents();
 

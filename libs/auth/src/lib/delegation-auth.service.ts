@@ -22,9 +22,9 @@ import { filter, map, take } from 'rxjs/operators';
 
 import { assertClient } from './asserts';
 import { waitDelegationExpired } from './operators';
-import { AUTH_CONFIG, IAuthService } from './tokens';
+import { AUTH_CONFIG, AuthSignInOptions, IAuthService } from './tokens';
 
-export type AuthClientInstance = Awaited<ReturnType<typeof AuthClient.create>>;
+export type AuthClientInstance = AuthClient;
 export type AuthClientLogoutOptions = Parameters<
   AuthClientInstance['logout']
 >[0];
@@ -46,9 +46,15 @@ const INITIAL_VALUE: State = {
 };
 
 const KEY_STORAGE_DELEGATION = 'delegationChain';
+const DELEGATION_POPUP_CLOSE_DELAY_MS = 2000;
+
+async function clearDelegationChain() {
+  const db = new IdbStorage();
+  await db.remove(KEY_STORAGE_DELEGATION);
+}
 
 async function createAuthClient() {
-  return AuthClient.create({
+  return new AuthClient({
     idleOptions: {
       disableDefaultIdleCallback: true,
       disableIdle: true,
@@ -57,7 +63,18 @@ async function createAuthClient() {
   });
 }
 
-async function loadDelegationChain(): Promise<DelegationChain | null> {
+function isDelegationTargetedTo(
+  delegationChain: DelegationChain,
+  target: Principal,
+): boolean {
+  return delegationChain.delegations.some(({ delegation }) =>
+    delegation.targets?.some((scope) => scope.toText() === target.toText()),
+  );
+}
+
+async function loadDelegationChain(
+  target?: Principal,
+): Promise<DelegationChain | null> {
   const db = new IdbStorage();
   const delegationChainJson = await db.get<JsonnableDelegationChain>(
     KEY_STORAGE_DELEGATION,
@@ -69,7 +86,12 @@ async function loadDelegationChain(): Promise<DelegationChain | null> {
 
   const delegationChain = DelegationChain.fromJSON(delegationChainJson);
 
-  if (!isDelegationValid(delegationChain)) {
+  const isValid = target
+    ? isDelegationValid(delegationChain, { scope: target }) &&
+      isDelegationTargetedTo(delegationChain, target)
+    : isDelegationValid(delegationChain);
+
+  if (!isValid) {
     await db.remove(KEY_STORAGE_DELEGATION);
     return null;
   }
@@ -86,6 +108,16 @@ async function loadIdentity() {
     : null;
 }
 
+async function loadOrCreateIdentity(): Promise<Ed25519KeyIdentity> {
+  const existing = await loadIdentity();
+  if (existing) return existing;
+
+  const identity = Ed25519KeyIdentity.generate();
+  const db = new IdbStorage();
+  await db.set(KEY_STORAGE_KEY, JSON.stringify(identity.toJSON()));
+  return identity;
+}
+
 async function saveDelegationChain(delegationChain: DelegationChain) {
   const db = new IdbStorage();
   await db.set(KEY_STORAGE_DELEGATION, delegationChain.toJSON());
@@ -96,6 +128,7 @@ export class DelegationAuthService implements IAuthService {
   #state = signal(INITIAL_VALUE);
   identity = computed(() => this.#state().identity);
   isAuthenticated = computed(() => this.#state().isAuthenticated);
+  lastAuthEvent = computed(() => null);
   principalId = computed(() => this.#state().identity.getPrincipal().toText());
   ready$ = toObservable(this.#state).pipe(map(({ ready }) => ready));
   #authConfig = inject(AUTH_CONFIG);
@@ -114,15 +147,12 @@ export class DelegationAuthService implements IAuthService {
     this.#setupPostMessageListener();
   }
 
-  async signIn(options?: { target: Principal }) {
+  async signIn(options?: AuthSignInOptions) {
     const client = this.#state().client;
     assertClient(client);
 
-    // AuthClient has generated and saved Ed25519KeyIdentity in the storage
-    const identity = (await loadIdentity()) as Ed25519KeyIdentity;
-    const publicKey = bytesToHex(
-      (identity as Ed25519KeyIdentity).getPublicKey().toDer(),
-    );
+    const identity = await loadOrCreateIdentity();
+    const publicKey = bytesToHex(identity.getPublicKey().toDer());
     const url = new URL(
       this.#authConfig.delegationPath,
       this.#authConfig.appUrl,
@@ -130,16 +160,24 @@ export class DelegationAuthService implements IAuthService {
     url.searchParams.set('sessionPublicKey', publicKey);
 
     // Add target canister ID if provided in options
-    if (options?.target) {
-      url.searchParams.set('target', options.target.toText());
+    const target = options?.target ?? this.#authConfig.delegationTarget;
+    if (target) {
+      url.searchParams.set('target', target.toText());
+    }
+    if (options?.openIdIssuer) {
+      url.searchParams.set('openid', options.openIdIssuer);
+    }
+    if (options?.openIdProvider) {
+      url.searchParams.set('provider', options.openIdProvider);
+    }
+    if (options?.ssoDomain) {
+      url.searchParams.set('sso', options.ssoDomain);
     }
 
-    // Open popup for authentication
-    this.#popupWindow = window.open(
-      url.toString(),
-      'rabbithole-auth',
-      'width=500,height=600,popup=yes',
-    );
+    // Open the broker delegation page as a regular tab. That page may still
+    // open the identity provider window, so avoid creating a popup-in-popup flow.
+    this.#popupWindow = window.open(url.toString(), '_blank');
+    this.#popupWindow?.focus();
 
     if (this.#popupWindow) {
       interval(500)
@@ -160,6 +198,7 @@ export class DelegationAuthService implements IAuthService {
     assertClient(client);
 
     client.logout(options);
+    await clearDelegationChain();
     client = await createAuthClient();
 
     this.#state.update((state) => ({
@@ -172,11 +211,13 @@ export class DelegationAuthService implements IAuthService {
 
   async #initState() {
     const client = await createAuthClient();
-    const identity = client.getIdentity();
-    const isAuthenticated = await client.isAuthenticated();
+    const identity = await client.getIdentity();
+    const isAuthenticated = client.isAuthenticated();
 
     // Try to load saved delegation
-    const savedDelegationChain = await loadDelegationChain();
+    const savedDelegationChain = await loadDelegationChain(
+      this.#authConfig.delegationTarget,
+    );
     let finalIdentity = identity;
     let finalIsAuthenticated = isAuthenticated;
 
@@ -208,7 +249,7 @@ export class DelegationAuthService implements IAuthService {
   }
 
   async #parseDelegationChain(delegationChain: DelegationChain) {
-    const identity = (await loadIdentity()) as Ed25519KeyIdentity;
+    const identity = await loadIdentity();
 
     if (!identity) {
       throw new Error('Local identity not found');
@@ -220,19 +261,42 @@ export class DelegationAuthService implements IAuthService {
       delegationChain,
     );
 
+    const target = this.#authConfig.delegationTarget;
+    if (
+      target &&
+      (!isDelegationValid(delegationChain, { scope: target }) ||
+        !isDelegationTargetedTo(delegationChain, target))
+    ) {
+      throw new Error(
+        `Delegation is not valid for storage canister ${target.toText()}`,
+      );
+    }
+
+    await saveDelegationChain(delegationChain);
+
     this.#state.update((state) => ({
       ...state,
       delegationChain,
       identity: internetIdentity,
       isAuthenticated: true,
     }));
-
-    // Save delegation for later use
-    await saveDelegationChain(delegationChain);
   }
 
   #setupPostMessageListener() {
     const handler = async (event: MessageEvent) => {
+      if (event.data?.type === 'DELEGATION_CANCELLED') {
+        const rabbitholeOrigin = new URL(this.#authConfig.appUrl).origin;
+        const isValidOrigin =
+          event.origin === rabbitholeOrigin ||
+          event.origin === window.location.origin;
+
+        if (isValidOrigin && this.#popupWindow && !this.#popupWindow.closed) {
+          this.#popupWindow.close();
+          this.#popupWindow = null;
+        }
+        return;
+      }
+
       // Check message type first
       if (event.data?.type !== 'DELEGATION_CHAIN') {
         return;
@@ -259,10 +323,14 @@ export class DelegationAuthService implements IAuthService {
         );
         await this.#parseDelegationChain(delegationChain);
 
-        // Close popup after successfully receiving delegation
         if (this.#popupWindow && !this.#popupWindow.closed) {
-          this.#popupWindow.close();
+          const popupWindow = this.#popupWindow;
           this.#popupWindow = null;
+          window.setTimeout(() => {
+            if (!popupWindow.closed) {
+              popupWindow.close();
+            }
+          }, DELEGATION_POPUP_CLOSE_DELAY_MS);
         }
       } catch (error) {
         console.error('Failed to parse delegation chain:', error);

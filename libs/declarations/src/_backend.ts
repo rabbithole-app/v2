@@ -1,7 +1,9 @@
 export type {
   AmbassadorChain,
   CreateProfileArgs,
+  ListCreationsOptions,
   ListOptions__1 as ProfileListOptions,
+  ListOptions__1,
   ListOptions as SubscriptionListOptions,
   Profile,
   _SERVICE as RabbitholeActorService,

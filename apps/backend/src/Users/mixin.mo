@@ -1,6 +1,7 @@
 import Debug "mo:core/Debug";
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
+import Result "mo:core/Result";
 
 import Users "lib";
 import ZenDB "mo:zendb";
@@ -48,21 +49,22 @@ mixin(
 
   // ---- Registration ----
 
-  /// Register a new user with optional referral code. Idempotent — no-op if user exists.
-  /// New users default to `role = #user`. Admins promote via `setUserRole`.
-  public shared ({ caller }) func register(referralCode : ?Text) : async () {
+  public shared ({ caller }) func ensureUser(authProvider : ?Text) : async () {
     assert not Principal.isAnonymous(caller);
-    if (users.exists(caller)) return;
-
-    let inviter : ?Principal = switch referralCode {
-      case (?code) deps.resolveReferralCode(code);
-      case null null;
-    };
-
-    switch (users.create(caller, inviter, #user)) {
+    switch (users.upsertFromIdentity(caller, authProvider, true)) {
       case (#ok _) {};
-      case (#err msg) Debug.print("Failed to create user: " # msg);
+      case (#err msg) Debug.print("Failed to ensure user: " # msg);
     };
+  };
+
+  public shared ({ caller }) func applyReferralCode(referralCode : Text) : async Users.ApplyReferralCodeResult {
+    assert not Principal.isAnonymous(caller);
+    let ?inviter = deps.resolveReferralCode(referralCode) else return #referralCodeNotFound;
+    users.applyReferralCode(caller, inviter);
+  };
+
+  func upsertFromVerifiedAttributes(principal : Principal, attrs : Users.VerifiedIdentityAttributes) : Result.Result<(), Text> {
+    users.upsertFromVerifiedAttributes(principal, attrs);
   };
 
   // ---- Internal helpers for other mixins ----

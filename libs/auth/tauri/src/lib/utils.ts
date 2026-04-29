@@ -27,7 +27,7 @@ export async function createAuthClient(): Promise<AuthClient> {
     storage: new TauriStorage(),
   };
 
-  return await AuthClient.create(options);
+  return new AuthClient(options);
 }
 
 export async function loadDelegationChain() {

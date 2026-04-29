@@ -1,24 +1,153 @@
-<h1 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-  Sign in to Rabbithole
-</h1>
-<p class="mx-auto mt-3 max-w-sm text-center text-muted-foreground">
-  Authenticate with Internet Identity — no passwords, just passkeys.
-</p>
+@if (publicKey()) {
+  <div class="w-full max-w-sm">
+    <div class="mx-auto mb-8 flex max-w-xs items-center justify-center gap-3 text-xs font-medium">
+      <div class="flex items-center gap-2" [class.text-primary]="!isAuthenticated()" [class.text-muted-foreground]="isAuthenticated()">
+        <span class="flex size-6 items-center justify-center rounded-full border" [class.border-primary]="!isAuthenticated()" [class.bg-primary]="isAuthenticated()" [class.text-primary-foreground]="isAuthenticated()">
+          @if (isAuthenticated()) {
+            <ng-icon hlmIcon name="lucideCheck" size="xs" />
+          } @else {
+            1
+          }
+        </span>
+        <span>Sign in</span>
+      </div>
+      <span class="h-px w-8 bg-border"></span>
+      <div class="flex items-center gap-2" [class.text-primary]="isAuthenticated()" [class.text-muted-foreground]="!isAuthenticated()">
+        <span class="flex size-6 items-center justify-center rounded-full border" [class.border-primary]="isAuthenticated()">
+          2
+        </span>
+        <span>Access</span>
+      </div>
+    </div>
 
-@if (publicKey(); as pk) {
-  <rbth-delegation-internet-identity
-    [publicKey]="pk"
-    [targets]="targets()"
-    (delegate)="handleDelegate($event)"
-  >
-    <button
-      rbthRainbowBtn
-      size="lg"
-      class="mt-8"
-      rbthDelegationInternetIdentityTrigger
-    >
-      <img src="/ic.svg" alt="" class="h-5 w-5" />
-      Sign in with Internet Identity
-    </button>
-  </rbth-delegation-internet-identity>
+    @if (!isAuthenticated()) {
+      <h1 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+        Sign in to Rabbithole
+      </h1>
+      <p class="mx-auto mt-3 max-w-sm text-center text-muted-foreground">
+        @if (hasPresetSignInProvider()) {
+          Continue with the sign-in method selected in Storage, then confirm access.
+        } @else {
+          Sign in first, then confirm access to your storage session.
+        }
+      </p>
+
+      <button
+        rbthRainbowBtn
+        type="button"
+        size="lg"
+        class="mt-8 w-full"
+        [disabled]="signingIn()"
+        (click)="signIn()"
+      >
+        @if (signInIcon(); as icon) {
+          <ng-icon hlmIcon [name]="icon" size="sm" />
+        } @else {
+          <img src="/ic.svg" alt="" class="h-5 w-5" />
+        }
+        @if (signingIn()) {
+          Waiting for sign-in...
+        } @else {
+          {{ signInLabel() }}
+        }
+      </button>
+
+      @if (signInError()) {
+        <div hlmAlert variant="destructive" class="mt-4">
+          <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+          <h4 hlmAlertTitle>Sign-in failed</h4>
+          <p hlmAlertDescription>{{ signInError() }}</p>
+        </div>
+      }
+    } @else {
+      <h1 class="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+        Provide access
+      </h1>
+      <p class="mx-auto mt-3 max-w-sm text-center text-muted-foreground">
+        Storage is requesting a scoped Rabbithole session.
+      </p>
+
+      <rbth-frame class="mt-8">
+        <header rbthFrameHeader>
+          <div rbthFrameTitle>Signed in user</div>
+          <div rbthFrameDescription>
+            This account will grant access to the storage canister.
+          </div>
+        </header>
+
+        <div rbthFramePanel class="flex items-center gap-3 p-4">
+          <hlm-avatar class="size-10 shrink-0 border bg-muted text-foreground">
+            @if (avatarSrc(); as src) {
+              <img hlmAvatarImage [src]="src" [alt]="userName()" />
+            }
+            <img
+              hlmAvatarFallback
+              src="/avatar-placeholder.svg"
+              [alt]="userName()"
+            />
+          </hlm-avatar>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-medium">{{ userName() }}</div>
+            <core-copy-to-clipboard [content]="principalId()" class="mt-1">
+              <span>{{ principalId() }}</span>
+            </core-copy-to-clipboard>
+          </div>
+          <button
+            hlmBtn
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            class="shrink-0 rounded-full"
+            aria-label="Switch account"
+            [hlmTooltip]="'Switch account'"
+            position="top"
+            (click)="switchAccount()"
+          >
+            <ng-icon hlmIcon name="lucideLogOut" size="sm" />
+          </button>
+        </div>
+
+        @if (storageCanisterId()) {
+          <div rbthFramePanel class="p-4">
+            <div class="mb-1 text-xs font-medium uppercase text-muted-foreground">
+              Storage canister
+            </div>
+            <core-copy-to-clipboard [content]="storageCanisterId()!">
+              <span>{{ storageCanisterId() }}</span>
+            </core-copy-to-clipboard>
+          </div>
+        }
+      </rbth-frame>
+
+      <div class="mt-8 grid gap-2 sm:grid-cols-2">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="cancel()"
+        >
+          Cancel
+        </button>
+        <button
+          rbthRainbowBtn
+          type="button"
+          [disabled]="delegationSent()"
+          (click)="delegateFromBrokerSession()"
+        >
+          <ng-icon hlmIcon name="lucideShieldCheck" size="sm" />
+          @if (delegationSent()) {
+            Preparing...
+          } @else {
+            Provide access
+          }
+        </button>
+      </div>
+    }
+  </div>
+} @else {
+  <div hlmAlert variant="destructive" class="mt-8 max-w-md">
+    <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+    <h4 hlmAlertTitle>Missing session key</h4>
+    <p hlmAlertDescription>Storage did not provide a session public key.</p>
+  </div>
 }

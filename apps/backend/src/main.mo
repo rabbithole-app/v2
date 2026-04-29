@@ -34,6 +34,7 @@ import Account "StorageDeployer/Utils/Account";
 
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
 import UsersMixin "Users/mixin";
+import IdentityVerificationMixin "IdentityVerification/mixin";
 import ProfilesMixin "Profiles/mixin";
 import NotificationsMixin "Notifications/mixin";
 import SettingsMixin "Settings/mixin";
@@ -49,16 +50,10 @@ import LicensesClass "StorageDeployer/Licenses";
 import Notifications "Notifications/lib";
 
 import Types "Types";
+import Utils "Utils/lib";
 
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
-
-  func envText<system>(name : Text, fallback : Text) : Text {
-    switch (Runtime.envVar<system>(name)) {
-      case (?value) value;
-      case null fallback;
-    };
-  };
 
   // --- Assets & HTTP ---
 
@@ -75,13 +70,13 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   // --- Storage Deployer ---
 
-  let backendThresholdKeyName = envText<system>("THRESHOLD_KEY_NAME", "dfx_test_key");
+  transient let backendThresholdKeyName = Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
 
   let storageOrchestrator = StorageDeployerOrchestrator.new<system>({
     github = {
-      apiUrl = envText<system>("GITHUB_API_URL", "https://api.github.com");
-      owner = envText<system>("GITHUB_OWNER", "rabbithole-app");
-      repo = envText<system>("GITHUB_REPO", "v2");
+      apiUrl = Utils.envText<system>("GITHUB_API_URL", "https://api.github.com");
+      owner = Utils.envText<system>("GITHUB_OWNER", "rabbithole-app");
+      repo = Utils.envText<system>("GITHUB_REPO", "v2");
       token = Runtime.envVar<system>("GITHUB_TOKEN");
     };
     assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar")])];
@@ -119,6 +114,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     },
   );
   include UsersMixin(installer, db, { resolveReferralCode });
+  include IdentityVerificationMixin({
+    upsertFromVerifiedAttributes;
+  });
   include KnownWasmHashesMixin({ assertAdmin });
   include NotificationsMixin();
   include SettingsMixin();
@@ -279,7 +277,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   transient let CMC_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
   transient let ICP_LEDGER_CANISTER_ID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
-  transient let XRC_CANISTER_ID = envText<system>("PUBLIC_CANISTER_ID:xrc", "uf6dk-hyaaa-aaaaq-qaaaq-cai");
+  transient let XRC_CANISTER_ID = Utils.envText<system>("PUBLIC_CANISTER_ID:xrc", "uf6dk-hyaaa-aaaaq-qaaaq-cai");
   // XRC rejects calls with < 1B cycles attached (XRC_REQUEST_CYCLES_COST check).
   // Actual fee is 20M (cache hit) to 500M (stablecoin pair); unused is auto-refunded.
   transient let XRC_CYCLES_COST : Nat = 1_000_000_000;
@@ -330,6 +328,12 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       case (?owner) Principal.equal(owner, caller);
       case null false;
     };
+  };
+
+  func formatUsdCents(cents : Nat) : Text {
+    let whole = cents / 100;
+    let fractional = cents % 100;
+    "$" # Nat.toText(whole) # "." # (if (fractional < 10) "0" else "") # Nat.toText(fractional);
   };
 
   func transferIcpToCmcInner(icpE8s : Nat, targetCanisterId : Principal, fromSubaccount : ?Blob) : async Result.Result<Nat, Text> {
@@ -750,7 +754,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     let charged = switch (chargeResult) {
       case (#ok(c)) c;
       case (#insufficientFunds(details)) {
-        StorageDeployerOrchestrator.appendEvent(creations, creationId, #Failed("Insufficient funds: need " # Nat.toText(details.required)));
+        StorageDeployerOrchestrator.appendEvent(creations, creationId, #Failed("Insufficient funds: need " # formatUsdCents(details.required)));
         return;
       };
       case (#err(msg)) {

@@ -13,14 +13,14 @@ import { map } from 'rxjs/operators';
 
 import { IAuthService, waitDelegationExpired } from '@rabbithole/auth';
 
-interface AuthStatusPayload {
-  is_authenticated: boolean;
-  principal: string | null;
-}
-
 interface AuthBridgeData {
   delegationChain: JsonnableDelegationChain;
   identity: [string, string];
+}
+
+interface AuthStatusPayload {
+  is_authenticated: boolean;
+  principal: string | null;
 }
 
 interface State {
@@ -53,6 +53,7 @@ export class TauriNativeAuthService implements IAuthService {
   #state = signal(INITIAL_VALUE);
   identity = computed(() => this.#state().identity);
   isAuthenticated = computed(() => this.#state().isAuthenticated);
+  lastAuthEvent = computed(() => null);
   principalId = computed(() => this.#state().identity.getPrincipal().toText());
   ready$ = toObservable(this.#state).pipe(map(({ ready }) => ready));
   #destroyRef = inject(DestroyRef);

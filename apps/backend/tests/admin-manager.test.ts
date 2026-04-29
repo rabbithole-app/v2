@@ -49,7 +49,7 @@ describe("User roles (admin)", () => {
   test("admin can promote a registered user to admin", async () => {
     // Alice must register first — setUserRole requires the user to exist.
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     actor.setIdentity(ownerIdentity);
     await actor.setUserRole(userAlice.getPrincipal(), { admin: null });
@@ -61,7 +61,7 @@ describe("User roles (admin)", () => {
 
   test("admin can demote another admin back to user", async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     actor.setIdentity(ownerIdentity);
     await actor.setUserRole(userAlice.getPrincipal(), { admin: null });
@@ -72,7 +72,7 @@ describe("User roles (admin)", () => {
 
   test("non-admin cannot change roles", async () => {
     actor.setIdentity(userBob);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     actor.setIdentity(userAlice);
     await expect(
@@ -98,7 +98,7 @@ describe("User roles (admin)", () => {
 
   test("moderator role can be assigned and listed", async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     actor.setIdentity(ownerIdentity);
     await actor.setUserRole(userAlice.getPrincipal(), { moderator: null });

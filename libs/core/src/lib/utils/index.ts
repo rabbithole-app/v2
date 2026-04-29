@@ -1,4 +1,5 @@
 export * from './canister';
+export * from './canister-origin';
 export * from './create-auth-client';
 export * from './cycles';
 export * from './format-bytes';

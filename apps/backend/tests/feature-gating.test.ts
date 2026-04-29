@@ -159,7 +159,7 @@ describe("Feature Gating", () => {
     test("refreshSubscription returns #trial after activateTrial", async () => {
       backendActor.setIdentity(manager.ownerIdentity);
       // Register user first (required for activateTrial)
-      await backendActor.register([]);
+      await backendActor.ensureUser([]);
       await backendActor.activateTrial();
 
       // Advance time to expire cache from previous test (24h TTL)

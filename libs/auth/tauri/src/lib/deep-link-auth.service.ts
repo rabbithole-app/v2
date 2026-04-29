@@ -6,8 +6,8 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import { AuthClient } from '@icp-sdk/auth/client';
+import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import {
   DelegationChain,
   DelegationIdentity,
@@ -19,7 +19,6 @@ import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { map } from 'rxjs/operators';
 
-import { createAuthClient, loadIdentity, saveDelegationChain } from './utils';
 import {
   assertClient,
   AUTH_CONFIG,
@@ -27,7 +26,9 @@ import {
   waitDelegationExpired,
 } from '@rabbithole/auth';
 
-export type AuthClientInstance = Awaited<ReturnType<typeof AuthClient.create>>;
+import { createAuthClient, loadIdentity, saveDelegationChain } from './utils';
+
+export type AuthClientInstance = AuthClient;
 export type AuthClientLogoutOptions = Parameters<
   AuthClientInstance['logout']
 >[0];
@@ -53,6 +54,7 @@ export class TauriDeepLinkAuthService implements IAuthService {
   #state = signal(INITIAL_VALUE);
   identity = computed(() => this.#state().identity);
   isAuthenticated = computed(() => this.#state().isAuthenticated);
+  lastAuthEvent = computed(() => null);
   principalId = computed(() => this.#state().identity.getPrincipal().toText());
   ready$ = toObservable(this.#state).pipe(map(({ ready }) => ready));
   #authConfig = inject(AUTH_CONFIG);
@@ -96,8 +98,8 @@ export class TauriDeepLinkAuthService implements IAuthService {
 
   async #initState() {
     const client = await createAuthClient();
-    const identity = client.getIdentity();
-    const isAuthenticated = await client.isAuthenticated();
+    const identity = await client.getIdentity();
+    const isAuthenticated = client.isAuthenticated();
 
     this.#state.update((state) => ({
       ...state,

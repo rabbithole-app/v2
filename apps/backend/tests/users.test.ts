@@ -1,83 +1,190 @@
-import { type Actor, PocketIc } from "@dfinity/pic";
+import { type Actor } from "@dfinity/pic";
+import { IDL } from "@icp-sdk/core/candid";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import type { RabbitholeActorService } from "@rabbithole/declarations";
+import { type RabbitholeActorService } from "@rabbithole/declarations";
 
+import { BackendManager } from "./setup/backend-manager.ts";
 import {
-  createPic,
-  ownerIdentity,
   userAlice,
   userBob,
+  userCharlie,
 } from "./setup/helpers.ts";
+import {
+  IdentityAttributesSyncResult,
+  InternetIdentityManager,
+} from "./setup/internet-identity.ts";
+
+function expectSingle<T>(items: readonly T[], label: string): T {
+  expect(items).toHaveLength(1);
+  const [item] = items;
+  if (item === undefined) {
+    throw new Error(`Expected ${label}`);
+  }
+  return item;
+}
 
 describe("Users", () => {
-  let pic: PocketIc;
   let actor: Actor<RabbitholeActorService>;
+  let internetIdentity: InternetIdentityManager;
+  let manager: BackendManager;
 
   beforeEach(async () => {
-    [pic, { actor }] = await createPic();
+    manager = await BackendManager.create();
+    internetIdentity = new InternetIdentityManager(manager.pic);
+    ({ actor } = await manager.initBackendCanister());
   });
 
   afterEach(async () => {
-    await pic?.tearDown();
+    await manager?.afterAll();
   });
 
-  test("register creates User without referral, defaults to role=user", async () => {
+  test("ensureUser creates User without referral, defaults to role=user", async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
+
+    const user = expectSingle(await actor.getUser(), "ensured user");
+    expect(user.id.toText()).toBe(userAlice.getPrincipal().toText());
+    expect(user.inviter).toHaveLength(0);
+    expect(user.role).toEqual({ user: null });
+  });
+
+  test("ensureUser creates User without verified identity attributes", async () => {
+    actor.setIdentity(userAlice);
+    await actor.ensureUser(["internet_identity"]);
+
+    const user = expectSingle(await actor.getUser(), "ensured user");
+    expect(user.id.toText()).toBe(userAlice.getPrincipal().toText());
+    expect(user.authProvider).toEqual(["internet_identity"]);
+    expect(user.lastLoginAt).toHaveLength(1);
+    expect(user.email).toHaveLength(0);
+    expect(user.name).toHaveLength(0);
+    expect(user.verifiedEmail).toHaveLength(0);
+    expect(user.profileSyncedAt).toHaveLength(0);
+  });
+
+  test("syncIdentityAttributes rejects calls without sender_info", async () => {
+    actor.setIdentity(userAlice);
+    const nonce = await actor.attributeNonceBegin();
+
+    const result = await actor.syncIdentityAttributes(nonce);
+    expect(result).toEqual({ err: { untrustedSigner: null } });
 
     const user = await actor.getUser();
-    expect(user).toHaveLength(1);
-    expect(user[0]!.id.toText()).toBe(userAlice.getPrincipal().toText());
-    expect(user[0]!.inviter).toHaveLength(0);
-    expect(user[0]!.role).toEqual({ user: null });
+    expect(user).toHaveLength(0);
+  });
+
+  test("syncIdentityAttributes stores II caller_info name and email", async () => {
+    await internetIdentity.deploy();
+    const identityNumber = await internetIdentity.createGoogleOpenIdIdentity();
+    const user = userCharlie.getPrincipal();
+
+    actor.setIdentity(userCharlie);
+    const nonce = await actor.attributeNonceBegin();
+    const attributes = await internetIdentity.getGoogleSignedAttributes(identityNumber, nonce);
+    expect(attributes.signature.length).toBeGreaterThan(0);
+
+    const response = await internetIdentity.updateCallWithSenderInfo({
+      arg: IDL.encode([IDL.Vec(IDL.Nat8)], [nonce]),
+      canisterId: manager.backendCanisterId,
+      method: "syncIdentityAttributes",
+      sender: user,
+      senderInfo: internetIdentity.senderInfo(attributes),
+    });
+    const [result] = IDL.decode([IdentityAttributesSyncResult], response);
+    expect(result).toEqual({ ok: null });
+
+    actor.setIdentity(userCharlie);
+    const storedUser = expectSingle(await actor.getUser(), "synced user");
+    expect(storedUser.id.toText()).toBe(user.toText());
+    expect(storedUser.email).toEqual(["andri.schatz@dfinity.org"]);
+    expect(storedUser.name).toEqual(["Andri Schatz"]);
+    expect(storedUser.authProvider).toEqual(["google"]);
+    expect(storedUser.lastLoginAt).toHaveLength(1);
+    expect(storedUser.profileSyncedAt).toHaveLength(1);
   });
 
   test("installer is bootstrapped with role=admin", async () => {
-    actor.setIdentity(ownerIdentity);
-    const user = await actor.getUser();
-    expect(user).toHaveLength(1);
-    expect(user[0]!.role).toEqual({ admin: null });
+    actor.setIdentity(manager.ownerIdentity);
+    const user = expectSingle(await actor.getUser(), "installer user");
+    expect(user.role).toEqual({ admin: null });
   });
 
-  test("register is idempotent", async () => {
+  test("ensureUser is idempotent", async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
-    await actor.register([]); // second call should be noop
+    await actor.ensureUser([]);
+    await actor.ensureUser([]);
+
     const user = await actor.getUser();
     expect(user).toHaveLength(1);
   });
 
-  test("register with referral code links inviter", async () => {
-    // Owner creates profile (which generates referralCode)
-    actor.setIdentity(ownerIdentity);
-    await actor.register([]);
+  test("applyReferralCode links existing user to inviter", async () => {
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.ensureUser([]);
     await actor.createProfile({
-      username: "owner",
-      displayName: [],
       avatarUrl: [],
+      displayName: [],
+      username: "owner",
     });
-    const ownerProfile = await actor.getProfile();
-    const referralCode = ownerProfile[0]!.referralCode[0]!;
+    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
+    const referralCode = expectSingle(ownerProfile.referralCode, "owner referral code");
 
-    // Alice registers with owner's referral code
     actor.setIdentity(userAlice);
-    await actor.register([referralCode]);
+    await actor.ensureUser([]);
+    const result = await actor.applyReferralCode(referralCode);
+    expect(result).toEqual({ ok: null });
 
-    const user = await actor.getUser();
-    expect(user[0]!.inviter).toHaveLength(1);
-    expect(user[0]!.inviter[0]!.toText()).toBe(
-      ownerIdentity.getPrincipal().toText(),
+    const user = expectSingle(await actor.getUser(), "referred user");
+    const inviter = expectSingle(user.inviter, "user inviter");
+    expect(inviter.toText()).toBe(
+      manager.ownerIdentity.getPrincipal().toText(),
     );
+    expect(user.referralAppliedAt).toHaveLength(1);
   });
 
-  test("register with invalid referral code creates user without inviter", async () => {
+  test("applyReferralCode rejects invalid referral code without changing user", async () => {
     actor.setIdentity(userAlice);
-    await actor.register(["INVALID1"]);
+    await actor.ensureUser([]);
+    const result = await actor.applyReferralCode("INVALID1");
+    expect(result).toEqual({ referralCodeNotFound: null });
 
-    const user = await actor.getUser();
-    expect(user).toHaveLength(1);
-    expect(user[0]!.inviter).toHaveLength(0);
+    const user = expectSingle(await actor.getUser(), "user without inviter");
+    expect(user.inviter).toHaveLength(0);
+    expect(user.referralAppliedAt).toHaveLength(0);
+  });
+
+  test("applyReferralCode requires existing user", async () => {
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.createProfile({
+      avatarUrl: [],
+      displayName: [],
+      username: "owner-no-user",
+    });
+    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
+    const referralCode = expectSingle(ownerProfile.referralCode, "owner referral code");
+
+    actor.setIdentity(userAlice);
+    const result = await actor.applyReferralCode(referralCode);
+    expect(result).toEqual({ userNotFound: null });
+  });
+
+  test("applyReferralCode rejects self-referral and is idempotent", async () => {
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.ensureUser([]);
+    await actor.createProfile({
+      avatarUrl: [],
+      displayName: [],
+      username: "owner-self",
+    });
+    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
+    const ownerCode = expectSingle(ownerProfile.referralCode, "owner referral code");
+    expect(await actor.applyReferralCode(ownerCode)).toEqual({ selfReferral: null });
+
+    actor.setIdentity(userAlice);
+    await actor.ensureUser([]);
+    expect(await actor.applyReferralCode(ownerCode)).toEqual({ ok: null });
+    expect(await actor.applyReferralCode(ownerCode)).toEqual({ alreadyApplied: null });
   });
 
   test("getUser returns empty when not registered", async () => {
@@ -89,74 +196,76 @@ describe("Users", () => {
   test("profile has referralCode after creation", async () => {
     actor.setIdentity(userAlice);
     await actor.createProfile({
-      username: "alice2",
-      displayName: [],
       avatarUrl: [],
+      displayName: [],
+      username: "alice2",
     });
 
-    const profile = await actor.getProfile();
-    expect(profile).toHaveLength(1);
-    expect(profile[0]!.referralCode).toHaveLength(1);
-    expect(profile[0]!.referralCode[0]).toHaveLength(8);
+    const profile = expectSingle(await actor.getProfile(), "profile");
+    const referralCode = expectSingle(profile.referralCode, "profile referral code");
+    expect(referralCode).toHaveLength(8);
   });
 
   test("referralCode is unique per user", async () => {
     actor.setIdentity(userAlice);
     await actor.createProfile({
-      username: "alice3",
-      displayName: [],
       avatarUrl: [],
+      displayName: [],
+      username: "alice3",
     });
-    const profile1 = await actor.getProfile();
+    const profile1 = expectSingle(await actor.getProfile(), "alice profile");
 
     actor.setIdentity(userBob);
     await actor.createProfile({
-      username: "bob3",
-      displayName: [],
       avatarUrl: [],
+      displayName: [],
+      username: "bob3",
     });
-    const profile2 = await actor.getProfile();
+    const profile2 = expectSingle(await actor.getProfile(), "bob profile");
 
-    expect(profile1[0]!.referralCode[0]).not.toBe(
-      profile2[0]!.referralCode[0],
+    expect(expectSingle(profile1.referralCode, "alice referral code")).not.toBe(
+      expectSingle(profile2.referralCode, "bob referral code"),
     );
   });
 
   test("getAmbassadorChainQuery returns L1 and L2", async () => {
-    // Owner registers (no inviter — root ambassador)
-    actor.setIdentity(ownerIdentity);
-    await actor.register([]);
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.ensureUser([]);
     await actor.createProfile({
+      avatarUrl: [],
+      displayName: [],
       username: "owner",
-      displayName: [],
-      avatarUrl: [],
     });
-    const ownerCode = (await actor.getProfile())[0]!.referralCode[0]!;
+    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
+    const ownerCode = expectSingle(ownerProfile.referralCode, "owner referral code");
 
-    // Alice registers with owner's referral code (L1 = owner)
     actor.setIdentity(userAlice);
-    await actor.register([ownerCode]);
+    await actor.ensureUser([]);
+    expect(await actor.applyReferralCode(ownerCode)).toEqual({ ok: null });
     await actor.createProfile({
-      username: "alice",
-      displayName: [],
       avatarUrl: [],
+      displayName: [],
+      username: "alice",
     });
-    const aliceCode = (await actor.getProfile())[0]!.referralCode[0]!;
+    const aliceProfile = expectSingle(await actor.getProfile(), "alice profile");
+    const aliceCode = expectSingle(aliceProfile.referralCode, "alice referral code");
 
-    // Bob registers with Alice's referral code (L1 = alice, L2 = owner)
     actor.setIdentity(userBob);
-    await actor.register([aliceCode]);
+    await actor.ensureUser([]);
+    expect(await actor.applyReferralCode(aliceCode)).toEqual({ ok: null });
 
     const chain = await actor.getAmbassadorChainQuery();
-    expect(chain.l1).toHaveLength(1);
-    expect(chain.l1[0]!.toText()).toBe(userAlice.getPrincipal().toText());
-    expect(chain.l2).toHaveLength(1);
-    expect(chain.l2[0]!.toText()).toBe(ownerIdentity.getPrincipal().toText());
+    expect(expectSingle(chain.l1, "L1 ambassador").toText()).toBe(
+      userAlice.getPrincipal().toText(),
+    );
+    expect(expectSingle(chain.l2, "L2 ambassador").toText()).toBe(
+      manager.ownerIdentity.getPrincipal().toText(),
+    );
   });
 
   test("getAmbassadorChainQuery returns empty for user without inviter", async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     const chain = await actor.getAmbassadorChainQuery();
     expect(chain.l1).toHaveLength(0);

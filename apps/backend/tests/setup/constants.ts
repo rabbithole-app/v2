@@ -8,6 +8,7 @@ export const CASHIER_CANISTER_ID = Principal.fromText("xc7sj-uyaaa-aaaaf-qbrja-c
 export const POCKETIC_THRESHOLD_KEY_NAME = "key_1";
 export const BACKEND_ENVIRONMENT_VARIABLES = [
   { name: "PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", value: CASHIER_CANISTER_ID.toText() },
+  { name: "PUBLIC_AUTH_EXPECTED_ORIGIN", value: "http://localhost:4200" },
   { name: "THRESHOLD_KEY_NAME", value: POCKETIC_THRESHOLD_KEY_NAME },
   { name: "GITHUB_API_URL", value: "http://mock-server:8080" },
   { name: "GITHUB_OWNER", value: "user" },

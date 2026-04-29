@@ -21,6 +21,7 @@ import {
   APP_NAME_TOKEN,
   AUTH_MAX_TIME_TO_LIVE,
   BLOB_STORAGE_CONFIG_TOKEN,
+  canisterOrigin,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
   IC_ROOT_KEY,
@@ -49,6 +50,7 @@ const authConfig: AuthConfig = {
   appUrl: environment.appUrl,
   scheme: environment.scheme,
   delegationPath: '/delegation',
+  identitySignerCanisterId: environment.identitySignerCanisterId,
   loginOptions: {
     identityProvider: environment.identityProviderUrl,
     maxTimeToLive: AUTH_MAX_TIME_TO_LIVE,
@@ -56,6 +58,7 @@ const authConfig: AuthConfig = {
       derivationOrigin: APP_DERIVATION_ORIGIN,
     }),
   },
+  openIdProviders: [...environment.openIdProviders],
 };
 
 export const appConfig: ApplicationConfig = {
@@ -91,9 +94,7 @@ export const appConfig: ApplicationConfig = {
     FileSystemAccessService,
     {
       provide: MAIN_BACKEND_URL_TOKEN,
-      useValue: environment.production
-        ? `https://${environment.backendCanisterId}.icp0.io`
-        : `https://${environment.backendCanisterId}.localhost`,
+      useValue: canisterOrigin(environment.backendCanisterId, environment.httpAgentHost),
     },
     {
       provide: APP_NAME_TOKEN,

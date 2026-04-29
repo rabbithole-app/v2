@@ -5,6 +5,8 @@ import Time "mo:core/Time";
 
 import ZenDB "mo:zendb";
 
+import Types "../Types/lib";
+
 module {
   public type Role = {
     #user;
@@ -14,11 +16,29 @@ module {
 
   public type User = {
     id : Principal;
+    email : ?Text;
+    name : ?Text;
+    verifiedEmail : ?Bool;
+    authProvider : ?Text;
+    lastLoginAt : ?Time.Time;
+    profileSyncedAt : ?Time.Time;
     inviter : ?Principal;
+    referralAppliedAt : ?Time.Time;
     role : Role;
     trialUsed : Bool;
     createdAt : Time.Time;
     updatedAt : Time.Time;
+  };
+
+  public type VerifiedIdentityAttributes = Types.VerifiedIdentityAttributes;
+
+  public type ApplyReferralCodeResult = {
+    #ok;
+    #alreadyApplied;
+    #userNotFound;
+    #referralCodeNotFound;
+    #selfReferral;
+    #storageError : Text;
   };
 
   public type AmbassadorChain = {
@@ -36,7 +56,14 @@ module {
 
   let UserSchema : ZenDB.Types.Schema = #Record([
     ("id", #Principal),
+    ("email", #Option(#Text)),
+    ("name", #Option(#Text)),
+    ("verifiedEmail", #Option(#Bool)),
+    ("authProvider", #Option(#Text)),
+    ("lastLoginAt", #Option(#Int)),
+    ("profileSyncedAt", #Option(#Int)),
     ("inviter", #Option(#Principal)),
+    ("referralAppliedAt", #Option(#Int)),
     ("role", #Variant([("user", #Null), ("admin", #Null), ("moderator", #Null)])),
     ("trialUsed", #Bool),
     ("createdAt", #Int),
@@ -59,13 +86,124 @@ module {
       let now = Time.now();
       let user : User = {
         id = principal;
+        email = null;
+        name = null;
+        verifiedEmail = null;
+        authProvider = null;
+        lastLoginAt = null;
+        profileSyncedAt = null;
         inviter;
+        referralAppliedAt = null;
         role;
         trialUsed = false;
         createdAt = now;
         updatedAt = now;
       };
       usersCollection.insert(user);
+    };
+
+    public func upsertFromIdentity(principal : Principal, authProvider : ?Text, isNewAuthEvent : Bool) : ZenDB.Types.Result<(), Text> {
+      let now = Time.now();
+      switch (findDocument(principal)) {
+        case (?(docId, user)) {
+          let updated = {
+            user with
+            authProvider = switch authProvider { case (?provider) ?provider; case null user.authProvider };
+            lastLoginAt = if (isNewAuthEvent) ?now else user.lastLoginAt;
+            updatedAt = now;
+          };
+          switch (usersCollection.replace(docId, updated)) {
+            case (#ok _) #ok(());
+            case (#err msg) #err(msg);
+          };
+        };
+        case null {
+          let user : User = {
+            id = principal;
+            email = null;
+            name = null;
+            verifiedEmail = null;
+            authProvider;
+            lastLoginAt = if (isNewAuthEvent) ?now else null;
+            profileSyncedAt = null;
+            inviter = null;
+            referralAppliedAt = null;
+            role = #user;
+            trialUsed = false;
+            createdAt = now;
+            updatedAt = now;
+          };
+          switch (usersCollection.insert(user)) {
+            case (#ok _) #ok(());
+            case (#err msg) #err(msg);
+          };
+        };
+      };
+    };
+
+    public func upsertFromVerifiedAttributes(principal : Principal, attrs : VerifiedIdentityAttributes) : ZenDB.Types.Result<(), Text> {
+      let now = Time.now();
+      switch (findDocument(principal)) {
+        case (?(docId, user)) {
+          let updated = {
+            user with
+            email = attrs.email;
+            name = attrs.name;
+            verifiedEmail = attrs.verifiedEmail;
+            authProvider = attrs.authProvider;
+            lastLoginAt = ?now;
+            profileSyncedAt = ?now;
+            updatedAt = now;
+          };
+          switch (usersCollection.replace(docId, updated)) {
+            case (#ok _) #ok(());
+            case (#err msg) #err(msg);
+          };
+        };
+        case null {
+          let user : User = {
+            id = principal;
+            email = attrs.email;
+            name = attrs.name;
+            verifiedEmail = attrs.verifiedEmail;
+            authProvider = attrs.authProvider;
+            lastLoginAt = ?now;
+            profileSyncedAt = ?now;
+            inviter = null;
+            referralAppliedAt = null;
+            role = #user;
+            trialUsed = false;
+            createdAt = now;
+            updatedAt = now;
+          };
+          switch (usersCollection.insert(user)) {
+            case (#ok _) #ok(());
+            case (#err msg) #err(msg);
+          };
+        };
+      };
+    };
+
+    public func applyReferralCode(principal : Principal, inviter : Principal) : ApplyReferralCodeResult {
+      if (Principal.equal(principal, inviter)) return #selfReferral;
+
+      let ?(docId, user) = findDocument(principal) else return #userNotFound;
+      switch (user.inviter) {
+        case (?_) return #alreadyApplied;
+        case null {};
+      };
+
+      let now = Time.now();
+      let updated = {
+        user with
+        inviter = ?inviter;
+        referralAppliedAt = ?now;
+        updatedAt = now;
+      };
+      switch (usersCollection.replace(docId, updated)) {
+        case (#ok _) #ok;
+        case (#err msg) #storageError(msg);
+      };
     };
 
     public func hasUsedTrial(principal : Principal) : Bool {
@@ -83,20 +221,24 @@ module {
 
     /// Update a user's role. Returns false if user doesn't exist.
     public func setRole(principal : Principal, role : Role) : Bool {
-      let q = ZenDB.QueryBuilder().Where("id", #eq(#Principal(principal))).Limit(1);
-      let #ok({ documents }) = usersCollection.search(q) else return false;
-      if (documents.size() == 0) return false;
-      let (docId, user, _) = documents[0];
+      let ?(docId, user) = findDocument(principal) else return false;
       ignore usersCollection.replace(docId, { user with role; updatedAt = Time.now() });
       true;
     };
 
     public func get(caller : Principal) : ?User {
+      switch (findDocument(caller)) {
+        case (?(_, user)) ?user;
+        case null null;
+      };
+    };
+
+    func findDocument(caller : Principal) : ?(ZenDB.Types.DocumentId, User) {
       let q = ZenDB.QueryBuilder().Where("id", #eq(#Principal(caller))).Limit(1);
       let #ok({ documents }) = usersCollection.search(q) else return null;
       if (documents.size() == 0) return null;
-      let (_, user, _) = documents[0];
-      ?user;
+      let (docId, user, _) = documents[0];
+      ?(docId, user);
     };
 
     public func exists(id : Principal) : Bool {

@@ -21,6 +21,12 @@ export type AmbassadorPayoutStatus = { 'pending' : null } |
   { 'skipped' : null } |
   { 'completed' : null } |
   { 'failed' : string };
+export type ApplyReferralCodeResult = { 'ok' : null } |
+  { 'storageError' : string } |
+  { 'userNotFound' : null } |
+  { 'selfReferral' : null } |
+  { 'referralCodeNotFound' : null } |
+  { 'alreadyApplied' : null };
 export type AssetDownloadStatus = { 'Error' : string } |
   {
     'Downloading' : {
@@ -148,6 +154,14 @@ export interface GetSubscriptionsResponse {
   'instructions' : bigint,
 }
 export type Header = [string, string];
+export type IdentityAttributesSyncError = { 'expired' : null } |
+  { 'untrustedSigner' : null } |
+  { 'malformedPayload' : null } |
+  { 'invalidOrigin' : null } |
+  { 'nonceMismatch' : null } |
+  { 'nonceNotFound' : null };
+export type IdentityAttributesSyncResult = { 'ok' : null } |
+  { 'err' : IdentityAttributesSyncError };
 export interface InitArgs {
   'icpaySecretKey' : [] | [Uint8Array],
   'chains' : Array<ChainConfig>,
@@ -320,6 +334,8 @@ export interface Rabbithole {
    */
   'addStorage' : ActorMethod<[Principal, Uint8Array], Result_6>,
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
+  'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
+  'attributeNonceBegin' : ActorMethod<[], Uint8Array>,
   'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'checkSubscription' : ActorMethod<[Uint8Array], SubscriptionCheckResult>,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array>,
@@ -330,6 +346,7 @@ export interface Rabbithole {
     { 'ok' : null } |
       { 'notFound' : null }
   >,
+  'ensureUser' : ActorMethod<[[] | [string]], undefined>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
   'getBackendCyclesBalance' : ActorMethod<[], bigint>,
@@ -348,6 +365,12 @@ export interface Rabbithole {
     }
   >,
   'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
+  /**
+   * / Transfer ICP from the treasury subaccount to CMC for a target
+   * / canister. Caller must ensure sufficient balance via
+   * / `guardTreasuryIcpReserve`. CMC `#Refunded` returns ICP to the
+   * / same subaccount, keeping the round-trip inside treasury.
+   */
   'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
@@ -446,7 +469,6 @@ export interface Rabbithole {
    */
   'recoverFailedStorage' : ActorMethod<[bigint, RecoveryStrategy], Result_2>,
   'refreshReleases' : ActorMethod<[], undefined>,
-  'register' : ActorMethod<[[] | [string]], undefined>,
   /**
    * / Register the latest downloaded WASM hash as known.
    */
@@ -470,6 +492,10 @@ export interface Rabbithole {
   'setUserRole' : ActorMethod<[Principal, Role], undefined>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
+  'syncIdentityAttributes' : ActorMethod<
+    [Uint8Array],
+    IdentityAttributesSyncResult
+  >,
   'topUpFromBalance' : ActorMethod<[Principal, bigint], Result_1>,
   'triggerAutoRenewals' : ActorMethod<[], undefined>,
   'triggerExpireOverdue' : ActorMethod<[], Array<Principal>>,
@@ -767,11 +793,18 @@ export type UpgradeStorageError = { 'AlreadyUpgrading' : null } |
   { 'NotCompleted' : null };
 export interface User {
   'id' : Principal,
+  'referralAppliedAt' : [] | [Time],
+  'lastLoginAt' : [] | [Time],
   'inviter' : [] | [Principal],
+  'verifiedEmail' : [] | [boolean],
+  'name' : [] | [string],
   'createdAt' : Time,
   'role' : Role,
   'trialUsed' : boolean,
+  'email' : [] | [string],
   'updatedAt' : Time,
+  'authProvider' : [] | [string],
+  'profileSyncedAt' : [] | [Time],
 }
 export interface UserSettings {
   'spendingPriority' : Array<TokenId>,

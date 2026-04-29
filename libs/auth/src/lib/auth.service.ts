@@ -1,75 +1,30 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
-import { toObservable } from '@angular/core/rxjs-interop';
-import { AnonymousIdentity, Identity } from '@icp-sdk/core/agent';
-import { AuthClient } from '@icp-sdk/auth/client';
-import { map } from 'rxjs';
+import { inject, Injectable } from '@angular/core';
+import { SignedAttributes } from '@icp-sdk/auth/client';
 
-import { assertClient } from './asserts';
-import { AUTH_CONFIG, AuthClientLogoutOptions, IAuthService } from './tokens';
-
-interface State {
-  client: AuthClient | null;
-  identity: Identity;
-  isAuthenticated: boolean;
-  ready: boolean;
-}
-
-const INITIAL_VALUE: State = {
-  client: null,
-  identity: new AnonymousIdentity(),
-  isAuthenticated: false,
-  ready: false,
-};
+import { BrokerAuthService } from './broker-auth.service';
+import { AuthClientLogoutOptions, AuthSignInOptions, IAuthService } from './tokens';
 
 @Injectable()
 export class AuthService implements IAuthService {
-  #state = signal(INITIAL_VALUE);
-  identity = computed(() => this.#state().identity);
-  isAuthenticated = computed(() => this.#state().isAuthenticated);
-  principalId = computed(() => this.#state().identity.getPrincipal().toText());
-  ready$ = toObservable(this.#state).pipe(map(({ ready }) => ready));
-  #authConfig = inject(AUTH_CONFIG);
+  #broker = inject(BrokerAuthService);
+  identity = this.#broker.identity;
+  isAuthenticated = this.#broker.isAuthenticated;
+  lastAuthEvent = this.#broker.lastAuthEvent;
+  principalId = this.#broker.principalId;
+  ready$ = this.#broker.ready$;
 
-  constructor() {
-    this.#initState();
-    effect(() => console.info(`Principal ID: ${this.principalId()}`));
+  async requestAttributes(params: {
+    keys: string[];
+    nonce: Uint8Array;
+  }): Promise<SignedAttributes> {
+    return this.#broker.requestAttributes(params);
   }
 
-  async signIn() {
-    const { client } = this.#state();
-
-    assertClient(client);
-
-    const options = this.#authConfig.loginOptions ?? {};
-
-    client.login({
-      ...options,
-      onSuccess: (message) => {
-        if (options.onSuccess) options.onSuccess(message);
-        this.#initState();
-      },
-    });
+  async signIn(options?: AuthSignInOptions) {
+    await this.#broker.signIn(options);
   }
 
   async signOut(opts?: AuthClientLogoutOptions) {
-    const { client } = this.#state();
-
-    assertClient(client);
-
-    await client.logout(opts);
-    this.#initState();
-  }
-
-  async #initState() {
-    const client = await AuthClient.create();
-    const identity = client.getIdentity();
-    const isAuthenticated = await client.isAuthenticated();
-    this.#state.update((state) => ({
-      ...state,
-      client,
-      identity,
-      isAuthenticated,
-      ready: true,
-    }));
+    await this.#broker.signOut(opts);
   }
 }

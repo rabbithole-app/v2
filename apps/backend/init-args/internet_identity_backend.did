@@ -1,0 +1,20 @@
+(opt record {
+  captcha_config = opt record {
+    max_unsolved_captchas = 50:nat64;
+    captcha_trigger = variant { Static = variant { CaptchaDisabled } };
+  };
+  openid_configs = opt vec {
+    record {
+      name = "Dev OpenID";
+      logo = "";
+      issuer = "https://openid.localhost";
+      client_id = "internet_identity";
+      jwks_uri = "https://openid.localhost/jwks";
+      auth_uri = "https://openid.localhost/auth";
+      auth_scope = vec { "openid"; "profile"; "email" };
+      fedcm_uri = null;
+      email_verification = null;
+    };
+  };
+  sso_discoverable_domains = opt vec {};
+})

@@ -30,7 +30,7 @@ describe("Subscriptions", () => {
 
   test("activateTrial creates trial subscription", async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.activateTrial();
 
     const sub = await actor.getSubscription();
@@ -43,7 +43,7 @@ describe("Subscriptions", () => {
 
   test("cannot activate trial twice", async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.activateTrial();
     await expect(actor.activateTrial()).rejects.toThrow();
   });
@@ -175,7 +175,7 @@ describe("Subscriptions", () => {
     await pic.setCertifiedTime(startTime);
 
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.activateTrial();
     expect((await actor.getSubscription())[0]!.status).toEqual({
       Active: null,

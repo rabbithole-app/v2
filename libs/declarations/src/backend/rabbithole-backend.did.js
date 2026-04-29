@@ -64,6 +64,14 @@ export const idlFactory = ({ IDL }) => {
     'InvalidWasm' : IDL.Text,
   });
   const Result_6 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const ApplyReferralCodeResult = IDL.Variant({
+    'ok' : IDL.Null,
+    'storageError' : IDL.Text,
+    'userNotFound' : IDL.Null,
+    'selfReferral' : IDL.Null,
+    'referralCodeNotFound' : IDL.Null,
+    'alreadyApplied' : IDL.Null,
+  });
   const UpdateInfo = IDL.Record({
     'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'wasmUpdateAvailable' : IDL.Bool,
@@ -326,11 +334,18 @@ export const idlFactory = ({ IDL }) => {
   });
   const User = IDL.Record({
     'id' : IDL.Principal,
+    'referralAppliedAt' : IDL.Opt(Time),
+    'lastLoginAt' : IDL.Opt(Time),
     'inviter' : IDL.Opt(IDL.Principal),
+    'verifiedEmail' : IDL.Opt(IDL.Bool),
+    'name' : IDL.Opt(IDL.Text),
     'createdAt' : Time,
     'role' : Role,
     'trialUsed' : IDL.Bool,
+    'email' : IDL.Opt(IDL.Text),
     'updatedAt' : Time,
+    'authProvider' : IDL.Opt(IDL.Text),
+    'profileSyncedAt' : IDL.Opt(Time),
   });
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
   const RawQueryHttpRequest = IDL.Record({
@@ -631,6 +646,18 @@ export const idlFactory = ({ IDL }) => {
     'contentType' : IDL.Text,
     'filename' : IDL.Text,
   });
+  const IdentityAttributesSyncError = IDL.Variant({
+    'expired' : IDL.Null,
+    'untrustedSigner' : IDL.Null,
+    'malformedPayload' : IDL.Null,
+    'invalidOrigin' : IDL.Null,
+    'nonceMismatch' : IDL.Null,
+    'nonceNotFound' : IDL.Null,
+  });
+  const IdentityAttributesSyncResult = IDL.Variant({
+    'ok' : IDL.Null,
+    'err' : IdentityAttributesSyncError,
+  });
   const Result_1 = IDL.Variant({
     'ok' : IDL.Record({ 'cyclesAdded' : IDL.Nat }),
     'err' : IDL.Text,
@@ -678,6 +705,8 @@ export const idlFactory = ({ IDL }) => {
     'activateTrial' : IDL.Func([], [], []),
     'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_6], []),
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
+    'applyReferralCode' : IDL.Func([IDL.Text], [ApplyReferralCodeResult], []),
+    'attributeNonceBegin' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UpdateInfo)],
@@ -696,6 +725,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'ok' : IDL.Null, 'notFound' : IDL.Null })],
         [],
       ),
+    'ensureUser' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
     'flushPaymentQueue' : IDL.Func([], [], []),
     'getAmbassadorChainQuery' : IDL.Func([], [AmbassadorChain], ['query']),
     'getBackendCyclesBalance' : IDL.Func([], [IDL.Nat], ['query']),
@@ -821,7 +851,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'refreshReleases' : IDL.Func([], [], []),
-    'register' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
     'registerLatestWasmHash' : IDL.Func([], [], []),
     'renewSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
@@ -835,6 +864,11 @@ export const idlFactory = ({ IDL }) => {
     'setUserRole' : IDL.Func([IDL.Principal, Role], [], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
+    'syncIdentityAttributes' : IDL.Func(
+        [IDL.Vec(IDL.Nat8)],
+        [IdentityAttributesSyncResult],
+        [],
+      ),
     'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result_1], []),
     'triggerAutoRenewals' : IDL.Func([], [], []),
     'triggerExpireOverdue' : IDL.Func([], [IDL.Vec(IDL.Principal)], []),

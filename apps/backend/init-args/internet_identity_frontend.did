@@ -1,7 +1,7 @@
 (
   record {
-    backend_canister_id = principal "aaaaa-aa";
-    backend_origin = "http://aaaaa-aa.localhost:8000";
+    backend_canister_id = principal "uqqxf-5h777-77774-qaaaa-cai";
+    backend_origin = "http://uqqxf-5h777-77774-qaaaa-cai.localhost:8000";
     related_origins = null;
     fetch_root_key = opt true;
     analytics_config = null;

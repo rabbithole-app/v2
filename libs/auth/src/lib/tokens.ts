@@ -1,10 +1,16 @@
 import { InjectionToken, Signal } from '@angular/core';
+import {
+  AuthClient,
+  AuthClientCreateOptions,
+  AuthClientSignInOptions,
+  OpenIdProvider,
+  SignedAttributes,
+} from '@icp-sdk/auth/client';
 import { Identity } from '@icp-sdk/core/agent';
-import { AuthClient, AuthClientLoginOptions } from '@icp-sdk/auth/client';
 import { Principal } from '@icp-sdk/core/principal';
 import { Observable } from 'rxjs';
 
-export type AuthClientInstance = Awaited<ReturnType<typeof AuthClient.create>>;
+export type AuthClientInstance = AuthClient;
 
 export type AuthClientLogoutOptions = Parameters<
   AuthClientInstance['logout']
@@ -13,17 +19,49 @@ export type AuthClientLogoutOptions = Parameters<
 export type AuthConfig = {
   appUrl: string;
   delegationPath: string;
-  loginOptions?: AuthClientLoginOptions;
-  // identityProviderUrl: string;
+  delegationTarget?: Principal;
+  identitySignerCanisterId?: string;
+  loginOptions?: AuthClientCreateOptions & AuthClientSignInOptions;
+  openIdProviders?: (AuthOpenIdProviderConfig | OpenIdProvider)[];
   scheme: string;
+};
+
+export type AuthOpenIdProviderConfig = {
+  icon?: string;
+  id: OpenIdProvider | 'dev';
+  issuer?: string;
+  label?: string;
+  logo?: string;
+  logoClass?: string;
+  ssoDomain?: string;
+};
+
+export type AuthSessionEvent = {
+  hasAttributes: boolean;
+  id: number;
+  openIdIssuer?: string;
+  openIdProvider?: OpenIdProvider;
+  ssoDomain?: string;
+};
+
+export type AuthSignInOptions = {
+  openIdIssuer?: string;
+  openIdProvider?: OpenIdProvider;
+  ssoDomain?: string;
+  target?: Principal;
 };
 
 export interface IAuthService {
   identity: Signal<Identity>;
   isAuthenticated: Signal<boolean>;
+  lastAuthEvent: Signal<AuthSessionEvent | null>;
   principalId: Signal<string>;
   ready$: Observable<boolean>;
-  signIn(options?: { target?: Principal }): Promise<void> | void;
+  requestAttributes?(params: {
+    keys: string[];
+    nonce: Uint8Array;
+  }): Promise<SignedAttributes>;
+  signIn(options?: AuthSignInOptions): Promise<void> | void;
   signOut(): Promise<void> | void;
 }
 
