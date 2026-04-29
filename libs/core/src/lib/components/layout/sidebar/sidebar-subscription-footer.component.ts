@@ -19,6 +19,7 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { BalanceService } from '../../../services/balance.service';
 import { SubscriptionService } from '../../../services/subscription.service';
+import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
 
 @Component({
   selector: 'rbth-sidebar-subscription-footer',
@@ -37,23 +38,26 @@ import { SubscriptionService } from '../../../services/subscription.service';
     }),
   ],
   template: `
-    <a
-      routerLink="/dashboard/subscription"
-      class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent transition-colors"
-      [hlmTooltip]="tooltipText()"
-      [tooltipDisabled]="tooltipDisabled()"
-      position="right"
-    >
-      <ng-icon [name]="icon()" hlmIcon size="sm" [class]="iconClass()" />
-      <span class="group-data-[collapsible=icon]:hidden truncate">
-        {{ label() }}
-      </span>
-    </a>
+    @if (backendFeaturesEnabled) {
+      <a
+        routerLink="/dashboard/subscription"
+        class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent transition-colors"
+        [hlmTooltip]="tooltipText()"
+        [tooltipDisabled]="tooltipDisabled()"
+        position="right"
+      >
+        <ng-icon [name]="icon()" hlmIcon size="sm" [class]="iconClass()" />
+        <span class="group-data-[collapsible=icon]:hidden truncate">
+          {{ label() }}
+        </span>
+      </a>
+    }
   `,
   host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SidebarSubscriptionFooterComponent {
+  readonly backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
   #subscriptionService = inject(SubscriptionService);
   icon = computed(() => {
     if (this.#subscriptionService.isPro()) return 'lucideStar';

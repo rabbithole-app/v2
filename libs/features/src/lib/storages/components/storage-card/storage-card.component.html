@@ -114,6 +114,12 @@
               <ng-icon hlm name="lucideExternalLink" hlmMenuIcon size="sm" />
               Open App
             </button>
+            @if (showLocalDevFrontendAction) {
+              <button hlmDropdownMenuItem (click)="openLocalDevFrontend()">
+                <ng-icon hlm name="lucideCode" hlmMenuIcon size="sm" />
+                Open Local Dev App
+              </button>
+            }
             <button hlmDropdownMenuItem (click)="navigateToCanisterManagement()">
               <ng-icon hlm name="lucideSettings" hlmMenuIcon size="sm" />
               Manage Canister
@@ -132,82 +138,89 @@
 
   @if (displayStatus() === 'failed') {
     <div hlmItemActions class="flex items-center gap-1">
-      @if (isDeleting()) {
+      @if (isResuming()) {
         <button hlmBtn variant="ghost" size="sm" disabled>
           <hlm-spinner icon="lucideLoader2" size="xs" />
-          Processing...
+          Resuming...
         </button>
-      } @else if (canisterIdText()) {
+      } @else if (isDeleting()) {
+        <button hlmBtn variant="ghost" size="sm" disabled>
+          <hlm-spinner icon="lucideLoader2" size="xs" />
+          Removing...
+        </button>
+      } @else {
         <button hlmBtn variant="outline" size="sm" (click)="retryFailedStorage()">
           <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
-          Retry
+          Resume
         </button>
-        <button
-          hlmBtn
-          variant="ghost"
-          size="icon-sm"
-          hlmTooltip="Manage Canister"
-          (click)="navigateToCanisterManagement()"
-        >
-          <ng-icon hlmIcon name="lucideSettings" size="sm" />
-        </button>
-        <hlm-alert-dialog>
+        @if (canisterIdText()) {
           <button
             hlmBtn
             variant="ghost"
             size="icon-sm"
-            hlmTooltip="Remove from list"
-            brnAlertDialogTrigger
-            class="text-destructive hover:text-destructive"
+            hlmTooltip="Manage Canister"
+            (click)="navigateToCanisterManagement()"
           >
-            <ng-icon hlmIcon name="lucideTrash2" size="sm" />
+            <ng-icon hlmIcon name="lucideSettings" size="sm" />
           </button>
-          <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
-            <hlm-alert-dialog-header>
-              <h3 hlmAlertDialogTitle>Remove storage from list?</h3>
-              <p hlmAlertDialogDescription>
-                This will only remove the storage record from your list.
-                The canister itself will not be deleted and will continue
-                to exist on the Internet Computer. You can re-add it later
-                using "Install on existing canister".
-              </p>
-            </hlm-alert-dialog-header>
-            <hlm-alert-dialog-footer>
-              <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
-              <button hlmAlertDialogAction variant="destructive" (click)="deleteStorage()">
-                Remove
-              </button>
-            </hlm-alert-dialog-footer>
-          </hlm-alert-dialog-content>
-        </hlm-alert-dialog>
-      } @else {
-        <hlm-alert-dialog>
-          <button
-            hlmBtn
-            variant="outline"
-            size="sm"
-            brnAlertDialogTrigger
-            class="text-destructive hover:text-destructive"
-          >
-            <ng-icon hlmIcon name="lucideTrash2" size="sm" />
-            Delete
-          </button>
-          <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
-            <hlm-alert-dialog-header>
-              <h3 hlmAlertDialogTitle>Delete storage record?</h3>
-              <p hlmAlertDialogDescription>
-                This will permanently remove this failed storage record from your list.
-                No canister was created, so nothing else will be affected.
-              </p>
-            </hlm-alert-dialog-header>
-            <hlm-alert-dialog-footer>
-              <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
-              <button hlmAlertDialogAction variant="destructive" (click)="deleteStorage()">
-                Delete
-              </button>
-            </hlm-alert-dialog-footer>
-          </hlm-alert-dialog-content>
-        </hlm-alert-dialog>
+          <hlm-alert-dialog>
+            <button
+              hlmBtn
+              variant="ghost"
+              size="icon-sm"
+              hlmTooltip="Remove from list"
+              brnAlertDialogTrigger
+              class="text-destructive hover:text-destructive"
+            >
+              <ng-icon hlmIcon name="lucideTrash2" size="sm" />
+            </button>
+            <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
+              <hlm-alert-dialog-header>
+                <h3 hlmAlertDialogTitle>Remove storage from list?</h3>
+                <p hlmAlertDialogDescription>
+                  This will only remove the storage record from your list.
+                  The canister itself will not be deleted and will continue
+                  to exist on the Internet Computer. You can re-add it later
+                  using "Install on existing canister".
+                </p>
+              </hlm-alert-dialog-header>
+              <hlm-alert-dialog-footer>
+                <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
+                <button hlmAlertDialogAction variant="destructive" (click)="deleteStorage()">
+                  Remove
+                </button>
+              </hlm-alert-dialog-footer>
+            </hlm-alert-dialog-content>
+          </hlm-alert-dialog>
+        } @else {
+          <hlm-alert-dialog>
+            <button
+              hlmBtn
+              variant="ghost"
+              size="icon-sm"
+              hlmTooltip="Delete storage record"
+              brnAlertDialogTrigger
+              class="text-destructive hover:text-destructive"
+            >
+              <ng-icon hlmIcon name="lucideTrash2" size="sm" />
+            </button>
+            <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
+              <hlm-alert-dialog-header>
+                <h3 hlmAlertDialogTitle>Delete storage record?</h3>
+                <p hlmAlertDialogDescription>
+                  This will permanently remove this failed storage record from your list.
+                  If the setup was already paid for, use Resume before deleting it.
+                </p>
+              </hlm-alert-dialog-header>
+              <hlm-alert-dialog-footer>
+                <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
+                <button hlmAlertDialogAction variant="destructive" (click)="deleteStorage()">
+                  Delete
+                </button>
+              </hlm-alert-dialog-footer>
+            </hlm-alert-dialog-content>
+          </hlm-alert-dialog>
+        }
       }
     </div>
   }

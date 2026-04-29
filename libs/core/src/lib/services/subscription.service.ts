@@ -1,4 +1,4 @@
-import { computed, Injectable, resource } from '@angular/core';
+import { computed, inject, Injectable, resource } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { fromNullable } from '@dfinity/utils';
 import { Actor } from '@icp-sdk/core/agent';
@@ -9,6 +9,7 @@ import { match, P } from 'ts-pattern';
 import type { Plan, Subscription } from '@rabbithole/declarations';
 
 import { injectMainActor } from '../injectors';
+import { BACKEND_FEATURES_ENABLED_TOKEN } from '../tokens';
 import { parseCanisterRejectError } from '../utils';
 
 const TRIAL_LIMIT_BYTES = 100_000_000; // 100 MB
@@ -16,10 +17,16 @@ const TRIAL_LIMIT_BYTES = 100_000_000; // 100 MB
 @Injectable({ providedIn: 'root' })
 export class SubscriptionService {
   #actor = injectMainActor();
+  #backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
 
   #subscriptionResource = resource({
-    params: () => this.#actor(),
-    loader: async ({ params: actor }) => {
+    params: () => ({
+      actor: this.#actor(),
+      enabled: this.#backendFeaturesEnabled,
+    }),
+    loader: async ({ params: { actor, enabled } }) => {
+      if (!enabled) return null;
+
       const agent = Actor.agentOf(actor);
       const principal = await agent?.getPrincipal();
       if (principal?.isAnonymous()) return undefined;

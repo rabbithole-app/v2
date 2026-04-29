@@ -10,8 +10,8 @@ import { messageByAction } from '../operators';
 // which exports services that import from injectors
 import { UploadRegistryService } from '../services/upload-registry.service';
 import { WorkerService } from '../services/worker.service';
-import { WORKER } from '../tokens';
-import { BLOB_STORAGE_CONFIG_TOKEN } from '../tokens/main';
+import { WORKER, WORKER_FACTORY } from '../tokens';
+import { BLOB_STORAGE_CONFIG_TOKEN, ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN } from '../tokens/main';
 import {
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,
@@ -31,10 +31,14 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
     >(WorkerService, { self: true });
     const uploadRegistry = inject(UploadRegistryService);
     const blobStorageConfig = inject(BLOB_STORAGE_CONFIG_TOKEN, { optional: true });
+    const storageBackend = inject(ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN, { optional: true });
     assertWorker(workerService.worker);
     effect(() => {
       if (authService.isAuthenticated()) {
         workerService.init();
+        workerService.postMessage({
+          action: 'worker:auth-sync',
+        });
       } else {
         workerService.terminate();
       }
@@ -52,6 +56,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
           concurrentUploads: 3,
           concurrentDownloads: 2,
           ...(blobStorageConfig ? { blobStorageGatewayUrl: blobStorageConfig.gatewayUrl } : {}),
+          ...(storageBackend ? { storageBackend } : {}),
         };
         workerService.postMessage({ action: 'worker:config', payload });
       });
@@ -70,14 +75,19 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
     deps: [AUTH_SERVICE, HTTP_AGENT_OPTIONS_TOKEN],
     extraProviders: [
       {
-        provide: WORKER,
-        useFactory: () =>
+        provide: WORKER_FACTORY,
+        useFactory: () => () =>
           typeof Worker !== 'undefined'
             ? new Worker(
                 new URL('../workers/core.worker', import.meta.url),
                 { type: 'module' },
               )
             : null,
+      } satisfies Provider,
+      {
+        provide: WORKER,
+        useFactory: (createWorker: () => Worker | null) => createWorker(),
+        deps: [WORKER_FACTORY],
       } satisfies Provider,
       WorkerService,
     ],

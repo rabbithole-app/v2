@@ -1,7 +1,6 @@
 import { Component } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
 import {
-  lucideDatabase,
   lucideFolder,
   lucideHardDrive,
 } from '@ng-icons/lucide';
@@ -27,7 +26,6 @@ import {
   providers: [
     provideIcons({
       lucideHardDrive,
-      lucideDatabase,
       lucideFolder,
     }),
   ],
@@ -44,11 +42,6 @@ export class StorageNavigationComponent {
       title: 'My Files',
       url: `/drive`,
       icon: 'lucideFolder',
-    },
-    {
-      title: 'Canister settings',
-      url: `/canister`,
-      icon: 'lucideDatabase',
     },
   ];
 }

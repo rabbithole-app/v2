@@ -1,14 +1,12 @@
 import {
   computed,
   effect,
-
   Injectable,
   resource,
   signal,
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-
 import type { Principal } from '@icp-sdk/core/principal';
 import { toast } from 'ngx-sonner';
 import { connect } from 'ngxtension/connect';
@@ -190,18 +188,6 @@ export class StoragesService {
   }
 
   /**
-   * Register a creation id returned by `purchaseLicenseAndCreateStorage`.
-   * The service then follows this specific record through every status
-   * transition, regardless of intermediate states like `Pending`.
-   */
-  trackCreation(creationId: bigint): void {
-    this.#lastCreationId.set(creationId);
-    // Force an immediate reload so the UI doesn't wait up to 2s for the
-    // next polling tick to see the new record.
-    this.storagesResource.reload();
-  }
-
-  /**
    * Clear the tracked upgrade (call when dialog is closed)
    */
   clearTrackedUpgrade(): void {
@@ -246,6 +232,48 @@ export class StoragesService {
    * Reload storages list from backend
    */
   reload(): void {
+    this.storagesResource.reload();
+  }
+
+  /**
+   * Resume a failed storage creation without charging the license again.
+   * The backend reuses the existing paid creation record and continues from
+   * the last safe checkpoint.
+   */
+  async resumeFailedStorage(storageId: bigint): Promise<void> {
+    const actor = this.#actor();
+    const toastId = toast.loading('Resuming storage setup...');
+
+    try {
+      const result = await actor.recoverFailedStorage(storageId, { resume: null });
+
+      if ('err' in result) {
+        toast.error(`Resume failed: ${result.err}`, { id: toastId });
+        throw new Error(result.err);
+      }
+
+      this.#lastCreationId.set(storageId);
+      toast.success('Storage setup resumed', { id: toastId });
+      this.storagesResource.reload();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = parseCanisterRejectError(error);
+      if (errorMessage) {
+        toast.error(`Resume failed: ${errorMessage}`, { id: toastId });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Register a creation id returned by `purchaseLicenseAndCreateStorage`.
+   * The service then follows this specific record through every status
+   * transition, regardless of intermediate states like `Pending`.
+   */
+  trackCreation(creationId: bigint): void {
+    this.#lastCreationId.set(creationId);
+    // Force an immediate reload so the UI doesn't wait up to 2s for the
+    // next polling tick to see the new record.
     this.storagesResource.reload();
   }
 

@@ -137,6 +137,7 @@ export const workerConfigSchema = type({
   'concurrentUploads?': 'number',
   'concurrentDownloads?': 'number',
   'blobStorageGatewayUrl?': 'string',
+  'storageBackend?': "'OnChain' | 'BlobStorage'",
   // canisters: type.Record("'encryptedStorage'", principalSchema),
 });
 
@@ -156,6 +157,7 @@ export type CoreWorkerActionsIn = Prettify<
     'upload:cancel': { payload: Pick<UploadFile, 'id'> };
     'upload:remove': { payload: Pick<UploadFile, 'id'> };
     'upload:retry': { payload: Pick<UploadFile, 'id'> };
+    'worker:auth-sync': unknown;
     'worker:config': { payload: WorkerConfigIn };
     'worker:init-storage': { payload: PrincipalString };
   } & WorkerActionsIn

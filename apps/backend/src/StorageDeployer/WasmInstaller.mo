@@ -7,6 +7,7 @@ import Nat "mo:core/Nat";
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import List "mo:core/List";
+import Debug "mo:core/Debug";
 
 import IC "mo:ic";
 import Vector "mo:vector";
@@ -64,6 +65,31 @@ module WasmInstaller {
   public func resetTransient(store : Store) {
     Map.clear(store.statuses);
     Map.clear(store.chunkHashes);
+  };
+
+  public func resetCanisterState(store : Store, canisterId : Principal) {
+    Map.remove(store.statuses, Principal.compare, canisterId);
+    Map.remove(store.chunkHashes, Principal.compare, canisterId);
+  };
+
+  public func clearRemoteChunkStore(canisterId : Principal) : async Result.Result<(), Text> {
+    try {
+      await IC.ic.clear_chunk_store({ canister_id = canisterId });
+      #ok;
+    } catch (error) {
+      #err("Clear chunk store failed: " # Error.message(error));
+    };
+  };
+
+  func cleanupChunkStore(store : Store, canisterId : Principal) : async ?Text {
+    Map.remove(store.chunkHashes, Principal.compare, canisterId);
+    switch (await clearRemoteChunkStore(canisterId)) {
+      case (#ok) null;
+      case (#err(error)) {
+        Debug.print("[wasm-installer] " # Principal.toText(canisterId) # " " # error);
+        ?error;
+      };
+    };
   };
 
   // Split blob into chunks of specified size
@@ -181,6 +207,13 @@ module WasmInstaller {
   public func executeUploadChunk(store : Store, args : UploadChunkArgs) : async Result.Result<IC.ChunkHash, Text> {
     let { canisterId; chunkIndex; chunk } = args;
     try {
+      if (chunkIndex == 0) {
+        // Start every chunked install from a clean system chunk store. The IC
+        // does not expire chunks automatically, and the store has a hard
+        // CHUNK_STORE_SIZE limit.
+        ignore await cleanupChunkStore(store, canisterId);
+      };
+
       let chunkHash = await IC.ic.upload_chunk({
         canister_id = canisterId;
         chunk;
@@ -216,7 +249,11 @@ module WasmInstaller {
 
       #ok(chunkHash);
     } catch (error) {
-      let errMsg = "Upload chunk failed: " # Error.message(error);
+      let cleanupError = await cleanupChunkStore(store, canisterId);
+      let errMsg = switch (cleanupError) {
+        case (?cleanup) "Upload chunk failed: " # Error.message(error) # "; " # cleanup;
+        case null "Upload chunk failed: " # Error.message(error);
+      };
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errMsg));
       #err(errMsg);
     };
@@ -281,12 +318,18 @@ module WasmInstaller {
         store_canister = null;
       });
 
-      // Cleanup chunk hashes
-      Map.remove(store.chunkHashes, Principal.compare, canisterId);
+      // `install_chunked_code` consumes chunks but does not clear the system
+      // chunk store. Clear it explicitly so repeated upgrades don't exhaust
+      // CHUNK_STORE_SIZE / wasm_chunk_store_size on the target canister.
+      ignore await cleanupChunkStore(store, canisterId);
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Completed);
       #ok;
     } catch (error) {
-      let errMsg = "Install chunked code failed: " # Error.message(error);
+      let cleanupError = await cleanupChunkStore(store, canisterId);
+      let errMsg = switch (cleanupError) {
+        case (?cleanup) "Install chunked code failed: " # Error.message(error) # "; " # cleanup;
+        case null "Install chunked code failed: " # Error.message(error);
+      };
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errMsg));
       #err(errMsg);
     };

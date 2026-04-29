@@ -17,6 +17,7 @@ import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';
 
 import { ProfileService } from '../../../services';
+import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
 import { CopyToClipboardComponent } from '../../ui';
 import { AccountMenuTriggerContentComponent } from '../account-menu-trigger-content/account-menu-trigger-content.component';
 
@@ -49,6 +50,7 @@ export class AccountMenuComponent {
   readonly principalId = this.#authService.principalId;
   readonly #profileService = inject(ProfileService);
   readonly profile = this.#profileService.profile;
+  readonly backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
 
   readonly truncatedPrincipal = computed(() => {
     const id = this.principalId();

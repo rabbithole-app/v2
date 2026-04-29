@@ -96,6 +96,18 @@ module FrontendInstaller {
     Map.clear(store.newFrontendKeys);
   };
 
+  /// Clear per-canister installation state. Use this before retrying a failed
+  /// frontend install so stale batch ids / operations cannot leak into the new
+  /// attempt.
+  public func resetCanisterState(store : Store, canisterId : Principal) {
+    Map.remove(store.batches, Principal.compare, canisterId);
+    Map.remove(store.operations, Principal.compare, canisterId);
+    Map.remove(store.statuses, Principal.compare, canisterId);
+    Map.remove(store.upgrading, Principal.compare, canisterId);
+    Map.remove(store.existingAssets, Principal.compare, canisterId);
+    Map.remove(store.newFrontendKeys, Principal.compare, canisterId);
+  };
+
   /// Add a new version for extraction
   /// If isGzipped is true, will decompress gzip before parsing tar
   public func add<system>(store : Store, args : { versionKey : Text; hash : Blob; contentPointer : Types.SizedPointer; isGzipped : Bool }) : () {

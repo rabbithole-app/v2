@@ -2,6 +2,7 @@ import { computed, DestroyRef, inject, Injectable } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { toast } from 'ngx-sonner';
 import { SignalMap } from 'ngxtension/collections';
+import { timer } from 'rxjs';
 
 import { messageByAction } from '../operators';
 import { ArchiveDownloadProgress, ArchiveDownloadRequest, CoreWorkerMessageIn, CoreWorkerMessageOut, DownloadProgress, DownloadRequest } from '../types';
@@ -215,15 +216,17 @@ export class DownloadService {
   }
 
   #cleanup(id: string, delay: number) {
-    setTimeout(() => {
-      const state = this.#downloads.get(id);
-      if (state) {
-        this.#entryPathIndex.delete(state.entryPath);
-        state.iframe?.remove();
-      }
-      this.#streamInitPromises.delete(id);
-      this.#downloads.delete(id);
-    }, delay);
+    timer(delay)
+      .pipe(takeUntilDestroyed(this.#destroyRef))
+      .subscribe(() => {
+        const state = this.#downloads.get(id);
+        if (state) {
+          this.#entryPathIndex.delete(state.entryPath);
+          state.iframe?.remove();
+        }
+        this.#streamInitPromises.delete(id);
+        this.#downloads.delete(id);
+      });
   }
 
   async #ensureServiceWorker(): Promise<ServiceWorkerRegistration> {

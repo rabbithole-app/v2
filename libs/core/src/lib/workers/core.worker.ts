@@ -28,6 +28,7 @@ import {
     retry,
     scan,
     shareReplay,
+    startWith,
     switchMap,
     take,
     withLatestFrom,
@@ -226,6 +227,10 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
       }
       break;
     }
+    case 'worker:auth-sync': {
+      identityRefresh.next();
+      break;
+    }
     case 'worker:config': {
       const config = workerConfigSchema(data.payload);
       if (config instanceof type.errors) {
@@ -255,10 +260,16 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
 
 postMessage({ action: 'worker:init' });
 
-const identity$ = defer(() => loadIdentity()).pipe(
-  filter(isNonNull),
-  retry({ delay: 500, count: 3 }),
-  catchError(() => of(new AnonymousIdentity())),
+const identityRefresh = new Subject<void>();
+const identity$ = identityRefresh.pipe(
+  startWith(undefined),
+  switchMap(() =>
+    defer(() => loadIdentity()).pipe(
+      filter(isNonNull),
+      retry({ delay: 500, count: 3 }),
+      catchError(() => of(new AnonymousIdentity())),
+    ),
+  ),
   shareReplay(1),
 );
 const workerConfig = new ReplaySubject<WorkerConfig>(1);
@@ -278,6 +289,7 @@ const encryptedStorageInstances$ = encryptedStorage.asObservable().pipe(
       canisterId,
       origin: `https://${canisterId}.localhost`,
       blobStorageGatewayUrl: config.blobStorageGatewayUrl,
+      storageBackend: config.storageBackend,
     });
     const assetManager = new AssetManager({
       agent,

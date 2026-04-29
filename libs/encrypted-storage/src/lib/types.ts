@@ -5,6 +5,7 @@ import {
   EncryptionMode,
   Entry as EntryRaw,
   EncryptedStorageHttpPermission as PermissionRaw,
+  StorageBackend,
   StoragePermission as StoragePermissionRaw,
 } from '@rabbithole/declarations';
 
@@ -66,6 +67,7 @@ export type EncryptedStorageConfig = {
   origin: string;
   /** Blob storage gateway URL (e.g., "https://blob.caffeine.ai"). Required for BlobStorage backend. */
   blobStorageGatewayUrl?: string;
+  storageBackend?: StorageBackend | 'BlobStorage' | 'OnChain';
 } & AssetManagerConfig;
 
 export type EncryptedStorageStoreConfig = Omit<StoreConfig, 'contentEncoding'>;

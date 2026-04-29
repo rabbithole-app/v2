@@ -36,6 +36,16 @@ export interface BackendInitConfig {
 }
 
 export class BackendManager extends BaseManager {
+  /**
+   * Fixed treasury subaccount — mirrors `libs/motoko/treasury/src/Const.mo`
+   * `treasurySubaccount()`. Layout: [0x00, "treasury" (8 bytes), 23 × 0].
+   */
+  static readonly TREASURY_SUBACCOUNT: Uint8Array = new Uint8Array([
+    0x00, 0x74, 0x72, 0x65, 0x61, 0x73, 0x75, 0x72, 0x79,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+  ]);
   get backendCanisterId(): Principal {
     if (!this._backendCanisterId) throw new Error("Call initBackendCanister first");
     return this._backendCanisterId;
@@ -44,6 +54,7 @@ export class BackendManager extends BaseManager {
     if (!this._evmRpcCanisterId) throw new Error("Call deployEvmRpc first");
     return this._evmRpcCanisterId;
   }
+
   get solRpcCanisterId(): Principal {
     if (!this._solRpcCanisterId) throw new Error("Call deploySolRpc first");
     return this._solRpcCanisterId;
@@ -296,17 +307,6 @@ export class BackendManager extends BaseManager {
 
     return { actor, canisterId };
   }
-
-  /**
-   * Fixed treasury subaccount — mirrors `libs/motoko/treasury/src/Const.mo`
-   * `treasurySubaccount()`. Layout: [0x00, "treasury" (8 bytes), 23 × 0].
-   */
-  static readonly TREASURY_SUBACCOUNT: Uint8Array = new Uint8Array([
-    0x00, 0x74, 0x72, 0x65, 0x61, 0x73, 0x75, 0x72, 0x79,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0,
-  ]);
 
   /** Mint ICRC-1 tokens to the backend's treasury subaccount (unified
    *  ICP pool for CMC top-ups + ambassador payouts + refunds). */

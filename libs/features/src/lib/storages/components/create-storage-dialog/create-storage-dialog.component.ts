@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   CUSTOM_ELEMENTS_SCHEMA,
+  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -10,6 +11,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import '@ic-pay/icpay-widget';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -58,6 +60,7 @@ import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmRadioGroup, HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
 import { buildCreationSteps } from '../../utils';
 
@@ -176,6 +179,7 @@ export class CreateStorageDrawerComponent {
 
   readonly #actor = injectMainActor();
   readonly #authService = inject(AUTH_SERVICE);
+  readonly #destroyRef = inject(DestroyRef);
   readonly #icpayConfig = inject(ICPAY_CONFIG_TOKEN);
   readonly #router = inject(Router);
 
@@ -344,23 +348,41 @@ export class CreateStorageDrawerComponent {
     this.#step.set('creating');
     const storagesBefore = this.#storagesService.storagesResource.value()?.length ?? 0;
 
-    for (let i = 0; i < 120; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      this.#storagesService.storagesResource.reload();
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const result = await firstValueFrom(
+        timer(5000, 7000).pipe(
+          tap(() => this.#storagesService.storagesResource.reload()),
+          switchMap(() =>
+            timer(2000).pipe(
+              map(() => {
+                const current = this.#storagesService.storagesResource.value() ?? [];
+                if (current.length <= storagesBefore) return null;
+                return current[current.length - 1]?.canisterId?.toText() ?? null;
+              }),
+            ),
+          ),
+          filter((id): id is string => id !== null),
+          take(1),
+          map((canisterId) => ({ canisterId, type: 'created' as const })),
+          timeout({
+            first: 840_000,
+            with: () => of({ type: 'timeout' as const }),
+          }),
+          takeUntilDestroyed(this.#destroyRef),
+        ),
+      );
 
-      const current = this.#storagesService.storagesResource.value() ?? [];
-      if (current.length > storagesBefore) {
-        const newest = current[current.length - 1];
-        if (newest.canisterId) {
-          this.#createdCanisterId.set(newest.canisterId.toText());
-          toast.success('Storage created successfully!');
-        }
+      if (result.type === 'created') {
+        this.#createdCanisterId.set(result.canisterId);
+        toast.success('Storage created successfully!');
         return;
       }
-    }
 
-    this.#errorMessage.set('Storage creation timed out. If you paid, check back in a few minutes.');
-    this.#step.set('error');
+      this.#errorMessage.set('Storage creation timed out. If you paid, check back in a few minutes.');
+      this.#step.set('error');
+    } catch (error) {
+      if (error instanceof EmptyError) return;
+      throw error;
+    }
   }
 }

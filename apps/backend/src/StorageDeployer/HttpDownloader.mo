@@ -9,6 +9,7 @@ import Iter "mo:core/Iter";
 import Error "mo:core/Error";
 import Option "mo:core/Option";
 import Array "mo:core/Array";
+import Debug "mo:core/Debug";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import IC "mo:ic";
@@ -28,7 +29,7 @@ module {
   public type ChunkStatus = Types.ChunkStatus;
   public type Store = Types.Store;
 
-  let HTTP_OUTCALL_CYCLES : Nat = 50_000_000_000; // 50B cycles per HTTP request
+  let HTTP_OUTCALL_CYCLES : Nat = 60_000_000_000; // 60B cycles per HTTP request
   let MAX_CHUNK_SIZE : Nat = 1_950_000; // 1.95MB per HTTP outcall (50KB buffer for headers)
   let MAX_HTTP_REQUEST_ATTEMPTS : Nat = 3;
 
@@ -112,6 +113,13 @@ module {
   /// Check if a download exists
   public func has(store : Store, key : DownloadKey) : Bool = Option.isSome(find(store, key));
 
+  public func hasFailedChunks(download : DownloadState) : Bool {
+    Map.any(download.chunkStatuses, func(_ : Nat, status : ChunkStatus) : Bool = switch (status) {
+      case (#Error _) true;
+      case _ false;
+    });
+  };
+
   /// Get completed download details including content
   public func get(store : Store, key : DownloadKey) : Result.Result<DownloadDetails, Text> {
     let ?download = find(store, key) else return #err("Download with key " # key # " not found");
@@ -185,6 +193,7 @@ module {
                 };
               };
             } else if (response.status < 200 or response.status >= 300) {
+              Debug.print("[download " # key # "] chunk " # Nat.toText(chunkId) # " HTTP status " # Nat.toText(response.status));
               break exit(#Error("HTTP request failed with status " # Nat.toText(response.status)), null);
             };
 
@@ -192,6 +201,7 @@ module {
             let chunkAddress = MemoryRegion.addBlob(store.region, response.body);
             (#Downloaded(chunkAddress, contentSize), null);
           } catch (error) {
+            Debug.print("[download " # key # "] chunk " # Nat.toText(chunkId) # " attempt " # Nat.toText(attempts + 1) # " failed: " # Error.message(error));
             if (attempts < MAX_HTTP_REQUEST_ATTEMPTS) {
               let nextRequest = ?#Back({
                 request;

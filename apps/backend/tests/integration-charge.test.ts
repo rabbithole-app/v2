@@ -77,11 +77,15 @@ const l1Identity = createIdentity('integ-l1');
 
 type BackendActor = RabbitholeActorService;
 
-type NotificationKey = keyof TypedEvent;
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+type NotificationKey = KeysOfUnion<TypedEvent>;
 
 type NotificationOf<Key extends NotificationKey> = {
   event: Extract<TypedEvent, Record<Key, unknown>>;
 } & StoredNotification;
+type PurchaseSubscriptionResult = Awaited<
+  ReturnType<BackendActor['purchaseSubscription']>
+>;
 type TopUpFromBalanceResult = Awaited<
   ReturnType<BackendActor['topUpFromBalance']>
 >;
@@ -107,6 +111,14 @@ function encodeStorageInitArg(owner: Principal): Uint8Array {
       },
     ]),
   );
+}
+
+function expectPurchaseError(result: PurchaseSubscriptionResult) {
+  expect(result).toHaveProperty('err');
+  if (!('err' in result)) {
+    throw new Error('Expected purchaseSubscription error result');
+  }
+  return result.err;
 }
 
 function expectTopUpError(result: TopUpFromBalanceResult): string {
@@ -172,7 +184,7 @@ describe('Integration: deposit + wallet + settings', () => {
     backendCanisterId = fixture.canisterId;
 
     actor.setIdentity(userIdentity);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await manager.pic.tick();
   });
 
@@ -253,12 +265,15 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
 
     // Register users
     actor.setIdentity(l1Identity);
-    await actor.register([]);
+    await actor.ensureUser([]);
     const l1Profile = await actor.getProfile();
     const l1Code = l1Profile[0]?.referralCode?.[0];
 
     actor.setIdentity(userIdentity);
-    await actor.register(l1Code ? [l1Code] : []);
+    await actor.ensureUser([]);
+    if (l1Code) {
+      expect(await actor.applyReferralCode(l1Code)).toEqual({ ok: null });
+    }
 
     // Fund backend main account with ICP (simulating ICPay relay for direct purchase)
     manager.icpLedgerActor.setIdentity(minterIdentity);
@@ -306,7 +321,7 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     // Use different user to avoid AlreadyActive
     const proUser = createIdentity('integ-pro-user');
     actor.setIdentity(proUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     const ts = await getPicTimestamp();
     const body = makePaymentCompletedEvent({
@@ -336,7 +351,7 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
   test('webhook deposit → notification but no subscription change', async () => {
     const depositUser = createIdentity('integ-deposit-user');
     actor.setIdentity(depositUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     const ts = await getPicTimestamp();
     const body = makePaymentCompletedEvent({
@@ -392,7 +407,7 @@ describe('Integration: auto-renew and grace period', () => {
   test('subscription with autoRenew=false expires without renewal attempt', async () => {
     const user = createIdentity('expire-no-renew');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     // Admin activates Pro with short expiry (1 hour from now)
     actor.setIdentity(manager.ownerIdentity);
@@ -421,7 +436,7 @@ describe('Integration: auto-renew and grace period', () => {
   test('autoRenew=true with insufficient balance → Expired', async () => {
     const user = createIdentity('renew-no-funds');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }, { ICP: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -452,7 +467,7 @@ describe('Integration: auto-renew and grace period', () => {
   test('trial activation works and has 14-day expiry', async () => {
     const user = createIdentity('trial-user');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.activateTrial();
 
     const sub = await actor.getSubscription();
@@ -464,7 +479,7 @@ describe('Integration: auto-renew and grace period', () => {
   test('grace period: expired > 3 days → downgrade to Free', async () => {
     const user = createIdentity('grace-period-user');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     // Activate Pro with expiry 1 hour from now
     actor.setIdentity(manager.ownerIdentity);
@@ -505,11 +520,11 @@ describe('Integration: auto-renew and grace period', () => {
     const userB = createIdentity('iso-user-b');
 
     actor.setIdentity(userA);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({ spendingPriority: [{ ICP: null }], autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES });
 
     actor.setIdentity(userB);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     // userB has default settings
     const settingsB = await actor.getSettings();
@@ -545,7 +560,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
   test('chargeForService: ICP charged at CMC rate for auto-renew', async () => {
     const user = createIdentity('icp-renew-user');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -613,7 +628,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
   test('chargeForService: ICP insufficient, falls to next token → balanceLow', async () => {
     const user = createIdentity('icp-fallback-user');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }, { ckUSDC: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -657,7 +672,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
   test('chargeForService: ICP amount matches expected CMC rate conversion', async () => {
     const user = createIdentity('icp-amount-check');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -726,7 +741,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
   test('renewal produces exactly one subscriptionRenewed notification', async () => {
     const user = createIdentity('single-notif-user');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -788,7 +803,7 @@ describe('Integration: topUpFromBalance', () => {
   test('topUpFromBalance: non-owner canister → error', async () => {
     const user = createIdentity('topup-nonowner');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     const fakeCanister = Principal.fromText('aaaaa-aa');
     const result = await actor.topUpFromBalance(fakeCanister, ONE_TRILLION_CYCLES);
@@ -798,7 +813,7 @@ describe('Integration: topUpFromBalance', () => {
   test('topUpFromBalance: insufficient balance → error', async () => {
     const user = createIdentity('topup-nofunds');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -842,7 +857,7 @@ describe('Integration: chargeForService with ckETH (XRC)', () => {
   test('chargeForService: ckETH charged at XRC rate when priority [#ckETH]', async () => {
     const user = createIdentity('eth-charge-user');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckETH: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -880,7 +895,7 @@ describe('Integration: chargeForService with ckETH (XRC)', () => {
   test('chargeForService: ETH rate conversion is correct', async () => {
     const user = createIdentity('eth-amount-check');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckETH: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -947,7 +962,7 @@ describe('Integration: ICP insufficient falls to ckUSDC', () => {
   test('auto-renew: ICP insufficient, falls to ckUSDC → successful', async () => {
     const user = createIdentity('fallback-ckusdc');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }, { ckUSDC: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -993,7 +1008,7 @@ describe('Integration: ICP insufficient falls to ckUSDC', () => {
   test('chargeForService: ckUSDC charged directly at 1:1 USD rate', async () => {
     const user = createIdentity('ckusdc-direct');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1044,7 +1059,7 @@ describe('Integration: ICP insufficient falls to ckUSDC', () => {
   test('chargeForService: ckUSDC tried before ICP when priority [ckUSDC, ICP]', async () => {
     const user = createIdentity('priority-order');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }, { ICP: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1154,7 +1169,7 @@ describe('Integration: topUpFromBalance full flow', () => {
 
     // Register storage canister
     actor.setIdentity(storageUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1272,7 +1287,7 @@ describe('Integration: topUpFromBalance full flow', () => {
     // Create a fresh user with a clean balance for partial fill test
     const partialUser = createIdentity('partial-fill-user');
     actor.setIdentity(partialUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1390,7 +1405,7 @@ describe('Integration: topUpFromBalance full flow', () => {
   test('auto-topup: no topup for Free plan users', async () => {
     const freeUser = createIdentity('free-autotopup');
     actor.setIdentity(freeUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: false, autoTopUp: true, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1428,7 +1443,7 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
   test('getPendingRefunds: non-admin rejected', async () => {
     const user = createIdentity('refund-nonadmin');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await expect(actor.getPendingRefunds()).rejects.toThrow();
   });
 
@@ -1441,7 +1456,7 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
   test('processPendingRefunds: non-admin rejected', async () => {
     const user = createIdentity('process-nonadmin');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await expect(actor.processPendingRefunds()).rejects.toThrow();
   });
 
@@ -1455,7 +1470,7 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
     // Setup: L1 ambassador registers and creates profile (for referralCode)
     const l1 = createIdentity('dist-l1');
     actor.setIdentity(l1);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.createProfile({ username: 'dist-l1', displayName: [], avatarUrl: [] });
     const l1Profile = await actor.getProfile();
     const l1Code = l1Profile[0]?.referralCode?.[0];
@@ -1464,7 +1479,8 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
     // L2 ambassador registers under L1 and creates profile
     const l2 = createIdentity('dist-l2');
     actor.setIdentity(l2);
-    await actor.register([l1Code]);
+    await actor.ensureUser([]);
+    expect(await actor.applyReferralCode(l1Code)).toEqual({ ok: null });
     await actor.createProfile({ username: 'dist-l2', displayName: [], avatarUrl: [] });
     const l2Profile = await actor.getProfile();
     const l2Code = l2Profile[0]?.referralCode?.[0];
@@ -1473,7 +1489,8 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
     // User registers under L2 (so L1=l2, L2=l1 in ambassador chain)
     const user = createIdentity('dist-user');
     actor.setIdentity(user);
-    await actor.register([l2Code]);
+    await actor.ensureUser([]);
+    expect(await actor.applyReferralCode(l2Code)).toEqual({ ok: null });
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1570,7 +1587,7 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
 
     // Register user and configure spending priority
     actor.setIdentity(evmUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ BaseETH: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1616,7 +1633,7 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
   test('BaseETH insufficient → falls to ICP', async () => {
     const fallbackUser = createIdentity('evm-fallback-user');
     actor.setIdentity(fallbackUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ BaseETH: null }, { ICP: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1675,7 +1692,6 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
 describe('Integration: chargeForService with SOL (Solana testnet)', () => {
   let manager: BackendManager;
   let actor: Actor<BackendActor>;
-  let backendCanisterId: Principal;
   const solUser = createIdentity('sol-charge-user');
 
   beforeAll(async () => {
@@ -1696,12 +1712,11 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
       ],
     });
     actor = fixture.actor;
-    backendCanisterId = fixture.canisterId;
     await manager.pic.tick();
 
     // Register user and configure spending priority
     actor.setIdentity(solUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ SOL: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1712,7 +1727,7 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
     const userSolAddress = await manager.deriveSolAddress(solUser);
 
     // Fund user's SOL address on Devnet
-    await fundWithSol(userSolAddress, 50_000_000n); // 0.05 SOL
+    await fundWithSol(userSolAddress, 12_000_000n); // 0.012 SOL; enough for the inflated-rate Pro charge plus fees.
 
     // Activate Pro subscription with 1h expiry
     actor.setIdentity(manager.ownerIdentity);
@@ -1746,7 +1761,7 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
   test('SOL insufficient → balanceLow notification', async () => {
     const noFundsUser = createIdentity('sol-nofunds-user');
     actor.setIdentity(noFundsUser);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ SOL: null }],
       autoRenew: true, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1805,41 +1820,38 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
   test('purchaseSubscription: Free plan returns InvalidPlan', async () => {
     const user = createIdentity('purchase-free');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     const result = await actor.purchaseSubscription({ Free: null });
-    expect(result).toHaveProperty('err');
-    expect(result.err).toHaveProperty('InvalidPlan');
+    expect(expectPurchaseError(result)).toHaveProperty('InvalidPlan');
   });
 
   test('purchaseSubscription: Trial plan returns InvalidPlan', async () => {
     const user = createIdentity('purchase-trial');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     const result = await actor.purchaseSubscription({ Trial: null });
-    expect(result).toHaveProperty('err');
-    expect(result.err).toHaveProperty('InvalidPlan');
+    expect(expectPurchaseError(result)).toHaveProperty('InvalidPlan');
   });
 
   test('purchaseSubscription: insufficient balance returns InsufficientFunds', async () => {
     const user = createIdentity('purchase-no-funds');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
     const result = await actor.purchaseSubscription({ Pro: null });
-    expect(result).toHaveProperty('err');
-    expect(result.err).toHaveProperty('InsufficientFunds');
+    expect(expectPurchaseError(result)).toHaveProperty('InsufficientFunds');
   });
 
   test('purchaseSubscription: Pro with ICP → activates Pro with 30d expiry', async () => {
     const user = createIdentity('purchase-pro-icp');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
@@ -1868,7 +1880,7 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
   test('purchaseSubscription: Active Pro → renews from currentExpiresAt', async () => {
     const user = createIdentity('purchase-renew-active');
     actor.setIdentity(user);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     // Fund user so they can purchase twice
     const depositAmount = 10n * E8S_PER_ICP;
@@ -1918,7 +1930,7 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
     // Create L1 ambassador with profile (referralCode is generated on createProfile)
     const ambassador = createIdentity('purchase-ambassador');
     actor.setIdentity(ambassador);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.createProfile({
       username: 'ambassador',
       displayName: [],
@@ -1930,7 +1942,10 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
 
     const buyer = createIdentity('purchase-buyer-amb');
     actor.setIdentity(buyer);
-    await actor.register(referralCode ? [referralCode] : []);
+    await actor.ensureUser([]);
+    if (referralCode) {
+      expect(await actor.applyReferralCode(referralCode)).toEqual({ ok: null });
+    }
     await actor.updateSettings({
       spendingPriority: [{ ICP: null }],
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,

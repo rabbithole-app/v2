@@ -1,17 +1,13 @@
-import {
-  BACKEND_CANISTER_ID,
-  ENV_NAME,
-  FRONTEND_CANISTER_ID,
-  HTTP_AGENT_HOST,
-} from '@rabbithole/core';
-
 export const environment = {
   identityProviderUrl: 'https://id.ai/authorize',
-  appUrl: `https://${FRONTEND_CANISTER_ID}.icp0.io`,
+  appUrl: 'https://rabbithole.app',
   appName: 'Rabbithole',
-  envName: ENV_NAME,
-  httpAgentHost: HTTP_AGENT_HOST,
+  openIdProviders: ['google', 'apple', 'microsoft'] as const,
+  envName: 'PROD',
+  httpAgentHost: 'https://icp-api.io',
+  evmRpcUrl: 'https://mainnet.base.org',
+  solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
   production: true,
   scheme: 'rabbithole',
-  backendCanisterId: BACKEND_CANISTER_ID,
+  backendCanisterId: '',
 };

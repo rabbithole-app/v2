@@ -16,17 +16,7 @@
       "executor": "@nx/eslint:lint"
     },
     "serve": {
-      "executor": "nx:run-commands",
-      "continuous": true,
-      "dependsOn": [{ "projects": ["backend"], "target": "serve" }],
-      "options": {
-        "cwd": "apps/storage",
-        "args": ["--node-env=development"],
-        "env": {
-          "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"CommonJS\",\"moduleResolution\":\"Node10\",\"customConditions\":null}"
-        },
-        "command": "rspack serve"
-      }
+      "dependsOn": []
     },
     "serve-static": {
       "continuous": true,

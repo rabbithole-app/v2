@@ -4,8 +4,10 @@ import {
   Injectable,
   signal,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { Icpay } from '@ic-pay/icpay-sdk';
 import { Actor } from '@icp-sdk/core/agent';
+import { filter, firstValueFrom, map, of, timeout } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
@@ -29,6 +31,7 @@ export class IcpayService {
 
   paymentStatus = signal<PaymentStatus>('idle');
   lastPaymentResult = signal<PaymentResult | null>(null);
+  readonly #paymentStatus$ = toObservable(this.paymentStatus);
 
   #icpay: Icpay | null = null;
   #unsubscribers: (() => void)[] = [];
@@ -136,27 +139,26 @@ export class IcpayService {
     try {
       await this.#icpay.createPaymentUsd({ usdAmount, metadata });
 
-      // Wait for SDK event to resolve payment status
-      return new Promise<PaymentResult>((resolve) => {
-        const checkInterval = setInterval(() => {
-          const status = this.paymentStatus();
-          if (status === 'completed' || status === 'failed' || status === 'error') {
-            clearInterval(checkInterval);
-            resolve(this.lastPaymentResult()!);
-          }
-        }, 500);
-
-        // 10 minute timeout
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          if (this.paymentStatus() === 'idle' || this.paymentStatus() === 'created') {
-            const result: PaymentResult = { status: 'error', error: 'Payment timed out' };
-            this.paymentStatus.set('error');
-            this.lastPaymentResult.set(result);
-            resolve(result);
-          }
-        }, 600_000);
-      });
+      return firstValueFrom(
+        this.#paymentStatus$.pipe(
+          filter((status) => status === 'completed' || status === 'failed' || status === 'error'),
+          map((): PaymentResult =>
+            this.lastPaymentResult() ?? {
+              status: 'error',
+              error: 'Payment status changed without a result.',
+            },
+          ),
+          timeout({
+            first: 600_000,
+            with: () => {
+              const result: PaymentResult = { status: 'error', error: 'Payment timed out' };
+              this.paymentStatus.set('error');
+              this.lastPaymentResult.set(result);
+              return of(result);
+            },
+          }),
+        ),
+      );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Payment failed';
       const result: PaymentResult = { status: 'error', error: errorMsg };

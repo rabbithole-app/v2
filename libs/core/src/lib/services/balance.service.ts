@@ -1,12 +1,12 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
-import { Actor } from '@icp-sdk/core/agent';
+import { Actor, HttpAgent } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 
 import type { TokenId } from '@rabbithole/declarations';
 
 import { BACKEND_CANISTER_ID, LEDGER_CANISTER_ID } from '../constants';
-import { injectHttpAgent, injectMainActor } from '../injectors';
-import { MULTI_CHAIN_RPC_CONFIG_TOKEN } from '../tokens';
+import { HTTP_AGENT_OPTIONS_TOKEN, injectMainActor } from '../injectors';
+import { BACKEND_FEATURES_ENABLED_TOKEN, MULTI_CHAIN_RPC_CONFIG_TOKEN } from '../tokens';
 
 // Token configuration
 export interface TokenBalance {
@@ -71,23 +71,6 @@ const icrc1BalanceOfIdl = ({ IDL }: { IDL: any }) => {
 const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 @Injectable({ providedIn: 'root' })
 export class BalanceService {
-  #actor = injectMainActor();
-  #rpcConfig = inject(MULTI_CHAIN_RPC_CONFIG_TOKEN);
-  #walletResource = resource({
-    params: () => this.#actor(),
-    loader: async ({ params: actor }) => {
-      const agent = Actor.agentOf(actor);
-      const principal = await agent?.getPrincipal();
-      if (principal?.isAnonymous()) return null;
-
-      return await actor.getMyWalletAddresses();
-    },
-  });
-
-  walletAddresses = computed(() => this.#walletResource.value() ?? null);
-
-  #httpAgent = injectHttpAgent();
-
   // Exchange rates from CoinGecko (plain fetch to avoid CORS preflight)
   #ratesResource = resource({
     loader: async () => {
@@ -100,7 +83,6 @@ export class BalanceService {
       }
     },
   });
-
   rates = computed<Record<string, number>>(() => {
     const data = this.#ratesResource.value();
     return {
@@ -109,24 +91,48 @@ export class BalanceService {
       SOL: data?.solana?.usd ?? 0,
     };
   });
+  #actor = injectMainActor();
+  #backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
+
+  #walletResource = resource({
+    params: () => ({
+      actor: this.#actor(),
+      enabled: this.#backendFeaturesEnabled,
+    }),
+    loader: async ({ params: { actor, enabled } }) => {
+      if (!enabled) return null;
+
+      const agent = Actor.agentOf(actor);
+      const principal = await agent?.getPrincipal();
+      if (principal?.isAnonymous()) return null;
+
+      return await actor.getMyWalletAddresses();
+    },
+  });
+
+  walletAddresses = computed(() => this.#walletResource.value() ?? null);
+
+  #ledgerAgent = HttpAgent.create(inject(HTTP_AGENT_OPTIONS_TOKEN));
+
+  #rpcConfig = inject(MULTI_CHAIN_RPC_CONFIG_TOKEN);
 
   #balancesResource = resource({
     params: () => ({
       wallet: this.walletAddresses(),
-      agent: this.#httpAgent(),
       rates: this.rates(),
     }),
-    loader: async ({ params: { wallet, agent, rates } }) => {
+    loader: async ({ params: { wallet, rates } }) => {
       if (!wallet) return [];
 
       const results: TokenBalance[] = [];
+      const ledgerAgent = await this.#ledgerAgent;
 
       // Fetch IC balances (4 parallel queries)
       const icConfigs = TOKEN_CONFIGS.filter((t) => t.chain === 'ic');
       const icBalances = await Promise.allSettled(
         icConfigs.map(async (config) => {
           const ledger = Actor.createActor(icrc1BalanceOfIdl, {
-            agent,
+            agent: ledgerAgent,
             canisterId: config.canisterId!,
           });
           const balance = await ledger['icrc1_balance_of']({

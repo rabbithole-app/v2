@@ -174,21 +174,27 @@ module {
               switch (HttpDownloader.find(store.downloaderStore, key), newAssetInfo) {
                 // Case 1: Existing download AND new asset has sha256 - check for invalidation
                 case (?existingDownload, ?newAsset) {
-                  switch (existingDownload.sha256, newAsset.sha256) {
-                    // Both have hashes - compare them
-                    case (?oldHash, ?newHash) {
-                      if (oldHash != newHash) {
-                        // Hash changed - invalidate and re-download
-                        Vector.add(invalidated, { key; kind = assetKind });
-                        HttpDownloader.remove(store.downloaderStore, key);
-                        ignore downloadAsset(store, release.tagName, assetName);
+                  if (HttpDownloader.hasFailedChunks(existingDownload)) {
+                    Vector.add(invalidated, { key; kind = assetKind });
+                    HttpDownloader.remove(store.downloaderStore, key);
+                    ignore downloadAsset(store, release.tagName, assetName);
+                  } else {
+                    switch (existingDownload.sha256, newAsset.sha256) {
+                      // Both have hashes - compare them
+                      case (?oldHash, ?newHash) {
+                        if (oldHash != newHash) {
+                          // Hash changed - invalidate and re-download
+                          Vector.add(invalidated, { key; kind = assetKind });
+                          HttpDownloader.remove(store.downloaderStore, key);
+                          ignore downloadAsset(store, release.tagName, assetName);
+                        };
+                        // else: hashes match, keep existing download
                       };
-                      // else: hashes match, keep existing download
+                      // Old download has no hash (legacy/in-progress) - don't invalidate
+                      case (null, _) {};
+                      // New asset has no hash - don't invalidate
+                      case (_, null) {};
                     };
-                    // Old download has no hash (legacy) - don't invalidate
-                    case (null, _) {};
-                    // New asset has no hash - don't invalidate
-                    case (_, null) {};
                   };
                 };
                 // Case 2: No existing download - start new download
@@ -253,18 +259,22 @@ module {
             var chunksTotal : Nat = 0;
             var chunksCompleted : Nat = 0;
             var chunksError : Nat = 0;
+            var firstError : ?Text = null;
 
             for ((_, status) in Map.entries(download.chunkStatuses)) {
               chunksTotal += 1;
               switch (status) {
                 case (#Downloaded _) chunksCompleted += 1;
-                case (#Error _) chunksError += 1;
+                case (#Error message) {
+                  chunksError += 1;
+                  if (firstError == null) firstError := ?message;
+                };
                 case _ {};
               };
             };
 
             if (chunksError > 0) {
-              #Error("Some chunks failed to download");
+              #Error("Some chunks failed to download: " # Option.get(firstError, "unknown error"));
             } else {
               #Downloading({
                 chunksTotal;

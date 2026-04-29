@@ -21,10 +21,10 @@ const KEY_STORAGE_DELEGATION = 'delegationChain';
 export const loadIdentity = async (): Promise<Identity | null> => {
   // 1. Try standard AuthClient flow (works for rabbithole with Internet Identity)
   const authClient = await createAuthClient();
-  const isAuthenticated = await authClient.isAuthenticated();
+  const isAuthenticated = authClient.isAuthenticated();
 
   if (isAuthenticated) {
-    const identity = authClient.getIdentity();
+    const identity = await authClient.getIdentity();
     if (!isNullish(identity) && !identity.getPrincipal().isAnonymous()) {
       return identity;
     }

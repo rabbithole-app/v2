@@ -1,4 +1,4 @@
-import { computed, Injectable, resource } from '@angular/core';
+import { computed, inject, Injectable, resource } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
@@ -13,14 +13,21 @@ import { catchError, map, of } from 'rxjs';
 import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
 
 import { injectMainActor } from '../injectors';
+import { BACKEND_FEATURES_ENABLED_TOKEN } from '../tokens';
 import { parseCanisterRejectError } from '../utils';
 
 @Injectable({ providedIn: 'root' })
 export class ProfileService {
   #actor = injectMainActor();
+  #backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
   #profileResource = resource({
-    params: () => this.#actor(),
-    loader: async ({ params: actor }) => {
+    params: () => ({
+      actor: this.#actor(),
+      enabled: this.#backendFeaturesEnabled,
+    }),
+    loader: async ({ params: { actor, enabled } }) => {
+      if (!enabled) return null;
+
       const agent = Actor.agentOf(actor);
       const principal = await agent?.getPrincipal();
       if (principal?.isAnonymous()) {
@@ -105,6 +112,5 @@ export class ProfileService {
     }
   }
 }
-
 
 

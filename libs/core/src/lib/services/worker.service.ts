@@ -5,7 +5,7 @@ import { map, mergeWith } from 'rxjs/operators';
 
 import { assertWorker } from '../asserts';
 import { messageByAction } from '../operators';
-import { WORKER } from '../tokens';
+import { WORKER, WORKER_FACTORY } from '../tokens';
 import { Message, WorkerMessageIn, WorkerMessageOut } from '../types';
 
 @Injectable()
@@ -25,12 +25,16 @@ export class WorkerService<
     ),
     { initialValue: false },
   );
+  #workerFactory = inject(WORKER_FACTORY, { optional: true });
 
   constructor() {
     this.init();
   }
 
   init() {
+    if (!this.worker && this.#workerFactory) {
+      this.worker = this.#workerFactory();
+    }
     assertWorker(this.worker);
     this.worker.onmessage = (event) => this.#workerMessage.next(event);
   }
@@ -41,8 +45,9 @@ export class WorkerService<
   }
 
   terminate() {
-    assertWorker(this.worker);
+    if (!this.worker) return;
     this.worker.terminate();
+    this.worker = null;
     this.#terminate.next();
   }
 }

@@ -25,6 +25,7 @@ import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
 import T "mo:encrypted-storage/Types";
 import SubscriptionGate "SubscriptionGate";
 import HttpAssetsMixin "HttpAssetsMixin";
+import Utils "Utils/lib";
 
 shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
     owner : Principal;
@@ -34,16 +35,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   // Dynamic storage deployments receive these through canister settings
   // environment_variables, not through the install arg.
-  let vetKeyName = switch (Runtime.envVar<system>("VETKEY_NAME")) {
-    case (?name) name;
-    case null "dfx_test_key";
-  };
-  let backendId : ?Principal = switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-backend")) {
+  transient let vetKeyName = Utils.envText<system>("VETKEY_NAME", "key_1");
+  transient let backendId : ?Principal = switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-backend")) {
     case (?id) ?Principal.fromText(id);
     case null null;
   };
 
-  let keyId : ManagementCanister.VetKdKeyid = {
+  transient let keyId : ManagementCanister.VetKdKeyid = {
     curve = #bls12_381_g2;
     name = vetKeyName;
   };
@@ -115,13 +113,43 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  transient var assetStore = HttpAssets.Assets(assetStableData, null);
+  transient let installerAssetPermissions : ?HttpAssets.SetPermissions =
+    if (installer == owner) {
+      null;
+    } else {
+      ?{
+        prepare = [];
+        commit = [installer];
+        manage_permissions = [];
+      };
+    };
+  transient var assetStore = HttpAssets.Assets(assetStableData, installerAssetPermissions);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
 
   // Initialize info.json asset with canister ID
-  func initInfoJson() : () {
+  func initInfoJson<system>() : () {
+    let storageBackendType = switch (es.getStorageBackendType()) {
+      case (#BlobStorage) "BlobStorage";
+      case (#OnChain) "OnChain";
+    };
+    let rabbitholeBackendCanisterId = switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-backend")) {
+      case (?value) Json.str(value);
+      case null Json.nullable();
+    };
+    let rabbitholeFrontendCanisterId = switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-frontend")) {
+      case (?value) Json.str(value);
+      case null Json.nullable();
+    };
+    let internetIdentityFrontendCanisterId = switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:internet_identity_frontend")) {
+      case (?value) Json.str(value);
+      case null Json.nullable();
+    };
     let infoJson = Json.obj([
-      ("id", Json.str(Principal.toText(canisterId))),
+      ("canisterId", Json.str(Principal.toText(canisterId))),
+      ("rabbitholeBackendCanisterId", rabbitholeBackendCanisterId),
+      ("rabbitholeFrontendCanisterId", rabbitholeFrontendCanisterId),
+      ("internetIdentityFrontendCanisterId", internetIdentityFrontendCanisterId),
+      ("storageBackendType", Json.str(storageBackendType)),
     ]);
     let jsonText = Json.stringify(infoJson, null);
     let jsonBlob = Text.encodeUtf8(jsonText);
@@ -136,20 +164,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     assetCanister.store(owner, storeArgs);
   };
 
-  initInfoJson();
-
-  // Grant installer Commit permission on assets (if installer != owner)
-  // This allows the deployer to upload frontend assets
-  func grantInstallerCommitPermission() : async () {
-    await* assetCanister.grant_permission(owner, {
-      to_principal = installer;
-      permission = #Commit;
-    });
-  };
-
-  if (installer != owner) {
-    ignore Timer.setTimer<system>(#seconds 0, grantInstallerCommitPermission);
-  };
+  initInfoJson<system>();
 
   // Create the HTTP App with middleware
   transient let app = Liminal.App({

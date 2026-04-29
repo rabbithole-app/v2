@@ -66,8 +66,18 @@ export class EncryptedStorage {
    * @param config Additional configuration options, canister id is required
    */
   constructor(config: EncryptedStorageConfig) {
-    const { concurrency, maxChunkSize, origin, blobStorageGatewayUrl, ...actorConfig } = config;
+    const {
+      concurrency,
+      maxChunkSize,
+      origin,
+      blobStorageGatewayUrl,
+      storageBackend,
+      ...actorConfig
+    } = config;
     this.#actor = Actor.createActor<EncryptedStorageActorService>(encryptedStorageIdlFactory, actorConfig);
+    this.#storageBackend = typeof storageBackend === 'string'
+      ? { [storageBackend]: null } as StorageBackend
+      : storageBackend;
     this.#origin = origin;
     this.#maxChunkSize = maxChunkSize ?? 1_900_000;
     this.#limit = limit(concurrency ?? 16);

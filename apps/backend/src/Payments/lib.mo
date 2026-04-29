@@ -20,6 +20,8 @@ module {
   /// are silently dropped so the system default always wins.
   public let RESERVED_ENV_NAMES : [Text] = [
     "PUBLIC_CANISTER_ID:rabbithole-backend",
+    "PUBLIC_CANISTER_ID:rabbithole-frontend",
+    "PUBLIC_CANISTER_ID:internet_identity_frontend",
     "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL",
   ];
 

@@ -4,7 +4,6 @@ import {
   computed,
   inject,
   input,
-  output,
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
@@ -16,6 +15,7 @@ import {
   lucideCircleCheck,
   lucideCircleDashed,
   lucideCircleX,
+  lucideCode,
   lucideEllipsisVertical,
   lucideExternalLink,
   lucideHardDrive,
@@ -24,7 +24,6 @@ import {
   lucideSettings,
   lucideTrash2,
 } from '@ng-icons/lucide';
-
 import { BrnAlertDialogContent, BrnAlertDialogTrigger } from '@spartan-ng/brain/alert-dialog';
 
 import { CopyToClipboardComponent, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
@@ -36,6 +35,7 @@ import {
   type StorageInfo,
   StoragesService,
 } from '@rabbithole/core';
+import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
@@ -43,11 +43,12 @@ import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmItemImports } from '@spartan-ng/helm/item';
-import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade-storage-dialog.component';
+
+const STORAGE_DEV_FRONTEND_ORIGIN = 'http://localhost:4201';
 
 @Component({
   selector: 'rbth-feat-storages-storage-card',
@@ -71,6 +72,7 @@ import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade
     provideIcons({
       lucideArrowUpCircle,
       lucideChevronRight,
+      lucideCode,
       lucideCircleAlert,
       lucideCircleCheck,
       lucideCircleDashed,
@@ -95,7 +97,6 @@ export class StorageCardComponent {
     return canisterId?.toText() ?? null;
   });
   readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
-
   readonly canisterUrl = computed(() => {
     const canisterId = this.canisterIdText();
     if (!canisterId) return null;
@@ -114,12 +115,15 @@ export class StorageCardComponent {
   });
 
   readonly hasUpdate = computed(() => !!this.storage().updateAvailable);
+
   readonly hasWasmUpdate = computed(
     () => !!this.storage().updateAvailable?.wasmUpdateAvailable,
   );
   readonly isDeleting = signal(false);
+  readonly isResuming = signal(false);
   readonly lastUpgradeError = computed(() => this.storage().lastUpgradeError ?? null);
 
+  readonly showLocalDevFrontendAction = !this.#isProduction;
   readonly statusTooltip = computed<string>(() => {
     const status = this.storage().status;
     const label = getUserFriendlyLabel(status);
@@ -135,7 +139,6 @@ export class StorageCardComponent {
     return 'Frontend';
   });
   readonly #dialogService = inject(HlmDialogService);
-  readonly retryRequested = output();
   readonly #router = inject(Router);
 
   readonly #storagesService = inject(StoragesService);
@@ -148,15 +151,6 @@ export class StorageCardComponent {
       await this.#storagesService.deleteStorage(this.storage().id);
     } finally {
       this.isDeleting.set(false);
-    }
-  }
-
-  async retryFailedStorage(): Promise<void> {
-    try {
-      await this.#storagesService.deleteStorage(this.storage().id);
-      this.retryRequested.emit();
-    } catch {
-      // deleteStorage already shows toast on error
     }
   }
 
@@ -174,6 +168,18 @@ export class StorageCardComponent {
     }
   }
 
+  openLocalDevFrontend(): void {
+    const canisterId = this.canisterIdText();
+    if (!canisterId || this.#isProduction) return;
+
+    const path = this.#router.serializeUrl(
+      this.#router.createUrlTree(['/'], {
+        queryParams: { canisterId },
+      }),
+    );
+    window.open(`${STORAGE_DEV_FRONTEND_ORIGIN}${path}`, '_blank');
+  }
+
   openUpgradeDialog(): void {
     const dialogRef = this.#dialogService.open(UpgradeStorageDialogComponent, {
       contentClass: 'min-w-[500px] sm:max-w-[600px]',
@@ -184,6 +190,19 @@ export class StorageCardComponent {
       this.#storagesService.clearTrackedUpgrade();
       this.#storagesService.reload();
     });
+  }
+
+  async retryFailedStorage(): Promise<void> {
+    if (this.isResuming()) return;
+
+    this.isResuming.set(true);
+    try {
+      await this.#storagesService.resumeFailedStorage(this.storage().id);
+    } catch {
+      // resumeFailedStorage already shows toast on error
+    } finally {
+      this.isResuming.set(false);
+    }
   }
 
   #getProgressText(status: StorageCreationStatus): string | null {

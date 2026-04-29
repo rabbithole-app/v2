@@ -42,7 +42,7 @@ describe('Auto-renew & Auto-topup settings', () => {
 
   test('subscription + autoRenew settings are independent', async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.activateTrial();
 
     const sub = await actor.getSubscription();
@@ -118,7 +118,7 @@ describe('Auto-renew & Auto-topup settings', () => {
 
   test('triggerAutoRenewals skips user with autoRenew=false', async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
 
     // autoRenew stays default (false)
     const settings = await actor.getSettings();
@@ -151,7 +151,7 @@ describe('Auto-renew & Auto-topup settings', () => {
 
   test('triggerAutoRenewals skips Trial plan', async () => {
     actor.setIdentity(userAlice);
-    await actor.register([]);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: true,

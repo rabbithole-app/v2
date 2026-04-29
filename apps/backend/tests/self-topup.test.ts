@@ -90,7 +90,7 @@ describe("Backend self-topup from treasury", () => {
     const identity = createIdentity("self-topup-purchase-trigger");
 
     backendFixture.actor.setIdentity(identity);
-    await backendFixture.actor.register([]);
+    await backendFixture.actor.ensureUser([]);
 
     // Fund user subaccount enough to cover the license charge and canister
     // creation (same pattern as fundUserForStorage in storage-deployer.test.ts).

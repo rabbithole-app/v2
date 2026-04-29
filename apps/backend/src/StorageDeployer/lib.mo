@@ -28,6 +28,7 @@ import FrontendInstaller "FrontendInstaller";
 import Types "Types";
 import LedgerTypes "../Types/LedgerTypes";
 import CMCTypes "../Types/CMCTypes";
+import Utils "../Utils/lib";
 import HttpAssetsTypes "mo:http-assets/BaseAssets/Types";
 
 module StorageDeployerOrchestrator {
@@ -173,13 +174,6 @@ module StorageDeployerOrchestrator {
   ///   assets = [(#Latest, [#StorageWASM("app.wasm")])];
   /// });
   /// ```
-  func envText<system>(name : Text, fallback : Text) : Text {
-    switch (Runtime.envVar<system>(name)) {
-      case (?found) found;
-      case null fallback;
-    };
-  };
-
   public func new<system>(
     config : {
       github : GitHubReleases.GithubOptions;
@@ -190,8 +184,8 @@ module StorageDeployerOrchestrator {
     {
       var canisterId = null;
       region;
-      var vetKeyName : ?Text = ?envText<system>("THRESHOLD_KEY_NAME", "dfx_test_key");
-      var cashierCanisterId : ?Principal = ?Principal.fromText(envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
+      var vetKeyName : ?Text = ?Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
+      var cashierCanisterId : ?Principal = ?Principal.fromText(Utils.envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
       githubReleases = GitHubReleases.new({
         github = config.github;
         assets = config.assets;
@@ -226,12 +220,17 @@ module StorageDeployerOrchestrator {
     Text.compare(a.name, b.name);
   };
 
+  func refreshRuntimeConfig<system>(store : Store) {
+    store.vetKeyName := ?Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
+    store.cashierCanisterId := ?Principal.fromText(Utils.envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
+  };
+
   /// Merge system-pinned env vars (PUBLIC_CANISTER_ID:rabbithole-backend,
   /// VETKEY_NAME, CAFFFEINE_STORAGE_CASHIER_PRINCIPAL) with caller-supplied custom pairs.
   /// Public so CmcRecovery can rebuild the exact same `environment_variables`
   /// when retrying `notify_create_canister` on ambiguous failure — otherwise
   /// CMC might process a not-yet-resolved block with different env vars.
-  public func buildEnvironmentVariables(store : Store, custom : ?[Types.EnvPair]) : ?[Types.EnvPair] {
+  public func buildEnvironmentVariables<system>(store : Store, custom : ?[Types.EnvPair]) : ?[Types.EnvPair] {
     let ?backendId = store.canisterId else return null;
     let ?vetKey = store.vetKeyName else return null;
     let ?cashier = store.cashierCanisterId else return null;
@@ -247,6 +246,15 @@ module StorageDeployerOrchestrator {
       ],
       compareEnvPairByName,
     );
+
+    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-frontend")) {
+      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_CANISTER_ID:rabbithole-frontend"; value });
+      case null {};
+    };
+    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:internet_identity_frontend")) {
+      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_CANISTER_ID:internet_identity_frontend"; value });
+      case null {};
+    };
 
     switch (custom) {
       case (?pairs) Set.addAll(set, compareEnvPairByName, pairs.vals());
@@ -320,6 +328,10 @@ module StorageDeployerOrchestrator {
   /// and task queue processing
   public func start<system>(store : Store, creations : Creations.Creations, callbacks : StartCallbacks) : async () {
     if (store.running) return;
+
+    // Env-derived values are stable fields in Store; refresh them on start so
+    // upgrades pick up the current canister environment.
+    refreshRuntimeConfig<system>(store);
 
     // Reset transient state (meaningless after canister upgrade)
     resetTransientState(store, creations);
@@ -436,6 +448,17 @@ module StorageDeployerOrchestrator {
         #milliseconds 0,
         func() : async () { await processUnifiedQueue<system>(store, creations, callbacks) },
       );
+    };
+  };
+
+  func purgeQueuedTasksForCreation(store : Store, creationId : Nat) {
+    let retained = Queue.filter<UnifiedTask>(
+      store.unifiedQueue,
+      func(task : UnifiedTask) : Bool = task.creationId != creationId,
+    );
+    Queue.clear(store.unifiedQueue);
+    for (task in Queue.values(retained)) {
+      Queue.pushBack(store.unifiedQueue, task);
     };
   };
 
@@ -679,6 +702,15 @@ module StorageDeployerOrchestrator {
       case (status) return #err("Cannot start creation from status " # debug_show status);
     };
 
+    purgeQueuedTasksForCreation(store, creationId);
+    switch (record.canisterId) {
+      case (?canisterId) {
+        FrontendInstaller.resetCanisterState(store.frontendInstaller, canisterId);
+        WasmInstaller.resetCanisterState(store.wasmInstaller, canisterId);
+      };
+      case null {};
+    };
+
     ignore creations.appendEvent(creationId, #Pending);
 
     // Persist subnetId so CmcRecovery retry can reconstruct the exact
@@ -783,6 +815,29 @@ module StorageDeployerOrchestrator {
     };
   };
 
+  func canisterHasExpectedWasm(store : Store, canisterId : Principal, releaseTag : Text) : async Bool {
+    let expectedHash = switch (GitHubReleases.latestStorageWasm(store.githubReleases)) {
+      case (#ok(details)) details.sha256;
+      case (#err(_)) switch (getWasmBlob(store, releaseTag)) {
+        case (#ok(wasmBlob)) Sha256.fromBlob(#sha256, wasmBlob);
+        case (#err(_)) return false;
+      };
+    };
+
+    try {
+      let info = await IC.ic.canister_info({
+        canister_id = canisterId;
+        num_requested_changes = ?0;
+      });
+      switch (info.module_hash) {
+        case (?installedHash) Blob.equal(installedHash, expectedHash);
+        case null false;
+      };
+    } catch (_) {
+      false;
+    };
+  };
+
   func updateCanisterSettings(
     storageCanisterId : Principal,
     userPrincipal : Principal,
@@ -831,7 +886,7 @@ module StorageDeployerOrchestrator {
                   syncWasmProgressStatus(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, creations, task.creationId, "WASM chunk upload failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM chunk upload failed: " # e);
                 };
               };
             };
@@ -841,7 +896,7 @@ module StorageDeployerOrchestrator {
                   queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, creations, task.creationId, "WASM install failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM install failed: " # e);
                 };
               };
             };
@@ -851,7 +906,7 @@ module StorageDeployerOrchestrator {
                   queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, creations, task.creationId, "WASM chunked install failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM chunked install failed: " # e);
                 };
               };
             };
@@ -859,7 +914,7 @@ module StorageDeployerOrchestrator {
               switch (await FrontendInstaller.executeCreateBatch(store.frontendInstaller, args.canisterId)) {
                 case (#ok(_)) {};
                 case (#err(e)) {
-                  handleTaskFailure(store, creations, task.creationId, "Frontend create batch failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "Frontend create batch failed: " # e);
                 };
               };
             };
@@ -869,7 +924,7 @@ module StorageDeployerOrchestrator {
                   syncFrontendProgressStatus(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, creations, task.creationId, "Frontend upload chunks failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "Frontend upload chunks failed: " # e);
                 };
               };
             };
@@ -880,13 +935,13 @@ module StorageDeployerOrchestrator {
                   queueRevokeInstallerPermission(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
-                  handleTaskFailure(store, creations, task.creationId, "Frontend commit failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "Frontend commit failed: " # e);
                 };
               };
             };
             case (#RevokeInstallerPermission(args)) {
               let ?deployerCanisterId = store.canisterId else {
-                handleTaskFailure(store, creations, task.creationId, "Deployer canister ID not set");
+                await handleTaskFailure(store, creations, task.creationId, "Deployer canister ID not set");
                 return;
               };
 
@@ -916,7 +971,7 @@ module StorageDeployerOrchestrator {
             task.attempts += 1;
             Queue.pushBack(store.unifiedQueue, task);
           } else {
-            handleTaskFailure(store, creations, task.creationId, "Task failed after 3 attempts: " # errMsg);
+            await handleTaskFailure(store, creations, task.creationId, "Task failed after 3 attempts: " # errMsg);
           };
         };
 
@@ -1078,12 +1133,19 @@ module StorageDeployerOrchestrator {
         // dedup protects against double-pay if the original CreateCanister
         // already fired it.
         await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare);
-        queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
+        if (await canisterHasExpectedWasm(store, canisterId, record.releaseTag)) {
+          queuePostWasmTasks<system>(store, creations, creationId, canisterId);
+        } else {
+          queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
+        };
       };
 
       case (#InstallWasm({ canisterId; releaseTag; initArg })) {
-        // This case handles legacy flow - shouldn't be reached in new architecture
-        queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode = #install });
+        if (await canisterHasExpectedWasm(store, canisterId, releaseTag)) {
+          queuePostWasmTasks<system>(store, creations, creationId, canisterId);
+        } else {
+          queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode = #install });
+        };
       };
 
       case (#InstallFrontend({ canisterId; releaseTag = _ })) {
@@ -1112,6 +1174,34 @@ module StorageDeployerOrchestrator {
   };
 
   /// Queue WASM installation tasks
+  func requeueWasmTasks(
+    store : Store,
+    creations : Creations.Creations,
+    args : { creationId : Nat; canisterId : Principal; releaseTag : Text; initArg : Blob; mode : IC.CanisterInstallMode },
+  ) {
+    let ?record = creations.get(args.creationId) else return;
+    let task : UnifiedTask = {
+      id = store.nextTaskId;
+      creationId = args.creationId;
+      owner = record.owner;
+      taskType = #Orchestrator({
+        owner = record.owner;
+        taskType = #InstallWasm({
+          canisterId = args.canisterId;
+          releaseTag = args.releaseTag;
+          initArg = args.initArg;
+        });
+      });
+      var attempts = 0;
+    };
+    store.nextTaskId += 1;
+    Queue.pushBack(store.unifiedQueue, task);
+  };
+
+  func isPendingDownloadError(message : Text) : Bool {
+    Text.contains(message, #text "is not completed") or Text.contains(message, #text "not found");
+  };
+
   func queueWasmTasks(
     store : Store,
     creations : Creations.Creations,
@@ -1166,7 +1256,11 @@ module StorageDeployerOrchestrator {
         syncWasmProgressStatus(store, creations, creationId, canisterId);
       };
       case (#err(e)) {
-        ignore creations.appendEvent(creationId, #Failed("Failed to get WASM: " # e));
+        if (isPendingDownloadError(e)) {
+          requeueWasmTasks(store, creations, args);
+        } else {
+          ignore creations.appendEvent(creationId, #Failed("Failed to get WASM: " # e));
+        };
       };
     };
   };
@@ -1187,6 +1281,8 @@ module StorageDeployerOrchestrator {
   /// Queue frontend installation tasks
   func queueFrontendTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
     let ?record = creations.get(creationId) else return;
+
+    FrontendInstaller.resetCanisterState(store.frontendInstaller, canisterId);
 
     let value = { canisterId; progress = { processed = 0; total = 0 } };
     let newStatus = if (record.isUpgrade) #UpgradingFrontend(value) else #UploadingFrontend(value);
@@ -1253,8 +1349,19 @@ module StorageDeployerOrchestrator {
   /// Handle task failure
   /// For upgrades: revert to Completed (canister is still alive and functional)
   /// For initial creation: mark as Failed
-  func handleTaskFailure(store : Store, creations : Creations.Creations, creationId : Nat, errorMsg : Text) {
+  func handleTaskFailure(store : Store, creations : Creations.Creations, creationId : Nat, errorMsg : Text) : async () {
     let ?record = creations.get(creationId) else return;
+
+    purgeQueuedTasksForCreation(store, creationId);
+    switch (record.canisterId) {
+      case (?canisterId) {
+        FrontendInstaller.resetCanisterState(store.frontendInstaller, canisterId);
+        WasmInstaller.resetCanisterState(store.wasmInstaller, canisterId);
+        ignore await WasmInstaller.clearRemoteChunkStore(canisterId);
+      };
+      case null {};
+    };
+
     if (record.isUpgrade) {
       // Upgrade failed — canister still exists and works, revert to Completed.
       // Clear upgrade flags + stash the error BEFORE firing the event so the

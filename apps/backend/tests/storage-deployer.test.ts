@@ -46,7 +46,7 @@ async function createFailedStorageWithLicense(
 }
 
 import { BackendManager } from "./setup/backend-manager";
-import { CMC_CANISTER_ID, E8S_PER_ICP, ONE_TRILLION_CYCLES } from "./setup/constants";
+import { E8S_PER_ICP, ONE_TRILLION_CYCLES } from "./setup/constants";
 import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 
 /**
@@ -136,7 +136,7 @@ async function fundUserForLicenseOnly(
   identity: ReturnType<typeof createIdentity>,
 ): Promise<void> {
   backendFixture.actor.setIdentity(identity);
-  await backendFixture.actor.register([]);
+  await backendFixture.actor.ensureUser([]);
 
   const depositAmount = 50_000_000n; // 0.5 ICP
 
@@ -161,7 +161,7 @@ async function fundUserForStorage(
   identity: ReturnType<typeof createIdentity>,
 ): Promise<void> {
   backendFixture.actor.setIdentity(identity);
-  await backendFixture.actor.register([]);
+  await backendFixture.actor.ensureUser([]);
 
   // Compute cycles cost dynamically from CMC rate
   const totalCycles = 2_000_000_000_000n; // 1.5TC initial + 0.5TC creation cost
@@ -1332,16 +1332,20 @@ describe("StorageDeployer", () => {
     // Ambassador registers + creates profile for referralCode.
     const l1 = createIdentity("deferred-l1");
     backendFixture.actor.setIdentity(l1);
-    await backendFixture.actor.register([]);
+    await backendFixture.actor.ensureUser([]);
     await backendFixture.actor.createProfile({ username: "deferred-l1", displayName: [], avatarUrl: [] });
     const l1Profile = await backendFixture.actor.getProfile();
     const l1Code = l1Profile[0]?.referralCode?.[0];
     expect(l1Code).toBeDefined();
+    if (l1Code === undefined) {
+      throw new Error("expected L1 referral code");
+    }
 
     // User registers under L1 and funds balance.
     const payer = createIdentity("deferred-payer");
     backendFixture.actor.setIdentity(payer);
-    await backendFixture.actor.register([l1Code!]);
+    await backendFixture.actor.ensureUser([]);
+    expect(await backendFixture.actor.applyReferralCode(l1Code)).toEqual({ ok: null });
     await fundUserForStorage(manager, backendFixture, payer);
 
     // Happy-path purchase.

@@ -27,6 +27,11 @@ export const BLOB_STORAGE_CONFIG_TOKEN = new InjectionToken<BlobStorageConfig>(
   'BLOB_STORAGE_CONFIG_TOKEN',
 );
 
+export type EncryptedStorageBackendType = 'BlobStorage' | 'OnChain';
+
+export const ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN =
+  new InjectionToken<EncryptedStorageBackendType>('ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN');
+
 import type { PayButtonConfig } from '@ic-pay/icpay-widget';
 
 export type IcpayConfig = Partial<PayButtonConfig> & Pick<PayButtonConfig, 'apiUrl' | 'publishableKey'>;
