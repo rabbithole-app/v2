@@ -1,10 +1,9 @@
-import { execSync } from 'node:child_process';
-import { resolve } from 'node:path';
-
 import { createConfig } from '@nx/angular-rspack';
 import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
 import { rspack } from '@rspack/core';
 import CompressionPlugin from 'compression-webpack-plugin';
+import { execSync } from 'node:child_process';
+import { resolve } from 'node:path';
 
 // Canister IDs + root-key come from the running local launcher (via icp-cli).
 // Fails loudly with a helpful message if the backend stack isn't up, so
@@ -12,10 +11,11 @@ import CompressionPlugin from 'compression-webpack-plugin';
 // On production builds there's no running network; we skip the lookup and
 // let environment.prod.ts provide concrete values.
 interface CanisterEnv {
-  canisterIds: Record<string, string>;
-  rootKey: string;
   apiUrl: string;
+  canisterIds: Record<string, string>;
   cookieValue: string;
+  envVars: Record<string, string>;
+  rootKey: string;
 }
 
 function loadCanisterEnv(): CanisterEnv | null {
@@ -122,6 +122,9 @@ export default createConfig(
           'import.meta.env': JSON.stringify({
             NODE_ENV: process.env['NODE_ENV'],
           }),
+          __RABBITHOLE_CANISTER_ENV__: canisterEnv
+            ? JSON.stringify(canisterEnv.envVars)
+            : 'undefined',
         }),
         new rspack.CopyRspackPlugin({
           patterns: [

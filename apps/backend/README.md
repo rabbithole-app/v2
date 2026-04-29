@@ -13,9 +13,10 @@ is not used.
 | `rabbithole-backend`          | Main Motoko backend — users, profiles, treasury, etc.  |
 | `rabbithole-frontend`         | Asset canister that serves the SPA                     |
 | `encrypted-storage`           | WASM template installed by backend into user storages; not deployed standalone |
-| `internet_identity_backend`   | Auth logic (release-2026-04-21 — II was split)         |
+| `internet_identity_backend`   | Auth logic (release-2026-04-26 — II was split)         |
 | `internet_identity_frontend`  | II login UI (embedded in wasm, see *II architecture* below) |
-| `xrc` / `sol_rpc` / `evm_rpc` | Pre-built canisters from DFINITY; placed on fiduciary subnet locally |
+| `xrc`                         | DFINITY Exchange Rate Canister; placed on the local System subnet |
+| `sol_rpc` / `evm_rpc`         | Pre-built DFINITY RPC canisters; placed on the local Fiduciary subnet |
 
 ## Prerequisites
 
@@ -43,8 +44,8 @@ The CA step is per workstation.
 ## Day-to-day
 
 ```bash
-npx nx serve backend        # docker up → bootstrap → deploy-all → logs
-npx nx deploy backend       # re-run bootstrap + deploy (stack already up)
+npx nx serve backend        # docker up → bootstrap → declarations → deploy-all → logs
+npx nx deploy backend       # docker up → bootstrap → declarations → deploy-all
 npx nx compose backend -- down   # stop the stack
 ```
 
@@ -52,6 +53,11 @@ After deploy, each canister is reachable via:
 
 - `http://<id>.localhost:8000/` — direct replica gateway
 - `https://<id>.localhost/` — through Caddy (requires CA install)
+
+If you reset the local PocketIC state, rerun `npx nx serve backend` or
+`npx nx deploy backend`. Do not run bare `icp deploy` after a reset: bootstrap
+must recreate pinned infrastructure canisters and rewrite local init args
+before install.
 
 ## Other targets
 
@@ -82,12 +88,13 @@ npm --prefix apps/backend test         # vitest + @dfinity/pic integration suite
 │  │                        │                                           │
 │  │ PocketIC               │           mock-server                     │
 │  │  subnets: NNS + II +   │           ┌──────────────────────────────┐│
-│  │   SNS + application +  │           │ nginx serving mock/          ││
-│  │   fiduciary            │           │  api/releases.json           ││
-│  │                        │           │  assets/encrypted-storage.gz ││
-│  │ gateway :4943 →        │           │  assets/storage-frontend.tar ││
-│  │  host :8000            │           │ used by backend HTTP outcalls││
-│  └────────────────────────┘           └──────────────────────────────┘│
+│  │   SNS + system +       │           │ nginx serving mock/          ││
+│  │   application +        │           │  api/releases.json           ││
+│  │   fiduciary            │           │  assets/encrypted-storage.gz ││
+│  │                        │           │  assets/storage-frontend.tar ││
+│  │ gateway :4943 → :8000  │           │ used by backend HTTP outcalls││
+│  │ admin :4942 → 127.0.0.1│           └──────────────────────────────┘│
+│  └────────────────────────┘                                           │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -96,10 +103,16 @@ npm --prefix apps/backend test         # vitest + @dfinity/pic integration suite
   the container.
 - **Replica state lives in `./.icp-state/`** (bind-mounted). `docker compose down`
   keeps state; `rm -rf .icp-state` plus restart = fresh subnets & IDs.
+- **Local canister name → ID mappings live in `./.icp/data/mappings/local.ids.json`.**
+  If you delete `.icp-state/`, delete this file too; otherwise icp-cli may
+  reuse stale canister IDs from the old replica state.
 - **Root key** the replica generates at boot is written to
   `./.icp-status/status.json`. `bootstrap.mjs` reads it and patches it into
   `networks/local.yaml` so `icp` CLI can verify certificates against this
   specific replica instance.
+- **The PocketIC admin API is bound only to `127.0.0.1:4942`.** Bootstrap uses
+  it for one operation that icp-cli cannot currently perform through CMC:
+  creating the local XRC canister on the System subnet.
 
 ## Bootstrap chain
 
@@ -110,18 +123,44 @@ npm --prefix apps/backend test         # vitest + @dfinity/pic integration suite
 2. node scripts/bootstrap.mjs
      a. wait for .icp-status/status.json
      b. patch networks/local.yaml root-key from status.json
-     c. read fiduciary subnet id from .icp-state/topology.json
-     d. pre-create xrc, sol_rpc, evm_rpc with `--subnet <fid>` so they land
-        on the fiduciary subnet (their wasms need threshold keys)
-     e. pre-create internet_identity_backend, read its principal, patch it
+     c. read system / fiduciary / application subnet ids from topology.json
+     d. pre-create xrc on the System subnet through PocketIC's admin API
+     e. pre-create sol_rpc and evm_rpc with `--subnet <fiduciary>`
+     f. patch init-args/rabbithole-backend.did with local evm_rpc/sol_rpc ids
+     g. pre-create internet_identity_backend, read its principal, patch it
         into init-args/internet_identity_frontend.did (II frontend requires
         backend_canister_id at install time)
-3. icp deploy -e local --cycles 20t
+3. node scripts/generate-declarations.mjs
+     → regenerates TypeScript bindings and rabbithole-backend.bin from the
+       now-patched init-args/rabbithole-backend.did
+4. icp deploy -e local --cycles 20t
      → builds Motoko, downloads prebuilt wasms, installs everything
 ```
 
-`generate-declarations.mjs` is wired into `serve` so TypeScript bindings +
-the `rabbithole-backend` init-args binary are regenerated before every deploy.
+`generate-declarations.mjs` intentionally runs **after** bootstrap. The backend
+init args contain local RPC canister IDs, and those IDs only exist after the
+fresh local network has created `evm_rpc` and `sol_rpc`.
+
+### Why XRC is special locally
+
+The official XRC canister calls the management canister's `http_request`.
+On mainnet XRC lives on a System subnet, where that internal outcall path is
+accepted. If we install the same wasm on a normal local subnet, PocketIC rejects
+XRC's internal outcall with a message like:
+
+```text
+http_request request sent with 0 cycles, but ... cycles are required
+```
+
+Do not work around this in `rabbithole-backend` with hard-coded rates. The
+local infrastructure must mirror mainnet placement instead: bootstrap creates
+`xrc` on the local System subnet via PocketIC's admin API, then `icp deploy`
+installs the official XRC wasm into that canister.
+
+The `https-outcall-proxy` container polls pending PocketIC HTTPS outcalls and
+feeds responses back into the replica. It currently rewrites only local
+OpenID-provider URLs; XRC's exchange-rate provider calls go to the real remote
+URLs from the host network.
 
 ## Canister discovery (frontend ↔ backend)
 
@@ -156,10 +195,11 @@ config from those runtime values.
 
 ## Internet Identity architecture
 
-Since release-2026-04-21, II ships as **two canisters**:
+Since release-2026-04-21, II ships as **two canisters**. The local environment
+currently uses release-2026-04-26:
 
 - `internet_identity_backend` — auth logic, `callerInfoSigner` / identity
-  attributes, etc. Its wasm (`internet_identity_dev.wasm.gz`) does **not**
+  attributes, etc. Its wasm (`internet_identity_backend.wasm.gz`) does **not**
   serve any UI — probing `/` returns `Asset / not found`.
 - `internet_identity_frontend` — serves the login HTML/JS. The UI files are
   *embedded* in the wasm via Rust's `include_bytes!` (not uploaded via
@@ -217,7 +257,7 @@ apps/backend/
 ├── docker-compose.yml       # network launcher + caddy + mock-server
 ├── Caddyfile                # reverse_proxy to the network container
 └── scripts/
-    ├── bootstrap.mjs            # root-key, fiduciary pins, II backend + init-args patch
+    ├── bootstrap.mjs            # root-key, XRC/system pin, RPC pins, II/backend init-args patch
     ├── get-canister-env.mjs     # shared helper used by rspack dev servers
     ├── generate-declarations.mjs # moc --idl + icp-bindgen + didc encode
     ├── override-pocketic.mjs    # postinstall: pin pocket-ic to a specific IC release
@@ -234,6 +274,17 @@ apps/backend/
 - **`out of cycles` during install** — fiduciary canisters need more than
   the 2T default. `serve`/`deploy` targets pass `--cycles 20t`; match that
   if running `icp deploy` manually.
+- **`http_request request sent with 0 cycles` from XRC** — XRC was installed
+  on a non-System subnet. Reset local state and rerun the Nx target so
+  bootstrap can create `xrc` through PocketIC's admin API:
+  `npx nx compose backend -- down && rm -rf apps/backend/.icp-state apps/backend/.icp-status apps/backend/.icp/data/mappings/local.ids.json && npx nx serve backend`.
+- **`Canister ... is not one of the delegation targets` or random old local IDs** —
+  local canister mappings survived a state reset. Delete
+  `apps/backend/.icp/data/mappings/local.ids.json` together with `.icp-state`.
+- **XRC returns no rates / exchange providers timeout** — check
+  `docker compose logs -f https-outcall-proxy`. The proxy must be running so
+  PocketIC HTTPS outcalls can complete. The proxy does not fake XRC rates; it
+  forwards provider requests to the real network.
 - **`icp project show` complains about root-key** — the committed
   `networks/local.yaml` has a placeholder. Start the stack (`npx nx serve backend`)
   so bootstrap rewrites it.

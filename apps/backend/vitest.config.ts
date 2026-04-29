@@ -6,7 +6,7 @@ export default defineConfig({
     tsconfigPaths({ root: '../../' })
   ],
   test: {
-    include: ["tests/**.test.ts"],
+    include: ["tests/**/*.test.ts"],
     globalSetup: "./global-setup.ts",
     testTimeout: 30_000,
     hookTimeout: 300_000,

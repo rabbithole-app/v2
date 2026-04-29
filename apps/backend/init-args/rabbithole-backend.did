@@ -5,7 +5,7 @@
       Evm = record {
         networkId = "base-sepolia";
         chainId = 84532;
-        evmRpcCanisterId = "7hfb6-caaaa-aaaar-qadga-cai";
+        evmRpcCanisterId = "mqrdp-r7777-77775-qaaaq-cai";
         rpcUrls = vec { "https://sepolia.base.org" };
         assets = vec {
           record {
@@ -32,7 +32,7 @@
     variant {
       Solana = record {
         networkId = "devnet";
-        solRpcCanisterId = "tghme-zyaaa-aaaar-qarca-cai";
+        solRpcCanisterId = "mxqf3-4h777-77775-qaaaa-cai";
         rpcUrl = opt "https://api.devnet.solana.com";
         assets = vec {
           record {

@@ -28,6 +28,7 @@
         "commands": [
           "docker compose up -d --wait",
           "node scripts/bootstrap.mjs",
+          "node scripts/generate-declarations.mjs",
           "icp deploy -e local --cycles 20t"
         ],
         "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
@@ -43,9 +44,9 @@
       "options": {
         "cwd": "apps/backend",
         "commands": [
-          "node scripts/generate-declarations.mjs",
           "docker compose up -d --wait",
           "node scripts/bootstrap.mjs",
+          "node scripts/generate-declarations.mjs",
           "icp deploy -e local --cycles 20t",
           "docker compose logs -f network caddy mock-server"
         ],
@@ -81,7 +82,7 @@
       "options": {
         "commands": [
           "npx nx build storage --skip-nx-cache",
-          "icp build -e build encrypted-storage",
+          "cd apps/backend && icp build -e build encrypted-storage",
           "cp apps/backend/.icp/cache/artifacts/encrypted-storage apps/backend/mock/assets/encrypted-storage.wasm.gz",
           "COPYFILE_DISABLE=1 tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
           "node apps/backend/mock/sync-release-metadata.mjs"

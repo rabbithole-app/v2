@@ -10,7 +10,7 @@
 // CLI: `node get-canister-env.mjs [env]` prints JSON.
 
 import { execSync } from 'node:child_process';
-import { resolve, dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,7 @@ const CANISTERS = [
 const FRONTEND_ENV = {
   local: {
     PUBLIC_ENV_NAME: 'DEV',
-    PUBLIC_HTTP_AGENT_HOST: 'https://localhost',
+    PUBLIC_HTTP_AGENT_HOST: 'http://localhost:8000',
     PUBLIC_EVM_RPC_URL: 'https://sepolia.base.org',
     PUBLIC_SOL_RPC_URL: 'https://api.devnet.solana.com',
     PUBLIC_BLOB_STORAGE_GATEWAY_URL: 'https://dev-blob.caffeine.ai',
@@ -59,12 +59,39 @@ const FRONTEND_ENV = {
   },
 };
 
-function icp(args) {
-  return execSync(`icp ${args}`, {
-    cwd: BACKEND_DIR,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim();
+export function getCanisterEnv(env = 'local') {
+  const networkStatus = JSON.parse(icp(`network status -e ${env} --json`));
+  const rootKey = networkStatus.root_key;
+  const apiUrl = networkStatus.api_url;
+
+  const canisterIds = {};
+  const envVars = {};
+  const cookieParts = [];
+
+  for (const name of CANISTERS) {
+    const id = canisterId(name, env);
+    if (!id) continue;
+    canisterIds[name] = id;
+    envVars[`PUBLIC_CANISTER_ID:${name}`] = id;
+  }
+
+  const frontendEnv = FRONTEND_ENV[env] ?? FRONTEND_ENV.local;
+  for (const [key, value] of Object.entries(frontendEnv)) {
+    envVars[key] = value;
+  }
+
+  envVars.ic_root_key = rootKey;
+  for (const [key, value] of Object.entries(envVars)) {
+    cookieParts.push(`${key}=${value}`);
+  }
+
+  return {
+    canisterIds,
+    envVars,
+    rootKey,
+    apiUrl,
+    cookieValue: cookieParts.join('&'),
+  };
 }
 
 function canisterId(name, env) {
@@ -75,34 +102,12 @@ function canisterId(name, env) {
   }
 }
 
-export function getCanisterEnv(env = 'local') {
-  const networkStatus = JSON.parse(icp(`network status -e ${env} --json`));
-  const rootKey = networkStatus.root_key;
-  const apiUrl = networkStatus.api_url;
-
-  const canisterIds = {};
-  const cookieParts = [];
-
-  for (const name of CANISTERS) {
-    const id = canisterId(name, env);
-    if (!id) continue;
-    canisterIds[name] = id;
-    cookieParts.push(`PUBLIC_CANISTER_ID:${name}=${id}`);
-  }
-
-  const frontendEnv = FRONTEND_ENV[env] ?? FRONTEND_ENV.local;
-  for (const [key, value] of Object.entries(frontendEnv)) {
-    cookieParts.push(`${key}=${value}`);
-  }
-
-  cookieParts.push(`ic_root_key=${rootKey}`);
-
-  return {
-    canisterIds,
-    rootKey,
-    apiUrl,
-    cookieValue: cookieParts.join('&'),
-  };
+function icp(args) {
+  return execSync(`icp ${args}`, {
+    cwd: BACKEND_DIR,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
