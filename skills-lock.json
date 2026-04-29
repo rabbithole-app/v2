@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "angular-developer": {
+      "source": "angular/skills",
+      "sourceType": "github",
+      "skillPath": "angular-developer/SKILL.md",
+      "computedHash": "b7764c591c965d85f95f1d4f6d3620b6ab92a1b1fedbcdead7d59e946fc3fd2e"
+    },
     "asset-canister": {
       "source": "dfinity/icskills",
       "sourceType": "github",
@@ -111,6 +117,12 @@
       "sourceType": "github",
       "computedHash": "3fc3f0077fc47897203d7f6b85ff5a742f337e40c29504c85a60d8ace12e7522"
     },
+    "grill-me": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/grill-me/SKILL.md",
+      "computedHash": "784f0dbb7403b0f00324bce9a112f715342777a0daee7bbb7385f9c6f0a170ea"
+    },
     "https-outcalls": {
       "source": "dfinity/icskills",
       "sourceType": "github",
@@ -150,6 +162,12 @@
       "source": "dfinity/icskills",
       "sourceType": "github",
       "computedHash": "bc26d61750c8a22000fed6b7d752d82dfd773fc22889346e904e6cefd88b0078"
+    },
+    "transitions-dev": {
+      "source": "jakubantalik/transitions-dev",
+      "sourceType": "github",
+      "skillPath": "skills/transitions-dev/SKILL.md",
+      "computedHash": "ef105c65e70d52674942e70e7649e57a97de881475086e998a0f6484313000aa"
     },
     "vetkd": {
       "source": "dfinity/icskills",

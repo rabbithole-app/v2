@@ -296,11 +296,11 @@ npx skills remove -s <name> -a universal -a claude-code -y                 # rem
 
 - **dfinity/icskills** — IC platform: `asset-canister`, `canhelp`, `canister-security`, `certified-variables`, `ckbtc`, `custom-domains`, `cycles-management`, `evm-rpc`, `https-outcalls`, `ic-dashboard`, `icp-cli`, `icrc-ledger`, `internet-identity`, `motoko`, `multi-canister`, `stable-memory`, `vetkd`, `wallet-integration`. Mirror with current versions: `https://skills.internetcomputer.org/.well-known/skills/<name>/SKILL.md`. **Intentionally excluded:** `sns-launch`.
 - **caffeinelabs/skills** — Caffeine extensions: `extension-authorization`, `extension-camera`, `extension-core-infrastructure`, `extension-email`, `extension-email-calendar-events`, `extension-email-marketing`, `extension-email-raw`, `extension-email-verification`, `extension-http-outcalls`, `extension-invite-links`, `extension-object-storage`, `extension-qr-code`, `extension-stripe`, `extension-user-approval`. React frontend hooks in these skills must be adapted to Angular patterns.
-- **No source in lock file** (manually managed, `npx skills update` does not refresh them): `angular-best-practices`, `angular-cdk-integration`, `angular-component`, `angular-di`, `angular-directives`, `angular-forms`, `angular-http`, `angular-routing`, `angular-signals`, `angular-spartan-styling`, `angular-testing`, `rxjs-expert`, `rxjs-patterns-for-angular`, `frontend-design`, `scrollytelling`, `skill-creator`, `skill-lookup`, `excalidraw`.
+- **No source in lock file** (manually managed, `npx skills update` does not refresh them): `angular-developer`, `angular-cdk-integration`,  `angular-spartan-styling`, `rxjs-expert`, `rxjs-patterns-for-angular`, `frontend-design`, `scrollytelling`, `skill-creator`, `skill-lookup`, `excalidraw`.
 
 ### Groups by purpose
 
-- **Angular (frontend)** — `angular-best-practices`, `angular-component`, `angular-signals`, `angular-di`, `angular-directives`, `angular-forms`, `angular-http`, `angular-routing`, `angular-testing`, `angular-spartan-styling`, `angular-cdk-integration`
+- **Angular (frontend)** — `angular-developer`, `angular-spartan-styling`, `angular-cdk-integration`
 - **RxJS** — `rxjs-patterns-for-angular`, `rxjs-expert`
 - **ICP backend** — all skills from dfinity/icskills (see above)
 - **Caffeine extensions** — all skills from caffeinelabs/skills (see above)
