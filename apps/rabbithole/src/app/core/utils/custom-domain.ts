@@ -1,3 +1,6 @@
-import { APP_ALTERNATIVE_ORIGIN } from '@rabbithole/core';
+import { APP_ALTERNATIVE_ORIGINS } from '@rabbithole/core';
 
-export const isCustomDomain = () => location.origin === APP_ALTERNATIVE_ORIGIN;
+export const isCustomDomain = () =>
+  APP_ALTERNATIVE_ORIGINS.includes(
+    location.origin as (typeof APP_ALTERNATIVE_ORIGINS)[number],
+  );
