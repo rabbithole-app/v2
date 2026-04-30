@@ -2,7 +2,7 @@ import { computed, Injectable, resource } from '@angular/core';
 import { Actor } from '@icp-sdk/core/agent';
 import { toast } from 'ngx-sonner';
 
-import type { UserSettings } from '@rabbithole/declarations';
+import type { UserSettings } from '@rabbithole/declarations/backend';
 
 import { injectMainActor } from '../injectors';
 import { parseCanisterRejectError } from '../utils';

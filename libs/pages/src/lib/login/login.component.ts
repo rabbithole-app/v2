@@ -21,7 +21,7 @@ import {
   AuthOpenIdProviderConfig,
   AuthSignInOptions,
 } from '@rabbithole/auth';
-import { RbthRainbowButton } from '@rabbithole/ui';
+import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
 
 @Component({
   selector: 'rbth-page-login',

@@ -1,6 +1,6 @@
 import { Directive } from '@angular/core';
 
-import { RbthDrawerComponent } from '@rabbithole/ui';
+import { RbthDrawerComponent } from '@rabbithole/ui/drawer';
 
 @Directive({
   selector: '[rbthFeatCanistersWasmInstallTrigger]',

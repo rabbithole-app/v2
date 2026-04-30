@@ -6,8 +6,6 @@ import {
   viewChild,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideStar } from '@ng-icons/lucide';
 
 import {
   SettingsService,
@@ -17,7 +15,6 @@ import { PaymentDrawerComponent } from '@rabbithole/features/payment';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
-import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSeparator } from '@spartan-ng/helm/separator';
 import { HlmSwitch } from '@spartan-ng/helm/switch';
 
@@ -28,16 +25,9 @@ import { HlmSwitch } from '@spartan-ng/helm/switch';
     DatePipe,
     HlmBadge,
     HlmButton,
-    HlmIcon,
     HlmSeparator,
     HlmSwitch,
-    NgIcon,
     PaymentDrawerComponent,
-  ],
-  providers: [
-    provideIcons({
-      lucideStar,
-    }),
   ],
   host: { class: 'block w-full space-y-6' },
   templateUrl: './subscription-page.component.html',

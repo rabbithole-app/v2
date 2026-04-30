@@ -9,7 +9,7 @@ import {
   ICPAY_API_URL,
   ICPAY_PUBLISHABLE_KEY,
   SOL_RPC_URL,
-} from '@rabbithole/core';
+} from '@rabbithole/core/app-runtime';
 
 export const environment = {
   identityProviderUrl: 'https://id.ai/authorize',

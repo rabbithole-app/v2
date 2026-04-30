@@ -14,7 +14,7 @@ import { safeGetCanisterEnv } from '@icp-sdk/core/agent/canister-env';
 import { compare, lebDecode, PipeArrayBuffer } from '@icp-sdk/core/candid';
 import { sha256 } from '@noble/hashes/sha2';
 
-import { EncryptedStorageActorService } from '@rabbithole/declarations';
+import { EncryptedStorageActorService } from '@rabbithole/declarations/encrypted-storage';
 
 import { ContentEncoding } from './types';
 import { base64Decode } from './utils/base64';

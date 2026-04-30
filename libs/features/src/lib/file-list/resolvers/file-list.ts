@@ -10,7 +10,7 @@ import {
   createEncryptedStorageCanisterProviderFromSnapshot,
   injectEncryptedStorage,
   provideEncryptedStorage,
-} from '@rabbithole/core';
+} from '@rabbithole/core/storage-runtime';
 import { StoragePermission } from '@rabbithole/encrypted-storage';
 
 import { NodeItem } from '../types';

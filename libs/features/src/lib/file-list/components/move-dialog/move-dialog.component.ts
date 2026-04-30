@@ -19,7 +19,6 @@ import {
   HlmDialogHeader,
   HlmDialogTitle,
 } from '@spartan-ng/helm/dialog';
-import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 interface FlatTreeItem {
@@ -103,7 +102,6 @@ interface FlatTreeItem {
     HlmDialogTitle,
     HlmDialogFooter,
     HlmButton,
-    HlmIcon,
     HlmSpinner,
   ],
   providers: [

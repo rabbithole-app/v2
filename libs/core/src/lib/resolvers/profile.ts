@@ -2,9 +2,9 @@ import { inject } from '@angular/core';
 import { ResolveFn } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { Profile } from '@rabbithole/declarations';
+import { Profile } from '@rabbithole/declarations/backend';
 
-import { ProfileService } from '../services';
+import { ProfileService } from '../services/profile.service';
 
 export const profileResolver: ResolveFn<Profile | null> = () => {
   const profileService = inject(ProfileService);

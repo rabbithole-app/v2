@@ -1,7 +1,8 @@
 import { Principal } from '@icp-sdk/core/principal';
 
-import { ExtractVariantKeys, type StorageBackendType } from '@rabbithole/core';
-import { DirectoryColor as DirectoryColorRaw } from '@rabbithole/declarations';
+import { ExtractVariantKeys } from '@rabbithole/core';
+import { type StorageBackendType } from '@rabbithole/core/storage-runtime';
+import { DirectoryColor as DirectoryColorRaw } from '@rabbithole/declarations/encrypted-storage';
 import { StoragePermission } from '@rabbithole/encrypted-storage';
 
 export type CommonAttrs = {

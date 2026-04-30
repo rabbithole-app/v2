@@ -7,7 +7,7 @@ import type {
   ExtractionStatus,
   ReleaseFullStatus,
   ReleasesFullStatus,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/backend';
 
 import type {
   Asset,

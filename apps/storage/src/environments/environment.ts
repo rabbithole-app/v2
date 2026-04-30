@@ -6,7 +6,7 @@ import {
   HTTP_AGENT_HOST,
   INTERNET_IDENTITY_FRONTEND_CANISTER_ID,
   SOL_RPC_URL,
-} from '@rabbithole/core';
+} from '@rabbithole/core/app-runtime';
 
 export const environment = {
   identityProviderUrl: INTERNET_IDENTITY_FRONTEND_CANISTER_ID

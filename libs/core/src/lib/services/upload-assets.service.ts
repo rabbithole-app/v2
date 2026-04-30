@@ -9,9 +9,9 @@ import { AssetManager } from '@rabbithole/encrypted-storage';
 
 import {
   injectAssetManager,
-  injectCoreWorker,
   provideAssetManager,
-} from '../injectors';
+} from '../injectors/asset-manager';
+import { injectCoreWorker } from '../injectors/core-worker';
 import { messageByAction } from '../operators';
 import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
 import { IAssetUploadService, UploadAsset, UploadId, UploadState } from '../types';

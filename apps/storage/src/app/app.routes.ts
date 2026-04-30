@@ -3,7 +3,7 @@ import { Route } from '@angular/router';
 import {
   dashboardGuard,
   loginGuard,
-} from '@rabbithole/core';
+} from '@rabbithole/core/app-runtime';
 
 export const appRoutes: Route[] = [
   {

@@ -10,7 +10,7 @@ import { lucideLink } from '@ng-icons/lucide';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
-} from '@rabbithole/core';
+} from '@rabbithole/core/storage-runtime';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 

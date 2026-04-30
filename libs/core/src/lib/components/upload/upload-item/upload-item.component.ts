@@ -29,7 +29,7 @@ import { ClassValue } from 'clsx';
 import {
   RbthProgressDirective,
   RbthProgressIndicatorDirective,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/progress';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';

@@ -3,7 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideBookOpen, lucideGithub } from '@ng-icons/lucide';
 
-import { RbthSidebarMenuButton } from '@rabbithole/ui';
+import { RbthSidebarMenuButton } from '@rabbithole/ui/sidebar';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSeparator } from '@spartan-ng/helm/separator';
 import {

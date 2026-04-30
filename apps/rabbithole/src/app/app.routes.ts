@@ -1,6 +1,10 @@
 import { Route } from '@angular/router';
 
-import { dashboardGuard, loginGuard, profileResolver } from '@rabbithole/core';
+import {
+  dashboardGuard,
+  loginGuard,
+  profileResolver,
+} from '@rabbithole/core/app-runtime';
 
 import { storageViewGuard } from './core/guards';
 
@@ -58,7 +62,7 @@ export const appRoutes: Route[] = [
       {
         path: '',
         loadChildren: () =>
-          import('@rabbithole/features/storages').then(
+          import('@rabbithole/features/storages/routes').then(
             (m) => m.storagesRoutes,
           ),
       },
@@ -66,7 +70,7 @@ export const appRoutes: Route[] = [
         path: 'create-storage',
         outlet: 'dialog',
         loadComponent: () =>
-          import('@rabbithole/features/storages').then(
+          import('@rabbithole/features/storages/create-storage-trigger').then(
             (m) => m.CreateStorageTriggerComponent,
           ),
       },

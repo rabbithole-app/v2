@@ -20,12 +20,12 @@ import {
 } from '@ng-icons/lucide';
 import { filter, map, mergeWith } from 'rxjs';
 
+import { injectCoreWorker } from '@rabbithole/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
-  injectCoreWorker,
   injectEncryptedStorage,
   PermissionsService,
-} from '@rabbithole/core';
+} from '@rabbithole/core/storage-runtime';
 import { Entry } from '@rabbithole/encrypted-storage';
 import { toast } from 'ngx-sonner';
 import { intersectionWith } from 'remeda';
@@ -39,8 +39,6 @@ import { FileListService } from '../../services';
 import { FILE_LIST_ICONS_CONFIG } from '../../tokens';
 import { DirectoryColor, NodeItem } from '../../types';
 import { FileListResolverData } from '../../resolvers/file-list';
-import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
-import { FileIconComponent } from '../file-icon/file-icon.component';
 import { GridViewComponent } from '../grid-view/grid-view.component';
 import { MoveDialogComponent } from '../move-dialog/move-dialog.component';
 import { NewFolderDialogComponent } from '../new-folder-dialog/new-folder-dialog.component';
@@ -57,8 +55,6 @@ import { UploadDrawerComponent } from '../upload-drawer/upload-drawer.component'
   },
   imports: [
     UploadDrawerComponent,
-    AnimatedFolderComponent,
-    FileIconComponent,
     GridViewComponent,
     PropertiesDrawerComponent,
     NgIcon,

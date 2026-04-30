@@ -3,7 +3,10 @@ import { Principal } from '@icp-sdk/core/principal';
 import { sha256 } from '@noble/hashes/sha2';
 import { Store } from '@tanstack/store';
 
-import { EncryptedStorageActorService, EncryptedStorageHttpPermission } from '@rabbithole/declarations';
+import {
+  EncryptedStorageActorService,
+  EncryptedStorageHttpPermission,
+} from '@rabbithole/declarations/encrypted-storage';
 // import { ReadablePath } from './readable/readablePath';
 
 import { Asset } from './asset';

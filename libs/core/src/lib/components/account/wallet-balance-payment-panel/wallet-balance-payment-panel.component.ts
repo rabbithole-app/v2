@@ -17,7 +17,7 @@ import {
   RbthFrameHeaderDirective,
   RbthFramePanelDirective,
   RbthFrameTitleDirective,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/frame';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
 import { HlmIcon } from '@spartan-ng/helm/icon';

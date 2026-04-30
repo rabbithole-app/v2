@@ -1,6 +1,6 @@
 import { match, P } from 'ts-pattern';
 
-import { TreeNode as TreeNodeRaw } from '@rabbithole/declarations';
+import { TreeNode as TreeNodeRaw } from '@rabbithole/declarations/encrypted-storage';
 
 import { TreeNode } from '../types';
 

@@ -3,7 +3,10 @@ import { sha256 } from '@noble/hashes/sha2';
 import { Derived, Store } from '@tanstack/store';
 import { isMatching, P } from 'ts-pattern';
 
-import { BatchOperationKind, EncryptedStorageActorService } from '@rabbithole/declarations';
+import {
+  BatchOperationKind,
+  EncryptedStorageActorService,
+} from '@rabbithole/declarations/encrypted-storage';
 
 import { AssetManager } from './asset-manager';
 import { CommitBatchArgs, Progress, StoreArgs, UploadState } from './types';

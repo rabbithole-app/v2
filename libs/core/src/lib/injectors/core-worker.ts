@@ -10,15 +10,14 @@ import { messageByAction } from '../operators';
 // which exports services that import from injectors
 import { UploadRegistryService } from '../services/upload-registry.service';
 import { WorkerService } from '../services/worker.service';
-import { WORKER, WORKER_FACTORY } from '../tokens';
+import { WORKER, WORKER_FACTORY } from '../tokens/worker';
 import { BLOB_STORAGE_CONFIG_TOKEN, ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN } from '../tokens/main';
-import {
+import type { NonNullableProps, ExtractInjectionToken } from '../types/utility';
+import type {
   CoreWorkerMessageIn,
   CoreWorkerMessageOut,
-  ExtractInjectionToken,
-  NonNullableProps,
   WorkerConfigIn,
-} from '../types';
+} from '../types/worker';
 import { HTTP_AGENT_OPTIONS_TOKEN } from './http-agent';
 
 export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(

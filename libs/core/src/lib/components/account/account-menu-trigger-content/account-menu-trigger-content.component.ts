@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { ClassValue } from 'clsx';
 
-import { Profile } from '@rabbithole/declarations';
+import { Profile } from '@rabbithole/declarations/backend';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { hlm } from '@spartan-ng/helm/utils';
 

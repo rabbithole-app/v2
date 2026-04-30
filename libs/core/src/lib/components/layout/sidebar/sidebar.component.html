@@ -40,7 +40,13 @@
     </div>
   </div>
   <div hlmSidebarFooter>
-    <rbth-sidebar-subscription-footer />
+    @defer (on idle) {
+      <rbth-sidebar-subscription-footer />
+    } @placeholder {
+      <div class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground">
+        <span class="group-data-[collapsible=icon]:hidden truncate">Loading account</span>
+      </div>
+    }
   </div>
   <button hlmSidebarRail></button>
 </hlm-sidebar>

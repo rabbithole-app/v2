@@ -5,7 +5,12 @@ import {
   Provider,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import {
+  PreloadAllModules,
+  provideRouter,
+  withComponentInputBinding,
+  withPreloading,
+} from '@angular/router';
 import { HttpAgentOptions } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { isTauri } from '@tauri-apps/api/core';
@@ -34,12 +39,12 @@ import {
   provideIcAuthSignOutHandler,
   provideReferralCapture,
   provideRegistration,
-} from '@rabbithole/core';
+} from '@rabbithole/core/app-runtime';
 
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { APP_DERIVATION_ORIGIN } from './core/constants';
-import { isCustomDomain } from './core/utils';
+import { isCustomDomain } from './core/utils/custom-domain';
 
 export const provideAuthService = (): Provider => ({
   provide: AUTH_SERVICE,
@@ -68,7 +73,12 @@ export const appConfig: ApplicationConfig = {
     provideReferralCapture(),
     provideIcAuthSignOutHandler(),
     provideRegistration(),
-    provideRouter(appRoutes, withComponentInputBinding()),
+    provideCoreWorker(),
+    provideRouter(
+      appRoutes,
+      withComponentInputBinding(),
+      withPreloading(PreloadAllModules),
+    ),
     provideHttpClient(),
     provideAuthService(),
     { provide: AUTH_CONFIG, useValue: authConfig },
@@ -76,7 +86,6 @@ export const appConfig: ApplicationConfig = {
       provide: MAIN_CANISTER_ID_TOKEN,
       useValue: Principal.fromText(environment.backendCanisterId),
     },
-    provideCoreWorker(),
     {
       provide: HTTP_AGENT_OPTIONS_TOKEN,
       useValue: {

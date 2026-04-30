@@ -2,7 +2,10 @@ import { toNullable } from '@dfinity/utils';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 
-import { initEncryptedStorage, type StorageBackend } from '@rabbithole/declarations';
+import {
+  initEncryptedStorage,
+  type StorageBackend,
+} from '@rabbithole/declarations/encrypted-storage';
 
 import type { ExtractVariantKeys } from '../types';
 

@@ -1,20 +1,11 @@
 import { Principal } from '@icp-sdk/core/principal';
 import { type } from 'arktype';
 
-import { isPhotonSupportedMimeType } from '../utils';
-import { Prettify } from './utility';
+import { isPhotonSupportedMimeType } from '../utils/is-photon-supported-mime-type';
+import { UploadState } from './upload-state';
+import type { Prettify } from './utility';
 
-export enum UploadState {
-  NOT_STARTED,
-  REQUESTING_VETKD,
-  INITIALIZING,
-  IN_PROGRESS,
-  PAUSED,
-  COMPLETED,
-  FAILED,
-  CANCELED,
-  FINALIZING,
-}
+export { UploadState } from './upload-state';
 
 const uploadIdSchema = type('string.uuid.v4');
 

@@ -6,7 +6,7 @@ import {
   PermissionsService,
   provideEncryptedStorage,
   provideUploadFilesService,
-} from '@rabbithole/core';
+} from '@rabbithole/core/storage-runtime';
 
 @Component({
   selector: 'app-storage',

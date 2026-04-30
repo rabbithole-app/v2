@@ -4,7 +4,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideGithub } from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { RbthRainbowButton } from '@rabbithole/ui';
+import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSeparator } from '@spartan-ng/helm/separator';
 

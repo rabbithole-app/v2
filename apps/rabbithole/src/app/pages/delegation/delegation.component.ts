@@ -42,8 +42,8 @@ import {
   RbthFrameHeaderDirective,
   RbthFramePanelDirective,
   RbthFrameTitleDirective,
-  RbthRainbowButton,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/frame';
+import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';

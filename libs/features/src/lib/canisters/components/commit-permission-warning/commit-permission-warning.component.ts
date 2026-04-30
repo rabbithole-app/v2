@@ -9,7 +9,12 @@ import { lucideCircleAlert } from '@ng-icons/lucide';
 import { toast } from 'ngx-sonner';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { IAssetUploadService, injectAssetManager, parseCanisterRejectError, UPLOAD_SERVICE_TOKEN } from '@rabbithole/core';
+import { parseCanisterRejectError } from '@rabbithole/core';
+import {
+  IAssetUploadService,
+  injectAssetManager,
+  UPLOAD_SERVICE_TOKEN,
+} from '@rabbithole/core/storage-runtime';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';

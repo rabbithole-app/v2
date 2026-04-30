@@ -1,4 +1,4 @@
-import { APP_ALTERNATIVE_ORIGINS } from '@rabbithole/core';
+import { APP_ALTERNATIVE_ORIGINS } from '@rabbithole/core/app-runtime';
 
 export const isCustomDomain = () =>
   APP_ALTERNATIVE_ORIGINS.includes(

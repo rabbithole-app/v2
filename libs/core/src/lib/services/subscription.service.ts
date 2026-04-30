@@ -6,11 +6,11 @@ import { toast } from 'ngx-sonner';
 import { catchError, map, of } from 'rxjs';
 import { match, P } from 'ts-pattern';
 
-import type { Plan, Subscription } from '@rabbithole/declarations';
+import type { Plan, Subscription } from '@rabbithole/declarations/backend';
 
-import { injectMainActor } from '../injectors';
-import { BACKEND_FEATURES_ENABLED_TOKEN } from '../tokens';
-import { parseCanisterRejectError } from '../utils';
+import { injectMainActor } from '../injectors/main-actor';
+import { BACKEND_FEATURES_ENABLED_TOKEN } from '../tokens/backend-features';
+import { parseCanisterRejectError } from '../utils/parse-canister-reject-error';
 
 const TRIAL_LIMIT_BYTES = 100_000_000; // 100 MB
 

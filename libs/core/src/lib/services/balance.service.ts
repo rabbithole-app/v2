@@ -2,7 +2,7 @@ import { computed, inject, Injectable, resource, signal } from '@angular/core';
 import { Actor, HttpAgent } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 
-import type { TokenId } from '@rabbithole/declarations';
+import type { TokenId } from '@rabbithole/declarations/backend';
 
 import { BACKEND_CANISTER_ID, LEDGER_CANISTER_ID } from '../constants';
 import { HTTP_AGENT_OPTIONS_TOKEN, injectMainActor } from '../injectors';

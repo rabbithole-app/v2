@@ -22,13 +22,15 @@ import { filter, map, mergeWith } from 'rxjs';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   CanisterDataInfo,
+  injectCoreWorker,
+} from '@rabbithole/core';
+import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   IAssetUploadService,
-  injectCoreWorker,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
-} from '@rabbithole/core';
+} from '@rabbithole/core/storage-runtime';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
@@ -37,7 +39,6 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 
 import {
-  AddControllerInstructionsComponent,
   CanisterControllersTableComponent,
   CanisterHealthCheckComponent,
   CanisterLoadSnapshotDialogComponent,
@@ -45,7 +46,6 @@ import {
   CanisterRuntimeComponent,
   CanisterSnapshotsTableComponent,
   CanisterTakeSnapshotDialogComponent,
-  CommitPermissionWarningComponent,
   FrontendUploadDrawerComponent,
   FrontendUploadTriggerDirective,
   WasmInstallComponent,
@@ -74,8 +74,6 @@ import { ICManagementService } from '../../services';
     FrontendUploadTriggerDirective,
     WasmInstallComponent,
     WasmInstallTriggerDirective,
-    AddControllerInstructionsComponent,
-    CommitPermissionWarningComponent,
   ],
   providers: [
     ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,

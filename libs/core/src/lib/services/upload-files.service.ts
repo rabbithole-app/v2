@@ -7,7 +7,8 @@ import {
 } from '@rabbithole/encrypted-storage';
 
 import { MAX_THUMBNAIL_HEIGHT, MAX_THUMBNAIL_WIDTH } from '../constants';
-import { injectCoreWorker, injectEncryptedStorage } from '../injectors';
+import { injectCoreWorker } from '../injectors/core-worker';
+import { injectEncryptedStorage } from '../injectors/encrypted-storage';
 import { ENCRYPTED_STORAGE_CANISTER_ID, UPLOAD_SERVICE_TOKEN } from '../tokens';
 import {
   IUploadService,

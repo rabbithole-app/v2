@@ -1,7 +1,7 @@
 import { Observable, OperatorFunction } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-import { Message } from '../types';
+import type { Message } from '../types/worker';
 import { filterByAction } from './filter-by-action';
 
 export function messageByAction<

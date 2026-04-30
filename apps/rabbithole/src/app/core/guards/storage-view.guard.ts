@@ -1,6 +1,6 @@
 import { CanMatchFn, UrlSegment } from '@angular/router';
 
-import { isPrincipal } from '@rabbithole/core';
+import { isPrincipal } from '@rabbithole/core/app-runtime';
 
 export const storageViewGuard: CanMatchFn = (_route, segments: UrlSegment[]) => {
   // For route :id, the first segment contains the id value

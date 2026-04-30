@@ -1,6 +1,9 @@
 import { Actor, ActorConfig, ActorSubclass } from '@icp-sdk/core/agent';
 
-import { EncryptedStorageActorService, encryptedStorageIdlFactory } from '@rabbithole/declarations';
+import {
+  EncryptedStorageActorService,
+  encryptedStorageIdlFactory,
+} from '@rabbithole/declarations/encrypted-storage';
 
 /**
  * Create an encrypted storage canister actor

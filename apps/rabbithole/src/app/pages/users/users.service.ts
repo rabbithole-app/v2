@@ -9,7 +9,7 @@ import {
   ProfileListOptions as ListOptions,
   Profile as ProfileRaw,
   RabbitholeActorService,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/backend';
 
 export type Profile = {
   avatarUrl?: string;

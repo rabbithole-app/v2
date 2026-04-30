@@ -1,7 +1,7 @@
 import { Observable, OperatorFunction } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
-import { Message } from '../types';
+import type { Message } from '../types/worker';
 
 export function filterByAction<
   T extends Message<Record<string, unknown>>,

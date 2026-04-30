@@ -11,7 +11,7 @@ import {
   INTERNET_IDENTITY_BACKEND_CANISTER_ID,
   INTERNET_IDENTITY_FRONTEND_CANISTER_ID,
   SOL_RPC_URL,
-} from '@rabbithole/core';
+} from '@rabbithole/core/app-runtime';
 
 if (!INTERNET_IDENTITY_BACKEND_CANISTER_ID || !INTERNET_IDENTITY_FRONTEND_CANISTER_ID) {
   throw new Error('Local environment requires Internet Identity canister IDs in ic_env.');

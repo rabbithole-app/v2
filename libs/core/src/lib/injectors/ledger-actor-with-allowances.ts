@@ -5,7 +5,7 @@ import { createInjectionToken } from 'ngxtension/create-injection-token';
 import {
   IcpLedgerService,
   idlFactoryIcpLedger,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/icp-ledger';
 
 import { LEDGER_CANISTER_ID } from '../constants';
 import { injectHttpAgent } from './http-agent';

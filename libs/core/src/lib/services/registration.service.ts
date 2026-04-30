@@ -17,7 +17,7 @@ import {
 import {
   RabbitholeActorService,
   rabbitholeIdlFactory,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/backend';
 
 import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors/http-agent';
 import { injectMainActor } from '../injectors/main-actor';

@@ -34,6 +34,18 @@ function loadCanisterEnv(): CanisterEnv | null {
 
 const canisterEnv = loadCanisterEnv();
 
+function createRsdoctorPlugin(): RsdoctorRspackPlugin {
+  return new RsdoctorRspackPlugin({
+    disableClientServer: true,
+    output: {
+      mode: 'brief',
+      options: {
+        type: ['json'],
+      },
+    },
+  });
+}
+
 export default createConfig(
   {
     options: {
@@ -133,8 +145,8 @@ export default createConfig(
         budgets: [
           {
             type: 'initial',
-            maximumWarning: '500kb',
-            maximumError: '2.5mb',
+            maximumWarning: '1mb',
+            maximumError: '1.4mb',
           },
           {
             type: 'anyComponentStyle',
@@ -170,7 +182,7 @@ export default createConfig(
             threshold: 10240,
             minRatio: 0.8,
           }),
-          process.env['RSDOCTOR'] && new RsdoctorRspackPlugin(),
+          process.env['RSDOCTOR'] && createRsdoctorPlugin(),
         ].filter(Boolean),
       },
     },
@@ -202,7 +214,7 @@ export default createConfig(
           debug: ['rspack', 'webpack-dev-server'],
         },
         plugins: [
-          ...(process.env['RSDOCTOR'] ? [new RsdoctorRspackPlugin()] : []),
+          ...(process.env['RSDOCTOR'] ? [createRsdoctorPlugin()] : []),
         ],
       },
     },

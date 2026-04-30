@@ -18,7 +18,7 @@ import {
   encryptedStorageIdlFactory,
   Entry as EntryRaw,
   StorageBackend,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/encrypted-storage';
 
 import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
 import { BlobHashTree, verifyBlobIntegrity, YHash } from './blob-storage/merkle-tree';

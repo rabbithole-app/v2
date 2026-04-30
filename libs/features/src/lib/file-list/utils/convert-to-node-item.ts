@@ -1,8 +1,9 @@
 import { fromNullable, uint8ArrayToHexString } from '@dfinity/utils';
 import { match, P } from 'ts-pattern';
 
-import { type StorageBackendType, timeInNanosToDate } from '@rabbithole/core';
-import { NodeDetails } from '@rabbithole/declarations';
+import { timeInNanosToDate } from '@rabbithole/core';
+import { type StorageBackendType } from '@rabbithole/core/storage-runtime';
+import { NodeDetails } from '@rabbithole/declarations/encrypted-storage';
 import { StoragePermission } from '@rabbithole/encrypted-storage';
 
 import {

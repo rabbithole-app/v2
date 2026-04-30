@@ -25,12 +25,13 @@ import { match, P } from 'ts-pattern';
 
 import {
   FileSystemAccessService,
+} from '@rabbithole/core';
+import {
   IAssetUploadService,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
-  UploadDrawerListComponent,
   UploadState,
-} from '@rabbithole/core';
+} from '@rabbithole/core/storage-runtime';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -38,7 +39,7 @@ import {
   RbthDrawerHeaderComponent,
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/drawer';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
@@ -67,7 +68,6 @@ import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.direct
     RbthDrawerHeaderComponent,
     RbthDrawerSeparatorDirective,
     RbthDrawerTitleDirective,
-    FrontendUploadTriggerDirective,
     FrontendTakeOwnershipAlertComponent,
     FrontendTakeOwnershipButtonComponent,
     FrontendUploadFileSelectionComponent,
@@ -77,7 +77,6 @@ import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.direct
     FrontendUploadListComponent,
     NgIcon,
     HlmIcon,
-    UploadDrawerListComponent,
   ],
   providers: [
     UPLOAD_ASSETS_SERVICE_PROVIDERS,

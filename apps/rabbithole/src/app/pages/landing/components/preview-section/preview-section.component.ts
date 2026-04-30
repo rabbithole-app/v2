@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
-import { RbthSafari } from '@rabbithole/ui';
+import { RbthSafari } from '@rabbithole/ui/safari';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 
 @Component({

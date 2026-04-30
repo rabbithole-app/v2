@@ -22,7 +22,7 @@ import {
 } from '@ng-icons/lucide';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
 
-import type { StoredNotification, TypedEvent } from '@rabbithole/declarations';
+import type { StoredNotification, TypedEvent } from '@rabbithole/declarations/backend';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';

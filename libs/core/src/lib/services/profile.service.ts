@@ -10,11 +10,11 @@ import { Actor } from '@icp-sdk/core/agent';
 import { toast } from 'ngx-sonner';
 import { catchError, map, of } from 'rxjs';
 
-import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations';
+import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations/backend';
 
-import { injectMainActor } from '../injectors';
-import { BACKEND_FEATURES_ENABLED_TOKEN } from '../tokens';
-import { parseCanisterRejectError } from '../utils';
+import { injectMainActor } from '../injectors/main-actor';
+import { BACKEND_FEATURES_ENABLED_TOKEN } from '../tokens/backend-features';
+import { parseCanisterRejectError } from '../utils/parse-canister-reject-error';
 
 @Injectable({ providedIn: 'root' })
 export class ProfileService {
@@ -112,5 +112,3 @@ export class ProfileService {
     }
   }
 }
-
-

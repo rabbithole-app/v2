@@ -24,7 +24,7 @@ import {
 import { debounceTime, distinctUntilChanged, filter, from, of, switchMap } from 'rxjs';
 
 import { injectMainActor, ProfileService } from '@rabbithole/core';
-import { AvatarEditorComponent } from '@rabbithole/core';
+import { AvatarEditorComponent } from '@rabbithole/core/profile';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmFormField, HlmHint } from '@spartan-ng/helm/form-field';
 import { HlmInput } from '@spartan-ng/helm/input';

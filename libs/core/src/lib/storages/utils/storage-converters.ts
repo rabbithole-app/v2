@@ -9,7 +9,7 @@ import type {
   Progress as ProgressCandid,
   StorageInfo as StorageInfoCandid,
   UpdateInfo as UpdateInfoCandid,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/backend';
 
 import { timeInNanosToDate } from '../../utils/time';
 import type {

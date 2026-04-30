@@ -7,7 +7,7 @@ import {
   BalanceService,
   WalletNetworksViewComponent,
   WalletSummaryHeaderComponent,
-} from '@rabbithole/core';
+} from '@rabbithole/core/wallet';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSwitch } from '@spartan-ng/helm/switch';

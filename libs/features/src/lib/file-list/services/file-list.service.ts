@@ -7,14 +7,16 @@ import { match, P } from 'ts-pattern';
 
 import {
     DownloadService,
-    ENCRYPTED_STORAGE_CANISTER_ID,
     FileSystemAccessService,
     FileSystemDirectoryItem,
     FileSystemFileItem,
     formatBytes,
     injectCoreWorker,
-    injectEncryptedStorage,
 } from '@rabbithole/core';
+import {
+    ENCRYPTED_STORAGE_CANISTER_ID,
+    injectEncryptedStorage,
+} from '@rabbithole/core/storage-runtime';
 import { EncryptedStorage, Entry, StoragePermission } from '@rabbithole/encrypted-storage';
 
 import { NodeItem } from '../types';

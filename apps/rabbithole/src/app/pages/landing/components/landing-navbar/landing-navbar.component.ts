@@ -9,7 +9,7 @@ import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { RbthAuthNavbar } from '@rabbithole/ui';
+import { RbthAuthNavbar } from '@rabbithole/ui/auth-navbar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 
 @Component({

@@ -1,7 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 
-import { RbthToaster } from '@rabbithole/ui';
+import { RbthToaster } from '@rabbithole/ui/toaster';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 @Component({
@@ -15,7 +15,9 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
     } @else {
       <router-outlet />
     }
-    <rbth-toaster position="bottom-center" />
+    @defer (on idle) {
+      <rbth-toaster position="bottom-center" />
+    }
   `,
 })
 export class AppComponent {

@@ -11,12 +11,10 @@ import { ClassValue } from 'clsx';
 import { match, P } from 'ts-pattern';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import {
-  PermissionsService,
-  PermissionsTableComponent,
-} from '@rabbithole/core';
+import { PermissionsTableComponent } from '@rabbithole/core';
+import { PermissionsService } from '@rabbithole/core/storage-runtime';
 import { type Entry } from '@rabbithole/encrypted-storage';
-import { RbthTreeComponent, TreeNode } from '@rabbithole/ui';
+import { RbthTreeComponent, TreeNode } from '@rabbithole/ui/tree';
 import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({

@@ -7,12 +7,10 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck, lucideFile, lucideTriangleAlert } from '@ng-icons/lucide';
-import { BrnProgress, BrnProgressIndicator } from '@spartan-ng/brain/progress';
 import { ClassValue } from 'clsx';
 
 import { FileUploadWithStatus, UploadState } from '@rabbithole/core';
 import { FormatBytesPipe, FormatRangeBytesPipe } from '@rabbithole/core';
-import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { hlm } from '@spartan-ng/helm/utils';
@@ -23,11 +21,8 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
   imports: [
     HlmSpinner,
     NgIcon,
-    HlmButton,
     HlmIcon,
     FormatBytesPipe,
-    BrnProgress,
-    BrnProgressIndicator,
     NgTemplateOutlet,
     FormatRangeBytesPipe,
     ...HlmTooltipImports,

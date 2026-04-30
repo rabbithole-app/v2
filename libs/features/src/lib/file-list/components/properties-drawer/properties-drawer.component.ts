@@ -16,9 +16,9 @@ import { BrnTabsImports } from '@spartan-ng/brain/tabs';
 import {
   EditPermissionFormComponent,
   EditPermissionFormTriggerDirective,
-  PermissionsService,
   PermissionsTableComponent,
 } from '@rabbithole/core';
+import { PermissionsService } from '@rabbithole/core/storage-runtime';
 import {
   GrantStoragePermission,
   RevokeStoragePermission,
@@ -28,10 +28,9 @@ import {
   RbthDrawerContentComponent,
   RbthDrawerHeaderComponent,
   RbthDrawerTitleDirective,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/drawer';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButton } from '@spartan-ng/helm/button';
-import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 
 import { isDirectory, isFile, NodeItem } from '../../types';
@@ -171,7 +170,6 @@ import { isDirectory, isFile, NodeItem } from '../../types';
     RbthDrawerTitleDirective,
     HlmBadge,
     HlmButton,
-    HlmIcon,
     HlmTabsImports,
     PermissionsTableComponent,
     EditPermissionFormComponent,

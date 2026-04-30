@@ -21,20 +21,22 @@ import {
   ICPAY_CONFIG_TOKEN,
   PRO_MONTHLY_PRICE_USD,
   SubscriptionService,
-  WalletBalancePaymentPanelComponent,
 } from '@rabbithole/core';
+import { WalletBalancePaymentPanelComponent } from '@rabbithole/core/wallet';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
   RbthDrawerHeaderComponent,
   RbthDrawerTitleDirective,
+} from '@rabbithole/ui/drawer';
+import {
   RbthFrameComponent,
   RbthFrameDescriptionDirective,
   RbthFrameHeaderDirective,
   RbthFramePanelDirective,
   RbthFrameTitleDirective,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/frame';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';

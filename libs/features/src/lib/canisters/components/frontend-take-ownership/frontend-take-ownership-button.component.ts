@@ -9,8 +9,8 @@ import {
 import { ClassValue } from 'clsx';
 import { toast } from 'ngx-sonner';
 
-import { injectAssetManager } from '@rabbithole/core';
 import { parseCanisterRejectError } from '@rabbithole/core';
+import { injectAssetManager } from '@rabbithole/core/storage-runtime';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
 import { hlm } from '@spartan-ng/helm/utils';

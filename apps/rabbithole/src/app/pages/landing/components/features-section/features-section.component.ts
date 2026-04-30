@@ -10,7 +10,8 @@ import {
   lucideShield,
 } from '@ng-icons/lucide';
 
-import { RbthBentoGridImports, RbthMagicCard } from '@rabbithole/ui';
+import { RbthBentoGridImports } from '@rabbithole/ui/bento-grid';
+import { RbthMagicCard } from '@rabbithole/ui/magic-card';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 

@@ -28,10 +28,10 @@ import { match, P } from 'ts-pattern';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
-  encodeStorageInitArgs,
   FileSystemAccessService,
   FormatBytesPipe,
 } from '@rabbithole/core';
+import { encodeStorageInitArgs } from '@rabbithole/core/storage-runtime';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -39,7 +39,7 @@ import {
   RbthDrawerHeaderComponent,
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/drawer';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCheckboxImports } from '@spartan-ng/helm/checkbox';
@@ -77,7 +77,6 @@ import { WasmInstallTriggerDirective } from './wasm-install-trigger.directive';
     RbthDrawerHeaderComponent,
     RbthDrawerSeparatorDirective,
     RbthDrawerTitleDirective,
-    WasmInstallTriggerDirective,
     NgIcon,
     HlmIcon,
     DecimalPipe,

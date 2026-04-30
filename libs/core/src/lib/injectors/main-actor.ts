@@ -5,7 +5,7 @@ import { createInjectionToken } from 'ngxtension/create-injection-token';
 import {
   RabbitholeActorService,
   rabbitholeIdlFactory,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/backend';
 
 import { MAIN_CANISTER_ID_TOKEN } from '../tokens';
 import { ExtractInjectionToken } from '../types';

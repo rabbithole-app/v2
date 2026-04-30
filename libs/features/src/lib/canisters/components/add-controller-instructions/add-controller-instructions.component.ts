@@ -10,7 +10,7 @@ import { lucideCircleAlert } from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
-import { TerminalComponent, TerminalSpanDirective } from '@rabbithole/ui';
+import { TerminalComponent, TerminalSpanDirective } from '@rabbithole/ui/terminal';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 

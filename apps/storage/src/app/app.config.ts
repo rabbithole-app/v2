@@ -7,7 +7,12 @@ import {
   Provider,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import {
+  PreloadAllModules,
+  provideRouter,
+  withComponentInputBinding,
+  withPreloading,
+} from '@angular/router';
 import { HttpAgentOptions } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
@@ -36,10 +41,10 @@ import {
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
   provideCoreWorker,
   SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
-} from '@rabbithole/core';
+} from '@rabbithole/core/app-runtime';
 
 import { appRoutes } from './app.routes';
-import { ConfigService } from './core/services';
+import { ConfigService } from './core/services/config.service';
 
 const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
 
@@ -77,7 +82,11 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
-    provideRouter(appRoutes, withComponentInputBinding()),
+    provideRouter(
+      appRoutes,
+      withComponentInputBinding(),
+      withPreloading(PreloadAllModules),
+    ),
     provideHttpClient(),
     provideAuthService(),
     provideAppInitializer(async () => {

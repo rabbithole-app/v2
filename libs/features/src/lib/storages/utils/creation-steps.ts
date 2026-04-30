@@ -4,7 +4,7 @@ import type {
   StorageCreationStatus,
   TokenId,
 } from '@rabbithole/core';
-import type { ProcessStep } from '@rabbithole/ui';
+import type { ProcessStep } from '@rabbithole/ui/process-steps';
 
 /**
  * Storage-creation wizard steps for `rbth-process-steps`. The ID order

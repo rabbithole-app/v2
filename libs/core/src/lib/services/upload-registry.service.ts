@@ -3,11 +3,13 @@ import { SignalMap } from 'ngxtension/collections';
 
 import {
   FileUploadWithStatus,
-  UploadId,
   UploadServiceState,
-  UploadState,
+} from '../types/upload';
+import {
+  UploadId,
   UploadStatus,
-} from '../types';
+} from '../types/worker';
+import { UploadState } from '../types/upload-state';
 
 const calculateOverallProgress = (files: FileUploadWithStatus[]) => {
   if (files.length === 0) return 0;

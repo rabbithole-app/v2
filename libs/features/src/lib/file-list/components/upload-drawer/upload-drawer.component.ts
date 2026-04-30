@@ -24,14 +24,14 @@ import {
   UploadDrawerListComponent,
   UploadRegistryService,
   UploadState,
-} from '@rabbithole/core';
+} from '@rabbithole/core/storage-runtime';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
   RbthDrawerHeaderComponent,
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
-} from '@rabbithole/ui';
+} from '@rabbithole/ui/drawer';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';

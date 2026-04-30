@@ -7,7 +7,7 @@ import {
 import { RouterLink } from '@angular/router';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { RbthRainbowButton } from '@rabbithole/ui';
+import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 
 @Component({

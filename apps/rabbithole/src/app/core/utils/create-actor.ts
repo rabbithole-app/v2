@@ -4,7 +4,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { from, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-import { IC_ROOT_KEY } from '@rabbithole/core';
+import { IC_ROOT_KEY } from '@rabbithole/core/app-runtime';
 
 export function createActor<T>({
   identity,

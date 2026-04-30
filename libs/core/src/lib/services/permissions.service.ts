@@ -11,7 +11,7 @@ import {
   StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 
-import { injectEncryptedStorage } from '../injectors';
+import { injectEncryptedStorage } from '../injectors/encrypted-storage';
 import { parseCanisterRejectError } from '../utils';
 
 type State = {

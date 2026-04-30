@@ -8,7 +8,7 @@ import {
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 
-import { RbthSidebarMenuButton } from '@rabbithole/ui';
+import { RbthSidebarMenuButton } from '@rabbithole/ui/sidebar';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import {
   HlmSidebarMenu,

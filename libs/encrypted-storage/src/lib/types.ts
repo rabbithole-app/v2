@@ -7,7 +7,7 @@ import {
   EncryptedStorageHttpPermission as PermissionRaw,
   StorageBackend,
   StoragePermission as StoragePermissionRaw,
-} from '@rabbithole/declarations';
+} from '@rabbithole/declarations/encrypted-storage';
 
 import { Readable } from './readable/readable';
 

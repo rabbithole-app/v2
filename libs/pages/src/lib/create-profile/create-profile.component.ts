@@ -12,8 +12,8 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLogOut } from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { AvatarEditorComponent } from '@rabbithole/core';
 import { ProfileService } from '@rabbithole/core';
+import { AvatarEditorComponent } from '@rabbithole/core/profile';
 import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmCard,

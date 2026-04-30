@@ -11,7 +11,7 @@ import {
   switchMap,
 } from 'rxjs';
 
-import type { StoredNotification } from '@rabbithole/declarations';
+import type { StoredNotification } from '@rabbithole/declarations/backend';
 
 import { injectMainActor } from '../injectors';
 import { parseCanisterRejectError } from '../utils';

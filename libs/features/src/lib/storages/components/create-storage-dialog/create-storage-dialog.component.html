@@ -125,22 +125,6 @@
 
         <!-- ═══ STEP 2: PAYMENT ═══ -->
         @case ('payment') {
-          <!-- Method 1: ICPay — temporarily hidden while the integration is
-               being polished. Wallet-balance payment below covers the full
-               purchase flow reliably, so we ship with that only for now. -->
-          @if (false) {
-            <rbth-frame>
-              <header rbthFrameHeader>
-                <div rbthFrameTitle>Pay with crypto</div>
-                <div rbthFrameDescription>Use any wallet via ICPay widget.</div>
-              </header>
-              <div rbthFramePanel>
-                <icpay-pay-button #icpayPayBtn></icpay-pay-button>
-              </div>
-            </rbth-frame>
-          }
-
-          <!-- Method 2: From balance -->
           <core-wallet-balance-panel
             [requiredUsd]="LICENSE_PRICE_USD"
           />

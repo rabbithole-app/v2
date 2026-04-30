@@ -2,10 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  CUSTOM_ELEMENTS_SCHEMA,
   DestroyRef,
   effect,
-  ElementRef,
   inject,
   signal,
   untracked,
@@ -13,7 +11,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import '@ic-pay/icpay-widget';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowLeft,
@@ -35,24 +32,15 @@ import { toast } from 'ngx-sonner';
 import {
   CopyToClipboardComponent,
   formatUsd,
-  ICPAY_CONFIG_TOKEN,
   injectMainActor,
   LICENSE_PRICE_USD,
   parseCanisterRejectError,
-  type StorageBackendType,
   StoragesService,
-  WalletBalancePanelComponent,
 } from '@rabbithole/core';
-import { AUTH_SERVICE } from '@rabbithole/auth';
-import type { StorageBackendType as CandidStorageBackendType } from '@rabbithole/declarations';
-import {
-  ProcessStepListComponent,
-  RbthFrameComponent,
-  RbthFrameDescriptionDirective,
-  RbthFrameHeaderDirective,
-  RbthFramePanelDirective,
-  RbthFrameTitleDirective,
-} from '@rabbithole/ui';
+import { type StorageBackendType } from '@rabbithole/core/storage-runtime';
+import { WalletBalancePanelComponent } from '@rabbithole/core/wallet';
+import type { StorageBackendType as CandidStorageBackendType } from '@rabbithole/declarations/backend';
+import { ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import {
@@ -89,11 +77,6 @@ type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
     CopyToClipboardComponent,
     ProcessStepListComponent,
     WalletBalancePanelComponent,
-    RbthFrameComponent,
-    RbthFrameDescriptionDirective,
-    RbthFrameHeaderDirective,
-    RbthFramePanelDirective,
-    RbthFrameTitleDirective,
   ],
   providers: [
     provideIcons({
@@ -111,7 +94,6 @@ type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
       lucideShieldCheck,
     }),
   ],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './create-storage-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -208,37 +190,14 @@ export class CreateStorageDialogComponent {
   // SERVICES
   // ═══════════════════════════════════════════════════════════════
 
-  readonly icpayPayBtn = viewChild<ElementRef<HTMLElement>>('icpayPayBtn');
   readonly balancePaymentPanel = viewChild(WalletBalancePanelComponent);
 
   readonly #actor = injectMainActor();
-  readonly #authService = inject(AUTH_SERVICE);
   readonly #destroyRef = inject(DestroyRef);
-  readonly #icpayConfig = inject(ICPAY_CONFIG_TOKEN);
   readonly #router = inject(Router);
   readonly #dialogRef = inject(BrnDialogRef);
 
   constructor() {
-    // Configure ICPay widget reactively when the element appears
-    effect(() => {
-      const btn = this.icpayPayBtn()?.nativeElement;
-      if (!btn) return;
-
-      const vetKeyName = this.vetKeyLevel() === 'standard' ? 'test_key_1' : 'key_1';
-      (btn as unknown as { config: unknown }).config = {
-        ...this.#icpayConfig,
-        amountUsd: LICENSE_PRICE_USD,
-        buttonLabel: `Pay ${formatUsd(LICENSE_PRICE_USD)} with crypto`,
-        metadata: {
-          purpose: 'license',
-          storageBackendType: this.storageBackend(),
-          vetKeyName,
-          userId: this.#authService.principalId(),
-        },
-        onSuccess: () => this.#onIcpaySuccess(),
-      };
-    });
-
     effect(() => {
       const status = this.creationStatus();
       const currentStep = untracked(() => this.step());
@@ -361,13 +320,6 @@ export class CreateStorageDialogComponent {
   // ═══════════════════════════════════════════════════════════════
   // PRIVATE
   // ═══════════════════════════════════════════════════════════════
-
-  async #onIcpaySuccess(): Promise<void> {
-    this.#step.set('creating');
-    // ICPay route doesn't hand us the creationId — fall back to scanning
-    // the storages list; the first in-progress record is treated as ours.
-    await this.#pollForStorageCreation();
-  }
 
   async #pollForStorageCreation(): Promise<void> {
     this.#step.set('creating');

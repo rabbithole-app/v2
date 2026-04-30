@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
-import { RbthAuthLayout, RbthAuthNavbar } from '@rabbithole/ui';
+import { RbthAuthLayout } from '@rabbithole/ui/auth-layout';
+import { RbthAuthNavbar } from '@rabbithole/ui/auth-navbar';
 
 @Component({
   selector: 'app-login-layout',

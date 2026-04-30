@@ -10,9 +10,9 @@
     </div>
 
     <!-- Username -->
-    <hlm-form-field>
-      <label hlmLabel for="username">Username</label>
-      @if (isEditMode()) {
+    @if (isEditMode()) {
+      <hlm-form-field>
+        <label hlmLabel for="username">Username</label>
         <input
           hlmInput
           id="username"
@@ -22,7 +22,10 @@
           class="bg-muted"
         />
         <hlm-hint>Username cannot be changed</hlm-hint>
-      } @else {
+      </hlm-form-field>
+    } @else {
+      <hlm-form-field>
+        <label hlmLabel for="username">Username</label>
         <input
           hlmInput
           id="username"
@@ -44,8 +47,8 @@
         ) {
           <hlm-hint>Choose a unique username</hlm-hint>
         }
-      }
-    </hlm-form-field>
+      </hlm-form-field>
+    }
 
     <!-- Display Name -->
     <hlm-form-field>

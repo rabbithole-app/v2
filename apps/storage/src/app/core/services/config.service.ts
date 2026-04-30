@@ -4,7 +4,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { catchError, map, of, retry } from 'rxjs';
 
 import { AuthConfig } from '@rabbithole/auth';
-import { canisterOrigin, canisterUrl } from '@rabbithole/core';
+import { canisterOrigin, canisterUrl } from '@rabbithole/core/app-runtime';
 
 import { environment } from '../../../environments/environment';
 import { DevStorageCanisterIdService } from './dev-storage-canister-id.service';

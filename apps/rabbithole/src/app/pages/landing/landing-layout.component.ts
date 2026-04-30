@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
-import { RbthAuthLayout } from '@rabbithole/ui';
+import { RbthAuthLayout } from '@rabbithole/ui/auth-layout';
 
 import { LandingNavbarComponent } from './components/landing-navbar/landing-navbar.component';
 

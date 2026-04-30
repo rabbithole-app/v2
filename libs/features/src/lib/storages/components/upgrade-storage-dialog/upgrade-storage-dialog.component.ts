@@ -41,7 +41,7 @@ import {
   HlmDialogTitle,
 } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { ProcessStepListComponent } from '@rabbithole/ui';
+import { ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 
 import {
   buildUpgradeCopy,
