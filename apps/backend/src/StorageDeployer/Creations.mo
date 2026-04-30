@@ -84,6 +84,26 @@ module {
     ("timestamp", #Int),
   ]);
 
+  let FrontendInstallDiagnosticsSchema : ZenDB.Types.Schema = #Record([
+    ("totalFiles", #Nat),
+    ("totalBytes", #Nat),
+    ("processedFiles", #Nat),
+    ("processedBytes", #Nat),
+    ("uploadedFiles", #Nat),
+    ("uploadedBytes", #Nat),
+    ("skippedFiles", #Nat),
+    ("skippedBytes", #Nat),
+    ("staleDeletedFiles", #Nat),
+    ("changedDeletedFiles", #Nat),
+    ("batchesTotal", #Nat),
+    ("batchesProcessed", #Nat),
+    ("stage", #Text),
+    ("startedAt", #Int),
+    ("updatedAt", #Int),
+    ("completedAt", #Option(#Int)),
+    ("error", #Option(#Text)),
+  ]);
+
   let EnvPairSchema : ZenDB.Types.Schema = #Record([
     ("name", #Text),
     ("value", #Text),
@@ -114,6 +134,7 @@ module {
     ("isUpgrade", #Bool),
     ("upgradeIncludesFrontend", #Bool),
     ("lastUpgradeError", #Option(#Text)),
+    ("frontendInstallDiagnostics", #Option(FrontendInstallDiagnosticsSchema)),
     ("events", #Array(StatusEventSchema)),
     ("ambassadorPayoutStatus", AmbassadorPayoutStatusSchema),
     ("ambassadorPayoutStatusTag", #Text),

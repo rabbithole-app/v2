@@ -53,6 +53,7 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { environment } from '../../../environments/environment';
 
 const DELEGATION_POPUP_CLOSE_DELAY_MS = 2000;
+const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
 
 @Component({
   selector: 'app-delegation',
@@ -179,6 +180,7 @@ export class DelegationComponent {
     const backendCanisterId = Principal.fromText(environment.backendCanisterId);
     return [
       backendCanisterId,
+      MANAGEMENT_CANISTER_ID,
       ...(storageCanisterId ? [storageCanisterId] : []),
     ];
   });

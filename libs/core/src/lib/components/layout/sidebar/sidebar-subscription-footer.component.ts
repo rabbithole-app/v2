@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -19,13 +20,17 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { BalanceService } from '../../../services/balance.service';
 import { SubscriptionService } from '../../../services/subscription.service';
-import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
+import {
+  BACKEND_FEATURES_ENABLED_TOKEN,
+  SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
+} from '../../../tokens';
 
 @Component({
   selector: 'rbth-sidebar-subscription-footer',
   imports: [
     ...HlmTooltipImports,
     HlmIcon,
+    NgTemplateOutlet,
     NgIcon,
     RouterLink,
   ],
@@ -39,18 +44,33 @@ import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
   ],
   template: `
     @if (backendFeaturesEnabled) {
-      <a
-        routerLink="/dashboard/subscription"
-        class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent transition-colors"
-        [hlmTooltip]="tooltipText()"
-        [tooltipDisabled]="tooltipDisabled()"
-        position="right"
-      >
+      @if (subscriptionLink; as link) {
+        <a
+          [routerLink]="link"
+          class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent transition-colors"
+          [hlmTooltip]="tooltipText()"
+          [tooltipDisabled]="tooltipDisabled()"
+          position="right"
+        >
+          <ng-container [ngTemplateOutlet]="content" />
+        </a>
+      } @else {
+        <div
+          class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+          [hlmTooltip]="tooltipText()"
+          [tooltipDisabled]="tooltipDisabled()"
+          position="right"
+        >
+          <ng-container [ngTemplateOutlet]="content" />
+        </div>
+      }
+
+      <ng-template #content>
         <ng-icon [name]="icon()" hlmIcon size="sm" [class]="iconClass()" />
         <span class="group-data-[collapsible=icon]:hidden truncate">
           {{ label() }}
         </span>
-      </a>
+      </ng-template>
     }
   `,
   host: { class: 'block' },
@@ -58,6 +78,7 @@ import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
 })
 export class SidebarSubscriptionFooterComponent {
   readonly backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
+  readonly subscriptionLink = inject(SIDEBAR_SUBSCRIPTION_LINK_TOKEN);
   #subscriptionService = inject(SubscriptionService);
   icon = computed(() => {
     if (this.#subscriptionService.isPro()) return 'lucideStar';

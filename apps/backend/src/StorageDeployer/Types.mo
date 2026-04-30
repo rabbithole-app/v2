@@ -296,6 +296,26 @@ module {
     timestamp : Time.Time;
   };
 
+  public type FrontendInstallDiagnostics = {
+    totalFiles : Nat;
+    totalBytes : Nat;
+    processedFiles : Nat;
+    processedBytes : Nat;
+    uploadedFiles : Nat;
+    uploadedBytes : Nat;
+    skippedFiles : Nat;
+    skippedBytes : Nat;
+    staleDeletedFiles : Nat;
+    changedDeletedFiles : Nat;
+    batchesTotal : Nat;
+    batchesProcessed : Nat;
+    stage : Text;
+    startedAt : Time.Time;
+    updatedAt : Time.Time;
+    completedAt : ?Time.Time;
+    error : ?Text;
+  };
+
   // -- Storage Creation Record --
 
   /// Record of a storage creation (for history/tracking).
@@ -321,6 +341,7 @@ module {
     isUpgrade : Bool;
     upgradeIncludesFrontend : Bool;
     lastUpgradeError : ?Text;
+    frontendInstallDiagnostics : ?FrontendInstallDiagnostics;
     events : [StatusEvent];
     /// Deferred ambassador payout status. Set to #pending when a license
     /// is attached, flips to #completed/#failed at #CanisterCreated when
@@ -421,6 +442,7 @@ module {
     completedAt : ?Time.Time;
     updateAvailable : ?UpdateInfo;
     lastUpgradeError : ?Text;
+    frontendInstallDiagnostics : ?FrontendInstallDiagnostics;
   };
 
   // -- Task Types --

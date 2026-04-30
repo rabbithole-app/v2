@@ -466,6 +466,25 @@ export const idlFactory = ({ IDL }) => {
     'status' : CreationStatus,
     'timestamp' : Time,
   });
+  const FrontendInstallDiagnostics = IDL.Record({
+    'totalFiles' : IDL.Nat,
+    'completedAt' : IDL.Opt(Time),
+    'startedAt' : Time,
+    'changedDeletedFiles' : IDL.Nat,
+    'batchesProcessed' : IDL.Nat,
+    'skippedBytes' : IDL.Nat,
+    'uploadedBytes' : IDL.Nat,
+    'error' : IDL.Opt(IDL.Text),
+    'updatedAt' : Time,
+    'stage' : IDL.Text,
+    'skippedFiles' : IDL.Nat,
+    'processedBytes' : IDL.Nat,
+    'uploadedFiles' : IDL.Nat,
+    'staleDeletedFiles' : IDL.Nat,
+    'totalBytes' : IDL.Nat,
+    'processedFiles' : IDL.Nat,
+    'batchesTotal' : IDL.Nat,
+  });
   const EnvPair = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
   const StorageCreationRecord = IDL.Record({
     'id' : IDL.Nat,
@@ -485,6 +504,7 @@ export const idlFactory = ({ IDL }) => {
     'events' : IDL.Vec(StatusEvent),
     'releaseTag' : IDL.Text,
     'frontendHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'frontendInstallDiagnostics' : IDL.Opt(FrontendInstallDiagnostics),
     'initArg' : IDL.Vec(IDL.Nat8),
     'envPairs' : IDL.Opt(IDL.Vec(EnvPair)),
     'installedReleaseTag' : IDL.Opt(IDL.Text),
@@ -594,6 +614,7 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Time,
     'lastUpgradeError' : IDL.Opt(IDL.Text),
     'releaseTag' : IDL.Text,
+    'frontendInstallDiagnostics' : IDL.Opt(FrontendInstallDiagnostics),
     'updateAvailable' : IDL.Opt(UpdateInfo),
     'canisterId' : IDL.Opt(IDL.Principal),
   });
@@ -850,6 +871,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_2],
         [],
       ),
+    'recoverStuckCreation' : IDL.Func([IDL.Nat], [Result_2], []),
     'refreshReleases' : IDL.Func([], [], []),
     'registerLatestWasmHash' : IDL.Func([], [], []),
     'renewSubscription' : IDL.Func(

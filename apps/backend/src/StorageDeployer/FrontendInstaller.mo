@@ -6,6 +6,7 @@ import Iter "mo:core/Iter";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import Error "mo:core/Error";
+import Time "mo:core/Time";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import Vector "mo:vector";
@@ -56,6 +57,26 @@ module FrontendInstaller {
     #Completed;
   };
 
+  public type DiagnosticsMutable = {
+    totalFiles : Nat;
+    totalBytes : Nat;
+    var processedFiles : Nat;
+    var processedBytes : Nat;
+    var uploadedFiles : Nat;
+    var uploadedBytes : Nat;
+    var skippedFiles : Nat;
+    var skippedBytes : Nat;
+    var staleDeletedFiles : Nat;
+    var changedDeletedFiles : Nat;
+    batchesTotal : Nat;
+    var batchesProcessed : Nat;
+    var stage : Text;
+    startedAt : Time.Time;
+    var updatedAt : Time.Time;
+    var completedAt : ?Time.Time;
+    var error : ?Text;
+  };
+
   /// Store for frontend installation state (passive - no timer)
   public type Store = {
     versions : Map.Map<Text, TarExtractor.Store>; // "storage-frontend@v0.1.0" → TarExtractor.Store
@@ -63,6 +84,7 @@ module FrontendInstaller {
     batches : Map.Map<Principal, Nat>; // canisterId → batchId
     operations : Map.Map<Principal, Vector.Vector<HttpAssetsTypes.BatchOperationKind>>; // canisterId → operations
     statuses : Map.Map<Principal, StatusMutable>; // canisterId → status
+    diagnostics : Map.Map<Principal, DiagnosticsMutable>; // canisterId → frontend install diagnostics
     /// Track which canisters are being upgraded (need old assets cleanup before commit)
     upgrading : Map.Map<Principal, Bool>; // canisterId → true if upgrade
     /// Existing asset hashes on canister (populated during upgrade in executeCreateBatch)
@@ -79,6 +101,7 @@ module FrontendInstaller {
       batches = Map.empty();
       operations = Map.empty();
       statuses = Map.empty();
+      diagnostics = Map.empty();
       upgrading = Map.empty();
       existingAssets = Map.empty();
       newFrontendKeys = Map.empty();
@@ -91,6 +114,7 @@ module FrontendInstaller {
     Map.clear(store.batches);
     Map.clear(store.operations);
     Map.clear(store.statuses);
+    Map.clear(store.diagnostics);
     Map.clear(store.upgrading);
     Map.clear(store.existingAssets);
     Map.clear(store.newFrontendKeys);
@@ -103,9 +127,54 @@ module FrontendInstaller {
     Map.remove(store.batches, Principal.compare, canisterId);
     Map.remove(store.operations, Principal.compare, canisterId);
     Map.remove(store.statuses, Principal.compare, canisterId);
+    Map.remove(store.diagnostics, Principal.compare, canisterId);
     Map.remove(store.upgrading, Principal.compare, canisterId);
     Map.remove(store.existingAssets, Principal.compare, canisterId);
     Map.remove(store.newFrontendKeys, Principal.compare, canisterId);
+  };
+
+  func snapshotDiagnostics(d : DiagnosticsMutable) : Types.FrontendInstallDiagnostics {
+    {
+      totalFiles = d.totalFiles;
+      totalBytes = d.totalBytes;
+      processedFiles = d.processedFiles;
+      processedBytes = d.processedBytes;
+      uploadedFiles = d.uploadedFiles;
+      uploadedBytes = d.uploadedBytes;
+      skippedFiles = d.skippedFiles;
+      skippedBytes = d.skippedBytes;
+      staleDeletedFiles = d.staleDeletedFiles;
+      changedDeletedFiles = d.changedDeletedFiles;
+      batchesTotal = d.batchesTotal;
+      batchesProcessed = d.batchesProcessed;
+      stage = d.stage;
+      startedAt = d.startedAt;
+      updatedAt = d.updatedAt;
+      completedAt = d.completedAt;
+      error = d.error;
+    };
+  };
+
+  func setStage(store : Store, canisterId : Principal, stage : Text) {
+    switch (Map.get(store.diagnostics, Principal.compare, canisterId)) {
+      case (?diagnostics) {
+        diagnostics.stage := stage;
+        diagnostics.updatedAt := Time.now();
+      };
+      case null {};
+    };
+  };
+
+  func failDiagnostics(store : Store, canisterId : Principal, message : Text) {
+    switch (Map.get(store.diagnostics, Principal.compare, canisterId)) {
+      case (?diagnostics) {
+        diagnostics.stage := "failed";
+        diagnostics.updatedAt := Time.now();
+        diagnostics.completedAt := ?diagnostics.updatedAt;
+        diagnostics.error := ?message;
+      };
+      case null {};
+    };
   };
 
   /// Add a new version for extraction
@@ -178,11 +247,13 @@ module FrontendInstaller {
 
     let tasks = Vector.new<Types.GeneratedTask>();
     var taskId = startId;
+    var uploadTasksCount = 0;
+    let totalBytes = assets.vals() |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
 
     // Create status FIRST
     let status : StatusMutable = #Uploading({
       var processed = 0;
-      total = assets.vals() |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
+      total = totalBytes;
       var processedFilesCount = 0;
       totalFilesCount = assets.size();
     });
@@ -231,6 +302,7 @@ module FrontendInstaller {
               },
             );
             taskId += 1;
+            uploadTasksCount += 1;
             Vector.clear(partition);
             collectedSize := 0;
           };
@@ -257,6 +329,7 @@ module FrontendInstaller {
         },
       );
       taskId += 1;
+      uploadTasksCount += 1;
     };
 
     // Final task: Commit batch
@@ -267,6 +340,32 @@ module FrontendInstaller {
         owner;
         taskType = #FrontendCommitBatch({ canisterId = targetCanisterId });
         var attempts = 0;
+      },
+    );
+
+    let now = Time.now();
+    ignore Map.insert(
+      store.diagnostics,
+      Principal.compare,
+      targetCanisterId,
+      {
+        totalFiles = assets.size();
+        totalBytes;
+        var processedFiles = 0;
+        var processedBytes = 0;
+        var uploadedFiles = 0;
+        var uploadedBytes = 0;
+        var skippedFiles = 0;
+        var skippedBytes = 0;
+        var staleDeletedFiles = 0;
+        var changedDeletedFiles = 0;
+        batchesTotal = uploadTasksCount;
+        var batchesProcessed = 0;
+        var stage = "queued";
+        startedAt = now;
+        var updatedAt = now;
+        var completedAt = null : ?Time.Time;
+        var error = null : ?Text;
       },
     );
 
@@ -286,6 +385,7 @@ module FrontendInstaller {
   /// For upgrades: also fetches existing asset list with hashes for diff-based upload.
   public func executeCreateBatch(store : Store, canisterId : Principal) : async Result.Result<Nat, Text> {
     let assetsCanister = actor (Principal.toText(canisterId)) : HttpAssetsTypes.AssetsInterface;
+    setStage(store, canisterId, "create_batch");
 
     try {
       let isUpgrading = switch (Map.get(store.upgrading, Principal.compare, canisterId)) {
@@ -320,6 +420,7 @@ module FrontendInstaller {
     } catch (error) {
       let errMsg = "Create batch failed: " # Error.message(error);
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errMsg));
+      failDiagnostics(store, canisterId, errMsg);
       #err(errMsg);
     };
   };
@@ -328,10 +429,12 @@ module FrontendInstaller {
   /// For upgrades: skips files whose sha256 matches the existing asset on canister.
   public func executeUploadChunks(store : Store, canisterId : Principal, files : [Types.File]) : async Result.Result<(), Text> {
     let ?batchId = Map.get(store.batches, Principal.compare, canisterId) else {
+      failDiagnostics(store, canisterId, "No batch found for canister");
       return #err("No batch found for canister");
     };
 
     let assetsCanister = actor (Principal.toText(canisterId)) : HttpAssetsTypes.AssetsInterface;
+    setStage(store, canisterId, "upload_chunks");
 
     // For upgrades: filter out unchanged files
     let existingHashes = Map.get(store.existingAssets, Principal.compare, canisterId);
@@ -365,36 +468,51 @@ module FrontendInstaller {
       ignore Map.insert(keysMap, Text.compare, file.key, ());
     };
 
-    // Update status even for skipped files (they count as processed)
-    let skippedSize = files.size() - filesToUpload.size();
-    if (skippedSize > 0) {
+    let skippedFiles = files.size() - filesToUpload.size();
+    let skippedBytes = files.vals()
+    |> Iter.filter(
+      _,
+      func(file : Types.File) : Bool {
+        switch (existingHashes) {
+          case (?hashes) {
+            switch (Map.get(hashes, Text.compare, file.key)) {
+              case (?existingHash) { Blob.equal(existingHash, file.sha256) };
+              case null false;
+            };
+          };
+          case null false;
+        };
+      },
+    )
+    |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
+    let uploadedBytes = filesToUpload.vals() |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
+
+    let markBatchProcessed = func() {
       switch (Map.get(store.statuses, Principal.compare, canisterId)) {
         case (?#Uploading(uploading)) {
-          let skippedBytes = files.vals()
-          |> Iter.filter(
-            _,
-            func(file : Types.File) : Bool {
-              switch (existingHashes) {
-                case (?hashes) {
-                  switch (Map.get(hashes, Text.compare, file.key)) {
-                    case (?existingHash) { Blob.equal(existingHash, file.sha256) };
-                    case null false;
-                  };
-                };
-                case null false;
-              };
-            },
-          )
-          |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
-          uploading.processed += skippedBytes;
-          uploading.processedFilesCount += skippedSize;
+          uploading.processed += skippedBytes + uploadedBytes;
+          uploading.processedFilesCount += files.size();
         };
         case _ {};
+      };
+      switch (Map.get(store.diagnostics, Principal.compare, canisterId)) {
+        case (?diagnostics) {
+          diagnostics.processedBytes += skippedBytes + uploadedBytes;
+          diagnostics.processedFiles += files.size();
+          diagnostics.uploadedBytes += uploadedBytes;
+          diagnostics.uploadedFiles += filesToUpload.size();
+          diagnostics.skippedBytes += skippedBytes;
+          diagnostics.skippedFiles += skippedFiles;
+          diagnostics.batchesProcessed += 1;
+          diagnostics.updatedAt := Time.now();
+        };
+        case null {};
       };
     };
 
     // If all files in this batch were skipped, return early
     if (filesToUpload.size() == 0) {
+      markBatchProcessed();
       return #ok(());
     };
 
@@ -404,14 +522,7 @@ module FrontendInstaller {
         content = filesToUpload.vals() |> Iter.map(_, func({ content }) = content) |> Iter.toArray(_);
       });
 
-      // Update status for uploaded files
-      switch (Map.get(store.statuses, Principal.compare, canisterId)) {
-        case (?#Uploading(uploading)) {
-          uploading.processed += filesToUpload.vals() |> Iter.foldLeft(_, 0, func(total, { size }) = total + size);
-          uploading.processedFilesCount += filesToUpload.size();
-        };
-        case _ {};
-      };
+      markBatchProcessed();
 
       // Accumulate operations for commit (only for uploaded files)
       let operations = Iter.zip(filesToUpload.vals(), chunk_ids.vals()) |> Iter.flatMap<(Types.File, Nat), HttpAssetsTypes.BatchOperationKind>(
@@ -453,6 +564,7 @@ module FrontendInstaller {
     } catch (error) {
       let errMsg = "Upload chunks failed: " # Error.message(error);
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errMsg));
+      failDiagnostics(store, canisterId, errMsg);
       #err(errMsg);
     };
   };
@@ -463,6 +575,7 @@ module FrontendInstaller {
   /// minimizes downtime (both operations in one queue step).
   public func executeCommitBatch(store : Store, canisterId : Principal) : async Result.Result<(), Text> {
     let ?batchId = Map.get(store.batches, Principal.compare, canisterId) else {
+      failDiagnostics(store, canisterId, "No batch found for canister");
       return #err("No batch found for canister");
     };
 
@@ -476,7 +589,10 @@ module FrontendInstaller {
     // For fresh install: operations are required
     if (not isUpgrading) {
       switch (operations) {
-        case null { return #err("No operations found for canister") };
+        case null {
+          failDiagnostics(store, canisterId, "No operations found for canister");
+          return #err("No operations found for canister");
+        };
         case _ {};
       };
     };
@@ -484,6 +600,7 @@ module FrontendInstaller {
     let assetsCanister = actor (Principal.toText(canisterId)) : HttpAssetsTypes.AssetsInterface;
 
     ignore Map.insert(store.statuses, Principal.compare, canisterId, #Committing);
+    setStage(store, canisterId, "commit_batch");
 
     try {
       if (isUpgrading) {
@@ -514,6 +631,7 @@ module FrontendInstaller {
         // Stale = exist on canister but not in new frontend → delete to free space.
         // Changed = exist on canister with different hash → delete before #CreateAsset.
         // Unchanged files are left untouched (not in operations, not deleted).
+        setStage(store, canisterId, "delete_assets");
         switch (Map.get(store.existingAssets, Principal.compare, canisterId)) {
           case (?existingHashes) {
             for ((key, _) in Map.entries(existingHashes)) {
@@ -521,6 +639,17 @@ module FrontendInstaller {
               let isChanged = Map.containsKey(changedKeys, Text.compare, key);
               if (not isUserAsset(key) and (isStale or isChanged)) {
                 await assetsCanister.delete_asset({ key });
+                switch (Map.get(store.diagnostics, Principal.compare, canisterId)) {
+                  case (?diagnostics) {
+                    if (isStale) {
+                      diagnostics.staleDeletedFiles += 1;
+                    } else if (isChanged) {
+                      diagnostics.changedDeletedFiles += 1;
+                    };
+                    diagnostics.updatedAt := Time.now();
+                  };
+                  case null {};
+                };
               };
             };
           };
@@ -528,6 +657,7 @@ module FrontendInstaller {
         };
 
         // 2. Install new/changed frontend assets (skip if no changes)
+        setStage(store, canisterId, "commit_batch");
         switch (operations) {
           case (?ops) {
             if (Vector.size(ops) > 0) {
@@ -542,6 +672,7 @@ module FrontendInstaller {
       } else {
         // Fresh install: commit as-is
         let ?ops = operations else {
+          failDiagnostics(store, canisterId, "No operations found for canister");
           return #err("No operations found for canister");
         };
         await assetsCanister.commit_batch({
@@ -551,6 +682,14 @@ module FrontendInstaller {
       };
 
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Completed);
+      switch (Map.get(store.diagnostics, Principal.compare, canisterId)) {
+        case (?diagnostics) {
+          diagnostics.stage := "completed";
+          diagnostics.updatedAt := Time.now();
+          diagnostics.completedAt := ?diagnostics.updatedAt;
+        };
+        case null {};
+      };
 
       // Cleanup
       Map.remove(store.operations, Principal.compare, canisterId);
@@ -563,6 +702,7 @@ module FrontendInstaller {
     } catch (error) {
       let errMsg = "Commit batch failed: " # Error.message(error);
       ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(errMsg));
+      failDiagnostics(store, canisterId, errMsg);
       #err(errMsg);
     };
   };
@@ -588,14 +728,23 @@ module FrontendInstaller {
     };
   };
 
+  public func getDiagnostics(store : Store, canisterId : Principal) : ?Types.FrontendInstallDiagnostics {
+    switch (Map.get(store.diagnostics, Principal.compare, canisterId)) {
+      case (?diagnostics) ?snapshotDiagnostics(diagnostics);
+      case null null;
+    };
+  };
+
   /// Mark installation as failed
   public func setFailed(store : Store, canisterId : Principal, error : Text) : () {
     ignore Map.insert(store.statuses, Principal.compare, canisterId, #Failed(error));
+    failDiagnostics(store, canisterId, error);
   };
 
   /// Clear status for a canister
   public func clearStatus(store : Store, canisterId : Principal) : () {
     Map.remove(store.statuses, Principal.compare, canisterId);
+    Map.remove(store.diagnostics, Principal.compare, canisterId);
     Map.remove(store.operations, Principal.compare, canisterId);
     Map.remove(store.batches, Principal.compare, canisterId);
     Map.remove(store.upgrading, Principal.compare, canisterId);

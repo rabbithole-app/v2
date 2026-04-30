@@ -14,6 +14,7 @@ import {
   Ed25519KeyIdentity,
   isDelegationValid,
   JsonnableDelegationChain,
+  JsonnableEd25519KeyIdentity,
 } from '@icp-sdk/core/identity';
 import { Principal } from '@icp-sdk/core/principal';
 import { bytesToHex } from '@noble/hashes/utils';
@@ -72,8 +73,18 @@ function isDelegationTargetedTo(
   );
 }
 
+function isJsonnableEd25519Identity(
+  value: unknown,
+): value is JsonnableEd25519KeyIdentity {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((part) => typeof part === 'string')
+  );
+}
+
 async function loadDelegationChain(
-  target?: Principal,
+  targets: Principal[] = [],
 ): Promise<DelegationChain | null> {
   const db = new IdbStorage();
   const delegationChainJson = await db.get<JsonnableDelegationChain>(
@@ -86,10 +97,14 @@ async function loadDelegationChain(
 
   const delegationChain = DelegationChain.fromJSON(delegationChainJson);
 
-  const isValid = target
-    ? isDelegationValid(delegationChain, { scope: target }) &&
-      isDelegationTargetedTo(delegationChain, target)
-    : isDelegationValid(delegationChain);
+  const isValid =
+    targets.length > 0
+      ? targets.every(
+          (target) =>
+            isDelegationValid(delegationChain, { scope: target }) &&
+            isDelegationTargetedTo(delegationChain, target),
+        )
+      : isDelegationValid(delegationChain);
 
   if (!isValid) {
     await db.remove(KEY_STORAGE_DELEGATION);
@@ -101,11 +116,9 @@ async function loadDelegationChain(
 
 async function loadIdentity() {
   const db = new IdbStorage();
-  const identityJson = await db.get<string>(KEY_STORAGE_KEY);
+  const storedIdentity = await db.get<unknown>(KEY_STORAGE_KEY);
 
-  return identityJson
-    ? Ed25519KeyIdentity.fromParsedJson(JSON.parse(identityJson))
-    : null;
+  return parseStoredEd25519Identity(storedIdentity);
 }
 
 async function loadOrCreateIdentity(): Promise<Ed25519KeyIdentity> {
@@ -116,6 +129,25 @@ async function loadOrCreateIdentity(): Promise<Ed25519KeyIdentity> {
   const db = new IdbStorage();
   await db.set(KEY_STORAGE_KEY, JSON.stringify(identity.toJSON()));
   return identity;
+}
+
+function parseStoredEd25519Identity(
+  storedIdentity: unknown,
+): Ed25519KeyIdentity | null {
+  if (!storedIdentity) return null;
+
+  try {
+    const parsed =
+      typeof storedIdentity === 'string'
+        ? JSON.parse(storedIdentity)
+        : storedIdentity;
+
+    return isJsonnableEd25519Identity(parsed)
+      ? Ed25519KeyIdentity.fromParsedJson(parsed)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 async function saveDelegationChain(delegationChain: DelegationChain) {
@@ -159,8 +191,7 @@ export class DelegationAuthService implements IAuthService {
     );
     url.searchParams.set('sessionPublicKey', publicKey);
 
-    // Add target canister ID if provided in options
-    const target = options?.target ?? this.#authConfig.delegationTarget;
+    const target = this.#authConfig.delegationTargets?.[0];
     if (target) {
       url.searchParams.set('target', target.toText());
     }
@@ -216,7 +247,7 @@ export class DelegationAuthService implements IAuthService {
 
     // Try to load saved delegation
     const savedDelegationChain = await loadDelegationChain(
-      this.#authConfig.delegationTarget,
+      this.#requiredDelegationTargets(),
     );
     let finalIdentity = identity;
     let finalIsAuthenticated = isAuthenticated;
@@ -261,14 +292,14 @@ export class DelegationAuthService implements IAuthService {
       delegationChain,
     );
 
-    const target = this.#authConfig.delegationTarget;
-    if (
-      target &&
-      (!isDelegationValid(delegationChain, { scope: target }) ||
-        !isDelegationTargetedTo(delegationChain, target))
-    ) {
+    const invalidTarget = this.#requiredDelegationTargets().find(
+      (target) =>
+        !isDelegationValid(delegationChain, { scope: target }) ||
+        !isDelegationTargetedTo(delegationChain, target),
+    );
+    if (invalidTarget) {
       throw new Error(
-        `Delegation is not valid for storage canister ${target.toText()}`,
+        `Delegation is not valid for canister ${invalidTarget.toText()}`,
       );
     }
 
@@ -280,6 +311,10 @@ export class DelegationAuthService implements IAuthService {
       identity: internetIdentity,
       isAuthenticated: true,
     }));
+  }
+
+  #requiredDelegationTargets() {
+    return this.#authConfig.delegationTargets ?? [];
   }
 
   #setupPostMessageListener() {

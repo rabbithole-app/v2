@@ -6,6 +6,7 @@ import {
   Ed25519KeyIdentity,
   isDelegationValid,
   type JsonnableDelegationChain,
+  type JsonnableEd25519KeyIdentity,
 } from '@icp-sdk/core/identity';
 import { isNullish } from 'remeda';
 
@@ -45,15 +46,39 @@ export const loadIdentity = async (): Promise<Identity | null> => {
     return null;
   }
 
-  const identityJson = await db.get<string>(KEY_STORAGE_KEY);
+  const storedIdentity = await db.get<unknown>(KEY_STORAGE_KEY);
 
-  if (!identityJson) {
-    return null;
-  }
-
-  const localIdentity = Ed25519KeyIdentity.fromParsedJson(
-    JSON.parse(identityJson),
-  );
+  const localIdentity = parseStoredEd25519Identity(storedIdentity);
+  if (!localIdentity) return null;
 
   return DelegationIdentity.fromDelegation(localIdentity, delegationChain);
 };
+
+function isJsonnableEd25519Identity(
+  value: unknown,
+): value is JsonnableEd25519KeyIdentity {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    value.every((part) => typeof part === 'string')
+  );
+}
+
+function parseStoredEd25519Identity(
+  storedIdentity: unknown,
+): Ed25519KeyIdentity | null {
+  if (!storedIdentity) return null;
+
+  try {
+    const parsed =
+      typeof storedIdentity === 'string'
+        ? JSON.parse(storedIdentity)
+        : storedIdentity;
+
+    return isJsonnableEd25519Identity(parsed)
+      ? Ed25519KeyIdentity.fromParsedJson(parsed)
+      : null;
+  } catch {
+    return null;
+  }
+}

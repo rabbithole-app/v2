@@ -30,6 +30,7 @@ export type {
   CreationStatus,
   PaymentPhase,
   StatusEvent,
+  FrontendInstallDiagnostics,
   StorageInfo,
   UpdateInfo,
   UpgradeStorageError,

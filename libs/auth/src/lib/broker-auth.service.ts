@@ -7,7 +7,6 @@ import {
   SignedAttributes,
 } from '@icp-sdk/auth/client';
 import { AnonymousIdentity, Identity } from '@icp-sdk/core/agent';
-import { Principal } from '@icp-sdk/core/principal';
 import { map } from 'rxjs';
 
 import { assertClient } from './asserts';
@@ -64,7 +63,7 @@ export class BrokerAuthService {
     const client = this.#createClient(this.#authConfig, options);
     this.#state.update((state) => ({ ...state, client }));
 
-    await client.signIn(getSignInOptions(this.#authConfig.loginOptions, options.target));
+    await client.signIn(getSignInOptions(this.#authConfig.loginOptions));
     await this.#refreshState(client, {
       hasAttributes:
         options.openIdProvider != null ||
@@ -137,7 +136,6 @@ function getCreateOptions(
 
 function getSignInOptions(
   options: (AuthClientCreateOptions & AuthClientSignInOptions) | undefined,
-  target: Principal | undefined,
 ): AuthClientSignInOptions {
   const signInOptions: AuthClientSignInOptions = {};
 
@@ -145,9 +143,10 @@ function getSignInOptions(
     signInOptions.maxTimeToLive = options.maxTimeToLive;
   }
 
-  const targets = [...(options?.targets ?? []), ...(target ? [target] : [])];
-  if (targets.length > 0) {
-    const unique = new Map(targets.map((principal) => [principal.toText(), principal]));
+  if (options?.targets && options.targets.length > 0) {
+    const unique = new Map(
+      options.targets.map((principal) => [principal.toText(), principal]),
+    );
     signInOptions.targets = [...unique.values()];
   }
 

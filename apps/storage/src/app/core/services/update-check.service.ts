@@ -20,6 +20,9 @@ import {
   injectMainActor,
   MAIN_CANISTER_ID_TOKEN,
   parseCanisterRejectError,
+  convertStorageInfoList,
+  getStorageCanisterId,
+  type StorageInfo,
 } from '@rabbithole/core';
 import { AssetManager } from '@rabbithole/encrypted-storage';
 
@@ -128,7 +131,9 @@ export class UpdateCheckService {
         throw new Error(errorKey);
       }
 
-      // Step 4: Poll until update is no longer available
+      // Step 4: Poll the actual storage record until the backend finishes.
+      // checkStorageUpdate() returns null for non-Completed statuses, so it
+      // cannot distinguish "done" from "currently upgrading".
       await this.#pollUntilComplete(canisterId);
 
       this.#upgradeStep.set('completed');
@@ -149,15 +154,26 @@ export class UpdateCheckService {
     return firstValueFrom(
       timer(POLL_INTERVAL_MS, POLL_INTERVAL_MS).pipe(
         exhaustMap(() =>
-          from(actor.checkStorageUpdate(canisterId)).pipe(
+          from(actor.listStorages()).pipe(
+            map((records) => findStorageByCanisterId(convertStorageInfoList(records), canisterId)),
             catchError(() => EMPTY), // Backend may be temporarily unavailable during upgrade
           ),
         ),
-        first(result => {
-          const info = fromNullable(result);
-          return !info || (!info.wasmUpdateAvailable && !info.frontendUpdateAvailable);
+        first((storage): storage is StorageInfo => {
+          if (!storage) return false;
+          return storage.status.type === 'Completed' || storage.status.type === 'Failed';
         }),
-        map(() => undefined),
+        map((storage) => {
+          if (storage.status.type === 'Failed') {
+            throw new Error(storage.status.message);
+          }
+          if (storage.updateAvailable) {
+            throw new Error(
+              storage.lastUpgradeError ??
+                'Upgrade did not complete. Check your storage status in Rabbithole.',
+            );
+          }
+        }),
         timeout({
           each: POLL_TIMEOUT_MS,
           with: () => throwError(() => new Error('Upgrade timed out. Check your storage status in Rabbithole.')),
@@ -165,4 +181,14 @@ export class UpdateCheckService {
       ),
     );
   }
+}
+
+function findStorageByCanisterId(
+  storages: StorageInfo[],
+  canisterId: Principal,
+): StorageInfo | undefined {
+  const expected = canisterId.toText();
+  return storages.find(
+    (storage) => getStorageCanisterId(storage)?.toText() === expected,
+  );
 }

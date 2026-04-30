@@ -21,7 +21,6 @@ import {
   AuthOpenIdProviderConfig,
   AuthSignInOptions,
 } from '@rabbithole/auth';
-import { ENCRYPTED_STORAGE_CANISTER_ID } from '@rabbithole/core';
 import { RbthRainbowButton } from '@rabbithole/ui';
 
 @Component({
@@ -104,10 +103,6 @@ export class LoginComponent {
       ? 'Authenticate with Internet Identity, passkeys, or a trusted OpenID provider.'
       : 'Authenticate with Internet Identity and passkeys.';
   #router = inject(Router);
-  #storageCanisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
-    optional: true,
-  });
-
   constructor() {
     effect(() => {
       if (!this.isDelegation() && this.authService.isAuthenticated()) {
@@ -119,20 +114,18 @@ export class LoginComponent {
   }
 
   signIn() {
-    this.authService.signIn(
-      this.#storageCanisterId ? { target: this.#storageCanisterId } : undefined,
-    );
+    this.authService.signIn();
   }
 
   signInWithOpenId(provider: AuthOpenIdProviderConfig) {
     const options: AuthSignInOptions = provider.issuer
-      ? { openIdIssuer: provider.issuer, ...(provider.ssoDomain ? { ssoDomain: provider.ssoDomain } : {}) }
+      ? {
+          openIdIssuer: provider.issuer,
+          ...(provider.ssoDomain ? { ssoDomain: provider.ssoDomain } : {}),
+        }
       : { openIdProvider: openIdProviderId(provider) };
 
-    this.authService.signIn({
-      ...options,
-      ...(this.#storageCanisterId ? { target: this.#storageCanisterId } : {}),
-    });
+    this.authService.signIn(options);
   }
 }
 

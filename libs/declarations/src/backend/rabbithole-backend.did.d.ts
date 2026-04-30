@@ -133,6 +133,25 @@ export interface FileMetadata {
   'contentType' : string,
   'size' : bigint,
 }
+export interface FrontendInstallDiagnostics {
+  'totalFiles' : bigint,
+  'completedAt' : [] | [Time],
+  'startedAt' : Time,
+  'changedDeletedFiles' : bigint,
+  'batchesProcessed' : bigint,
+  'skippedBytes' : bigint,
+  'uploadedBytes' : bigint,
+  'error' : [] | [string],
+  'updatedAt' : Time,
+  'stage' : string,
+  'skippedFiles' : bigint,
+  'processedBytes' : bigint,
+  'uploadedFiles' : bigint,
+  'staleDeletedFiles' : bigint,
+  'totalBytes' : bigint,
+  'processedFiles' : bigint,
+  'batchesTotal' : bigint,
+}
 export interface GetCreationsResponse {
   'total' : [] | [bigint],
   'data' : Array<StorageCreationRecord>,
@@ -365,12 +384,6 @@ export interface Rabbithole {
     }
   >,
   'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
-  /**
-   * / Transfer ICP from the treasury subaccount to CMC for a target
-   * / canister. Caller must ensure sufficient balance via
-   * / `guardTreasuryIcpReserve`. CMC `#Refunded` returns ICP to the
-   * / same subaccount, keeping the round-trip inside treasury.
-   */
   'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
@@ -468,6 +481,12 @@ export interface Rabbithole {
    * / "another refund or resume is in progress".
    */
   'recoverFailedStorage' : ActorMethod<[bigint, RecoveryStrategy], Result_2>,
+  /**
+   * / Admin-only recovery for non-terminal creations that lost their transient
+   * / queue/timer state. Upgrades are reverted to Completed; initial creations
+   * / become Failed and can then use the regular recoverFailedStorage flow.
+   */
+  'recoverStuckCreation' : ActorMethod<[bigint], Result_2>,
   'refreshReleases' : ActorMethod<[], undefined>,
   /**
    * / Register the latest downloaded WASM hash as known.
@@ -615,6 +634,7 @@ export interface StorageCreationRecord {
   'events' : Array<StatusEvent>,
   'releaseTag' : string,
   'frontendHash' : [] | [Uint8Array],
+  'frontendInstallDiagnostics' : [] | [FrontendInstallDiagnostics],
   'initArg' : Uint8Array,
   'envPairs' : [] | [Array<EnvPair>],
   'installedReleaseTag' : [] | [string],
@@ -627,6 +647,7 @@ export interface StorageInfo {
   'createdAt' : Time,
   'lastUpgradeError' : [] | [string],
   'releaseTag' : string,
+  'frontendInstallDiagnostics' : [] | [FrontendInstallDiagnostics],
   'updateAvailable' : [] | [UpdateInfo],
   'canisterId' : [] | [Principal],
 }

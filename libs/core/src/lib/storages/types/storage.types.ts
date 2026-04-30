@@ -89,6 +89,7 @@ export interface StorageInfo {
   canisterId?: Principal;
   completedAt?: Date;
   createdAt: Date;
+  frontendInstallDiagnostics?: FrontendInstallDiagnostics;
   /** Unique ID of the storage creation process */
   id: bigint;
   /** Last upgrade error message (preserved after revert to Completed) */
@@ -96,6 +97,26 @@ export interface StorageInfo {
   releaseTag: string;
   status: StorageCreationStatus;
   updateAvailable?: UpdateInfo;
+}
+
+export interface FrontendInstallDiagnostics {
+  batchesProcessed: bigint;
+  batchesTotal: bigint;
+  changedDeletedFiles: bigint;
+  completedAt?: Date;
+  error?: string;
+  processedBytes: bigint;
+  processedFiles: bigint;
+  skippedBytes: bigint;
+  skippedFiles: bigint;
+  stage: string;
+  staleDeletedFiles: bigint;
+  startedAt: Date;
+  totalBytes: bigint;
+  totalFiles: bigint;
+  updatedAt: Date;
+  uploadedBytes: bigint;
+  uploadedFiles: bigint;
 }
 
 // ═══════════════════════════════════════════════════════════════

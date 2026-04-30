@@ -141,6 +141,14 @@ export default createConfig(
   {
     staging: {
       options: {
+        optimization: {
+          scripts: true,
+          styles: {
+            minify: true,
+            inlineCritical: false,
+          },
+          fonts: false,
+        },
         outputHashing: 'all',
         sourceMap: true,
         devServer: {},
@@ -155,6 +163,14 @@ export default createConfig(
 
     production: {
       options: {
+        optimization: {
+          scripts: true,
+          styles: {
+            minify: true,
+            inlineCritical: false,
+          },
+          fonts: false,
+        },
         budgets: [
           {
             type: 'initial',

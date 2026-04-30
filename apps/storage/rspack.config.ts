@@ -122,6 +122,14 @@ export default createConfig(
   {
     production: {
       options: {
+        optimization: {
+          scripts: true,
+          styles: {
+            minify: true,
+            inlineCritical: false,
+          },
+          fonts: false,
+        },
         budgets: [
           {
             type: 'initial',

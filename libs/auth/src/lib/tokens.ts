@@ -19,7 +19,7 @@ export type AuthClientLogoutOptions = Parameters<
 export type AuthConfig = {
   appUrl: string;
   delegationPath: string;
-  delegationTarget?: Principal;
+  delegationTargets?: Principal[];
   identitySignerCanisterId?: string;
   loginOptions?: AuthClientCreateOptions & AuthClientSignInOptions;
   openIdProviders?: (AuthOpenIdProviderConfig | OpenIdProvider)[];
@@ -48,7 +48,6 @@ export type AuthSignInOptions = {
   openIdIssuer?: string;
   openIdProvider?: OpenIdProvider;
   ssoDomain?: string;
-  target?: Principal;
 };
 
 export interface IAuthService {

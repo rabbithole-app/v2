@@ -4,6 +4,7 @@ import { match, P } from 'ts-pattern';
 
 import type {
   CreationStatus,
+  FrontendInstallDiagnostics as FrontendInstallDiagnosticsCandid,
   PaymentPhase as PaymentPhaseCandid,
   Progress as ProgressCandid,
   StorageInfo as StorageInfoCandid,
@@ -13,6 +14,7 @@ import type {
 import { timeInNanosToDate } from '../../utils/time';
 import type {
   PaymentPhase,
+  FrontendInstallDiagnostics,
   Progress,
   StorageCreationStatus,
   StorageInfo,
@@ -94,6 +96,7 @@ export function convertStorageInfo(
   const canisterId = fromNullable(record.canisterId);
   const completedAt = fromNullable(record.completedAt);
   const updateInfo = fromNullable(record.updateAvailable);
+  const frontendInstallDiagnostics = fromNullable(record.frontendInstallDiagnostics);
 
   return {
     id: record.id,
@@ -102,6 +105,9 @@ export function convertStorageInfo(
     releaseTag: record.releaseTag,
     createdAt: timeInNanosToDate(record.createdAt),
     completedAt: completedAt ? timeInNanosToDate(completedAt) : undefined,
+    frontendInstallDiagnostics: frontendInstallDiagnostics
+      ? convertFrontendInstallDiagnostics(frontendInstallDiagnostics)
+      : undefined,
     updateAvailable: updateInfo ? convertUpdateInfo(updateInfo) : undefined,
     lastUpgradeError: fromNullable(record.lastUpgradeError),
   };
@@ -172,6 +178,31 @@ function convertProgress(progress: ProgressCandid): Progress {
   return {
     processed: Number(progress.processed),
     total: Number(progress.total),
+  };
+}
+
+function convertFrontendInstallDiagnostics(
+  diagnostics: FrontendInstallDiagnosticsCandid,
+): FrontendInstallDiagnostics {
+  const completedAt = fromNullable(diagnostics.completedAt);
+  return {
+    batchesProcessed: diagnostics.batchesProcessed,
+    batchesTotal: diagnostics.batchesTotal,
+    changedDeletedFiles: diagnostics.changedDeletedFiles,
+    completedAt: completedAt ? timeInNanosToDate(completedAt) : undefined,
+    error: fromNullable(diagnostics.error),
+    processedBytes: diagnostics.processedBytes,
+    processedFiles: diagnostics.processedFiles,
+    skippedBytes: diagnostics.skippedBytes,
+    skippedFiles: diagnostics.skippedFiles,
+    stage: diagnostics.stage,
+    staleDeletedFiles: diagnostics.staleDeletedFiles,
+    startedAt: timeInNanosToDate(diagnostics.startedAt),
+    totalBytes: diagnostics.totalBytes,
+    totalFiles: diagnostics.totalFiles,
+    updatedAt: timeInNanosToDate(diagnostics.updatedAt),
+    uploadedBytes: diagnostics.uploadedBytes,
+    uploadedFiles: diagnostics.uploadedFiles,
   };
 }
 

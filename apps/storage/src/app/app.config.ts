@@ -21,6 +21,7 @@ import {
 } from '@rabbithole/auth';
 import {
   APP_NAME_TOKEN,
+  ACCOUNT_MENU_BACKEND_LINKS_ENABLED_TOKEN,
   AUTH_MAX_TIME_TO_LIVE,
   BACKEND_FEATURES_ENABLED_TOKEN,
   canisterOrigin,
@@ -34,10 +35,13 @@ import {
   MAIN_CANISTER_ID_TOKEN,
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
   provideCoreWorker,
+  SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
 } from '@rabbithole/core';
 
 import { appRoutes } from './app.routes';
 import { ConfigService } from './core/services';
+
+const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
 
 export const provideAuthService = (): Provider => ({
   provide: AUTH_SERVICE,
@@ -56,7 +60,11 @@ function storageAuthConfig(): AuthConfig {
     appUrl: runtimeConfig.appUrl,
     scheme: runtimeConfig.scheme,
     delegationPath: '/delegation',
-    delegationTarget: runtimeConfig.canisterId,
+    delegationTargets: [
+      runtimeConfig.canisterId,
+      Principal.fromText(runtimeConfig.backendCanisterId),
+      MANAGEMENT_CANISTER_ID,
+    ],
     loginOptions: {
       identityProvider: runtimeConfig.identityProviderUrl,
       maxTimeToLive: AUTH_MAX_TIME_TO_LIVE,
@@ -121,7 +129,15 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: BACKEND_FEATURES_ENABLED_TOKEN,
+      useValue: true,
+    },
+    {
+      provide: ACCOUNT_MENU_BACKEND_LINKS_ENABLED_TOKEN,
       useValue: false,
+    },
+    {
+      provide: SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
+      useValue: null,
     },
     {
       provide: MULTI_CHAIN_RPC_CONFIG_TOKEN,

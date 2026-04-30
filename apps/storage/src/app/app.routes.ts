@@ -39,6 +39,14 @@ export const appRoutes: Route[] = [
           ).then((m) => m.StorageNavigationComponent),
         outlet: 'sidebar',
       },
+      {
+        path: '',
+        loadComponent: () =>
+          import(
+            './core/components/update-banner/update-banner.component'
+          ).then((m) => m.UpdateBannerComponent),
+        outlet: 'banner',
+      },
     ],
   },
   {

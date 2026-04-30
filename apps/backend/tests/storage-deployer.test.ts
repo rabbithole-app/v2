@@ -765,6 +765,19 @@ describe("StorageDeployer", () => {
       && fromNullable(s.canisterId)?.toText() === canisterId.toText()
     );
     expect(updatedStorage).toBeDefined();
+    if (!updatedStorage) return;
+
+    const diagnostics = fromNullable(updatedStorage.frontendInstallDiagnostics);
+    expect(diagnostics).toBeDefined();
+    if (!diagnostics) return;
+    expect(diagnostics.stage).toBe("completed");
+    expect(diagnostics.totalFiles).toBeGreaterThan(0n);
+    expect(diagnostics.batchesTotal).toBeGreaterThan(0n);
+    expect(diagnostics.batchesProcessed).toBe(diagnostics.batchesTotal);
+    expect(diagnostics.processedFiles).toBe(diagnostics.totalFiles);
+    expect(diagnostics.processedBytes).toBe(diagnostics.totalBytes);
+    expect(diagnostics.uploadedFiles + diagnostics.skippedFiles).toBe(diagnostics.totalFiles);
+    expect(diagnostics.uploadedBytes + diagnostics.skippedBytes).toBe(diagnostics.totalBytes);
 
     // Frontend was updated, but WASM may still show an update since we didn't change WASM assets
     // The frontendUpdateAvailable should be false now
