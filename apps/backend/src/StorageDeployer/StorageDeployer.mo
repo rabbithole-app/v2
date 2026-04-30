@@ -1,5 +1,6 @@
 import Principal "mo:core/Principal";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Nat64 "mo:core/Nat64";
 import Result "mo:core/Result";
@@ -11,6 +12,7 @@ import CMCTypes "../Types/CMCTypes";
 import LedgerTypes "../Types/LedgerTypes";
 import Account "Utils/Account";
 import Types "Types";
+import TreasuryConst "mo:treasury/Const";
 
 module {
   let CYCLE_MINTING_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
@@ -32,11 +34,12 @@ module {
   };
 
   /// Transfer ICP to CMC and create a new canister. Funding sources, in order:
-  ///   1. User's derived ICP subaccount (legacy flow — user deposits ICP directly)
-  ///   2. Backend's default ICP account (application treasury — funded by admin,
-  ///      covers users who paid in SOL/ETH/USDC via chargeAndDistribute)
-  /// Picks the first source with enough balance. If neither has enough → #InsufficientBalance
-  /// reports the larger of the two balances so admin sees actionable info.
+  ///   1. User's derived ICP subaccount (legacy direct-deposit flow)
+  ///   2. Backend treasury subaccount (current paid license flow)
+  ///   3. Backend default ICP account (legacy/admin-funded fallback)
+  /// Picks the first source with enough balance. If no source has enough,
+  /// #InsufficientBalance reports the largest available balance so admin sees
+  /// actionable info.
   public func transferAndCreateCanister(
     deployerCanisterId : Principal,
     caller : Principal,
@@ -62,21 +65,30 @@ module {
       owner = deployerCanisterId;
       subaccount = ?userSubaccount;
     });
+    let treasurySubaccount = TreasuryConst.treasurySubaccount();
     let fromSubaccount : ?Blob = if (userBalance >= totalRequired) {
       ?userSubaccount;
     } else {
       let treasuryBalance = await ledger.icrc1_balance_of({
         owner = deployerCanisterId;
-        subaccount = null;
+        subaccount = ?treasurySubaccount;
       });
       if (treasuryBalance >= totalRequired) {
-        null; // default subaccount
+        ?treasurySubaccount;
       } else {
-        let available = if (treasuryBalance > userBalance) treasuryBalance else userBalance;
-        return #err(#InsufficientBalance({
-          required = totalRequired;
-          available;
-        }));
+        let defaultBalance = await ledger.icrc1_balance_of({
+          owner = deployerCanisterId;
+          subaccount = null;
+        });
+        if (defaultBalance >= totalRequired) {
+          null;
+        } else {
+          let available = Nat.max(defaultBalance, Nat.max(treasuryBalance, userBalance));
+          return #err(#InsufficientBalance({
+            required = totalRequired;
+            available;
+          }));
+        };
       };
     };
 

@@ -450,6 +450,7 @@ module StorageDeployerOrchestrator {
   // `callbacks` is captured by the timer closure and forwarded through to
   // the per-task handler (processOrchestratorTask).
   func ensureUnifiedTimer<system>(store : Store, creations : Creations.Creations, callbacks : OrchestratorCallbacks) {
+    if (not store.running) return;
     if (Queue.isEmpty(store.unifiedQueue)) {
       if (not callbacks.runtime.unifiedQueueProcessing) {
         cancelTimer(store.unifiedTimerId);
@@ -858,16 +859,30 @@ module StorageDeployerOrchestrator {
 
   func updateCanisterSettings(
     storageCanisterId : Principal,
-    userPrincipal : Principal,
+    deployerCanisterId : Principal,
     environmentVariables : ?[{ name : Text; value : Text }],
   ) : async Result.Result<(), Text> {
     let ic : ICManagement.Self = actor ("aaaaa-aa");
     try {
+      let info = await IC.ic.canister_info({
+        canister_id = storageCanisterId;
+        num_requested_changes = ?0;
+      });
+      let controllersWithoutDeployer = Array.filter(
+        info.controllers,
+        func(controller : Principal) : Bool {
+          not Principal.equal(controller, deployerCanisterId);
+        },
+      );
+      if (controllersWithoutDeployer.size() == 0) {
+        return #err("Refusing to remove the deployer canister because no other controllers remain");
+      };
+
       await ic.update_settings({
         canister_id = storageCanisterId;
         sender_canister_version = null;
         settings = {
-          controllers = ?[userPrincipal];
+          controllers = ?controllersWithoutDeployer;
           freezing_threshold = null;
           wasm_memory_threshold = null;
           reserved_cycles_limit = null;
@@ -1203,20 +1218,32 @@ module StorageDeployerOrchestrator {
       case (#UpdateControllers({ canisterId })) {
         ignore creations.appendEvent(creationId, #UpdatingControllers({ canisterId }));
 
-        // env vars already set at canister creation; null = don't overwrite
-        switch (await updateCanisterSettings(canisterId, task.owner, null)) {
-          case (#ok) {
-            finalizeCompletion(store, creations, creationId, canisterId);
-          };
-          case (#err(e)) {
-            // At this point WASM/frontend installation has already completed.
-            // Controller handoff is a cleanup step; failing it must not leave
-            // the storage in a failed upgrade state or keep stale release hashes.
+        switch (store.canisterId) {
+          case null {
             finalizeCompletion(store, creations, creationId, canisterId);
             ignore creations.mutate(
               creationId,
-              func(r) = { r with lastUpgradeError = ?("Controller cleanup failed: " # e) },
+              func(r) = { r with lastUpgradeError = ?("Controller cleanup failed: Deployer canister ID not set") },
             );
+          };
+          case (?deployerCanisterId) {
+            // env vars already set at canister creation; null = don't overwrite.
+            // Preserve every existing controller except the temporary deployer/backend canister.
+            switch (await updateCanisterSettings(canisterId, deployerCanisterId, null)) {
+              case (#ok) {
+                finalizeCompletion(store, creations, creationId, canisterId);
+              };
+              case (#err(e)) {
+                // At this point WASM/frontend installation has already completed.
+                // Controller handoff is a cleanup step; failing it must not leave
+                // the storage in a failed upgrade state or keep stale release hashes.
+                finalizeCompletion(store, creations, creationId, canisterId);
+                ignore creations.mutate(
+                  creationId,
+                  func(r) = { r with lastUpgradeError = ?("Controller cleanup failed: " # e) },
+                );
+              };
+            };
           };
         };
       };

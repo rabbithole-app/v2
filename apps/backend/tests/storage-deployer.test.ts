@@ -24,6 +24,7 @@ async function createFailedStorageWithLicense(
   backendFixture: CanisterFixture<RabbitholeActorService>,
   identity: ReturnType<typeof createIdentity>,
 ): Promise<bigint> {
+  await drainTreasuryIcpBelowCmcFunding(manager, backendFixture);
   await fundUserForLicenseOnly(manager, backendFixture, identity);
   backendFixture.actor.setIdentity(identity);
 
@@ -46,7 +47,7 @@ async function createFailedStorageWithLicense(
 }
 
 import { BackendManager } from "./setup/backend-manager";
-import { E8S_PER_ICP, ONE_TRILLION_CYCLES } from "./setup/constants";
+import { E8S_PER_ICP, ICP_LEDGER_CANISTER_ID, ICP_TRANSACTION_FEE, ONE_TRILLION_CYCLES } from "./setup/constants";
 import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 
 /**
@@ -147,6 +148,32 @@ async function fundUserForLicenseOnly(
     fee: [], memo: [], from_subaccount: [], created_at_time: [],
   });
   if ("Err" in result) throw new Error(`Fund failed: ${JSON.stringify(result)}`);
+}
+
+async function drainTreasuryIcpBelowCmcFunding(
+  manager: BackendManager,
+  backendFixture: CanisterFixture<RabbitholeActorService>,
+): Promise<void> {
+  const icp = await manager.icpLedgerActor.icrc1_balance_of({
+    owner: backendFixture.canisterId,
+    subaccount: [BackendManager.TREASURY_SUBACCOUNT],
+  });
+  const keepDust = ICP_TRANSACTION_FEE;
+
+  if (icp <= 100_000n + keepDust) return;
+
+  backendFixture.actor.setIdentity(manager.ownerIdentity);
+  const result = await backendFixture.actor.withdrawFromTreasury({
+    tokenId: { ICP: null },
+    amount: icp - keepDust,
+    to: {
+      IC: {
+        owner: manager.ownerIdentity.getPrincipal(),
+        subaccount: [],
+      },
+    },
+  });
+  if ("err" in result) throw new Error(`Drain treasury ICP failed: ${JSON.stringify(result.err)}`);
 }
 
 /**
@@ -533,6 +560,26 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
 
+  test("should create storage using treasury subaccount after license charge", { timeout: 120000 }, async () => {
+    const identity = createIdentity("treasury-funded-storage");
+
+    await waitForReleasesReady(manager, backendFixture);
+    await fundUserForLicenseOnly(manager, backendFixture, identity);
+    await manager.mintToTreasurySubaccount(ICP_LEDGER_CANISTER_ID, 2n * E8S_PER_ICP);
+
+    backendFixture.actor.setIdentity(identity);
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
+    );
+    expect(result).toHaveProperty("ok");
+
+    const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
+    expect(finalStatus).toHaveProperty("Completed");
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
   // ═══════════════════════════════════════════════════════════════
   // STORAGE UPGRADE TESTS
   // ═══════════════════════════════════════════════════════════════
@@ -728,10 +775,15 @@ describe("StorageDeployer", () => {
     if (!canisterId) return;
 
     // Step 1: Add backend as controller (simulates what frontend does)
+    const coControllerIdentity = createIdentity("e2eStorageCoController");
     await manager.pic.updateCanisterSettings({
       canisterId,
       sender: e2eTestIdentity.getPrincipal(),
-      controllers: [e2eTestIdentity.getPrincipal(), backendFixture.canisterId],
+      controllers: [
+        e2eTestIdentity.getPrincipal(),
+        coControllerIdentity.getPrincipal(),
+        backendFixture.canisterId,
+      ],
     });
 
     // Step 2: Grant backend Commit permission on assets
@@ -791,6 +843,7 @@ describe("StorageDeployer", () => {
     const controllers = await manager.pic.getControllers(canisterId);
     console.log("Controllers after upgrade:", controllers.map(c => c.toText()));
     expect(controllers.map(c => c.toText())).toContain(e2eTestIdentity.getPrincipal().toText());
+    expect(controllers.map(c => c.toText())).toContain(coControllerIdentity.getPrincipal().toText());
     expect(controllers.map(c => c.toText())).not.toContain(backendFixture.canisterId.toText());
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
@@ -1290,13 +1343,13 @@ describe("StorageDeployer", () => {
   // Invariants:
   //   A. License charge is 100% treasury (no split at charge time).
   //      Verified by distributionLog entry for the charge payment.
-  //   B. Refund before #CanisterCreated returns 100% (no ambassador leak).
+  //   B. Refund before #CanisterCreated returns the treasury amount (no ambassador leak).
   //      Verified by: no "ambassador:" distribution row + record.ambassadorPayoutStatus = #pending.
   //   C. On successful #CanisterCreated, ambassador payout row appears in
   //      distributionLog with paymentId "ambassador:<orig>", l1Amount > 0,
   //      and record.ambassadorPayoutStatus flips to #completed.
 
-  test("deferred payout: refund before CanisterCreated — 100% back, no ambassador payout", async () => {
+  test("deferred payout: refund before CanisterCreated — no ambassador payout", async () => {
     const identity = createIdentity("deferred-refund");
     const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
 
@@ -1320,7 +1373,8 @@ describe("StorageDeployer", () => {
     expect(rowsForThisCreation[0].l1Amount).toBe(0n);
     expect(rowsForThisCreation[0].l2Amount).toBe(0n);
 
-    // Refund: returns full amount (minus the standard ledger fee, inside simpleRefund).
+    // Refund: returns the undistributed treasury amount minus the standard
+    // refund ledger fee. The original charge already paid one ledger fee.
     backendFixture.actor.setIdentity(identity);
     const licensesBefore = (await backendFixture.actor.listLicenses([])).data;
     const receiptAmount = licensesBefore[0]!.receipt.amount;
@@ -1335,10 +1389,10 @@ describe("StorageDeployer", () => {
     const balanceAfter = await manager.icpLedgerActor.icrc1_balance_of(userAccount);
     const delta = balanceAfter - balanceBefore;
 
-    // Full refund minus one ledger fee (no ambassador share was taken).
+    // Full refund minus two ledger fees (no ambassador share was taken).
     // With legacy distribute-at-charge, delta would have been ~85% of receiptAmount.
     const LEDGER_FEE = 10_000n;
-    expect(delta).toBe(receiptAmount - LEDGER_FEE);
+    expect(delta).toBe(receiptAmount - 2n * LEDGER_FEE);
   });
 
   test("deferred payout: CanisterCreated → ambassador gets cut + status #completed", async () => {
