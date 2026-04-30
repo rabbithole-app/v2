@@ -1,0 +1,41 @@
+<hlm-collapsible
+  [expanded]="expanded()"
+  (expandedChange)="expanded.set($event)"
+  class="group/collapsible block rounded-xl border bg-background"
+>
+  <div class="flex items-center gap-3 p-4">
+    <button
+      hlmCollapsibleTrigger
+      class="min-w-0 flex flex-1 items-center justify-between gap-3 text-left"
+    >
+      <core-wallet-summary-header
+        [requiredUsd]="requiredUsd()"
+        size="md"
+        class="min-w-0 flex-1"
+      />
+      <ng-icon
+        hlm
+        name="lucideChevronDown"
+        size="sm"
+        class="shrink-0 text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-180"
+      />
+    </button>
+    <button
+      hlmBtn
+      variant="ghost"
+      size="icon-sm"
+      class="shrink-0"
+      title="Refresh balances"
+      aria-label="Refresh balances"
+      (click)="refresh()"
+    >
+      <ng-icon hlm name="lucideRefreshCw" size="sm" />
+    </button>
+  </div>
+
+  <hlm-collapsible-content>
+    <div class="max-h-[min(52vh,520px)] overflow-y-auto border-t p-4">
+      <core-wallet-networks-view />
+    </div>
+  </hlm-collapsible-content>
+</hlm-collapsible>

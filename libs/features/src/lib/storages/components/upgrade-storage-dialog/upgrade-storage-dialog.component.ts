@@ -40,11 +40,14 @@ import {
   HlmDialogHeader,
   HlmDialogTitle,
 } from '@spartan-ng/helm/dialog';
-import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { ProcessStepListComponent } from '@rabbithole/ui';
 
-import { StorageCreationProgressComponent } from '../storage-creation-progress/storage-creation-progress.component';
+import {
+  buildUpgradeCopy,
+  buildUpgradeSteps,
+  type UpgradeStepId,
+} from '../../utils';
 
 type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
 
@@ -54,7 +57,6 @@ type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
     NgIcon,
     HlmIcon,
     HlmBadge,
-    HlmSpinner,
     HlmDialogHeader,
     HlmDialogFooter,
     HlmDialogTitle,
@@ -62,8 +64,7 @@ type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
     BrnDialogClose,
     ...HlmAlertImports,
     ...HlmButtonImports,
-    ...HlmEmptyImports,
-    StorageCreationProgressComponent,
+    ProcessStepListComponent,
   ],
   providers: [
     provideIcons({
@@ -103,18 +104,23 @@ export class UpgradeStorageDialogComponent {
   readonly isPreparing = this.#isPreparing.asReadonly();
   readonly #step = signal<WizardStep>('review');
   readonly step = this.#step.asReadonly();
-  readonly updateSummary = computed(() => {
-    const info = this.updateInfo();
-    if (info.wasmUpdateAvailable && info.frontendUpdateAvailable) return 'WASM + Frontend';
-    if (info.wasmUpdateAvailable) return 'WASM';
-    return 'Frontend';
-  });
+  readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateInfo()));
+  readonly upgradeSteps = computed(() =>
+    buildUpgradeSteps(this.upgradeStatus(), {
+      errorMessage: this.errorMessage(),
+      failedStepId: this.#activeUpgradeStep(),
+      frontendUpdateAvailable: this.updateInfo().frontendUpdateAvailable,
+      isPreparing: this.isPreparing(),
+      wasmUpdateAvailable: this.updateInfo().wasmUpdateAvailable,
+    }),
+  );
   readonly #storagesService = inject(StoragesService);
   readonly #rawUpgradeStatus = computed(() => this.#storagesService.upgradeStatus());
   // Track whether we've seen an in-progress status from the backend.
   // This prevents false "upgrade failed" and UI flicker when the effect/template
   // fires before the first poll returns the new upgrading status.
   readonly #sawUpgrading = signal(false);
+  readonly #activeUpgradeStep = signal<UpgradeStepId>('permissions');
   // Filtered status that hides stale Completed before upgrade actually starts on backend
   readonly upgradeStatus = computed(() => {
     const status = this.#rawUpgradeStatus();
@@ -158,7 +164,10 @@ export class UpgradeStorageDialogComponent {
         toast.error(`Upgrade failed: ${status.message}`);
       } else {
         // Any in-progress status — mark that upgrade has started on backend
-        untracked(() => this.#sawUpgrading.set(true));
+        untracked(() => {
+          this.#sawUpgrading.set(true);
+          this.#activeUpgradeStep.set(upgradeStepIdFromStatus(status, this.updateInfo()));
+        });
       }
     });
   }
@@ -170,6 +179,7 @@ export class UpgradeStorageDialogComponent {
 
     this.#step.set('upgrading');
     this.#isPreparing.set(true);
+    this.#activeUpgradeStep.set('permissions');
     this.#errorMessage.set(null);
 
     try {
@@ -195,6 +205,7 @@ export class UpgradeStorageDialogComponent {
       await assetManager.grantPermission('Commit', this.#backendCanisterId);
 
       this.#isPreparing.set(false);
+      this.#activeUpgradeStep.set(firstUpdateStep(this.updateInfo()));
 
       // Step 3: Call upgradeStorage on backend (scope determined automatically)
       await this.#storagesService.upgradeStorage(storage.id, canisterId);
@@ -207,8 +218,37 @@ export class UpgradeStorageDialogComponent {
     }
   }
 
+  finishUpgrade(): void {
+    this.#storagesService.clearTrackedUpgrade();
+  }
+
   tryAgain(): void {
     this.#step.set('review');
     this.#errorMessage.set(null);
+    this.#activeUpgradeStep.set('permissions');
+  }
+}
+
+function firstUpdateStep(updateInfo: UpdateInfo): UpgradeStepId {
+  if (updateInfo.wasmUpdateAvailable) return 'wasm';
+  if (updateInfo.frontendUpdateAvailable) return 'frontend';
+  return 'finalize';
+}
+
+function upgradeStepIdFromStatus(
+  status: StorageInfo['status'],
+  updateInfo: UpdateInfo,
+): UpgradeStepId {
+  switch (status.type) {
+    case 'UpgradingWasm':
+      return 'wasm';
+    case 'UpgradingFrontend':
+      return 'frontend';
+    case 'RevokingInstallerPermission':
+    case 'UpdatingControllers':
+    case 'Completed':
+      return 'finalize';
+    default:
+      return firstUpdateStep(updateInfo);
   }
 }

@@ -2,13 +2,17 @@
 
 <div rbthFramePanel [class]="stepPanelClass(currentStep.status)">
   <div hlmItem class="w-full gap-3 rounded-none border-0 bg-transparent p-0">
-    <div hlmItemMedia>
+    <div hlmItemMedia class="flex size-6 shrink-0 items-center justify-center">
       @switch (currentStep.status) {
         @case ('completed') {
           <ng-icon hlm name="lucideCircleCheck" />
         }
         @case ('in-progress') {
-          <hlm-spinner icon="lucideLoader2" class="text-xl text-primary" />
+          <hlm-spinner
+            icon="lucideLoader2"
+            class="text-primary"
+            style="--ng-icon__size: 24px"
+          />
         }
         @case ('error') {
           <ng-icon hlm name="lucideCircleX" />
@@ -17,7 +21,11 @@
           <ng-icon hlm name="lucideCircleMinus" />
         }
         @default {
-          <ng-icon hlm name="lucideCircleDashed" [strokeWidth]="2" />
+          <ng-icon
+            hlm
+            name="lucideCircleDashed"
+            [strokeWidth]="2"
+          />
         }
       }
     </div>

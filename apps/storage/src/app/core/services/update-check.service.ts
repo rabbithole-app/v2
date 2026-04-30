@@ -10,6 +10,7 @@ import {
   firstValueFrom,
   from,
   map,
+  tap,
   throwError,
   timeout,
   timer,
@@ -29,6 +30,12 @@ import { AssetManager } from '@rabbithole/encrypted-storage';
 import { ConfigService } from './config.service';
 
 export type UpgradeStep = 'completed' | 'error' | 'idle' | 'preparing' | 'upgrading';
+export type UpgradeProcessStep = 'permissions' | 'wasm' | 'frontend' | 'finalize';
+
+type UpdateFlags = {
+  frontendUpdateAvailable?: boolean;
+  wasmUpdateAvailable?: boolean;
+};
 
 const POLL_INTERVAL_MS = 3_000;
 const POLL_TIMEOUT_MS = 180_000; // 3 minutes
@@ -85,12 +92,15 @@ export class UpdateCheckService {
   // Upgrade state
   readonly #upgradeStep = signal<UpgradeStep>('idle');
   readonly upgradeStep = this.#upgradeStep.asReadonly();
+  readonly #upgradeProcessStep = signal<UpgradeProcessStep>('permissions');
+  readonly upgradeProcessStep = this.#upgradeProcessStep.asReadonly();
 
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
   readonly #httpAgent = injectHttpAgent();
 
   reset(): void {
     this.#upgradeStep.set('idle');
+    this.#upgradeProcessStep.set('permissions');
     this.#errorMessage.set(null);
   }
 
@@ -98,6 +108,7 @@ export class UpdateCheckService {
     const canisterId = this.#configService.canisterId();
 
     this.#upgradeStep.set('preparing');
+    this.#upgradeProcessStep.set('permissions');
     this.#errorMessage.set(null);
 
     try {
@@ -123,6 +134,7 @@ export class UpdateCheckService {
 
       // Step 3: Call upgradeStorage on backend
       this.#upgradeStep.set('upgrading');
+      this.#upgradeProcessStep.set(firstUpdateStep(this.updateInfo()));
       const actor = this.#actor();
       const result = await actor.upgradeStorage(canisterId);
 
@@ -156,6 +168,12 @@ export class UpdateCheckService {
         exhaustMap(() =>
           from(actor.listStorages()).pipe(
             map((records) => findStorageByCanisterId(convertStorageInfoList(records), canisterId)),
+            tap((storage) => {
+              if (!storage) return;
+              this.#upgradeProcessStep.set(
+                upgradeProcessStepFromStatus(storage.status, this.updateInfo()),
+              );
+            }),
             catchError(() => EMPTY), // Backend may be temporarily unavailable during upgrade
           ),
         ),
@@ -180,6 +198,32 @@ export class UpdateCheckService {
         }),
       ),
     );
+  }
+}
+
+function firstUpdateStep(
+  updateInfo: UpdateFlags | undefined,
+): UpgradeProcessStep {
+  if (updateInfo?.wasmUpdateAvailable) return 'wasm';
+  if (updateInfo?.frontendUpdateAvailable) return 'frontend';
+  return 'finalize';
+}
+
+function upgradeProcessStepFromStatus(
+  status: StorageInfo['status'],
+  updateInfo: UpdateFlags | undefined,
+): UpgradeProcessStep {
+  switch (status.type) {
+    case 'UpgradingWasm':
+      return 'wasm';
+    case 'UpgradingFrontend':
+      return 'frontend';
+    case 'RevokingInstallerPermission':
+    case 'UpdatingControllers':
+    case 'Completed':
+      return 'finalize';
+    default:
+      return firstUpdateStep(updateInfo);
   }
 }
 

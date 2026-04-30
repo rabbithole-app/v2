@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideHardDrive,
@@ -10,12 +10,14 @@ import {
 import { StoragesService } from '@rabbithole/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import {
-  CreateStorageDrawerComponent,
+  CREATE_STORAGE_DIALOG_CONTENT_CLASS,
+  CreateStorageDialogComponent,
   StorageCardComponent,
 } from '../../components';
 
@@ -29,7 +31,6 @@ import {
     ...HlmButtonGroupImports,
     ...HlmEmptyImports,
     StorageCardComponent,
-    CreateStorageDrawerComponent,
   ],
   providers: [
     provideIcons({
@@ -47,20 +48,26 @@ import {
 })
 export class StoragesComponent {
   readonly #storagesService = inject(StoragesService);
+  readonly #dialogService = inject(HlmDialogService);
 
   readonly hasActiveCreation = this.#storagesService.hasActiveCreation;
   readonly isCreating = this.#storagesService.isCreating;
   readonly isLoading = this.#storagesService.isLoading;
   readonly storages = this.#storagesService.storages;
 
-  readonly createStorageDrawer = viewChild(CreateStorageDrawerComponent);
-
   constructor() {
     this.#storagesService.reload();
   }
 
-  openCreateDrawer(): void {
-    this.createStorageDrawer()?.open();
+  openCreateDialog(): void {
+    const dialogRef = this.#dialogService.open(CreateStorageDialogComponent, {
+      contentClass: CREATE_STORAGE_DIALOG_CONTENT_CLASS,
+    });
+
+    dialogRef.closed$.subscribe(() => {
+      this.#storagesService.clearTrackedCreation();
+      this.#storagesService.reload();
+    });
   }
 
   refresh(): void {

@@ -16,8 +16,12 @@ import { Router } from '@angular/router';
 import '@ic-pay/icpay-widget';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideArrowLeft,
+  lucideArrowRight,
+  lucideCheck,
   lucideCircleAlert,
   lucideCloud,
+  lucideCreditCard,
   lucideDatabase,
   lucideExternalLink,
   lucideLock,
@@ -25,10 +29,11 @@ import {
   lucideShield,
   lucideShieldCheck,
 } from '@ng-icons/lucide';
-import { BrnSheetContent } from '@spartan-ng/brain/sheet';
+import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { toast } from 'ngx-sonner';
 
 import {
+  CopyToClipboardComponent,
   formatUsd,
   ICPAY_CONFIG_TOKEN,
   injectMainActor,
@@ -36,17 +41,12 @@ import {
   parseCanisterRejectError,
   type StorageBackendType,
   StoragesService,
-  WalletBalancePaymentPanelComponent,
+  WalletBalancePanelComponent,
 } from '@rabbithole/core';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import type { StorageBackendType as CandidStorageBackendType } from '@rabbithole/declarations';
 import {
-  ProcessStepsComponent,
-  RbthDrawerComponent,
-  RbthDrawerContentComponent,
-  RbthDrawerFooterComponent,
-  RbthDrawerHeaderComponent,
-  RbthDrawerTitleDirective,
+  ProcessStepListComponent,
   RbthFrameComponent,
   RbthFrameDescriptionDirective,
   RbthFrameHeaderDirective,
@@ -55,11 +55,15 @@ import {
 } from '@rabbithole/ui';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmEmptyImports } from '@spartan-ng/helm/empty';
+import {
+  HlmDialogDescription,
+  HlmDialogFooter,
+  HlmDialogHeader,
+  HlmDialogTitle,
+} from '@spartan-ng/helm/dialog';
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmRadioGroup, HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
 import { buildCreationSteps } from '../../utils';
@@ -69,25 +73,22 @@ export type VetKeyLevel = 'high-replication' | 'standard';
 type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
 
 @Component({
-  selector: 'rbth-feat-storages-create-storage-drawer',
+  selector: 'rbth-feat-storages-create-storage-dialog',
   imports: [
-    BrnSheetContent,
     NgIcon,
     HlmIcon,
-    HlmSpinner,
+    HlmDialogHeader,
+    HlmDialogFooter,
+    HlmDialogTitle,
+    HlmDialogDescription,
     ...HlmAlertImports,
     ...HlmButtonImports,
-    ...HlmEmptyImports,
     ...HlmFieldImports,
     HlmRadioGroup,
     ...HlmRadioGroupImports,
-    ProcessStepsComponent,
-    WalletBalancePaymentPanelComponent,
-    RbthDrawerComponent,
-    RbthDrawerContentComponent,
-    RbthDrawerFooterComponent,
-    RbthDrawerHeaderComponent,
-    RbthDrawerTitleDirective,
+    CopyToClipboardComponent,
+    ProcessStepListComponent,
+    WalletBalancePanelComponent,
     RbthFrameComponent,
     RbthFrameDescriptionDirective,
     RbthFrameHeaderDirective,
@@ -96,8 +97,12 @@ type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
   ],
   providers: [
     provideIcons({
+      lucideArrowLeft,
+      lucideArrowRight,
+      lucideCheck,
       lucideCircleAlert,
       lucideCloud,
+      lucideCreditCard,
       lucideDatabase,
       lucideExternalLink,
       lucideLock,
@@ -109,8 +114,12 @@ type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './create-storage-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[attr.data-completed]': 'isCompleted()',
+    '[attr.data-step]': 'step()',
+  },
 })
-export class CreateStorageDrawerComponent {
+export class CreateStorageDialogComponent {
   // ═══════════════════════════════════════════════════════════════
   // CONSTANTS (exposed to template)
   // ═══════════════════════════════════════════════════════════════
@@ -146,15 +155,39 @@ export class CreateStorageDrawerComponent {
     );
   });
 
+  readonly creationProgressLabel = computed(() => {
+    const steps = this.creationSteps();
+    const total = steps.length;
+    const completed = steps.filter((step) => step.status === 'completed').length;
+    const active = steps.find((step) => step.status === 'in-progress');
+    const failed = steps.find((step) => step.status === 'error');
+
+    if (failed) {
+      return `Step ${Math.min(completed + 1, total)} of ${total} — ${failed.error ?? failed.title}`;
+    }
+
+    if (completed === total) {
+      return `Completed ${total} of ${total} steps`;
+    }
+
+    return `Step ${completed + 1} of ${total}${active?.description ? ' — ' + active.description : ''}`;
+  });
+
   readonly #step = signal<WizardStep>('configure');
   readonly step = this.#step.asReadonly();
+  readonly isCompleted = computed(() =>
+    this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
+  );
 
-  readonly drawerTitle = computed(() => {
+  readonly dialogTitle = computed(() => {
     switch (this.step()) {
       case 'configure': return 'Create Storage';
-      case 'creating': return 'Creating Storage...';
+      case 'creating':
+        return this.creationStatus()?.type === 'Completed'
+          ? 'Create Storage'
+          : 'Deploying your storage canister';
       case 'error': return 'Something Went Wrong';
-      case 'payment': return `Purchase License — ${this.licensePriceLabel}`;
+      case 'payment': return `Pay from balance — ${this.licensePriceLabel}`;
     }
   });
 
@@ -176,14 +209,14 @@ export class CreateStorageDrawerComponent {
   // ═══════════════════════════════════════════════════════════════
 
   readonly icpayPayBtn = viewChild<ElementRef<HTMLElement>>('icpayPayBtn');
+  readonly balancePaymentPanel = viewChild(WalletBalancePanelComponent);
 
   readonly #actor = injectMainActor();
   readonly #authService = inject(AUTH_SERVICE);
   readonly #destroyRef = inject(DestroyRef);
   readonly #icpayConfig = inject(ICPAY_CONFIG_TOKEN);
   readonly #router = inject(Router);
-
-  private readonly drawer = viewChild(RbthDrawerComponent);
+  readonly #dialogRef = inject(BrnDialogRef);
 
   constructor() {
     // Configure ICPay widget reactively when the element appears
@@ -226,20 +259,11 @@ export class CreateStorageDrawerComponent {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // DRAWER API
+  // DIALOG API
   // ═══════════════════════════════════════════════════════════════
 
   close(): void {
-    this.drawer()?.close();
-  }
-
-  open(): void {
-    this.#step.set('configure');
-    this.#errorMessage.set(null);
-    this.#createdCanisterId.set(null);
-    this.#storageBackend.set('BlobStorage');
-    this.#vetKeyLevel.set('standard');
-    this.drawer()?.open();
+    this.#dialogRef.close();
   }
 
   createAnother(): void {
@@ -279,10 +303,11 @@ export class CreateStorageDrawerComponent {
 
   viewStorage(): void {
     const canisterId = this.createdCanisterId();
-    if (canisterId) {
-      this.close();
-      this.#router.navigate(['/dashboard', canisterId, 'drive']);
-    }
+    if (!canisterId) return;
+
+    this.#storagesService.clearTrackedCreation();
+    this.close();
+    this.#router.navigate(['/dashboard', canisterId, 'drive']);
   }
 
   // ═══════════════════════════════════════════════════════════════

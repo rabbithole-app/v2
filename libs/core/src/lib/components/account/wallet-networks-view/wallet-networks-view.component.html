@@ -12,16 +12,16 @@
   </hlm-tabs-list>
 
   @for (network of networks(); track network.id) {
-    <div [hlmTabsContent]="network.id" class="mt-6">
+    <div [hlmTabsContent]="network.id" class="mt-4">
       <ng-template hlmTabsContentLazy>
-        <div class="space-y-6">
+        <div class="space-y-4">
           @if (network.address; as address) {
             <div hlmField>
               <div hlmFieldContent class="gap-3">
                 <div hlmFieldTitle>{{ network.addressLabel }}</div>
                 <core-copy-to-clipboard
                   [content]="address"
-                  class="w-full rounded-2xl bg-muted px-4 py-4 text-base [&>[data-slot=copy-content]]:text-base"
+                  class="w-full max-w-full overflow-hidden rounded-2xl bg-muted px-4 py-3 [&>[data-slot=copy-content]]:truncate [&>[data-slot=copy-content]]:text-sm"
                 >
                   {{ address }}
                 </core-copy-to-clipboard>

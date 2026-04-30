@@ -1,12 +1,29 @@
 @let currentStep = step();
+@let completed = isCompleted();
 
-<rbth-drawer side="right" [hasBackdrop]="true">
-  <rbth-drawer-content *brnSheetContent="let ctx">
-    <rbth-drawer-header>
-      <h2 rbthDrawerTitle>{{ drawerTitle() }}</h2>
-    </rbth-drawer-header>
+@if (!completed) {
+  <hlm-dialog-header>
+    <h2 hlmDialogTitle>{{ dialogTitle() }}</h2>
+    <p hlmDialogDescription>
+      @switch (currentStep) {
+        @case ('configure') {
+          Choose storage settings before paying for your license.
+        }
+        @case ('payment') {
+          Storage License — {{ licensePriceLabel }}. Personal canister, 14-day Pro trial, and 100 MB encrypted storage.
+        }
+        @case ('creating') {
+          {{ creationProgressLabel() }}
+        }
+        @case ('error') {
+          The creation flow stopped before the storage was ready.
+        }
+      }
+    </p>
+  </hlm-dialog-header>
+}
 
-    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+    <div class="mt-4 max-h-[min(72vh,720px)] space-y-6 overflow-y-auto">
       @switch (currentStep) {
         <!-- ═══ STEP 1: CONFIGURE ═══ -->
         @case ('configure') {
@@ -108,13 +125,6 @@
 
         <!-- ═══ STEP 2: PAYMENT ═══ -->
         @case ('payment') {
-          <div class="space-y-1">
-            <p class="text-sm font-medium">Storage License — {{ licensePriceLabel }}</p>
-            <p class="text-xs text-muted-foreground">
-              Personal canister + 14-day Pro trial + 100 MB encrypted storage.
-            </p>
-          </div>
-
           <!-- Method 1: ICPay — temporarily hidden while the integration is
                being polished. Wallet-balance payment below covers the full
                purchase flow reliably, so we ship with that only for now. -->
@@ -131,26 +141,45 @@
           }
 
           <!-- Method 2: From balance -->
-          <core-wallet-balance-payment-panel
+          <core-wallet-balance-panel
             [requiredUsd]="LICENSE_PRICE_USD"
-            [payButtonLabel]="payFromBalanceLabel"
-            (payRequested)="purchaseFromBalance()"
           />
-
-          <!-- Trust footer -->
-          <p class="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
-            <ng-icon name="lucideLock" hlmIcon size="xs" />
-            Processed on-chain. Data stays on IC.
-          </p>
         }
 
         <!-- ═══ STEP 3: CREATING ═══ -->
         @case ('creating') {
-          <rbth-process-steps
-            title="Deploying your storage canister"
-            [steps]="creationSteps()"
-            (retryClicked)="retryFromError()"
-          />
+          @if (creationStatus()?.type === 'Completed') {
+            <div class="mx-auto flex max-w-md flex-col items-center text-center">
+              <div class="flex justify-center">
+                <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-300">
+                  <ng-icon hlmIcon name="lucideCheck" />
+                </div>
+              </div>
+
+              <div class="mt-4 text-center">
+                <h2 class="text-balance text-lg font-semibold">
+                  Storage is ready
+                </h2>
+                <p class="mx-auto mt-2 max-w-[90%] text-pretty text-sm text-muted-foreground">
+                  Your encrypted storage canister has been created and is ready for files.
+                </p>
+              </div>
+
+              @if (createdCanisterId(); as canisterId) {
+                <core-copy-to-clipboard
+                  class="mt-4 max-w-[min(100%,22rem)] justify-center gap-0.5 text-muted-foreground"
+                  [content]="canisterId"
+                >
+                  {{ canisterId }}
+                </core-copy-to-clipboard>
+              }
+            </div>
+          } @else {
+            <rbth-process-step-list
+              [steps]="creationSteps()"
+              (retryClicked)="retryFromError()"
+            />
+          }
         }
 
         <!-- ═══ ERROR ═══ -->
@@ -166,17 +195,36 @@
 
     <!-- ═══ FOOTER ═══ -->
     @if (currentStep === 'configure') {
-      <rbth-drawer-footer>
+      <hlm-dialog-footer class="mt-4">
         <button hlmBtn variant="outline" (click)="close()">Cancel</button>
-        <button hlmBtn (click)="goToPayment()">Next</button>
-      </rbth-drawer-footer>
+        <button hlmBtn (click)="goToPayment()">
+          Continue to payment
+          <ng-icon hlmIcon name="lucideArrowRight" size="sm" />
+        </button>
+      </hlm-dialog-footer>
     } @else if (currentStep === 'payment') {
-      <rbth-drawer-footer>
-        <button hlmBtn variant="outline" (click)="goBackToConfigure()">Back</button>
-        <span></span>
-      </rbth-drawer-footer>
+      <hlm-dialog-footer class="mt-4 gap-3 sm:justify-between">
+        <p class="mr-auto flex items-center gap-1 text-xs text-muted-foreground">
+          <ng-icon name="lucideLock" hlmIcon size="xs" />
+          Processed on-chain. Data stays on IC.
+        </p>
+        <div class="flex items-center gap-2">
+          <button hlmBtn variant="outline" (click)="goBackToConfigure()">
+            <ng-icon hlmIcon name="lucideArrowLeft" size="sm" />
+            Back
+          </button>
+          <button
+            hlmBtn
+            [disabled]="balancePaymentPanel()?.canPay() !== true"
+            (click)="purchaseFromBalance()"
+          >
+            <ng-icon hlmIcon name="lucideCreditCard" size="sm" />
+            {{ payFromBalanceLabel }}
+          </button>
+        </div>
+      </hlm-dialog-footer>
     } @else if (currentStep === 'creating' && creationStatus()?.type === 'Completed') {
-      <rbth-drawer-footer>
+      <hlm-dialog-footer class="mt-4 sm:justify-center">
         <button hlmBtn variant="outline" (click)="createAnother()">
           <ng-icon hlmIcon name="lucidePlus" size="sm" />
           Create Another
@@ -185,12 +233,10 @@
           <ng-icon hlmIcon name="lucideExternalLink" size="sm" />
           View Storage
         </button>
-      </rbth-drawer-footer>
+      </hlm-dialog-footer>
     } @else if (currentStep === 'error') {
-      <rbth-drawer-footer>
+      <hlm-dialog-footer class="mt-4">
         <button hlmBtn variant="outline" (click)="close()">Cancel</button>
         <button hlmBtn (click)="tryAgain()">Try Again</button>
-      </rbth-drawer-footer>
+      </hlm-dialog-footer>
     }
-  </rbth-drawer-content>
-</rbth-drawer>

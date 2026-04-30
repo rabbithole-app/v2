@@ -23,9 +23,9 @@ import {
   HlmDialogHeader,
   HlmDialogTitle,
 } from '@spartan-ng/helm/dialog';
-import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmSpinner } from '@spartan-ng/helm/spinner';
+import { ProcessStepListComponent, type ProcessStep } from '@rabbithole/ui';
+import { buildUpgradeCopy, buildUpgradeSteps } from '@rabbithole/features/storages';
 
 import { UpdateCheckService } from '../../services';
 
@@ -35,14 +35,13 @@ import { UpdateCheckService } from '../../services';
     NgIcon,
     HlmIcon,
     HlmBadge,
-    HlmSpinner,
     HlmDialogHeader,
     HlmDialogFooter,
     HlmDialogTitle,
     HlmDialogDescription,
     ...HlmAlertImports,
     ...HlmButtonImports,
-    ...HlmEmptyImports,
+    ProcessStepListComponent,
   ],
   providers: [
     provideIcons({
@@ -58,9 +57,30 @@ import { UpdateCheckService } from '../../services';
 })
 export class UpgradeDialogComponent {
   readonly updateCheckService = inject(UpdateCheckService);
+  readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateCheckService.updateInfo() ?? {}));
   readonly isInProgress = computed(() => {
     const step = this.updateCheckService.upgradeStep();
     return step === 'preparing' || step === 'upgrading';
+  });
+  readonly upgradeSteps = computed<ProcessStep[]>(() => {
+    const currentStep = this.updateCheckService.upgradeStep();
+    const updateInfo = this.updateCheckService.updateInfo();
+
+    if (currentStep === 'idle') {
+      return [];
+    }
+
+    return buildUpgradeSteps(null, {
+      completed: currentStep === 'completed',
+      errorMessage:
+        currentStep === 'error'
+          ? (this.updateCheckService.errorMessage() ?? 'Upgrade failed')
+          : null,
+      failedStepId: this.updateCheckService.upgradeProcessStep(),
+      frontendUpdateAvailable: updateInfo?.frontendUpdateAvailable,
+      isPreparing: currentStep === 'preparing',
+      wasmUpdateAvailable: updateInfo?.wasmUpdateAvailable,
+    });
   });
   readonly #dialogRef = inject(DialogRef);
 

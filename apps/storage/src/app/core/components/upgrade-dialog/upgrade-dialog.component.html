@@ -1,17 +1,25 @@
 @let currentStep = updateCheckService.upgradeStep();
 
-<hlm-dialog-header>
-  <h3 hlmDialogTitle>Upgrade Storage</h3>
-  <p hlmDialogDescription>
-    @switch (currentStep) {
-      @case ('idle') { Review the available updates for your storage. }
-      @case ('preparing') { Preparing your storage for the upgrade... }
-      @case ('upgrading') { Please wait while your storage is being upgraded... }
-      @case ('completed') { Your storage has been upgraded successfully. }
-      @case ('error') { Something went wrong during the upgrade. }
-    }
-  </p>
-</hlm-dialog-header>
+@if (currentStep !== 'completed') {
+  <hlm-dialog-header>
+    <h3 hlmDialogTitle>
+      @switch (currentStep) {
+        @case ('idle') { Upgrade Storage }
+        @case ('preparing') { Upgrading your storage }
+        @case ('upgrading') { Upgrading your storage }
+        @case ('error') { Upgrade failed }
+      }
+    </h3>
+    <p hlmDialogDescription>
+      @switch (currentStep) {
+        @case ('idle') { Review the available updates for your storage. }
+        @case ('preparing') { {{ upgradeCopy().progressDescription }} }
+        @case ('upgrading') { {{ upgradeCopy().progressDescription }} }
+        @case ('error') { Review the failed step and retry when ready. }
+      }
+    </p>
+  </hlm-dialog-header>
+}
 
 @switch (currentStep) {
   @case ('idle') {
@@ -64,59 +72,59 @@
 
   @case ('preparing') {
     <div class="mt-4">
-      <hlm-empty>
-        <hlm-empty-header>
-          <hlm-empty-media variant="icon">
-            <hlm-spinner />
-          </hlm-empty-media>
-          <h4 hlmEmptyTitle>Granting permissions...</h4>
-          <p hlmEmptyDescription>Preparing your storage for the upgrade...</p>
-        </hlm-empty-header>
-      </hlm-empty>
+      <rbth-process-step-list
+        [steps]="upgradeSteps()"
+        [showRetry]="false"
+      />
     </div>
   }
 
   @case ('upgrading') {
     <div class="mt-4">
-      <hlm-empty>
-        <hlm-empty-header>
-          <hlm-empty-media variant="icon">
-            <hlm-spinner />
-          </hlm-empty-media>
-          <h4 hlmEmptyTitle>Upgrading storage...</h4>
-          <p hlmEmptyDescription>
-            Do not close this tab. The page will reload automatically when complete.
-          </p>
-        </hlm-empty-header>
-      </hlm-empty>
+      <rbth-process-step-list
+        [steps]="upgradeSteps()"
+        [showRetry]="false"
+      />
     </div>
   }
 
   @case ('completed') {
-    <div class="mt-4">
-      <hlm-empty>
-        <hlm-empty-header>
-          <hlm-empty-media variant="icon">
-            <ng-icon hlmIcon name="lucideCheck" class="text-green-600" />
-          </hlm-empty-media>
-          <h4 hlmEmptyTitle>Update complete!</h4>
-          <p hlmEmptyDescription>Reloading page...</p>
-        </hlm-empty-header>
-      </hlm-empty>
+    <div class="flex flex-col items-center text-center">
+      <div class="flex justify-center">
+        <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-300">
+          <ng-icon hlmIcon name="lucideCheck" />
+        </div>
+      </div>
+
+      <div class="mt-4 text-center">
+        <h2 class="text-balance text-lg font-semibold">
+          Storage is up to date
+        </h2>
+        <p class="mx-auto mt-2 max-w-[90%] text-pretty text-sm text-muted-foreground">
+          {{ upgradeCopy().completedDescription }}
+        </p>
+      </div>
     </div>
   }
 
   @case ('error') {
-    <div hlmAlert variant="destructive" class="mt-4">
-      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
-      <h4 hlmAlertTitle>Upgrade Failed</h4>
-      <p hlmAlertDesc>{{ updateCheckService.errorMessage() }}</p>
+    <div class="mt-4 space-y-4">
+      <rbth-process-step-list
+        [steps]="upgradeSteps()"
+        [showRetry]="false"
+      />
+
+      <div hlmAlert variant="destructive">
+        <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+        <h4 hlmAlertTitle>Upgrade Failed</h4>
+        <p hlmAlertDescription>{{ updateCheckService.errorMessage() }}</p>
+      </div>
     </div>
   }
 }
 
 @if (!isInProgress()) {
-  <hlm-dialog-footer class="mt-4">
+  <hlm-dialog-footer class="mt-4" [class.sm:justify-center]="currentStep === 'completed'">
     @switch (currentStep) {
       @case ('idle') {
         <button hlmBtn variant="outline" (click)="closeDialog()">Cancel</button>
@@ -127,7 +135,6 @@
       }
       @case ('completed') {
         <button hlmBtn (click)="closeDialog()">
-          <ng-icon hlmIcon name="lucideCheck" size="sm" />
           Done
         </button>
       }

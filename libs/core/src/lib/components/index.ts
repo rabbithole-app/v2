@@ -4,6 +4,7 @@
 export * from './account/account-menu-trigger-content/account-menu-trigger-content-description.directive';
 export * from './account/account-menu-trigger-content/account-menu-trigger-content.component';
 export * from './account/account-menu/account-menu.component';
+export * from './account/wallet-balance-panel/wallet-balance-panel.component';
 export * from './account/wallet-balance-payment-panel/wallet-balance-payment-panel.component';
 export * from './account/wallet-networks-view/wallet-networks-view.component';
 export * from './account/wallet-summary-header/wallet-summary-header.component';

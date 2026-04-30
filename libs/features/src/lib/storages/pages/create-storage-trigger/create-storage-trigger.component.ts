@@ -1,26 +1,38 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
 
-import { CreateStorageDrawerComponent } from '../../components';
+import { StoragesService } from '@rabbithole/core';
+
+import {
+  CREATE_STORAGE_DIALOG_CONTENT_CLASS,
+  CreateStorageDialogComponent,
+} from '../../components';
 
 /**
  * Invisible component activated via named outlet `(dialog:create-storage)`.
- * Opens the create-storage drawer on init, then navigates away from the outlet
+ * Opens the create-storage dialog on init, then navigates away from the outlet
  * so it doesn't re-trigger on back navigation.
  */
 @Component({
   selector: 'rbth-create-storage-trigger',
-  imports: [CreateStorageDrawerComponent],
-  template: '<rbth-feat-storages-create-storage-drawer />',
+  template: '',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateStorageTriggerComponent implements OnInit {
   readonly #router = inject(Router);
-  readonly drawer = viewChild(CreateStorageDrawerComponent);
+  readonly #dialogService = inject(HlmDialogService);
+  readonly #storagesService = inject(StoragesService);
 
   ngOnInit(): void {
-    // Open drawer after view init
-    setTimeout(() => this.drawer()?.open());
+    const dialogRef = this.#dialogService.open(CreateStorageDialogComponent, {
+      contentClass: CREATE_STORAGE_DIALOG_CONTENT_CLASS,
+    });
+
+    dialogRef.closed$.subscribe(() => {
+      this.#storagesService.clearTrackedCreation();
+      this.#storagesService.reload();
+    });
 
     // Remove the named outlet from the URL so back navigation won't re-trigger
     this.#router.navigate(['/dashboard', { outlets: { dialog: null } }], {
