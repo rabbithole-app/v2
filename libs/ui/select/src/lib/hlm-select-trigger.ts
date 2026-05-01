@@ -7,10 +7,7 @@ import {
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronDown } from '@ng-icons/lucide';
 import { BrnFieldControlDescribedBy } from '@spartan-ng/brain/field';
-import {
-  BrnSelectTrigger,
-  BrnSelectTriggerWrapper,
-} from '@spartan-ng/brain/select';
+import { BrnSelectTrigger } from '@spartan-ng/brain/select';
 import type { ClassValue } from 'clsx';
 
 import { hlm } from '@spartan-ng/helm/utils';
@@ -20,7 +17,6 @@ import { hlm } from '@spartan-ng/helm/utils';
   imports: [NgIcon, BrnSelectTrigger, BrnFieldControlDescribedBy],
   providers: [provideIcons({ lucideChevronDown })],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  hostDirectives: [BrnSelectTriggerWrapper],
   template: `
     <button
       brnSelectTrigger

@@ -38,14 +38,13 @@ export const HLM_CHECKBOX_VALUE_ACCESSOR = {
   host: {
     class: 'contents peer',
     'data-slot': 'checkbox',
-    '[attr.id]': 'null',
     '[attr.aria-label]': 'null',
     '[attr.aria-labelledby]': 'null',
     '[attr.data-disabled]': '_disabled() ? "" : null',
   },
   template: `
     <brn-checkbox
-      [id]="id()"
+      [id]="inputId()"
       [name]="name()"
       [class]="_computedClass()"
       [checked]="checked()"
@@ -101,14 +100,14 @@ export class HlmCheckbox implements ControlValueAccessor {
     transform: booleanAttribute,
   });
 
-  /** Used to set the id on the underlying brn element. */
-  public readonly id = input<string | null>(null);
-
   /**
    * The indeterminate state of the checkbox.
    * For example, a "select all/deselect all" checkbox may be in the indeterminate state when some but not all of its sub-controls are checked.
    */
   public readonly indeterminate = model<boolean>(false);
+
+  /** Used to set the id on the underlying brn element. */
+  public readonly inputId = input<string | null>(null);
 
   /** The name attribute of the checkbox. */
   public readonly name = input<string | null>(null);

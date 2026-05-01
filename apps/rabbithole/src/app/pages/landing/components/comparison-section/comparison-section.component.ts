@@ -11,10 +11,7 @@ import {
 
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import {
-  HlmTableImports,
-  provideHlmTableConfig,
-} from '@spartan-ng/helm/table';
+import { HlmTableImports } from '@spartan-ng/helm/table';
 
 type CellValue = 'no' | 'partial' | 'yes';
 
@@ -31,9 +28,6 @@ interface CompRow {
   imports: [NgIcon, HlmBadge, ...HlmButtonImports, ...HlmTableImports],
   providers: [
     provideIcons({ lucideCheck, lucideX, lucideMinus, lucideGithub, lucideShieldCheck, lucideExternalLink }),
-    provideHlmTableConfig({
-      tr: 'border-b transition-colors',
-    }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {

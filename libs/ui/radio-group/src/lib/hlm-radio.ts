@@ -28,7 +28,6 @@ import { hlm } from '@spartan-ng/helm/utils';
   imports: [BrnRadio],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '[attr.id]': 'null',
     '[attr.aria-label]': 'null',
     '[attr.aria-labelledby]': 'null',
     '[attr.aria-describedby]': 'null',
@@ -37,7 +36,7 @@ import { hlm } from '@spartan-ng/helm/utils';
   },
   template: `
     <brn-radio
-      [id]="id()"
+      [id]="inputId()"
       [class]="_computedClass()"
       [value]="value()"
       [required]="required()"
@@ -83,7 +82,7 @@ export class HlmRadio<T = unknown> {
   });
 
   /** Used to set the id on the underlying brn element. */
-  public readonly id = input<string | undefined>(undefined);
+  public readonly inputId = input<string | undefined>(undefined);
 
   /** Whether the checkbox is required. */
   public readonly required = input<boolean, BooleanInput>(false, {
@@ -141,7 +140,7 @@ export class HlmRadio<T = unknown> {
 
       const labelElement =
         this._elementRef.nativeElement.closest('label') ??
-        this._document.querySelector(`label[for="${this.id()}"]`);
+        this._document.querySelector(`label[for="${this.inputId()}"]`);
 
       if (!labelElement) return;
       this._renderer.setAttribute(

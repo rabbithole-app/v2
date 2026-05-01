@@ -1,4 +1,3 @@
-/* eslint-disable @angular-eslint/component-selector */
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,7 +16,8 @@ import { hlm } from '@spartan-ng/helm/utils';
 import { HlmCarousel } from './hlm-carousel';
 
 @Component({
-  selector: 'button[hlm-carousel-previous], button[hlmCarouselPrevious]',
+  // eslint-disable-next-line @angular-eslint/component-selector
+  selector: 'button[hlmCarouselPrevious]',
   imports: [NgIcon, HlmIcon],
   providers: [
     provideIcons({ lucideArrowLeft }),

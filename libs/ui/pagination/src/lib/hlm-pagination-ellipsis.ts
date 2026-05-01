@@ -12,12 +12,11 @@ import { classes } from '@spartan-ng/helm/utils';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     'data-slot': 'pagination-ellipsis',
+    'aria-hidden': 'true',
   },
   template: `
-    <span aria-hidden="true">
-      <ng-icon hlm size="sm" name="lucideEllipsis" />
-      <span class="sr-only">{{ srOnlyText() }}</span>
-    </span>
+    <ng-icon hlm size="sm" name="lucideEllipsis" />
+    <span class="sr-only">{{ srOnlyText() }}</span>
   `,
 })
 export class HlmPaginationEllipsis {

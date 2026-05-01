@@ -26,6 +26,9 @@ export class HlmSpinner {
   public readonly icon = input<string>('lucideLoader2');
 
   constructor() {
-    classes(() => 'inline-flex size-fit text-base motion-safe:animate-spin');
+    classes(
+      () =>
+        'inline-flex text-[calc(var(--spacing)*4)] motion-safe:animate-spin',
+    );
   }
 }

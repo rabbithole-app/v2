@@ -22,10 +22,12 @@ import { provideHlmToggleGroup } from './hlm-toggle-group.token';
     '[attr.data-variant]': 'variant()',
     '[attr.data-size]': 'size()',
     '[attr.data-spacing]': 'spacing()',
+    '[attr.data-orientation]': 'orientation()',
     '[style.--gap]': 'spacing()',
   },
 })
 export class HlmToggleGroup {
+  public readonly orientation = input<'horizontal' | 'vertical'>('horizontal');
   public readonly size = input<ToggleVariants['size']>('default');
   public readonly spacing = input<number, NumberInput>(0, {
     transform: numberAttribute,
@@ -35,7 +37,7 @@ export class HlmToggleGroup {
   constructor() {
     classes(
       () =>
-        'group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))]',
+        'rounded-md data-[spacing=0]:data-[variant=outline]:shadow-xs group/toggle-group flex w-fit flex-row items-center gap-[--spacing(var(--gap))] data-vertical:flex-col data-vertical:items-stretch',
     );
   }
 }
