@@ -9,11 +9,16 @@ sidebar:
 
 Every storage system requires some level of trust. Here's exactly what Rabbithole requires — and what it doesn't.
 
+The strongest privacy guarantees apply when encryption is enabled.  
+Without encryption, Rabbithole still enforces ownership and access rules, but storage infrastructure may see file contents.
+
+TEE support on the Internet Computer improves runtime isolation, but it should be viewed as an additional hardening layer, not as Rabbithole's primary privacy guarantee.
+
 ### You do NOT need to trust
 
-- **Rabbithole team** — we never see your plaintext data
-- **ICP node operators** — they only process encrypted blobs
-- **Network infrastructure** — encryption happens before data touches the network
+- **Rabbithole team** — we never see your plaintext data when encryption is enabled
+- **ICP node operators** — they only process encrypted blobs when encryption is enabled
+- **Network infrastructure** — encryption happens before data touches the network when encryption is enabled
 
 ### You DO need to trust
 
@@ -24,13 +29,18 @@ Every storage system requires some level of trust. Here's exactly what Rabbithol
 
 ## Threat model
 
+| Mode | What is protected |
+|------|-------------------|
+| Encrypted | Access control + content confidentiality + integrity verification |
+| Plaintext | Access control + integrity verification |
+
 | Threat | Protected? | How |
 |--------|-----------|-----|
-| Rabbithole reads your files | Yes | Client-side encryption, zero-knowledge storage |
-| Hacker breaches your canister | Yes | Only encrypted blobs stored |
+| Rabbithole reads your files | In encrypted mode | Client-side encryption, zero-knowledge storage |
+| Hacker breaches your canister | In encrypted mode | Only encrypted blobs stored |
 | Man-in-the-middle attack | Yes | IC certified responses + HTTPS |
-| ICP node operator peeks at data | Yes | Data encrypted before reaching IC |
-| Government requests your data | Yes | Rabbithole has nothing to hand over |
+| ICP node operator peeks at data | In encrypted mode | Data encrypted before reaching IC |
+| Government requests your data | In encrypted mode | Rabbithole has nothing to hand over |
 | You lose your device | Partial | Re-authenticate with recovery on Internet Identity |
 | Malicious code update | Mitigated | Open source, canister upgrade requires controller (you) |
 

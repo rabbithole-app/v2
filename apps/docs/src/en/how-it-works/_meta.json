@@ -1,1 +1,12 @@
-["sovereignty", "encryption", "storage", "authentication", "trust-model"]
+[
+  "sovereignty",
+  "encryption",
+  {
+    "type": "dir",
+    "name": "storage",
+    "label": "Storage"
+  },
+  "payment",
+  "authentication",
+  "trust-model"
+]

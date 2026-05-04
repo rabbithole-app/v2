@@ -9,12 +9,12 @@ description: How Rabbithole handles your data and protects your privacy
 
 ## The short version
 
-Rabbithole is designed so that we **cannot** access your data. Your files are encrypted in your browser before they reach the network. We have no master keys, no backdoors, and no ability to read your files.
+Rabbithole is designed around encrypted storage, and in encrypted mode we **cannot** access your file contents. When encryption is enabled, files are encrypted in your browser before they reach the network. We have no master keys and no backdoors for that encrypted mode.
 
 ## What we don't collect
 
-- **File contents** — encrypted client-side, we never see plaintext
-- **Encryption keys** — derived via threshold cryptography, never exist in one place
+- **Encrypted file contents** — in encrypted mode, we never see plaintext
+- **Encryption keys** — in encrypted mode, they are derived via threshold cryptography and never exist in one place
 - **Passwords** — there are none; authentication is via Internet Identity (passkeys/biometrics)
 - **Email addresses** — not required for registration
 - **Browsing history or tracking data** — no analytics, no cookies, no third-party trackers
@@ -32,7 +32,7 @@ When you sign in, your browser generates a cryptographic identity (Principal ID)
 
 Your personal storage canister records:
 - File metadata (names, sizes, folder structure) — stored in your canister, not encrypted
-- File contents — **encrypted**
+- File contents — encrypted when encryption is enabled
 - Access permissions you set
 
 All data is stored in your canister, which you own and control. Rabbithole removes itself as controller after setup.
@@ -43,7 +43,7 @@ When creating a storage canister, payment is processed to cover Internet Compute
 
 ## Data location
 
-Your encrypted data is stored on the [Internet Computer](https://internetcomputer.org) blockchain, distributed across 13–34 independent nodes operated by different parties worldwide. No single node operator can access your data.
+Your canister data is stored on the [Internet Computer](https://internetcomputer.org), distributed across independent nodes operated by different parties worldwide. In encrypted mode, no single node operator can access the file contents.
 
 ## Data retention
 
@@ -58,6 +58,7 @@ If Rabbithole ceases to exist, your data remains accessible via your canister's 
 
 - **Internet Identity** — authentication provider (open source, operated by DFINITY Foundation)
 - **Internet Computer** — decentralized blockchain network
+- **Blob Storage infrastructure** — used when files are stored outside the canister; in encrypted mode it stores ciphertext, without encryption it may see file contents
 
 We do not use Google Analytics, Facebook Pixel, or any third-party tracking service.
 

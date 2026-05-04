@@ -9,3 +9,19 @@
 :lang(ru) .rp-home-hero__actions a + a {
   min-width: 260px;
 }
+
+.docs-diagram {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0;
+}
+
+.docs-diagram img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.docs-diagram--narrow img {
+  max-width: 560px;
+}

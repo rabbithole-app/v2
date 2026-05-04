@@ -3,13 +3,15 @@ title: Introduction
 description: What is Rabbithole and why it's fundamentally different
 ---
 
-# Rabbithole — encrypted storage without trust
+# Rabbithole — privacy-first storage without unnecessary trust
 
-What if your cloud storage couldn't read your files — not because of a policy, but because of **mathematics**?
+What if your cloud storage couldn't read your files — not because of a policy, but because of **mathematics** when encryption is enabled?
 
-Rabbithole is a decentralized file storage built on the [Internet Computer](https://internetcomputer.org/). Unlike traditional encrypted storage services, Rabbithole doesn't ask you to trust a company. It replaces trust with **verifiable cryptographic guarantees**.
+Rabbithole is a decentralized file storage built on the [Internet Computer](https://internetcomputer.org/). In its encrypted mode, Rabbithole does not ask you to trust a company with file confidentiality. It replaces that trust with **verifiable cryptographic guarantees**.
 
 ## The core idea
+
+Rabbithole is designed around end-to-end encryption, even though encryption depends on your plan and folder settings.
 
 Every encrypted storage service promises "we can't read your files." But there's a fundamental difference between **policy** and **math**:
 
@@ -76,11 +78,11 @@ flowchart LR
 
 1. **You own your canister** — a personal smart contract deployed just for you. See [Data Sovereignty](/en/how-it-works/sovereignty)
 2. You sign in with **[Internet Identity](https://id.ai/)** — passkeys, biometrics, or social login. No passwords
-3. You upload a file — it's **encrypted in your browser** using keys derived via vetKeys
-4. Encrypted fragments are stored in **your personal canister**
-5. When you download, fragments are fetched and **decrypted locally**
+3. If encryption is enabled for that file, it is **encrypted in your browser** using keys derived via vetKeys
+4. The file is stored through **your personal canister**
+5. When you download, the file is verified first and **decrypted locally** if encryption was enabled
 
-The server never sees your plaintext data. Not because we promise — because it's mathematically impossible.
+In encrypted mode, the server never sees your plaintext data. Not because we promise — because it is mathematically blocked by the design.
 
 :::tip{title="Want to go deeper?"}
 

@@ -1,0 +1,17 @@
+[
+  {
+    "type": "file",
+    "name": "blob-storage",
+    "label": "Blob Storage"
+  },
+  {
+    "type": "file",
+    "name": "on-chain-storage",
+    "label": "On-chain Storage"
+  },
+  {
+    "type": "file",
+    "name": "integrity",
+    "label": "File integrity"
+  }
+]

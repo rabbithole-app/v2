@@ -1,0 +1,137 @@
+---
+title: Storage
+description: Choose where Rabbithole keeps the encrypted copy of your files
+sidebar:
+  order: 2
+---
+
+import { Badge, OverviewGroup } from '@rspress/core/theme';
+
+## Storage mode and encryption mode are separate choices
+
+Rabbithole is designed around end-to-end encryption and personal canister ownership.
+
+These storage modes describe **where a file is stored**.  
+Encryption is a **separate setting** and may depend on your plan and folder configuration.
+
+There are two storage modes:
+
+- **Blob Storage** for lower cost and larger files
+- **On-chain Storage** for simpler trust assumptions and stronger sovereignty
+
+:::tip{title="Short version"}
+
+If you want the best default for everyday use, choose **Blob Storage**.  
+If you want everything to stay inside your personal canister, choose **On-chain Storage**.
+
+:::
+
+:::details{title="TODO: document the UI setting once it is exposed"}
+
+Rabbithole already supports separate storage and encryption settings in the codebase.  
+This page will be updated once the interface exposes that choice directly during folder setup or file upload.
+
+:::
+
+## Two storage modes
+
+### Blob Storage <Badge type="tip">Recommended</Badge>
+
+- About **$0.05 per GB per month**
+- Best for larger files and lower cost
+- The file is stored in external object storage
+- Your personal canister keeps access rules and file verification data
+
+### On-chain Storage <Badge type="info">Maximum control</Badge>
+
+- About **$1.04 per GB per month**
+- Best for users who want the simplest trust model
+- The file is stored directly in your personal canister
+- No dependency on an external storage layer
+
+## Comparison
+
+| | Blob Storage | On-chain Storage |
+|---|---|---|
+| **Best for** | Everyday storage | Maximum sovereignty |
+| **Estimated cost** | About **$0.05/GB/month** | About **$1.04/GB/month** |
+| **Where the file lives** | External object storage | Your personal canister |
+| **What your canister keeps** | File record, access rules, verification data | File record, access rules, encrypted file |
+| **Trust model** | IC + local verification + storage service | IC + cryptography |
+
+:::note{title="About pricing"}
+
+These are rough estimates for comparison. Real storage cost can change over time.
+
+:::
+
+:::note{title="Integrity and availability are different things"}
+
+Verification helps detect silent replacement of a file.  
+It does not guarantee that a file will remain available forever.
+
+:::
+
+## What stays the same in both modes
+
+- Your personal canister remains the place that keeps file ownership and access rules.
+- Rabbithole is built around encrypted storage, even though encryption depends on plan and folder settings.
+- Integrity verification remains part of the storage path.
+
+## What happens if Rabbithole disappears?
+
+**On-chain Storage:** your file remains inside your canister as long as the canister stays funded with [cycles](/en/how-it-works/payment).
+
+**Blob Storage:** your canister still keeps the file record and the information needed to verify the file. Availability then depends on the Blob Storage funding and retention lifecycle.
+
+:::note{title="Rabbithole is an interface, not the owner of your data"}
+
+Your canister is the durable system of record. Rabbithole is one way to access it.
+
+:::
+
+## Learn more
+
+<OverviewGroup
+  group={{
+    name: 'Understand how storage works',
+    items: [
+      {
+        text: 'How Blob Storage works',
+        link: '/en/how-it-works/storage/blob-storage',
+      },
+      {
+        text: 'How On-chain Storage works',
+        link: '/en/how-it-works/storage/on-chain-storage',
+      },
+      {
+        text: 'How Rabbithole verifies your files',
+        link: '/en/how-it-works/storage/integrity',
+      },
+      {
+        text: 'Payment & Cycles',
+        link: '/en/how-it-works/payment',
+      },
+    ],
+  }}
+/>
+
+<OverviewGroup
+  group={{
+    name: 'Official Internet Computer references',
+    items: [
+      {
+        text: 'Canister smart contracts',
+        link: 'https://docs.internetcomputer.org/building-apps/essentials/canisters',
+      },
+      {
+        text: 'Query calls',
+        link: 'https://docs.internetcomputer.org/building-apps/interact-with-canisters/query-calls',
+      },
+      {
+        text: 'Canister storage and stable memory',
+        link: 'https://internetcomputer.org/docs/building-apps/canister-management/storage',
+      },
+    ],
+  }}
+/>

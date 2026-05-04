@@ -5,9 +5,18 @@ sidebar:
   order: 1
 ---
 
-# Your files are encrypted before they leave your browser
+# Encryption is Rabbithole's intended privacy model
 
-When you upload a file to Rabbithole, it never leaves your device in plaintext. The encryption happens entirely in your browser — your canister only ever sees sealed data.
+Rabbithole is designed around end-to-end encryption. When encryption is enabled, files are encrypted in your browser before upload.
+
+Encryption is available with Pro and can be enabled or disabled depending on the folder and upload settings.
+
+:::note{title="Important"}
+
+This page describes Rabbithole's encrypted mode.  
+If you upload a file without encryption, the storage path still works, but the confidentiality guarantees described here do not apply.
+
+:::
 
 ```mermaid
 flowchart LR
@@ -35,7 +44,7 @@ flowchart LR
 
 - **Nobody can read your files** — not even the Rabbithole team
 - **Even the blockchain nodes** can't decrypt your data — they store only encrypted fragments. While IC nodes can technically access canister memory, all your data is encrypted with vetKeys before it reaches the canister. Without the threshold key derivation (which requires your identity), the stored data is indistinguishable from random noise
-- **Hardware isolation is coming** — the Internet Computer is [developing TEE support](https://forum.dfinity.org/t/upcoming-proposal-the-first-tee-enabled-subnet/64180) based on AMD SEV-SNP, which adds hardware-level memory isolation so that even node operators cannot access canister memory. For Rabbithole this means double protection: vetKeys encryption + hardware isolation
+- **TEE support adds hardening, not the primary guarantee** — the Internet Computer is gradually rolling out [TEE support](https://forum.dfinity.org/t/upcoming-proposal-the-first-tee-enabled-subnet/64180) based on AMD SEV-SNP. This strengthens runtime isolation, but Rabbithole's main privacy guarantee still comes from client-side encryption and key derivation, not from trusting hardware alone
 - **If Rabbithole shuts down** — your encrypted data persists on the blockchain
 - **Each fragment is independent** — a problem with one doesn't affect others
 

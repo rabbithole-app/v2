@@ -17,13 +17,13 @@ Your data stays on the blockchain. Your canister runs as long as it has compute 
 ## General
 
 ### What is Rabbithole?
-A decentralized file storage app with end-to-end encryption, built on the Internet Computer blockchain.
+A decentralized file storage app built on the Internet Computer, designed around end-to-end encryption and personal canister ownership.
 
 ### How much does it cost?
 You pay a fixed price to create your storage. This covers canister creation and an initial balance of compute cycles. Rabbithole does not profit from this — the entire payment goes to the Internet Computer network. See [Data Sovereignty](/en/how-it-works/sovereignty) for details.
 
 ### What file types are supported?
-All file types. Rabbithole stores encrypted binary data — it doesn't care about the file format.
+All file types. Rabbithole stores binary file data — the file format does not matter.
 
 ### Is there a file size limit?
 Individual files can be up to hundreds of megabytes. Files are split into fragments automatically.
@@ -31,10 +31,10 @@ Individual files can be up to hundreds of megabytes. Files are split into fragme
 ## Security
 
 ### Can the Rabbithole team read my files?
-No. Files are encrypted in your browser before upload. We only store encrypted blobs.
+Not when encryption is enabled. In that mode, files are encrypted in your browser before upload. Without encryption, access rules still apply, but the full confidentiality guarantees do not.
 
 ### What happens if I lose my device?
-You can recover access via Internet Identity's device recovery mechanism. Your encryption keys are derived from your identity, not stored on any specific device.
+You can recover access via Internet Identity's device recovery mechanism. In encrypted mode, your encryption keys are derived from your identity, not stored on any specific device.
 
 ### Has Rabbithole been audited?
 The code is open source and available for community review. Formal audits are planned.

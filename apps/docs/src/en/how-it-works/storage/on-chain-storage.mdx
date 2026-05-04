@@ -1,0 +1,153 @@
+---
+title: How On-chain Storage works
+description: How Rabbithole keeps encrypted files directly inside your personal canister
+sidebar:
+  order: 4
+---
+
+import { OverviewGroup, Steps } from '@rspress/core/theme';
+
+## What On-chain Storage is
+
+On-chain Storage keeps the file directly inside your personal canister instead of an external storage service.
+
+That gives you a simpler trust model, but it also costs more because the Internet Computer has to keep the file itself in canister memory.
+
+:::note{title="About encryption"}
+
+On-chain Storage describes where the file lives.  
+Whether the file is encrypted before upload depends on your encryption settings.
+
+:::
+
+## Where the file lives
+
+![On-chain Storage architecture](/diagrams/fossflow-diagram-4.png)
+
+This diagram shows the simpler On-chain Storage path:
+
+- your browser uploads the file directly to your canister
+- your personal canister keeps the **files, metadata, access rules, and app interface**
+- there is **no external gateway** and **no external object storage layer**
+
+In Rabbithole's model, your canister can hold not only the file and access rules, but also the app interface used to access it.
+
+## How upload works
+
+<Steps>
+
+### Prepare the file in the browser
+
+The file is split into chunks. If encryption is enabled, those chunks are encrypted locally before upload.
+
+### Send file chunks to your canister
+
+The browser uploads file chunks directly to your personal canister.
+
+### Store the file in your canister
+
+Your canister saves the file together with the file record, access rules, and related integrity data.
+
+</Steps>
+
+## How download works
+
+<Steps>
+
+### Request file chunks from your canister
+
+The browser asks your canister for the file data.
+
+### Verify and open locally
+
+The browser checks integrity and decrypts the file on your device if encryption is enabled.
+
+</Steps>
+
+## Why it costs more
+
+- Every stored byte lives inside canister memory.
+- The network must maintain that storage over time.
+- Large files become much more expensive than in Blob Storage.
+
+## Practical limits
+
+On-chain Storage is usually the better fit when:
+
+- files are relatively small
+- the number of files is limited
+- simpler architecture matters more than cost efficiency
+
+It is usually a worse fit for large media collections or cost-sensitive bulk storage.
+
+## Why the trust model is simpler
+
+With On-chain Storage there is no external file gateway and no external object storage layer holding the file.
+
+That means the storage path is easier to reason about:
+
+- your browser prepares the file
+- your canister stores the file
+- your browser verifies and opens it again
+
+## Best use cases
+
+On-chain Storage is best when:
+
+- you want the simplest architecture
+- you prefer stronger sovereignty over lower cost
+- your files are relatively small or limited in number
+
+## A practical rule of thumb
+
+Choose **On-chain Storage** for smaller, higher-value files where minimizing external dependencies matters more than cost.
+
+Examples:
+
+- personal documents
+- contracts and signed PDFs
+- backups of critical records
+
+Choose **Blob Storage** for larger archives, media collections, and cost-sensitive storage.
+
+## Continue reading
+
+<OverviewGroup
+  group={{
+    name: 'Related pages',
+    items: [
+      {
+        text: 'How Blob Storage works',
+        link: '/en/how-it-works/storage/blob-storage',
+      },
+      {
+        text: 'How Rabbithole verifies your files',
+        link: '/en/how-it-works/storage/integrity',
+      },
+      {
+        text: 'Data Sovereignty',
+        link: '/en/how-it-works/sovereignty',
+      },
+    ],
+  }}
+/>
+
+<OverviewGroup
+  group={{
+    name: 'Official references',
+    items: [
+      {
+        text: 'Canister smart contracts',
+        link: 'https://docs.internetcomputer.org/building-apps/essentials/canisters',
+      },
+      {
+        text: 'Canister storage and stable memory',
+        link: 'https://internetcomputer.org/docs/building-apps/canister-management/storage',
+      },
+      {
+        text: 'Motoko stable memory',
+        link: 'https://internetcomputer.org/docs/motoko/base/ExperimentalStableMemory',
+      },
+    ],
+  }}
+/>

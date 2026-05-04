@@ -15,7 +15,7 @@ description: Start using Rabbithole in minutes
 | Upload and download files | Organize with folders |
 | Rename, move, and delete | Share files and folders with other users |
 
-Everything is encrypted automatically — you don't need to think about it.
+Rabbithole is built around end-to-end encryption. When encryption is enabled for your storage flow, files are protected before upload.
 
 :::tip{title="Want to know more?"}
 
