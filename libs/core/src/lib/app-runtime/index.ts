@@ -1,5 +1,6 @@
 export * from '../constants/auth';
 export * from '../constants/canister-env';
+export * from '../guards/admin.guard';
 export * from '../guards/dashboard.guard';
 export * from '../guards/login.guard';
 export * from '../injectors/core-worker';

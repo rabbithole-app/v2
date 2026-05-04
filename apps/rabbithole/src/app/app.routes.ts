@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 
 import {
+  adminGuard,
   dashboardGuard,
   loginGuard,
   profileResolver,
@@ -95,6 +96,24 @@ export const appRoutes: Route[] = [
         path: 'demo',
         loadComponent: () =>
           import('./pages/demo/demo.component').then((m) => m.DemoComponent),
+      },
+      {
+        path: 'admin',
+        canActivate: [adminGuard],
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            redirectTo: 'users',
+          },
+          {
+            path: 'users',
+            loadComponent: () =>
+              import('./pages/admin/users/admin-users.component').then(
+                (m) => m.AdminUsersComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'allowances',

@@ -50,10 +50,10 @@
   </div>
   <button hlmSidebarRail></button>
 </hlm-sidebar>
-<main hlmSidebarInset>
+<main hlmSidebarInset class="min-w-0 overflow-hidden">
   <rbth-expired-banner />
   <router-outlet name="banner" />
-  <div class="flex flex-1 flex-col">
+  <div class="flex min-w-0 flex-1 flex-col">
     <header class="bg-card sticky top-0 z-50 border-b">
       <div class="flex items-center justify-between gap-6 p-2 sm:px-4">
         <div class="flex items-center gap-4">
@@ -68,7 +68,7 @@
         <core-account-menu class="self-end" />
       </div>
     </header>
-    <div class="flex flex-1 flex-col px-4 py-6 sm:px-6">
+    <div class="flex min-w-0 flex-1 flex-col px-4 py-6 sm:px-6">
       <ng-content />
     </div>
     <footer></footer>

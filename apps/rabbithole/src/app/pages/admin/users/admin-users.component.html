@@ -1,0 +1,433 @@
+<header class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-normal">Users</h1>
+  </div>
+</header>
+
+<rbth-data-table-filter
+  [columns]="_filterColumns"
+  [filters]="_filters()"
+  (filtersChange)="_setFilters($event)"
+>
+  <ng-template
+    rbthFilterValue="id"
+    let-setValues="setValues"
+    let-values="values"
+  >
+    <core-user-target-combobox
+      class="block w-72 [&_hlm-combobox-chips]:h-8 [&_hlm-combobox-chips]:min-h-8 [&_hlm-combobox-chips]:flex-nowrap [&_hlm-combobox-chips]:overflow-hidden [&_hlm-combobox-chips]:rounded-none [&_hlm-combobox-chips]:border-s-0 [&_hlm-combobox-chips]:py-1"
+      [allowTypedEmail]="false"
+      placeholder="Search user"
+      [value]="_userTargets(values)"
+      (valueChange)="setValues($event)"
+    >
+      <ng-template coreUserTargetComboboxValue let-selected>
+        {{ _userTargetSummary(selected) }}
+      </ng-template>
+    </core-user-target-combobox>
+  </ng-template>
+
+  <ng-template
+    rbthFilterValue="inviter"
+    let-setValues="setValues"
+    let-values="values"
+  >
+    <core-user-target-combobox
+      class="block w-72 [&_hlm-combobox-chips]:h-8 [&_hlm-combobox-chips]:min-h-8 [&_hlm-combobox-chips]:flex-nowrap [&_hlm-combobox-chips]:overflow-hidden [&_hlm-combobox-chips]:rounded-none [&_hlm-combobox-chips]:border-s-0 [&_hlm-combobox-chips]:py-1"
+      [allowTypedEmail]="false"
+      placeholder="Search inviter"
+      [value]="_userTargets(values)"
+      (valueChange)="setValues($event)"
+    >
+      <ng-template coreUserTargetComboboxValue let-selected>
+        {{ _userTargetSummary(selected) }}
+      </ng-template>
+    </core-user-target-combobox>
+  </ng-template>
+
+  <div rbthDataTableFilterActions class="flex items-center gap-2">
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="h-8 shrink-0"
+      [disabled]="_users.isLoading()"
+      (click)="_reloadUsers()"
+    >
+      <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+      Refresh
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="h-8 shrink-0"
+      [hlmDropdownMenuTrigger]="columnsMenu"
+    >
+      <ng-icon hlmIcon name="lucideColumns3" size="sm" />
+      Columns
+    </button>
+  </div>
+  <ng-template #columnsMenu>
+    <hlm-dropdown-menu class="w-56">
+      <hlm-dropdown-menu-label>Visible columns</hlm-dropdown-menu-label>
+      <hlm-dropdown-menu-separator />
+      @for (column of _columnOptions; track column.id) {
+        <button
+          hlmDropdownMenuCheckbox
+          [checked]="_columnVisible(column.id)"
+          [disabled]="column.required"
+          (triggered)="_toggleColumn(column.id)"
+        >
+          <hlm-dropdown-menu-checkbox-indicator />
+          {{ column.label }}
+        </button>
+      }
+    </hlm-dropdown-menu>
+  </ng-template>
+</rbth-data-table-filter>
+
+@if (_users.error()) {
+  <div
+    class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+  >
+    Users could not be loaded.
+  </div>
+}
+
+<div class="min-w-0 overflow-hidden rounded-md border">
+  <div class="max-h-[68vh] min-h-80 overflow-auto">
+    <table
+      hlmTable
+      class="min-w-full table-fixed"
+      [style.width.px]="_table.getTotalSize()"
+    >
+      <colgroup>
+        @for (column of _table.getVisibleLeafColumns(); track column.id) {
+          <col [style.width.px]="column.getSize()" />
+        }
+      </colgroup>
+
+      <thead hlmTHead class="sticky top-0 z-10 bg-background">
+        @for (headerGroup of _table.getHeaderGroups(); track headerGroup.id) {
+          <tr hlmTr>
+            @for (header of headerGroup.headers; track header.id) {
+              <th
+                hlmTh
+                [attr.colspan]="header.colSpan"
+                [style.width.px]="header.getSize()"
+                [class.sticky]="header.column.getIsPinned() === 'left'"
+                [class.left-0]="header.column.getIsPinned() === 'left'"
+                [class.z-20]="header.column.getIsPinned() === 'left'"
+                [class.bg-background]="header.column.getIsPinned() === 'left'"
+                class="relative select-none"
+              >
+                @if (!header.isPlaceholder) {
+                  @if (_sortable(header.column.id)) {
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1.5 font-medium"
+                      (click)="_toggleSort(header.column.id)"
+                    >
+                      {{ header.column.columnDef.header }}
+                      <ng-icon
+                        hlmIcon
+                        [name]="_sortIcon(header.column.id)"
+                        size="sm"
+                        class="text-muted-foreground"
+                      />
+                    </button>
+                  } @else {
+                    {{ header.column.columnDef.header }}
+                  }
+                }
+
+                @if (header.column.getCanResize()) {
+                  <button
+                    type="button"
+                    class="absolute inset-y-1 right-0 w-1 cursor-col-resize rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 active:opacity-100"
+                    [class.opacity-100]="
+                      _table.getState().columnSizingInfo.isResizingColumn ===
+                      header.column.id
+                    "
+                    (mousedown)="header.getResizeHandler()($event)"
+                    (touchstart)="header.getResizeHandler()($event)"
+                    aria-label="Resize column"
+                  ></button>
+                }
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+
+      <tbody hlmTBody>
+        @for (row of _table.getRowModel().rows; track row.id) {
+          @let user = row.original;
+          <tr hlmTr>
+            @for (cell of row.getVisibleCells(); track cell.id) {
+              <td
+                hlmTd
+                [style.width.px]="cell.column.getSize()"
+                [class.sticky]="cell.column.getIsPinned() === 'left'"
+                [class.left-0]="cell.column.getIsPinned() === 'left'"
+                [class.z-10]="cell.column.getIsPinned() === 'left'"
+                [class.bg-background]="cell.column.getIsPinned() === 'left'"
+              >
+                @switch (cell.column.id) {
+                  @case ('user') {
+                    <rbth-user-identity
+                      class="min-w-72"
+                      [avatarSrc]="_profileAvatarSrc(user)"
+                      [copyPrincipal]="true"
+                      [principalId]="user.id.toText()"
+                      [title]="_userLabel(user)"
+                    />
+                  }
+                  @case ('role') {
+                    <hlm-select
+                      rbthTransparentSelectBackdrop
+                      [value]="_roleValue(user.role)"
+                      [disabled]="_updatingRoleFor() === user.id.toText()"
+                      (valueChange)="_setUserRole(user, $event)"
+                    >
+                      <hlm-select-trigger class="w-32">
+                        <hlm-select-value />
+                      </hlm-select-trigger>
+                      <hlm-select-content *hlmSelectPortal>
+                        @for (
+                          option of _actionRoleOptions;
+                          track option.value
+                        ) {
+                          <hlm-select-item [value]="option.value">
+                            {{ option.label }}
+                          </hlm-select-item>
+                        }
+                      </hlm-select-content>
+                    </hlm-select>
+                  }
+                  @case ('principal') {
+                    <core-copy-to-clipboard [content]="user.id.toText()">
+                      {{ user.id.toText() }}
+                    </core-copy-to-clipboard>
+                  }
+                  @case ('name') {
+                    <span class="text-sm">
+                      {{ _optionalText(user.name) }}
+                    </span>
+                  }
+                  @case ('email') {
+                    <span class="text-sm">
+                      {{ _optionalText(user.email) }}
+                    </span>
+                  }
+                  @case ('verifiedEmail') {
+                    <hlm-checkbox
+                      [checked]="user.verifiedEmail[0] === true"
+                      disabled
+                      aria-label="Verified email"
+                    />
+                  }
+                  @case ('authProvider') {
+                    @if (user.authProvider[0]; as provider) {
+                      @switch (provider) {
+                        @case ('apple') {
+                          <ng-icon
+                            name="hugeApple"
+                            class="size-4"
+                            [hlmTooltip]="_authProviderLabel(provider)"
+                            [attr.aria-label]="_authProviderLabel(provider)"
+                          />
+                        }
+                        @case ('google') {
+                          <ng-icon
+                            name="hugeGoogle"
+                            class="size-4"
+                            [hlmTooltip]="_authProviderLabel(provider)"
+                            [attr.aria-label]="_authProviderLabel(provider)"
+                          />
+                        }
+                        @case ('internet_identity') {
+                          <ng-icon
+                            name="hugeInfinity01"
+                            class="size-4"
+                            [hlmTooltip]="_authProviderLabel(provider)"
+                            [attr.aria-label]="_authProviderLabel(provider)"
+                          />
+                        }
+                        @case ('dev_openid') {
+                          <ng-icon
+                            name="hugeDeveloper"
+                            class="size-4"
+                            [hlmTooltip]="_authProviderLabel(provider)"
+                            [attr.aria-label]="_authProviderLabel(provider)"
+                          />
+                        }
+                        @case ('microsoft') {
+                          <ng-icon
+                            name="hugeMicrosoft"
+                            class="size-4"
+                            [hlmTooltip]="_authProviderLabel(provider)"
+                            [attr.aria-label]="_authProviderLabel(provider)"
+                          />
+                        }
+                        @default {
+                          <span
+                            class="text-xs font-medium uppercase"
+                            [hlmTooltip]="_authProviderLabel(provider)"
+                          >
+                            {{ provider.slice(0, 2) }}
+                          </span>
+                        }
+                      }
+                    }
+                  }
+                  @case ('inviter') {
+                    @if (user.inviter[0]; as inviter) {
+                      <core-copy-to-clipboard [content]="inviter.toText()">
+                        {{ inviter.toText() }}
+                      </core-copy-to-clipboard>
+                    }
+                  }
+                  @case ('trialUsed') {
+                    <span
+                      hlmBadge
+                      [variant]="user.trialUsed ? 'secondary' : 'outline'"
+                    >
+                      {{ user.trialUsed ? 'Used' : 'Unused' }}
+                    </span>
+                  }
+                  @case ('profileUsername') {
+                    <span class="text-sm">
+                      {{ user.profile[0]?.username ?? '' }}
+                    </span>
+                  }
+                  @case ('profileDisplayName') {
+                    <span class="text-sm">
+                      {{ user.profile[0]?.displayName?.[0] ?? '' }}
+                    </span>
+                  }
+                  @case ('profileAvatarUrl') {
+                    <span class="max-w-64 truncate text-sm">
+                      {{ user.profile[0]?.avatarUrl?.[0] ?? '' }}
+                    </span>
+                  }
+                  @case ('createdAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _date(user.createdAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('updatedAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _date(user.updatedAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('lastLoginAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _optionalDate(user.lastLoginAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('profileSyncedAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _optionalDate(user.profileSyncedAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('referralAppliedAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{
+                        _optionalDate(user.referralAppliedAt) | date: 'medium'
+                      }}
+                    </span>
+                  }
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td
+              hlmTd
+              class="h-40 text-center"
+              [attr.colspan]="_visibleColumns().length"
+            >
+              @if (_users.isLoading()) {
+                <span
+                  class="inline-flex items-center gap-2 text-sm text-muted-foreground"
+                >
+                  <hlm-spinner size="sm" />
+                  Loading users...
+                </span>
+              } @else {
+                <span class="text-sm text-muted-foreground">
+                  No users found
+                </span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer
+  class="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+>
+  <span> Showing {{ _rangeStart() }}-{{ _rangeEnd() }} of {{ _total() }} </span>
+
+  <div class="flex flex-wrap items-center justify-end gap-2">
+    <span class="text-sm">Rows per page</span>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="min-w-20 justify-between"
+      [hlmDropdownMenuTrigger]="pageSizeMenu"
+    >
+      {{ _pageSize() }}
+      <ng-icon
+        hlmIcon
+        name="lucideChevronDown"
+        size="sm"
+        class="text-muted-foreground"
+      />
+    </button>
+    <ng-template #pageSizeMenu>
+      <hlm-dropdown-menu class="w-32">
+        @for (size of _pageSizes; track size) {
+          <button
+            hlmDropdownMenuCheckbox
+            [checked]="_pageSize() === size"
+            (triggered)="_setPageSize(size)"
+          >
+            <hlm-dropdown-menu-checkbox-indicator />
+            {{ size }}
+          </button>
+        }
+      </hlm-dropdown-menu>
+    </ng-template>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_pageIndex() === 0 || _users.isLoading()"
+      (click)="_previousPage()"
+    >
+      <ng-icon hlmIcon name="lucideChevronLeft" size="sm" />
+      Previous
+    </button>
+    <span class="min-w-20 text-center">
+      Page {{ _pageIndex() + 1 }} / {{ _pageCount() }}
+    </span>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_pageIndex() + 1 >= _pageCount() || _users.isLoading()"
+      (click)="_nextPage()"
+    >
+      Next
+      <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
+    </button>
+  </div>
+</footer>

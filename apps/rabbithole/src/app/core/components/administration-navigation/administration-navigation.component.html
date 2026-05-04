@@ -1,0 +1,24 @@
+@if (isAdmin.value()) {
+  <hlm-sidebar-separator class="mx-0" />
+  <div hlmSidebarGroup>
+    <div hlmSidebarGroupLabel>Administration</div>
+    <div hlmSidebarGroupContent>
+      <ul hlmSidebarMenu>
+        @for (item of administrationNavItems; track item.route) {
+          <li hlmSidebarMenuItem>
+            <a
+              hlmSidebarMenuButton
+              [routerLink]="item.route"
+              routerLinkActive
+              #rla="routerLinkActive"
+              [isActive]="rla.isActive"
+            >
+              <ng-icon hlmIcon [name]="item.icon" size="sm" hlmMenuIcon />
+              <span>{{ item.label }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+}
