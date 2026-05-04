@@ -51,6 +51,10 @@ mixin(
     profiles.get(caller);
   };
 
+  func getProfileById(principal : Principal) : ?Profiles.Profile {
+    profiles.get(principal);
+  };
+
   public query func listProfiles(options : Profiles.ListOptions) : async Profiles.GetProfilesResponse {
     profiles.list(options);
   };

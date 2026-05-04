@@ -115,7 +115,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       storeAsset = func(caller : Principal, args : HttpAssets.StoreArgs) { assetCanister.store(caller, args) };
     },
   );
-  include UsersMixin(installer, db, { resolveReferralCode });
+  include UsersMixin(installer, db, { getProfileById; resolveReferralCode });
   include IdentityVerificationMixin({
     upsertFromVerifiedAttributes;
   });

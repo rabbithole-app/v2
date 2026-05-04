@@ -64,6 +64,64 @@ export const idlFactory = ({ IDL }) => {
     'InvalidWasm' : IDL.Text,
   });
   const Result_6 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const SortDirection = IDL.Variant({
+    'Descending' : IDL.Null,
+    'Ascending' : IDL.Null,
+  });
+  const Time = IDL.Int;
+  const TimeRangeFilter = IDL.Record({
+    'max' : IDL.Opt(Time),
+    'min' : IDL.Opt(Time),
+  });
+  const Role = IDL.Variant({
+    'admin' : IDL.Null,
+    'moderator' : IDL.Null,
+    'user' : IDL.Null,
+  });
+  const AdminUserListOptions = IDL.Record({
+    'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
+    'count' : IDL.Bool,
+    'sort' : IDL.Vec(IDL.Tuple(IDL.Text, SortDirection)),
+    'filter' : IDL.Record({
+      'id' : IDL.Opt(IDL.Vec(IDL.Principal)),
+      'referralAppliedAt' : IDL.Opt(TimeRangeFilter),
+      'lastLoginAt' : IDL.Opt(TimeRangeFilter),
+      'inviter' : IDL.Opt(IDL.Vec(IDL.Principal)),
+      'verifiedEmail' : IDL.Opt(IDL.Bool),
+      'createdAt' : IDL.Opt(TimeRangeFilter),
+      'role' : IDL.Opt(Role),
+      'trialUsed' : IDL.Opt(IDL.Bool),
+      'search' : IDL.Opt(IDL.Text),
+      'updatedAt' : IDL.Opt(TimeRangeFilter),
+      'authProvider' : IDL.Opt(IDL.Text),
+      'profileSyncedAt' : IDL.Opt(TimeRangeFilter),
+    }),
+  });
+  const PublicProfileSummary = IDL.Record({
+    'username' : IDL.Text,
+    'displayName' : IDL.Opt(IDL.Text),
+    'avatarUrl' : IDL.Opt(IDL.Text),
+  });
+  const AdminUserListItem = IDL.Record({
+    'id' : IDL.Principal,
+    'referralAppliedAt' : IDL.Opt(Time),
+    'lastLoginAt' : IDL.Opt(Time),
+    'inviter' : IDL.Opt(IDL.Principal),
+    'verifiedEmail' : IDL.Opt(IDL.Bool),
+    'name' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
+    'role' : Role,
+    'trialUsed' : IDL.Bool,
+    'email' : IDL.Opt(IDL.Text),
+    'updatedAt' : Time,
+    'authProvider' : IDL.Opt(IDL.Text),
+    'profile' : IDL.Opt(PublicProfileSummary),
+    'profileSyncedAt' : IDL.Opt(Time),
+  });
+  const AdminUsersPage = IDL.Record({
+    'total' : IDL.Opt(IDL.Nat),
+    'data' : IDL.Vec(AdminUserListItem),
+  });
   const ApplyReferralCodeResult = IDL.Variant({
     'ok' : IDL.Null,
     'storageError' : IDL.Text,
@@ -144,7 +202,6 @@ export const idlFactory = ({ IDL }) => {
     'payer' : IDL.Principal,
     'treasuryAmount' : IDL.Nat,
   });
-  const Time = IDL.Int;
   const TypedEvent = IDL.Variant({
     'backendLowCycles' : IDL.Record({
       'threshold' : IDL.Nat,
@@ -327,11 +384,6 @@ export const idlFactory = ({ IDL }) => {
     'autoRenew' : IDL.Bool,
   });
   const BalanceEntry = IDL.Record({ 'tokenId' : TokenId, 'balance' : IDL.Nat });
-  const Role = IDL.Variant({
-    'admin' : IDL.Null,
-    'moderator' : IDL.Null,
-    'user' : IDL.Null,
-  });
   const User = IDL.Record({
     'id' : IDL.Principal,
     'referralAppliedAt' : IDL.Opt(Time),
@@ -390,14 +442,6 @@ export const idlFactory = ({ IDL }) => {
     'headers' : IDL.Vec(Header),
     'streaming_strategy' : IDL.Opt(StreamingStrategy),
     'status_code' : IDL.Nat16,
-  });
-  const SortDirection = IDL.Variant({
-    'Descending' : IDL.Null,
-    'Ascending' : IDL.Null,
-  });
-  const TimeRangeFilter = IDL.Record({
-    'max' : IDL.Opt(Time),
-    'min' : IDL.Opt(Time),
   });
   const ListCreationsOptions = IDL.Record({
     'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
@@ -667,6 +711,16 @@ export const idlFactory = ({ IDL }) => {
     'contentType' : IDL.Text,
     'filename' : IDL.Text,
   });
+  const UserDirectoryMatch = IDL.Variant({
+    'principalExact' : IDL.Null,
+    'emailExact' : IDL.Null,
+    'profile' : IDL.Null,
+  });
+  const UserDirectoryItem = IDL.Record({
+    'id' : IDL.Principal,
+    'match' : UserDirectoryMatch,
+    'profile' : IDL.Opt(PublicProfileSummary),
+  });
   const IdentityAttributesSyncError = IDL.Variant({
     'expired' : IDL.Null,
     'untrustedSigner' : IDL.Null,
@@ -725,6 +779,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'activateTrial' : IDL.Func([], [], []),
     'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_6], []),
+    'adminListUsers' : IDL.Func(
+        [AdminUserListOptions],
+        [AdminUsersPage],
+        ['query'],
+      ),
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'applyReferralCode' : IDL.Func([IDL.Text], [ApplyReferralCodeResult], []),
     'attributeNonceBegin' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
@@ -883,6 +942,11 @@ export const idlFactory = ({ IDL }) => {
     'retryAmbassadorPayout' : IDL.Func([IDL.Nat], [Result_2], []),
     'retryPendingCmcOp' : IDL.Func([IDL.Nat], [CmcOpRetryResult], []),
     'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
+    'searchUserDirectory' : IDL.Func(
+        [IDL.Text, IDL.Nat],
+        [IDL.Vec(UserDirectoryItem)],
+        ['query'],
+      ),
     'setUserRole' : IDL.Func([IDL.Principal, Role], [], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),

@@ -13,6 +13,45 @@ import type { Principal } from '@icp-sdk/core/principal';
 export type AddStorageError = { 'NotController' : null } |
   { 'CanisterAlreadyUsed' : { 'canisterId' : Principal } } |
   { 'InvalidWasm' : string };
+export interface AdminUserListItem {
+  'id' : Principal,
+  'referralAppliedAt' : [] | [Time],
+  'lastLoginAt' : [] | [Time],
+  'inviter' : [] | [Principal],
+  'verifiedEmail' : [] | [boolean],
+  'name' : [] | [string],
+  'createdAt' : Time,
+  'role' : Role,
+  'trialUsed' : boolean,
+  'email' : [] | [string],
+  'updatedAt' : Time,
+  'authProvider' : [] | [string],
+  'profile' : [] | [PublicProfileSummary],
+  'profileSyncedAt' : [] | [Time],
+}
+export interface AdminUserListOptions {
+  'pagination' : { 'offset' : bigint, 'limit' : bigint },
+  'count' : boolean,
+  'sort' : Array<[string, SortDirection]>,
+  'filter' : {
+    'id' : [] | [Array<Principal>],
+    'referralAppliedAt' : [] | [TimeRangeFilter],
+    'lastLoginAt' : [] | [TimeRangeFilter],
+    'inviter' : [] | [Array<Principal>],
+    'verifiedEmail' : [] | [boolean],
+    'createdAt' : [] | [TimeRangeFilter],
+    'role' : [] | [Role],
+    'trialUsed' : [] | [boolean],
+    'search' : [] | [string],
+    'updatedAt' : [] | [TimeRangeFilter],
+    'authProvider' : [] | [string],
+    'profileSyncedAt' : [] | [TimeRangeFilter],
+  },
+}
+export interface AdminUsersPage {
+  'total' : [] | [bigint],
+  'data' : Array<AdminUserListItem>,
+}
 export interface AmbassadorChain {
   'l1' : [] | [Principal],
   'l2' : [] | [Principal],
@@ -309,6 +348,11 @@ export interface Profile {
   'avatarUrl' : [] | [string],
 }
 export interface Progress { 'total' : bigint, 'processed' : bigint }
+export interface PublicProfileSummary {
+  'username' : string,
+  'displayName' : [] | [string],
+  'avatarUrl' : [] | [string],
+}
 export type PurchaseError = { 'ActivationFailed' : string } |
   { 'InvalidPlan' : string } |
   { 'ChargeFailed' : string } |
@@ -352,6 +396,7 @@ export interface Rabbithole {
    * / (per-account, not per-storage; only once per account).
    */
   'addStorage' : ActorMethod<[Principal, Uint8Array], Result_6>,
+  'adminListUsers' : ActorMethod<[AdminUserListOptions], AdminUsersPage>,
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
   'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
   'attributeNonceBegin' : ActorMethod<[], Uint8Array>,
@@ -508,6 +553,10 @@ export interface Rabbithole {
   'retryAmbassadorPayout' : ActorMethod<[bigint], Result_2>,
   'retryPendingCmcOp' : ActorMethod<[bigint], CmcOpRetryResult>,
   'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
+  'searchUserDirectory' : ActorMethod<
+    [string, bigint],
+    Array<UserDirectoryItem>
+  >,
   'setUserRole' : ActorMethod<[Principal, Role], undefined>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
@@ -827,6 +876,14 @@ export interface User {
   'authProvider' : [] | [string],
   'profileSyncedAt' : [] | [Time],
 }
+export interface UserDirectoryItem {
+  'id' : Principal,
+  'match' : UserDirectoryMatch,
+  'profile' : [] | [PublicProfileSummary],
+}
+export type UserDirectoryMatch = { 'principalExact' : null } |
+  { 'emailExact' : null } |
+  { 'profile' : null };
 export interface UserSettings {
   'spendingPriority' : Array<TokenId>,
   'topUpAmountCycles' : bigint,

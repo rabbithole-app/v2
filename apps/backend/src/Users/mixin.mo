@@ -1,15 +1,27 @@
 import Debug "mo:core/Debug";
 import Error "mo:core/Error";
+import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
+import Text "mo:core/Text";
 
 import Users "lib";
 import ZenDB "mo:zendb";
 
-mixin(
+mixin (
   installer : Principal,
   db : ZenDB.Database,
   deps : {
+    getProfileById : (Principal) -> ?{
+      id : Principal;
+      username : Text;
+      displayName : ?Text;
+      avatarUrl : ?Text;
+      referralCode : ?Text;
+      createdAt : Int;
+      updatedAt : Int;
+    };
     resolveReferralCode : (Text) -> ?Principal;
   },
 ) {
@@ -81,6 +93,17 @@ mixin(
     users.exists(principal);
   };
 
+  func getPublicProfileSummary(principal : Principal) : ?Users.PublicProfileSummary {
+    switch (deps.getProfileById(principal)) {
+      case (?profile) ?{
+        username = profile.username;
+        displayName = profile.displayName;
+        avatarUrl = profile.avatarUrl;
+      };
+      case null null;
+    };
+  };
+
   // ---- Public queries ----
 
   public query ({ caller }) func getUser() : async ?Users.User {
@@ -98,9 +121,22 @@ mixin(
     users.isAdmin(principal);
   };
 
+  /// Public user lookup for sharing and access management.
+  /// Privacy contract:
+  /// - partial username/displayName matches only return users with profiles;
+  /// - exact email matches confirm an existing account without exposing email;
+  /// - exact principal matches return profile or bare principal records;
+  /// - result count and partial search length are capped in Users.searchDirectory.
+  public query func searchUserDirectory(search : Text, limit : Nat) : async [Users.UserDirectoryItem] {
+    users.searchDirectory(search, limit, getPublicProfileSummary);
+  };
+
   // ---- Admin API ----
 
-  /// Change a user's role. Admin-only. Target must already be registered.
+  /// Change a user's role. Admin-only.
+  /// Admin promotion may bootstrap an unknown principal as #admin so a current
+  /// admin can recover/add another admin by principal. Non-admin roles require
+  /// an existing user record.
   /// Cannot self-demote from #admin (prevents accidentally locking out all admins
   /// when only one exists — admin must promote someone else first, then be demoted).
   public shared ({ caller }) func setUserRole(target : Principal, role : Users.Role) : async () {
@@ -109,7 +145,15 @@ mixin(
       throw Error.reject("cannot self-demote from admin");
     };
     if (not users.setRole(target, role)) {
-      throw Error.reject("user not found");
+      switch (role) {
+        case (#admin) {
+          switch (users.create(target, null, #admin)) {
+            case (#ok _) {};
+            case (#err msg) throw Error.reject(msg);
+          };
+        };
+        case _ throw Error.reject("user not found");
+      };
     };
   };
 
@@ -118,5 +162,10 @@ mixin(
   public query ({ caller }) func listUsersByRole(role : Users.Role) : async [Principal] {
     assertAdmin(caller);
     users.listByRole(role);
+  };
+
+  public query ({ caller }) func adminListUsers(options : Users.AdminUserListOptions) : async Users.AdminUsersPage {
+    assertAdmin(caller);
+    users.list(options, getPublicProfileSummary);
   };
 };

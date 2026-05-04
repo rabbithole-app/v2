@@ -102,6 +102,32 @@ describe("Users", () => {
     expect(storedUser.authProvider).toEqual(["google"]);
     expect(storedUser.lastLoginAt).toHaveLength(1);
     expect(storedUser.profileSyncedAt).toHaveLength(1);
+
+    const bareEmailResults = await actor.searchUserDirectory(
+      "andri.schatz@dfinity.org",
+      10n,
+    );
+
+    expect(bareEmailResults).toHaveLength(1);
+    expect(bareEmailResults[0].id.toText()).toBe(user.toText());
+    expect(bareEmailResults[0].match).toEqual({ emailExact: null });
+    expect(bareEmailResults[0].profile).toHaveLength(0);
+
+    await actor.createProfile({
+      username: "andri-schatz",
+      displayName: ["Andri Schatz"],
+      avatarUrl: [],
+    });
+
+    const profileEmailResults = await actor.searchUserDirectory(
+      "andri.schatz@dfinity.org",
+      10n,
+    );
+
+    expect(profileEmailResults).toHaveLength(1);
+    expect(profileEmailResults[0].id.toText()).toBe(user.toText());
+    expect(profileEmailResults[0].match).toEqual({ emailExact: null });
+    expect(profileEmailResults[0].profile[0]?.username).toBe("andri-schatz");
   });
 
   test("installer is bootstrapped with role=admin", async () => {
