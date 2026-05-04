@@ -1,0 +1,9 @@
+# License transition notice
+
+Code published up to and including commit e78ac02 was released under the MIT
+license.
+
+Code published after commit e78ac02 is licensed under the Functional Source
+License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2). Each version becomes
+available under the Apache License, Version 2.0 on the second anniversary of
+the date that version is first made available.

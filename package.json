@@ -1,7 +1,7 @@
 {
   "name": "@rabbithole/source",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "FSL-1.1-ALv2",
   "scripts": {
     "start": "nx run-many -t serve -p rabbithole storage --output-style=stream",
     "lint": "nx run-many -t lint -p rabbithole storage app-ui auth core app-utils encrypted-storage pages features utils encrypted-storage-mo auth-jwt-mo",
