@@ -1,0 +1,145 @@
+<hlm-combobox-multiple
+  coreTransparentComboboxBackdrop
+  class="block w-full"
+  [value]="value()"
+  (valueChange)="setValue($event)"
+  [search]="search()"
+  (searchChange)="search.set($event)"
+  [filter]="filterTarget"
+  [itemToString]="itemToString"
+  [isItemEqualToValue]="isItemEqualToValue"
+>
+  <hlm-combobox-chips class="w-full">
+    @if (valueTemplate(); as template) {
+      @if (value().length) {
+        <span
+          class="inline-flex h-6 max-w-full items-center rounded-md bg-secondary px-2 text-sm text-secondary-foreground"
+        >
+          <span class="truncate">
+            <ng-container
+              [ngTemplateOutlet]="template.templateRef"
+              [ngTemplateOutletContext]="{ $implicit: value() }"
+            />
+          </span>
+        </span>
+      }
+    } @else {
+      @for (item of value(); track targetKey(item)) {
+        <hlm-combobox-chip [value]="item">
+          {{ item.label }}
+        </hlm-combobox-chip>
+      }
+    }
+    <input
+      hlmComboboxChipInput
+      [placeholder]="value().length ? '' : placeholder()"
+    />
+  </hlm-combobox-chips>
+
+  @if (shouldShowContent()) {
+    <hlm-combobox-content
+      *hlmComboboxPortal
+      class="w-96 max-w-[calc(100vw-2rem)]"
+    >
+      @if (options.isLoading()) {
+        <hlm-combobox-status>Searching users...</hlm-combobox-status>
+      }
+
+      <ng-template #targetOption let-item>
+        @if (optionTemplate(); as template) {
+          <ng-container
+            [ngTemplateOutlet]="template.templateRef"
+            [ngTemplateOutletContext]="{ $implicit: item }"
+          />
+        } @else {
+          @if (item.kind === 'user') {
+            <hlm-avatar class="size-7 shrink-0 border bg-muted text-xs">
+              @if (item.avatarUrl) {
+                <img
+                  hlmAvatarImage
+                  [src]="item.avatarUrl"
+                  [alt]="targetTitle(item)"
+                />
+              }
+              <img
+                hlmAvatarFallback
+                src="/avatar-placeholder.svg"
+                [alt]="targetTitle(item)"
+              />
+            </hlm-avatar>
+          } @else {
+            <span
+              class="flex size-7 shrink-0 items-center justify-center rounded-full border bg-muted text-muted-foreground"
+            >
+              <ng-icon
+                hlmIcon
+                [name]="item.kind === 'email' ? 'lucideAtSign' : 'lucideKeyRound'"
+                size="sm"
+              />
+            </span>
+          }
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-medium">{{ targetTitle(item) }}</span>
+            <span class="block truncate text-xs text-muted-foreground">
+              {{ targetSubtitle(item) }}
+            </span>
+          </span>
+        }
+      </ng-template>
+
+      <div hlmComboboxList>
+        @if (selectedOptions().length) {
+          <div hlmComboboxGroup>
+            <div hlmComboboxLabel>Selected</div>
+            @for (item of selectedOptions(); track targetKey(item)) {
+              <hlm-combobox-item [value]="item">
+                <ng-container
+                  [ngTemplateOutlet]="targetOption"
+                  [ngTemplateOutletContext]="{ $implicit: item }"
+                />
+              </hlm-combobox-item>
+            }
+          </div>
+        }
+
+        @if (hasSearch()) {
+          @if (selectedOptions().length) {
+            <div hlmComboboxSeparator></div>
+          }
+
+          @if (foundOptions().length) {
+            <div hlmComboboxGroup>
+              <div hlmComboboxLabel>Users</div>
+              @for (item of foundOptions(); track targetKey(item)) {
+                <hlm-combobox-item [value]="item">
+                  <ng-container
+                    [ngTemplateOutlet]="targetOption"
+                    [ngTemplateOutletContext]="{ $implicit: item }"
+                  />
+                </hlm-combobox-item>
+              }
+            </div>
+          }
+
+          @if (typedOptions().length) {
+            <div hlmComboboxGroup>
+              <div hlmComboboxLabel>Use typed value</div>
+              @for (item of typedOptions(); track targetKey(item)) {
+                <hlm-combobox-item [value]="item">
+                  <ng-container
+                    [ngTemplateOutlet]="targetOption"
+                    [ngTemplateOutletContext]="{ $implicit: item }"
+                  />
+                </hlm-combobox-item>
+              }
+            </div>
+          } @else if (!foundOptions().length && !options.isLoading()) {
+            <hlm-combobox-status>No matching users</hlm-combobox-status>
+          }
+        } @else if (!selectedOptions().length) {
+          <hlm-combobox-status>Type at least 2 characters</hlm-combobox-status>
+        }
+      </div>
+    </hlm-combobox-content>
+  }
+</hlm-combobox-multiple>

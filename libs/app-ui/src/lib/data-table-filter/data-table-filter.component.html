@@ -1,0 +1,403 @@
+<div class="flex flex-wrap items-center justify-between gap-2">
+  <div class="flex min-w-0 flex-wrap items-center gap-2">
+    @for (filter of filters(); track filter.columnId) {
+      @if (_columnFor(filter.columnId); as column) {
+        <div hlmButtonGroup class="max-w-full">
+          <div hlmButtonGroupText class="h-8 max-w-36 bg-background px-2 text-sm">
+            <ng-icon
+              hlmIcon
+              [name]="column.iconName ?? _fallbackIcon(column.type)"
+              size="14px"
+            />
+            <span class="truncate">{{ column.label }}</span>
+          </div>
+
+          @if (_hasMultipleOperators(column)) {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              size="sm"
+              class="h-8 max-w-40 text-muted-foreground"
+              [hlmDropdownMenuTrigger]="operatorMenu"
+            >
+              <span class="truncate">{{ _operatorLabel(filter) }}</span>
+              <ng-icon hlmIcon name="lucideChevronDown" size="sm" />
+            </button>
+            <ng-template #operatorMenu>
+              <hlm-dropdown-menu class="w-56">
+                <hlm-dropdown-menu-group>
+                  @for (operator of _operators(column); track operator.value) {
+                    <button
+                      hlmDropdownMenuRadio
+                      [checked]="filter.operator === operator.value"
+                      (click)="_setOperator(filter, operator.value)"
+                    >
+                      <hlm-dropdown-menu-radio-indicator />
+                      <span>{{ operator.label }}</span>
+                    </button>
+                  }
+                </hlm-dropdown-menu-group>
+              </hlm-dropdown-menu>
+            </ng-template>
+          } @else {
+            <div
+              hlmButtonGroupText
+              class="h-8 max-w-40 bg-background px-2 text-sm text-muted-foreground"
+            >
+              <span class="truncate">{{ _operatorLabel(filter) }}</span>
+            </div>
+          }
+
+          @switch (column.type) {
+            @case ('boolean') {
+              <label
+                hlmButtonGroupText
+                class="h-8 cursor-pointer bg-background px-2 text-sm font-normal text-foreground"
+              >
+                <hlm-checkbox
+                  [checked]="_booleanValue(filter)"
+                  (checkedChange)="_setBooleanValue(filter, $event)"
+                  [aria-label]="column.label"
+                />
+                <span class="truncate">
+                  {{ _booleanLabel(_booleanValue(filter), column) }}
+                </span>
+              </label>
+            }
+            @case ('custom') {
+              @if (_customValueTemplate(filter.columnId); as valueTemplate) {
+                @if (_customValueContext(filter); as context) {
+                  <ng-container
+                    [ngTemplateOutlet]="valueTemplate.templateRef"
+                    [ngTemplateOutletContext]="context"
+                  />
+                }
+              }
+            }
+            @case ('date') {
+              @if (_usesRange(filter)) {
+                <hlm-date-range-picker
+                  class="[&>hlm-popover>button]:h-8 [&>hlm-popover>button]:w-56 [&>hlm-popover>button]:rounded-none [&>hlm-popover>button]:border-s-0 [&>hlm-popover>button]:text-sm"
+                  [date]="_dateRangeValue(filter)"
+                  (dateChange)="_setDateRangeValue(filter, $event)"
+                >
+                  Pick range
+                </hlm-date-range-picker>
+              } @else {
+                <hlm-date-picker
+                  class="[&>hlm-popover>button]:h-8 [&>hlm-popover>button]:w-44 [&>hlm-popover>button]:rounded-none [&>hlm-popover>button]:border-s-0 [&>hlm-popover>button]:text-sm"
+                  [date]="_dateValue(filter)"
+                  (dateChange)="_setDateValue(filter, $event)"
+                >
+                  Pick date
+                </hlm-date-picker>
+              }
+            }
+            @case ('multiOption') {
+              <hlm-select-multiple
+                rbthTransparentSelectBackdrop
+                [value]="_selectValues(filter)"
+                (valueChange)="_setSelectValues(filter, $event)"
+              >
+                <hlm-select-trigger
+                  size="sm"
+                  class="h-8 w-48 rounded-none border-s-0 bg-background py-0 text-sm text-foreground hover:bg-background dark:bg-background dark:hover:bg-background"
+                >
+                  <hlm-select-placeholder>Set value</hlm-select-placeholder>
+                  <ng-template hlmSelectValues let-values>
+                    <hlm-select-values-content>
+                      {{ _selectedValuesSummary(values, column) }}
+                    </hlm-select-values-content>
+                  </ng-template>
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (option of column.options ?? []; track option.value) {
+                      <hlm-select-item [value]="option.value">
+                        {{ option.label }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select-multiple>
+            }
+            @case ('number') {
+              @if (_usesRange(filter)) {
+                <div class="flex h-8 items-center">
+                  <input
+                    hlmInput
+                    type="number"
+                    placeholder="Min"
+                    class="h-8 w-24 rounded-none border-s-0 text-sm shadow-none focus-visible:z-10"
+                    [value]="_numberValue(filter, 0)"
+                    (input)="_setNumberValue(filter, 0, _inputValue($event))"
+                  />
+                  <input
+                    hlmInput
+                    type="number"
+                    placeholder="Max"
+                    class="h-8 w-24 rounded-none border-s-0 text-sm shadow-none focus-visible:z-10"
+                    [value]="_numberValue(filter, 1)"
+                    (input)="_setNumberValue(filter, 1, _inputValue($event))"
+                  />
+                </div>
+              } @else {
+                <input
+                  hlmInput
+                  type="number"
+                  placeholder="Value"
+                  class="h-8 w-32 rounded-none border-s-0 text-sm shadow-none focus-visible:z-10"
+                  [value]="_numberValue(filter, 0)"
+                  (input)="_setNumberValue(filter, 0, _inputValue($event))"
+                />
+              }
+            }
+            @case ('option') {
+              @if (_usesRange(filter)) {
+                <hlm-select-multiple
+                  rbthTransparentSelectBackdrop
+                  [value]="_selectValues(filter)"
+                  (valueChange)="_setSelectValues(filter, $event)"
+                >
+                  <hlm-select-trigger
+                    size="sm"
+                    class="h-8 w-44 rounded-none border-s-0 bg-background py-0 text-sm text-foreground hover:bg-background dark:bg-background dark:hover:bg-background"
+                  >
+                    <hlm-select-placeholder>Set value</hlm-select-placeholder>
+                    <ng-template hlmSelectValues let-values>
+                      <hlm-select-values-content>
+                        {{ _selectedValuesSummary(values, column) }}
+                      </hlm-select-values-content>
+                    </ng-template>
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal>
+                    <hlm-select-group>
+                      @for (option of column.options ?? []; track option.value) {
+                        <hlm-select-item [value]="option.value">
+                          {{ option.label }}
+                        </hlm-select-item>
+                      }
+                    </hlm-select-group>
+                  </hlm-select-content>
+                </hlm-select-multiple>
+              } @else {
+                <hlm-select
+                  rbthTransparentSelectBackdrop
+                  [value]="_selectValue(filter)"
+                  (valueChange)="_setSelectValue(filter, $event)"
+                >
+                  <hlm-select-trigger
+                    size="sm"
+                    class="h-8 w-44 rounded-none border-s-0 py-0 text-sm"
+                  >
+                    <hlm-select-value placeholder="Select" />
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal>
+                    <hlm-select-group>
+                      @for (option of column.options ?? []; track option.value) {
+                        <hlm-select-item [value]="option.value">
+                          {{ option.label }}
+                        </hlm-select-item>
+                      }
+                    </hlm-select-group>
+                  </hlm-select-content>
+                </hlm-select>
+              }
+            }
+            @case ('principal') {
+              @if (_usesRange(filter)) {
+                <hlm-combobox-multiple
+                  rbthTransparentSelectBackdrop
+                  [value]="_principalValues(filter)"
+                  (valueChange)="_setPrincipalValues(filter, $event)"
+                  [search]="_principalSearch(filter)"
+                  (searchChange)="_setPrincipalSearch(filter, $event)"
+                  [itemToString]="_principalItemToString"
+                  [isItemEqualToValue]="_principalIsItemEqualToValue"
+                >
+                  <hlm-combobox-chips class="h-8 min-h-8 w-72 flex-nowrap overflow-hidden rounded-none border-s-0 bg-background py-1 text-sm">
+                    <ng-template hlmComboboxValues let-values>
+                      @if (values.length) {
+                        <span
+                          class="inline-flex max-w-32 items-center gap-1 rounded-sm bg-muted px-1.5 text-xs font-medium text-foreground"
+                        >
+                          <span class="truncate">
+                            {{ _principalSelectedSummary(values) }}
+                          </span>
+                          <button
+                            type="button"
+                            class="inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+                            (click)="_clearPrincipalValues(filter); $event.preventDefault(); $event.stopPropagation()"
+                            aria-label="Clear principal values"
+                          >
+                            <ng-icon name="lucideX" size="12px" />
+                          </button>
+                        </span>
+                      }
+                    </ng-template>
+                    <input
+                      hlmComboboxChipInput
+                      class="min-w-28 flex-1"
+                      [placeholder]="_principalValues(filter).length ? '' : 'Principal'"
+                      (keydown.enter)="_commitPrincipalSearch(filter); $event.preventDefault()"
+                    />
+                  </hlm-combobox-chips>
+
+                  @if (
+                    _principalSearch(filter).trim().length ||
+                    _principalValues(filter).length
+                  ) {
+                    <hlm-combobox-content
+                      *hlmComboboxPortal
+                      class="w-80 max-w-[calc(100vw-2rem)]"
+                    >
+                      @if (_principalComboboxOptions(filter).length) {
+                        <div hlmComboboxList>
+                          @for (principalId of _principalComboboxOptions(filter); track principalId) {
+                            <hlm-combobox-item [value]="principalId">
+                              {{ principalId }}
+                            </hlm-combobox-item>
+                          }
+                        </div>
+                      } @else {
+                        <hlm-combobox-status>
+                          Enter a valid principal ID
+                        </hlm-combobox-status>
+                      }
+                    </hlm-combobox-content>
+                  }
+                </hlm-combobox-multiple>
+              } @else {
+                <hlm-combobox
+                  rbthTransparentSelectBackdrop
+                  [value]="_principalValue(filter)"
+                  (valueChange)="_setPrincipalValue(filter, $event)"
+                  [search]="_principalSearch(filter)"
+                  (searchChange)="_setPrincipalSearch(filter, $event)"
+                  [itemToString]="_principalItemToString"
+                  [isItemEqualToValue]="_principalIsItemEqualToValue"
+                >
+                  <hlm-combobox-input
+                    placeholder="Principal"
+                    showClear
+                    class="[&>hlm-input-group]:h-8 [&>hlm-input-group]:w-56 [&>hlm-input-group]:rounded-none [&>hlm-input-group]:border-s-0 [&_input]:text-sm"
+                  />
+
+                  @if (_principalSearch(filter).trim().length) {
+                    <hlm-combobox-content
+                      *hlmComboboxPortal
+                      class="w-80 max-w-[calc(100vw-2rem)]"
+                    >
+                      @if (_principalOptions(filter).length) {
+                        <div hlmComboboxList>
+                          @for (principalId of _principalOptions(filter); track principalId) {
+                            <hlm-combobox-item [value]="principalId">
+                              {{ principalId }}
+                            </hlm-combobox-item>
+                          }
+                        </div>
+                      } @else {
+                        <hlm-combobox-status>
+                          Enter a valid principal ID
+                        </hlm-combobox-status>
+                      }
+                    </hlm-combobox-content>
+                  }
+                </hlm-combobox>
+              }
+            }
+            @case ('text') {
+              <input
+                hlmInput
+                type="text"
+                placeholder="Search"
+                class="h-8 w-44 rounded-none border-s-0 text-sm shadow-none focus-visible:z-10"
+                [value]="_textValue(filter)"
+                (input)="_setTextValue(filter, _inputValue($event))"
+              />
+            }
+          }
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            class="h-8"
+            (click)="_removeFilter(filter.columnId)"
+            aria-label="Remove filter"
+          >
+            <ng-icon hlmIcon name="lucideX" size="sm" />
+          </button>
+        </div>
+      }
+    }
+
+    @if (_availableColumns().length) {
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        size="sm"
+        class="h-8"
+        [hlmDropdownMenuTrigger]="addFilterMenu"
+      >
+        <ng-icon hlmIcon name="lucidePlus" size="sm" />
+        Add filter
+      </button>
+      <ng-template #addFilterMenu>
+        <hlm-dropdown-menu class="w-72">
+          <hlm-dropdown-menu-group>
+            @for (column of _availableColumns(); track column.id) {
+              <button
+                hlmDropdownMenuItem
+                class="gap-2"
+                (click)="_addFilter(column)"
+              >
+                <ng-icon
+                  hlmIcon
+                  [name]="column.iconName ?? _fallbackIcon(column.type)"
+                  size="sm"
+                />
+                <span class="truncate">{{ column.label }}</span>
+                <span hlmBadge variant="outline" class="ml-auto">
+                  {{ column.type }}
+                </span>
+              </button>
+            }
+          </hlm-dropdown-menu-group>
+        </hlm-dropdown-menu>
+      </ng-template>
+    } @else {
+      <span hlmTooltip="All filters are active">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-8"
+          disabled
+        >
+          <ng-icon hlmIcon name="lucidePlus" size="sm" />
+          Add filter
+        </button>
+      </span>
+    }
+
+    @if (filters().length) {
+      <button
+        hlmBtn
+        type="button"
+        variant="destructive"
+        size="sm"
+        class="h-8"
+        (click)="_clearFilters()"
+      >
+        <ng-icon hlmIcon name="lucideX" size="sm" />
+        Clear
+      </button>
+    }
+  </div>
+
+  <ng-content select="[rbthDataTableFilterActions]" />
+</div>

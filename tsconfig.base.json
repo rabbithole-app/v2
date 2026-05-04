@@ -33,6 +33,9 @@
       "@rabbithole/core/profile": [
         "libs/core/src/lib/components/profile/index.ts"
       ],
+      "@rabbithole/core/ui": [
+        "libs/core/src/lib/components/ui/index.ts"
+      ],
       "@rabbithole/core/storage-runtime": [
         "libs/core/src/lib/storage-runtime/index.ts"
       ],
@@ -80,6 +83,9 @@
       ],
       "@rabbithole/ui/drawer": [
         "libs/app-ui/src/lib/drawer/index.ts"
+      ],
+      "@rabbithole/ui/data-table-filter": [
+        "libs/app-ui/src/lib/data-table-filter/index.ts"
       ],
       "@rabbithole/ui/frame": [
         "libs/app-ui/src/lib/frame/index.ts"

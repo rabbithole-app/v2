@@ -5,6 +5,7 @@ import {
   inject,
   input,
   output,
+  signal,
   viewChild,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -30,6 +31,10 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 
 import { principalValidator } from '../../../validators';
+import {
+  UserTarget,
+  UserTargetComboboxComponent,
+} from '../../users/user-target-combobox/user-target-combobox.component';
 
 @Component({
   selector: 'core-edit-permission-form',
@@ -48,6 +53,7 @@ import { principalValidator } from '../../../validators';
     BrnSelectImports,
     HlmSelectImports,
     ReactiveFormsModule,
+    UserTargetComboboxComponent,
   ],
 })
 export class EditPermissionFormComponent {
@@ -66,6 +72,7 @@ export class EditPermissionFormComponent {
   isEditMode = computed(() => isNonNullish(this.principal()));
   permission = input<StoragePermission>();
   permissionChange = output<Omit<GrantStoragePermission, 'entry'>>();
+  readonly selectedUsers = signal<UserTarget[]>([]);
   readonly permissions = [
     { value: 'Read', label: 'Read', description: 'Permission to read' },
     {
@@ -85,6 +92,17 @@ export class EditPermissionFormComponent {
       const user = this.principal() ?? null;
       const permission = this.permission() ?? 'Read';
       this.form.patchValue({ user, permission });
+      if (user) {
+        this.selectedUsers.set([
+          {
+            kind: 'principal',
+            principalId: user,
+            label: this.shortPrincipal(user),
+          },
+        ]);
+      } else {
+        this.selectedUsers.set([]);
+      }
     });
   }
 
@@ -95,6 +113,25 @@ export class EditPermissionFormComponent {
       this.permissionChange.emit({ user, permission });
     }
 
+    if (!this.isEditMode()) {
+      this.selectedUsers.set([]);
+      this.form.patchValue({ user: null, permission: 'Read' });
+    }
+
     this.dialog().close();
+  }
+
+  handleUsersChange(targets: UserTarget[] | null): void {
+    const selected = (targets ?? []).slice(-1);
+    this.selectedUsers.set(selected);
+    const principalTarget = selected.find((target) => target.kind !== 'email');
+    this.userControl.setValue(principalTarget?.principalId ?? null);
+    this.userControl.markAsTouched();
+  }
+
+  private shortPrincipal(principalId: string): string {
+    return principalId.length > 18
+      ? `${principalId.slice(0, 8)}...${principalId.slice(-6)}`
+      : principalId;
   }
 }

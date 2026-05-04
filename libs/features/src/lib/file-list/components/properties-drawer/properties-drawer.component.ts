@@ -128,14 +128,6 @@ import { isDirectory, isFile, NodeItem } from '../../types';
 
           <div hlmTabsContent="permissions" class="flex-1 overflow-y-auto px-4 py-4">
             @if (singleItem(); as item) {
-              <div class="mb-4">
-                <core-edit-permission-form (permissionChange)="grantPermission($event)">
-                  <button variant="outline" size="sm" coreEditPermissionFormTrigger>
-                    <ng-icon name="lucideUsers" class="!size-4" />
-                    Add user
-                  </button>
-                </core-edit-permission-form>
-              </div>
               <core-permissions-table
                 [data]="permissionsService.permitted()"
                 (grant)="grantPermission($event)"

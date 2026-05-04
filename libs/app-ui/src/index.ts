@@ -12,6 +12,8 @@ export * from './lib/rainbow-button';
 export * from './lib/safari';
 export * from './lib/sidebar';
 export * from './lib/terminal';
+export * from './lib/timeline-steps';
 export * from './lib/toaster';
 export * from './lib/tree';
 export * from './lib/trial-progress';
+export * from './lib/user-identity';
