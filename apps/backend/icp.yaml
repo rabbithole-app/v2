@@ -122,7 +122,7 @@ canisters:
     build:
       steps:
         - type: pre-built
-          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-04-26/internet_identity_backend.wasm.gz
+          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-05-02/internet_identity_backend.wasm.gz
     # Source Candid is kept in init-args/internet_identity_backend.did.
     # The hex file is didc-encoded with II's init type because icp-cli infers
     # untyped nested OpenID records incorrectly.
@@ -134,7 +134,7 @@ canisters:
     build:
       steps:
         - type: pre-built
-          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-04-26/internet_identity_frontend.wasm.gz
+          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-05-02/internet_identity_frontend.wasm.gz
     init_args:
       path: ./init-args/internet_identity_frontend.did
       format: candid

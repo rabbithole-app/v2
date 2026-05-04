@@ -1,6 +1,6 @@
 import { ApplicationInitStatus, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Actor, AnonymousIdentity } from '@icp-sdk/core/agent';
+import { Actor, AnonymousIdentity, HttpAgent } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -93,6 +93,12 @@ describe('provideRegistration', () => {
   const lastAuthEvent = signal<{
     hasAttributes: boolean;
     id: number;
+    identityAttributes?: {
+      attributes: never;
+      keys: string[];
+      nonce: Uint8Array;
+    };
+    openIdIssuer?: string;
     openIdProvider?: 'apple' | 'google' | 'microsoft';
   } | null>(null);
   let authEventId = 0;
@@ -133,6 +139,9 @@ describe('provideRegistration', () => {
     mockActor.attributeNonceBegin.mockResolvedValue(new Uint8Array([1, 2, 3]));
     mockActor.ensureUser.mockResolvedValue(undefined);
     mockActor.syncIdentityAttributes.mockResolvedValue({ ok: null });
+    vi.spyOn(HttpAgent, 'create').mockResolvedValue({
+      call: vi.fn().mockResolvedValue(undefined),
+    } as never);
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -154,19 +163,36 @@ describe('provideRegistration', () => {
         },
         { provide: MAIN_ACTOR_TOKEN, useValue: actorSignal },
         { provide: HTTP_AGENT_OPTIONS_TOKEN, useValue: {} },
-        { provide: MAIN_CANISTER_ID_TOKEN, useValue: Principal.fromText('aaaaa-aa') },
+        {
+          provide: MAIN_CANISTER_ID_TOKEN,
+          useValue: Principal.fromText('aaaaa-aa'),
+        },
         provideRegistration(),
       ],
     });
   }
 
   function triggerAuthEvent(
-    event: { hasAttributes: boolean; openIdProvider?: 'apple' | 'google' | 'microsoft' } = {
+    event: {
+      hasAttributes: boolean;
+      identityAttributes?: {
+        attributes: never;
+        keys: string[];
+        nonce: Uint8Array;
+      };
+      openIdIssuer?: string;
+      openIdProvider?: 'apple' | 'google' | 'microsoft';
+    } = {
       hasAttributes: false,
     },
   ) {
     isAuthenticated.set(true);
     lastAuthEvent.set({ ...event, id: ++authEventId });
+    TestBed.tick();
+  }
+
+  function restoreAuthenticatedSession() {
+    isAuthenticated.set(true);
     TestBed.tick();
   }
 
@@ -178,6 +204,19 @@ describe('provideRegistration', () => {
     triggerAuthEvent();
 
     // Wait for async ensureRegistered
+    await vi.waitFor(() => {
+      expect(mockActor.getUser).toHaveBeenCalledOnce();
+      expect(mockActor.ensureUser).toHaveBeenCalledWith(['internet_identity']);
+    });
+  });
+
+  it('should call ensureUser for restored authenticated session without auth event', async () => {
+    mockActor.getUser.mockResolvedValue([]);
+
+    await setup();
+
+    restoreAuthenticatedSession();
+
     await vi.waitFor(() => {
       expect(mockActor.getUser).toHaveBeenCalledOnce();
       expect(mockActor.ensureUser).toHaveBeenCalledWith(['internet_identity']);
@@ -226,5 +265,28 @@ describe('provideRegistration', () => {
 
     await new Promise((r) => setTimeout(r, 50));
     expect(mockActor.getUser).not.toHaveBeenCalled();
+  });
+
+  it('should fallback to ensureUser when accepted identity attributes do not create a user', async () => {
+    mockActor.getUser.mockResolvedValue([]);
+
+    await setup();
+
+    triggerAuthEvent({
+      hasAttributes: true,
+      openIdIssuer: 'https://openid.localhost',
+      identityAttributes: {
+        attributes: {} as never,
+        keys: ['openid:https://openid.localhost:name'],
+        nonce: new Uint8Array([1, 2, 3]),
+      },
+    });
+
+    await vi.waitFor(
+      () => {
+        expect(mockActor.ensureUser).toHaveBeenCalledWith(['dev_openid']);
+      },
+      { timeout: 2500 },
+    );
   });
 });

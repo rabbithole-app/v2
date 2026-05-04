@@ -12,6 +12,7 @@
 //      sets correctly, so init args with variants MUST be pre-encoded.
 
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -91,7 +92,19 @@ async function main() {
   for (const canister of CANISTERS) {
     await generate(canister);
   }
+  encodePrebuiltInitArgs({
+    defs: join(INIT_ARGS_DIR, 'internet_identity.did'),
+    input: join(INIT_ARGS_DIR, 'internet_identity_backend.did'),
+    output: join(INIT_ARGS_DIR, 'internet_identity_backend.hex'),
+    type: 'opt InternetIdentityInit',
+  });
   console.log('\n[generate-declarations] done');
+}
+
+function encodePrebuiltInitArgs({ defs, input, output, type }) {
+  if (!existsSync(defs) || !existsSync(input)) return;
+  sh(`didc encode --format hex --defs "${defs}" --types '(${type})' "$(cat "${input}")" > "${output}"`, { stdio: 'inherit' });
+  console.log(`[generate-declarations] wrote ${output}`);
 }
 
 function sh(cmd, opts = {}) {

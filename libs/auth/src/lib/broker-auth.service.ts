@@ -1,4 +1,4 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import {
   AuthClient,
@@ -12,10 +12,13 @@ import { map } from 'rxjs';
 import { assertClient } from './asserts';
 import {
   AUTH_CONFIG,
+  AUTH_IDENTITY_ATTRIBUTES_PROVIDER,
   AuthClientLogoutOptions,
   AuthConfig,
   AuthSessionEvent,
   AuthSignInOptions,
+  IdentityAttributesProvider,
+  SignedIdentityAttributes,
 } from './tokens';
 
 interface State {
@@ -43,11 +46,13 @@ export class BrokerAuthService {
   principalId = computed(() => this.#state().identity.getPrincipal().toText());
   ready$ = toObservable(this.#state).pipe(map(({ ready }) => ready));
   #authConfig = inject(AUTH_CONFIG);
+  #identityAttributesProvider = inject(AUTH_IDENTITY_ATTRIBUTES_PROVIDER, {
+    optional: true,
+  });
   #authEventId = 0;
 
   constructor() {
     this.#initState();
-    effect(() => console.info(`Principal ID: ${this.principalId()}`));
   }
 
   async requestAttributes(params: {
@@ -63,8 +68,23 @@ export class BrokerAuthService {
     const client = this.#createClient(this.#authConfig, options);
     this.#state.update((state) => ({ ...state, client }));
 
+    const authEvent = this.#createAuthEvent(options);
+    const signedAttributesPromise = this.#requestSignInAttributes(
+      client,
+      authEvent,
+      this.#identityAttributesProvider,
+    );
+
     await client.signIn(getSignInOptions(this.#authConfig.loginOptions));
+    const identityAttributes = await signedAttributesPromise;
     await this.#refreshState(client, {
+      ...authEvent,
+      ...(identityAttributes && { identityAttributes }),
+    });
+  }
+
+  #createAuthEvent(options: AuthSignInOptions): AuthSessionEvent {
+    return {
       hasAttributes:
         options.openIdProvider != null ||
         options.openIdIssuer != null ||
@@ -73,7 +93,27 @@ export class BrokerAuthService {
       openIdIssuer: options.openIdIssuer,
       openIdProvider: options.openIdProvider,
       ssoDomain: options.ssoDomain,
-    });
+    };
+  }
+
+  async #requestSignInAttributes(
+    client: AuthClient,
+    authEvent: AuthSessionEvent,
+    provider: IdentityAttributesProvider | null,
+  ): Promise<SignedIdentityAttributes | null> {
+    if (!authEvent.hasAttributes || !provider) return null;
+
+    try {
+      const request = await provider(authEvent);
+      if (!request || request.keys.length === 0) return null;
+      const attributes = await client.requestAttributes({
+        keys: request.keys,
+        nonce: request.nonce,
+      });
+      return { ...request, attributes };
+    } catch {
+      return null;
+    }
   }
 
   async signOut(opts?: AuthClientLogoutOptions) {

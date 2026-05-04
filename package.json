@@ -27,7 +27,7 @@
     "@dfinity/vetkeys": "^0.4.0",
     "@ic-pay/icpay-sdk": "^1.4.109",
     "@ic-pay/icpay-widget": "^1.2.122",
-    "@icp-sdk/auth": "^6.2.0",
+    "@icp-sdk/auth": "^6.2.2",
     "@icp-sdk/canisters": "^3.5.2",
     "@icp-sdk/core": "^5.3.1",
     "@mswjs/interceptors": "^0.41.3",

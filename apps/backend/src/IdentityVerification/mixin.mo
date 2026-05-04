@@ -1,5 +1,4 @@
 import Blob "mo:core/Blob";
-import Debug "mo:core/Debug";
 import Int "mo:core/Int";
 import Map "mo:core/Map";
 import Principal "mo:core/Principal";
@@ -43,42 +42,62 @@ mixin(
   public shared ({ caller }) func syncIdentityAttributes(nonce : Blob) : async IdentityAttributesSyncResult {
     assert not Principal.isAnonymous(caller);
 
-    let ?_createdAt = Map.get(pendingNonces, Blob.compare, nonce) else return #err(#nonceNotFound);
+    let ?_createdAt = Map.get(pendingNonces, Blob.compare, nonce) else {
+      return #err(#nonceNotFound);
+    };
     Map.remove(pendingNonces, Blob.compare, nonce);
 
     let signerBlob = Prim.callerInfoSigner<system>();
-    if (signerBlob.size() == 0) return #err(#untrustedSigner);
+    if (signerBlob.size() == 0) {
+      return #err(#untrustedSigner);
+    };
 
     let signer = Principal.fromBlob(signerBlob);
     let trustedIdentitySigner = Principal.fromText(Utils.envText<system>("PUBLIC_CANISTER_ID:internet_identity_backend", "rdmx6-jaaaa-aaaaa-aaadq-cai"));
-    if (signer != trustedIdentitySigner) return #err(#untrustedSigner);
+    if (signer != trustedIdentitySigner) {
+      return #err(#untrustedSigner);
+    };
 
     let data = Prim.callerInfoData<system>();
-    let ?attrsMap = decodeIcrc3ValueMap(data) else return #err(#malformedPayload);
+    let ?attrsMap = decodeIcrc3ValueMap(data) else {
+      return #err(#malformedPayload);
+    };
 
-    let ?dataNonce = extractBlob(attrsMap, "implicit:nonce") else return #err(#malformedPayload);
-    if (dataNonce != nonce) return #err(#nonceMismatch);
+    let ?dataNonce = extractBlob(attrsMap, "implicit:nonce") else {
+      return #err(#malformedPayload);
+    };
+    if (dataNonce != nonce) {
+      return #err(#nonceMismatch);
+    };
 
-    let ?origin = extractText(attrsMap, "implicit:origin") else return #err(#malformedPayload);
+    let ?origin = extractText(attrsMap, "implicit:origin") else {
+      return #err(#malformedPayload);
+    };
     let expectedIdentityOrigin = resolveExpectedIdentityOrigin<system>();
-    if (origin != expectedIdentityOrigin) return #err(#invalidOrigin);
+    if (origin != expectedIdentityOrigin) {
+      return #err(#invalidOrigin);
+    };
 
-    let ?issuedAt = extractNat(attrsMap, "implicit:issued_at_timestamp_ns") else return #err(#malformedPayload);
-    if (not IdentityVerification.isFresh(issuedAt, Int.abs(Time.now()))) return #err(#expired);
+    let ?issuedAt = extractNat(attrsMap, "implicit:issued_at_timestamp_ns") else {
+      return #err(#malformedPayload);
+    };
+    if (not IdentityVerification.isFresh(issuedAt, Int.abs(Time.now()))) {
+      return #err(#expired);
+    };
 
     let attrs : IdentityVerification.VerifiedIdentityAttributes = {
       email = extractScopedText(attrsMap, "email");
       name = extractScopedText(attrsMap, "name");
-      verifiedEmail = extractScopedBool(attrsMap, "verified_email");
+      verifiedEmail = switch (extractScopedBool(attrsMap, "verified_email")) {
+        case (?value) ?value;
+        case null extractScopedBool(attrsMap, "email_verified");
+      };
       authProvider = inferProvider(attrsMap);
     };
 
     switch (deps.upsertFromVerifiedAttributes(caller, attrs)) {
       case (#ok _) #ok;
-      case (#err msg) {
-        Debug.print("Failed to upsert user from verified attributes: " # msg);
-        #err(#malformedPayload);
-      };
+      case (#err _) #err(#malformedPayload);
     };
   };
 
@@ -170,11 +189,13 @@ mixin(
   func inferProvider(entries : AttributeMap) : ?Text {
     for ((key, _) in entries.vals()) {
       if (Text.startsWith(key, #text("openid:"))) {
+        if (Text.contains(key, #text("openid.localhost"))) return ?"dev_openid";
         if (Text.contains(key, #text("accounts.google.com"))) return ?"google";
         if (Text.contains(key, #text("appleid.apple.com"))) return ?"apple";
         if (Text.contains(key, #text("login.microsoftonline.com"))) return ?"microsoft";
         return ?"openid";
       };
+      if (Text.startsWith(key, #text("sso:"))) return ?"sso";
     };
     null;
   };
