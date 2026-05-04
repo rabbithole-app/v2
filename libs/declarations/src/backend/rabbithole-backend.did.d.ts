@@ -16,18 +16,15 @@ export type AddStorageError = { 'NotController' : null } |
 export interface AdminUserListItem {
   'id' : Principal,
   'referralAppliedAt' : [] | [Time],
+  'roleText' : string,
   'lastLoginAt' : [] | [Time],
   'inviter' : [] | [Principal],
-  'verifiedEmail' : [] | [boolean],
-  'name' : [] | [string],
   'createdAt' : Time,
   'role' : Role,
   'trialUsed' : boolean,
-  'email' : [] | [string],
   'updatedAt' : Time,
-  'authProvider' : [] | [string],
+  'identity' : UserIdentityAttributes,
   'profile' : [] | [PublicProfileSummary],
-  'profileSyncedAt' : [] | [Time],
 }
 export interface AdminUserListOptions {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
@@ -36,6 +33,7 @@ export interface AdminUserListOptions {
   'filter' : {
     'id' : [] | [Array<Principal>],
     'referralAppliedAt' : [] | [TimeRangeFilter],
+    'identityProvider' : [] | [string],
     'lastLoginAt' : [] | [TimeRangeFilter],
     'inviter' : [] | [Array<Principal>],
     'verifiedEmail' : [] | [boolean],
@@ -44,8 +42,7 @@ export interface AdminUserListOptions {
     'trialUsed' : [] | [boolean],
     'search' : [] | [string],
     'updatedAt' : [] | [TimeRangeFilter],
-    'authProvider' : [] | [string],
-    'profileSyncedAt' : [] | [TimeRangeFilter],
+    'identitySyncedAt' : [] | [TimeRangeFilter],
   },
 }
 export interface AdminUsersPage {
@@ -201,11 +198,6 @@ export interface GetLicensesResponse {
   'data' : Array<License>,
   'instructions' : bigint,
 }
-export interface GetProfilesResponse {
-  'total' : [] | [bigint],
-  'data' : Array<Profile>,
-  'instructions' : bigint,
-}
 export interface GetSubscriptionsResponse {
   'total' : [] | [bigint],
   'data' : Array<Subscription>,
@@ -277,18 +269,6 @@ export interface ListOptions {
     'expiresAt' : [] | [{ 'max' : [] | [bigint], 'min' : [] | [bigint] }],
     'userId' : [] | [Array<Principal>],
     'plan' : [] | [Array<Plan>],
-  },
-}
-export interface ListOptions__1 {
-  'pagination' : { 'offset' : bigint, 'limit' : bigint },
-  'count' : boolean,
-  'sort' : Array<[string, SortDirection]>,
-  'filter' : {
-    'id' : [] | [Array<Principal>],
-    'username' : [] | [string],
-    'displayName' : [] | [string],
-    'createdAt' : [] | [{ 'max' : [] | [bigint], 'min' : [] | [bigint] }],
-    'avatarUrl' : [] | [boolean],
   },
 }
 export interface NotificationsPage {
@@ -429,6 +409,12 @@ export interface Rabbithole {
     }
   >,
   'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
+  /**
+   * / Transfer ICP from the treasury subaccount to CMC for a target
+   * / canister. Caller must ensure sufficient balance via
+   * / `guardTreasuryIcpReserve`. CMC `#Refunded` returns ICP to the
+   * / same subaccount, keeping the round-trip inside treasury.
+   */
   'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
@@ -474,7 +460,6 @@ export interface Rabbithole {
     [{ 'limit' : [] | [bigint], 'afterId' : [] | [bigint] }],
     Array<PendingCmcOp>
   >,
-  'listProfiles' : ActorMethod<[ListOptions__1], GetProfilesResponse>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
   'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
   'listUsersByRole' : ActorMethod<[Role], Array<Principal>>,
@@ -864,17 +849,16 @@ export type UpgradeStorageError = { 'AlreadyUpgrading' : null } |
 export interface User {
   'id' : Principal,
   'referralAppliedAt' : [] | [Time],
+  'roleText' : string,
   'lastLoginAt' : [] | [Time],
   'inviter' : [] | [Principal],
-  'verifiedEmail' : [] | [boolean],
-  'name' : [] | [string],
+  'inviterText' : string,
   'createdAt' : Time,
   'role' : Role,
   'trialUsed' : boolean,
-  'email' : [] | [string],
   'updatedAt' : Time,
-  'authProvider' : [] | [string],
-  'profileSyncedAt' : [] | [Time],
+  'identity' : UserIdentityAttributes,
+  'profile' : [] | [UserProfile],
 }
 export interface UserDirectoryItem {
   'id' : Principal,
@@ -884,6 +868,21 @@ export interface UserDirectoryItem {
 export type UserDirectoryMatch = { 'principalExact' : null } |
   { 'emailExact' : null } |
   { 'profile' : null };
+export interface UserIdentityAttributes {
+  'provider' : [] | [string],
+  'verifiedEmail' : [] | [boolean],
+  'name' : [] | [string],
+  'email' : [] | [string],
+  'syncedAt' : [] | [Time],
+}
+export interface UserProfile {
+  'referralCode' : [] | [string],
+  'username' : string,
+  'displayName' : [] | [string],
+  'createdAt' : Time,
+  'updatedAt' : Time,
+  'avatarUrl' : [] | [string],
+}
 export interface UserSettings {
   'spendingPriority' : Array<TokenId>,
   'topUpAmountCycles' : bigint,

@@ -17,6 +17,6 @@ module {
     email : ?Text;
     name : ?Text;
     verifiedEmail : ?Bool;
-    authProvider : ?Text;
+    provider : ?Text;
   };
 };

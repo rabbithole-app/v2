@@ -14,4 +14,3 @@ export * from './permissions/edit-permission-form/edit-permission-form-trigger';
 export * from './permissions/permissions-table/permissions-table.component';
 export * from './ui';
 export * from './users/user-target-combobox';
-export * from './users/users-table';

@@ -213,68 +213,68 @@
                   }
                   @case ('name') {
                     <span class="text-sm">
-                      {{ _optionalText(user.name) }}
+                      {{ _optionalText(user.identity.name) }}
                     </span>
                   }
                   @case ('email') {
                     <span class="text-sm">
-                      {{ _optionalText(user.email) }}
+                      {{ _optionalText(user.identity.email) }}
                     </span>
                   }
                   @case ('verifiedEmail') {
                     <hlm-checkbox
-                      [checked]="user.verifiedEmail[0] === true"
+                      [checked]="user.identity.verifiedEmail[0] === true"
                       disabled
                       aria-label="Verified email"
                     />
                   }
-                  @case ('authProvider') {
-                    @if (user.authProvider[0]; as provider) {
+                  @case ('identityProvider') {
+                    @if (user.identity.provider[0]; as provider) {
                       @switch (provider) {
                         @case ('apple') {
                           <ng-icon
                             name="hugeApple"
                             class="size-4"
-                            [hlmTooltip]="_authProviderLabel(provider)"
-                            [attr.aria-label]="_authProviderLabel(provider)"
+                            [hlmTooltip]="_identityProviderLabel(provider)"
+                            [attr.aria-label]="_identityProviderLabel(provider)"
                           />
                         }
                         @case ('google') {
                           <ng-icon
                             name="hugeGoogle"
                             class="size-4"
-                            [hlmTooltip]="_authProviderLabel(provider)"
-                            [attr.aria-label]="_authProviderLabel(provider)"
+                            [hlmTooltip]="_identityProviderLabel(provider)"
+                            [attr.aria-label]="_identityProviderLabel(provider)"
                           />
                         }
                         @case ('internet_identity') {
                           <ng-icon
                             name="hugeInfinity01"
                             class="size-4"
-                            [hlmTooltip]="_authProviderLabel(provider)"
-                            [attr.aria-label]="_authProviderLabel(provider)"
+                            [hlmTooltip]="_identityProviderLabel(provider)"
+                            [attr.aria-label]="_identityProviderLabel(provider)"
                           />
                         }
                         @case ('dev_openid') {
                           <ng-icon
                             name="hugeDeveloper"
                             class="size-4"
-                            [hlmTooltip]="_authProviderLabel(provider)"
-                            [attr.aria-label]="_authProviderLabel(provider)"
+                            [hlmTooltip]="_identityProviderLabel(provider)"
+                            [attr.aria-label]="_identityProviderLabel(provider)"
                           />
                         }
                         @case ('microsoft') {
                           <ng-icon
                             name="hugeMicrosoft"
                             class="size-4"
-                            [hlmTooltip]="_authProviderLabel(provider)"
-                            [attr.aria-label]="_authProviderLabel(provider)"
+                            [hlmTooltip]="_identityProviderLabel(provider)"
+                            [attr.aria-label]="_identityProviderLabel(provider)"
                           />
                         }
                         @default {
                           <span
                             class="text-xs font-medium uppercase"
-                            [hlmTooltip]="_authProviderLabel(provider)"
+                            [hlmTooltip]="_identityProviderLabel(provider)"
                           >
                             {{ provider.slice(0, 2) }}
                           </span>
@@ -327,9 +327,9 @@
                       {{ _optionalDate(user.lastLoginAt) | date: 'medium' }}
                     </span>
                   }
-                  @case ('profileSyncedAt') {
+                  @case ('identitySyncedAt') {
                     <span class="text-sm whitespace-nowrap">
-                      {{ _optionalDate(user.profileSyncedAt) | date: 'medium' }}
+                      {{ _optionalDate(user.identity.syncedAt) | date: 'medium' }}
                     </span>
                   }
                   @case ('referralAppliedAt') {

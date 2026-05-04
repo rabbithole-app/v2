@@ -1,11 +1,13 @@
 import Debug "mo:core/Debug";
 import Error "mo:core/Error";
-import Int "mo:core/Int";
+import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
 
+import HttpAssets "mo:http-assets";
+import Sha256 "mo:sha2/Sha256";
 import Users "lib";
 import ZenDB "mo:zendb";
 
@@ -13,19 +15,11 @@ mixin (
   installer : Principal,
   db : ZenDB.Database,
   deps : {
-    getProfileById : (Principal) -> ?{
-      id : Principal;
-      username : Text;
-      displayName : ?Text;
-      avatarUrl : ?Text;
-      referralCode : ?Text;
-      createdAt : Int;
-      updatedAt : Int;
-    };
-    resolveReferralCode : (Text) -> ?Principal;
+    deleteAsset : (Text) -> ();
+    storeAsset : (Principal, HttpAssets.StoreArgs) -> ();
   },
 ) {
-  transient let users = Users.Users(db);
+  transient let users = Users.Users(db, deps.deleteAsset);
 
   // Bootstrap: the deployer principal (installer) becomes the first admin.
   // Creating a User record here guarantees `isAdmin(installer)` is true before
@@ -61,9 +55,9 @@ mixin (
 
   // ---- Registration ----
 
-  public shared ({ caller }) func ensureUser(authProvider : ?Text) : async () {
+  public shared ({ caller }) func ensureUser(identityProviderHint : ?Text) : async () {
     assert not Principal.isAnonymous(caller);
-    switch (users.upsertFromIdentity(caller, authProvider, true)) {
+    switch (users.upsertFromIdentity(caller, identityProviderHint, true)) {
       case (#ok _) {};
       case (#err msg) Debug.print("Failed to ensure user: " # msg);
     };
@@ -71,7 +65,7 @@ mixin (
 
   public shared ({ caller }) func applyReferralCode(referralCode : Text) : async Users.ApplyReferralCodeResult {
     assert not Principal.isAnonymous(caller);
-    let ?inviter = deps.resolveReferralCode(referralCode) else return #referralCodeNotFound;
+    let ?inviter = users.resolveReferralCode(referralCode) else return #referralCodeNotFound;
     users.applyReferralCode(caller, inviter);
   };
 
@@ -91,17 +85,6 @@ mixin (
 
   func userExists(principal : Principal) : Bool {
     users.exists(principal);
-  };
-
-  func getPublicProfileSummary(principal : Principal) : ?Users.PublicProfileSummary {
-    switch (deps.getProfileById(principal)) {
-      case (?profile) ?{
-        username = profile.username;
-        displayName = profile.displayName;
-        avatarUrl = profile.avatarUrl;
-      };
-      case null null;
-    };
   };
 
   // ---- Public queries ----
@@ -128,7 +111,53 @@ mixin (
   /// - exact principal matches return profile or bare principal records;
   /// - result count and partial search length are capped in Users.searchDirectory.
   public query func searchUserDirectory(search : Text, limit : Nat) : async [Users.UserDirectoryItem] {
-    users.searchDirectory(search, limit, getPublicProfileSummary);
+    users.searchDirectory(search, limit);
+  };
+
+  // ---- Profiles ----
+
+  public shared ({ caller }) func saveAvatar({ filename; content; contentType } : Users.CreateProfileAvatarArgs) : async Text {
+    assert not Principal.isAnonymous(caller);
+    let args : HttpAssets.StoreArgs = {
+      key = "/" # Text.join(Iter.fromArray(["static", Principal.toText(caller), filename]), "/");
+      content;
+      sha256 = ?Sha256.fromBlob(#sha256, content);
+      content_type = contentType;
+      content_encoding = "identity";
+      is_aliased = null;
+    };
+    deps.storeAsset(installer, args);
+    users.trackAvatar(caller, args.key);
+    args.key;
+  };
+
+  public shared ({ caller }) func createProfile(args : Users.CreateProfileArgs) : async Blob {
+    assert not Principal.isAnonymous(caller);
+    switch (users.createProfile(caller, args)) {
+      case (#ok docId) docId;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getProfile() : async ?Users.Profile {
+    assert not Principal.isAnonymous(caller);
+    users.getProfile(caller);
+  };
+
+  public query func usernameExists(username : Text) : async Bool {
+    users.usernameExists(username);
+  };
+
+  public shared ({ caller }) func updateProfile(args : Users.UpdateProfileArgs) : async () {
+    assert not Principal.isAnonymous(caller);
+    let #err(message) = users.updateProfile(caller, args) else return;
+    throw Error.reject(message);
+  };
+
+  public shared ({ caller }) func deleteProfile() : async () {
+    assert not Principal.isAnonymous(caller);
+    let #err(message) = users.deleteProfile(caller) else return;
+    throw Error.reject(message);
   };
 
   // ---- Admin API ----
@@ -166,6 +195,6 @@ mixin (
 
   public query ({ caller }) func adminListUsers(options : Users.AdminUserListOptions) : async Users.AdminUsersPage {
     assertAdmin(caller);
-    users.list(options, getPublicProfileSummary);
+    users.list(options);
   };
 };

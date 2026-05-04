@@ -35,7 +35,6 @@ import Account "StorageDeployer/Utils/Account";
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
 import UsersMixin "Users/mixin";
 import IdentityVerificationMixin "IdentityVerification/mixin";
-import ProfilesMixin "Profiles/mixin";
 import NotificationsMixin "Notifications/mixin";
 import SettingsMixin "Settings/mixin";
 import TreasuryMixin "Treasury/mixin";
@@ -102,20 +101,18 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   // --- Mixins (order matters: dependencies first) ---
   //
-  // Profiles must come before Users because Users reads `resolveReferralCode`.
   // Users must come before every admin-guarded mixin (KnownWasmHashes, Treasury,
   // Subscriptions, Payments, Balance) because Users provides `assertAdmin` — the
   // guard is backed by `user.role == #admin` rather than a separate set.
 
-  include ProfilesMixin(
-    db,
+  include UsersMixin(
     installer,
+    db,
     {
       deleteAsset = func(key : Text) { if (assetStore.exists(key)) assetCanister.delete_asset(canisterId, { key }) };
       storeAsset = func(caller : Principal, args : HttpAssets.StoreArgs) { assetCanister.store(caller, args) };
     },
   );
-  include UsersMixin(installer, db, { getProfileById; resolveReferralCode });
   include IdentityVerificationMixin({
     upsertFromVerifiedAttributes;
   });

@@ -1,15 +1,17 @@
-import { type Actor } from "@dfinity/pic";
+import { type Actor, createIdentity } from "@dfinity/pic";
+import { faker } from "@faker-js/faker";
 import { IDL } from "@icp-sdk/core/candid";
+import type { Identity } from "@icp-sdk/core/agent";
+import { addDays, subDays } from "date-fns";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { type RabbitholeActorService } from "@rabbithole/declarations";
+import {
+  type CreateProfileArgs,
+  type RabbitholeActorService,
+} from "@rabbithole/declarations";
 
 import { BackendManager } from "./setup/backend-manager.ts";
-import {
-  userAlice,
-  userBob,
-  userCharlie,
-} from "./setup/helpers.ts";
+import { userAlice, userBob, userCharlie } from "./setup/helpers.ts";
 import {
   IdentityAttributesSyncResult,
   InternetIdentityManager,
@@ -23,6 +25,43 @@ function expectSingle<T>(items: readonly T[], label: string): T {
   }
   return item;
 }
+
+function createRandomProfileUser(): {
+  args: CreateProfileArgs;
+  identity: Identity;
+} {
+  const identity = createIdentity(faker.string.uuid());
+  const hasDisplayName = faker.datatype.boolean();
+  const hasAvatar = faker.datatype.boolean();
+
+  return {
+    identity,
+    args: {
+      username: faker.internet.username().substring(0, 20),
+      displayName: hasDisplayName ? [faker.person.fullName()] : [],
+      avatarUrl: hasAvatar ? [faker.image.avatar()] : [],
+    },
+  };
+}
+
+function createProfileFixture(index: number): {
+  args: CreateProfileArgs;
+  identity: Identity;
+} {
+  return {
+    identity: createIdentity(`profile-${index}`),
+    args: {
+      username: `profile${index}${faker.string.alphanumeric(6).toLowerCase()}`,
+      displayName: index % 2 === 0 ? [`Profile User ${index}`] : [],
+      avatarUrl:
+        index % 3 === 0 ? [`https://example.com/avatar-${index}.png`] : [],
+    },
+  };
+}
+
+const PROFILE_USERS = Array.from({ length: 10 }, (_, index) =>
+  createProfileFixture(index),
+);
 
 describe("Users", () => {
   let actor: Actor<RabbitholeActorService>;
@@ -55,12 +94,12 @@ describe("Users", () => {
 
     const user = expectSingle(await actor.getUser(), "ensured user");
     expect(user.id.toText()).toBe(userAlice.getPrincipal().toText());
-    expect(user.authProvider).toEqual(["internet_identity"]);
+    expect(user.identity.provider).toEqual(["internet_identity"]);
     expect(user.lastLoginAt).toHaveLength(1);
-    expect(user.email).toHaveLength(0);
-    expect(user.name).toHaveLength(0);
-    expect(user.verifiedEmail).toHaveLength(0);
-    expect(user.profileSyncedAt).toHaveLength(0);
+    expect(user.identity.email).toHaveLength(0);
+    expect(user.identity.name).toHaveLength(0);
+    expect(user.identity.verifiedEmail).toHaveLength(0);
+    expect(user.identity.syncedAt).toHaveLength(0);
   });
 
   test("syncIdentityAttributes rejects calls without sender_info", async () => {
@@ -81,7 +120,10 @@ describe("Users", () => {
 
     actor.setIdentity(userCharlie);
     const nonce = await actor.attributeNonceBegin();
-    const attributes = await internetIdentity.getGoogleSignedAttributes(identityNumber, nonce);
+    const attributes = await internetIdentity.getGoogleSignedAttributes(
+      identityNumber,
+      nonce,
+    );
     expect(attributes.signature.length).toBeGreaterThan(0);
 
     const response = await internetIdentity.updateCallWithSenderInfo({
@@ -97,11 +139,11 @@ describe("Users", () => {
     actor.setIdentity(userCharlie);
     const storedUser = expectSingle(await actor.getUser(), "synced user");
     expect(storedUser.id.toText()).toBe(user.toText());
-    expect(storedUser.email).toEqual(["andri.schatz@dfinity.org"]);
-    expect(storedUser.name).toEqual(["Andri Schatz"]);
-    expect(storedUser.authProvider).toEqual(["google"]);
+    expect(storedUser.identity.email).toEqual(["andri.schatz@dfinity.org"]);
+    expect(storedUser.identity.name).toEqual(["Andri Schatz"]);
+    expect(storedUser.identity.provider).toEqual(["google"]);
     expect(storedUser.lastLoginAt).toHaveLength(1);
-    expect(storedUser.profileSyncedAt).toHaveLength(1);
+    expect(storedUser.identity.syncedAt).toHaveLength(1);
 
     const bareEmailResults = await actor.searchUserDirectory(
       "andri.schatz@dfinity.org",
@@ -153,8 +195,14 @@ describe("Users", () => {
       displayName: [],
       username: "owner",
     });
-    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
-    const referralCode = expectSingle(ownerProfile.referralCode, "owner referral code");
+    const ownerProfile = expectSingle(
+      await actor.getProfile(),
+      "owner profile",
+    );
+    const referralCode = expectSingle(
+      ownerProfile.referralCode,
+      "owner referral code",
+    );
 
     actor.setIdentity(userAlice);
     await actor.ensureUser([]);
@@ -187,8 +235,14 @@ describe("Users", () => {
       displayName: [],
       username: "owner-no-user",
     });
-    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
-    const referralCode = expectSingle(ownerProfile.referralCode, "owner referral code");
+    const ownerProfile = expectSingle(
+      await actor.getProfile(),
+      "owner profile",
+    );
+    const referralCode = expectSingle(
+      ownerProfile.referralCode,
+      "owner referral code",
+    );
 
     actor.setIdentity(userAlice);
     const result = await actor.applyReferralCode(referralCode);
@@ -203,14 +257,24 @@ describe("Users", () => {
       displayName: [],
       username: "owner-self",
     });
-    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
-    const ownerCode = expectSingle(ownerProfile.referralCode, "owner referral code");
-    expect(await actor.applyReferralCode(ownerCode)).toEqual({ selfReferral: null });
+    const ownerProfile = expectSingle(
+      await actor.getProfile(),
+      "owner profile",
+    );
+    const ownerCode = expectSingle(
+      ownerProfile.referralCode,
+      "owner referral code",
+    );
+    expect(await actor.applyReferralCode(ownerCode)).toEqual({
+      selfReferral: null,
+    });
 
     actor.setIdentity(userAlice);
     await actor.ensureUser([]);
     expect(await actor.applyReferralCode(ownerCode)).toEqual({ ok: null });
-    expect(await actor.applyReferralCode(ownerCode)).toEqual({ alreadyApplied: null });
+    expect(await actor.applyReferralCode(ownerCode)).toEqual({
+      alreadyApplied: null,
+    });
   });
 
   test("getUser returns empty when not registered", async () => {
@@ -228,7 +292,10 @@ describe("Users", () => {
     });
 
     const profile = expectSingle(await actor.getProfile(), "profile");
-    const referralCode = expectSingle(profile.referralCode, "profile referral code");
+    const referralCode = expectSingle(
+      profile.referralCode,
+      "profile referral code",
+    );
     expect(referralCode).toHaveLength(8);
   });
 
@@ -262,8 +329,14 @@ describe("Users", () => {
       displayName: [],
       username: "owner",
     });
-    const ownerProfile = expectSingle(await actor.getProfile(), "owner profile");
-    const ownerCode = expectSingle(ownerProfile.referralCode, "owner referral code");
+    const ownerProfile = expectSingle(
+      await actor.getProfile(),
+      "owner profile",
+    );
+    const ownerCode = expectSingle(
+      ownerProfile.referralCode,
+      "owner referral code",
+    );
 
     actor.setIdentity(userAlice);
     await actor.ensureUser([]);
@@ -273,8 +346,14 @@ describe("Users", () => {
       displayName: [],
       username: "alice",
     });
-    const aliceProfile = expectSingle(await actor.getProfile(), "alice profile");
-    const aliceCode = expectSingle(aliceProfile.referralCode, "alice referral code");
+    const aliceProfile = expectSingle(
+      await actor.getProfile(),
+      "alice profile",
+    );
+    const aliceCode = expectSingle(
+      aliceProfile.referralCode,
+      "alice referral code",
+    );
 
     actor.setIdentity(userBob);
     await actor.ensureUser([]);
@@ -297,4 +376,85 @@ describe("Users", () => {
     expect(chain.l1).toHaveLength(0);
     expect(chain.l2).toHaveLength(0);
   });
+});
+
+describe("User profiles", () => {
+  let actor: Actor<RabbitholeActorService>;
+  let manager: BackendManager;
+
+  beforeEach(async () => {
+    manager = await BackendManager.create();
+    ({ actor } = await manager.initBackendCanister());
+
+    let startDate = subDays(new Date(), 14);
+    for await (const { identity, args } of PROFILE_USERS) {
+      actor.setIdentity(identity);
+      startDate = addDays(startDate, 1);
+      await manager.pic.setTime(startDate);
+      await actor.createProfile(args);
+    }
+  });
+
+  afterEach(async () => {
+    await manager?.afterAll();
+  });
+
+  test("createProfile creates an embedded profile", async () => {
+    const { identity, args } = createRandomProfileUser();
+    actor.setIdentity(identity);
+
+    const id = await actor.createProfile(args);
+
+    expect(id).toBeInstanceOf(Uint8Array);
+    expect(id.length).toBeGreaterThan(0);
+
+    const user = expectSingle(await actor.getUser(), "profile user");
+    expect(user.id.toText()).toEqual(identity.getPrincipal().toText());
+    expect(user.profile[0]?.username).toBe(args.username);
+  });
+
+  test("getProfile reads the caller profile", async () => {
+    const { identity, args } = PROFILE_USERS[0];
+    actor.setIdentity(identity);
+
+    const profile = expectSingle(await actor.getProfile(), "profile");
+
+    expect(profile.id.toText()).toEqual(identity.getPrincipal().toText());
+    expect(profile.username).toBe(args.username);
+  });
+
+  test("updateProfile updates display name and avatar", async () => {
+    const { identity } = PROFILE_USERS[0];
+    actor.setIdentity(identity);
+
+    const result = await actor.updateProfile({
+      avatarUrl: [],
+      displayName: ["John Do"],
+    });
+
+    expect(result).toBeNull();
+    const profile = expectSingle(await actor.getProfile(), "updated profile");
+    expect(profile.displayName).toEqual(["John Do"]);
+    expect(profile.avatarUrl).toEqual([]);
+  });
+
+  test("deleteProfile clears the embedded profile", async () => {
+    const { identity } = PROFILE_USERS[0];
+    actor.setIdentity(identity);
+
+    const result = await actor.deleteProfile();
+
+    expect(result).toBeNull();
+    expect(await actor.getProfile()).toEqual([]);
+    const user = expectSingle(await actor.getUser(), "user without profile");
+    expect(user.profile).toEqual([]);
+  });
+
+  test("usernameExists checks embedded profile usernames", async () => {
+    const username = PROFILE_USERS[0].args.username;
+
+    expect(await actor.usernameExists(username)).toBeTruthy();
+    expect(await actor.usernameExists(faker.internet.username())).toBeFalsy();
+  });
+
 });

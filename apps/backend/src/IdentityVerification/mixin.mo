@@ -92,7 +92,7 @@ mixin(
         case (?value) ?value;
         case null extractScopedBool(attrsMap, "email_verified");
       };
-      authProvider = inferProvider(attrsMap);
+      provider = inferProvider(attrsMap);
     };
 
     switch (deps.upsertFromVerifiedAttributes(caller, attrs)) {

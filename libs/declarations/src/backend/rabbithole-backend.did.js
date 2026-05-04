@@ -85,6 +85,7 @@ export const idlFactory = ({ IDL }) => {
     'filter' : IDL.Record({
       'id' : IDL.Opt(IDL.Vec(IDL.Principal)),
       'referralAppliedAt' : IDL.Opt(TimeRangeFilter),
+      'identityProvider' : IDL.Opt(IDL.Text),
       'lastLoginAt' : IDL.Opt(TimeRangeFilter),
       'inviter' : IDL.Opt(IDL.Vec(IDL.Principal)),
       'verifiedEmail' : IDL.Opt(IDL.Bool),
@@ -93,9 +94,15 @@ export const idlFactory = ({ IDL }) => {
       'trialUsed' : IDL.Opt(IDL.Bool),
       'search' : IDL.Opt(IDL.Text),
       'updatedAt' : IDL.Opt(TimeRangeFilter),
-      'authProvider' : IDL.Opt(IDL.Text),
-      'profileSyncedAt' : IDL.Opt(TimeRangeFilter),
+      'identitySyncedAt' : IDL.Opt(TimeRangeFilter),
     }),
+  });
+  const UserIdentityAttributes = IDL.Record({
+    'provider' : IDL.Opt(IDL.Text),
+    'verifiedEmail' : IDL.Opt(IDL.Bool),
+    'name' : IDL.Opt(IDL.Text),
+    'email' : IDL.Opt(IDL.Text),
+    'syncedAt' : IDL.Opt(Time),
   });
   const PublicProfileSummary = IDL.Record({
     'username' : IDL.Text,
@@ -105,18 +112,15 @@ export const idlFactory = ({ IDL }) => {
   const AdminUserListItem = IDL.Record({
     'id' : IDL.Principal,
     'referralAppliedAt' : IDL.Opt(Time),
+    'roleText' : IDL.Text,
     'lastLoginAt' : IDL.Opt(Time),
     'inviter' : IDL.Opt(IDL.Principal),
-    'verifiedEmail' : IDL.Opt(IDL.Bool),
-    'name' : IDL.Opt(IDL.Text),
     'createdAt' : Time,
     'role' : Role,
     'trialUsed' : IDL.Bool,
-    'email' : IDL.Opt(IDL.Text),
     'updatedAt' : Time,
-    'authProvider' : IDL.Opt(IDL.Text),
+    'identity' : UserIdentityAttributes,
     'profile' : IDL.Opt(PublicProfileSummary),
-    'profileSyncedAt' : IDL.Opt(Time),
   });
   const AdminUsersPage = IDL.Record({
     'total' : IDL.Opt(IDL.Nat),
@@ -384,20 +388,27 @@ export const idlFactory = ({ IDL }) => {
     'autoRenew' : IDL.Bool,
   });
   const BalanceEntry = IDL.Record({ 'tokenId' : TokenId, 'balance' : IDL.Nat });
+  const UserProfile = IDL.Record({
+    'referralCode' : IDL.Opt(IDL.Text),
+    'username' : IDL.Text,
+    'displayName' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
+    'updatedAt' : Time,
+    'avatarUrl' : IDL.Opt(IDL.Text),
+  });
   const User = IDL.Record({
     'id' : IDL.Principal,
     'referralAppliedAt' : IDL.Opt(Time),
+    'roleText' : IDL.Text,
     'lastLoginAt' : IDL.Opt(Time),
     'inviter' : IDL.Opt(IDL.Principal),
-    'verifiedEmail' : IDL.Opt(IDL.Bool),
-    'name' : IDL.Opt(IDL.Text),
+    'inviterText' : IDL.Text,
     'createdAt' : Time,
     'role' : Role,
     'trialUsed' : IDL.Bool,
-    'email' : IDL.Opt(IDL.Text),
     'updatedAt' : Time,
-    'authProvider' : IDL.Opt(IDL.Text),
-    'profileSyncedAt' : IDL.Opt(Time),
+    'identity' : UserIdentityAttributes,
+    'profile' : IDL.Opt(UserProfile),
   });
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
   const RawQueryHttpRequest = IDL.Record({
@@ -632,25 +643,6 @@ export const idlFactory = ({ IDL }) => {
     'lastError' : IDL.Text,
     'refund' : IDL.Opt(RefundContext),
   });
-  const ListOptions__1 = IDL.Record({
-    'pagination' : IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat }),
-    'count' : IDL.Bool,
-    'sort' : IDL.Vec(IDL.Tuple(IDL.Text, SortDirection)),
-    'filter' : IDL.Record({
-      'id' : IDL.Opt(IDL.Vec(IDL.Principal)),
-      'username' : IDL.Opt(IDL.Text),
-      'displayName' : IDL.Opt(IDL.Text),
-      'createdAt' : IDL.Opt(
-        IDL.Record({ 'max' : IDL.Opt(IDL.Int), 'min' : IDL.Opt(IDL.Int) })
-      ),
-      'avatarUrl' : IDL.Opt(IDL.Bool),
-    }),
-  });
-  const GetProfilesResponse = IDL.Record({
-    'total' : IDL.Opt(IDL.Nat),
-    'data' : IDL.Vec(Profile),
-    'instructions' : IDL.Nat,
-  });
   const StorageInfo = IDL.Record({
     'id' : IDL.Nat,
     'status' : CreationStatus,
@@ -878,11 +870,6 @@ export const idlFactory = ({ IDL }) => {
           }),
         ],
         [IDL.Vec(PendingCmcOp)],
-        ['query'],
-      ),
-    'listProfiles' : IDL.Func(
-        [ListOptions__1],
-        [GetProfilesResponse],
         ['query'],
       ),
     'listStorages' : IDL.Func([], [IDL.Vec(StorageInfo)], ['query']),

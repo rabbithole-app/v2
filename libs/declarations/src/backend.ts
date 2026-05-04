@@ -14,8 +14,6 @@ export type {
   KnownWasmHash,
   ListCreationsOptions,
   ListOptions as SubscriptionListOptions,
-  ListOptions__1,
-  ListOptions__1 as ProfileListOptions,
   NotificationsPage,
   PaymentPhase,
   PendingRefund,

@@ -112,7 +112,7 @@ export class DelegationComponent {
     const profile = this.profile();
 
     return (
-      user?.name[0] ??
+      user?.identity.name[0] ??
       profile?.displayName[0] ??
       profile?.username ??
       'Rabbithole account'

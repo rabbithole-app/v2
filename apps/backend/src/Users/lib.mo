@@ -1,13 +1,14 @@
 import Array "mo:core/Array";
-import Int "mo:core/Int";
-import List "mo:core/List";
+import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-import Order "mo:core/Order";
 import Principal "mo:core/Principal";
+import Random "mo:core/Random";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 
+import ByteUtils "mo:byte-utils";
+import Sha256 "mo:sha2/Sha256";
 import ZenDB "mo:zendb";
 
 import Types "../Types/lib";
@@ -19,18 +20,44 @@ module {
     #moderator;
   };
 
-  public type User = {
-    id : Principal;
+  public type UserIdentityAttributes = {
     email : ?Text;
     name : ?Text;
     verifiedEmail : ?Bool;
-    authProvider : ?Text;
+    provider : ?Text;
+    syncedAt : ?Time.Time;
+  };
+
+  public type UserProfile = {
+    username : Text;
+    displayName : ?Text;
+    avatarUrl : ?Text;
+    referralCode : ?Text;
+    createdAt : Time.Time;
+    updatedAt : Time.Time;
+  };
+
+  public type User = {
+    id : Principal;
+    identity : UserIdentityAttributes;
+    profile : ?UserProfile;
     lastLoginAt : ?Time.Time;
-    profileSyncedAt : ?Time.Time;
     inviter : ?Principal;
+    inviterText : Text;
     referralAppliedAt : ?Time.Time;
     role : Role;
+    roleText : Text;
     trialUsed : Bool;
+    createdAt : Time.Time;
+    updatedAt : Time.Time;
+  };
+
+  public type Profile = {
+    id : Principal;
+    username : Text;
+    displayName : ?Text;
+    avatarUrl : ?Text;
+    referralCode : ?Text;
     createdAt : Time.Time;
     updatedAt : Time.Time;
   };
@@ -53,12 +80,12 @@ module {
       role : ?Role;
       trialUsed : ?Bool;
       verifiedEmail : ?Bool;
-      authProvider : ?Text;
+      identityProvider : ?Text;
       search : ?Text;
       createdAt : ?TimeRangeFilter;
       updatedAt : ?TimeRangeFilter;
       lastLoginAt : ?TimeRangeFilter;
-      profileSyncedAt : ?TimeRangeFilter;
+      identitySyncedAt : ?TimeRangeFilter;
       referralAppliedAt : ?TimeRangeFilter;
     };
 
@@ -74,15 +101,12 @@ module {
 
   public type AdminUserListItem = {
     id : Principal;
-    email : ?Text;
-    name : ?Text;
-    verifiedEmail : ?Bool;
-    authProvider : ?Text;
+    identity : UserIdentityAttributes;
     lastLoginAt : ?Time.Time;
-    profileSyncedAt : ?Time.Time;
     inviter : ?Principal;
     referralAppliedAt : ?Time.Time;
     role : Role;
+    roleText : Text;
     trialUsed : Bool;
     createdAt : Time.Time;
     updatedAt : Time.Time;
@@ -107,6 +131,23 @@ module {
   };
 
   public type VerifiedIdentityAttributes = Types.VerifiedIdentityAttributes;
+
+  public type CreateProfileArgs = {
+    username : Text;
+    displayName : ?Text;
+    avatarUrl : ?Text;
+  };
+
+  public type CreateProfileAvatarArgs = {
+    filename : Text;
+    content : Blob;
+    contentType : Text;
+  };
+
+  public type UpdateProfileArgs = {
+    avatarUrl : ?Text;
+    displayName : ?Text;
+  };
 
   let USER_DIRECTORY_LIMIT_CAP : Nat = 20;
   let USER_DIRECTORY_MIN_PROFILE_SEARCH_LENGTH : Nat = 2;
@@ -141,38 +182,83 @@ module {
     Text.toLower(value) == Text.toLower(expected);
   };
 
-  func roleRank(role : Role) : Nat {
-    switch (role) {
-      case (#admin) 0;
-      case (#moderator) 1;
-      case (#user) 2;
+  func emptyIdentity(provider : ?Text, syncedAt : ?Time.Time) : UserIdentityAttributes {
+    {
+      email = null;
+      name = null;
+      verifiedEmail = null;
+      provider;
+      syncedAt;
     };
   };
 
-  func compareRole(a : Role, b : Role) : Order.Order {
-    Nat.compare(roleRank(a), roleRank(b));
+  func generateReferralCode(principal : Principal) : Text {
+    let alphabet = Text.toArray("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+    let hash = Sha256.fromBlob(#sha256, Principal.toBlob(principal));
+    let seed = ByteUtils.BigEndian.toNat64(hash.vals());
+
+    let random = Random.seed(seed);
+    var code = "";
+    var i = 0;
+    while (i < 8) {
+      let idx = random.natRange(0, alphabet.size());
+      code #= Text.fromChar(alphabet[idx]);
+      i += 1;
+    };
+    code;
   };
 
-  func compareOptionalTime(a : ?Time.Time, b : ?Time.Time) : Order.Order {
-    switch (a, b) {
-      case (?left, ?right) Int.compare(left, right);
-      case (?_, null) #greater;
-      case (null, ?_) #less;
-      case (null, null) #equal;
+  func toProfile(id : Principal, profile : UserProfile) : Profile {
+    {
+      id;
+      username = profile.username;
+      displayName = profile.displayName;
+      avatarUrl = profile.avatarUrl;
+      referralCode = profile.referralCode;
+      createdAt = profile.createdAt;
+      updatedAt = profile.updatedAt;
+    };
+  };
+
+  func toPublicProfileSummary(profile : UserProfile) : PublicProfileSummary {
+    {
+      username = profile.username;
+      displayName = profile.displayName;
+      avatarUrl = profile.avatarUrl;
     };
   };
 
   let UserSchema : ZenDB.Types.Schema = #Record([
     ("id", #Principal),
-    ("email", #Option(#Text)),
-    ("name", #Option(#Text)),
-    ("verifiedEmail", #Option(#Bool)),
-    ("authProvider", #Option(#Text)),
+    (
+      "identity",
+      #Record([
+        ("email", #Option(#Text)),
+        ("name", #Option(#Text)),
+        ("verifiedEmail", #Option(#Bool)),
+        ("provider", #Option(#Text)),
+        ("syncedAt", #Option(#Int)),
+      ]),
+    ),
+    (
+      "profile",
+      #Option(
+        #Record([
+          ("username", #Text),
+          ("displayName", #Option(#Text)),
+          ("avatarUrl", #Option(#Text)),
+          ("referralCode", #Option(#Text)),
+          ("createdAt", #Int),
+          ("updatedAt", #Int),
+        ])
+      ),
+    ),
     ("lastLoginAt", #Option(#Int)),
-    ("profileSyncedAt", #Option(#Int)),
     ("inviter", #Option(#Principal)),
+    ("inviterText", #Text),
     ("referralAppliedAt", #Option(#Int)),
     ("role", #Variant([("user", #Null), ("admin", #Null), ("moderator", #Null)])),
+    ("roleText", #Text),
     ("trialUsed", #Bool),
     ("createdAt", #Int),
     ("updatedAt", #Int),
@@ -185,41 +271,181 @@ module {
 
   let schemaConstraints : [ZenDB.Types.SchemaConstraint] = [
     #Unique(["id"]),
+    #Unique(["profile.username"]),
+    #Unique(["profile.referralCode"]),
+    #Field("profile.username", [#MinSize(2), #MaxSize(20)]),
+    #Field("profile.displayName", [#MaxSize(100)]),
   ];
 
-  public class Users(db : ZenDB.Database) {
+  public class Users(db : ZenDB.Database, deleteAsset : (Text) -> ()) {
     let #ok(usersCollection) = db.createCollection<User>("users", UserSchema, candifyUsers, ?{ schema_constraints = schemaConstraints }) else Runtime.unreachable();
+    let pendingAvatars : Map.Map<Principal, Text> = Map.empty();
 
-    public func create(principal : Principal, inviter : ?Principal, role : Role) : ZenDB.Types.Result<ZenDB.Types.DocumentId, Text> {
-      let now = Time.now();
-      let user : User = {
+    func ensureIndex(name : Text, fields : [(Text, ZenDB.Types.CreateIndexSortDirection)]) {
+      switch (usersCollection.getIndex(name)) {
+        case (?_) {};
+        case null {
+          switch (usersCollection.createIndex(name, fields, null)) {
+            case (#ok _) {};
+            case (#err message) Runtime.trap("Failed to create users index '" # name # "': " # message);
+          };
+        };
+      };
+    };
+
+    ensureIndex("users_inviter_idx", [("inviterText", #Ascending)]);
+    ensureIndex("users_role_text_idx", [("roleText", #Ascending)]);
+    ensureIndex("users_trial_used_idx", [("trialUsed", #Ascending)]);
+    ensureIndex("users_verified_email_idx", [("identity.verifiedEmail", #Ascending)]);
+    ensureIndex("users_identity_provider_idx", [("identity.provider", #Ascending)]);
+    ensureIndex("users_created_at_idx", [("createdAt", #Ascending)]);
+    ensureIndex("users_updated_at_idx", [("updatedAt", #Ascending)]);
+    ensureIndex("users_last_login_at_idx", [("lastLoginAt", #Ascending)]);
+    ensureIndex("users_identity_synced_at_idx", [("identity.syncedAt", #Ascending)]);
+    ensureIndex("users_referral_applied_at_idx", [("referralAppliedAt", #Ascending)]);
+
+    func deleteIfDifferent(key : ?Text, keep : ?Text) {
+      switch key {
+        case (?k) { if (?k != keep) deleteAsset(k) };
+        case null {};
+      };
+    };
+
+    func buildUser(principal : Principal, inviter : ?Principal, role : Role, now : Time.Time) : User {
+      {
         id = principal;
-        email = null;
-        name = null;
-        verifiedEmail = null;
-        authProvider = null;
+        identity = emptyIdentity(null, null);
+        profile = null;
         lastLoginAt = null;
-        profileSyncedAt = null;
         inviter;
+        inviterText = switch (inviter) {
+          case (?value) Principal.toText(value);
+          case null "";
+        };
         referralAppliedAt = null;
         role;
+        roleText = roleToText(role);
         trialUsed = false;
         createdAt = now;
         updatedAt = now;
       };
-      usersCollection.insert(user);
     };
 
-    public func upsertFromIdentity(principal : Principal, authProvider : ?Text, isNewAuthEvent : Bool) : ZenDB.Types.Result<(), Text> {
+    public func trackAvatar(caller : Principal, key : Text) {
+      switch (Map.swap(pendingAvatars, Principal.compare, caller, key)) {
+        case (?prevKey) deleteAsset(prevKey);
+        case null {};
+      };
+    };
+
+    public func create(principal : Principal, inviter : ?Principal, role : Role) : ZenDB.Types.Result<ZenDB.Types.DocumentId, Text> {
+      usersCollection.insert(buildUser(principal, inviter, role, Time.now()));
+    };
+
+    public func createProfile(caller : Principal, args : CreateProfileArgs) : ZenDB.Types.Result<ZenDB.Types.DocumentId, Text> {
+      let now = Time.now();
+      let profile : UserProfile = {
+        username = args.username;
+        displayName = args.displayName;
+        avatarUrl = args.avatarUrl;
+        referralCode = ?generateReferralCode(caller);
+        createdAt = now;
+        updatedAt = now;
+      };
+
+      let result = switch (findDocument(caller)) {
+        case (?(docId, user)) {
+          switch (user.profile) {
+            case (?_) return #err("Profile already exists");
+            case null {};
+          };
+          switch (usersCollection.replace(docId, { user with profile = ?profile; updatedAt = now })) {
+            case (#ok _) #ok(docId);
+            case (#err msg) #err(msg);
+          };
+        };
+        case null usersCollection.insert({ buildUser(caller, null, #user, now) with profile = ?profile });
+      };
+
+      switch (result) {
+        case (#ok _) {
+          deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), args.avatarUrl);
+        };
+        case (#err _) {};
+      };
+      result;
+    };
+
+    public func updateProfile(caller : Principal, args : UpdateProfileArgs) : ZenDB.Types.Result<(), Text> {
+      let ?(docId, user) = findDocument(caller) else return #err("Profile not found");
+      let ?profile = user.profile else return #err("Profile not found");
+      let now = Time.now();
+      let nextProfile : UserProfile = {
+        profile with
+        displayName = args.displayName;
+        avatarUrl = args.avatarUrl;
+        updatedAt = now;
+      };
+
+      switch (usersCollection.replace(docId, { user with profile = ?nextProfile; updatedAt = now })) {
+        case (#ok _) {
+          deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), args.avatarUrl);
+          deleteIfDifferent(profile.avatarUrl, args.avatarUrl);
+          #ok();
+        };
+        case (#err msg) #err(msg);
+      };
+    };
+
+    public func getProfile(caller : Principal) : ?Profile {
+      let ?user = get(caller) else return null;
+      let ?profile = user.profile else return null;
+      ?toProfile(caller, profile);
+    };
+
+    public func deleteProfile(caller : Principal) : ZenDB.Types.Result<Profile, Text> {
+      let ?(docId, user) = findDocument(caller) else return #err("Profile not found");
+      let ?profile = user.profile else return #err("Profile not found");
+      let now = Time.now();
+
+      switch (usersCollection.replace(docId, { user with profile = null; updatedAt = now })) {
+        case (#ok _) {
+          deleteIfDifferent(profile.avatarUrl, null);
+          deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), profile.avatarUrl);
+          #ok(toProfile(caller, profile));
+        };
+        case (#err msg) #err(msg);
+      };
+    };
+
+    public func usernameExists(username : Text) : Bool {
+      let q = ZenDB.QueryBuilder().Where("profile.username", #eq(#Text(username))).Limit(1);
+      let #ok({ count }) = usersCollection.count(q) else return false;
+      count > 0;
+    };
+
+    public func resolveReferralCode(code : Text) : ?Principal {
+      let q = ZenDB.QueryBuilder().Where("profile.referralCode", #eq(#Option(#Text(code)))).Limit(1);
+      let #ok({ documents }) = usersCollection.search(q) else return null;
+      if (documents.size() == 0) return null;
+      let (_, user, _) = documents[0];
+      ?user.id;
+    };
+
+    public func upsertFromIdentity(principal : Principal, identityProviderHint : ?Text, isNewAuthEvent : Bool) : ZenDB.Types.Result<(), Text> {
       let now = Time.now();
       switch (findDocument(principal)) {
         case (?(docId, user)) {
+          let identity = {
+            user.identity with
+            provider = switch identityProviderHint {
+              case (?provider) ?provider;
+              case null user.identity.provider;
+            };
+          };
           let updated = {
             user with
-            authProvider = switch authProvider {
-              case (?provider) ?provider;
-              case null user.authProvider;
-            };
+            identity;
             lastLoginAt = if (isNewAuthEvent) ?now else user.lastLoginAt;
             updatedAt = now;
           };
@@ -229,20 +455,10 @@ module {
           };
         };
         case null {
-          let user : User = {
-            id = principal;
-            email = null;
-            name = null;
-            verifiedEmail = null;
-            authProvider;
+          let user = {
+            buildUser(principal, null, #user, now) with
+            identity = emptyIdentity(identityProviderHint, null);
             lastLoginAt = if (isNewAuthEvent) ?now else null;
-            profileSyncedAt = null;
-            inviter = null;
-            referralAppliedAt = null;
-            role = #user;
-            trialUsed = false;
-            createdAt = now;
-            updatedAt = now;
           };
           switch (usersCollection.insert(user)) {
             case (#ok _) #ok(());
@@ -254,16 +470,20 @@ module {
 
     public func upsertFromVerifiedAttributes(principal : Principal, attrs : VerifiedIdentityAttributes) : ZenDB.Types.Result<(), Text> {
       let now = Time.now();
+      let identity : UserIdentityAttributes = {
+        email = attrs.email;
+        name = attrs.name;
+        verifiedEmail = attrs.verifiedEmail;
+        provider = attrs.provider;
+        syncedAt = ?now;
+      };
+
       switch (findDocument(principal)) {
         case (?(docId, user)) {
           let updated = {
             user with
-            email = attrs.email;
-            name = attrs.name;
-            verifiedEmail = attrs.verifiedEmail;
-            authProvider = attrs.authProvider;
+            identity;
             lastLoginAt = ?now;
-            profileSyncedAt = ?now;
             updatedAt = now;
           };
           switch (usersCollection.replace(docId, updated)) {
@@ -272,20 +492,10 @@ module {
           };
         };
         case null {
-          let user : User = {
-            id = principal;
-            email = attrs.email;
-            name = attrs.name;
-            verifiedEmail = attrs.verifiedEmail;
-            authProvider = attrs.authProvider;
+          let user = {
+            buildUser(principal, null, #user, now) with
+            identity;
             lastLoginAt = ?now;
-            profileSyncedAt = ?now;
-            inviter = null;
-            referralAppliedAt = null;
-            role = #user;
-            trialUsed = false;
-            createdAt = now;
-            updatedAt = now;
           };
           switch (usersCollection.insert(user)) {
             case (#ok _) #ok(());
@@ -308,6 +518,7 @@ module {
       let updated = {
         user with
         inviter = ?inviter;
+        inviterText = Principal.toText(inviter);
         referralAppliedAt = ?now;
         updatedAt = now;
       };
@@ -323,17 +534,13 @@ module {
     };
 
     public func markTrialUsed(principal : Principal) {
-      let q = ZenDB.QueryBuilder().Where("id", #eq(#Principal(principal))).Limit(1);
-      let #ok({ documents }) = usersCollection.search(q) else return;
-      if (documents.size() == 0) return;
-      let (docId, user, _) = documents[0];
+      let ?(docId, user) = findDocument(principal) else return;
       ignore usersCollection.replace(docId, { user with trialUsed = true; updatedAt = Time.now() });
     };
 
-    /// Update a user's role. Returns false if user doesn't exist.
     public func setRole(principal : Principal, role : Role) : Bool {
       let ?(docId, user) = findDocument(principal) else return false;
-      ignore usersCollection.replace(docId, { user with role; updatedAt = Time.now() });
+      ignore usersCollection.replace(docId, { user with role; roleText = roleToText(role); updatedAt = Time.now() });
       true;
     };
 
@@ -344,78 +551,19 @@ module {
       };
     };
 
-    func matchesIdFilter(user : User, ids : ?[Principal]) : Bool {
-      switch (ids) {
-        case null true;
-        case (?values) {
-          Array.find<Principal>(values, func(id) = Principal.equal(id, user.id)) != null;
-        };
-      };
-    };
-
-    func matchesInviterFilter(user : User, ids : ?[Principal]) : Bool {
-      switch (ids, user.inviter) {
-        case (null, _) true;
-        case (?values, ?inviter) {
-          Array.find<Principal>(values, func(id) = Principal.equal(id, inviter)) != null;
-        };
-        case (?_, null) false;
-      };
-    };
-
-    func matchesOptionalBoolFilter(value : ?Bool, filter : ?Bool) : Bool {
-      switch (filter) {
-        case null true;
-        case (?true) value == ?true;
-        case (?false) value != ?true;
-      };
-    };
-
-    func matchesOptionalTextFilter(value : ?Text, filter : ?Text) : Bool {
-      switch (filter) {
-        case null true;
-        case (?expected) value == ?expected;
-      };
-    };
-
-    func matchesTimeFilter(value : Time.Time, filter : ?TimeRangeFilter) : Bool {
-      switch (filter) {
-        case null true;
-        case (?{ min; max }) {
-          let minOk = switch (min) {
-            case (?minValue) value >= minValue;
-            case null true;
-          };
-          let maxOk = switch (max) {
-            case (?maxValue) value <= maxValue;
-            case null true;
-          };
-          minOk and maxOk;
-        };
-      };
-    };
-
-    func matchesOptionalTimeFilter(value : ?Time.Time, filter : ?TimeRangeFilter) : Bool {
-      switch (filter) {
-        case null true;
-        case (?range) {
-          switch (value) {
-            case (?time) matchesTimeFilter(time, ?range);
-            case null false;
-          };
-        };
-      };
-    };
-
-    func matchesAdminSearch(user : User, profile : ?PublicProfileSummary, search : ?Text) : Bool {
+    func matchesAdminSearch(user : User, search : ?Text) : Bool {
       switch (search) {
         case null true;
         case (?"") true;
         case (?value) {
-          containsIgnoreCase(Principal.toText(user.id), value) or (switch (user.name) { case (?name) containsIgnoreCase(name, value); case null false }) or (switch (user.email) { case (?email) containsIgnoreCase(email, value); case null false }) or (
-            switch (profile) {
-              case (?p) {
-                containsIgnoreCase(p.username, value) or (switch (p.displayName) { case (?displayName) containsIgnoreCase(displayName, value); case null false });
+          containsIgnoreCase(Principal.toText(user.id), value) or
+          (switch (user.identity.name) { case (?name) containsIgnoreCase(name, value); case null false }) or
+          (switch (user.identity.email) { case (?email) containsIgnoreCase(email, value); case null false }) or
+          (
+            switch (user.profile) {
+              case (?profile) {
+                containsIgnoreCase(profile.username, value) or
+                (switch (profile.displayName) { case (?displayName) containsIgnoreCase(displayName, value); case null false });
               };
               case null false;
             }
@@ -424,85 +572,154 @@ module {
       };
     };
 
-    func toAdminUserListItem(user : User, profile : ?PublicProfileSummary) : AdminUserListItem {
+    func toAdminUserListItem(user : User) : AdminUserListItem {
       {
         id = user.id;
-        email = user.email;
-        name = user.name;
-        verifiedEmail = user.verifiedEmail;
-        authProvider = user.authProvider;
+        identity = user.identity;
         lastLoginAt = user.lastLoginAt;
-        profileSyncedAt = user.profileSyncedAt;
         inviter = user.inviter;
         referralAppliedAt = user.referralAppliedAt;
         role = user.role;
+        roleText = user.roleText;
         trialUsed = user.trialUsed;
         createdAt = user.createdAt;
         updatedAt = user.updatedAt;
-        profile;
+        profile = switch (user.profile) {
+          case (?profile) ?toPublicProfileSummary(profile);
+          case null null;
+        };
       };
     };
 
-    func compareAdminItems(a : AdminUserListItem, b : AdminUserListItem, sort : [(Text, ZenDB.Types.SortDirection)]) : Order.Order {
-      let (field, direction) = switch (List.first(List.fromArray<(Text, ZenDB.Types.SortDirection)>(sort))) {
-        case (?(field, direction)) (field, direction);
-        case null ("createdAt", #Descending);
+    func addPrincipalListFilter(dbQuery : ZenDB.QueryBuilder, field : Text, values : ?[Principal]) {
+      switch (values) {
+        case null {};
+        case (?items) {
+          ignore dbQuery.And(
+            field,
+            #anyOf(Array.map<Principal, ZenDB.Types.Candid>(items, func(value) = #Principal(value))),
+          );
+        };
       };
+    };
 
-      let order = if (field == "updatedAt") {
-        Int.compare(a.updatedAt, b.updatedAt);
-      } else if (field == "referralAppliedAt") {
-        compareOptionalTime(a.referralAppliedAt, b.referralAppliedAt);
-      } else if (field == "profileSyncedAt") {
-        compareOptionalTime(a.profileSyncedAt, b.profileSyncedAt);
-      } else if (field == "lastLoginAt") {
-        compareOptionalTime(a.lastLoginAt, b.lastLoginAt);
-      } else if (field == "role") {
-        compareRole(a.role, b.role);
-      } else if (field == "name") {
-        Text.compare(
-          switch (a.profile) {
-            case (?p) switch (p.displayName) {
-              case (?v) v;
-              case null p.username;
-            };
-            case null switch (a.name) { case (?v) v; case null "" };
-          },
-          switch (b.profile) {
-            case (?p) switch (p.displayName) {
-              case (?v) v;
-              case null p.username;
-            };
-            case null switch (b.name) { case (?v) v; case null "" };
-          },
-        );
-      } else {
-        Int.compare(a.createdAt, b.createdAt);
+    func addPrincipalTextListFilter(dbQuery : ZenDB.QueryBuilder, field : Text, values : ?[Principal]) {
+      switch (values) {
+        case null {};
+        case (?items) {
+          ignore dbQuery.And(
+            field,
+            #anyOf(Array.map<Principal, ZenDB.Types.Candid>(items, func(value) = #Text(Principal.toText(value)))),
+          );
+        };
       };
+    };
 
-      switch (direction) {
-        case (#Descending) {
-          switch (order) {
-            case (#less) #greater;
-            case (#greater) #less;
-            case (#equal) #equal;
+    func addTimeRangeFilter(dbQuery : ZenDB.QueryBuilder, field : Text, range : ?TimeRangeFilter, optional : Bool) {
+      switch (range) {
+        case null {};
+        case (?{ min; max }) {
+          switch (min, max) {
+            case (?minValue, ?maxValue) ignore dbQuery.And(field, #between(#Int(minValue), #Int(maxValue)));
+            case (?minValue, null) ignore dbQuery.And(field, #gte(#Int(minValue)));
+            case (null, ?maxValue) ignore dbQuery.And(field, #lte(#Int(maxValue)));
+            case (null, null) {
+              if (optional) {
+                ignore dbQuery.And(field, #exists);
+              };
+            };
           };
         };
-        case (#Ascending) order;
       };
     };
 
-    public func list(options : AdminUserListOptions, getProfile : (Principal) -> ?PublicProfileSummary) : AdminUsersPage {
-      let #ok({ documents }) = usersCollection.search(ZenDB.QueryBuilder()) else Runtime.trap("usersCollection.search failed");
+    func sortField(field : Text) : Text {
+      if (field == "identityProvider") {
+        "identity.provider";
+      } else if (field == "identitySyncedAt") {
+        "identity.syncedAt";
+      } else if (field == "lastLoginAt") {
+        "lastLoginAt";
+      } else if (field == "name") {
+        "identity.name";
+      } else if (field == "referralAppliedAt") {
+        "referralAppliedAt";
+      } else if (field == "role") {
+        "roleText";
+      } else if (field == "updatedAt") {
+        "updatedAt";
+      } else {
+        "createdAt";
+      };
+    };
+
+    func applyAdminSort(dbQuery : ZenDB.QueryBuilder, sort : [(Text, ZenDB.Types.SortDirection)]) {
+      switch (sort.size()) {
+        case (0) ignore dbQuery.SortBy("createdAt", #Descending);
+        case (_) {
+          let (field, direction) = sort[0];
+          ignore dbQuery.SortBy(sortField(field), direction);
+        };
+      };
+    };
+
+    func buildAdminQuery(options : AdminUserListOptions, includePagination : Bool) : ZenDB.QueryBuilder {
+      let dbQuery = ZenDB.QueryBuilder();
+
+      addPrincipalListFilter(dbQuery, "id", options.filter.id);
+      addPrincipalTextListFilter(dbQuery, "inviterText", options.filter.inviter);
+
+      switch (options.filter.role) {
+        case (?role) ignore dbQuery.And("roleText", #eq(#Text(roleToText(role))));
+        case null {};
+      };
+      switch (options.filter.trialUsed) {
+        case (?trialUsed) ignore dbQuery.And("trialUsed", #eq(#Bool(trialUsed)));
+        case null {};
+      };
+      switch (options.filter.verifiedEmail) {
+        case (?true) ignore dbQuery.And("identity.verifiedEmail", #eq(#Bool(true)));
+        case (?false) ignore dbQuery.And("identity.verifiedEmail", #not_(#eq(#Bool(true))));
+        case null {};
+      };
+      switch (options.filter.identityProvider) {
+        case (?provider) ignore dbQuery.And("identity.provider", #eq(#Text(provider)));
+        case null {};
+      };
+
+      addTimeRangeFilter(dbQuery, "createdAt", options.filter.createdAt, false);
+      addTimeRangeFilter(dbQuery, "updatedAt", options.filter.updatedAt, false);
+      addTimeRangeFilter(dbQuery, "lastLoginAt", options.filter.lastLoginAt, true);
+      addTimeRangeFilter(dbQuery, "identity.syncedAt", options.filter.identitySyncedAt, true);
+      addTimeRangeFilter(dbQuery, "referralAppliedAt", options.filter.referralAppliedAt, true);
+
+      applyAdminSort(dbQuery, options.sort);
+
+      if (includePagination) {
+        ignore dbQuery.Skip(options.pagination.offset);
+        ignore dbQuery.Limit(options.pagination.limit);
+      };
+
+      dbQuery;
+    };
+
+    func hasAdminSearch(search : ?Text) : Bool {
+      switch (search) {
+        case null false;
+        case (?value) Text.trim(value, #char ' ') != "";
+      };
+    };
+
+    public func list(options : AdminUserListOptions) : AdminUsersPage {
+      let hasSearch = hasAdminSearch(options.filter.search);
+      let dbQuery = buildAdminQuery(options, not hasSearch);
+      let #ok({ documents }) = usersCollection.search(dbQuery) else Runtime.trap("usersCollection.search failed");
 
       let maybeRows = Array.map<(ZenDB.Types.DocumentId, User, [ZenDB.Types.TextMatch]), ?AdminUserListItem>(
         documents,
         func((_, user, _)) : ?AdminUserListItem {
-          let profile = getProfile(user.id);
-          if (
-            matchesIdFilter(user, options.filter.id) and matchesInviterFilter(user, options.filter.inviter) and (switch (options.filter.role) { case (?role) user.role == role; case null true }) and (switch (options.filter.trialUsed) { case (?trialUsed) user.trialUsed == trialUsed; case null true }) and matchesOptionalBoolFilter(user.verifiedEmail, options.filter.verifiedEmail) and matchesOptionalTextFilter(user.authProvider, options.filter.authProvider) and matchesTimeFilter(user.createdAt, options.filter.createdAt) and matchesTimeFilter(user.updatedAt, options.filter.updatedAt) and matchesOptionalTimeFilter(user.lastLoginAt, options.filter.lastLoginAt) and matchesOptionalTimeFilter(user.profileSyncedAt, options.filter.profileSyncedAt) and matchesOptionalTimeFilter(user.referralAppliedAt, options.filter.referralAppliedAt) and matchesAdminSearch(user, profile, options.filter.search)
-          ) {
-            ?toAdminUserListItem(user, profile);
+          if (matchesAdminSearch(user, options.filter.search)) {
+            ?toAdminUserListItem(user);
           } else {
             null;
           };
@@ -516,17 +733,28 @@ module {
         },
       );
 
-      let sorted = Array.sort<AdminUserListItem>(rows, func(a, b) = compareAdminItems(a, b, options.sort));
-      let total = sorted.size();
-      let offset = Nat.min(options.pagination.offset, total);
-      let end = Nat.min(offset + options.pagination.limit, total);
+      let total = if (hasSearch) {
+        rows.size();
+      } else {
+        let #ok({ count }) = usersCollection.count(buildAdminQuery(options, false)) else Runtime.trap("usersCollection.count failed");
+        count;
+      };
+
+      let data = if (hasSearch) {
+        let offset = Nat.min(options.pagination.offset, rows.size());
+        let end = Nat.min(offset + options.pagination.limit, rows.size());
+        Array.sliceToArray<AdminUserListItem>(rows, offset, end);
+      } else {
+        rows;
+      };
+
       {
-        data = Array.sliceToArray<AdminUserListItem>(sorted, offset, end);
+        data;
         total = if (options.count) ?total else null;
       };
     };
 
-    public func searchDirectory(search : Text, limit : Nat, getProfile : (Principal) -> ?PublicProfileSummary) : [UserDirectoryItem] {
+    public func searchDirectory(search : Text, limit : Nat) : [UserDirectoryItem] {
       let searchText = Text.trim(search, #char ' ');
       if (searchText == "" or limit == 0) return [];
 
@@ -537,19 +765,23 @@ module {
       let maybeMatches = Array.map<(ZenDB.Types.DocumentId, User, [ZenDB.Types.TextMatch]), ?UserDirectoryItem>(
         documents,
         func((_, user, _)) : ?UserDirectoryItem {
-          let profile = getProfile(user.id);
           let principalExact = Principal.toText(user.id) == searchText;
-          let emailExact = switch (user.email) {
+          let emailExact = switch (user.identity.email) {
             case (?email) equalsIgnoreCase(email, searchText);
             case null false;
           };
-          let profileMatches = switch (profile) {
-            case (?p) {
+          let profileMatches = switch (user.profile) {
+            case (?profile) {
               canSearchProfiles and (
-                containsIgnoreCase(p.username, searchText) or (switch (p.displayName) { case (?displayName) containsIgnoreCase(displayName, searchText); case null false })
+                containsIgnoreCase(profile.username, searchText) or
+                (switch (profile.displayName) { case (?displayName) containsIgnoreCase(displayName, searchText); case null false })
               );
             };
             case null false;
+          };
+          let profile = switch (user.profile) {
+            case (?value) ?toPublicProfileSummary(value);
+            case null null;
           };
 
           if (principalExact) {
@@ -574,25 +806,20 @@ module {
       let sorted = Array.sort<UserDirectoryItem>(
         matches,
         func(a, b) {
-          Text.compare(
-            switch (a.profile) {
-              case (?p) switch (p.displayName) {
-                case (?v) v;
-                case null p.username;
-              };
-              case null Principal.toText(a.id);
-            },
-            switch (b.profile) {
-              case (?p) switch (p.displayName) {
-                case (?v) v;
-                case null p.username;
-              };
-              case null Principal.toText(b.id);
-            },
-          );
+          Text.compare(directorySortLabel(a), directorySortLabel(b));
         },
       );
       Array.sliceToArray<UserDirectoryItem>(sorted, 0, Nat.min(effectiveLimit, sorted.size()));
+    };
+
+    func directorySortLabel(item : UserDirectoryItem) : Text {
+      switch (item.profile) {
+        case (?profile) switch (profile.displayName) {
+          case (?value) value;
+          case null profile.username;
+        };
+        case null Principal.toText(item.id);
+      };
     };
 
     func findDocument(caller : Principal) : ?(ZenDB.Types.DocumentId, User) {
@@ -614,18 +841,13 @@ module {
       };
     };
 
-    /// List all users with a specific role.
-    /// Implemented as a full scan + in-memory filter because Orchid (ZenDB's
-    /// index encoder) does not support equality queries on compound types
-    /// like `#Variant`. For expected user counts (thousands) this is fine;
-    /// revisit if the table grows to millions.
     public func listByRole(role : Role) : [Principal] {
       let #ok({ documents }) = usersCollection.search(ZenDB.QueryBuilder()) else return [];
       let matches = Array.filter<(ZenDB.Types.DocumentId, User, [ZenDB.Types.TextMatch])>(
         documents,
-        func((_, u, _)) = u.role == role,
+        func((_, user, _)) = user.role == role,
       );
-      Array.map<(ZenDB.Types.DocumentId, User, [ZenDB.Types.TextMatch]), Principal>(matches, func((_, u, _)) = u.id);
+      Array.map<(ZenDB.Types.DocumentId, User, [ZenDB.Types.TextMatch]), Principal>(matches, func((_, user, _)) = user.id);
     };
 
     public func getAmbassadorChain(principal : Principal) : AmbassadorChain {

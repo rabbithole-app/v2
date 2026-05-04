@@ -76,22 +76,22 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 type AdminDateField =
   | 'createdAt'
+  | 'identitySyncedAt'
   | 'lastLoginAt'
-  | 'profileSyncedAt'
   | 'referralAppliedAt'
   | 'updatedAt';
 type AdminSortField = AdminDateField | 'name' | 'role';
 type ColumnId =
-  | 'authProvider'
   | 'createdAt'
   | 'email'
+  | 'identityProvider'
+  | 'identitySyncedAt'
   | 'inviter'
   | 'lastLoginAt'
   | 'name'
   | 'principal'
   | 'profileAvatarUrl'
   | 'profileDisplayName'
-  | 'profileSyncedAt'
   | 'profileUsername'
   | 'referralAppliedAt'
   | 'role'
@@ -170,7 +170,7 @@ export class AdminUsersComponent {
     { id: 'user', label: 'User', required: true },
     { id: 'role', label: 'Role' },
     { id: 'email', label: 'Email' },
-    { id: 'authProvider', label: 'Auth provider' },
+    { id: 'identityProvider', label: 'Auth provider' },
     { id: 'inviter', label: 'Inviter' },
     { id: 'trialUsed', label: 'Trial' },
     { id: 'createdAt', label: 'Created' },
@@ -179,7 +179,7 @@ export class AdminUsersComponent {
     { id: 'name', label: 'User name' },
     { id: 'verifiedEmail', label: 'Verified email' },
     { id: 'updatedAt', label: 'Updated' },
-    { id: 'profileSyncedAt', label: 'Profile synced' },
+    { id: 'identitySyncedAt', label: 'Identity synced' },
     { id: 'referralAppliedAt', label: 'Referral applied' },
   ];
   protected readonly _columns: ColumnDef<AdminUserListItem>[] = [
@@ -191,7 +191,7 @@ export class AdminUsersComponent {
         { id: 'name', header: 'Name', minSize: 180, size: 220 },
         { id: 'email', header: 'Email', minSize: 220, size: 260 },
         { id: 'verifiedEmail', header: 'Verified', minSize: 96, size: 110 },
-        { id: 'authProvider', header: 'Auth', minSize: 140, size: 160 },
+        { id: 'identityProvider', header: 'Auth', minSize: 140, size: 160 },
         { id: 'principal', header: 'Principal ID', minSize: 360, size: 520 },
       ],
     },
@@ -212,8 +212,8 @@ export class AdminUsersComponent {
         { id: 'updatedAt', header: 'Updated', minSize: 180, size: 210 },
         { id: 'lastLoginAt', header: 'Last login', minSize: 180, size: 210 },
         {
-          id: 'profileSyncedAt',
-          header: 'Profile synced',
+          id: 'identitySyncedAt',
+          header: 'Identity synced',
           minSize: 180,
           size: 210,
         },
@@ -262,7 +262,7 @@ export class AdminUsersComponent {
       trueLabel: 'Verified',
     }),
     rbthFilterColumn.option<AdminUserListItem>({
-      id: 'authProvider',
+      id: 'identityProvider',
       label: 'Auth provider',
       operators: ['is'],
       options: [
@@ -319,7 +319,7 @@ export class AdminUsersComponent {
       'principal',
       'profileAvatarUrl',
       'profileDisplayName',
-      'profileSyncedAt',
+      'identitySyncedAt',
       'profileUsername',
       'referralAppliedAt',
       'updatedAt',
@@ -343,12 +343,12 @@ export class AdminUsersComponent {
       inviter: this._principalFilter('inviter'),
       createdAt: this._dateFilter('createdAt'),
       lastLoginAt: this._dateFilter('lastLoginAt'),
-      profileSyncedAt: [],
+      identitySyncedAt: [],
       referralAppliedAt: [],
       role: this._roleOption(),
       verifiedEmail: this._booleanOption('verifiedEmail'),
       trialUsed: this._booleanOption('trialUsed'),
-      authProvider: this._authProviderOption(),
+      identityProvider: this._identityProviderOption(),
       search: [],
       updatedAt: this._dateFilter('updatedAt'),
     },
@@ -428,7 +428,7 @@ export class AdminUsersComponent {
     return !this._hiddenColumns().has(columnId);
   }
 
-  protected _authProviderLabel(provider: string): string {
+  protected _identityProviderLabel(provider: string): string {
     if (provider === 'apple') return 'Apple';
     if (provider === 'dev_openid') return 'Dev OpenID';
     if (provider === 'google') return 'Google';
@@ -579,8 +579,8 @@ export class AdminUsersComponent {
     );
   }
 
-  private _authProviderOption(): [] | [string] {
-    const value = this._optionValue('authProvider');
+  private _identityProviderOption(): [] | [string] {
+    const value = this._optionValue('identityProvider');
     return value ? [value] : [];
   }
 
@@ -755,7 +755,7 @@ export class AdminUsersComponent {
       case 'createdAt':
       case 'lastLoginAt':
       case 'name':
-      case 'profileSyncedAt':
+      case 'identitySyncedAt':
       case 'referralAppliedAt':
       case 'role':
       case 'updatedAt':
