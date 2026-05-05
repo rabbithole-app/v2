@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideUsers } from '@ng-icons/lucide';
+import { lucideGauge, lucideServerCog, lucideUsers } from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { injectMainActor } from '@rabbithole/core';
@@ -27,6 +27,8 @@ import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
   ],
   providers: [
     provideIcons({
+      lucideGauge,
+      lucideServerCog,
       lucideUsers,
     }),
   ],
@@ -45,7 +47,24 @@ export class AdministrationNavigationComponent {
   });
 
   readonly administrationNavItems = [
-    { icon: 'lucideUsers', label: 'Users', route: '/dashboard/admin/users' },
+    {
+      exact: true,
+      icon: 'lucideGauge',
+      label: 'Overview',
+      route: '/dashboard/admin',
+    },
+    {
+      exact: false,
+      icon: 'lucideServerCog',
+      label: 'Creations',
+      route: '/dashboard/admin/creations',
+    },
+    {
+      exact: false,
+      icon: 'lucideUsers',
+      label: 'Users',
+      route: '/dashboard/admin/users',
+    },
   ];
 
   readonly isAdmin = resource({

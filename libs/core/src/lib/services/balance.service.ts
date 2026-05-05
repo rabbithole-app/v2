@@ -6,7 +6,11 @@ import type { TokenId } from '@rabbithole/declarations/backend';
 
 import { BACKEND_CANISTER_ID, LEDGER_CANISTER_ID } from '../constants';
 import { HTTP_AGENT_OPTIONS_TOKEN, injectMainActor } from '../injectors';
-import { BACKEND_FEATURES_ENABLED_TOKEN, MULTI_CHAIN_RPC_CONFIG_TOKEN } from '../tokens';
+import {
+  BACKEND_FEATURES_ENABLED_TOKEN,
+  MULTI_CHAIN_RPC_CONFIG_TOKEN,
+  type MultiChainRpcConfig,
+} from '../tokens';
 
 // Token configuration
 export interface TokenBalance {
@@ -28,6 +32,12 @@ export interface TokenConfig {
   /** CoinGecko symbol for rate lookup. Undefined = stablecoin (rate 1.0) */
   rateSymbol?: 'ETH' | 'ICP' | 'SOL';
   tokenId: TokenId;
+}
+
+export interface WalletAddresses {
+  evmAddress: [] | [string];
+  icSubaccount: number[] | Uint8Array;
+  solAddress: [] | [string];
 }
 
 // CoinGecko response shape
@@ -56,6 +66,17 @@ export const TOKEN_CONFIGS: TokenConfig[] = [
   { tokenId: { SolUSDT: null }, chain: 'solana', label: 'USDT', decimals: 6, mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' },
 ];
 
+export async function fetchTokenRates(): Promise<Record<string, number>> {
+  try {
+    const res = await fetch(COINGECKO_URL);
+    if (!res.ok) return zeroRates();
+    const data = (await res.json()) as CoinGeckoResponse;
+    return ratesFromCoinGecko(data);
+  } catch {
+    return zeroRates();
+  }
+}
+
 // Minimal ICRC-1 IDL for balance queries
 const icrc1BalanceOfIdl = ({ IDL }: { IDL: any }) => {
   const Account = IDL.Record({
@@ -73,24 +94,11 @@ const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 export class BalanceService {
   // Exchange rates from CoinGecko (plain fetch to avoid CORS preflight)
   #ratesResource = resource({
-    loader: async () => {
-      try {
-        const res = await fetch(COINGECKO_URL);
-        if (!res.ok) return null;
-        return (await res.json()) as CoinGeckoResponse;
-      } catch {
-        return null;
-      }
-    },
+    loader: fetchTokenRates,
   });
-  rates = computed<Record<string, number>>(() => {
-    const data = this.#ratesResource.value();
-    return {
-      ICP: data?.['internet-computer']?.usd ?? 0,
-      ETH: data?.ethereum?.usd ?? 0,
-      SOL: data?.solana?.usd ?? 0,
-    };
-  });
+  rates = computed<Record<string, number>>(
+    () => this.#ratesResource.value() ?? zeroRates(),
+  );
   #actor = injectMainActor();
   #backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
 
@@ -124,66 +132,14 @@ export class BalanceService {
     loader: async ({ params: { wallet, rates } }) => {
       if (!wallet) return [];
 
-      const results: TokenBalance[] = [];
       const ledgerAgent = await this.#ledgerAgent;
-
-      // Fetch IC balances (4 parallel queries)
-      const icConfigs = TOKEN_CONFIGS.filter((t) => t.chain === 'ic');
-      const icBalances = await Promise.allSettled(
-        icConfigs.map(async (config) => {
-          const ledger = Actor.createActor(icrc1BalanceOfIdl, {
-            agent: ledgerAgent,
-            canisterId: config.canisterId!,
-          });
-          const balance = await ledger['icrc1_balance_of']({
-            owner: Principal.fromText(BACKEND_CANISTER_ID),
-            subaccount: [Array.from(wallet.icSubaccount)],
-          });
-          return { config, balance: balance as bigint };
-        }),
-      );
-
-      for (const result of icBalances) {
-        if (result.status === 'fulfilled') {
-          const { config, balance } = result.value;
-          results.push(toTokenBalance(config, balance, rates));
-        } else {
-          const config = icConfigs[icBalances.indexOf(result)];
-          results.push(toTokenBalance(config, 0n, rates));
-        }
-      }
-
-      // Fetch Base (EVM) balances via Multicall3
-      if (wallet.evmAddress?.[0]) {
-        const evmAddress = wallet.evmAddress[0];
-        const baseBalances = await fetchBaseBalances(
-          evmAddress,
-          rates,
-          this.#rpcConfig.evmRpcUrl,
-        );
-        results.push(...baseBalances);
-      } else {
-        for (const config of TOKEN_CONFIGS.filter((t) => t.chain === 'base')) {
-          results.push(toTokenBalance(config, 0n, rates));
-        }
-      }
-
-      // Fetch Solana balances
-      if (wallet.solAddress?.[0]) {
-        const solAddress = wallet.solAddress[0];
-        const solBalances = await fetchSolanaBalances(
-          solAddress,
-          rates,
-          this.#rpcConfig.solanaRpcUrl,
-        );
-        results.push(...solBalances);
-      } else {
-        for (const config of TOKEN_CONFIGS.filter((t) => t.chain === 'solana')) {
-          results.push(toTokenBalance(config, 0n, rates));
-        }
-      }
-
-      return results;
+      return fetchTokenBalancesForWallet({
+        wallet,
+        rates,
+        ledgerAgent,
+        ownerPrincipal: Principal.fromText(BACKEND_CANISTER_ID),
+        rpcConfig: this.#rpcConfig,
+      });
     },
   });
 
@@ -222,6 +178,83 @@ export class BalanceService {
   }
 }
 
+export async function fetchTokenBalancesForWallet(args: {
+  ledgerAgent: HttpAgent;
+  ownerPrincipal: Principal;
+  rates: Record<string, number>;
+  rpcConfig: MultiChainRpcConfig;
+  wallet: WalletAddresses;
+}): Promise<TokenBalance[]> {
+  const { ledgerAgent, ownerPrincipal, rates, rpcConfig, wallet } = args;
+  const results: TokenBalance[] = [];
+
+  // Fetch IC balances (4 parallel queries)
+  const icConfigs = TOKEN_CONFIGS.filter((t) => t.chain === 'ic');
+  const icBalances = await Promise.allSettled(
+    icConfigs.map(async (config) => {
+      const ledger = Actor.createActor(icrc1BalanceOfIdl, {
+        agent: ledgerAgent,
+        canisterId: config.canisterId!,
+      });
+      const balance = await ledger['icrc1_balance_of']({
+        owner: ownerPrincipal,
+        subaccount: [Array.from(wallet.icSubaccount)],
+      });
+      return { config, balance: balance as bigint };
+    }),
+  );
+
+  for (const result of icBalances) {
+    if (result.status === 'fulfilled') {
+      const { config, balance } = result.value;
+      results.push(toTokenBalance(config, balance, rates));
+    } else {
+      const config = icConfigs[icBalances.indexOf(result)];
+      results.push(toTokenBalance(config, 0n, rates));
+    }
+  }
+
+  // Fetch Base (EVM) balances via Multicall3
+  if (wallet.evmAddress?.[0]) {
+    const evmAddress = wallet.evmAddress[0];
+    const baseBalances = await fetchBaseBalances(
+      evmAddress,
+      rates,
+      rpcConfig.evmRpcUrl,
+    );
+    results.push(...baseBalances);
+  } else {
+    for (const config of TOKEN_CONFIGS.filter((t) => t.chain === 'base')) {
+      results.push(toTokenBalance(config, 0n, rates));
+    }
+  }
+
+  // Fetch Solana balances
+  if (wallet.solAddress?.[0]) {
+    const solAddress = wallet.solAddress[0];
+    const solBalances = await fetchSolanaBalances(
+      solAddress,
+      rates,
+      rpcConfig.solanaRpcUrl,
+    );
+    results.push(...solBalances);
+  } else {
+    for (const config of TOKEN_CONFIGS.filter((t) => t.chain === 'solana')) {
+      results.push(toTokenBalance(config, 0n, rates));
+    }
+  }
+
+  return results;
+}
+
+function ratesFromCoinGecko(data: CoinGeckoResponse): Record<string, number> {
+  return {
+    ICP: data['internet-computer']?.usd ?? 0,
+    ETH: data.ethereum?.usd ?? 0,
+    SOL: data.solana?.usd ?? 0,
+  };
+}
+
 function toTokenBalance(config: TokenConfig, balance: bigint, rates: Record<string, number>): TokenBalance {
   const divisor = 10 ** config.decimals;
   const rate = config.rateSymbol ? (rates[config.rateSymbol] ?? 0) : 1; // stablecoins = 1
@@ -234,6 +267,10 @@ function toTokenBalance(config: TokenConfig, balance: bigint, rates: Record<stri
     decimals: config.decimals,
     usdValue,
   };
+}
+
+function zeroRates(): Record<string, number> {
+  return { ETH: 0, ICP: 0, SOL: 0 };
 }
 
 // ERC-20 balanceOf(address) function selector

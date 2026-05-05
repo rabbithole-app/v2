@@ -11,6 +11,7 @@
               [routerLink]="item.route"
               routerLinkActive
               #rla="routerLinkActive"
+              [routerLinkActiveOptions]="{ exact: item.exact }"
               [isActive]="rla.isActive"
             >
               <ng-icon hlmIcon [name]="item.icon" size="sm" hlmMenuIcon />

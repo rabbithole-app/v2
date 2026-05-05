@@ -104,7 +104,17 @@ export const appRoutes: Route[] = [
           {
             path: '',
             pathMatch: 'full',
-            redirectTo: 'users',
+            loadComponent: () =>
+              import('./pages/admin/admin-overview.component').then(
+                (m) => m.AdminOverviewComponent,
+              ),
+          },
+          {
+            path: 'creations',
+            loadComponent: () =>
+              import('./pages/admin/creations/admin-creations.component').then(
+                (m) => m.AdminCreationsComponent,
+              ),
           },
           {
             path: 'users',

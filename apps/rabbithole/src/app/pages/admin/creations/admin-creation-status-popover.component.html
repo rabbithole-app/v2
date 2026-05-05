@@ -1,0 +1,268 @@
+<brn-popover
+  sideOffset="8"
+  align="start"
+  [state]="_popoverState()"
+  (stateChanged)="_setPopoverState($event)"
+>
+  <button
+    hlmBtn
+    brnPopoverTrigger
+    variant="ghost"
+    class="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
+  >
+    <span class="flex size-4 shrink-0 items-center justify-center">
+      @switch (_triggerState(creation())) {
+        @case ('completed') {
+          <ng-icon
+            hlmIcon
+            name="lucideCheck"
+            size="xs"
+            class="text-foreground"
+          />
+        }
+        @case ('active') {
+          <hlm-spinner
+            class="size-4 items-center justify-center text-primary"
+            style="--ng-icon__size: 14px"
+          />
+        }
+        @case ('failed') {
+          <ng-icon
+            hlmIcon
+            name="lucideCircleX"
+            size="xs"
+            class="text-destructive"
+          />
+        }
+        @default {
+          <ng-icon
+            hlmIcon
+            name="lucideCircleDashed"
+            size="xs"
+            class="text-muted-foreground"
+          />
+        }
+      }
+    </span>
+
+    <span class="flex min-w-0 flex-col items-start gap-0.5">
+      <span
+        class="max-w-full truncate text-sm font-medium"
+        [class.text-destructive]="_triggerState(creation()) === 'failed'"
+      >
+        {{ _triggerLabel(creation()) }}
+      </span>
+      <span class="max-w-full truncate text-xs text-muted-foreground">
+        {{ _triggerDescription(creation()) }}
+      </span>
+    </span>
+  </button>
+
+  <div
+    hlmPopoverContent
+    *brnPopoverContent
+    class="w-[560px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border bg-popover p-0 shadow-md"
+  >
+    <div hlmTabs [tab]="_activeTab()" class="overflow-hidden">
+      <div class="flex items-center justify-between gap-4 border-b px-4 py-3">
+        <div class="min-w-0">
+          <div class="flex min-w-0 items-center gap-2">
+            <h3 class="truncate text-sm font-semibold">
+              {{ _operationLabel(creation()) }} #{{ creation().id.toString() }}
+            </h3>
+          </div>
+        </div>
+
+        <div hlmTabsList class="grid h-8 w-[184px] shrink-0 grid-cols-2">
+          <button hlmTabsTrigger="deployment" (click)="_activeTab.set('deployment')">
+            Progress
+          </button>
+          <button hlmTabsTrigger="events" (click)="_openEventsTab()">
+            Events
+          </button>
+        </div>
+      </div>
+
+      <div class="max-h-[min(560px,calc(100vh-9rem))] overflow-y-auto">
+        <div hlmTabsContent="deployment" class="m-0">
+          <ol class="divide-y">
+            @for (step of _deploymentSteps(creation()); track step.id) {
+              <li class="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-3 px-4 py-3">
+                <span class="mt-0.5 flex size-5 items-center justify-center">
+                  @switch (step.state) {
+                    @case ('completed') {
+                      <ng-icon
+                        hlmIcon
+                        name="lucideCheck"
+                        size="sm"
+                        class="text-foreground"
+                      />
+                    }
+                    @case ('active') {
+                      <hlm-spinner class="size-4 text-primary" />
+                    }
+                    @case ('failed') {
+                      <ng-icon
+                        hlmIcon
+                        name="lucideCircleX"
+                        size="sm"
+                        class="text-destructive"
+                      />
+                    }
+                    @default {
+                      <ng-icon
+                        hlmIcon
+                        name="lucideCircleDashed"
+                        size="sm"
+                        class="text-muted-foreground"
+                      />
+                    }
+                  }
+                </span>
+
+                <div class="min-w-0">
+                  <div class="flex min-w-0 items-center gap-2">
+                    <p class="truncate text-sm font-medium">{{ step.title }}</p>
+                    @if (step.state === 'active') {
+                      <span class="text-xs text-muted-foreground">
+                        {{ _statusDescription(creation()) }}
+                      </span>
+                    }
+                  </div>
+
+                  @if (step.progress; as progress) {
+                    @if (_hasVisibleProgress(progress)) {
+                      <div class="mt-2">
+                        <div hlmProgress [value]="_progressPercent(progress)" class="h-1.5">
+                          <hlm-progress-indicator />
+                        </div>
+                        <div class="mt-1 flex justify-between gap-3 text-xs text-muted-foreground">
+                          <span>{{ _progressRange(step.id, progress) }}</span>
+                          <span class="tabular-nums">{{ _progressPercent(progress) }}%</span>
+                        </div>
+                      </div>
+                    }
+                  }
+
+                  @if (step.details.length) {
+                    <dl class="mt-2 grid gap-1.5">
+                      @for (detail of step.details; track detail.label) {
+                        <div class="grid grid-cols-[6.75rem_minmax(0,1fr)] gap-2 text-xs">
+                          <dt class="text-muted-foreground">{{ detail.label }}</dt>
+                          <dd class="min-w-0 truncate font-medium" [attr.title]="detail.value">
+                            @if (_isCopyDetail(detail)) {
+                              <core-copy-to-clipboard
+                                [content]="detail.value"
+                                class="max-w-full"
+                                size="xs"
+                              >
+                                {{ detail.value }}
+                              </core-copy-to-clipboard>
+                            } @else if (_isBadgeDetail(detail)) {
+                              <span hlmBadge variant="secondary">
+                                {{ detail.value }}
+                              </span>
+                            } @else {
+                              {{ detail.value }}
+                            }
+                          </dd>
+                        </div>
+                      }
+                    </dl>
+                  }
+
+                  @if (step.id === 'frontend' && _frontendDiagnostics(); as diagnostics) {
+                    <hlm-collapsible
+                      [expanded]="_frontendDiagnosticsExpanded()"
+                      (expandedChange)="_frontendDiagnosticsExpanded.set($event)"
+                      class="mt-3 block rounded-md border bg-muted/20"
+                    >
+                      <button
+                        hlmBtn
+                        hlmCollapsibleTrigger
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-full justify-between px-3 text-xs"
+                      >
+                        Frontend diagnostics
+                        <ng-icon
+                          hlmIcon
+                          name="lucideChevronDown"
+                          size="xs"
+                          class="transition-transform in-aria-expanded:rotate-180"
+                        />
+                      </button>
+
+                      <div hlmCollapsibleContent class="border-t px-3 py-2">
+                        <dl class="grid gap-1.5">
+                          @for (row of _frontendDiagnosticRows(diagnostics); track row.label) {
+                            <div class="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2 text-xs">
+                              <dt class="text-muted-foreground">{{ row.label }}</dt>
+                              <dd class="min-w-0 truncate font-medium" [attr.title]="row.value">
+                                {{ row.value }}
+                              </dd>
+                            </div>
+                          }
+                        </dl>
+                      </div>
+                    </hlm-collapsible>
+                  }
+                </div>
+              </li>
+            }
+          </ol>
+        </div>
+
+        <div hlmTabsContent="events" class="m-0">
+          @if (_detailLoading()) {
+            <div class="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
+              <hlm-spinner class="size-4" />
+              Loading events
+            </div>
+          } @else if (_detailError()) {
+            <div class="m-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {{ _detailError() }}
+            </div>
+          } @else if (_events().length) {
+            <div class="divide-y font-mono text-xs">
+              @for (event of _events(); track event.timestamp.toString() + '-' + $index) {
+                <div class="grid grid-cols-[5.75rem_8rem_minmax(0,1fr)] gap-3 px-4 py-2">
+                  <time class="tabular-nums text-muted-foreground">
+                    {{ _date(event.timestamp) | date: 'mediumTime' }}
+                  </time>
+                  <span class="truncate text-muted-foreground">
+                    {{ _eventKey(event.status) }}
+                  </span>
+                  <div class="min-w-0">
+                    <p
+                      class="truncate font-sans text-xs text-foreground"
+                      [attr.title]="_eventMessage(event.status)"
+                    >
+                      {{ _eventMessage(event.status) }}
+                    </p>
+                    @if (_progressFromStatus(event.status); as progress) {
+                      @if (_hasVisibleProgress(progress)) {
+                        <div class="mt-1.5">
+                          <div hlmProgress [value]="_progressPercent(progress)" class="h-1">
+                            <hlm-progress-indicator />
+                          </div>
+                          <p class="mt-1 text-muted-foreground">
+                            {{ _eventProgressRange(event.status, progress) }}
+                          </p>
+                        </div>
+                      }
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="px-4 py-6 text-sm text-muted-foreground">
+              No events recorded for this creation.
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</brn-popover>

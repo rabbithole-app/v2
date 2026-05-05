@@ -57,21 +57,23 @@
                 <div hlmItemTitle>No {{ network.title }} wallet yet</div>
                 <p hlmItemDescription>{{ network.emptyDescription }}</p>
               </div>
-              <div hlmItemActions>
-                <button
-                  hlmBtn
-                  size="sm"
-                  [disabled]="isGenerating(network.id)"
-                  (click)="generateAddress(network.id)"
-                >
-                  @if (isGenerating(network.id)) {
-                    <hlm-spinner class="size-4" />
-                    Generating...
-                  } @else {
-                    {{ network.generateLabel }}
-                  }
-                </button>
-              </div>
+              @if (canGenerateAddresses()) {
+                <div hlmItemActions>
+                  <button
+                    hlmBtn
+                    size="sm"
+                    [disabled]="isGenerating(network.id)"
+                    (click)="generateAddress(network.id)"
+                  >
+                    @if (isGenerating(network.id)) {
+                      <hlm-spinner class="size-4" />
+                      Generating...
+                    } @else {
+                      {{ network.generateLabel }}
+                    }
+                  </button>
+                </div>
+              }
             </div>
           }
 

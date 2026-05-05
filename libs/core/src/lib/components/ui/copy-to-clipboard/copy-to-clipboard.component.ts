@@ -19,6 +19,8 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { hlm } from '@spartan-ng/helm/utils';
 
+type CopyToClipboardSize = 'sm' | 'xs';
+
 @Component({
   selector: 'core-copy-to-clipboard',
   template: `<span data-slot="copy-content">
@@ -28,11 +30,11 @@ import { hlm } from '@spartan-ng/helm/utils';
       hlmBtn
       variant="ghost"
       size="icon"
-      class="shrink-0 size-6"
+      [class]="_buttonClass()"
       [hlmTooltip]="'Copy to clipboard'"
       (click)="handleCopy($event)"
     >
-      <ng-icon hlm [name]="iconName()" size="sm" />
+      <ng-icon hlm [name]="iconName()" [size]="_iconSize()" />
       <span class="sr-only">Copy to clipboard</span>
     </button>`,
   imports: [
@@ -71,18 +73,29 @@ export class CopyToClipboardComponent {
   );
 
   readonly userClass = input<ClassValue>('', { alias: 'class' });
+  readonly size = input<CopyToClipboardSize>('sm');
+
+  protected _buttonClass = computed(() =>
+    hlm('shrink-0', this.size() === 'xs' ? 'size-5' : 'size-6'),
+  );
 
   protected _computedClass = computed(() =>
     hlm(
-      'flex min-w-0 items-center gap-1',
+      'inline-flex max-w-full min-w-0 items-center align-middle',
+      this.size() === 'xs' ? 'gap-0.5' : 'gap-1',
       '[&>[data-slot=copy-content]]:min-w-0',
       '[&>[data-slot=copy-content]]:flex-1',
       '[&>[data-slot=copy-content]]:truncate',
       '[&>[data-slot=copy-content]]:font-mono',
-      '[&>[data-slot=copy-content]]:text-xs',
+      this.size() === 'xs'
+        ? '[&>[data-slot=copy-content]]:text-[11px]'
+        : '[&>[data-slot=copy-content]]:text-xs',
       this.userClass(),
     ),
   );
+
+  protected _iconSize = computed(() => (this.size() === 'xs' ? 'xs' : 'sm'));
+
   #clipboard = inject(Clipboard);
 
   handleCopy(event: MouseEvent) {

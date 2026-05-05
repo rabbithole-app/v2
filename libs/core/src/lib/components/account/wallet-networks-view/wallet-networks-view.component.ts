@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  input,
   signal,
 } from '@angular/core';
 import { AccountIdentifier, SubAccount } from '@icp-sdk/canisters/ledger/icp';
@@ -31,6 +32,7 @@ import {
   TOKEN_CONFIGS,
   type TokenBalance,
   type TokenConfig,
+  type WalletAddresses,
 } from '../../../services/balance.service';
 import { MAIN_CANISTER_ID_TOKEN } from '../../../tokens';
 import { formatUsd } from '../../../utils/format-number';
@@ -108,14 +110,24 @@ const NETWORK_DEFINITIONS: NetworkDefinition[] = [
 })
 export class WalletNetworksViewComponent {
   readonly activeTab = signal<WalletChain>('ic');
+  readonly balances = input<TokenBalance[] | null>(null);
+  readonly canGenerateAddresses = input(true);
   readonly generatingChain = signal<WalletChain | null>(null);
 
+  readonly hideZeroBalances = input<boolean | null>(null);
   readonly #balanceService = inject(BalanceService);
-  readonly hideZero = this.#balanceService.hideZero;
-  readonly walletAddresses = this.#balanceService.walletAddresses;
+
+  readonly hideZero = computed(
+    () => this.hideZeroBalances() ?? this.#balanceService.hideZero(),
+  );
+  readonly walletAddressesInput = input<WalletAddresses | null>(null, {
+    alias: 'walletAddresses',
+  });
+  readonly walletAddresses = computed(
+    () => this.walletAddressesInput() ?? this.#balanceService.walletAddresses(),
+  );
 
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
-  readonly #actor = injectMainActor();
 
   readonly icAccountId = computed(() => {
     const wallet = this.walletAddresses();
@@ -133,7 +145,6 @@ export class WalletNetworksViewComponent {
       subAccount,
     }).toHex();
   });
-
   readonly networks = computed(() =>
     NETWORK_DEFINITIONS.map((network) => {
       const balances = this.getVisibleBalances(network.id);
@@ -147,6 +158,16 @@ export class WalletNetworksViewComponent {
     }),
   );
 
+  readonly visibleBalances = computed(() => {
+    const balances = this.balances();
+    if (!balances) return this.#balanceService.visibleBalances();
+    return this.hideZero()
+      ? balances.filter((balance) => balance.balance > 0n)
+      : balances;
+  });
+
+  readonly #actor = injectMainActor();
+
   formatBalance(balance: bigint, decimals: number): string {
     return formatTokenAmount(balance, decimals);
   }
@@ -156,7 +177,7 @@ export class WalletNetworksViewComponent {
   }
 
   async generateAddress(chain: WalletChain): Promise<void> {
-    if (chain === 'ic' || this.isGenerating(chain)) return;
+    if (chain === 'ic' || !this.canGenerateAddresses() || this.isGenerating(chain)) return;
 
     this.generatingChain.set(chain);
     const toastId = toast.loading(
@@ -230,14 +251,7 @@ export class WalletNetworksViewComponent {
   }
 
   private getVisibleBalances(chain: WalletChain): TokenBalance[] {
-    switch (chain) {
-      case 'base':
-        return this.#balanceService.baseBalances();
-      case 'ic':
-        return this.#balanceService.icBalances();
-      case 'solana':
-        return this.#balanceService.solanaBalances();
-    }
+    return this.visibleBalances().filter((balance) => balance.chain === chain);
   }
 }
 
