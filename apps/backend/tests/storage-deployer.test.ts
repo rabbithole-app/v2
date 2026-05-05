@@ -950,9 +950,9 @@ describe("StorageDeployer", () => {
     const completed = storages.find(s => "Completed" in s.status);
     if (!completed) throw new Error("no completed storage from earlier test");
 
-    const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(completed.id)]);
-    if (data.length === 0) throw new Error("creation not found via listCreations");
-    const events = data[0].events;
+    const detail = await backendFixture.actor.getCreationDetail(completed.id);
+    if (detail.length === 0) throw new Error("creation not found via getCreationDetail");
+    const events = detail[0].events;
 
     // The timeline must include at least the major transitions: Pending →
     // (balance/transfer/notify) → CanisterCreated → installing → completed.
@@ -1001,7 +1001,8 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
     const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
     expect(data.length).toBe(1);
-    expect(data[0].events.length).toBeGreaterThan(0);
+    const detail = await backendFixture.actor.getCreationDetail(creationId);
+    expect(detail[0]?.events.length).toBeGreaterThan(0);
   });
 
   test("resumeStorageCreation: owner can resume own failed creation", async () => {
@@ -1281,9 +1282,9 @@ describe("StorageDeployer", () => {
     const completed = storages.find((s) => "Completed" in s.status);
     if (!completed) throw new Error("no completed storage from earlier test");
 
-    const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(completed.id)]);
-    if (data.length === 0) throw new Error("creation not found via listCreations");
-    const events = data[0].events;
+    const detail = await backendFixture.actor.getCreationDetail(completed.id);
+    if (detail.length === 0) throw new Error("creation not found via getCreationDetail");
+    const events = detail[0].events;
 
     const fullTags = events.map((e) => {
       const outer = Object.keys(e.status)[0] as keyof typeof e.status;
@@ -1358,7 +1359,7 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
     const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
     expect(data.length).toBe(1);
-    expect(data[0].ambassadorPayoutStatus).toEqual({ pending: null });
+    expect(data[0].ambassadorPayoutStatusTag).toBe("pending");
 
     // distributionLog: the ONLY row for this payment should be the charge row,
     // which has L1=L2=0 (deferred mode). No "ambassador:<paymentId>" row yet.
@@ -1433,7 +1434,7 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
     const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
     expect(data.length).toBe(1);
-    expect(data[0].ambassadorPayoutStatus).toEqual({ completed: null });
+    expect(data[0].ambassadorPayoutStatusTag).toBe("completed");
 
     // distributionLog should have BOTH: charge row (L1=0) and payout row (L1>0).
     const allDistRows = await backendFixture.actor.getDistributionLog({ offset: 0n, limit: 1000n });
@@ -1460,7 +1461,7 @@ describe("StorageDeployer", () => {
     expect(afterRetry.length).toBe(rowCountBefore); // overall log didn't grow
 
     const { data: dataAfterRetry } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
-    expect(dataAfterRetry[0].ambassadorPayoutStatus).toEqual({ completed: null });
+    expect(dataAfterRetry[0].ambassadorPayoutStatusTag).toBe("completed");
   }, 300_000);
 
   test("addStorage rejects canister without WASM installed (#InvalidWasm)", async () => {

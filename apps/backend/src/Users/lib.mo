@@ -151,6 +151,7 @@ module {
 
   let USER_DIRECTORY_LIMIT_CAP : Nat = 20;
   let USER_DIRECTORY_MIN_PROFILE_SEARCH_LENGTH : Nat = 2;
+  let ADMIN_USER_LIST_LIMIT_CAP : Nat = 100;
 
   public type ApplyReferralCodeResult = {
     #ok;
@@ -697,7 +698,7 @@ module {
 
       if (includePagination) {
         ignore dbQuery.Skip(options.pagination.offset);
-        ignore dbQuery.Limit(options.pagination.limit);
+        ignore dbQuery.Limit(Nat.min(options.pagination.limit, ADMIN_USER_LIST_LIMIT_CAP));
       };
 
       dbQuery;
@@ -742,7 +743,8 @@ module {
 
       let data = if (hasSearch) {
         let offset = Nat.min(options.pagination.offset, rows.size());
-        let end = Nat.min(offset + options.pagination.limit, rows.size());
+        let limit = Nat.min(options.pagination.limit, ADMIN_USER_LIST_LIMIT_CAP);
+        let end = Nat.min(offset + limit, rows.size());
         Array.sliceToArray<AdminUserListItem>(rows, offset, end);
       } else {
         rows;

@@ -73,6 +73,7 @@ module StorageDeployerOrchestrator {
   public type GetLicensesResponse = Types.GetLicensesResponse;
   public type ListCreationsOptions = Types.ListCreationsOptions;
   public type GetCreationsResponse = Types.GetCreationsResponse;
+  public type CreationListItem = Types.CreationListItem;
 
   public let DEFAULT_LIST_LICENSES_OPTIONS = Types.DEFAULT_LIST_LICENSES_OPTIONS;
   public let DEFAULT_LIST_CREATIONS_OPTIONS = Types.DEFAULT_LIST_CREATIONS_OPTIONS;
@@ -1046,6 +1047,36 @@ module StorageDeployerOrchestrator {
     };
   };
 
+  func remoteCallFailureMessage(
+    details : {
+      stage : StorageDeployer.RemoteCallStage;
+      message : Text;
+      blockIndex : ?Nat;
+    },
+  ) : Text {
+    let blockSuffix = switch (details.blockIndex) {
+      case (?blockIndex) " (CMC block " # Nat.toText(blockIndex) # ")";
+      case null "";
+    };
+
+    "Canister creation failed at " #
+    remoteCallStageLabel(details.stage) #
+    blockSuffix #
+    ": " #
+    details.message;
+  };
+
+  func remoteCallStageLabel(stage : StorageDeployer.RemoteCallStage) : Text {
+    switch (stage) {
+      case (#FetchIcpXdrRate) "CMC exchange-rate lookup";
+      case (#ReadUserIcpBalance) "ICP ledger user-subaccount balance";
+      case (#ReadTreasuryIcpBalance) "ICP ledger treasury-subaccount balance";
+      case (#ReadDefaultIcpBalance) "ICP ledger default-account balance";
+      case (#TransferIcpToCmc) "ICP ledger transfer to CMC";
+      case (#NotifyCmcCreateCanister) "CMC notify_create_canister";
+    };
+  };
+
   func syncWasmProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
     let ?record = creations.get(creationId) else return;
 
@@ -1183,6 +1214,9 @@ module StorageDeployerOrchestrator {
               };
               case (#TransferFailed(_)) {
                 ignore creations.appendEvent(creationId, #Failed("Canister creation failed: Transfer failed"));
+              };
+              case (#RemoteCallFailed(details)) {
+                ignore creations.appendEvent(creationId, #Failed(remoteCallFailureMessage(details)));
               };
             };
           };

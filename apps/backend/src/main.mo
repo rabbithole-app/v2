@@ -908,7 +908,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// List creations with optional filter + pagination. Callers omit `options`
   /// (`[]`) to get the caller's own creations with defaults. Non-admins are
   /// pinned to their own `owner` regardless of filter.owner passed in.
-  /// Records include the full `events` timeline — no separate history query.
+  /// Records include current status/progress, but omit full timeline,
+  /// diagnostics and recovery payload. Use `getCreationDetail` for a row's
+  /// popover/details panel.
   public query ({ caller }) func listCreations(
     options : ?StorageDeployerOrchestrator.ListCreationsOptions,
   ) : async StorageDeployerOrchestrator.GetCreationsResponse {
@@ -917,6 +919,24 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     let pinned = { opts with filter = { opts.filter with owner = ?[caller] } };
     let effective = if (isAdminPrincipal(caller)) opts else pinned;
     creations.list(effective);
+  };
+
+  /// Full creation detail with timeline and diagnostics. Non-admin callers can
+  /// only read their own records.
+  public query ({ caller }) func getCreationDetail(
+    creationId : Nat,
+  ) : async ?StorageDeployerOrchestrator.StorageCreationRecord {
+    assert not Principal.isAnonymous(caller);
+    switch (StorageDeployerOrchestrator.getCreationRecordById(creations, creationId)) {
+      case (?record) {
+        if (isAdminPrincipal(caller) or Principal.equal(caller, record.owner)) {
+          ?record;
+        } else {
+          null;
+        };
+      };
+      case null null;
+    };
   };
 
   public shared ({ caller }) func upgradeStorage(

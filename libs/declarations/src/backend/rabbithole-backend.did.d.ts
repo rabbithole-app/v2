@@ -113,6 +113,26 @@ export interface CreateProfileAvatarArgs {
   'contentType' : string,
   'filename' : string,
 }
+export interface CreationListItem {
+  'id' : bigint,
+  'status' : CreationStatus,
+  'completedAt' : [] | [Time],
+  'licensePaymentId' : [] | [string],
+  'owner' : Principal,
+  'createdAt' : Time,
+  'lastUpgradeError' : [] | [string],
+  'isUpgrade' : boolean,
+  'statusTag' : string,
+  'subnetId' : [] | [Principal],
+  'upgradeIncludesFrontend' : boolean,
+  'hasFrontendInstallDiagnostics' : boolean,
+  'ambassadorPayoutStatusTag' : string,
+  'releaseTag' : string,
+  'lastEventAt' : [] | [Time],
+  'hasEvents' : boolean,
+  'installedReleaseTag' : [] | [string],
+  'canisterId' : [] | [Principal],
+}
 export type CreationStatus = { 'Failed' : string } |
   { 'UpdatingControllers' : { 'canisterId' : Principal } } |
   { 'UpgradingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
@@ -190,7 +210,7 @@ export interface FrontendInstallDiagnostics {
 }
 export interface GetCreationsResponse {
   'total' : [] | [bigint],
-  'data' : Array<StorageCreationRecord>,
+  'data' : Array<CreationListItem>,
   'instructions' : bigint,
 }
 export interface GetLicensesResponse {
@@ -395,6 +415,11 @@ export interface Rabbithole {
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
   'getBackendCyclesBalance' : ActorMethod<[], bigint>,
   'getCmcRecoveryStats' : ActorMethod<[], StatsView>,
+  /**
+   * / Full creation detail with timeline and diagnostics. Non-admin callers can
+   * / only read their own records.
+   */
+  'getCreationDetail' : ActorMethod<[bigint], [] | [StorageCreationRecord]>,
   'getDistributionLog' : ActorMethod<
     [DistributionLogOptions],
     Array<DistributionRecord>
@@ -422,6 +447,14 @@ export interface Rabbithole {
   'getSolAddress' : ActorMethod<[], [] | [string]>,
   'getSubscription' : ActorMethod<[], [] | [Subscription]>,
   'getTreasuryBalances' : ActorMethod<[], Array<BalanceEntry>>,
+  'getTreasuryWalletAddresses' : ActorMethod<
+    [],
+    {
+      'icSubaccount' : Uint8Array,
+      'solAddress' : [] | [string],
+      'evmAddress' : [] | [string],
+    }
+  >,
   'getUnreadCount' : ActorMethod<[], bigint>,
   'getUser' : ActorMethod<[], [] | [User]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
@@ -440,7 +473,9 @@ export interface Rabbithole {
    * / List creations with optional filter + pagination. Callers omit `options`
    * / (`[]`) to get the caller's own creations with defaults. Non-admins are
    * / pinned to their own `owner` regardless of filter.owner passed in.
-   * / Records include the full `events` timeline — no separate history query.
+   * / Records include current status/progress, but omit full timeline,
+   * / diagnostics and recovery payload. Use `getCreationDetail` for a row's
+   * / popover/details panel.
    */
   'listCreations' : ActorMethod<
     [[] | [ListCreationsOptions]],

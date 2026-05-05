@@ -171,6 +171,100 @@ export const idlFactory = ({ IDL }) => {
     'totalDismissed' : IDL.Nat,
     'totalCreated' : IDL.Nat,
   });
+  const Progress = IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat });
+  const PaymentPhase = IDL.Variant({
+    'CheckingBalances' : IDL.Null,
+    'Starting' : IDL.Null,
+    'Queueing' : IDL.Null,
+    'FetchingRates' : IDL.Null,
+    'Charging' : IDL.Record({ 'tokenId' : TokenId, 'amount' : IDL.Nat }),
+    'Activating' : IDL.Null,
+    'RecordingLicense' : IDL.Null,
+  });
+  const CreationStatus = IDL.Variant({
+    'Failed' : IDL.Text,
+    'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'UpgradingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'RevokingInstallerPermission' : IDL.Record({
+      'canisterId' : IDL.Principal,
+    }),
+    'CheckingBalance' : IDL.Null,
+    'UploadingFrontend' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
+    'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
+    'ProcessingPayment' : PaymentPhase,
+    'UpgradingFrontend' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'InstallingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
+    'Pending' : IDL.Null,
+  });
+  const AmbassadorPayoutStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'skipped' : IDL.Null,
+    'completed' : IDL.Null,
+    'failed' : IDL.Text,
+  });
+  const StatusEvent = IDL.Record({
+    'status' : CreationStatus,
+    'timestamp' : Time,
+  });
+  const FrontendInstallDiagnostics = IDL.Record({
+    'totalFiles' : IDL.Nat,
+    'completedAt' : IDL.Opt(Time),
+    'startedAt' : Time,
+    'changedDeletedFiles' : IDL.Nat,
+    'batchesProcessed' : IDL.Nat,
+    'skippedBytes' : IDL.Nat,
+    'uploadedBytes' : IDL.Nat,
+    'error' : IDL.Opt(IDL.Text),
+    'updatedAt' : Time,
+    'stage' : IDL.Text,
+    'skippedFiles' : IDL.Nat,
+    'processedBytes' : IDL.Nat,
+    'uploadedFiles' : IDL.Nat,
+    'staleDeletedFiles' : IDL.Nat,
+    'totalBytes' : IDL.Nat,
+    'processedFiles' : IDL.Nat,
+    'batchesTotal' : IDL.Nat,
+  });
+  const EnvPair = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const StorageCreationRecord = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : CreationStatus,
+    'completedAt' : IDL.Opt(Time),
+    'licensePaymentId' : IDL.Opt(IDL.Text),
+    'owner' : IDL.Principal,
+    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'createdAt' : Time,
+    'ambassadorPayoutStatus' : AmbassadorPayoutStatus,
+    'lastUpgradeError' : IDL.Opt(IDL.Text),
+    'isUpgrade' : IDL.Bool,
+    'statusTag' : IDL.Text,
+    'subnetId' : IDL.Opt(IDL.Principal),
+    'upgradeIncludesFrontend' : IDL.Bool,
+    'ambassadorPayoutStatusTag' : IDL.Text,
+    'events' : IDL.Vec(StatusEvent),
+    'releaseTag' : IDL.Text,
+    'frontendHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'frontendInstallDiagnostics' : IDL.Opt(FrontendInstallDiagnostics),
+    'initArg' : IDL.Vec(IDL.Nat8),
+    'envPairs' : IDL.Opt(IDL.Vec(EnvPair)),
+    'installedReleaseTag' : IDL.Opt(IDL.Text),
+    'canisterId' : IDL.Opt(IDL.Principal),
+  });
   const DistributionLogOptions = IDL.Record({
     'offset' : IDL.Nat,
     'limit' : IDL.Nat,
@@ -471,103 +565,29 @@ export const idlFactory = ({ IDL }) => {
       'canisterId' : IDL.Opt(IDL.Vec(IDL.Principal)),
     }),
   });
-  const Progress = IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat });
-  const PaymentPhase = IDL.Variant({
-    'CheckingBalances' : IDL.Null,
-    'Starting' : IDL.Null,
-    'Queueing' : IDL.Null,
-    'FetchingRates' : IDL.Null,
-    'Charging' : IDL.Record({ 'tokenId' : TokenId, 'amount' : IDL.Nat }),
-    'Activating' : IDL.Null,
-    'RecordingLicense' : IDL.Null,
-  });
-  const CreationStatus = IDL.Variant({
-    'Failed' : IDL.Text,
-    'UpdatingControllers' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'UpgradingWasm' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'CanisterCreated' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'RevokingInstallerPermission' : IDL.Record({
-      'canisterId' : IDL.Principal,
-    }),
-    'CheckingBalance' : IDL.Null,
-    'UploadingFrontend' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
-    'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
-    'ProcessingPayment' : PaymentPhase,
-    'UpgradingFrontend' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'Completed' : IDL.Record({ 'canisterId' : IDL.Principal }),
-    'InstallingWasm' : IDL.Record({
-      'progress' : Progress,
-      'canisterId' : IDL.Principal,
-    }),
-    'Pending' : IDL.Null,
-  });
-  const AmbassadorPayoutStatus = IDL.Variant({
-    'pending' : IDL.Null,
-    'skipped' : IDL.Null,
-    'completed' : IDL.Null,
-    'failed' : IDL.Text,
-  });
-  const StatusEvent = IDL.Record({
-    'status' : CreationStatus,
-    'timestamp' : Time,
-  });
-  const FrontendInstallDiagnostics = IDL.Record({
-    'totalFiles' : IDL.Nat,
-    'completedAt' : IDL.Opt(Time),
-    'startedAt' : Time,
-    'changedDeletedFiles' : IDL.Nat,
-    'batchesProcessed' : IDL.Nat,
-    'skippedBytes' : IDL.Nat,
-    'uploadedBytes' : IDL.Nat,
-    'error' : IDL.Opt(IDL.Text),
-    'updatedAt' : Time,
-    'stage' : IDL.Text,
-    'skippedFiles' : IDL.Nat,
-    'processedBytes' : IDL.Nat,
-    'uploadedFiles' : IDL.Nat,
-    'staleDeletedFiles' : IDL.Nat,
-    'totalBytes' : IDL.Nat,
-    'processedFiles' : IDL.Nat,
-    'batchesTotal' : IDL.Nat,
-  });
-  const EnvPair = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
-  const StorageCreationRecord = IDL.Record({
+  const CreationListItem = IDL.Record({
     'id' : IDL.Nat,
     'status' : CreationStatus,
     'completedAt' : IDL.Opt(Time),
     'licensePaymentId' : IDL.Opt(IDL.Text),
     'owner' : IDL.Principal,
-    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'createdAt' : Time,
-    'ambassadorPayoutStatus' : AmbassadorPayoutStatus,
     'lastUpgradeError' : IDL.Opt(IDL.Text),
     'isUpgrade' : IDL.Bool,
     'statusTag' : IDL.Text,
     'subnetId' : IDL.Opt(IDL.Principal),
     'upgradeIncludesFrontend' : IDL.Bool,
+    'hasFrontendInstallDiagnostics' : IDL.Bool,
     'ambassadorPayoutStatusTag' : IDL.Text,
-    'events' : IDL.Vec(StatusEvent),
     'releaseTag' : IDL.Text,
-    'frontendHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'frontendInstallDiagnostics' : IDL.Opt(FrontendInstallDiagnostics),
-    'initArg' : IDL.Vec(IDL.Nat8),
-    'envPairs' : IDL.Opt(IDL.Vec(EnvPair)),
+    'lastEventAt' : IDL.Opt(Time),
+    'hasEvents' : IDL.Bool,
     'installedReleaseTag' : IDL.Opt(IDL.Text),
     'canisterId' : IDL.Opt(IDL.Principal),
   });
   const GetCreationsResponse = IDL.Record({
     'total' : IDL.Opt(IDL.Nat),
-    'data' : IDL.Vec(StorageCreationRecord),
+    'data' : IDL.Vec(CreationListItem),
     'instructions' : IDL.Nat,
   });
   const KnownWasmHash = IDL.Record({
@@ -802,6 +822,11 @@ export const idlFactory = ({ IDL }) => {
     'getAmbassadorChainQuery' : IDL.Func([], [AmbassadorChain], ['query']),
     'getBackendCyclesBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getCmcRecoveryStats' : IDL.Func([], [StatsView], ['query']),
+    'getCreationDetail' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(StorageCreationRecord)],
+        ['query'],
+      ),
     'getDistributionLog' : IDL.Func(
         [DistributionLogOptions],
         [IDL.Vec(DistributionRecord)],
@@ -831,6 +856,17 @@ export const idlFactory = ({ IDL }) => {
     'getSolAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'getSubscription' : IDL.Func([], [IDL.Opt(Subscription)], ['query']),
     'getTreasuryBalances' : IDL.Func([], [IDL.Vec(BalanceEntry)], []),
+    'getTreasuryWalletAddresses' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'icSubaccount' : IDL.Vec(IDL.Nat8),
+            'solAddress' : IDL.Opt(IDL.Text),
+            'evmAddress' : IDL.Opt(IDL.Text),
+          }),
+        ],
+        [],
+      ),
     'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUser' : IDL.Func([], [IDL.Opt(User)], ['query']),
     'http_request' : IDL.Func(

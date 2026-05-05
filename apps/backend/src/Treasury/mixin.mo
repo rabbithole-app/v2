@@ -3,6 +3,7 @@ import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 
 import Treasury "mo:treasury";
+import TreasuryConst "mo:treasury/Const";
 import TreasuryTypes "mo:treasury/Types";
 import Account "mo:treasury/common/Account";
 import Types "../Types/lib";
@@ -110,6 +111,21 @@ mixin(
   public shared ({ caller }) func getTreasuryBalances() : async [TreasuryTypes.BalanceEntry] {
     admin.assertAdmin(caller);
     await* Treasury.getTreasuryBalances(treasury);
+  };
+
+  public shared ({ caller }) func getTreasuryWalletAddresses() : async {
+    icSubaccount : Blob;
+    evmAddress : ?Text;
+    solAddress : ?Text;
+  } {
+    admin.assertAdmin(caller);
+    let evmAddress = await* Treasury.getTreasurySigningAddress(treasury);
+    let solAddress = await* Treasury.getTreasurySolSigningAddress(treasury);
+    {
+      icSubaccount = TreasuryConst.treasurySubaccount();
+      evmAddress;
+      solAddress;
+    };
   };
 
   /// Withdraw from the app treasury pool. Supports IC tokens only for now;

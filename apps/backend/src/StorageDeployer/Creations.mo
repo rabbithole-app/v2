@@ -1,6 +1,7 @@
 import Array "mo:core/Array";
 import IC "mo:core/InternetComputer";
 import List "mo:core/List";
+import Nat "mo:core/Nat";
 import Nat64 "mo:core/Nat64";
 import Option "mo:core/Option";
 import Principal "mo:core/Principal";
@@ -14,10 +15,15 @@ import Types "Types";
 
 module {
   public type StorageCreationRecord = Types.StorageCreationRecord;
+  public type StorageCreationCore = Types.StorageCreationCore;
+  public type StorageCreationContext = Types.StorageCreationContext;
+  public type StorageCreationTimeline = Types.StorageCreationTimeline;
+  public type StorageCreationDiagnostics = Types.StorageCreationDiagnostics;
   public type CreationStatus = Types.CreationStatus;
   public type StatusEvent = Types.StatusEvent;
   public type ListCreationsOptions = Types.ListCreationsOptions;
   public type GetCreationsResponse = Types.GetCreationsResponse;
+  public type CreationListItem = Types.CreationListItem;
 
   let TokenIdSchema : ZenDB.Types.Schema = #Variant([
     ("ICP", #Null),
@@ -116,12 +122,10 @@ module {
     ("failed", #Text),
   ]);
 
-  let CreationSchema : ZenDB.Types.Schema = #Record([
+  let CreationCoreSchema : ZenDB.Types.Schema = #Record([
     ("id", #Nat),
     ("owner", #Principal),
     ("releaseTag", #Text),
-    ("initArg", #Blob),
-    ("envPairs", #Option(#Array(EnvPairSchema))),
     ("createdAt", #Int),
     ("canisterId", #Option(#Principal)),
     ("wasmHash", #Option(#Blob)),
@@ -134,25 +138,60 @@ module {
     ("isUpgrade", #Bool),
     ("upgradeIncludesFrontend", #Bool),
     ("lastUpgradeError", #Option(#Text)),
-    ("frontendInstallDiagnostics", #Option(FrontendInstallDiagnosticsSchema)),
-    ("events", #Array(StatusEventSchema)),
     ("ambassadorPayoutStatus", AmbassadorPayoutStatusSchema),
     ("ambassadorPayoutStatusTag", #Text),
     ("subnetId", #Option(#Principal)),
   ]);
 
-  let candifyCreations : ZenDB.Types.Candify<StorageCreationRecord> = {
-    from_blob = func(blob : Blob) : ?StorageCreationRecord = from_candid (blob);
-    to_blob = func(c : StorageCreationRecord) : Blob = to_candid (c);
+  let CreationContextSchema : ZenDB.Types.Schema = #Record([
+    ("creationId", #Nat),
+    ("initArg", #Blob),
+    ("envPairs", #Option(#Array(EnvPairSchema))),
+  ]);
+
+  let CreationTimelineSchema : ZenDB.Types.Schema = #Record([
+    ("creationId", #Nat),
+    ("events", #Array(StatusEventSchema)),
+  ]);
+
+  let CreationDiagnosticsSchema : ZenDB.Types.Schema = #Record([
+    ("creationId", #Nat),
+    ("frontendInstallDiagnostics", #Option(FrontendInstallDiagnosticsSchema)),
+  ]);
+
+  let candifyCreationCores : ZenDB.Types.Candify<StorageCreationCore> = {
+    from_blob = func(blob : Blob) : ?StorageCreationCore = from_candid (blob);
+    to_blob = func(c : StorageCreationCore) : Blob = to_candid (c);
   };
 
-  let schemaConstraints : [ZenDB.Types.SchemaConstraint] = [
+  let candifyCreationContexts : ZenDB.Types.Candify<StorageCreationContext> = {
+    from_blob = func(blob : Blob) : ?StorageCreationContext = from_candid (blob);
+    to_blob = func(c : StorageCreationContext) : Blob = to_candid (c);
+  };
+
+  let candifyCreationTimelines : ZenDB.Types.Candify<StorageCreationTimeline> = {
+    from_blob = func(blob : Blob) : ?StorageCreationTimeline = from_candid (blob);
+    to_blob = func(c : StorageCreationTimeline) : Blob = to_candid (c);
+  };
+
+  let candifyCreationDiagnostics : ZenDB.Types.Candify<StorageCreationDiagnostics> = {
+    from_blob = func(blob : Blob) : ?StorageCreationDiagnostics = from_candid (blob);
+    to_blob = func(c : StorageCreationDiagnostics) : Blob = to_candid (c);
+  };
+
+  let coreSchemaConstraints : [ZenDB.Types.SchemaConstraint] = [
     #Unique(["id"]),
   ];
 
+  let creationIdSchemaConstraints : [ZenDB.Types.SchemaConstraint] = [
+    #Unique(["creationId"]),
+  ];
+
+  let LIST_CREATIONS_LIMIT_CAP : Nat = 100;
+
   func convertListOptionsToDBQuery(options : ListCreationsOptions) : ZenDB.QueryBuilder {
     let dbQuery = ZenDB.QueryBuilder();
-    ignore dbQuery.Limit(options.pagination.limit);
+    ignore dbQuery.Limit(Nat.min(options.pagination.limit, LIST_CREATIONS_LIMIT_CAP));
     ignore dbQuery.Skip(options.pagination.offset);
 
     switch (options.filter.id) {
@@ -234,50 +273,245 @@ module {
     dbQuery;
   };
 
-  /// ZenDB-backed storage for creation records. Single source of truth —
-  /// every mutation goes through `mutate` or `appendEvent`, which fetch the
-  /// current row, apply the change, and upsert the result atomically within
-  /// a single message (no awaits inside).
-  ///
-  /// Class handle is transient; backing rows persist across upgrades via
-  /// the stable ZenDB store (`db`).
+  func coreFromRecord(record : StorageCreationRecord) : StorageCreationCore {
+    {
+      id = record.id;
+      owner = record.owner;
+      releaseTag = record.releaseTag;
+      createdAt = record.createdAt;
+      canisterId = record.canisterId;
+      wasmHash = record.wasmHash;
+      frontendHash = record.frontendHash;
+      installedReleaseTag = record.installedReleaseTag;
+      status = record.status;
+      statusTag = record.statusTag;
+      completedAt = record.completedAt;
+      licensePaymentId = record.licensePaymentId;
+      isUpgrade = record.isUpgrade;
+      upgradeIncludesFrontend = record.upgradeIncludesFrontend;
+      lastUpgradeError = record.lastUpgradeError;
+      ambassadorPayoutStatus = record.ambassadorPayoutStatus;
+      ambassadorPayoutStatusTag = record.ambassadorPayoutStatusTag;
+      subnetId = record.subnetId;
+    };
+  };
+
+  func contextFromRecord(record : StorageCreationRecord) : StorageCreationContext {
+    {
+      creationId = record.id;
+      initArg = record.initArg;
+      envPairs = record.envPairs;
+    };
+  };
+
+  func timelineFromRecord(record : StorageCreationRecord) : StorageCreationTimeline {
+    {
+      creationId = record.id;
+      events = record.events;
+    };
+  };
+
+  func diagnosticsFromRecord(record : StorageCreationRecord) : StorageCreationDiagnostics {
+    {
+      creationId = record.id;
+      frontendInstallDiagnostics = record.frontendInstallDiagnostics;
+    };
+  };
+
+  func lastEventAt(events : [StatusEvent]) : ?Time.Time {
+    if (events.size() == 0) return null;
+    ?events[events.size() - 1].timestamp;
+  };
+
+  func assemble(
+    core : StorageCreationCore,
+    context : StorageCreationContext,
+    timeline : StorageCreationTimeline,
+    diagnostics : ?StorageCreationDiagnostics,
+  ) : StorageCreationRecord {
+    {
+      id = core.id;
+      owner = core.owner;
+      releaseTag = core.releaseTag;
+      initArg = context.initArg;
+      envPairs = context.envPairs;
+      createdAt = core.createdAt;
+      canisterId = core.canisterId;
+      wasmHash = core.wasmHash;
+      frontendHash = core.frontendHash;
+      installedReleaseTag = core.installedReleaseTag;
+      status = core.status;
+      statusTag = core.statusTag;
+      completedAt = core.completedAt;
+      licensePaymentId = core.licensePaymentId;
+      isUpgrade = core.isUpgrade;
+      upgradeIncludesFrontend = core.upgradeIncludesFrontend;
+      lastUpgradeError = core.lastUpgradeError;
+      frontendInstallDiagnostics = switch (diagnostics) {
+        case (?value) value.frontendInstallDiagnostics;
+        case null null;
+      };
+      events = timeline.events;
+      ambassadorPayoutStatus = core.ambassadorPayoutStatus;
+      ambassadorPayoutStatusTag = core.ambassadorPayoutStatusTag;
+      subnetId = core.subnetId;
+    };
+  };
+
+  func toListItem(
+    core : StorageCreationCore,
+    timeline : ?StorageCreationTimeline,
+    diagnostics : ?StorageCreationDiagnostics,
+  ) : CreationListItem {
+    let events = switch (timeline) {
+      case (?value) value.events;
+      case null [];
+    };
+    {
+      id = core.id;
+      owner = core.owner;
+      releaseTag = core.releaseTag;
+      createdAt = core.createdAt;
+      canisterId = core.canisterId;
+      installedReleaseTag = core.installedReleaseTag;
+      status = core.status;
+      statusTag = core.statusTag;
+      completedAt = core.completedAt;
+      licensePaymentId = core.licensePaymentId;
+      isUpgrade = core.isUpgrade;
+      upgradeIncludesFrontend = core.upgradeIncludesFrontend;
+      lastUpgradeError = core.lastUpgradeError;
+      ambassadorPayoutStatusTag = core.ambassadorPayoutStatusTag;
+      subnetId = core.subnetId;
+      lastEventAt = lastEventAt(events);
+      hasEvents = events.size() > 0;
+      hasFrontendInstallDiagnostics = switch (diagnostics) {
+        case (?value) Option.isSome(value.frontendInstallDiagnostics);
+        case null false;
+      };
+    };
+  };
+
+  /// ZenDB-backed storage for creations. Core rows are the queryable source of
+  /// truth; recovery payload, timeline and diagnostics live in separate
+  /// collections keyed by creationId.
   public class Creations(db : ZenDB.Database) {
-    let #ok(collection) = db.createCollection<StorageCreationRecord>(
-      "creations",
-      CreationSchema,
-      candifyCreations,
-      ?{ schema_constraints = schemaConstraints },
+    let #ok(cores) = db.createCollection<StorageCreationCore>(
+      "creation_cores",
+      CreationCoreSchema,
+      candifyCreationCores,
+      ?{ schema_constraints = coreSchemaConstraints },
     ) else Runtime.unreachable();
+
+    let #ok(contexts) = db.createCollection<StorageCreationContext>(
+      "creation_contexts",
+      CreationContextSchema,
+      candifyCreationContexts,
+      ?{ schema_constraints = creationIdSchemaConstraints },
+    ) else Runtime.unreachable();
+
+    let #ok(timelines) = db.createCollection<StorageCreationTimeline>(
+      "creation_timelines",
+      CreationTimelineSchema,
+      candifyCreationTimelines,
+      ?{ schema_constraints = creationIdSchemaConstraints },
+    ) else Runtime.unreachable();
+
+    let #ok(diagnostics) = db.createCollection<StorageCreationDiagnostics>(
+      "creation_diagnostics",
+      CreationDiagnosticsSchema,
+      candifyCreationDiagnostics,
+      ?{ schema_constraints = creationIdSchemaConstraints },
+    ) else Runtime.unreachable();
+
+    func coreQuery(creationId : Nat) : ZenDB.QueryBuilder {
+      ZenDB.QueryBuilder().Where("id", #eq(#Nat(creationId))).Limit(1);
+    };
+
+    func creationIdQuery(creationId : Nat) : ZenDB.QueryBuilder {
+      ZenDB.QueryBuilder().Where("creationId", #eq(#Nat(creationId))).Limit(1);
+    };
+
+    func deleteById(creationId : Nat) {
+      ignore cores.delete(ZenDB.QueryBuilder().Where("id", #eq(#Nat(creationId))));
+      ignore contexts.delete(ZenDB.QueryBuilder().Where("creationId", #eq(#Nat(creationId))));
+      ignore timelines.delete(ZenDB.QueryBuilder().Where("creationId", #eq(#Nat(creationId))));
+      ignore diagnostics.delete(ZenDB.QueryBuilder().Where("creationId", #eq(#Nat(creationId))));
+    };
+
+    func replaceRecord(record : StorageCreationRecord) {
+      deleteById(record.id);
+      ignore cores.insert(coreFromRecord(record));
+      ignore contexts.insert(contextFromRecord(record));
+      ignore timelines.insert(timelineFromRecord(record));
+      ignore diagnostics.insert(diagnosticsFromRecord(record));
+    };
+
+    func findCore(creationId : Nat) : ?StorageCreationCore {
+      let #ok({ documents }) = cores.search(coreQuery(creationId)) else return null;
+      if (documents.size() == 0) return null;
+      let (_, core, _) = documents[0];
+      ?core;
+    };
+
+    func findContext(creationId : Nat) : ?StorageCreationContext {
+      let #ok({ documents }) = contexts.search(creationIdQuery(creationId)) else return null;
+      if (documents.size() == 0) return null;
+      let (_, context, _) = documents[0];
+      ?context;
+    };
+
+    func findTimeline(creationId : Nat) : StorageCreationTimeline {
+      let #ok({ documents }) = timelines.search(creationIdQuery(creationId)) else {
+        return { creationId; events = [] };
+      };
+      if (documents.size() == 0) return { creationId; events = [] };
+      let (_, timeline, _) = documents[0];
+      timeline;
+    };
+
+    func findDiagnostics(creationId : Nat) : ?StorageCreationDiagnostics {
+      let #ok({ documents }) = diagnostics.search(creationIdQuery(creationId)) else return null;
+      if (documents.size() == 0) return null;
+      let (_, diagnostic, _) = documents[0];
+      ?diagnostic;
+    };
+
+    func getFromCore(core : StorageCreationCore) : ?StorageCreationRecord {
+      let ?context = findContext(core.id) else return null;
+      ?assemble(core, context, findTimeline(core.id), findDiagnostics(core.id));
+    };
+
+    func upsertTimeline(timeline : StorageCreationTimeline) {
+      ignore timelines.delete(ZenDB.QueryBuilder().Where("creationId", #eq(#Nat(timeline.creationId))));
+      ignore timelines.insert(timeline);
+    };
+
+    func upsertCore(core : StorageCreationCore) {
+      ignore cores.delete(ZenDB.QueryBuilder().Where("id", #eq(#Nat(core.id))));
+      ignore cores.insert(core);
+    };
 
     /// Insert a fresh creation record. Caller must provide a record whose
     /// `id` is not yet in the collection — duplicates fail the uniqueness
     /// constraint. Use `mutate` for in-place updates.
     public func add(record : StorageCreationRecord) {
-      ignore collection.insert(record);
+      ignore cores.insert(coreFromRecord(record));
+      ignore contexts.insert(contextFromRecord(record));
+      ignore timelines.insert(timelineFromRecord(record));
+      ignore diagnostics.insert(diagnosticsFromRecord(record));
     };
 
     /// Insert-or-replace a creation record. Kept for edge cases where the
     /// caller already holds a full snapshot (e.g. tests); orchestrator code
     /// should prefer `mutate` for atomic read-modify-write.
     public func upsert(record : StorageCreationRecord) {
-      let q = ZenDB.QueryBuilder().Where("id", #eq(#Nat(record.id))).Limit(1);
-      switch (collection.search(q)) {
-        case (#ok({ documents })) {
-          if (documents.size() == 0) {
-            ignore collection.insert(record);
-          } else {
-            let (docId, _, _) = documents[0];
-            ignore collection.replace(docId, record);
-          };
-        };
-        case (#err _) {};
-      };
+      replaceRecord(record);
     };
 
     /// Delete a creation row. Called by `deleteStorage` / `removeRefundedCreation`.
     public func remove(creationId : Nat) {
-      let q = ZenDB.QueryBuilder().Where("id", #eq(#Nat(creationId)));
-      ignore collection.delete(q);
+      deleteById(creationId);
     };
 
     /// Atomic read-modify-write. Fetches the record, applies `fn`, writes
@@ -285,12 +519,9 @@ module {
     /// exist. Runs within a single message — no awaits between fetch and
     /// write, so concurrent orchestrator ticks see a consistent view.
     public func mutate(creationId : Nat, fn : (StorageCreationRecord) -> StorageCreationRecord) : ?StorageCreationRecord {
-      let q = ZenDB.QueryBuilder().Where("id", #eq(#Nat(creationId))).Limit(1);
-      let #ok({ documents }) = collection.search(q) else return null;
-      if (documents.size() == 0) return null;
-      let (docId, record, _) = documents[0];
+      let ?record = get(creationId) else return null;
       let updated = fn(record);
-      ignore collection.replace(docId, updated);
+      replaceRecord(updated);
       ?updated;
     };
 
@@ -300,30 +531,29 @@ module {
     /// 100). Returns the updated record or null if the creation doesn't
     /// exist.
     public func appendEvent(creationId : Nat, status : Types.CreationStatus) : ?StorageCreationRecord {
-      mutate(
-        creationId,
-        func(r : StorageCreationRecord) : StorageCreationRecord {
-          let newTag = Types.tagOfCreationStatus(status);
-          let events = if (r.statusTag != newTag) {
-            Array.concat<StatusEvent>(
-              r.events,
-              [{ status; timestamp = Time.now() }],
-            );
-          } else {
-            r.events;
-          };
-          { r with status; statusTag = newTag; events };
-        },
-      );
+      let ?core = findCore(creationId) else return null;
+      let timeline = findTimeline(creationId);
+      let newTag = Types.tagOfCreationStatus(status);
+      let events = if (core.statusTag != newTag) {
+        Array.concat<StatusEvent>(
+          timeline.events,
+          [{ status; timestamp = Time.now() }],
+        );
+      } else {
+        timeline.events;
+      };
+      let updatedCore = { core with status; statusTag = newTag };
+      upsertCore(updatedCore);
+      if (core.statusTag != newTag) {
+        upsertTimeline({ creationId; events });
+      };
+      getFromCore(updatedCore);
     };
 
     /// Get a single creation by id. Returns null if the record doesn't exist.
     public func get(creationId : Nat) : ?StorageCreationRecord {
-      let q = ZenDB.QueryBuilder().Where("id", #eq(#Nat(creationId))).Limit(1);
-      let #ok({ documents }) = collection.search(q) else return null;
-      if (documents.size() == 0) return null;
-      let (_, record, _) = documents[0];
-      ?record;
+      let ?core = findCore(creationId) else return null;
+      getFromCore(core);
     };
 
     /// All creations owned by `owner`. Ordered by createdAt ASC.
@@ -331,10 +561,19 @@ module {
       let q = ZenDB.QueryBuilder()
         .Where("owner", #eq(#Principal(owner)))
         .SortBy("createdAt", #Ascending);
-      let #ok({ documents }) = collection.search(q) else return [];
-      Array.map<(ZenDB.Types.DocumentId, StorageCreationRecord, [ZenDB.Types.TextMatch]), StorageCreationRecord>(
-        documents,
-        func(_, record, _) = record,
+      let #ok({ documents }) = cores.search(q) else return [];
+      Array.map<?StorageCreationRecord, StorageCreationRecord>(
+        Array.filter<?StorageCreationRecord>(
+          Array.map<(ZenDB.Types.DocumentId, StorageCreationCore, [ZenDB.Types.TextMatch]), ?StorageCreationRecord>(
+            documents,
+            func(_, core, _) = getFromCore(core),
+          ),
+          func(record) = Option.isSome(record),
+        ),
+        func(record) = switch (record) {
+          case (?value) value;
+          case null Runtime.unreachable();
+        },
       );
     };
 
@@ -344,10 +583,10 @@ module {
       let q = ZenDB.QueryBuilder()
         .Where("canisterId", #eq(#Option(#Principal(canisterId))))
         .Limit(1);
-      let #ok({ documents }) = collection.search(q) else return null;
+      let #ok({ documents }) = cores.search(q) else return null;
       if (documents.size() == 0) return null;
-      let (_, record, _) = documents[0];
-      ?record;
+      let (_, core, _) = documents[0];
+      getFromCore(core);
     };
 
     /// First creation owned by `owner` that isn't in a terminal state
@@ -357,10 +596,10 @@ module {
         .Where("owner", #eq(#Principal(owner)))
         .Where("statusTag", #not_(#anyOf([#Text("Completed"), #Text("Failed")])))
         .Limit(1);
-      let #ok({ documents }) = collection.search(q) else return null;
+      let #ok({ documents }) = cores.search(q) else return null;
       if (documents.size() == 0) return null;
-      let (_, record, _) = documents[0];
-      ?record;
+      let (_, core, _) = documents[0];
+      getFromCore(core);
     };
 
     /// True if any creation record already holds this canisterId. Used to
@@ -376,10 +615,10 @@ module {
         .Where("canisterId", #eq(#Option(#Principal(canisterId))))
         .Where("owner", #eq(#Principal(owner)))
         .Limit(1);
-      let #ok({ documents }) = collection.search(q) else return null;
+      let #ok({ documents }) = cores.search(q) else return null;
       if (documents.size() == 0) return null;
-      let (_, record, _) = documents[0];
-      ?record;
+      let (_, core, _) = documents[0];
+      getFromCore(core);
     };
 
     /// Resolve a canister back to its owner principal. Used by sibling
@@ -395,10 +634,19 @@ module {
     /// `resetTransientState` on startup to sweep interrupted creations.
     public func all() : [StorageCreationRecord] {
       let q = ZenDB.QueryBuilder().SortBy("id", #Ascending);
-      let #ok({ documents }) = collection.search(q) else return [];
-      Array.map<(ZenDB.Types.DocumentId, StorageCreationRecord, [ZenDB.Types.TextMatch]), StorageCreationRecord>(
-        documents,
-        func(_, record, _) = record,
+      let #ok({ documents }) = cores.search(q) else return [];
+      Array.map<?StorageCreationRecord, StorageCreationRecord>(
+        Array.filter<?StorageCreationRecord>(
+          Array.map<(ZenDB.Types.DocumentId, StorageCreationCore, [ZenDB.Types.TextMatch]), ?StorageCreationRecord>(
+            documents,
+            func(_, core, _) = getFromCore(core),
+          ),
+          func(record) = Option.isSome(record),
+        ),
+        func(record) = switch (record) {
+          case (?value) value;
+          case null Runtime.unreachable();
+        },
       );
     };
 
@@ -406,23 +654,23 @@ module {
     /// pinned to `filter.owner = [caller]` at the API layer (main.mo).
     public func list(options : ListCreationsOptions) : GetCreationsResponse {
       let dbQuery = convertListOptionsToDBQuery(options);
-      var data : [StorageCreationRecord] = [];
+      var data : [CreationListItem] = [];
       var total : ?Nat = null;
 
       let instructions = IC.countInstructions(
         func() {
-          data := switch (collection.search(dbQuery)) {
+          data := switch (cores.search(dbQuery)) {
             case (#ok({ documents })) {
-              Array.map<(ZenDB.Types.DocumentId, StorageCreationRecord, [ZenDB.Types.TextMatch]), StorageCreationRecord>(
+              Array.map<(ZenDB.Types.DocumentId, StorageCreationCore, [ZenDB.Types.TextMatch]), CreationListItem>(
                 documents,
-                func(_, rec, _) = rec,
+                func(_, core, _) = toListItem(core, ?findTimeline(core.id), findDiagnostics(core.id)),
               );
             };
             case (#err message) Runtime.trap("Creations.list failed: " # message);
           };
 
           if (options.count) {
-            let #ok({ count }) = collection.count(dbQuery) else Runtime.trap("Creations.count failed");
+            let #ok({ count }) = cores.count(dbQuery) else Runtime.trap("Creations.count failed");
             total := ?count;
           };
         }

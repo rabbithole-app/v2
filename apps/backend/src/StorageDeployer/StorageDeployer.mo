@@ -5,6 +5,7 @@ import Time "mo:core/Time";
 import Nat64 "mo:core/Nat64";
 import Result "mo:core/Result";
 import Blob "mo:core/Blob";
+import Error "mo:core/Error";
 
 import ByteUtils "mo:byte-utils";
 
@@ -25,12 +26,33 @@ module {
   let FEE : Nat = 10_000;
   let CANISTER_CREATION_COST : Nat = 500_000_000_000;
 
+  public type RemoteCallStage = {
+    #FetchIcpXdrRate;
+    #ReadUserIcpBalance;
+    #ReadTreasuryIcpBalance;
+    #ReadDefaultIcpBalance;
+    #TransferIcpToCmc;
+    #NotifyCmcCreateCanister;
+  };
+
   public type CreateCanisterError = {
     #InsufficientBalance : { required : Nat; available : Nat };
     #TransferFailed : LedgerTypes.Icrc1TransferError;
+    #RemoteCallFailed : {
+      stage : RemoteCallStage;
+      message : Text;
+      /// Present only after the ICP transfer to CMC succeeded. If the remote
+      /// `notify_create_canister` call failed at transport/reject level, this
+      /// block index is the recovery breadcrumb admins need.
+      blockIndex : ?Nat;
+    };
     /// `blockIndex` is the CMC ICP deposit block — needed by CmcRecovery to
     /// replay `notify_create_canister` on retry.
     #NotifyFailed : { err : CMCTypes.NotifyError; blockIndex : Nat };
+  };
+
+  func remoteCallFailed(stage : RemoteCallStage, message : Text, blockIndex : ?Nat) : CreateCanisterError {
+    #RemoteCallFailed({ stage; message; blockIndex });
   };
 
   /// Transfer ICP to CMC and create a new canister. Funding sources, in order:
@@ -52,7 +74,11 @@ module {
 
     // --- Step 1: Calculate required ICP ---
     let totalCycles = initialCycles + CANISTER_CREATION_COST;
-    let rateResponse = await cmc.get_icp_xdr_conversion_rate();
+    let rateResponse = try {
+      await cmc.get_icp_xdr_conversion_rate();
+    } catch (error) {
+      return #err(remoteCallFailed(#FetchIcpXdrRate, Error.message(error), null));
+    };
     let xdrPermyriadPerIcp = Nat64.toNat(rateResponse.data.xdr_permyriad_per_icp);
     let numerator = totalCycles * PERMYRIAD * E8S_PER_ICP;
     let denominator = CYCLES_PER_XDR * xdrPermyriadPerIcp;
@@ -61,25 +87,37 @@ module {
 
     // --- Step 2: Pick funding source — user subaccount first, then backend treasury ---
     let userSubaccount = Account.principalToSubaccount(caller);
-    let userBalance = await ledger.icrc1_balance_of({
-      owner = deployerCanisterId;
-      subaccount = ?userSubaccount;
-    });
+    let userBalance = try {
+      await ledger.icrc1_balance_of({
+        owner = deployerCanisterId;
+        subaccount = ?userSubaccount;
+      });
+    } catch (error) {
+      return #err(remoteCallFailed(#ReadUserIcpBalance, Error.message(error), null));
+    };
     let treasurySubaccount = TreasuryConst.treasurySubaccount();
     let fromSubaccount : ?Blob = if (userBalance >= totalRequired) {
       ?userSubaccount;
     } else {
-      let treasuryBalance = await ledger.icrc1_balance_of({
-        owner = deployerCanisterId;
-        subaccount = ?treasurySubaccount;
-      });
+      let treasuryBalance = try {
+        await ledger.icrc1_balance_of({
+          owner = deployerCanisterId;
+          subaccount = ?treasurySubaccount;
+        });
+      } catch (error) {
+        return #err(remoteCallFailed(#ReadTreasuryIcpBalance, Error.message(error), null));
+      };
       if (treasuryBalance >= totalRequired) {
         ?treasurySubaccount;
       } else {
-        let defaultBalance = await ledger.icrc1_balance_of({
-          owner = deployerCanisterId;
-          subaccount = null;
-        });
+        let defaultBalance = try {
+          await ledger.icrc1_balance_of({
+            owner = deployerCanisterId;
+            subaccount = null;
+          });
+        } catch (error) {
+          return #err(remoteCallFailed(#ReadDefaultIcpBalance, Error.message(error), null));
+        };
         if (defaultBalance >= totalRequired) {
           null;
         } else {
@@ -95,17 +133,21 @@ module {
     // --- Step 3: Transfer ICP from chosen source to CMC ---
     let memoBlob = ByteUtils.LE.fromNat64(MEMO_CREATE_CANISTER) |> Blob.fromArray(_);
     let cmcSubaccount = Account.principalToSubaccount(deployerCanisterId);
-    let transferResult = await ledger.icrc1_transfer({
-      to = {
-        owner = Principal.fromText(CYCLE_MINTING_CANISTER_ID);
-        subaccount = ?cmcSubaccount;
-      };
-      fee = ?FEE;
-      from_subaccount = fromSubaccount;
-      memo = ?memoBlob;
-      created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
-      amount = requiredIcpE8s;
-    });
+    let transferResult = try {
+      await ledger.icrc1_transfer({
+        to = {
+          owner = Principal.fromText(CYCLE_MINTING_CANISTER_ID);
+          subaccount = ?cmcSubaccount;
+        };
+        fee = ?FEE;
+        from_subaccount = fromSubaccount;
+        memo = ?memoBlob;
+        created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
+        amount = requiredIcpE8s;
+      });
+    } catch (error) {
+      return #err(remoteCallFailed(#TransferIcpToCmc, Error.message(error), null));
+    };
     let blockIndex = switch (transferResult) {
       case (#Ok(idx)) idx;
       case (#Err(err)) return #err(#TransferFailed(err));
@@ -134,7 +176,11 @@ module {
       };
       subnet_type = null;
     };
-    let result = await cmc.notify_create_canister(notifyArg);
+    let result = try {
+      await cmc.notify_create_canister(notifyArg);
+    } catch (error) {
+      return #err(remoteCallFailed(#NotifyCmcCreateCanister, Error.message(error), ?blockIndex));
+    };
     switch (result) {
       case (#Ok(canisterId)) #ok(canisterId);
       case (#Err(err)) #err(#NotifyFailed({ err; blockIndex }));

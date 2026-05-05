@@ -95,6 +95,18 @@ module {
     #CanisterAlreadyUsed : { canisterId : Principal };
     #InsufficientBalance : { required : Nat; available : Nat };
     #TransferFailed : LedgerTypes.Icrc1TransferError;
+    #RemoteCallFailed : {
+      stage : {
+        #FetchIcpXdrRate;
+        #ReadUserIcpBalance;
+        #ReadTreasuryIcpBalance;
+        #ReadDefaultIcpBalance;
+        #TransferIcpToCmc;
+        #NotifyCmcCreateCanister;
+      };
+      message : Text;
+      blockIndex : ?Nat;
+    };
     /// `blockIndex` is the CMC ICP deposit block — needed by CmcRecovery to
     /// replay `notify_create_canister` on retry.
     #NotifyFailed : { err : CMCTypes.NotifyError; blockIndex : Nat };
@@ -316,14 +328,66 @@ module {
     error : ?Text;
   };
 
-  // -- Storage Creation Record --
+  // -- Storage Creation State --
 
-  /// Record of a storage creation (for history/tracking).
-  /// `statusTag` shadows `status` variant for ZenDB index queries — kept in
-  /// sync on every write. `events` is an append-only timeline of major
-  /// status transitions (dedup by tag in lib.mo:appendEvent).
+  /// Lightweight core row for creation list/filter/sort queries. Heavy data
+  /// lives in sibling records keyed by `creationId`.
+  public type StorageCreationCore = {
+    id : Nat;
+    owner : Principal;
+    releaseTag : Text;
+    createdAt : Time.Time;
+    canisterId : ?Principal;
+    wasmHash : ?Blob;
+    frontendHash : ?Blob;
+    installedReleaseTag : ?Text;
+    status : CreationStatus;
+    statusTag : Text;
+    completedAt : ?Time.Time;
+    licensePaymentId : ?Text;
+    isUpgrade : Bool;
+    upgradeIncludesFrontend : Bool;
+    lastUpgradeError : ?Text;
+    /// Deferred ambassador payout status. Set to #pending when a license
+    /// is attached, flips to #completed/#failed at #CanisterCreated when
+    /// the orchestrator fires the payout callback. #skipped for records
+    /// without a license (external addStorage path).
+    ambassadorPayoutStatus : AmbassadorPayoutStatus;
+    /// Shadow of `ambassadorPayoutStatus` variant tag — Text for ZenDB
+    /// query compatibility. Kept in sync on every mutation via
+    /// `setAmbassadorPayoutStatus`.
+    ambassadorPayoutStatusTag : Text;
+    /// Subnet selection from the original `CreateCanister` task. Persisted
+    /// so CmcRecovery retry of `notify_create_canister` can pass the exact
+    /// same `subnet_selection` — otherwise an ambiguous retry could land
+    /// the canister on a different subnet than originally requested.
+    /// `null` means "CMC default subnet" (the 99% case).
+    subnetId : ?Principal;
+  };
+
+  /// Retry/recovery payload. Internal only; list responses must not expose it.
+  public type StorageCreationContext = {
+    creationId : Nat;
+    initArg : Blob;
+    envPairs : ?[EnvPair];
+  };
+
+  /// Timeline row for a creation. Kept separate so list queries do not carry
+  /// every historical event for every visible row.
+  public type StorageCreationTimeline = {
+    creationId : Nat;
+    events : [StatusEvent];
+  };
+
+  /// Diagnostics/debug row for optional, bulky installer state.
+  public type StorageCreationDiagnostics = {
+    creationId : Nat;
+    frontendInstallDiagnostics : ?FrontendInstallDiagnostics;
+  };
+
+  /// Full detail assembled from the split storage rows. Used by recovery logic
+  /// and by `getCreationDetail`; list views should use `CreationListItem`.
   public type StorageCreationRecord = {
-    /// Unique ID of this creation process
     id : Nat;
     owner : Principal;
     releaseTag : Text;
@@ -343,20 +407,8 @@ module {
     lastUpgradeError : ?Text;
     frontendInstallDiagnostics : ?FrontendInstallDiagnostics;
     events : [StatusEvent];
-    /// Deferred ambassador payout status. Set to #pending when a license
-    /// is attached, flips to #completed/#failed at #CanisterCreated when
-    /// the orchestrator fires the payout callback. #skipped for records
-    /// without a license (external addStorage path).
     ambassadorPayoutStatus : AmbassadorPayoutStatus;
-    /// Shadow of `ambassadorPayoutStatus` variant tag — Text for ZenDB
-    /// query compatibility. Kept in sync on every mutation via
-    /// `setAmbassadorPayoutStatus`.
     ambassadorPayoutStatusTag : Text;
-    /// Subnet selection from the original `CreateCanister` task. Persisted
-    /// so CmcRecovery retry of `notify_create_canister` can pass the exact
-    /// same `subnet_selection` — otherwise an ambiguous retry could land
-    /// the canister on a different subnet than originally requested.
-    /// `null` means "CMC default subnet" (the 99% case).
     subnetId : ?Principal;
   };
 
@@ -408,8 +460,32 @@ module {
     count : Bool;
   };
 
+  /// Lightweight row for creation list screens. Keeps current status/progress
+  /// in the list response, but omits heavy detail fields such as `events`,
+  /// `initArg`, `envPairs`, hashes and frontend diagnostics.
+  public type CreationListItem = {
+    id : Nat;
+    owner : Principal;
+    releaseTag : Text;
+    createdAt : Time.Time;
+    canisterId : ?Principal;
+    installedReleaseTag : ?Text;
+    status : CreationStatus;
+    statusTag : Text;
+    completedAt : ?Time.Time;
+    licensePaymentId : ?Text;
+    isUpgrade : Bool;
+    upgradeIncludesFrontend : Bool;
+    lastUpgradeError : ?Text;
+    ambassadorPayoutStatusTag : Text;
+    subnetId : ?Principal;
+    lastEventAt : ?Time.Time;
+    hasEvents : Bool;
+    hasFrontendInstallDiagnostics : Bool;
+  };
+
   public type GetCreationsResponse = {
-    data : [StorageCreationRecord];
+    data : [CreationListItem];
     total : ?Nat;
     instructions : Nat;
   };
