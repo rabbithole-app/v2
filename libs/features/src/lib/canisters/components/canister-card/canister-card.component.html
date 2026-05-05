@@ -8,9 +8,9 @@
     <ng-icon hlm name="lucideDatabase" />
   </div>
   <div hlmItemContent>
-    <core-copy-to-clipboard hlmItemTitle [content]="canisterIdText()">
+    <rbth-copy-to-clipboard hlmItemTitle [content]="canisterIdText()">
       {{ canisterIdText() }}
-    </core-copy-to-clipboard>
+    </rbth-copy-to-clipboard>
     @if (isLoading()) {
       <div class="space-y-2.5">
         <div class="flex items-center justify-between">

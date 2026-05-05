@@ -12,11 +12,11 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideDatabase, lucideEye, lucideTrash2 } from '@ng-icons/lucide';
 
 import {
-  CopyToClipboardComponent,
   ENCRYPTED_STORAGE_CANISTER_ID,
   formatBytes,
   formatTCycles,
 } from '@rabbithole/core';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
@@ -32,6 +32,7 @@ import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-
 @Component({
   selector: 'rbth-feat-canisters-canister-card',
   imports: [
+    CopyToClipboardComponent,
     ...HlmButtonImports,
     ...HlmButtonGroupImports,
     ...HlmItemImports,
@@ -40,8 +41,7 @@ import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-
     NgIcon,
     HlmIcon,
     CoreCanisterStatusComponent,
-    CopyToClipboardComponent,
-  ],
+    ],
   providers: [provideIcons({ lucideDatabase, lucideEye, lucideTrash2 })],
   templateUrl: './canister-card.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

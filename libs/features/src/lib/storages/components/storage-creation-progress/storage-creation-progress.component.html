@@ -19,9 +19,9 @@
     <p hlmEmptyDescription>{{ info.description }}</p>
     @if (info.canisterId) {
       <div class="mt-2">
-        <core-copy-to-clipboard [content]="info.canisterId">
+        <rbth-copy-to-clipboard [content]="info.canisterId">
           {{ info.canisterId }}
-        </core-copy-to-clipboard>
+        </rbth-copy-to-clipboard>
       </div>
     }
   </hlm-empty-header>

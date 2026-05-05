@@ -15,14 +15,14 @@
     <div class="p-1" cdkMenu>
       <div class="space-y-2 p-3">
         <h4 class="leading-none text-sm font-medium">Principal ID</h4>
-        <core-copy-to-clipboard
+        <rbth-copy-to-clipboard
           [content]="principalId()"
           class="text-muted-foreground"
         >
           <span class="break-all whitespace-normal">
             {{ principalId() }}
           </span>
-        </core-copy-to-clipboard>
+        </rbth-copy-to-clipboard>
       </div>
       @if (backendFeaturesEnabled && backendLinksEnabled) {
         <hlm-dropdown-menu-separator />

@@ -25,7 +25,6 @@ import { map, startWith } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
-  CopyToClipboardComponent,
   CYCLES_MINTING_CANISTER_ID,
   CyclesMintingCanisterService,
   E8S_PER_ICP,
@@ -34,6 +33,7 @@ import {
   MEMO_CANISTER_CREATE,
   parseCanisterRejectError,
 } from '@rabbithole/core';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButton } from '@spartan-ng/helm/button';
@@ -73,6 +73,7 @@ type State =
 @Component({
   selector: 'rbth-feat-canisters-create-canister-dialog',
   imports: [
+    CopyToClipboardComponent,
     ReactiveFormsModule,
     BrnDialogClose,
     HlmButton,
@@ -88,8 +89,7 @@ type State =
     ...HlmAlertImports,
     ...HlmFieldImports,
     ...HlmEmptyImports,
-    CopyToClipboardComponent,
-    NgTemplateOutlet,
+      NgTemplateOutlet,
   ],
   providers: [
     ICPLedgerService,

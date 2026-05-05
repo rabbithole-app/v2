@@ -207,9 +207,9 @@
                     </hlm-select>
                   }
                   @case ('principal') {
-                    <core-copy-to-clipboard [content]="user.id.toText()">
+                    <rbth-copy-to-clipboard [content]="user.id.toText()">
                       {{ user.id.toText() }}
-                    </core-copy-to-clipboard>
+                    </rbth-copy-to-clipboard>
                   }
                   @case ('name') {
                     <span class="text-sm">
@@ -284,9 +284,9 @@
                   }
                   @case ('inviter') {
                     @if (user.inviter[0]; as inviter) {
-                      <core-copy-to-clipboard [content]="inviter.toText()">
+                      <rbth-copy-to-clipboard [content]="inviter.toText()">
                         {{ inviter.toText() }}
-                      </core-copy-to-clipboard>
+                      </rbth-copy-to-clipboard>
                     }
                   }
                   @case ('trialUsed') {

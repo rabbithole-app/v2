@@ -7,9 +7,9 @@ import {
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCheck, lucideCircleX } from '@ng-icons/lucide';
 
-import { CopyToClipboardComponent } from '@rabbithole/core';
 import type { StorageCreationStatus } from '@rabbithole/core';
 import { formatBytes } from '@rabbithole/core';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
@@ -41,10 +41,10 @@ type UserStage =
 @Component({
   selector: 'rbth-feat-storages-creation-progress',
   imports: [
+    CopyToClipboardComponent,
     NgIcon,
     HlmSpinner,
-    CopyToClipboardComponent,
-    ...HlmEmptyImports,
+      ...HlmEmptyImports,
     ...HlmProgressImports,
   ],
   providers: [

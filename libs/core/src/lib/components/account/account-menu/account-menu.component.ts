@@ -12,6 +12,7 @@ import { lucideLogOut, lucideUser, lucideWallet } from '@ng-icons/lucide';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';
@@ -21,7 +22,6 @@ import {
   ACCOUNT_MENU_BACKEND_LINKS_ENABLED_TOKEN,
   BACKEND_FEATURES_ENABLED_TOKEN,
 } from '../../../tokens';
-import { CopyToClipboardComponent } from '../../ui';
 import { AccountMenuTriggerContentComponent } from '../account-menu-trigger-content/account-menu-trigger-content.component';
 
 @Component({
@@ -47,14 +47,14 @@ import { AccountMenuTriggerContentComponent } from '../account-menu-trigger-cont
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AccountMenuComponent {
-  readonly popoverState = signal<'closed' | 'open'>('closed');
+  readonly backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
 
+  readonly backendLinksEnabled = inject(ACCOUNT_MENU_BACKEND_LINKS_ENABLED_TOKEN);
+  readonly popoverState = signal<'closed' | 'open'>('closed');
   readonly #authService = inject(AUTH_SERVICE);
   readonly principalId = this.#authService.principalId;
   readonly #profileService = inject(ProfileService);
   readonly profile = this.#profileService.profile;
-  readonly backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
-  readonly backendLinksEnabled = inject(ACCOUNT_MENU_BACKEND_LINKS_ENABLED_TOKEN);
 
   readonly truncatedPrincipal = computed(() => {
     const id = this.principalId();

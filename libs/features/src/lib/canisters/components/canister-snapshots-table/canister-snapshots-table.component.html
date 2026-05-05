@@ -60,9 +60,9 @@
             @for (cell of row.getVisibleCells(); track $index) {
               <td hlmTd>
                 @if (cell.column.id === 'snapshot') {
-                  <core-copy-to-clipboard [content]="row.original.snapshot.id">
+                  <rbth-copy-to-clipboard [content]="row.original.snapshot.id">
                     {{ row.original.snapshot.id }}
-                  </core-copy-to-clipboard>
+                  </rbth-copy-to-clipboard>
                 } @else if (cell.column.id === 'size') {
                   {{ _toNumber(row.original.snapshot.totalSize) | formatBytes }}
                 } @else if (cell.column.id === 'timestamp') {

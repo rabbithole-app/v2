@@ -23,9 +23,9 @@ import {
 
 import {
   AllowanceInfo,
-  CopyToClipboardComponent,
   formatICP,
 } from '@rabbithole/core';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -39,14 +39,14 @@ interface AllowanceItem {
 @Component({
   selector: 'rbth-feat-allowances-table',
   imports: [
+    CopyToClipboardComponent,
     FlexRenderDirective,
     NgIcon,
     HlmIcon,
     HlmButton,
     ...HlmTableImports,
     ...HlmDropdownMenuImports,
-    CopyToClipboardComponent,
-    DatePipe,
+      DatePipe,
     ...HlmTooltipImports,
   ],
   providers: [

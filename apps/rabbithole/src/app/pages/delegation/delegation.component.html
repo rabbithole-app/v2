@@ -88,9 +88,9 @@
           </hlm-avatar>
           <div class="min-w-0 flex-1">
             <div class="truncate text-sm font-medium">{{ userName() }}</div>
-            <core-copy-to-clipboard [content]="principalId()" class="mt-1">
+            <rbth-copy-to-clipboard [content]="principalId()" class="mt-1">
               <span>{{ principalId() }}</span>
-            </core-copy-to-clipboard>
+            </rbth-copy-to-clipboard>
           </div>
           <button
             hlmBtn
@@ -112,9 +112,9 @@
             <div class="mb-1 text-xs font-medium uppercase text-muted-foreground">
               Storage canister
             </div>
-            <core-copy-to-clipboard [content]="storageCanisterId()!">
+            <rbth-copy-to-clipboard [content]="storageCanisterId()!">
               <span>{{ storageCanisterId() }}</span>
-            </core-copy-to-clipboard>
+            </rbth-copy-to-clipboard>
           </div>
         }
       </rbth-frame>

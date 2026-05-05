@@ -1,0 +1,244 @@
+<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+  <div class="space-y-2">
+    <h1 class="text-2xl font-semibold tracking-normal">CMC Recovery</h1>
+    <p class="max-w-3xl text-sm text-muted-foreground">
+      Ambiguous CMC notify operations that need an admin decision.
+    </p>
+  </div>
+
+  <button
+    hlmBtn
+    variant="outline"
+    size="sm"
+    class="h-8 shrink-0"
+    [disabled]="_pendingOps.isLoading() || _stats.isLoading()"
+    (click)="_reload()"
+  >
+    @if (_pendingOps.isLoading() || _stats.isLoading()) {
+      <hlm-spinner class="text-base" />
+    } @else {
+      <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+    }
+    Refresh
+  </button>
+</header>
+
+<section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+  <div class="rounded-md border px-4 py-3">
+    <div class="text-xs font-medium text-muted-foreground">Pending</div>
+    <div class="mt-1 text-2xl font-semibold tabular-nums">
+      {{ _pendingCount() }}
+    </div>
+  </div>
+  <div class="rounded-md border px-4 py-3">
+    <div class="text-xs font-medium text-muted-foreground">Created</div>
+    <div class="mt-1 text-2xl font-semibold tabular-nums">
+      {{ _stats.value().totalCreated.toString() }}
+    </div>
+  </div>
+  <div class="rounded-md border px-4 py-3">
+    <div class="text-xs font-medium text-muted-foreground">Resolved</div>
+    <div class="mt-1 text-2xl font-semibold tabular-nums">
+      {{ _stats.value().totalResolved.toString() }}
+    </div>
+  </div>
+  <div class="rounded-md border px-4 py-3">
+    <div class="text-xs font-medium text-muted-foreground">Refunded</div>
+    <div class="mt-1 text-2xl font-semibold tabular-nums">
+      {{ _stats.value().totalRefunded.toString() }}
+    </div>
+  </div>
+  <div class="rounded-md border px-4 py-3">
+    <div class="text-xs font-medium text-muted-foreground">Dismissed</div>
+    <div class="mt-1 text-2xl font-semibold tabular-nums">
+      {{ _stats.value().totalDismissed.toString() }}
+    </div>
+  </div>
+</section>
+
+@if (_pendingOps.error()) {
+  <div
+    class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+  >
+    CMC recovery queue could not be loaded.
+  </div>
+}
+
+<div class="min-w-0 overflow-hidden rounded-md border">
+  <div class="max-h-[68vh] min-h-80 overflow-auto">
+    <table hlmTable class="min-w-[1200px]">
+      <thead hlmTHead class="sticky top-0 z-10 bg-background">
+        <tr hlmTr>
+          <th hlmTh>ID</th>
+          <th hlmTh class="w-40">Operation</th>
+          <th hlmTh>Source</th>
+          <th hlmTh>Block</th>
+          <th hlmTh>Attempts</th>
+          <th hlmTh>Refund</th>
+          <th hlmTh class="min-w-80">Last error</th>
+          <th hlmTh>Created</th>
+          <th hlmTh>Last attempt</th>
+          <th hlmTh class="w-48 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @for (op of _pendingOps.value(); track op.id.toString()) {
+          <tr hlmTr>
+            <td hlmTd class="font-mono text-xs">#{{ op.id.toString() }}</td>
+            <td hlmTd>
+              <span
+                hlmBadge
+                class="w-fit"
+                [variant]="_operationBadgeVariant(op.kind)"
+                [hlmTooltip]="_operationTooltip(op)"
+              >
+                <ng-icon
+                  hlmIcon
+                  data-icon="inline-start"
+                  [name]="_operationIcon(op.kind)"
+                  size="xs"
+                />
+                {{ _kindLabel(op.kind) }}
+              </span>
+            </td>
+            <td hlmTd>
+              <div class="flex min-w-0 flex-col gap-1">
+                <span class="text-sm font-medium">
+                  {{ _sourceLabel(op.source) }}
+                </span>
+                @let creationId = _creationId(op.source);
+                @if (creationId !== null) {
+                  <a
+                    hlmBtn
+                    variant="link"
+                    size="sm"
+                    class="h-auto w-fit px-0 py-0 font-mono text-xs"
+                    [routerLink]="['/dashboard/admin/creations']"
+                    [queryParams]="{ creationId: creationId.toString() }"
+                  >
+                    Creation #{{ creationId.toString() }}
+                    <ng-icon hlmIcon name="lucideExternalLink" size="xs" />
+                  </a>
+                } @else if (_canisterText(op.source); as canisterId) {
+                  <rbth-copy-to-clipboard
+                    size="xs"
+                    [content]="canisterId"
+                  >
+                    {{ canisterId }}
+                  </rbth-copy-to-clipboard>
+                } @else {
+                  <span class="text-xs text-muted-foreground">
+                    {{ _sourceTarget(op.source) }}
+                  </span>
+                }
+              </div>
+            </td>
+            <td hlmTd class="font-mono text-xs">
+              {{ op.blockIndex.toString() }}
+            </td>
+            <td hlmTd class="tabular-nums">{{ op.attempts.toString() }}</td>
+            <td hlmTd>
+              <div class="flex min-w-0 flex-col gap-1">
+                <span class="text-sm">{{ _refundAmount(op) }}</span>
+                @if (_refundPayer(op); as payer) {
+                  <rbth-copy-to-clipboard
+                    size="xs"
+                    [content]="_principalText(payer)"
+                  >
+                    {{ _principalText(payer) }}
+                  </rbth-copy-to-clipboard>
+                }
+              </div>
+            </td>
+            <td hlmTd class="min-w-80 max-w-[32rem]">
+              <span class="block whitespace-normal break-words text-sm leading-snug">
+                {{ op.lastError }}
+              </span>
+            </td>
+            <td hlmTd class="whitespace-nowrap text-sm">
+              {{ _date(op.createdAt) | date: 'medium' }}
+            </td>
+            <td hlmTd class="whitespace-nowrap text-sm">
+              @if (_lastAttemptDate(op); as lastAttempt) {
+                {{ lastAttempt | date: 'medium' }}
+              } @else {
+                <span class="text-muted-foreground">Never</span>
+              }
+            </td>
+            <td hlmTd class="text-right">
+              <div class="flex justify-end gap-2">
+                <button
+                  hlmBtn
+                  variant="outline"
+                  size="icon"
+                  class="size-8"
+                  hlmTooltip="Retry CMC operation"
+                  [disabled]="_actionDisabled(op)"
+                  (click)="_retry(op)"
+                >
+                  @if (_actionInFlight() === _actionId(op, 'retry')) {
+                    <hlm-spinner class="text-base" />
+                  } @else {
+                    <ng-icon hlmIcon name="lucideRotateCcw" size="sm" />
+                  }
+                  <span class="sr-only">Retry CMC operation</span>
+                </button>
+
+                <hlm-alert-dialog>
+                  <button
+                    hlmBtn
+                    brnAlertDialogTrigger
+                    variant="destructive"
+                    size="icon"
+                    class="size-8"
+                    hlmTooltip="Dismiss CMC operation"
+                    [disabled]="_actionDisabled(op)"
+                  >
+                    @if (_actionInFlight() === _actionId(op, 'dismiss')) {
+                      <hlm-spinner class="text-base" />
+                    } @else {
+                      <ng-icon hlmIcon name="lucideTrash2" size="sm" />
+                    }
+                    <span class="sr-only">Dismiss CMC operation</span>
+                  </button>
+                  <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
+                    <hlm-alert-dialog-header>
+                      <h3 hlmAlertDialogTitle>
+                        Dismiss CMC operation #{{ op.id.toString() }}?
+                      </h3>
+                      <p hlmAlertDialogDescription>
+                        This only removes the operation from the recovery queue.
+                        It does not retry CMC, issue a refund, or verify whether
+                        the canister creation/top-up eventually completed.
+                        Dismiss only after checking the CMC block and target
+                        state manually.
+                      </p>
+                    </hlm-alert-dialog-header>
+                    <hlm-alert-dialog-footer>
+                      <button hlmAlertDialogCancel (click)="ctx.close()">
+                        Cancel
+                      </button>
+                      <button
+                        hlmAlertDialogAction
+                        variant="destructive"
+                        (click)="ctx.close(); _dismiss(op)"
+                      >
+                        Dismiss operation
+                      </button>
+                    </hlm-alert-dialog-footer>
+                  </hlm-alert-dialog-content>
+                </hlm-alert-dialog>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td hlmTd colspan="10" class="h-48 text-center text-muted-foreground">
+              No pending CMC recovery operations.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -5,9 +5,9 @@
   <div hlmItemContent>
     <div class="flex flex-wrap items-center gap-2">
       @if (canisterIdText(); as id) {
-        <core-copy-to-clipboard hlmItemTitle [content]="id">
+        <rbth-copy-to-clipboard hlmItemTitle [content]="id">
           {{ id }}
-        </core-copy-to-clipboard>
+        </rbth-copy-to-clipboard>
       } @else {
         <span hlmItemTitle class="text-muted-foreground">Creating...</span>
       }

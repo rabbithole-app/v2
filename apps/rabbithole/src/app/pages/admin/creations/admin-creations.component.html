@@ -217,24 +217,24 @@
                     </div>
                   }
                   @case ('owner') {
-                    <core-copy-to-clipboard [content]="creation.owner.toText()">
+                    <rbth-copy-to-clipboard [content]="creation.owner.toText()">
                       {{ creation.owner.toText() }}
-                    </core-copy-to-clipboard>
+                    </rbth-copy-to-clipboard>
                   }
                   @case ('canisterId') {
                     @if (creation.canisterId[0]; as canisterId) {
-                      <core-copy-to-clipboard [content]="canisterId.toText()">
+                      <rbth-copy-to-clipboard [content]="canisterId.toText()">
                         {{ canisterId.toText() }}
-                      </core-copy-to-clipboard>
+                      </rbth-copy-to-clipboard>
                     } @else {
                       <span class="text-sm text-muted-foreground">Not created</span>
                     }
                   }
                   @case ('subnetId') {
                     @if (creation.subnetId[0]; as subnetId) {
-                      <core-copy-to-clipboard [content]="subnetId.toText()">
+                      <rbth-copy-to-clipboard [content]="subnetId.toText()">
                         {{ subnetId.toText() }}
-                      </core-copy-to-clipboard>
+                      </rbth-copy-to-clipboard>
                     }
                   }
                   @case ('ambassadorPayoutStatus') {
@@ -247,9 +247,9 @@
                   }
                   @case ('licensePaymentId') {
                     @if (creation.licensePaymentId[0]; as paymentId) {
-                      <core-copy-to-clipboard [content]="paymentId">
+                      <rbth-copy-to-clipboard [content]="paymentId">
                         {{ paymentId }}
-                      </core-copy-to-clipboard>
+                      </rbth-copy-to-clipboard>
                     } @else {
                       <span class="text-sm text-muted-foreground">No license</span>
                     }

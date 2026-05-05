@@ -1,6 +1,7 @@
 export * from './lib/auth-layout';
 export * from './lib/auth-navbar';
 export * from './lib/bento-grid';
+export * from './lib/copy-to-clipboard';
 export * from './lib/drawer';
 export * from './lib/frame';
 export * from './lib/magic-card';

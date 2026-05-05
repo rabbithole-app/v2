@@ -7,7 +7,12 @@ import {
 } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideGauge, lucideServerCog, lucideUsers } from '@ng-icons/lucide';
+import {
+  lucideCircleAlert,
+  lucideGauge,
+  lucideServerCog,
+  lucideUsers,
+} from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { injectMainActor } from '@rabbithole/core';
@@ -27,6 +32,7 @@ import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
   ],
   providers: [
     provideIcons({
+      lucideCircleAlert,
       lucideGauge,
       lucideServerCog,
       lucideUsers,
@@ -58,6 +64,12 @@ export class AdministrationNavigationComponent {
       icon: 'lucideServerCog',
       label: 'Creations',
       route: '/dashboard/admin/creations',
+    },
+    {
+      exact: false,
+      icon: 'lucideCircleAlert',
+      label: 'CMC Recovery',
+      route: '/dashboard/admin/cmc-recovery',
     },
     {
       exact: false,

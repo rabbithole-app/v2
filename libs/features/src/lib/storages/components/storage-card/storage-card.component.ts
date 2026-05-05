@@ -26,7 +26,7 @@ import {
 } from '@ng-icons/lucide';
 import { BrnAlertDialogContent, BrnAlertDialogTrigger } from '@spartan-ng/brain/alert-dialog';
 
-import { CopyToClipboardComponent, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
+import { IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import {
   getStorageCanisterId,
   getStorageDisplayStatus,
@@ -35,6 +35,7 @@ import {
   type StorageInfo,
   StoragesService,
 } from '@rabbithole/core';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';

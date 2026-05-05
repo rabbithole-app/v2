@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-import { CopyToClipboardComponent } from '@rabbithole/core/ui';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
+
+import { CopyToClipboardComponent } from '../copy-to-clipboard';
 
 @Component({
   selector: 'rbth-user-identity',
@@ -29,9 +30,9 @@ import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 
       @if (principalId(); as value) {
         @if (copyPrincipal()) {
-          <core-copy-to-clipboard [content]="value">
+          <rbth-copy-to-clipboard [content]="value">
             {{ value }}
-          </core-copy-to-clipboard>
+          </rbth-copy-to-clipboard>
         } @else {
           <div class="truncate font-mono text-xs text-muted-foreground">
             {{ value }}

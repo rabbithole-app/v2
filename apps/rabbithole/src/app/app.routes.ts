@@ -117,6 +117,13 @@ export const appRoutes: Route[] = [
               ),
           },
           {
+            path: 'cmc-recovery',
+            loadComponent: () =>
+              import(
+                './pages/admin/cmc-recovery/admin-cmc-recovery.component'
+              ).then((m) => m.AdminCmcRecoveryComponent),
+          },
+          {
             path: 'users',
             loadComponent: () =>
               import('./pages/admin/users/admin-users.component').then(

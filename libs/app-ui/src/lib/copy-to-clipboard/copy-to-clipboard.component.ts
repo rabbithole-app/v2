@@ -22,7 +22,7 @@ import { hlm } from '@spartan-ng/helm/utils';
 type CopyToClipboardSize = 'sm' | 'xs';
 
 @Component({
-  selector: 'core-copy-to-clipboard',
+  selector: 'rbth-copy-to-clipboard',
   template: `<span data-slot="copy-content">
       <ng-content />
     </span>
@@ -72,8 +72,8 @@ export class CopyToClipboardComponent {
     { initialValue: 'lucideClipboard' },
   );
 
-  readonly userClass = input<ClassValue>('', { alias: 'class' });
   readonly size = input<CopyToClipboardSize>('sm');
+  readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected _buttonClass = computed(() =>
     hlm('shrink-0', this.size() === 'xs' ? 'size-5' : 'size-6'),

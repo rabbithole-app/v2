@@ -22,7 +22,8 @@ import {
 } from '@tanstack/angular-table';
 
 import { Snapshot } from '@rabbithole/core';
-import { CopyToClipboardComponent, FormatBytesPipe } from '@rabbithole/core';
+import { FormatBytesPipe } from '@rabbithole/core';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmIcon } from '@spartan-ng/helm/icon';

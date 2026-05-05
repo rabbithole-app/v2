@@ -7,19 +7,6 @@ import {
   signal,
 } from '@angular/core';
 import { fromNullable } from '@dfinity/utils';
-import { NgIcon, provideIcons } from '@ng-icons/core';
-import {
-  lucideCheck,
-  lucideCircleAlert,
-  lucideLogOut,
-  lucideShieldCheck,
-} from '@ng-icons/lucide';
-import {
-  hugeApple,
-  hugeDeveloper,
-  hugeGoogle,
-  hugeMicrosoft,
-} from '@ng-icons/huge-icons';
 import { SignIdentity } from '@icp-sdk/core/agent';
 import {
   DelegationChain,
@@ -27,15 +14,28 @@ import {
   Ed25519PublicKey,
 } from '@icp-sdk/core/identity';
 import { Principal } from '@icp-sdk/core/principal';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import {
+  hugeApple,
+  hugeDeveloper,
+  hugeGoogle,
+  hugeMicrosoft,
+} from '@ng-icons/huge-icons';
+import {
+  lucideCheck,
+  lucideCircleAlert,
+  lucideLogOut,
+  lucideShieldCheck,
+} from '@ng-icons/lucide';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { linkedQueryParam } from 'ngxtension/linked-query-param';
 
 import { AUTH_CONFIG, AUTH_SERVICE, AuthSignInOptions } from '@rabbithole/auth';
 import {
-  CopyToClipboardComponent,
   injectMainActor,
   ProfileService,
 } from '@rabbithole/core';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import {
   RbthFrameComponent,
   RbthFrameDescriptionDirective,
@@ -44,8 +44,8 @@ import {
   RbthFrameTitleDirective,
 } from '@rabbithole/ui/frame';
 import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
-import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
+import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
@@ -59,7 +59,7 @@ const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
   selector: 'app-delegation',
   imports: [
     CopyToClipboardComponent,
-    ...HlmAlertImports,
+      ...HlmAlertImports,
     HlmAvatarImports,
     HlmIcon,
     RbthFrameComponent,
@@ -91,44 +91,18 @@ const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DelegationComponent {
-  readonly delegationSent = signal(false);
-  #authService = inject(AUTH_SERVICE);
-  #actor = injectMainActor();
-  readonly isAuthenticated = this.#authService.isAuthenticated;
   #profileService = inject(ProfileService);
   readonly profile = this.#profileService.profile;
-  readonly #userResource = resource({
-    params: () => ({
-      actor: this.#actor(),
-      isAuthenticated: this.isAuthenticated(),
-    }),
-    loader: async ({ params: { actor, isAuthenticated } }) => {
-      if (!isAuthenticated) return null;
-      return fromNullable(await actor.getUser()) ?? null;
-    },
-  });
-  readonly userName = computed(() => {
-    const user = this.#userResource.value();
-    const profile = this.profile();
-
-    return (
-      user?.identity.name[0] ??
-      profile?.displayName[0] ??
-      profile?.username ??
-      'Rabbithole account'
-    );
-  });
   readonly avatarSrc = computed(() => this.profile()?.avatarUrl[0] ?? null);
-  readonly userInitials = computed(() => {
-    const words = this.userName().trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return 'U';
-    return words
-      .slice(0, 2)
-      .map((word) => word[0].toUpperCase())
-      .join('');
-  });
+  readonly delegationSent = signal(false);
   openIdIssuer = linkedQueryParam('openid');
   openIdProvider = linkedQueryParam('provider');
+  ssoDomain = linkedQueryParam('sso');
+  readonly hasPresetSignInProvider = computed(
+    () => !!(this.openIdIssuer() || this.openIdProvider() || this.ssoDomain()),
+  );
+  #authService = inject(AUTH_SERVICE);
+  readonly isAuthenticated = this.#authService.isAuthenticated;
   readonly principalId = this.#authService.principalId;
   publicKey = linkedQueryParam('sessionPublicKey', {
     parse: (sessionPublicKey) =>
@@ -140,15 +114,6 @@ export class DelegationComponent {
   });
   readonly signInError = signal<string | null>(null);
   readonly signingIn = signal(false);
-  ssoDomain = linkedQueryParam('sso');
-  signInLabel = computed(() => {
-    if (this.openIdIssuer()) return 'Continue with Dev OpenID';
-    if (this.openIdProvider() === 'google') return 'Continue with Google';
-    if (this.openIdProvider() === 'microsoft') return 'Continue with Microsoft';
-    if (this.openIdProvider() === 'apple') return 'Continue with Apple';
-    if (this.ssoDomain()) return 'Continue with SSO';
-    return 'Sign in with Internet Identity';
-  });
   signInIcon = computed(() => {
     if (this.openIdIssuer()) return 'hugeDeveloper';
     if (this.openIdProvider() === 'google') return 'hugeGoogle';
@@ -157,9 +122,14 @@ export class DelegationComponent {
     if (this.ssoDomain()) return 'hugeDeveloper';
     return null;
   });
-  readonly hasPresetSignInProvider = computed(
-    () => !!(this.openIdIssuer() || this.openIdProvider() || this.ssoDomain()),
-  );
+  signInLabel = computed(() => {
+    if (this.openIdIssuer()) return 'Continue with Dev OpenID';
+    if (this.openIdProvider() === 'google') return 'Continue with Google';
+    if (this.openIdProvider() === 'microsoft') return 'Continue with Microsoft';
+    if (this.openIdProvider() === 'apple') return 'Continue with Apple';
+    if (this.ssoDomain()) return 'Continue with SSO';
+    return 'Sign in with Internet Identity';
+  });
   target = linkedQueryParam('target', {
     parse: (target) => {
       if (!target) {
@@ -183,6 +153,36 @@ export class DelegationComponent {
       MANAGEMENT_CANISTER_ID,
       ...(storageCanisterId ? [storageCanisterId] : []),
     ];
+  });
+  #actor = injectMainActor();
+  readonly #userResource = resource({
+    params: () => ({
+      actor: this.#actor(),
+      isAuthenticated: this.isAuthenticated(),
+    }),
+    loader: async ({ params: { actor, isAuthenticated } }) => {
+      if (!isAuthenticated) return null;
+      return fromNullable(await actor.getUser()) ?? null;
+    },
+  });
+  readonly userName = computed(() => {
+    const user = this.#userResource.value();
+    const profile = this.profile();
+
+    return (
+      user?.identity.name[0] ??
+      profile?.displayName[0] ??
+      profile?.username ??
+      'Rabbithole account'
+    );
+  });
+  readonly userInitials = computed(() => {
+    const words = this.userName().trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return 'U';
+    return words
+      .slice(0, 2)
+      .map((word) => word[0].toUpperCase())
+      .join('');
   });
   #authConfig = inject(AUTH_CONFIG);
 

@@ -28,9 +28,9 @@ import {
 } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { toast } from 'ngx-sonner';
+import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
 import {
-  CopyToClipboardComponent,
   formatUsd,
   injectMainActor,
   LICENSE_PRICE_USD,
@@ -40,6 +40,7 @@ import {
 import { type StorageBackendType } from '@rabbithole/core/storage-runtime';
 import { WalletBalancePanelComponent } from '@rabbithole/core/wallet';
 import type { StorageBackendType as CandidStorageBackendType } from '@rabbithole/declarations/backend';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -52,7 +53,6 @@ import {
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmRadioGroup, HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
-import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
 import { buildCreationSteps } from '../../utils';
 
@@ -63,6 +63,7 @@ type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
 @Component({
   selector: 'rbth-feat-storages-create-storage-dialog',
   imports: [
+    CopyToClipboardComponent,
     NgIcon,
     HlmIcon,
     HlmDialogHeader,
@@ -74,8 +75,7 @@ type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
     ...HlmFieldImports,
     HlmRadioGroup,
     ...HlmRadioGroupImports,
-    CopyToClipboardComponent,
-    ProcessStepListComponent,
+      ProcessStepListComponent,
     WalletBalancePanelComponent,
   ],
   providers: [
@@ -106,16 +106,13 @@ export class CreateStorageDialogComponent {
   // CONSTANTS (exposed to template)
   // ═══════════════════════════════════════════════════════════════
 
-  readonly LICENSE_PRICE_USD = LICENSE_PRICE_USD;
-  readonly licensePriceLabel = formatUsd(LICENSE_PRICE_USD);
-  readonly payFromBalanceLabel = `Pay ${formatUsd(LICENSE_PRICE_USD)} from balance`;
+  readonly balancePaymentPanel = viewChild(WalletBalancePanelComponent);
+  readonly #createdCanisterId = signal<string | null>(null);
+  readonly createdCanisterId = this.#createdCanisterId.asReadonly();
 
   // ═══════════════════════════════════════════════════════════════
   // WIZARD STATE
   // ═══════════════════════════════════════════════════════════════
-
-  readonly #createdCanisterId = signal<string | null>(null);
-  readonly createdCanisterId = this.#createdCanisterId.asReadonly();
 
   readonly #storagesService = inject(StoragesService);
   readonly creationStatus = computed(() => this.#storagesService.creationStatus());
@@ -136,7 +133,6 @@ export class CreateStorageDialogComponent {
       canisterIdText ?? undefined,
     );
   });
-
   readonly creationProgressLabel = computed(() => {
     const steps = this.creationSteps();
     const total = steps.length;
@@ -155,12 +151,11 @@ export class CreateStorageDialogComponent {
     return `Step ${completed + 1} of ${total}${active?.description ? ' — ' + active.description : ''}`;
   });
 
-  readonly #step = signal<WizardStep>('configure');
-  readonly step = this.#step.asReadonly();
-  readonly isCompleted = computed(() =>
-    this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
-  );
+  readonly licensePriceLabel = formatUsd(LICENSE_PRICE_USD);
 
+  readonly #step = signal<WizardStep>('configure');
+
+  readonly step = this.#step.asReadonly();
   readonly dialogTitle = computed(() => {
     switch (this.step()) {
       case 'configure': return 'Create Storage';
@@ -172,30 +167,35 @@ export class CreateStorageDialogComponent {
       case 'payment': return `Pay from balance — ${this.licensePriceLabel}`;
     }
   });
-
   readonly #errorMessage = signal<string | null>(null);
+
   readonly errorMessage = this.#errorMessage.asReadonly();
+
+  readonly isCompleted = computed(() =>
+    this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
+  );
+  readonly LICENSE_PRICE_USD = LICENSE_PRICE_USD;
 
   // ═══════════════════════════════════════════════════════════════
   // CONFIGURATION
   // ═══════════════════════════════════════════════════════════════
 
+  readonly payFromBalanceLabel = `Pay ${formatUsd(LICENSE_PRICE_USD)} from balance`;
   readonly #storageBackend = signal<StorageBackendType>('BlobStorage');
-  readonly storageBackend = this.#storageBackend.asReadonly();
 
+  readonly storageBackend = this.#storageBackend.asReadonly();
   readonly #vetKeyLevel = signal<VetKeyLevel>('standard');
-  readonly vetKeyLevel = this.#vetKeyLevel.asReadonly();
 
   // ═══════════════════════════════════════════════════════════════
   // SERVICES
   // ═══════════════════════════════════════════════════════════════
 
-  readonly balancePaymentPanel = viewChild(WalletBalancePanelComponent);
+  readonly vetKeyLevel = this.#vetKeyLevel.asReadonly();
 
   readonly #actor = injectMainActor();
   readonly #destroyRef = inject(DestroyRef);
-  readonly #router = inject(Router);
   readonly #dialogRef = inject(BrnDialogRef);
+  readonly #router = inject(Router);
 
   constructor() {
     effect(() => {
@@ -246,45 +246,6 @@ export class CreateStorageDialogComponent {
     this.#step.set('payment');
   }
 
-  tryAgain(): void {
-    this.#step.set('payment');
-    this.#errorMessage.set(null);
-  }
-
-  /**
-   * Called when the user clicks Retry on a failed step inside
-   * `rbth-process-steps`. Forwards to `tryAgain` — same semantics as the
-   * legacy Error-state "Try Again" button.
-   */
-  retryFromError(): void {
-    this.tryAgain();
-  }
-
-  viewStorage(): void {
-    const canisterId = this.createdCanisterId();
-    if (!canisterId) return;
-
-    this.#storagesService.clearTrackedCreation();
-    this.close();
-    this.#router.navigate(['/dashboard', canisterId, 'drive']);
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // FORM HANDLERS
-  // ═══════════════════════════════════════════════════════════════
-
-  selectStorageBackend(backend: StorageBackendType): void {
-    this.#storageBackend.set(backend);
-  }
-
-  selectVetKeyLevel(level: VetKeyLevel): void {
-    this.#vetKeyLevel.set(level);
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // PAYMENT ACTIONS
-  // ═══════════════════════════════════════════════════════════════
-
   async purchaseFromBalance(): Promise<void> {
     this.#step.set('creating');
 
@@ -315,6 +276,45 @@ export class CreateStorageDialogComponent {
       this.#errorMessage.set(msg);
       this.#step.set('error');
     }
+  }
+
+  /**
+   * Called when the user clicks Retry on a failed step inside
+   * `rbth-process-steps`. Forwards to `tryAgain` — same semantics as the
+   * legacy Error-state "Try Again" button.
+   */
+  retryFromError(): void {
+    this.tryAgain();
+  }
+
+  selectStorageBackend(backend: StorageBackendType): void {
+    this.#storageBackend.set(backend);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // FORM HANDLERS
+  // ═══════════════════════════════════════════════════════════════
+
+  selectVetKeyLevel(level: VetKeyLevel): void {
+    this.#vetKeyLevel.set(level);
+  }
+
+  tryAgain(): void {
+    this.#step.set('payment');
+    this.#errorMessage.set(null);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PAYMENT ACTIONS
+  // ═══════════════════════════════════════════════════════════════
+
+  viewStorage(): void {
+    const canisterId = this.createdCanisterId();
+    if (!canisterId) return;
+
+    this.#storagesService.clearTrackedCreation();
+    this.close();
+    this.#router.navigate(['/dashboard', canisterId, 'drive']);
   }
 
   // ═══════════════════════════════════════════════════════════════

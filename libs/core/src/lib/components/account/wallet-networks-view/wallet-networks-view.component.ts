@@ -15,6 +15,7 @@ import {
 } from '@ng-icons/lucide';
 import { toast } from 'ngx-sonner';
 
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -36,7 +37,6 @@ import {
 } from '../../../services/balance.service';
 import { MAIN_CANISTER_ID_TOKEN } from '../../../tokens';
 import { formatUsd } from '../../../utils/format-number';
-import { CopyToClipboardComponent } from '../../ui/copy-to-clipboard';
 
 type NetworkDefinition = {
   addressLabel: string;

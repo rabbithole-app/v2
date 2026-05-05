@@ -32,17 +32,17 @@
             @for (cell of row.getVisibleCells(); track $index) {
               <td hlmTd>
                 @if (cell.column.id === 'fromAccountId') {
-                  <core-copy-to-clipboard
+                  <rbth-copy-to-clipboard
                     [content]="row.original.allowance.fromAccountId"
                   >
                     {{ row.original.allowance.fromAccountId }}
-                  </core-copy-to-clipboard>
+                  </rbth-copy-to-clipboard>
                 } @else if (cell.column.id === 'toSpenderId') {
-                  <core-copy-to-clipboard
+                  <rbth-copy-to-clipboard
                     [content]="row.original.allowance.toSpenderId"
                   >
                     {{ row.original.allowance.toSpenderId }}
-                  </core-copy-to-clipboard>
+                  </rbth-copy-to-clipboard>
                 } @else if (cell.column.id === 'allowance') {
                   {{ _formatICP(row.original.allowance.allowance) }} ICP
                 } @else if (cell.column.id === 'expiresAt') {

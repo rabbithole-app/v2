@@ -27,8 +27,8 @@ import {
   lucideRefreshCw,
 } from '@ng-icons/lucide';
 import {
-  ColumnSizingState,
   ColumnDef,
+  ColumnSizingState,
   createAngularTable,
   functionalUpdate,
   getCoreRowModel,
@@ -38,7 +38,6 @@ import { endOfDay, startOfDay } from 'date-fns';
 import { toast } from 'ngx-sonner';
 
 import {
-  CopyToClipboardComponent,
   injectMainActor,
   MAIN_BACKEND_URL_TOKEN,
   timeInNanosToDate,
@@ -46,16 +45,6 @@ import {
   UserTargetComboboxComponent,
   UserTargetComboboxValueDirective,
 } from '@rabbithole/core';
-import { UserIdentityComponent } from '@rabbithole/ui';
-import {
-  RbthDataTableFilterComponent,
-  RbthDateFilterModel,
-  RbthFilterValueDirective,
-  RbthTransparentSelectBackdropDirective,
-  rbthFilterColumn,
-  RbthFilterModel,
-  RbthFiltersState,
-} from '@rabbithole/ui/data-table-filter';
 import {
   AdminUserListItem,
   AdminUserListOptions,
@@ -64,6 +53,17 @@ import {
   Role,
   SortDirection,
 } from '@rabbithole/declarations/backend';
+import { UserIdentityComponent } from '@rabbithole/ui';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
+import {
+  RbthDataTableFilterComponent,
+  RbthDateFilterModel,
+  rbthFilterColumn,
+  RbthFilterModel,
+  RbthFiltersState,
+  RbthFilterValueDirective,
+  RbthTransparentSelectBackdropDirective,
+} from '@rabbithole/ui/data-table-filter';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCheckbox } from '@spartan-ng/helm/checkbox';
@@ -110,14 +110,14 @@ const EMPTY_PAGE: AdminUsersPage = {
 @Component({
   selector: 'app-admin-users',
   imports: [
+    CopyToClipboardComponent,
     DatePipe,
     HlmBadge,
     NgIcon,
     HlmCheckbox,
     HlmIcon,
     HlmSpinner,
-    CopyToClipboardComponent,
-    RbthDataTableFilterComponent,
+      RbthDataTableFilterComponent,
     RbthFilterValueDirective,
     RbthTransparentSelectBackdropDirective,
     UserIdentityComponent,
@@ -161,7 +161,6 @@ export class AdminUsersComponent {
     { label: 'Moderator', value: 'moderator' },
     { label: 'User', value: 'user' },
   ];
-  readonly #actor = injectMainActor();
   protected readonly _columnOptions: Array<{
     id: ColumnId;
     label: string;
@@ -226,6 +225,7 @@ export class AdminUsersComponent {
       ],
     },
   ];
+  protected readonly _columnSizing = signal<ColumnSizingState>({});
   protected readonly _filterColumns = [
     rbthFilterColumn.custom<AdminUserListItem>({
       id: 'id',
@@ -311,15 +311,13 @@ export class AdminUsersComponent {
     }),
   ];
   protected readonly _filters = signal<RbthFiltersState>([]);
-  protected readonly _columnSizing = signal<ColumnSizingState>({});
-
   protected readonly _hiddenColumns = signal<Set<ColumnId>>(
     new Set<ColumnId>([
+      'identitySyncedAt',
       'inviter',
       'principal',
       'profileAvatarUrl',
       'profileDisplayName',
-      'identitySyncedAt',
       'profileUsername',
       'referralAppliedAt',
       'updatedAt',
@@ -330,6 +328,7 @@ export class AdminUsersComponent {
   protected readonly _pageIndex = signal(0);
 
   protected readonly _pageSize = signal(20);
+
   protected readonly _sortField = signal<AdminSortField>('createdAt');
   protected readonly _options = computed<AdminUserListOptions>(() => ({
     pagination: {
@@ -353,6 +352,7 @@ export class AdminUsersComponent {
       updatedAt: this._dateFilter('updatedAt'),
     },
   }));
+  readonly #actor = injectMainActor();
   protected readonly _users = resource({
     params: () => ({
       actor: this.#actor(),
@@ -428,6 +428,10 @@ export class AdminUsersComponent {
     return !this._hiddenColumns().has(columnId);
   }
 
+  protected _date(value: bigint): Date {
+    return timeInNanosToDate(value);
+  }
+
   protected _identityProviderLabel(provider: string): string {
     if (provider === 'apple') return 'Apple';
     if (provider === 'dev_openid') return 'Dev OpenID';
@@ -435,10 +439,6 @@ export class AdminUsersComponent {
     if (provider === 'internet_identity') return 'Internet Identity';
     if (provider === 'microsoft') return 'Microsoft';
     return provider;
-  }
-
-  protected _date(value: bigint): Date {
-    return timeInNanosToDate(value);
   }
 
   protected _isRole(role: Role, value: UserRoleValue): boolean {
@@ -469,6 +469,10 @@ export class AdminUsersComponent {
     return user.profile[0];
   }
 
+  protected _profileAvatarSrc(user: AdminUserListItem): string | undefined {
+    return this._avatarSrc(this._profile(user)?.avatarUrl[0]);
+  }
+
   protected _reloadUsers(): void {
     this._users.reload();
   }
@@ -483,10 +487,8 @@ export class AdminUsersComponent {
     return 'user';
   }
 
-  protected _setPageSize(value: number | null): void {
-    if (!value) return;
-    this._pageSize.set(value);
-    this._pageIndex.set(0);
+  protected _setColumnSizing(updater: Updater<ColumnSizingState>): void {
+    this._columnSizing.update((state) => functionalUpdate(updater, state));
   }
 
   protected _setFilters(filters: RbthFiltersState): void {
@@ -494,8 +496,10 @@ export class AdminUsersComponent {
     this._pageIndex.set(0);
   }
 
-  protected _setColumnSizing(updater: Updater<ColumnSizingState>): void {
-    this._columnSizing.update((state) => functionalUpdate(updater, state));
+  protected _setPageSize(value: number | null): void {
+    if (!value) return;
+    this._pageSize.set(value);
+    this._pageIndex.set(0);
   }
 
   protected _setUserRole(
@@ -563,8 +567,10 @@ export class AdminUsersComponent {
       : this._shortPrincipal(user.id.toText());
   }
 
-  protected _profileAvatarSrc(user: AdminUserListItem): string | undefined {
-    return this._avatarSrc(this._profile(user)?.avatarUrl[0]);
+  protected _userTargets(values: ReadonlyArray<unknown>): UserTarget[] {
+    return values.filter((value): value is UserTarget =>
+      this._isUserTarget(value),
+    );
   }
 
   protected _userTargetSummary(targets: ReadonlyArray<UserTarget>): string {
@@ -573,15 +579,25 @@ export class AdminUsersComponent {
     return `${targets.length} selected`;
   }
 
-  protected _userTargets(values: ReadonlyArray<unknown>): UserTarget[] {
-    return values.filter((value): value is UserTarget =>
-      this._isUserTarget(value),
-    );
+  private _adminSortField(columnId: string): AdminSortField | null {
+    switch (columnId) {
+      case 'createdAt':
+      case 'identitySyncedAt':
+      case 'lastLoginAt':
+      case 'name':
+      case 'referralAppliedAt':
+      case 'role':
+      case 'updatedAt':
+        return columnId;
+      default:
+        return null;
+    }
   }
 
-  private _identityProviderOption(): [] | [string] {
-    const value = this._optionValue('identityProvider');
-    return value ? [value] : [];
+  private _avatarSrc(avatarUrl: string | undefined): string | undefined {
+    if (!avatarUrl) return undefined;
+    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
+    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
   }
 
   private _booleanOption(columnId: string): [] | [boolean] {
@@ -624,14 +640,9 @@ export class AdminUsersComponent {
             ]
           : [];
       }
-      case 'onOrAfter': {
-        const value = filter.values[0];
-        return value ? [{ min: [this._startOfDayNanos(value)], max: [] }] : [];
-      }
-      case 'onOrBefore': {
-        const value = filter.values[0];
-        return value ? [{ min: [], max: [this._endOfDayNanos(value)] }] : [];
-      }
+      case 'notBetween':
+      case 'notOn':
+        return [];
       case 'on': {
         const value = filter.values[0];
         return value
@@ -643,9 +654,14 @@ export class AdminUsersComponent {
             ]
           : [];
       }
-      case 'notBetween':
-      case 'notOn':
-        return [];
+      case 'onOrAfter': {
+        const value = filter.values[0];
+        return value ? [{ min: [this._startOfDayNanos(value)], max: [] }] : [];
+      }
+      case 'onOrBefore': {
+        const value = filter.values[0];
+        return value ? [{ min: [], max: [this._endOfDayNanos(value)] }] : [];
+      }
     }
   }
 
@@ -660,6 +676,39 @@ export class AdminUsersComponent {
 
   private _endOfDayNanos(date: Date): bigint {
     return BigInt(endOfDay(date).getTime()) * 1_000_000n;
+  }
+
+  private _identityProviderOption(): [] | [string] {
+    const value = this._optionValue('identityProvider');
+    return value ? [value] : [];
+  }
+
+  private _isColumnId(columnId: string): columnId is ColumnId {
+    return this._columnOptions.some((column) => column.id === columnId);
+  }
+
+  private _isUserRoleValue(value: string | undefined): value is UserRoleValue {
+    return value === 'admin' || value === 'moderator' || value === 'user';
+  }
+
+  private _isUserTarget(value: unknown): value is UserTarget {
+    if (typeof value !== 'object' || value === null) return false;
+    if (!('kind' in value) || !('label' in value)) return false;
+
+    return (
+      (value.kind === 'email' && 'email' in value) ||
+      ((value.kind === 'principal' || value.kind === 'user') &&
+        'principalId' in value)
+    );
+  }
+
+  private _optionValue(columnId: string): string | undefined {
+    const filter = this._filters().find(
+      (item): item is Extract<RbthFilterModel, { type: 'option' }> =>
+        item.columnId === columnId && item.type === 'option',
+    );
+
+    return filter?.values[0];
   }
 
   private _principalFilter(columnId: string): [] | [Principal[]] {
@@ -682,21 +731,6 @@ export class AdminUsersComponent {
     return principals.length ? [principals] : [];
   }
 
-  private _optionValue(columnId: string): string | undefined {
-    const filter = this._filters().find(
-      (item): item is Extract<RbthFilterModel, { type: 'option' }> =>
-        item.columnId === columnId && item.type === 'option',
-    );
-
-    return filter?.values[0];
-  }
-
-  private _roleOption(): [] | [Role] {
-    const role = this._optionValue('role');
-    if (!this._isUserRoleValue(role)) return [];
-    return [this._roleFromValue(role)];
-  }
-
   private _roleFromValue(role: UserRoleValue): Role {
     switch (role) {
       case 'admin':
@@ -706,10 +740,6 @@ export class AdminUsersComponent {
       case 'user':
         return { user: null };
     }
-  }
-
-  private _isUserRoleValue(value: string | undefined): value is UserRoleValue {
-    return value === 'admin' || value === 'moderator' || value === 'user';
   }
 
   private _roleLabelByValue(role: UserRoleValue): string {
@@ -723,21 +753,10 @@ export class AdminUsersComponent {
     }
   }
 
-  private _isUserTarget(value: unknown): value is UserTarget {
-    if (typeof value !== 'object' || value === null) return false;
-    if (!('kind' in value) || !('label' in value)) return false;
-
-    return (
-      (value.kind === 'email' && 'email' in value) ||
-      ((value.kind === 'principal' || value.kind === 'user') &&
-        'principalId' in value)
-    );
-  }
-
-  private _avatarSrc(avatarUrl: string | undefined): string | undefined {
-    if (!avatarUrl) return undefined;
-    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
-    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
+  private _roleOption(): [] | [Role] {
+    const role = this._optionValue('role');
+    if (!this._isUserRoleValue(role)) return [];
+    return [this._roleFromValue(role)];
   }
 
   private _sortDirectionValue(): SortDirection {
@@ -748,25 +767,6 @@ export class AdminUsersComponent {
 
   private _startOfDayNanos(date: Date): bigint {
     return BigInt(startOfDay(date).getTime()) * 1_000_000n;
-  }
-
-  private _adminSortField(columnId: string): AdminSortField | null {
-    switch (columnId) {
-      case 'createdAt':
-      case 'lastLoginAt':
-      case 'name':
-      case 'identitySyncedAt':
-      case 'referralAppliedAt':
-      case 'role':
-      case 'updatedAt':
-        return columnId;
-      default:
-        return null;
-    }
-  }
-
-  private _isColumnId(columnId: string): columnId is ColumnId {
-    return this._columnOptions.some((column) => column.id === columnId);
   }
 
   private _visibleColumnDefs(

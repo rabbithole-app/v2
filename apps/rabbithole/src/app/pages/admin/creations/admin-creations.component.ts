@@ -1,11 +1,13 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, Location } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
+  inject,
   resource,
   signal,
+  untracked,
 } from '@angular/core';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -34,9 +36,9 @@ import {
 } from '@tanstack/angular-table';
 import { endOfDay, startOfDay } from 'date-fns';
 import { toast } from 'ngx-sonner';
+import { injectQueryParams } from 'ngxtension/inject-query-params';
 
 import {
-  CopyToClipboardComponent,
   injectMainActor,
   timeInNanosToDate,
   UserTarget,
@@ -49,6 +51,7 @@ import {
   ListCreationsOptions,
   SortDirection,
 } from '@rabbithole/declarations/backend';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import {
   RbthBooleanFilterModel,
   RbthDataTableFilterComponent,
@@ -127,11 +130,11 @@ const STATUS_OPTIONS = [
 @Component({
   selector: 'app-admin-creations',
   imports: [
+    CopyToClipboardComponent,
     DatePipe,
     NgIcon,
     AdminCreationStatusPopoverComponent,
-    CopyToClipboardComponent,
-    HlmBadge,
+      HlmBadge,
     HlmIcon,
     HlmSpinner,
     RbthDataTableFilterComponent,
@@ -168,7 +171,6 @@ const STATUS_OPTIONS = [
 })
 export class AdminCreationsComponent {
   protected readonly _actionInFlight = signal<string | null>(null);
-
   protected readonly _columnOptions: Array<{
     id: ColumnId;
     label: string;
@@ -187,7 +189,6 @@ export class AdminCreationsComponent {
     { id: 'id', label: 'ID' },
     { id: 'actions', label: 'Actions', required: true },
   ];
-
   protected readonly _columns: ColumnDef<CreationListItem>[] = [
     { id: 'canisterId', header: 'Canister', minSize: 200, size: 240 },
     { id: 'owner', header: 'Owner', minSize: 260, size: 340 },
@@ -209,6 +210,12 @@ export class AdminCreationsComponent {
   ];
 
   protected readonly _columnSizing = signal<ColumnSizingState>({});
+
+  protected readonly _creationIdQueryParam = injectQueryParams(
+    'creationId',
+    { parse: (value) => this._parseCreationIdQueryParam(value) },
+  );
+
   protected readonly _pageIndex = signal(0);
   protected readonly _pageSize = signal(20);
   protected readonly _sortField = signal<CreationSortField>('createdAt');
@@ -242,17 +249,6 @@ export class AdminCreationsComponent {
     }),
     loader: async ({ params }) => params.actor.listCreations([params.options]),
     defaultValue: EMPTY_PAGE,
-  });
-  protected readonly _debugCreations = effect(() => {
-    const raw = this._creations.value().data;
-    const normalized = raw.map((record) =>
-      this._normalizeCreationForDebug(record),
-    );
-
-    console.groupCollapsed(`[Admin Creations] table rows: ${raw.length}`);
-    console.log('raw', raw);
-    console.log('normalized', normalized);
-    console.groupEnd();
   });
   protected readonly _deployerRunning = resource({
     params: () => this.#actor(),
@@ -353,7 +349,6 @@ export class AdminCreationsComponent {
   protected readonly _rangeEnd = computed(() =>
     Math.min(this._total(), (this._pageIndex() + 1) * this._pageSize()),
   );
-
   protected readonly _rangeStart = computed(() =>
     this._total() === 0 ? 0 : this._pageIndex() * this._pageSize() + 1,
   );
@@ -363,6 +358,7 @@ export class AdminCreationsComponent {
   protected readonly _visibleColumns = computed(() =>
     this._visibleColumnDefs(this._columns),
   );
+
   protected readonly _table = createAngularTable<CreationListItem>(() => ({
     data: this._rows(),
     columns: this._visibleColumns(),
@@ -375,6 +371,15 @@ export class AdminCreationsComponent {
       columnSizing: this._columnSizing(),
     },
   }));
+  readonly #location = inject(Location);
+
+  constructor() {
+    effect(() => {
+      const creationId = this._creationIdQueryParam();
+
+      untracked(() => this._applyCreationIdQueryValue(creationId));
+    });
+  }
 
   protected _actionDisabled(record: CreationListItem): boolean {
     return this._actionInFlight()?.startsWith(`${record.id}:`) ?? false;
@@ -510,6 +515,7 @@ export class AdminCreationsComponent {
   protected _setFilters(filters: RbthFiltersState): void {
     this._filters.set(filters);
     this._pageIndex.set(0);
+    this._syncCreationIdQueryParam(filters);
   }
 
   protected _setPageSize(value: number | null): void {
@@ -597,6 +603,30 @@ export class AdminCreationsComponent {
     return `${targets.length} selected`;
   }
 
+  private _applyCreationIdQueryValue(creationId: number | null): void {
+    const currentFilters = this._filters();
+    if (creationId == null) {
+      if (this._creationIdFilterValue(currentFilters) == null) return;
+
+      this._setFilters(
+        currentFilters.filter((filter) => filter.columnId !== 'id'),
+      );
+      return;
+    }
+
+    if (this._creationIdFilterValue(currentFilters) === creationId) return;
+
+    this._setFilters([
+      ...currentFilters.filter((filter) => filter.columnId !== 'id'),
+      {
+        columnId: 'id',
+        operator: 'equals',
+        type: 'number',
+        values: [creationId],
+      },
+    ]);
+  }
+
   private _booleanFilter(columnId: string): [] | [boolean] {
     const filter = this._filters().find(
       (item): item is RbthBooleanFilterModel =>
@@ -604,6 +634,19 @@ export class AdminCreationsComponent {
     );
     if (!filter || filter.values[0] === undefined) return [];
     return [filter.operator === 'isNot' ? !filter.values[0] : filter.values[0]];
+  }
+
+  private _creationIdFilterValue(filters: RbthFiltersState): number | null {
+    const filter = filters.find(
+      (item): item is RbthNumberFilterModel =>
+        item.columnId === 'id' &&
+        item.type === 'number' &&
+        item.operator === 'equals',
+    );
+    const value = filter?.values[0];
+    return typeof value === 'number' && Number.isInteger(value) && value >= 0
+      ? value
+      : null;
   }
 
   private _creationSortField(columnId: string): CreationSortField | null {
@@ -621,6 +664,13 @@ export class AdminCreationsComponent {
       default:
         return null;
     }
+  }
+
+  private _currentCreationIdQueryValue(): number | null {
+    const [, query = ''] = this.#location.path().split('?');
+    return this._parseCreationIdQueryParam(
+      new URLSearchParams(query).get('creationId'),
+    );
   }
 
   private _dateFilter(
@@ -745,63 +795,6 @@ export class AdminCreationsComponent {
     return [filter.values];
   }
 
-  private _normalizeCreationForDebug(record: CreationListItem) {
-    const completedAt = this._optionalDate(record.completedAt);
-
-    return {
-      id: record.id.toString(),
-      owner: record.owner.toText(),
-      statusTag: record.statusTag,
-      status: this._normalizeStatusForDebug(record.status),
-      operation: this._operationLabel(record),
-      operationDescription: this._operationDescription(record),
-      releaseTag: record.releaseTag,
-      installedReleaseTag: record.installedReleaseTag[0] ?? null,
-      canisterId: this._principalText(record.canisterId) || null,
-      subnetId: this._principalText(record.subnetId) || null,
-      licensePaymentId: record.licensePaymentId[0] ?? null,
-      ambassadorPayoutStatusTag: record.ambassadorPayoutStatusTag,
-      createdAt: this._date(record.createdAt).toISOString(),
-      completedAt: completedAt?.toISOString() ?? null,
-      lastEventAt:
-        this._optionalDate(record.lastEventAt)?.toISOString() ?? null,
-      isUpgrade: record.isUpgrade,
-      upgradeIncludesFrontend: record.upgradeIncludesFrontend,
-      hasEvents: record.hasEvents,
-      hasFrontendInstallDiagnostics: record.hasFrontendInstallDiagnostics,
-    };
-  }
-
-  private _normalizeDebugValue(value: unknown): unknown {
-    if (typeof value === 'bigint') return value.toString();
-    if (value instanceof Principal) return value.toText();
-    if (value instanceof Uint8Array) return Array.from(value);
-    if (Array.isArray(value)) {
-      return value.map((item) => this._normalizeDebugValue(item));
-    }
-    if (typeof value === 'object' && value !== null) {
-      return Object.fromEntries(
-        Object.entries(value).map(([key, item]) => [
-          key,
-          this._normalizeDebugValue(item),
-        ]),
-      );
-    }
-    return value;
-  }
-
-  private _normalizeStatusForDebug(status: unknown) {
-    if (typeof status !== 'object' || status === null) {
-      return { tag: 'unknown', value: this._normalizeDebugValue(status) };
-    }
-    const [[tag, value]] = Object.entries(status);
-
-    return {
-      tag,
-      value: this._normalizeDebugValue(value),
-    };
-  }
-
   private _ownerFilter(): [] | [Principal[]] {
     const filter = this._filters().find(
       (item) => item.columnId === 'owner' && item.type === 'custom',
@@ -814,6 +807,13 @@ export class AdminCreationsComponent {
       .map((principalId) => Principal.fromText(principalId));
 
     return principals.length ? [principals] : [];
+  }
+
+  private _parseCreationIdQueryParam(value: string | null): number | null {
+    if (!value) return null;
+
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
   }
 
   private _principalFilter(columnId: string): [] | [Principal[]] {
@@ -877,6 +877,22 @@ export class AdminCreationsComponent {
 
   private _startOfDayNanos(date: Date): bigint {
     return BigInt(startOfDay(date).getTime()) * 1_000_000n;
+  }
+
+  private _syncCreationIdQueryParam(filters: RbthFiltersState): void {
+    const creationId = this._creationIdFilterValue(filters);
+    if (this._currentCreationIdQueryValue() === creationId) return;
+
+    const [path, query = ''] = this.#location.path().split('?');
+    const queryParams = new URLSearchParams(query);
+    if (creationId == null) {
+      queryParams.delete('creationId');
+    } else {
+      queryParams.set('creationId', creationId.toString());
+    }
+
+    const nextQuery = queryParams.toString();
+    this.#location.replaceState(nextQuery ? `${path}?${nextQuery}` : path);
   }
 
   private _visibleColumnDefs(

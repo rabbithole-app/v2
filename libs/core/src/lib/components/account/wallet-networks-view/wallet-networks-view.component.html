@@ -19,12 +19,12 @@
             <div hlmField>
               <div hlmFieldContent class="gap-3">
                 <div hlmFieldTitle>{{ network.addressLabel }}</div>
-                <core-copy-to-clipboard
+                <rbth-copy-to-clipboard
                   [content]="address"
                   class="w-full max-w-full overflow-hidden rounded-2xl bg-muted px-4 py-3 [&>[data-slot=copy-content]]:truncate [&>[data-slot=copy-content]]:text-sm"
                 >
                   {{ address }}
-                </core-copy-to-clipboard>
+                </rbth-copy-to-clipboard>
                 <div class="flex flex-wrap gap-2">
                   @for (token of network.acceptedAssets; track token) {
                     <span hlmBadge variant="outline">{{ token }}</span>

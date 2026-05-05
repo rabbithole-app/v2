@@ -150,12 +150,12 @@
               </div>
 
               @if (createdCanisterId(); as canisterId) {
-                <core-copy-to-clipboard
+                <rbth-copy-to-clipboard
                   class="mt-4 max-w-[min(100%,22rem)] justify-center gap-0.5 text-muted-foreground"
                   [content]="canisterId"
                 >
                   {{ canisterId }}
-                </core-copy-to-clipboard>
+                </rbth-copy-to-clipboard>
               }
             </div>
           } @else {

@@ -81,6 +81,9 @@
       "@rabbithole/ui/bento-grid": [
         "libs/app-ui/src/lib/bento-grid/index.ts"
       ],
+      "@rabbithole/ui/copy-to-clipboard": [
+        "libs/app-ui/src/lib/copy-to-clipboard/index.ts"
+      ],
       "@rabbithole/ui/drawer": [
         "libs/app-ui/src/lib/drawer/index.ts"
       ],
