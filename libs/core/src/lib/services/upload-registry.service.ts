@@ -5,11 +5,11 @@ import {
   FileUploadWithStatus,
   UploadServiceState,
 } from '../types/upload';
+import { UploadState } from '../types/upload-state';
 import {
   UploadId,
   UploadStatus,
 } from '../types/worker';
-import { UploadState } from '../types/upload-state';
 
 const calculateOverallProgress = (files: FileUploadWithStatus[]) => {
   if (files.length === 0) return 0;

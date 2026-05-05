@@ -26,6 +26,17 @@ declare const __RABBITHOLE_CANISTER_ENV__: Record<string, string> | undefined;
 
 const env = safeGetCanisterEnv() ?? getInjectedCanisterEnv();
 
+export function mustGetCanisterEnvValue(key: keyof NonNullable<typeof env>): string {
+  const value = env?.[key];
+  if (!value) {
+    throw new Error(
+      `ic_env cookie is missing "${String(key)}". ` +
+        'Start the backend stack (`npx nx serve backend`) so the dev server can fetch canister IDs.',
+    );
+  }
+  return value as string;
+}
+
 function getInjectedCanisterEnv(): NonNullable<ReturnType<typeof safeGetCanisterEnv>> | undefined {
   if (typeof __RABBITHOLE_CANISTER_ENV__ === 'undefined') {
     return undefined;
@@ -40,17 +51,6 @@ function getInjectedCanisterEnv(): NonNullable<ReturnType<typeof safeGetCanister
 
 function getOptional(key: keyof NonNullable<typeof env>): string | undefined {
   return env?.[key] as string | undefined;
-}
-
-export function mustGetCanisterEnvValue(key: keyof NonNullable<typeof env>): string {
-  const value = env?.[key];
-  if (!value) {
-    throw new Error(
-      `ic_env cookie is missing "${String(key)}". ` +
-        'Start the backend stack (`npx nx serve backend`) so the dev server can fetch canister IDs.',
-    );
-  }
-  return value as string;
 }
 
 export const BACKEND_CANISTER_ID = getOptional('PUBLIC_CANISTER_ID:rabbithole-backend') ?? '';

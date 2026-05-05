@@ -528,24 +528,6 @@ export class TreasuryManager extends BaseManager {
     });
   }
 
-  /** Get ICP balance at the fixed treasury subaccount (where all 85% shares end up). */
-  async getTreasuryPoolIcpBalance(): Promise<bigint> {
-    return this.icpLedgerActor.icrc1_balance_of({
-      owner: this.treasuryCanisterId,
-      subaccount: [TREASURY_SUBACCOUNT],
-    });
-  }
-
-  /** Get ckUSDC balance at the fixed treasury subaccount. */
-  async getTreasuryPoolCkUsdcBalance(): Promise<bigint> {
-    if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed.");
-    const ckUsdcActor = this.pic.createActor(icrc1LedgerIdlFactory, this._ckUsdcCanisterId);
-    return ckUsdcActor.icrc1_balance_of({
-      owner: this.treasuryCanisterId,
-      subaccount: [TREASURY_SUBACCOUNT],
-    }) as Promise<bigint>;
-  }
-
   /**
    * Get the treasury canister's derived EVM address.
    * Uses DeferredActor + ticks since getEvmAddress involves threshold ECDSA
@@ -564,6 +546,24 @@ export class TreasuryManager extends BaseManager {
       throw new Error("Treasury has no EVM address (evmConfig not set?)");
     }
     return address[0];
+  }
+
+  /** Get ckUSDC balance at the fixed treasury subaccount. */
+  async getTreasuryPoolCkUsdcBalance(): Promise<bigint> {
+    if (!this._ckUsdcCanisterId) throw new Error("ckUSDC not deployed.");
+    const ckUsdcActor = this.pic.createActor(icrc1LedgerIdlFactory, this._ckUsdcCanisterId);
+    return ckUsdcActor.icrc1_balance_of({
+      owner: this.treasuryCanisterId,
+      subaccount: [TREASURY_SUBACCOUNT],
+    }) as Promise<bigint>;
+  }
+
+  /** Get ICP balance at the fixed treasury subaccount (where all 85% shares end up). */
+  async getTreasuryPoolIcpBalance(): Promise<bigint> {
+    return this.icpLedgerActor.icrc1_balance_of({
+      owner: this.treasuryCanisterId,
+      subaccount: [TREASURY_SUBACCOUNT],
+    });
   }
 
   /**

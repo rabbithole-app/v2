@@ -5,7 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormField, form, required } from '@angular/forms/signals';
+import { form, FormField, required } from '@angular/forms/signals';
 import { provideIcons } from '@ng-icons/core';
 import { lucideX } from '@ng-icons/lucide';
 import { BrnDialogClose, BrnDialogRef } from '@spartan-ng/brain/dialog';

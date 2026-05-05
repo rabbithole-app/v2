@@ -3,10 +3,9 @@ import {
   Component,
   inject,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideInfo } from '@ng-icons/lucide';
-
-import { RouterLink } from '@angular/router';
 
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -15,7 +14,7 @@ import { SubscriptionService } from '../../../services/subscription.service';
 import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
 
 @Component({
-  selector: 'rbth-expired-banner',
+  selector: 'core-expired-banner',
   imports: [HlmButton, HlmIcon, NgIcon, RouterLink],
   providers: [provideIcons({ lucideInfo })],
   template: `

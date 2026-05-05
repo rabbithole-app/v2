@@ -16,6 +16,7 @@ import '@ic-pay/icpay-widget';
 import { lucideLock } from '@ng-icons/lucide';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   formatUsd,
   ICPAY_CONFIG_TOKEN,
@@ -23,7 +24,6 @@ import {
   SubscriptionService,
 } from '@rabbithole/core';
 import { WalletBalancePaymentPanelComponent } from '@rabbithole/core/wallet';
-import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -41,7 +41,7 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
-type DrawerStep = 'select' | 'icpay-pending' | 'confirming' | 'success' | 'error';
+type DrawerStep = 'confirming' | 'error' | 'icpay-pending' | 'select' | 'success';
 
 @Component({
   selector: 'rbth-feat-payment-drawer',
@@ -68,30 +68,30 @@ type DrawerStep = 'select' | 'icpay-pending' | 'confirming' | 'success' | 'error
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PaymentDrawerComponent {
-  readonly purpose = input<'subscribe' | 'resubscribe'>('subscribe');
-
-  readonly PRO_MONTHLY_PRICE_USD = PRO_MONTHLY_PRICE_USD;
-  readonly proPriceLabel = formatUsd(PRO_MONTHLY_PRICE_USD);
-
-  readonly step = signal<DrawerStep>('select');
   readonly errorMessage = signal<string | null>(null);
 
   readonly icpayPayBtn = viewChild<ElementRef<HTMLElement>>('icpayPayBtn');
+  readonly proPriceLabel = formatUsd(PRO_MONTHLY_PRICE_USD);
 
-  readonly #authService = inject(AUTH_SERVICE);
-  readonly #icpayConfig = inject(ICPAY_CONFIG_TOKEN);
-  readonly #router = inject(Router);
-  readonly #subscriptionService = inject(SubscriptionService);
-
-  readonly title = computed(() =>
-    this.purpose() === 'resubscribe' ? 'Resubscribe to Pro' : 'Subscribe to Pro',
-  );
-
+  readonly purpose = input<'resubscribe' | 'subscribe'>('subscribe');
   readonly payFromBalanceLabel = computed(() =>
     this.purpose() === 'resubscribe'
       ? `Resubscribe ${this.proPriceLabel}/mo from balance`
       : `Pay ${this.proPriceLabel}/mo from balance`,
   );
+
+  readonly PRO_MONTHLY_PRICE_USD = PRO_MONTHLY_PRICE_USD;
+
+  readonly step = signal<DrawerStep>('select');
+  readonly title = computed(() =>
+    this.purpose() === 'resubscribe' ? 'Resubscribe to Pro' : 'Subscribe to Pro',
+  );
+  readonly #authService = inject(AUTH_SERVICE);
+  readonly #icpayConfig = inject(ICPAY_CONFIG_TOKEN);
+
+  readonly #router = inject(Router);
+
+  readonly #subscriptionService = inject(SubscriptionService);
 
   private readonly drawer = viewChild(RbthDrawerComponent);
 
@@ -112,14 +112,19 @@ export class PaymentDrawerComponent {
     });
   }
 
+  close(): void {
+    this.drawer()?.close();
+  }
+
+  goToDashboard(): void {
+    this.close();
+    this.#router.navigate(['/dashboard']);
+  }
+
   open(): void {
     this.step.set('select');
     this.errorMessage.set(null);
     this.drawer()?.open();
-  }
-
-  close(): void {
-    this.drawer()?.close();
   }
 
   async purchaseFromBalance(): Promise<void> {
@@ -133,11 +138,6 @@ export class PaymentDrawerComponent {
       this.step.set('error');
       this.errorMessage.set('Purchase failed. Check your balance.');
     }
-  }
-
-  goToDashboard(): void {
-    this.close();
-    this.#router.navigate(['/dashboard']);
   }
 
   retry(): void {

@@ -1,21 +1,21 @@
 import {
   DestroyRef,
   EnvironmentProviders,
-  Injector,
   inject,
+  Injector,
   makeEnvironmentProviders,
   provideAppInitializer,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { fromNullable } from '@dfinity/utils';
 import { scopedKeys } from '@icp-sdk/auth/client';
-import { IDL } from '@icp-sdk/core/candid';
 import {
   Actor,
   ActorSubclass,
   HttpAgent,
   HttpAgentOptions,
 } from '@icp-sdk/core/agent';
+import { IDL } from '@icp-sdk/core/candid';
 import { AttributesIdentity } from '@icp-sdk/core/identity';
 import { Principal } from '@icp-sdk/core/principal';
 import { derivedFrom } from 'ngxtension/derived-from';
@@ -48,7 +48,7 @@ import {
 import { RabbitholeActorService } from '@rabbithole/declarations/backend';
 
 import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors/http-agent';
-import { MAIN_ACTOR_TOKEN, injectMainActor } from '../injectors/main-actor';
+import { injectMainActor, MAIN_ACTOR_TOKEN } from '../injectors/main-actor';
 import { MAIN_CANISTER_ID_TOKEN } from '../tokens/main-canister';
 
 export const REFERRAL_KEY = 'referralCode';
@@ -262,27 +262,6 @@ async function ensureRegistered({
   }
 }
 
-async function waitForRegisteredUser(
-  actor: ActorSubclass<RabbitholeActorService>,
-): Promise<boolean> {
-  return firstValueFrom(
-    defer(() => actor.getUser()).pipe(
-      map((user) => fromNullable(user) != null),
-      switchMap((registered) =>
-        registered
-          ? of(true)
-          : throwError(() => new Error('User is not registered yet')),
-      ),
-      retry({
-        count: IDENTITY_ATTRIBUTES_CONFIRMATION_ATTEMPTS - 1,
-        delay: (_error: unknown, retryCount: number) =>
-          timer(IDENTITY_ATTRIBUTES_CONFIRMATION_DELAY_MS * retryCount),
-      }),
-      catchError(() => of(false)),
-    ),
-  );
-}
-
 async function getAuthenticatedActor(
   actor: ActorSubclass<RabbitholeActorService>,
 ): Promise<ActorSubclass<RabbitholeActorService> | null> {
@@ -299,57 +278,31 @@ async function getAuthenticatedActor(
   return actor;
 }
 
-async function syncIdentityAttributes({
-  actor,
-  authConfig,
-  authEvent,
-  authService,
-  canisterId,
-  httpAgentOptions,
-}: {
-  actor: ActorSubclass<RabbitholeActorService>;
-  authConfig: AuthConfig;
-  authEvent: AuthSessionEvent;
-  authService: IAuthService;
-  canisterId: Principal;
-  httpAgentOptions: Omit<HttpAgentOptions, 'identity'>;
-}): Promise<boolean> {
-  if (
-    !authEvent.openIdProvider &&
-    !authEvent.openIdIssuer &&
-    !authEvent.ssoDomain
-  ) {
-    return false;
-  }
-
-  try {
-    const keys = attributeKeys(authEvent);
-    const signedAttributes =
-      authEvent.identityAttributes ??
-      (await requestSignedIdentityAttributesAfterSignIn({
-        actor,
-        authEvent,
-        authService,
-        keys,
-      }));
-
-    if (!signedAttributes) return false;
-
-    return await submitSignedIdentityAttributes({
-      authConfig,
-      authService,
-      canisterId,
-      httpAgentOptions,
-      signedAttributes,
-    });
-  } catch {
-    return false;
-  }
+async function requestAttributesWithRetry<T>(
+  request: () => Promise<T>,
+  attempts: number,
+  delayMs: number,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<T> {
+  return firstValueFrom(
+    defer(request).pipe(
+      timeout({
+        first: timeoutMs,
+        with: () => throwError(() => new Error(timeoutMessage)),
+      }),
+      retry({
+        count: Math.max(0, attempts - 1),
+        delay: (_error: unknown, retryCount: number) =>
+          timer(delayMs * retryCount),
+      }),
+    ),
+  );
 }
 
 async function requestSignedIdentityAttributesAfterSignIn({
   actor,
-  authEvent,
+  authEvent: _authEvent,
   authService,
   keys,
 }: {
@@ -411,24 +364,71 @@ async function submitSignedIdentityAttributes({
   }
 }
 
-async function requestAttributesWithRetry<T>(
-  request: () => Promise<T>,
-  attempts: number,
-  delayMs: number,
-  timeoutMs: number,
-  timeoutMessage: string,
-): Promise<T> {
+async function syncIdentityAttributes({
+  actor,
+  authConfig,
+  authEvent,
+  authService,
+  canisterId,
+  httpAgentOptions,
+}: {
+  actor: ActorSubclass<RabbitholeActorService>;
+  authConfig: AuthConfig;
+  authEvent: AuthSessionEvent;
+  authService: IAuthService;
+  canisterId: Principal;
+  httpAgentOptions: Omit<HttpAgentOptions, 'identity'>;
+}): Promise<boolean> {
+  if (
+    !authEvent.openIdProvider &&
+    !authEvent.openIdIssuer &&
+    !authEvent.ssoDomain
+  ) {
+    return false;
+  }
+
+  try {
+    const keys = attributeKeys(authEvent);
+    const signedAttributes =
+      authEvent.identityAttributes ??
+      (await requestSignedIdentityAttributesAfterSignIn({
+        actor,
+        authEvent,
+        authService,
+        keys,
+      }));
+
+    if (!signedAttributes) return false;
+
+    return await submitSignedIdentityAttributes({
+      authConfig,
+      authService,
+      canisterId,
+      httpAgentOptions,
+      signedAttributes,
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function waitForRegisteredUser(
+  actor: ActorSubclass<RabbitholeActorService>,
+): Promise<boolean> {
   return firstValueFrom(
-    defer(request).pipe(
-      timeout({
-        first: timeoutMs,
-        with: () => throwError(() => new Error(timeoutMessage)),
-      }),
+    defer(() => actor.getUser()).pipe(
+      map((user) => fromNullable(user) != null),
+      switchMap((registered) =>
+        registered
+          ? of(true)
+          : throwError(() => new Error('User is not registered yet')),
+      ),
       retry({
-        count: Math.max(0, attempts - 1),
+        count: IDENTITY_ATTRIBUTES_CONFIRMATION_ATTEMPTS - 1,
         delay: (_error: unknown, retryCount: number) =>
-          timer(delayMs * retryCount),
+          timer(IDENTITY_ATTRIBUTES_CONFIRMATION_DELAY_MS * retryCount),
       }),
+      catchError(() => of(false)),
     ),
   );
 }

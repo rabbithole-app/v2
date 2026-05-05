@@ -112,40 +112,6 @@ export class EncryptedStorage {
     });
   }
 
-  async #fetchCertifiedBlobInfo(
-    keyId: [Principal, Uint8Array],
-  ): Promise<{ blobHash: string; contentType: string; size: number }> {
-    const keyName = new TextDecoder().decode(keyId[1]);
-    const path = `/blob-info/${keyId[0].toText()}/${keyName}`;
-
-    // Call http_request via actor (Candid query — returns response with IC-Certificate headers)
-    const response = await this.#actor.http_request({
-      method: 'GET',
-      url: path,
-      headers: [],
-      body: new Uint8Array(),
-      certificate_version: [], // [] → v1 branch in certified-assets@0.6.0
-    });
-
-    if (response.status_code !== 200) {
-      throw new Error(
-        `Blob info HTTP request failed: ${response.status_code}`,
-      );
-    }
-
-    // Verify IC certificate and get trusted body
-    const agent = Actor.agentOf(this.#actor) as HttpAgent;
-    const canisterId = Actor.canisterIdOf(this.#actor);
-    const verifiedBody = await verifyIcCertificate(
-      response,
-      path,
-      agent,
-      canisterId,
-    );
-
-    return JSON.parse(new TextDecoder().decode(verifiedBody));
-  }
-
   /**
    * Download a file as a stream of decrypted chunks.
    *
@@ -737,6 +703,40 @@ export class EncryptedStorage {
 
   #contentType(fileName: string) {
     return mime.getType(fileName) ?? 'application/octet-stream';
+  }
+
+  async #fetchCertifiedBlobInfo(
+    keyId: [Principal, Uint8Array],
+  ): Promise<{ blobHash: string; contentType: string; size: number }> {
+    const keyName = new TextDecoder().decode(keyId[1]);
+    const path = `/blob-info/${keyId[0].toText()}/${keyName}`;
+
+    // Call http_request via actor (Candid query — returns response with IC-Certificate headers)
+    const response = await this.#actor.http_request({
+      method: 'GET',
+      url: path,
+      headers: [],
+      body: new Uint8Array(),
+      certificate_version: [], // [] → v1 branch in certified-assets@0.6.0
+    });
+
+    if (response.status_code !== 200) {
+      throw new Error(
+        `Blob info HTTP request failed: ${response.status_code}`,
+      );
+    }
+
+    // Verify IC certificate and get trusted body
+    const agent = Actor.agentOf(this.#actor) as HttpAgent;
+    const canisterId = Actor.canisterIdOf(this.#actor);
+    const verifiedBody = await verifyIcCertificate(
+      response,
+      path,
+      agent,
+      canisterId,
+    );
+
+    return JSON.parse(new TextDecoder().decode(verifiedBody));
   }
 
   /**

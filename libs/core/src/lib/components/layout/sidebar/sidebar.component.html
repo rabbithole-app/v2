@@ -41,30 +41,34 @@
   </div>
   <div hlmSidebarFooter>
     @defer (on idle) {
-      <rbth-sidebar-subscription-footer />
+      <core-sidebar-subscription-footer />
     } @placeholder {
       <div class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground">
         <span class="group-data-[collapsible=icon]:hidden truncate">Loading account</span>
       </div>
     }
   </div>
-  <button hlmSidebarRail></button>
+  <button hlmSidebarRail>
+    <span class="sr-only">Toggle sidebar</span>
+  </button>
 </hlm-sidebar>
 <main hlmSidebarInset class="min-w-0 overflow-hidden">
-  <rbth-expired-banner />
+  <core-expired-banner />
   <router-outlet name="banner" />
   <div class="flex min-w-0 flex-1 flex-col">
     <header class="bg-card sticky top-0 z-50 border-b">
       <div class="flex items-center justify-between gap-6 p-2 sm:px-4">
         <div class="flex items-center gap-4">
-          <button hlmSidebarTrigger class="-ml-1"></button>
+          <button hlmSidebarTrigger class="-ml-1">
+            <span class="sr-only">Toggle sidebar</span>
+          </button>
           <hlm-separator
             orientation="vertical"
             class="mr-2 data-[orientation=vertical]:h-4"
           />
           <router-outlet name="header" />
         </div>
-        <rbth-notification-bell />
+        <core-notification-bell />
         <core-account-menu class="self-end" />
       </div>
     </header>

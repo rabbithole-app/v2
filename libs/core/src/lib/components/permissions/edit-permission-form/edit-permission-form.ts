@@ -72,7 +72,6 @@ export class EditPermissionFormComponent {
   isEditMode = computed(() => isNonNullish(this.principal()));
   permission = input<StoragePermission>();
   permissionChange = output<Omit<GrantStoragePermission, 'entry'>>();
-  readonly selectedUsers = signal<UserTarget[]>([]);
   readonly permissions = [
     { value: 'Read', label: 'Read', description: 'Permission to read' },
     {
@@ -86,6 +85,7 @@ export class EditPermissionFormComponent {
       description: 'Rights to modify the permissions of other identities',
     },
   ];
+  readonly selectedUsers = signal<UserTarget[]>([]);
 
   constructor() {
     effect(() => {

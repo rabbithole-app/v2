@@ -14,8 +14,8 @@ import {
   lucideStar,
 } from '@ng-icons/lucide';
 
-import { SubscriptionService } from '@rabbithole/core';
 import { AUTH_SERVICE } from '@rabbithole/auth';
+import { SubscriptionService } from '@rabbithole/core';
 import { PaymentDrawerComponent } from '@rabbithole/features/payment';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
@@ -46,19 +46,17 @@ import { PricingFaqComponent } from './pricing-faq.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PricingComponent {
-  #router = inject(Router);
-  #authService = inject(AUTH_SERVICE);
   #subscriptionService = inject(SubscriptionService);
-
-  isAuthenticated = this.#authService.isAuthenticated;
-  isPro = this.#subscriptionService.isPro;
-  isTrial = this.#subscriptionService.isTrial;
-  isExpired = this.#subscriptionService.isExpired;
-
   hasSubscription = computed(
     () => this.#subscriptionService.subscription() !== null
       && this.#subscriptionService.subscription() !== undefined,
   );
+  #authService = inject(AUTH_SERVICE);
+
+  isAuthenticated = this.#authService.isAuthenticated;
+  isExpired = this.#subscriptionService.isExpired;
+  isPro = this.#subscriptionService.isPro;
+  isTrial = this.#subscriptionService.isTrial;
 
   licenseCta = computed(() => {
     if (!this.isAuthenticated()) return 'Create Storage';
@@ -74,6 +72,8 @@ export class PricingComponent {
   });
 
   proDisabled = computed(() => this.isPro());
+
+  #router = inject(Router);
 
   private readonly paymentDrawer = viewChild(PaymentDrawerComponent);
 

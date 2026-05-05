@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { BrnDialogImports } from '@spartan-ng/brain/dialog';
+
+import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 
 @Component({

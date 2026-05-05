@@ -13,6 +13,7 @@ import {
   lucideList,
   lucideTriangleAlert,
 } from '@ng-icons/lucide';
+import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
 import { distinctUntilChanged, map } from 'rxjs';
 
@@ -32,7 +33,6 @@ import {
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui/drawer';
-import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
@@ -69,14 +69,9 @@ import { FileListService } from '../../services';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UploadDrawerComponent {
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
-  #registry = inject(UploadRegistryService);
   #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   selectedStorageId = signal(this.#canisterId.toText());
-  storagesWithUploads = this.#registry.storagesWithUploads;
-  showStorageSwitcher = computed(
-    () => this.storagesWithUploads().length > 1,
-  );
+  #registry = inject(UploadRegistryService);
   #items = computed(() => {
     const storageId = this.selectedStorageId();
     return this.#registry.getStorageState(storageId)?.files ?? [];
@@ -101,6 +96,11 @@ export class UploadDrawerComponent {
     this.#items().filter(({ status }) => status === UploadState.FAILED),
   );
   fileListService = inject(FileListService);
+  storagesWithUploads = this.#registry.storagesWithUploads;
+  showStorageSwitcher = computed(
+    () => this.storagesWithUploads().length > 1,
+  );
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN);
 
   constructor() {
     this.fileListService.files$.pipe(takeUntilDestroyed()).subscribe((item) => {
@@ -130,6 +130,10 @@ export class UploadDrawerComponent {
       });
   }
 
+  selectStorage(storageId: string) {
+    this.selectedStorageId.set(storageId);
+  }
+
   async upload(files: File[] | FileList) {
     if (files instanceof FileList) {
       files = Array.from(files);
@@ -141,9 +145,5 @@ export class UploadDrawerComponent {
         ...(parentPath && { path: parentPath }),
       });
     }
-  }
-
-  selectStorage(storageId: string) {
-    this.selectedStorageId.set(storageId);
   }
 }

@@ -1,5 +1,5 @@
-export * from './process-step.types';
 export * from './process-step-list.component';
+export * from './process-step.types';
 export * from './process-steps.component';
 export * from './step-meta.directive';
 export * from './step-progress.directive';

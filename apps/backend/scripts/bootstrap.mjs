@@ -12,14 +12,13 @@
 // Does NOT deploy canisters — that's what `icp deploy -e local` is for.
 
 import { execSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { promises as fs } from 'node:fs';
+import { createRequire } from 'node:module';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
-const { Principal } = require('@icp-sdk/core/principal');
 const {
   MANAGEMENT_CANISTER_ID,
   decodeCreateCanisterResponse,
@@ -30,6 +29,7 @@ const {
   base64Encode,
   base64EncodePrincipal,
 } = require('@dfinity/pic/dist/util');
+const { Principal } = require('@icp-sdk/core/principal');
 const BACKEND_DIR = path.resolve(__dirname, '..');
 
 const STATUS_FILE = path.join(BACKEND_DIR, '.icp-status', 'status.json');
@@ -60,6 +60,27 @@ function canisterId(name) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
+}
+
+async function createSystemCanister(systemPrincipal) {
+  const { instance_id, config_port } = JSON.parse(await fs.readFile(STATUS_FILE, 'utf8'));
+  const subnetId = Principal.fromText(systemPrincipal);
+  const sender = Principal.anonymous();
+  const payload = encodeCreateCanisterRequest({
+    settings: [],
+    amount: [20_000_000_000_000n],
+    specified_id: [],
+  });
+  const response = await pocketIcUpdateCall({
+    baseUrl: `http://127.0.0.1:${config_port}`,
+    instanceId: instance_id,
+    sender,
+    canisterId: MANAGEMENT_CANISTER_ID,
+    method: 'provisional_create_canister_with_cycles',
+    payload,
+    effectiveSubnetId: subnetId,
+  });
+  return decodeCreateCanisterResponse(response).canister_id.toText();
 }
 
 async function main() {
@@ -159,39 +180,17 @@ async function main() {
   console.log('[bootstrap] done. Next: `icp deploy -e local`');
 }
 
-async function waitForFile(p, timeoutMs = 120_000) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      await fs.access(p);
-      return;
-    } catch {
-      // Not ready yet — retry after sleep.
-    }
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error(`Timeout waiting for ${p}`);
-}
-
-async function createSystemCanister(systemPrincipal) {
-  const { instance_id, config_port } = JSON.parse(await fs.readFile(STATUS_FILE, 'utf8'));
-  const subnetId = Principal.fromText(systemPrincipal);
-  const sender = Principal.anonymous();
-  const payload = encodeCreateCanisterRequest({
-    settings: [],
-    amount: [20_000_000_000_000n],
-    specified_id: [],
+async function pocketIcJsonPost(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body, (_, value) =>
+      typeof value === 'bigint' ? value.toString() : value,
+    ),
   });
-  const response = await pocketIcUpdateCall({
-    baseUrl: `http://127.0.0.1:${config_port}`,
-    instanceId: instance_id,
-    sender,
-    canisterId: MANAGEMENT_CANISTER_ID,
-    method: 'provisional_create_canister_with_cycles',
-    payload,
-    effectiveSubnetId: subnetId,
-  });
-  return decodeCreateCanisterResponse(response).canister_id.toText();
+  const text = await res.text();
+  if (!res.ok) throw new Error(`${url} failed with HTTP ${res.status}: ${text}`);
+  return JSON.parse(text);
 }
 
 async function pocketIcUpdateCall({
@@ -228,17 +227,16 @@ async function pocketIcUpdateCall({
   return base64Decode(unwrapPocketIcResult(completed));
 }
 
-async function pocketIcJsonPost(url, body) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body, (_, value) =>
-      typeof value === 'bigint' ? value.toString() : value,
-    ),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${url} failed with HTTP ${res.status}: ${text}`);
-  return JSON.parse(text);
+async function setLocalCanisterId(name, id) {
+  await fs.mkdir(path.dirname(LOCAL_IDS_FILE), { recursive: true });
+  let ids = {};
+  try {
+    ids = JSON.parse(await fs.readFile(LOCAL_IDS_FILE, 'utf8'));
+  } catch {
+    // File is created lazily for a fresh local project state.
+  }
+  ids[name] = id;
+  await fs.writeFile(LOCAL_IDS_FILE, `${JSON.stringify(ids, null, 2)}\n`);
 }
 
 function unwrapPocketIcResult(response) {
@@ -251,16 +249,18 @@ function unwrapPocketIcResult(response) {
   return response.Ok;
 }
 
-async function setLocalCanisterId(name, id) {
-  await fs.mkdir(path.dirname(LOCAL_IDS_FILE), { recursive: true });
-  let ids = {};
-  try {
-    ids = JSON.parse(await fs.readFile(LOCAL_IDS_FILE, 'utf8'));
-  } catch {
-    // File is created lazily for a fresh local project state.
+async function waitForFile(p, timeoutMs = 120_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await fs.access(p);
+      return;
+    } catch {
+      // Not ready yet — retry after sleep.
+    }
+    await new Promise((r) => setTimeout(r, 1000));
   }
-  ids[name] = id;
-  await fs.writeFile(LOCAL_IDS_FILE, `${JSON.stringify(ids, null, 2)}\n`);
+  throw new Error(`Timeout waiting for ${p}`);
 }
 
 main().catch((err) => {

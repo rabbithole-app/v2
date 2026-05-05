@@ -9,9 +9,24 @@ import type { Principal } from '@icp-sdk/core/principal';
 // STORAGE CREATION STATUS TYPES
 // ═══════════════════════════════════════════════════════════════
 
-export interface Progress {
-  processed: number;
-  total: number;
+export interface FrontendInstallDiagnostics {
+  batchesProcessed: bigint;
+  batchesTotal: bigint;
+  changedDeletedFiles: bigint;
+  completedAt?: Date;
+  error?: string;
+  processedBytes: bigint;
+  processedFiles: bigint;
+  skippedBytes: bigint;
+  skippedFiles: bigint;
+  stage: string;
+  staleDeletedFiles: bigint;
+  startedAt: Date;
+  totalBytes: bigint;
+  totalFiles: bigint;
+  updatedAt: Date;
+  uploadedBytes: bigint;
+  uploadedFiles: bigint;
 }
 
 /**
@@ -27,17 +42,10 @@ export type PaymentPhase =
   | { type: 'RecordingLicense' }
   | { type: 'Starting' };
 
-export type TokenId =
-  | 'BaseETH'
-  | 'BaseUSDC'
-  | 'BaseUSDT'
-  | 'ckETH'
-  | 'ckUSDC'
-  | 'ckUSDT'
-  | 'ICP'
-  | 'SOL'
-  | 'SolUSDC'
-  | 'SolUSDT';
+export interface Progress {
+  processed: number;
+  total: number;
+}
 
 export type StorageCreationStatus =
   | { amount: bigint; type: 'TransferringICP'; }
@@ -99,25 +107,17 @@ export interface StorageInfo {
   updateAvailable?: UpdateInfo;
 }
 
-export interface FrontendInstallDiagnostics {
-  batchesProcessed: bigint;
-  batchesTotal: bigint;
-  changedDeletedFiles: bigint;
-  completedAt?: Date;
-  error?: string;
-  processedBytes: bigint;
-  processedFiles: bigint;
-  skippedBytes: bigint;
-  skippedFiles: bigint;
-  stage: string;
-  staleDeletedFiles: bigint;
-  startedAt: Date;
-  totalBytes: bigint;
-  totalFiles: bigint;
-  updatedAt: Date;
-  uploadedBytes: bigint;
-  uploadedFiles: bigint;
-}
+export type TokenId =
+  | 'BaseETH'
+  | 'BaseUSDC'
+  | 'BaseUSDT'
+  | 'ckETH'
+  | 'ckUSDC'
+  | 'ckUSDT'
+  | 'ICP'
+  | 'SOL'
+  | 'SolUSDC'
+  | 'SolUSDT';
 
 // ═══════════════════════════════════════════════════════════════
 // STORAGE INFO TYPE (matches Candid StorageInfo)

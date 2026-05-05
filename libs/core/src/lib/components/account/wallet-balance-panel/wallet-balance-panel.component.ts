@@ -36,8 +36,6 @@ import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-su
 export class WalletBalancePanelComponent {
   readonly requiredUsd = input.required<number>();
 
-  readonly expanded = signal(false);
-
   readonly #balanceService = inject(BalanceService);
 
   readonly eligibility = computed(() =>
@@ -48,6 +46,8 @@ export class WalletBalancePanelComponent {
   );
 
   readonly canPay = computed(() => this.eligibility().status === 'sufficient');
+
+  readonly expanded = signal(false);
 
   refresh(): void {
     this.#balanceService.reload();

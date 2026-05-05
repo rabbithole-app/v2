@@ -13,8 +13,8 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
+
 import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmDialogFooter,
@@ -99,8 +99,8 @@ function duplicateNameValidator(
   ],
 })
 export class NewFolderDialogComponent {
-  readonly dialogRef = inject(BrnDialogRef);
   readonly context = injectBrnDialogContext<NewFolderDialogContext>();
+  readonly dialogRef = inject(BrnDialogRef);
   readonly nameControl = new FormControl('', {
     nonNullable: true,
     validators: [

@@ -13,8 +13,8 @@ import type {
 
 import { timeInNanosToDate } from '../../utils/time';
 import type {
-  PaymentPhase,
   FrontendInstallDiagnostics,
+  PaymentPhase,
   Progress,
   StorageCreationStatus,
   StorageInfo,
@@ -151,6 +151,31 @@ export function getStorageCanisterId(
   return undefined;
 }
 
+function convertFrontendInstallDiagnostics(
+  diagnostics: FrontendInstallDiagnosticsCandid,
+): FrontendInstallDiagnostics {
+  const completedAt = fromNullable(diagnostics.completedAt);
+  return {
+    batchesProcessed: diagnostics.batchesProcessed,
+    batchesTotal: diagnostics.batchesTotal,
+    changedDeletedFiles: diagnostics.changedDeletedFiles,
+    completedAt: completedAt ? timeInNanosToDate(completedAt) : undefined,
+    error: fromNullable(diagnostics.error),
+    processedBytes: diagnostics.processedBytes,
+    processedFiles: diagnostics.processedFiles,
+    skippedBytes: diagnostics.skippedBytes,
+    skippedFiles: diagnostics.skippedFiles,
+    stage: diagnostics.stage,
+    staleDeletedFiles: diagnostics.staleDeletedFiles,
+    startedAt: timeInNanosToDate(diagnostics.startedAt),
+    totalBytes: diagnostics.totalBytes,
+    totalFiles: diagnostics.totalFiles,
+    updatedAt: timeInNanosToDate(diagnostics.updatedAt),
+    uploadedBytes: diagnostics.uploadedBytes,
+    uploadedFiles: diagnostics.uploadedFiles,
+  };
+}
+
 /**
  * Convert Candid PaymentPhase to TypeScript-friendly PaymentPhase.
  */
@@ -178,31 +203,6 @@ function convertProgress(progress: ProgressCandid): Progress {
   return {
     processed: Number(progress.processed),
     total: Number(progress.total),
-  };
-}
-
-function convertFrontendInstallDiagnostics(
-  diagnostics: FrontendInstallDiagnosticsCandid,
-): FrontendInstallDiagnostics {
-  const completedAt = fromNullable(diagnostics.completedAt);
-  return {
-    batchesProcessed: diagnostics.batchesProcessed,
-    batchesTotal: diagnostics.batchesTotal,
-    changedDeletedFiles: diagnostics.changedDeletedFiles,
-    completedAt: completedAt ? timeInNanosToDate(completedAt) : undefined,
-    error: fromNullable(diagnostics.error),
-    processedBytes: diagnostics.processedBytes,
-    processedFiles: diagnostics.processedFiles,
-    skippedBytes: diagnostics.skippedBytes,
-    skippedFiles: diagnostics.skippedFiles,
-    stage: diagnostics.stage,
-    staleDeletedFiles: diagnostics.staleDeletedFiles,
-    startedAt: timeInNanosToDate(diagnostics.startedAt),
-    totalBytes: diagnostics.totalBytes,
-    totalFiles: diagnostics.totalFiles,
-    updatedAt: timeInNanosToDate(diagnostics.updatedAt),
-    uploadedBytes: diagnostics.uploadedBytes,
-    uploadedFiles: diagnostics.uploadedFiles,
   };
 }
 

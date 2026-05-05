@@ -17,20 +17,20 @@ import {
 } from 'rxjs';
 
 import {
+  convertStorageInfoList,
+  getStorageCanisterId,
   injectHttpAgent,
   injectMainActor,
   MAIN_CANISTER_ID_TOKEN,
   parseCanisterRejectError,
-  convertStorageInfoList,
-  getStorageCanisterId,
   type StorageInfo,
 } from '@rabbithole/core';
 import { AssetManager } from '@rabbithole/encrypted-storage';
 
 import { ConfigService } from './config.service';
 
+export type UpgradeProcessStep = 'finalize' | 'frontend' | 'permissions' | 'wasm';
 export type UpgradeStep = 'completed' | 'error' | 'idle' | 'preparing' | 'upgrading';
-export type UpgradeProcessStep = 'permissions' | 'wasm' | 'frontend' | 'finalize';
 
 type UpdateFlags = {
   frontendUpdateAvailable?: boolean;
@@ -89,11 +89,11 @@ export class UpdateCheckService {
     return 'Frontend';
   });
 
+  readonly #upgradeProcessStep = signal<UpgradeProcessStep>('permissions');
+  readonly upgradeProcessStep = this.#upgradeProcessStep.asReadonly();
   // Upgrade state
   readonly #upgradeStep = signal<UpgradeStep>('idle');
   readonly upgradeStep = this.#upgradeStep.asReadonly();
-  readonly #upgradeProcessStep = signal<UpgradeProcessStep>('permissions');
-  readonly upgradeProcessStep = this.#upgradeProcessStep.asReadonly();
 
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
   readonly #httpAgent = injectHttpAgent();
@@ -201,6 +201,16 @@ export class UpdateCheckService {
   }
 }
 
+function findStorageByCanisterId(
+  storages: StorageInfo[],
+  canisterId: Principal,
+): StorageInfo | undefined {
+  const expected = canisterId.toText();
+  return storages.find(
+    (storage) => getStorageCanisterId(storage)?.toText() === expected,
+  );
+}
+
 function firstUpdateStep(
   updateInfo: UpdateFlags | undefined,
 ): UpgradeProcessStep {
@@ -214,25 +224,15 @@ function upgradeProcessStepFromStatus(
   updateInfo: UpdateFlags | undefined,
 ): UpgradeProcessStep {
   switch (status.type) {
-    case 'UpgradingWasm':
-      return 'wasm';
-    case 'UpgradingFrontend':
-      return 'frontend';
+    case 'Completed':
     case 'RevokingInstallerPermission':
     case 'UpdatingControllers':
-    case 'Completed':
       return 'finalize';
+    case 'UpgradingFrontend':
+      return 'frontend';
+    case 'UpgradingWasm':
+      return 'wasm';
     default:
       return firstUpdateStep(updateInfo);
   }
-}
-
-function findStorageByCanisterId(
-  storages: StorageInfo[],
-  canisterId: Principal,
-): StorageInfo | undefined {
-  const expected = canisterId.toText();
-  return storages.find(
-    (storage) => getStorageCanisterId(storage)?.toText() === expected,
-  );
 }

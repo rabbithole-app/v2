@@ -13,8 +13,8 @@ import { FileUploadWithStatus, UploadState } from '@rabbithole/core';
 import { FormatBytesPipe, FormatRangeBytesPipe } from '@rabbithole/core';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
-import { hlm } from '@spartan-ng/helm/utils';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
+import { hlm } from '@spartan-ng/helm/utils';
 
 @Component({
   selector: 'rbth-feat-canisters-frontend-upload-item',

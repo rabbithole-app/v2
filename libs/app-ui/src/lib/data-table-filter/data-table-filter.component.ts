@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -7,7 +8,6 @@ import {
   model,
   signal,
 } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -35,6 +35,10 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import {
+  RbthFilterValueContext,
+  RbthFilterValueDirective,
+} from './filter-value.directive';
+import {
   RBTH_BOOLEAN_FILTER_OPERATORS,
   RBTH_CUSTOM_FILTER_OPERATORS,
   RBTH_DATE_FILTER_OPERATORS,
@@ -48,6 +52,7 @@ import {
   rbthFilterOperatorLabel,
   rbthFilterOperatorTarget,
 } from './operators';
+import { RbthTransparentSelectBackdropDirective } from './transparent-select-backdrop.directive';
 import {
   RbthBooleanFilterOperator,
   RbthCustomFilterModel,
@@ -65,11 +70,6 @@ import {
   RbthPrincipalFilterOperator,
   RbthTextFilterOperator,
 } from './types';
-import {
-  RbthFilterValueContext,
-  RbthFilterValueDirective,
-} from './filter-value.directive';
-import { RbthTransparentSelectBackdropDirective } from './transparent-select-backdrop.directive';
 
 interface RbthFilterViewColumn {
   falseLabel?: string;
@@ -123,20 +123,12 @@ export class RbthDataTableFilterComponent {
   readonly columns = input.required<ReadonlyArray<RbthFilterViewColumn>>();
   readonly filters = model<RbthFiltersState>([]);
   readonly filterValueTemplates = contentChildren(RbthFilterValueDirective);
-  protected readonly _principalSearches = signal<Record<string, string>>({});
-
-  protected readonly _principalItemToString = (value: string | null) =>
-    value ?? '';
-
-  protected readonly _principalIsItemEqualToValue = (
-    item: string | null,
-    value: string | null,
-  ) => item === value;
-
   protected readonly _availableColumns = computed(() => {
     const activeIds = new Set(this.filters().map((filter) => filter.columnId));
     return this.columns().filter((column) => !activeIds.has(column.id));
   });
+
+  protected readonly _principalSearches = signal<Record<string, string>>({});
 
   private readonly _dateFormatter = new Intl.DateTimeFormat('en-US', {
     day: 'numeric',
@@ -151,12 +143,13 @@ export class RbthDataTableFilterComponent {
     ]);
   }
 
-  protected _clearFilters(): void {
-    this.filters.set([]);
-  }
+  protected _addPrincipalValue(
+    filter: RbthFilterModel,
+    value: string,
+  ): void {
+    if (filter.type !== 'principal') return;
 
-  protected _columnFor(columnId: string): RbthFilterViewColumn | undefined {
-    return this.columns().find((column) => column.id === columnId);
+    this._setPrincipalValues(filter, [...filter.values, value]);
   }
 
   protected _booleanLabel(value: boolean, column: RbthFilterViewColumn): string {
@@ -167,6 +160,59 @@ export class RbthDataTableFilterComponent {
 
   protected _booleanValue(filter: RbthFilterModel): boolean {
     return filter.type === 'boolean' ? (filter.values[0] ?? false) : false;
+  }
+
+  protected _clearFilters(): void {
+    this.filters.set([]);
+  }
+
+  protected _clearPrincipalValues(filter: RbthFilterModel): void {
+    if (filter.type !== 'principal') return;
+
+    this._replaceFilter(filter.columnId, {
+      ...filter,
+      values: [],
+    });
+  }
+
+  protected _columnFor(columnId: string): RbthFilterViewColumn | undefined {
+    return this.columns().find((column) => column.id === columnId);
+  }
+
+  protected _commitPrincipalSearch(filter: RbthFilterModel): void {
+    const principalId = this._parsePrincipalId(this._principalSearch(filter));
+    if (!principalId) return;
+
+    if (this._usesRange(filter)) {
+      this._addPrincipalValue(filter, principalId);
+      return;
+    }
+
+    this._setPrincipalValue(filter, principalId);
+  }
+
+  protected _customValueContext(
+    filter: RbthFilterModel,
+  ): RbthFilterValueContext | null {
+    if (filter.type !== 'custom') return null;
+
+    return {
+      $implicit: filter,
+      filter,
+      multiple: this._usesRange(filter),
+      setValue: (value) => this._setCustomValue(filter, value),
+      setValues: (values) => this._setCustomValues(filter, values),
+      value: filter.values[0] ?? null,
+      values: filter.values,
+    };
+  }
+
+  protected _customValueTemplate(
+    columnId: string,
+  ): RbthFilterValueDirective | undefined {
+    return this.filterValueTemplates().find(
+      (template) => template.columnId() === columnId,
+    );
   }
 
   protected _dateRangeValue(
@@ -207,6 +253,10 @@ export class RbthDataTableFilterComponent {
     }
   }
 
+  protected _hasMultipleOperators(column: RbthFilterViewColumn): boolean {
+    return this._operators(column).length > 1;
+  }
+
   protected _inputValue(event: Event): string {
     return event.target instanceof HTMLInputElement ? event.target.value : '';
   }
@@ -218,36 +268,8 @@ export class RbthDataTableFilterComponent {
       : '';
   }
 
-  protected _hasMultipleOperators(column: RbthFilterViewColumn): boolean {
-    return this._operators(column).length > 1;
-  }
-
   protected _operatorLabel(filter: RbthFilterModel): string {
     return rbthFilterOperatorLabel(filter.type, filter.operator);
-  }
-
-  protected _customValueContext(
-    filter: RbthFilterModel,
-  ): RbthFilterValueContext | null {
-    if (filter.type !== 'custom') return null;
-
-    return {
-      $implicit: filter,
-      filter,
-      multiple: this._usesRange(filter),
-      setValue: (value) => this._setCustomValue(filter, value),
-      setValues: (values) => this._setCustomValues(filter, values),
-      value: filter.values[0] ?? null,
-      values: filter.values,
-    };
-  }
-
-  protected _customValueTemplate(
-    columnId: string,
-  ): RbthFilterValueDirective | undefined {
-    return this.filterValueTemplates().find(
-      (template) => template.columnId() === columnId,
-    );
   }
 
   protected _operators(
@@ -261,16 +283,48 @@ export class RbthDataTableFilterComponent {
     return operators.filter((operator) => allowed.has(operator.value));
   }
 
+  protected _principalComboboxOptions(filter: RbthFilterModel): string[] {
+    if (filter.type !== 'principal') return [];
+
+    return [...new Set([...filter.values, ...this._principalOptions(filter)])];
+  }
+
+  protected readonly _principalIsItemEqualToValue = (
+    item: string | null,
+    value: string | null,
+  ) => item === value;
+
+  protected readonly _principalItemToString = (value: string | null) =>
+    value ?? '';
+
+  protected _principalOptions(filter: RbthFilterModel): string[] {
+    const principalId = this._parsePrincipalId(this._principalSearch(filter));
+    if (!principalId || filter.type !== 'principal') return [];
+
+    return filter.values.includes(principalId) ? [] : [principalId];
+  }
+
+  protected _principalSearch(filter: RbthFilterModel): string {
+    return this._principalSearches()[filter.columnId] ?? '';
+  }
+
+  protected _principalSelectedSummary(values: ReadonlyArray<unknown>): string {
+    const count = values.length;
+    return count === 1 ? '1 selected' : `${count} selected`;
+  }
+
+  protected _principalValue(filter: RbthFilterModel): string | null {
+    return filter.type === 'principal' ? (filter.values[0] ?? null) : null;
+  }
+
+  protected _principalValues(filter: RbthFilterModel): string[] {
+    return filter.type === 'principal' ? filter.values : [];
+  }
+
   protected _removeFilter(columnId: string): void {
     this.filters.update((filters) =>
       filters.filter((filter) => filter.columnId !== columnId),
     );
-  }
-
-  protected _selectValues(filter: RbthFilterModel): string[] {
-    return filter.type === 'option' || filter.type === 'multiOption'
-      ? filter.values
-      : [];
   }
 
   protected _selectedValuesSummary(
@@ -296,55 +350,10 @@ export class RbthDataTableFilterComponent {
     return filter.type === 'option' ? filter.values[0] : undefined;
   }
 
-  protected _principalOptions(filter: RbthFilterModel): string[] {
-    const principalId = this._parsePrincipalId(this._principalSearch(filter));
-    if (!principalId || filter.type !== 'principal') return [];
-
-    return filter.values.includes(principalId) ? [] : [principalId];
-  }
-
-  protected _principalComboboxOptions(filter: RbthFilterModel): string[] {
-    if (filter.type !== 'principal') return [];
-
-    return [...new Set([...filter.values, ...this._principalOptions(filter)])];
-  }
-
-  protected _principalSearch(filter: RbthFilterModel): string {
-    return this._principalSearches()[filter.columnId] ?? '';
-  }
-
-  protected _principalValues(filter: RbthFilterModel): string[] {
-    return filter.type === 'principal' ? filter.values : [];
-  }
-
-  protected _principalValue(filter: RbthFilterModel): string | null {
-    return filter.type === 'principal' ? (filter.values[0] ?? null) : null;
-  }
-
-  protected _principalSelectedSummary(values: ReadonlyArray<unknown>): string {
-    const count = values.length;
-    return count === 1 ? '1 selected' : `${count} selected`;
-  }
-
-  protected _setDateRangeValue(
-    filter: RbthFilterModel,
-    value: [Date, Date] | null,
-  ): void {
-    if (filter.type !== 'date') return;
-
-    this._replaceFilter(filter.columnId, {
-      ...filter,
-      values: value ? [value[0], value[1]] : [],
-    });
-  }
-
-  protected _setDateValue(filter: RbthFilterModel, value: Date): void {
-    if (filter.type !== 'date') return;
-
-    this._replaceFilter(filter.columnId, {
-      ...filter,
-      values: value ? [value] : [],
-    });
+  protected _selectValues(filter: RbthFilterModel): string[] {
+    return filter.type === 'option' || filter.type === 'multiOption'
+      ? filter.values
+      : [];
   }
 
   protected _setBooleanValue(filter: RbthFilterModel, value: boolean): void {
@@ -353,26 +362,6 @@ export class RbthDataTableFilterComponent {
     this._replaceFilter(filter.columnId, {
       ...filter,
       values: [value],
-    });
-  }
-
-  protected _setNumberValue(
-    filter: RbthFilterModel,
-    index: number,
-    rawValue: string,
-  ): void {
-    if (filter.type !== 'number') return;
-
-    const next = [...filter.values];
-    const value = Number(rawValue);
-    if (rawValue === '' || Number.isNaN(value)) {
-      next.splice(index, 1);
-    } else {
-      next[index] = value;
-    }
-    this._replaceFilter(filter.columnId, {
-      ...filter,
-      values: next.filter((item) => typeof item === 'number'),
     });
   }
 
@@ -397,6 +386,47 @@ export class RbthDataTableFilterComponent {
     });
   }
 
+  protected _setDateRangeValue(
+    filter: RbthFilterModel,
+    value: [Date, Date] | null,
+  ): void {
+    if (filter.type !== 'date') return;
+
+    this._replaceFilter(filter.columnId, {
+      ...filter,
+      values: value ? [value[0], value[1]] : [],
+    });
+  }
+
+  protected _setDateValue(filter: RbthFilterModel, value: Date): void {
+    if (filter.type !== 'date') return;
+
+    this._replaceFilter(filter.columnId, {
+      ...filter,
+      values: value ? [value] : [],
+    });
+  }
+
+  protected _setNumberValue(
+    filter: RbthFilterModel,
+    index: number,
+    rawValue: string,
+  ): void {
+    if (filter.type !== 'number') return;
+
+    const next = [...filter.values];
+    const value = Number(rawValue);
+    if (rawValue === '' || Number.isNaN(value)) {
+      next.splice(index, 1);
+    } else {
+      next[index] = value;
+    }
+    this._replaceFilter(filter.columnId, {
+      ...filter,
+      values: next.filter((item) => typeof item === 'number'),
+    });
+  }
+
   protected _setOperator(
     filter: RbthFilterModel,
     operator: RbthFilterOperator,
@@ -412,15 +442,15 @@ export class RbthDataTableFilterComponent {
         this._replaceFilter(filter.columnId, { ...filter, operator });
         return;
       }
-      case 'date': {
-        if (!this._isDateOperator(operator)) return;
+      case 'custom': {
+        if (!this._isCustomOperator(operator)) return;
         const values =
           target === 'single' ? filter.values.slice(0, 1) : filter.values;
         this._replaceFilter(filter.columnId, { ...filter, operator, values });
         return;
       }
-      case 'custom': {
-        if (!this._isCustomOperator(operator)) return;
+      case 'date': {
+        if (!this._isDateOperator(operator)) return;
         const values =
           target === 'single' ? filter.values.slice(0, 1) : filter.values;
         this._replaceFilter(filter.columnId, { ...filter, operator, values });
@@ -464,79 +494,11 @@ export class RbthDataTableFilterComponent {
     }
   }
 
-  protected _setSelectValues(
-    filter: RbthFilterModel,
-    values: string[] | null,
-  ): void {
-    if (filter.type !== 'option' && filter.type !== 'multiOption') return;
-
-    const nextValues = values ?? [];
-
-    if (filter.type === 'option') {
-      this._replaceFilter(filter.columnId, {
-        ...filter,
-        operator: this._optionOperator(filter.columnId, nextValues.length),
-        values: nextValues,
-      });
-      return;
-    }
-
-    this._replaceFilter(filter.columnId, {
-      ...filter,
-      operator: this._multiOptionOperator(filter.columnId, nextValues.length),
-      values: nextValues,
-    });
-  }
-
-  protected _setSelectValue(
-    filter: RbthFilterModel,
-    value: string | null | undefined,
-  ): void {
-    if (filter.type !== 'option') return;
-
-    const values = value ? [value] : [];
-    this._replaceFilter(filter.columnId, {
-      ...filter,
-      operator: this._optionOperator(filter.columnId, values.length),
-      values,
-    });
-  }
-
   protected _setPrincipalSearch(filter: RbthFilterModel, value: string): void {
     this._principalSearches.update((searches) => ({
       ...searches,
       [filter.columnId]: value,
     }));
-  }
-
-  protected _clearPrincipalValues(filter: RbthFilterModel): void {
-    if (filter.type !== 'principal') return;
-
-    this._replaceFilter(filter.columnId, {
-      ...filter,
-      values: [],
-    });
-  }
-
-  protected _addPrincipalValue(
-    filter: RbthFilterModel,
-    value: string,
-  ): void {
-    if (filter.type !== 'principal') return;
-
-    this._setPrincipalValues(filter, [...filter.values, value]);
-  }
-
-  protected _commitPrincipalSearch(filter: RbthFilterModel): void {
-    const principalId = this._parsePrincipalId(this._principalSearch(filter));
-    if (!principalId) return;
-
-    if (this._usesRange(filter)) {
-      this._addPrincipalValue(filter, principalId);
-      return;
-    }
-
-    this._setPrincipalValue(filter, principalId);
   }
 
   protected _setPrincipalValue(
@@ -578,6 +540,44 @@ export class RbthDataTableFilterComponent {
     this._setPrincipalSearch(filter, '');
   }
 
+  protected _setSelectValue(
+    filter: RbthFilterModel,
+    value: string | null | undefined,
+  ): void {
+    if (filter.type !== 'option') return;
+
+    const values = value ? [value] : [];
+    this._replaceFilter(filter.columnId, {
+      ...filter,
+      operator: this._optionOperator(filter.columnId, values.length),
+      values,
+    });
+  }
+
+  protected _setSelectValues(
+    filter: RbthFilterModel,
+    values: string[] | null,
+  ): void {
+    if (filter.type !== 'option' && filter.type !== 'multiOption') return;
+
+    const nextValues = values ?? [];
+
+    if (filter.type === 'option') {
+      this._replaceFilter(filter.columnId, {
+        ...filter,
+        operator: this._optionOperator(filter.columnId, nextValues.length),
+        values: nextValues,
+      });
+      return;
+    }
+
+    this._replaceFilter(filter.columnId, {
+      ...filter,
+      operator: this._multiOptionOperator(filter.columnId, nextValues.length),
+      values: nextValues,
+    });
+  }
+
   protected _setTextValue(filter: RbthFilterModel, value: string): void {
     if (filter.type !== 'text') return;
 
@@ -585,6 +585,12 @@ export class RbthDataTableFilterComponent {
       ...filter,
       values: [value],
     });
+  }
+
+  protected _shortPrincipal(principalId: string): string {
+    return principalId.length > 18
+      ? `${principalId.slice(0, 8)}...${principalId.slice(-6)}`
+      : principalId;
   }
 
   protected _textValue(filter: RbthFilterModel): string {
@@ -725,11 +731,63 @@ export class RbthDataTableFilterComponent {
     }
   }
 
+  private _isBooleanOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthBooleanFilterOperator {
+    return RBTH_BOOLEAN_FILTER_OPERATORS.some((item) => item.value === operator);
+  }
+
+  private _isCustomOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthCustomFilterOperator {
+    return RBTH_CUSTOM_FILTER_OPERATORS.some((item) => item.value === operator);
+  }
+
+  private _isDateOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthDateFilterOperator {
+    return RBTH_DATE_FILTER_OPERATORS.some((item) => item.value === operator);
+  }
+
+  private _isMultiOptionOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthMultiOptionFilterOperator {
+    return RBTH_MULTI_OPTION_FILTER_OPERATORS.some(
+      (item) => item.value === operator,
+    );
+  }
+
+  private _isNumberOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthNumberFilterOperator {
+    return RBTH_NUMBER_FILTER_OPERATORS.some((item) => item.value === operator);
+  }
+
   private _isOperatorAllowed(
     column: RbthFilterViewColumn,
     operator: RbthFilterOperator,
   ): boolean {
     return !column.operators?.length || column.operators.includes(operator);
+  }
+
+  private _isOptionOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthOptionFilterOperator {
+    return RBTH_OPTION_FILTER_OPERATORS.some((item) => item.value === operator);
+  }
+
+  private _isPrincipalOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthPrincipalFilterOperator {
+    return RBTH_PRINCIPAL_FILTER_OPERATORS.some(
+      (item) => item.value === operator,
+    );
+  }
+
+  private _isTextOperator(
+    operator: RbthFilterOperator,
+  ): operator is RbthTextFilterOperator {
+    return RBTH_TEXT_FILTER_OPERATORS.some((item) => item.value === operator);
   }
 
   private _multiOptionOperator(
@@ -786,64 +844,6 @@ export class RbthDataTableFilterComponent {
       rbthDefaultOperator('principal', valueCount),
       (operator) => this._isPrincipalOperator(operator),
     );
-  }
-
-  protected _shortPrincipal(principalId: string): string {
-    return principalId.length > 18
-      ? `${principalId.slice(0, 8)}...${principalId.slice(-6)}`
-      : principalId;
-  }
-
-  private _isBooleanOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthBooleanFilterOperator {
-    return RBTH_BOOLEAN_FILTER_OPERATORS.some((item) => item.value === operator);
-  }
-
-  private _isCustomOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthCustomFilterOperator {
-    return RBTH_CUSTOM_FILTER_OPERATORS.some((item) => item.value === operator);
-  }
-
-  private _isDateOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthDateFilterOperator {
-    return RBTH_DATE_FILTER_OPERATORS.some((item) => item.value === operator);
-  }
-
-  private _isMultiOptionOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthMultiOptionFilterOperator {
-    return RBTH_MULTI_OPTION_FILTER_OPERATORS.some(
-      (item) => item.value === operator,
-    );
-  }
-
-  private _isNumberOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthNumberFilterOperator {
-    return RBTH_NUMBER_FILTER_OPERATORS.some((item) => item.value === operator);
-  }
-
-  private _isOptionOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthOptionFilterOperator {
-    return RBTH_OPTION_FILTER_OPERATORS.some((item) => item.value === operator);
-  }
-
-  private _isPrincipalOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthPrincipalFilterOperator {
-    return RBTH_PRINCIPAL_FILTER_OPERATORS.some(
-      (item) => item.value === operator,
-    );
-  }
-
-  private _isTextOperator(
-    operator: RbthFilterOperator,
-  ): operator is RbthTextFilterOperator {
-    return RBTH_TEXT_FILTER_OPERATORS.some((item) => item.value === operator);
   }
 
   private _replaceFilter(columnId: string, nextFilter: RbthFilterModel): void {

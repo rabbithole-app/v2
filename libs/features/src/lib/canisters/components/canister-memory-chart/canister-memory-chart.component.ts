@@ -22,6 +22,13 @@ import { hlm } from '@spartan-ng/helm/utils';
 export class CanisterMemoryChartComponent {
   /** Canister memory metrics */
   memoryMetrics = input<CanisterMemoryMetrics | undefined>();
+  /** Segment type (optional, used for conditional display) */
+  segment = input<string>('');
+  private readonly ONE_KB = 1000;
+
+  /** Constants for thresholds */
+  private readonly ONE_MB = 1000 * 1000;
+
   /** Computed chart data from memory metrics */
   chartsData = computed<RadarData[]>(() => {
     const metrics = this.memoryMetrics();
@@ -65,9 +72,6 @@ export class CanisterMemoryChartComponent {
 
     return [data];
   });
-  /** Segment type (optional, used for conditional display) */
-  segment = input<string>('');
-
   readonly userClass = input<ClassValue>('', { alias: 'class' });
 
   protected readonly _computedClass = computed(() =>
@@ -76,8 +80,4 @@ export class CanisterMemoryChartComponent {
       this.userClass(),
     ),
   );
-  private readonly ONE_KB = 1000;
-
-  /** Constants for thresholds */
-  private readonly ONE_MB = 1000 * 1000;
 }

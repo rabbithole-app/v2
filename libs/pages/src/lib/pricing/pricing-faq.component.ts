@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { NgIcon } from '@ng-icons/core';
 import { BrnAccordionImports } from '@spartan-ng/brain/accordion';
+
 import { HlmAccordionImports } from '@spartan-ng/helm/accordion';
 
 const FAQ_ITEMS = [

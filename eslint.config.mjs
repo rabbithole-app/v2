@@ -11,6 +11,7 @@ export default [
     ignores: [
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
+      'apps/docs/doc_build/**',
       '**/{.dfx,.mops,declarations,dist}',
     ],
   },

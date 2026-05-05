@@ -1,17 +1,17 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
-  Directive,
-  TemplateRef,
-  contentChild,
   computed,
+  contentChild,
+  Directive,
   inject,
   input,
   model,
   resource,
   signal,
+  TemplateRef,
 } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideAtSign, lucideKeyRound } from '@ng-icons/lucide';
@@ -23,13 +23,6 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { injectMainActor } from '../../../injectors/main-actor';
 import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens';
 import { CoreTransparentComboboxBackdropDirective } from './transparent-combobox-backdrop.directive';
-
-type UserTargetMatch = 'emailExact' | 'principalExact' | 'profile';
-
-interface UserTargetBase {
-  label: string;
-  searchText?: string;
-}
 
 export interface EmailUserTarget extends UserTargetBase {
   email: string;
@@ -57,6 +50,13 @@ export type UserTarget =
   | EmailUserTarget
   | PrincipalUserTarget
   | ProfileUserTarget;
+
+interface UserTargetBase {
+  label: string;
+  searchText?: string;
+}
+
+type UserTargetMatch = 'emailExact' | 'principalExact' | 'profile';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -98,18 +98,9 @@ export class UserTargetComboboxOptionDirective {
 export class UserTargetComboboxComponent {
   readonly allowTypedEmail = input(true);
   readonly allowTypedPrincipal = input(true);
-  readonly placeholder = input('Search user, principal or email');
-  readonly optionTemplate = contentChild(UserTargetComboboxOptionDirective);
-  readonly valueTemplate = contentChild(UserTargetComboboxValueDirective);
   readonly search = signal('');
   readonly trimmedSearch = computed(() => this.search().trim());
-  readonly hasSearch = computed(() => this.trimmedSearch().length >= 2);
-  readonly shouldShowContent = computed(
-    () => this.hasSearch() || this.value().length > 0,
-  );
   readonly #actor = injectMainActor();
-  readonly #backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
-
   readonly options = resource({
     params: () => ({
       actor: this.#actor(),
@@ -193,9 +184,7 @@ export class UserTargetComboboxComponent {
     },
     defaultValue: [],
   });
-
   readonly value = model<UserTarget[]>([]);
-  readonly selectedOptions = computed(() => this.value());
   readonly searchOptions = computed(() =>
     this.options
       .value()
@@ -206,33 +195,20 @@ export class UserTargetComboboxComponent {
   readonly foundOptions = computed(() =>
     this.searchOptions().filter((item) => item.kind !== 'email' && item.match),
   );
+  readonly hasSearch = computed(() => this.trimmedSearch().length >= 2);
+  readonly optionTemplate = contentChild(UserTargetComboboxOptionDirective);
+
+  readonly placeholder = input('Search user, principal or email');
+
+  readonly selectedOptions = computed(() => this.value());
+  readonly shouldShowContent = computed(
+    () => this.hasSearch() || this.value().length > 0,
+  );
   readonly typedOptions = computed(() =>
     this.searchOptions().filter((item) => item.kind === 'email' || !item.match),
   );
-
-  initials(item: UserTarget): string {
-    const source =
-      item.kind === 'user'
-        ? (item.displayName ?? item.username ?? item.principalId)
-        : item.kind === 'email'
-          ? item.email
-          : item.principalId;
-    return (
-      source
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part[0]?.toUpperCase() ?? '')
-        .join('') || 'U'
-    );
-  }
-  readonly isItemEqualToValue = (
-    left: UserTarget | null,
-    right: UserTarget | null,
-  ) => Boolean(left && right && this.targetKey(left) === this.targetKey(right));
-
-  readonly itemToString = (item: UserTarget | null) =>
-    item ? this.targetSearchText(item) : '';
+  readonly valueTemplate = contentChild(UserTargetComboboxValueDirective);
+  readonly #backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
 
   readonly filterTarget = (
     item: UserTarget,
@@ -257,6 +233,30 @@ export class UserTargetComboboxComponent {
 
     return false;
   };
+  initials(item: UserTarget): string {
+    const source =
+      item.kind === 'user'
+        ? (item.displayName ?? item.username ?? item.principalId)
+        : item.kind === 'email'
+          ? item.email
+          : item.principalId;
+    return (
+      source
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? '')
+        .join('') || 'U'
+    );
+  }
+
+  readonly isItemEqualToValue = (
+    left: UserTarget | null,
+    right: UserTarget | null,
+  ) => Boolean(left && right && this.targetKey(left) === this.targetKey(right));
+
+  readonly itemToString = (item: UserTarget | null) =>
+    item ? this.targetSearchText(item) : '';
 
   setValue(value: UserTarget[] | null): void {
     this.value.set(value ?? []);
@@ -274,19 +274,6 @@ export class UserTargetComboboxComponent {
       : `principal:${item.principalId}`;
   }
 
-  targetTitle(item: UserTarget): string {
-    if (item.kind === 'email') return 'Invite by email';
-    if (item.kind === 'principal') {
-      if (item.match === 'emailExact')
-        return item.matchedEmail ?? 'Found by email';
-      return item.match ? 'Principal ID' : 'Use principal ID';
-    }
-
-    return item.displayName
-      ? `${item.displayName} · @${item.username ?? item.label}`
-      : `@${item.username ?? item.label}`;
-  }
-
   targetSubtitle(item: UserTarget): string {
     if (item.kind === 'email') return item.email ?? '';
     if (item.kind === 'principal') return item.principalId;
@@ -300,22 +287,23 @@ export class UserTargetComboboxComponent {
     return item.principalId ?? '';
   }
 
-  private sameTarget(left: UserTarget, right: UserTarget): boolean {
-    return this.targetKey(left) === this.targetKey(right);
+  targetTitle(item: UserTarget): string {
+    if (item.kind === 'email') return 'Invite by email';
+    if (item.kind === 'principal') {
+      if (item.match === 'emailExact')
+        return item.matchedEmail ?? 'Found by email';
+      return item.match ? 'Principal ID' : 'Use principal ID';
+    }
+
+    return item.displayName
+      ? `${item.displayName} · @${item.username ?? item.label}`
+      : `@${item.username ?? item.label}`;
   }
 
-  private targetSearchText(item: UserTarget): string {
-    return [
-      item.label,
-      item.kind === 'user' ? item.displayName : undefined,
-      item.kind === 'user' ? item.username : undefined,
-      item.kind === 'email' ? item.email : undefined,
-      item.kind !== 'email' ? item.principalId : undefined,
-      item.kind !== 'email' ? item.matchedEmail : undefined,
-      item.searchText,
-    ]
-      .filter((value): value is string => Boolean(value))
-      .join(' ');
+  private avatarSrc(avatarUrl: string | undefined): string | undefined {
+    if (!avatarUrl) return undefined;
+    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
+    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
   }
 
   private directoryMatch(
@@ -338,9 +326,21 @@ export class UserTargetComboboxComponent {
     }
   }
 
-  private avatarSrc(avatarUrl: string | undefined): string | undefined {
-    if (!avatarUrl) return undefined;
-    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
-    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
+  private sameTarget(left: UserTarget, right: UserTarget): boolean {
+    return this.targetKey(left) === this.targetKey(right);
+  }
+
+  private targetSearchText(item: UserTarget): string {
+    return [
+      item.label,
+      item.kind === 'user' ? item.displayName : undefined,
+      item.kind === 'user' ? item.username : undefined,
+      item.kind === 'email' ? item.email : undefined,
+      item.kind !== 'email' ? item.principalId : undefined,
+      item.kind !== 'email' ? item.matchedEmail : undefined,
+      item.searchText,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(' ');
   }
 }

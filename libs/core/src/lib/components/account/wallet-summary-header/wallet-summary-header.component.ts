@@ -57,13 +57,7 @@ import { calculatePaymentEligibility } from '../../../utils/payment-eligibility'
 })
 export class WalletSummaryHeaderComponent {
   readonly requiredUsd = input<number | null>(null);
-  readonly size = input<'sm' | 'md'>('md');
-
   readonly #balanceService = inject(BalanceService);
-
-  readonly formattedTotal = computed(() =>
-    formatUsd(this.#balanceService.totalUsd()),
-  );
 
   readonly eligibility = computed(() => {
     const required = this.requiredUsd();
@@ -73,4 +67,10 @@ export class WalletSummaryHeaderComponent {
       required,
     );
   });
+
+  readonly formattedTotal = computed(() =>
+    formatUsd(this.#balanceService.totalUsd()),
+  );
+
+  readonly size = input<'md' | 'sm'>('md');
 }

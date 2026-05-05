@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -5,7 +6,6 @@ import {
   inject,
   viewChild,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
 
 import {
   SettingsService,
@@ -34,25 +34,21 @@ import { HlmSwitch } from '@spartan-ng/helm/switch';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SubscriptionPageComponent {
-  #subscriptionService = inject(SubscriptionService);
   #settingsService = inject(SettingsService);
-
-  // Subscription state
-  subscription = this.#subscriptionService.subscription;
-  isActive = this.#subscriptionService.isActive;
-  isExpired = this.#subscriptionService.isExpired;
-  isTrial = this.#subscriptionService.isTrial;
-  isPro = this.#subscriptionService.isPro;
-  expiresAt = this.#subscriptionService.expiresAt;
-  trialUsedBytes = this.#subscriptionService.trialUsedBytes;
-  trialProgress = this.#subscriptionService.trialProgress;
-  trialDaysLeft = this.#subscriptionService.trialDaysLeft;
-
   // Settings
   autoRenew = this.#settingsService.autoRenew;
-  autoTopUp = this.#settingsService.autoTopUp;
-  spendingPriority = this.#settingsService.spendingPriority;
 
+  autoTopUp = this.#settingsService.autoTopUp;
+  #subscriptionService = inject(SubscriptionService);
+  expiresAt = this.#subscriptionService.expiresAt;
+  expiresAtDate = computed(() => {
+    const ms = this.expiresAt();
+    return ms ? new Date(ms) : null;
+  });
+  isActive = this.#subscriptionService.isActive;
+  isExpired = this.#subscriptionService.isExpired;
+  isPro = this.#subscriptionService.isPro;
+  isTrial = this.#subscriptionService.isTrial;
   planBadgeVariant = computed(() => {
     if (this.isPro()) return 'default' as const;
     if (this.isTrial()) return 'secondary' as const;
@@ -66,16 +62,28 @@ export class SubscriptionPageComponent {
     if (this.isExpired()) return 'Expired';
     return 'License';
   });
+  spendingPriority = this.#settingsService.spendingPriority;
+  // Subscription state
+  subscription = this.#subscriptionService.subscription;
 
-  expiresAtDate = computed(() => {
-    const ms = this.expiresAt();
-    return ms ? new Date(ms) : null;
-  });
+  trialDaysLeft = this.#subscriptionService.trialDaysLeft;
+
+  trialProgress = this.#subscriptionService.trialProgress;
+
+  trialUsedBytes = this.#subscriptionService.trialUsedBytes;
 
   private readonly paymentDrawer = viewChild(PaymentDrawerComponent);
 
-  openPaymentDrawer(): void {
-    this.paymentDrawer()?.open();
+  formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  formatSpendingPriority(): string {
+    return this.spendingPriority()
+      .map((t) => Object.keys(t)[0])
+      .join(' > ');
   }
 
   async onAutoRenewChange(enabled: boolean): Promise<void> {
@@ -90,15 +98,7 @@ export class SubscriptionPageComponent {
     await this.#settingsService.updateSettings({ ...settings, autoTopUp: enabled });
   }
 
-  formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  formatSpendingPriority(): string {
-    return this.spendingPriority()
-      .map((t) => Object.keys(t)[0])
-      .join(' > ');
+  openPaymentDrawer(): void {
+    this.paymentDrawer()?.open();
   }
 }

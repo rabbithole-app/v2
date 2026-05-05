@@ -2,18 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
+  input,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { SubscriptionService } from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 
 @Component({
   selector: 'rbth-trial-progress',
   imports: [HlmButton, RouterLink],
   template: `
-    @if (subscriptionService.isTrial()) {
+    @if (isTrial()) {
       <div class="group-data-[collapsible=icon]:hidden px-3 py-2 space-y-2">
         <div class="flex items-center justify-between text-xs">
           <span class="font-medium">Pro Trial</span>
@@ -42,33 +41,36 @@ import { HlmButton } from '@spartan-ng/helm/button';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TrialProgressComponent {
-  subscriptionService = inject(SubscriptionService);
-
+  readonly usedBytes = input(0);
   bytesLabel = computed(() => {
-    const used = this.subscriptionService.trialUsedBytes();
+    const used = this.usedBytes();
     return `${(used / (1024 * 1024)).toFixed(0)} / 100 MB`;
   });
-
+  readonly daysLeft = input<number | null>(null);
   daysLabel = computed(() => {
-    const days = this.subscriptionService.trialDaysLeft();
+    const days = this.daysLeft();
     return days !== null ? `${days}d left` : '';
   });
 
+  readonly progress = input(0);
+
   isCritical = computed(() => {
-    const progress = this.subscriptionService.trialProgress();
-    const days = this.subscriptionService.trialDaysLeft();
+    const progress = this.progress();
+    const days = this.daysLeft();
     return progress >= 0.9 || (days !== null && days <= 1);
   });
 
+  readonly isTrial = input(false);
+
   isWarning = computed(() => {
-    const progress = this.subscriptionService.trialProgress();
-    const days = this.subscriptionService.trialDaysLeft();
+    const progress = this.progress();
+    const days = this.daysLeft();
     return progress >= 0.5 || (days !== null && days <= 7);
   });
 
   isUrgent = computed(() => this.isWarning() || this.isCritical());
 
   progressPercent = computed(() =>
-    Math.min(100, this.subscriptionService.trialProgress() * 100),
+    Math.min(100, this.progress() * 100),
   );
 }

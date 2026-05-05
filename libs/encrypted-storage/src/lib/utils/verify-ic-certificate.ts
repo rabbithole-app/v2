@@ -27,9 +27,9 @@ import { base64Decode } from './base64';
 const MAX_CERT_TIME_OFFSET_MS = 300_000; // 5 min
 
 export interface CertifiedHttpResponse {
-  status_code: number;
+  body: number[] | Uint8Array;
   headers: [string, string][];
-  body: Uint8Array | number[];
+  status_code: number;
 }
 
 /**

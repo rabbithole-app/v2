@@ -1,12 +1,11 @@
-import { Directive } from '@angular/core';
-
-import { setTransparentDialogBackdrop } from '@rabbithole/core/ui';
+import { Directive, inject } from '@angular/core';
+import { BrnDialog } from '@spartan-ng/brain/dialog';
 
 @Directive({
   selector: '[rbthTransparentSelectBackdrop]',
 })
 export class RbthTransparentSelectBackdropDirective {
   constructor() {
-    setTransparentDialogBackdrop();
+    inject(BrnDialog, { host: true }).setOverlayClass('!bg-transparent');
   }
 }

@@ -1,17 +1,5 @@
 import { YHash } from './merkle-tree';
 
-interface BlobTreePayload {
-  blob_tree: {
-    chunk_hashes: string[];
-    headers: string[];
-    tree: { hash: string };
-    tree_type: 'DSBMTWH';
-  };
-  owner: string;
-  project_id: string;
-  num_blob_bytes: number;
-}
-
 interface BlobRecord {
   chunkHashes: string[];
   headers: string[];
@@ -21,26 +9,25 @@ interface BlobRecord {
   uploadedChunks: Map<number, Uint8Array>;
 }
 
+interface BlobTreePayload {
+  blob_tree: {
+    chunk_hashes: string[];
+    headers: string[];
+    tree: { hash: string };
+    tree_type: 'DSBMTWH';
+  };
+  num_blob_bytes: number;
+  owner: string;
+  project_id: string;
+}
+
 export class MockBlobGateway {
+  readonly url = 'https://blob-gateway.test';
   readonly #blobs = new Map<string, BlobRecord>();
+
   readonly #tampered = new Set<string>();
 
-  readonly url = 'https://blob-gateway.test';
-
-  reset(): void {
-    this.#tampered.clear();
-    this.#blobs.clear();
-  }
-
-  tamperDownload(blobHash: string): void {
-    this.#tampered.add(blobHash);
-  }
-
-  getRecord(blobHash: string): BlobRecord | undefined {
-    return this.#blobs.get(blobHash);
-  }
-
-  async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  async fetch(input: Request | URL | string, init?: RequestInit): Promise<Response> {
     const requestUrl =
       typeof input === 'string' || input instanceof URL
         ? new URL(input.toString())
@@ -61,6 +48,39 @@ export class MockBlobGateway {
     }
 
     return new Response('Not found', { status: 404 });
+  }
+
+  getRecord(blobHash: string): BlobRecord | undefined {
+    return this.#blobs.get(blobHash);
+  }
+
+  reset(): void {
+    this.#tampered.clear();
+    this.#blobs.clear();
+  }
+
+  tamperDownload(blobHash: string): void {
+    this.#tampered.add(blobHash);
+  }
+
+  #handleBlobDownload(requestUrl: URL): Response {
+    const blobHash = requestUrl.searchParams.get('blob_hash');
+    if (!blobHash) {
+      return new Response('Missing blob_hash', { status: 400 });
+    }
+
+    const record = this.#blobs.get(blobHash);
+    if (!record) {
+      return new Response('Unknown blob hash', { status: 404 });
+    }
+
+    const bytes = concatChunks(record.uploadedChunks);
+    const payload = this.#tampered.has(blobHash) ? tamper(bytes) : bytes;
+
+    return new Response(payload, {
+      status: 200,
+      headers: { 'Content-Type': 'application/octet-stream' },
+    });
   }
 
   async #handleBlobTree(bodyInit: BodyInit | null | undefined): Promise<Response> {
@@ -107,26 +127,6 @@ export class MockBlobGateway {
 
     const isComplete = record.uploadedChunks.size === record.chunkHashes.length;
     return Response.json({ status: isComplete ? 'blob_complete' : 'ok' });
-  }
-
-  #handleBlobDownload(requestUrl: URL): Response {
-    const blobHash = requestUrl.searchParams.get('blob_hash');
-    if (!blobHash) {
-      return new Response('Missing blob_hash', { status: 400 });
-    }
-
-    const record = this.#blobs.get(blobHash);
-    if (!record) {
-      return new Response('Unknown blob hash', { status: 404 });
-    }
-
-    const bytes = concatChunks(record.uploadedChunks);
-    const payload = this.#tampered.has(blobHash) ? tamper(bytes) : bytes;
-
-    return new Response(payload, {
-      status: 200,
-      headers: { 'Content-Type': 'application/octet-stream' },
-    });
   }
 }
 

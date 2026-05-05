@@ -26,6 +26,14 @@ function isConflict(error) {
   return error instanceof Error && error.status === 409;
 }
 
+function isInstanceNotFound(error) {
+  return (
+    error instanceof Error &&
+    error.status === 400 &&
+    JSON.stringify(error.body ?? '').includes('Instance not found')
+  );
+}
+
 function isRetryable(error) {
   return error instanceof Error && error.retryable === true;
 }
@@ -175,10 +183,11 @@ async function proxyPendingOutcalls() {
   }
 }
 
-function retryable(message) {
-  const error = new Error(message);
-  error.retryable = true;
-  return error;
+async function readStatus() {
+  const value = JSON.parse(await readFile(STATUS_FILE, 'utf8'));
+  const serverUrl = `http://${NETWORK_HOST}:${value.config_port}`;
+  const baseUrl = `${serverUrl}/instances/${value.instance_id}`;
+  return { ...value, baseUrl, serverUrl };
 }
 
 async function refreshStatus() {
@@ -191,19 +200,10 @@ async function refreshStatus() {
   console.log(`[https-outcall-proxy] switched to ${baseUrl}`);
 }
 
-async function readStatus() {
-  const value = JSON.parse(await readFile(STATUS_FILE, 'utf8'));
-  const serverUrl = `http://${NETWORK_HOST}:${value.config_port}`;
-  const baseUrl = `${serverUrl}/instances/${value.instance_id}`;
-  return { ...value, baseUrl, serverUrl };
-}
-
-function isInstanceNotFound(error) {
-  return (
-    error instanceof Error &&
-    error.status === 400 &&
-    JSON.stringify(error.body ?? '').includes('Instance not found')
-  );
+function retryable(message) {
+  const error = new Error(message);
+  error.retryable = true;
+  return error;
 }
 
 function rewriteLocalUrl(value) {

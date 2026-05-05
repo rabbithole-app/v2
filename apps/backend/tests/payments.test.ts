@@ -1,7 +1,8 @@
-import { type CanisterFixture, PocketIc, createIdentity } from '@dfinity/pic';
+import { type CanisterFixture, PocketIc } from '@dfinity/pic';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { RabbitholeActorService } from '@rabbithole/declarations';
+
 import {
   createPicWithWebhook,
   ICPAY_SECRET,

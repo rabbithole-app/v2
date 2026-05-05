@@ -17,8 +17,8 @@ import { NodeItem } from '../types';
 import { convertToNodeItem } from '../utils';
 
 export type FileListResolverData = {
-  items: NodeItem[];
   directoryPermission: StoragePermission | null;
+  items: NodeItem[];
 };
 
 export const fileListResolver: ResolveFn<FileListResolverData> = (

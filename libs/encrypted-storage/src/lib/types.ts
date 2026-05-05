@@ -64,9 +64,9 @@ export type ContentEncoding =
   | 'identity';
 
 export type EncryptedStorageConfig = {
-  origin: string;
   /** Blob storage gateway URL (e.g., "https://blob.caffeine.ai"). Required for BlobStorage backend. */
   blobStorageGatewayUrl?: string;
+  origin: string;
   storageBackend?: StorageBackend | 'BlobStorage' | 'OnChain';
 } & AssetManagerConfig;
 

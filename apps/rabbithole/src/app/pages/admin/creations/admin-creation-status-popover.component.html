@@ -151,13 +151,13 @@
                           <dt class="text-muted-foreground">{{ detail.label }}</dt>
                           <dd class="min-w-0 truncate font-medium" [attr.title]="detail.value">
                             @if (_isCopyDetail(detail)) {
-                              <core-copy-to-clipboard
+                              <rbth-copy-to-clipboard
                                 [content]="detail.value"
                                 class="max-w-full"
                                 size="xs"
                               >
                                 {{ detail.value }}
-                              </core-copy-to-clipboard>
+                              </rbth-copy-to-clipboard>
                             } @else if (_isBadgeDetail(detail)) {
                               <span hlmBadge variant="secondary">
                                 {{ detail.value }}

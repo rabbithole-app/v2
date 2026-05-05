@@ -9,14 +9,6 @@ import { canisterOrigin, canisterUrl } from '@rabbithole/core/app-runtime';
 import { environment } from '../../../environments/environment';
 import { DevStorageCanisterIdService } from './dev-storage-canister-id.service';
 
-type StorageInfoJson = {
-  canisterId: string;
-  internetIdentityFrontendCanisterId?: string;
-  rabbitholeBackendCanisterId?: string;
-  rabbitholeFrontendCanisterId?: string;
-  storageBackendType: 'BlobStorage' | 'OnChain';
-};
-
 export type StorageRuntimeConfig = {
   appName: string;
   appUrl: string;
@@ -34,12 +26,17 @@ export type StorageRuntimeConfig = {
   storageBackendType: 'BlobStorage' | 'OnChain';
 };
 
+type StorageInfoJson = {
+  canisterId: string;
+  internetIdentityFrontendCanisterId?: string;
+  rabbitholeBackendCanisterId?: string;
+  rabbitholeFrontendCanisterId?: string;
+  storageBackendType: 'BlobStorage' | 'OnChain';
+};
+
 @Injectable({ providedIn: 'root' })
 export class ConfigService {
   readonly #runtimeConfig = signal<StorageRuntimeConfig | null>(null);
-  readonly canisterId = computed(() => {
-    return this.runtimeConfig().canisterId;
-  });
   readonly runtimeConfig = computed(() => {
     const config = this.#runtimeConfig();
     if (!config) {
@@ -48,6 +45,9 @@ export class ConfigService {
       );
     }
     return config;
+  });
+  readonly canisterId = computed(() => {
+    return this.runtimeConfig().canisterId;
   });
   #devCanisterId = inject(DevStorageCanisterIdService);
   #httpClient = inject(HttpClient);
@@ -74,6 +74,30 @@ export class ConfigService {
 
   setRuntimeConfig(config: StorageRuntimeConfig) {
     this.#runtimeConfig.set(config);
+  }
+
+  #buildConfig(
+    config: Omit<
+      StorageRuntimeConfig,
+      'appName' | 'production' | 'scheme' | 'shouldFetchRootKey'
+    >,
+  ): StorageRuntimeConfig {
+    const envName = this.#require(config.envName, 'envName');
+    const httpAgentHost = this.#require(config.httpAgentHost, 'httpAgentHost');
+
+    return {
+      ...config,
+      appName: environment.appName,
+      appUrl: this.#require(config.appUrl, 'appUrl'),
+      backendCanisterId: this.#require(config.backendCanisterId, 'backendCanisterId'),
+      envName,
+      evmRpcUrl: this.#require(config.evmRpcUrl, 'evmRpcUrl'),
+      httpAgentHost,
+      production: environment.production && envName === 'PROD',
+      scheme: environment.scheme,
+      shouldFetchRootKey: envName === 'DEV' || new URL(httpAgentHost).hostname.endsWith('localhost'),
+      solanaRpcUrl: this.#require(config.solanaRpcUrl, 'solanaRpcUrl'),
+    };
   }
 
   #fromEnvironment(canisterId: Principal): StorageRuntimeConfig {
@@ -129,30 +153,6 @@ export class ConfigService {
       solanaRpcUrl: environment.solanaRpcUrl,
       storageBackendType: info.storageBackendType,
     });
-  }
-
-  #buildConfig(
-    config: Omit<
-      StorageRuntimeConfig,
-      'appName' | 'production' | 'scheme' | 'shouldFetchRootKey'
-    >,
-  ): StorageRuntimeConfig {
-    const envName = this.#require(config.envName, 'envName');
-    const httpAgentHost = this.#require(config.httpAgentHost, 'httpAgentHost');
-
-    return {
-      ...config,
-      appName: environment.appName,
-      appUrl: this.#require(config.appUrl, 'appUrl'),
-      backendCanisterId: this.#require(config.backendCanisterId, 'backendCanisterId'),
-      envName,
-      evmRpcUrl: this.#require(config.evmRpcUrl, 'evmRpcUrl'),
-      httpAgentHost,
-      production: environment.production && envName === 'PROD',
-      scheme: environment.scheme,
-      shouldFetchRootKey: envName === 'DEV' || new URL(httpAgentHost).hostname.endsWith('localhost'),
-      solanaRpcUrl: this.#require(config.solanaRpcUrl, 'solanaRpcUrl'),
-    };
   }
 
   #require(value: string | undefined, key: string): string {

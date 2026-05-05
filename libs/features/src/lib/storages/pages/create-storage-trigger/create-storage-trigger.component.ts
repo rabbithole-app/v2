@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { HlmDialogService } from '@spartan-ng/helm/dialog';
 
 import { StoragesService } from '@rabbithole/core';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
 
 import {
   CREATE_STORAGE_DIALOG_CONTENT_CLASS,
@@ -20,8 +20,8 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateStorageTriggerComponent implements OnInit {
-  readonly #router = inject(Router);
   readonly #dialogService = inject(HlmDialogService);
+  readonly #router = inject(Router);
   readonly #storagesService = inject(StoragesService);
 
   ngOnInit(): void {

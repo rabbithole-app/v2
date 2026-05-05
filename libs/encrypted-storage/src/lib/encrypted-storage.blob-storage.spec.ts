@@ -1,20 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { Actor } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@rabbithole/declarations', () => ({
   encryptedStorageIdlFactory: () => ({}),
 }));
 
 vi.mock('./utils/verify-ic-certificate', () => ({
-  verifyIcCertificate: vi.fn(async (response: { body: Uint8Array | number[] }) =>
+  verifyIcCertificate: vi.fn(async (response: { body: number[] | Uint8Array }) =>
     response.body instanceof Uint8Array ? response.body : new Uint8Array(response.body)),
 }));
 
-import { EncryptedStorage } from './encrypted-storage';
-import { MockBlobGateway } from './blob-storage/mock-gateway';
 import { BlobHashTree, YHash } from './blob-storage/merkle-tree';
+import { MockBlobGateway } from './blob-storage/mock-gateway';
+import { EncryptedStorage } from './encrypted-storage';
 
 describe('EncryptedStorage BlobStorage integration', () => {
   const keyId: [Principal, Uint8Array] = [
@@ -25,19 +24,19 @@ describe('EncryptedStorage BlobStorage integration', () => {
 
   let gateway: MockBlobGateway;
   let actorMock: {
+    commitCaffeineUpload: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     getStorageBackendType: ReturnType<typeof vi.fn>;
-    commitCaffeineUpload: ReturnType<typeof vi.fn>;
     http_request: ReturnType<typeof vi.fn>;
   };
   let agentMock: {
-    rootKey: Uint8Array;
     call: ReturnType<typeof vi.fn>;
+    rootKey: Uint8Array;
   };
 
   beforeEach(async () => {
     gateway = new MockBlobGateway();
-    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) =>
+    vi.stubGlobal('fetch', vi.fn((input: Request | URL | string, init?: RequestInit) =>
       gateway.fetch(input, init)));
 
     actorMock = {

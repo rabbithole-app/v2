@@ -215,8 +215,6 @@ const UPGRADE_STEP_DEFS = [
   { id: 'finalize', title: 'Finalize' },
 ] as const;
 
-export type UpgradeStepId = (typeof UPGRADE_STEP_DEFS)[number]['id'];
-
 export interface BuildUpgradeStepsOptions {
   completed?: boolean;
   errorMessage?: string | null;
@@ -225,6 +223,8 @@ export interface BuildUpgradeStepsOptions {
   isPreparing?: boolean;
   wasmUpdateAvailable?: boolean;
 }
+
+export type UpgradeStepId = (typeof UPGRADE_STEP_DEFS)[number]['id'];
 
 export function buildUpgradeSteps(
   status: StorageCreationStatus | null,
@@ -292,6 +292,25 @@ export function buildUpgradeSteps(
   });
 }
 
+function upgradeStatusDescription(status: StorageCreationStatus): string {
+  switch (status.type) {
+    case 'Completed':
+      return 'Storage is up to date';
+    case 'Failed':
+      return status.message;
+    case 'RevokingInstallerPermission':
+      return 'Removing temporary backend permissions';
+    case 'UpdatingControllers':
+      return 'Restoring storage controllers';
+    case 'UpgradingFrontend':
+      return 'Uploading updated frontend assets';
+    case 'UpgradingWasm':
+      return 'Installing the updated storage module';
+    default:
+      return 'Waiting for the upgrade to start';
+  }
+}
+
 function upgradeStepForStatus(
   status: StorageCreationStatus | null,
   options: BuildUpgradeStepsOptions,
@@ -314,24 +333,5 @@ function upgradeStepForStatus(
       if (options.wasmUpdateAvailable) return 'wasm';
       if (options.frontendUpdateAvailable) return 'frontend';
       return 'finalize';
-  }
-}
-
-function upgradeStatusDescription(status: StorageCreationStatus): string {
-  switch (status.type) {
-    case 'Completed':
-      return 'Storage is up to date';
-    case 'Failed':
-      return status.message;
-    case 'RevokingInstallerPermission':
-      return 'Removing temporary backend permissions';
-    case 'UpdatingControllers':
-      return 'Restoring storage controllers';
-    case 'UpgradingFrontend':
-      return 'Uploading updated frontend assets';
-    case 'UpgradingWasm':
-      return 'Installing the updated storage module';
-    default:
-      return 'Waiting for the upgrade to start';
   }
 }

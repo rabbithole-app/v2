@@ -52,12 +52,6 @@ import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-su
 })
 export class WalletBalancePaymentPanelComponent {
   readonly requiredUsd = input.required<number>();
-  readonly payButtonLabel = input<string>('Pay from balance');
-
-  readonly payRequested = output<void>();
-
-  readonly expanded = signal(false);
-
   readonly #balanceService = inject(BalanceService);
 
   readonly eligibility = computed(() =>
@@ -68,6 +62,12 @@ export class WalletBalancePaymentPanelComponent {
   );
 
   readonly canPay = computed(() => this.eligibility().status === 'sufficient');
+
+  readonly expanded = signal(false);
+
+  readonly payButtonLabel = input<string>('Pay from balance');
+
+  readonly payRequested = output<void>();
 
   /** Re-fetch wallet addresses, FX rates, and on-chain balances. Use after
    * topping up SOL/ETH/ICP so the UI shows the new funds without a page reload. */

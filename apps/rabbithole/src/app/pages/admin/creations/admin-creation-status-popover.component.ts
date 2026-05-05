@@ -10,16 +10,15 @@ import {
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideCheck,
   lucideChevronDown,
   lucideCircleDashed,
   lucideCircleX,
-  lucideCheck,
 } from '@ng-icons/lucide';
 import { BrnDialogState } from '@spartan-ng/brain/dialog';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
 
 import {
-  CopyToClipboardComponent,
   formatBytes,
   injectMainActor,
   timeInNanosToDate,
@@ -34,6 +33,7 @@ import {
   StorageCreationRecord,
   TokenId,
 } from '@rabbithole/declarations/backend';
+import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
@@ -64,10 +64,10 @@ type StepState = 'active' | 'completed' | 'failed' | 'pending';
 @Component({
   selector: 'app-admin-creation-status-popover',
   imports: [
+    CopyToClipboardComponent,
     DatePipe,
     BrnPopoverImports,
-    CopyToClipboardComponent,
-    HlmBadge,
+      HlmBadge,
     HlmIcon,
     HlmSpinner,
     NgIcon,

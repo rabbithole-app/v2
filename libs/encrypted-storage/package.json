@@ -17,6 +17,7 @@
     "@tanstack/store": "*",
     "mime": "*",
     "idb-keyval": "*",
-    "ts-pattern": "*"
+    "ts-pattern": "*",
+    "vitest": "^4.0.18"
   }
 }

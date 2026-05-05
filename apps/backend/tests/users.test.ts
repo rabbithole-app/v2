@@ -1,7 +1,7 @@
 import { type Actor, createIdentity } from "@dfinity/pic";
 import { faker } from "@faker-js/faker";
-import { IDL } from "@icp-sdk/core/candid";
 import type { Identity } from "@icp-sdk/core/agent";
+import { IDL } from "@icp-sdk/core/candid";
 import { addDays, subDays } from "date-fns";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
@@ -17,13 +17,19 @@ import {
   InternetIdentityManager,
 } from "./setup/internet-identity.ts";
 
-function expectSingle<T>(items: readonly T[], label: string): T {
-  expect(items).toHaveLength(1);
-  const [item] = items;
-  if (item === undefined) {
-    throw new Error(`Expected ${label}`);
-  }
-  return item;
+function createProfileFixture(index: number): {
+  args: CreateProfileArgs;
+  identity: Identity;
+} {
+  return {
+    identity: createIdentity(`profile-${index}`),
+    args: {
+      username: `profile${index}${faker.string.alphanumeric(6).toLowerCase()}`,
+      displayName: index % 2 === 0 ? [`Profile User ${index}`] : [],
+      avatarUrl:
+        index % 3 === 0 ? [`https://example.com/avatar-${index}.png`] : [],
+    },
+  };
 }
 
 function createRandomProfileUser(): {
@@ -44,19 +50,13 @@ function createRandomProfileUser(): {
   };
 }
 
-function createProfileFixture(index: number): {
-  args: CreateProfileArgs;
-  identity: Identity;
-} {
-  return {
-    identity: createIdentity(`profile-${index}`),
-    args: {
-      username: `profile${index}${faker.string.alphanumeric(6).toLowerCase()}`,
-      displayName: index % 2 === 0 ? [`Profile User ${index}`] : [],
-      avatarUrl:
-        index % 3 === 0 ? [`https://example.com/avatar-${index}.png`] : [],
-    },
-  };
+function expectSingle<T>(items: readonly T[], label: string): T {
+  expect(items).toHaveLength(1);
+  const [item] = items;
+  if (item === undefined) {
+    throw new Error(`Expected ${label}`);
+  }
+  return item;
 }
 
 const PROFILE_USERS = Array.from({ length: 10 }, (_, index) =>

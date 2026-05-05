@@ -1,5 +1,5 @@
-import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import { AuthClient } from '@icp-sdk/auth/client';
+import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import {
   DelegationChain,
   Ed25519PublicKey,

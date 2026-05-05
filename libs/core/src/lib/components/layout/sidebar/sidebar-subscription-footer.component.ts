@@ -26,7 +26,7 @@ import {
 } from '../../../tokens';
 
 @Component({
-  selector: 'rbth-sidebar-subscription-footer',
+  selector: 'core-sidebar-subscription-footer',
   imports: [
     ...HlmTooltipImports,
     HlmIcon,
@@ -78,7 +78,6 @@ import {
 })
 export class SidebarSubscriptionFooterComponent {
   readonly backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
-  readonly subscriptionLink = inject(SIDEBAR_SUBSCRIPTION_LINK_TOKEN);
   #subscriptionService = inject(SubscriptionService);
   icon = computed(() => {
     if (this.#subscriptionService.isPro()) return 'lucideStar';
@@ -92,7 +91,6 @@ export class SidebarSubscriptionFooterComponent {
     if (this.#subscriptionService.isExpired()) return 'text-red-600';
     return 'text-muted-foreground';
   });
-
   #balanceService = inject(BalanceService);
 
   label = computed(() => {
@@ -107,6 +105,8 @@ export class SidebarSubscriptionFooterComponent {
     if (this.#subscriptionService.isExpired()) return 'Expired';
     return 'Get Started';
   });
+
+  readonly subscriptionLink = inject(SIDEBAR_SUBSCRIPTION_LINK_TOKEN);
 
   #sidebarService = inject(HlmSidebarService);
 

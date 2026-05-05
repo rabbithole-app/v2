@@ -46,10 +46,10 @@ export class BrokerAuthService {
   principalId = computed(() => this.#state().identity.getPrincipal().toText());
   ready$ = toObservable(this.#state).pipe(map(({ ready }) => ready));
   #authConfig = inject(AUTH_CONFIG);
+  #authEventId = 0;
   #identityAttributesProvider = inject(AUTH_IDENTITY_ATTRIBUTES_PROVIDER, {
     optional: true,
   });
-  #authEventId = 0;
 
   constructor() {
     this.#initState();
@@ -83,6 +83,14 @@ export class BrokerAuthService {
     });
   }
 
+  async signOut(opts?: AuthClientLogoutOptions) {
+    const { client } = this.#state();
+    assertClient(client);
+
+    await client.logout(opts);
+    await this.#initState({ clearAuthEvent: true });
+  }
+
   #createAuthEvent(options: AuthSignInOptions): AuthSessionEvent {
     return {
       hasAttributes:
@@ -94,34 +102,6 @@ export class BrokerAuthService {
       openIdProvider: options.openIdProvider,
       ssoDomain: options.ssoDomain,
     };
-  }
-
-  async #requestSignInAttributes(
-    client: AuthClient,
-    authEvent: AuthSessionEvent,
-    provider: IdentityAttributesProvider | null,
-  ): Promise<SignedIdentityAttributes | null> {
-    if (!authEvent.hasAttributes || !provider) return null;
-
-    try {
-      const request = await provider(authEvent);
-      if (!request || request.keys.length === 0) return null;
-      const attributes = await client.requestAttributes({
-        keys: request.keys,
-        nonce: request.nonce,
-      });
-      return { ...request, attributes };
-    } catch {
-      return null;
-    }
-  }
-
-  async signOut(opts?: AuthClientLogoutOptions) {
-    const { client } = this.#state();
-    assertClient(client);
-
-    await client.logout(opts);
-    await this.#initState({ clearAuthEvent: true });
   }
 
   #createClient(config: AuthConfig, options: AuthSignInOptions = {}) {
@@ -158,6 +138,26 @@ export class BrokerAuthService {
       lastAuthEvent: authEvent === undefined ? state.lastAuthEvent : authEvent,
       ready: true,
     }));
+  }
+
+  async #requestSignInAttributes(
+    client: AuthClient,
+    authEvent: AuthSessionEvent,
+    provider: IdentityAttributesProvider | null,
+  ): Promise<SignedIdentityAttributes | null> {
+    if (!authEvent.hasAttributes || !provider) return null;
+
+    try {
+      const request = await provider(authEvent);
+      if (!request || request.keys.length === 0) return null;
+      const attributes = await client.requestAttributes({
+        keys: request.keys,
+        nonce: request.nonce,
+      });
+      return { ...request, attributes };
+    } catch {
+      return null;
+    }
   }
 }
 

@@ -1,12 +1,12 @@
 import type { TokenBalance } from '../services/balance.service';
 import { formatUsd } from './format-number';
 
-export type PaymentEligibilityStatus = 'sufficient' | 'no-single-asset' | 'insufficient';
-
 export interface PaymentEligibility {
-  status: PaymentEligibilityStatus;
   hint: string;
+  status: PaymentEligibilityStatus;
 }
+
+export type PaymentEligibilityStatus = 'insufficient' | 'no-single-asset' | 'sufficient';
 
 export const calculatePaymentEligibility = (
   balances: readonly TokenBalance[],

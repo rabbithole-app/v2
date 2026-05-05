@@ -14,27 +14,58 @@ import { AUTH_SERVICE } from '@rabbithole/auth';
 import { injectHttpAgent } from '../injectors';
 import { ICPAY_CONFIG_TOKEN } from '../tokens/main';
 
-export type PaymentStatus = 'completed' | 'created' | 'error' | 'failed' | 'idle';
-
 export interface PaymentResult {
   error?: string;
   status: PaymentStatus;
   transactionId?: string;
 }
 
+export type PaymentStatus = 'completed' | 'created' | 'error' | 'failed' | 'idle';
+
 @Injectable({ providedIn: 'root' })
 export class IcpayService {
+  lastPaymentResult = signal<PaymentResult | null>(null);
+  paymentStatus = signal<PaymentStatus>('idle');
   #agent = injectHttpAgent();
   #authService = inject(AUTH_SERVICE);
+
   #config = inject(ICPAY_CONFIG_TOKEN);
   #destroyRef = inject(DestroyRef);
-
-  paymentStatus = signal<PaymentStatus>('idle');
-  lastPaymentResult = signal<PaymentResult | null>(null);
-  readonly #paymentStatus$ = toObservable(this.paymentStatus);
-
   #icpay: Icpay | null = null;
+
+  readonly #paymentStatus$ = toObservable(this.paymentStatus);
   #unsubscribers: (() => void)[] = [];
+
+  /**
+   * Pay for a Storage License ($4.90).
+   * Backend webhook expects: { purpose: "license", userId, storageBackendType, vetKeyName }
+   */
+  async payLicense(config: {
+    storageBackendType: string;
+    vetKeyName: string;
+  }): Promise<PaymentResult> {
+    const userId = this.#authService.identity().getPrincipal().toText();
+    return this.#pay(4.90, {
+      purpose: 'license',
+      userId,
+      storageBackendType: config.storageBackendType,
+      vetKeyName: config.vetKeyName,
+    });
+  }
+
+  /**
+   * Pay for Pro subscription ($9.90/month).
+   * Backend webhook expects: { purpose: "pro_monthly", userId: "<principal>" }
+   */
+  async payProSubscription(): Promise<PaymentResult> {
+    const userId = this.#authService.identity().getPrincipal().toText();
+    return this.#pay(9.90, { purpose: 'pro_monthly', userId });
+  }
+
+  reset(): void {
+    this.paymentStatus.set('idle');
+    this.lastPaymentResult.set(null);
+  }
 
   #ensureInitialized(): void {
     if (this.#icpay) return;
@@ -90,37 +121,6 @@ export class IcpayService {
     this.#destroyRef.onDestroy(() => {
       this.#unsubscribers.forEach((fn) => fn());
     });
-  }
-
-  /**
-   * Pay for a Storage License ($4.90).
-   * Backend webhook expects: { purpose: "license", userId, storageBackendType, vetKeyName }
-   */
-  async payLicense(config: {
-    storageBackendType: string;
-    vetKeyName: string;
-  }): Promise<PaymentResult> {
-    const userId = this.#authService.identity().getPrincipal().toText();
-    return this.#pay(4.90, {
-      purpose: 'license',
-      userId,
-      storageBackendType: config.storageBackendType,
-      vetKeyName: config.vetKeyName,
-    });
-  }
-
-  /**
-   * Pay for Pro subscription ($9.90/month).
-   * Backend webhook expects: { purpose: "pro_monthly", userId: "<principal>" }
-   */
-  async payProSubscription(): Promise<PaymentResult> {
-    const userId = this.#authService.identity().getPrincipal().toText();
-    return this.#pay(9.90, { purpose: 'pro_monthly', userId });
-  }
-
-  reset(): void {
-    this.paymentStatus.set('idle');
-    this.lastPaymentResult.set(null);
   }
 
   async #pay(

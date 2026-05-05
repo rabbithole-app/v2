@@ -38,6 +38,21 @@ const CANISTERS = [
 
 const INIT_ARGS_DIR = resolve(BACKEND_DIR, 'init-args');
 
+function encodePrebuiltInitArgs({ defs, input, output, type }) {
+  if (!existsSync(defs) || !existsSync(input)) return;
+  sh(`didc encode --format hex --defs "${defs}" --types '(${type})' "$(cat "${input}")" > "${output}"`, { stdio: 'inherit' });
+  console.log(`[generate-declarations] wrote ${output}`);
+}
+
+async function fileExists(p) {
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function generate({ name, mainFile, outDir, initArgsType }) {
   console.log(`\n[generate-declarations] ${name}`);
 
@@ -79,15 +94,6 @@ async function generate({ name, mainFile, outDir, initArgsType }) {
   await fs.rm(tmpDir, { recursive: true, force: true });
 }
 
-async function fileExists(p) {
-  try {
-    await fs.access(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function main() {
   for (const canister of CANISTERS) {
     await generate(canister);
@@ -99,12 +105,6 @@ async function main() {
     type: 'opt InternetIdentityInit',
   });
   console.log('\n[generate-declarations] done');
-}
-
-function encodePrebuiltInitArgs({ defs, input, output, type }) {
-  if (!existsSync(defs) || !existsSync(input)) return;
-  sh(`didc encode --format hex --defs "${defs}" --types '(${type})' "$(cat "${input}")" > "${output}"`, { stdio: 'inherit' });
-  console.log(`[generate-declarations] wrote ${output}`);
 }
 
 function sh(cmd, opts = {}) {

@@ -7,15 +7,15 @@ import {
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideLock } from '@ng-icons/lucide';
-
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
+
+import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmDialogDescription,
   HlmDialogFooter,
   HlmDialogHeader,
   HlmDialogTitle,
 } from '@spartan-ng/helm/dialog';
-import { HlmButton } from '@spartan-ng/helm/button';
 
 import { isDirectory, isFile, NodeItem } from '../../types';
 
@@ -114,16 +114,12 @@ export class FilePropertiesDialogComponent {
   readonly dialogRef = inject(BrnDialogRef);
   readonly item = injectBrnDialogContext<NodeItem>();
 
-  protected readonly isFileNode = computed(() => isFile(this.item));
-  protected readonly isDirNode = computed(() => isDirectory(this.item));
-
   protected readonly encryptionMode = computed(() => {
     const item = this.item;
     if (isFile(item)) return item.encryptionMode;
     if (isDirectory(item)) return item.defaultEncryptionMode;
     return 'encrypted';
   });
-
   protected readonly fileSize = computed(() => {
     const item = this.item;
     if (!isFile(item)) return '';
@@ -134,6 +130,10 @@ export class FilePropertiesDialogComponent {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   });
+
+  protected readonly isDirNode = computed(() => isDirectory(this.item));
+
+  protected readonly isFileNode = computed(() => isFile(this.item));
 
   protected readonly versionInfo = computed(() => {
     const item = this.item;

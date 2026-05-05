@@ -3,7 +3,6 @@ import {
   Component,
   computed,
   inject,
-  signal,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -31,7 +30,7 @@ import { HlmSeparator } from '@spartan-ng/helm/separator';
 import { NotificationService } from '../../../services';
 
 @Component({
-  selector: 'rbth-notification-bell',
+  selector: 'core-notification-bell',
   imports: [
     ...BrnPopoverImports,
     ...HlmPopoverImports,
@@ -90,8 +89,9 @@ import { NotificationService } from '../../../services';
             </p>
           } @else {
             @for (notification of notifications(); track notification.id) {
-              <div
-                class="flex gap-3 px-4 py-3 hover:bg-muted/50 transition-colors cursor-default"
+              <button
+                type="button"
+                class="flex w-full gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
                 [class.opacity-60]="notification.read"
                 (click)="markRead(notification)"
               >
@@ -114,7 +114,7 @@ import { NotificationService } from '../../../services';
                 @if (!notification.read) {
                   <span class="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0"></span>
                 }
-              </div>
+              </button>
             }
           }
         </div>

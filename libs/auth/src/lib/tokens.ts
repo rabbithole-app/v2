@@ -45,19 +45,6 @@ export type AuthSessionEvent = {
   ssoDomain?: string;
 };
 
-export type IdentityAttributesRequest = {
-  keys: string[];
-  nonce: Uint8Array;
-};
-
-export type SignedIdentityAttributes = IdentityAttributesRequest & {
-  attributes: SignedAttributes;
-};
-
-export type IdentityAttributesProvider = (
-  authEvent: AuthSessionEvent,
-) => Promise<IdentityAttributesRequest | null>;
-
 export type AuthSignInOptions = {
   openIdIssuer?: string;
   openIdProvider?: OpenIdProvider;
@@ -77,6 +64,19 @@ export interface IAuthService {
   signIn(options?: AuthSignInOptions): Promise<void> | void;
   signOut(): Promise<void> | void;
 }
+
+export type IdentityAttributesProvider = (
+  authEvent: AuthSessionEvent,
+) => Promise<IdentityAttributesRequest | null>;
+
+export type IdentityAttributesRequest = {
+  keys: string[];
+  nonce: Uint8Array;
+};
+
+export type SignedIdentityAttributes = {
+  attributes: SignedAttributes;
+} & IdentityAttributesRequest;
 
 export const AUTH_CONFIG = new InjectionToken<AuthConfig>('AUTH_CONFIG');
 

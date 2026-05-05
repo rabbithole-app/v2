@@ -16,7 +16,7 @@ import {
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 export interface UpgradePromptContext {
-  feature: 'encrypt' | 'share' | 'trial-limit' | 'trial-expired';
+  feature: 'encrypt' | 'share' | 'trial-expired' | 'trial-limit';
 }
 
 const FEATURE_CONFIG = {

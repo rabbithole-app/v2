@@ -24,8 +24,8 @@ import { convertToNodeItem } from '../utils';
 
 type State = {
   deleting: { ids: bigint[]; toastId: number | null };
-  parentPath: string | null;
   directoryPermission: StoragePermission | null;
+  parentPath: string | null;
 };
 
 function handleDeleteQueuerState(
@@ -61,6 +61,16 @@ function handleDeleteQueuerState(
 
 @Injectable()
 export class FileListService {
+  #state = signal<State>({
+    deleting: { ids: [], toastId: null },
+    parentPath: null,
+    directoryPermission: null,
+  });
+  directoryPermission = computed(() => this.#state().directoryPermission);
+  canWrite = computed(() => {
+    const perm = this.directoryPermission();
+    return perm === 'ReadWrite' || perm === 'ReadWriteManage';
+  });
   #directories = new Subject<FileSystemDirectoryItem[]>();
   directories$ = this.#directories.asObservable().pipe(
     mergeAll(),
@@ -69,16 +79,8 @@ export class FileListService {
     ),
   );
   encryptedStorage = injectEncryptedStorage();
-  #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
-  #coreWorkerService = injectCoreWorker();
-  #downloadService = inject(DownloadService);
   #files = new Subject<FileSystemFileItem[]>();
   files$ = this.#files.asObservable().pipe(mergeAll());
-  #state = signal<State>({
-    deleting: { ids: [], toastId: null },
-    parentPath: null,
-    directoryPermission: null,
-  });
   #parentPath = computed(() => this.#state().parentPath);
   items = resource<
     NodeItem[],
@@ -104,11 +106,9 @@ export class FileListService {
     defaultValue: [],
   });
   state = this.#state.asReadonly();
-  directoryPermission = computed(() => this.#state().directoryPermission);
-  canWrite = computed(() => {
-    const perm = this.directoryPermission();
-    return perm === 'ReadWrite' || perm === 'ReadWriteManage';
-  });
+  #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  #coreWorkerService = injectCoreWorker();
+  #downloadService = inject(DownloadService);
   #fsAccessService = inject(FileSystemAccessService);
 
   async createFolder(name: string) {
@@ -247,37 +247,6 @@ export class FileListService {
     }
   }
 
-  async openDirectoryDialog() {
-    const items = await this.#fsAccessService.list();
-    const [fileItems, directoryItems] = partition(
-      items,
-      (item) => item.kind === 'file',
-    );
-    this.#files.next(fileItems);
-    this.#directories.next(directoryItems);
-  }
-
-  async openFileDialog() {
-    const fileHandles = await this.#fsAccessService.fileOpen({
-      multiple: true,
-    });
-    const items = await Promise.all(
-      match(fileHandles)
-        .with(P.array({ handle: P.nonNullable.select() }), (v) =>
-          v.map((f) => f.getFile()),
-        )
-        .with({ handle: P.nonNullable.select() }, (f) => [f.getFile()])
-        .run(),
-    );
-    const fileItems = items.map<FileSystemFileItem>((file) => ({
-      file,
-      kind: 'file',
-      name: file.name,
-      // TODO: add parent path
-    }));
-    this.#files.next(fileItems);
-  }
-
   async moveItems(selected: bigint[], targetDir?: Entry) {
     const items = intersectionWith(
       this.items.value(),
@@ -309,6 +278,41 @@ export class FileListService {
     this.reload();
   }
 
+  async openDirectoryDialog() {
+    const items = await this.#fsAccessService.list();
+    const [fileItems, directoryItems] = partition(
+      items,
+      (item) => item.kind === 'file',
+    );
+    this.#files.next(fileItems);
+    this.#directories.next(directoryItems);
+  }
+
+  async openFileDialog() {
+    const fileHandles = await this.#fsAccessService.fileOpen({
+      multiple: true,
+    });
+    const items = await Promise.all(
+      match(fileHandles)
+        .with(P.array({ handle: P.nonNullable.select() }), (v) =>
+          v.map((f) => f.getFile()),
+        )
+        .with({ handle: P.nonNullable.select() }, (f) => [f.getFile()])
+        .run(),
+    );
+    const fileItems = items.map<FileSystemFileItem>((file) => ({
+      file,
+      kind: 'file',
+      name: file.name,
+      // TODO: add parent path
+    }));
+    this.#files.next(fileItems);
+  }
+
+  reload() {
+    this.items.reload();
+  }
+
   async rename(itemId: bigint, newName: string) {
     const item = this.items.value().find((i) => i.id === itemId);
     if (!item) return;
@@ -323,20 +327,6 @@ export class FileListService {
     this.reload();
   }
 
-  async updateColor(itemId: bigint, color: string) {
-    const item = this.items.value().find((i) => i.id === itemId);
-    if (!item || item.type !== 'directory') return;
-    const path = item.parentPath
-      ? `${item.parentPath}/${item.name}`
-      : item.name;
-    await this.encryptedStorage().updateDirectoryColor(path, color);
-    this.reload();
-  }
-
-  reload() {
-    this.items.reload();
-  }
-
   setDirectoryPermission(permission: StoragePermission | null) {
     this.#state.update((s) => ({ ...s, directoryPermission: permission }));
   }
@@ -346,5 +336,15 @@ export class FileListService {
       ...this.#state(),
       parentPath,
     });
+  }
+
+  async updateColor(itemId: bigint, color: string) {
+    const item = this.items.value().find((i) => i.id === itemId);
+    if (!item || item.type !== 'directory') return;
+    const path = item.parentPath
+      ? `${item.parentPath}/${item.name}`
+      : item.name;
+    await this.encryptedStorage().updateDirectoryColor(path, color);
+    this.reload();
   }
 }

@@ -14,6 +14,8 @@ import {
   lucidePackage,
 } from '@ng-icons/lucide';
 
+import { buildUpgradeCopy, buildUpgradeSteps } from '@rabbithole/core';
+import { type ProcessStep, ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -24,8 +26,6 @@ import {
   HlmDialogTitle,
 } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { ProcessStepListComponent, type ProcessStep } from '@rabbithole/ui/process-steps';
-import { buildUpgradeCopy, buildUpgradeSteps } from '@rabbithole/features/storages/utils';
 
 import { UpdateCheckService } from '../../services';
 
@@ -57,11 +57,11 @@ import { UpdateCheckService } from '../../services';
 })
 export class UpgradeDialogComponent {
   readonly updateCheckService = inject(UpdateCheckService);
-  readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateCheckService.updateInfo() ?? {}));
   readonly isInProgress = computed(() => {
     const step = this.updateCheckService.upgradeStep();
     return step === 'preparing' || step === 'upgrading';
   });
+  readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateCheckService.updateInfo() ?? {}));
   readonly upgradeSteps = computed<ProcessStep[]>(() => {
     const currentStep = this.updateCheckService.upgradeStep();
     const updateInfo = this.updateCheckService.updateInfo();

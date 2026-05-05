@@ -1,4 +1,4 @@
-import { Directive, TemplateRef, inject, input } from '@angular/core';
+import { Directive, inject, input, TemplateRef } from '@angular/core';
 
 import { RbthCustomFilterModel } from './types';
 

@@ -7,11 +7,10 @@ import {
   inject,
   input,
 } from '@angular/core';
-import { cva, type VariantProps } from 'class-variance-authority';
-import type { ClassValue } from 'clsx';
-
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideEye, lucideLock, lucideUsers } from '@ng-icons/lucide';
+import { cva, type VariantProps } from 'class-variance-authority';
+import type { ClassValue } from 'clsx';
 
 import { DownloadService, ENCRYPTED_STORAGE_CANISTER_ID, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
@@ -53,13 +52,13 @@ export const gridItemVariants = cva(
   },
 );
 
-export type GridItemVariants = VariantProps<typeof gridItemVariants>;
-
 export type DownloadProgressState = {
   errorMessage?: string;
   percent: number | null;
   status: 'downloading' | 'failed' | 'queued';
 };
+
+export type GridItemVariants = VariantProps<typeof gridItemVariants>;
 
 @Component({
   selector: 'rbth-feat-file-list-grid-item',
@@ -115,100 +114,7 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   loading = input(false, { transform: booleanAttribute });
   selected = input(false, { transform: booleanAttribute });
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
-  protected readonly highlighted = signal(false);
-
-  protected readonly _computedClass = computed(() =>
-    hlm(
-      gridItemVariants({
-        selected: this.selected(),
-        highlighted: this.highlighted(),
-        active: this.active(),
-        downloading: this._isDownloading(),
-      }),
-      this.userClass(),
-    ),
-  );
-
-  protected readonly _itemId = computed(() => {
-    const item = this.data();
-    return `grid-item-${item.id.toString()}`;
-  });
-
-  protected readonly directoryColor = computed(() => {
-    const item = this.data();
-    return isDirectory(item) ? (item.color ?? 'blue') : 'blue';
-  });
-
-  protected readonly fileExtension = computed(() => {
-    const item = this.data();
-    if (isFile(item)) {
-      const parts = item.name.split('.');
-      return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : '';
-    }
-    return '';
-  });
-
-  protected readonly hasThumbnail = computed(() => {
-    const item = this.data();
-    return isFile(item) && !!item.thumbnailKey;
-  });
-
-  protected readonly isDirectoryNode = computed(() => isDirectory(this.data()));
-  protected readonly isEncrypted = computed(() => {
-    const item = this.data();
-    if (isFile(item)) return item.encryptionMode === 'encrypted';
-    if (isDirectory(item)) return item.defaultEncryptionMode === 'encrypted';
-    return false;
-  });
-  protected readonly isFileNode = computed(() => isFile(this.data()));
-
-  protected readonly isReadOnly = computed(() =>
-    this.data().callerPermission === 'Read',
-  );
-
-  protected readonly isShared = computed(() => {
-    const count = this.data().sharedWith;
-    return count !== undefined && count > 0;
-  });
-
-  protected readonly badges = computed(() => {
-    const items: { icon: string; title: string }[] = [];
-    if (this.isShared()) {
-      const count = this.data().sharedWith!;
-      items.push({ icon: 'lucideUsers', title: `Shared with ${count} user(s)` });
-    }
-    if (this.isReadOnly()) {
-      items.push({ icon: 'lucideEye', title: 'Read only' });
-    }
-    if (this.isEncrypted() && this.isFileNode()) {
-      items.push({ icon: 'lucideLock', title: 'Encrypted' });
-    }
-    return items;
-  });
-
-  protected readonly badgeTooltip = computed(() =>
-    this.badges().map((b) => b.title).join(', '),
-  );
-
-  protected readonly itemName = computed(() => this.data().name);
-
-  protected readonly thumbnailUrl = computed(() => {
-    const item = this.data();
-    if (isFile(item) && item.thumbnailKey) {
-      const storageUrl = this.#isProduction
-        ? `https://${this.#canisterId.toText()}.icp0.io`
-        : `https://${this.#canisterId.toText()}.localhost`;
-      return `${storageUrl}${item.thumbnailKey}`;
-    }
-    return null;
-  });
-
-  #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   #downloadService = inject(DownloadService);
-
-  #elementRef = inject(ElementRef<HTMLElement>);
-
-  readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
 
   protected readonly downloadProgress = computed<DownloadProgressState | null>(() => {
     const item = this.data();
@@ -239,6 +145,99 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     const dl = this.downloadProgress();
     return dl !== null && dl.status !== 'failed';
   });
+
+  protected readonly highlighted = signal(false);
+
+  protected readonly _computedClass = computed(() =>
+    hlm(
+      gridItemVariants({
+        selected: this.selected(),
+        highlighted: this.highlighted(),
+        active: this.active(),
+        downloading: this._isDownloading(),
+      }),
+      this.userClass(),
+    ),
+  );
+
+  protected readonly _itemId = computed(() => {
+    const item = this.data();
+    return `grid-item-${item.id.toString()}`;
+  });
+
+  protected readonly isEncrypted = computed(() => {
+    const item = this.data();
+    if (isFile(item)) return item.encryptionMode === 'encrypted';
+    if (isDirectory(item)) return item.defaultEncryptionMode === 'encrypted';
+    return false;
+  });
+  protected readonly isFileNode = computed(() => isFile(this.data()));
+  protected readonly isReadOnly = computed(() =>
+    this.data().callerPermission === 'Read',
+  );
+
+  protected readonly isShared = computed(() => {
+    const count = this.data().sharedWith;
+    return count !== undefined && count > 0;
+  });
+
+  protected readonly badges = computed(() => {
+    const items: { icon: string; title: string }[] = [];
+    if (this.isShared()) {
+      const count = this.data().sharedWith!;
+      items.push({ icon: 'lucideUsers', title: `Shared with ${count} user(s)` });
+    }
+    if (this.isReadOnly()) {
+      items.push({ icon: 'lucideEye', title: 'Read only' });
+    }
+    if (this.isEncrypted() && this.isFileNode()) {
+      items.push({ icon: 'lucideLock', title: 'Encrypted' });
+    }
+    return items;
+  });
+
+  protected readonly badgeTooltip = computed(() =>
+    this.badges().map((b) => b.title).join(', '),
+  );
+
+  protected readonly directoryColor = computed(() => {
+    const item = this.data();
+    return isDirectory(item) ? (item.color ?? 'blue') : 'blue';
+  });
+
+  protected readonly fileExtension = computed(() => {
+    const item = this.data();
+    if (isFile(item)) {
+      const parts = item.name.split('.');
+      return parts.length > 1 ? parts.pop()?.toLowerCase() || '' : '';
+    }
+    return '';
+  });
+
+  protected readonly hasThumbnail = computed(() => {
+    const item = this.data();
+    return isFile(item) && !!item.thumbnailKey;
+  });
+
+  protected readonly isDirectoryNode = computed(() => isDirectory(this.data()));
+  protected readonly itemName = computed(() => this.data().name);
+
+  #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+
+  readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
+
+  protected readonly thumbnailUrl = computed(() => {
+    const item = this.data();
+    if (isFile(item) && item.thumbnailKey) {
+      const storageUrl = this.#isProduction
+        ? `https://${this.#canisterId.toText()}.icp0.io`
+        : `https://${this.#canisterId.toText()}.localhost`;
+      return `${storageUrl}${item.thumbnailKey}`;
+    }
+    return null;
+  });
+
+  #elementRef = inject(ElementRef<HTMLElement>);
 
   focus(): void {
     this.#elementRef.nativeElement.focus();

@@ -25,8 +25,8 @@ import {
   DelegationAuthService,
 } from '@rabbithole/auth';
 import {
-  APP_NAME_TOKEN,
   ACCOUNT_MENU_BACKEND_LINKS_ENABLED_TOKEN,
+  APP_NAME_TOKEN,
   AUTH_MAX_TIME_TO_LIVE,
   BACKEND_FEATURES_ENABLED_TOKEN,
   canisterOrigin,

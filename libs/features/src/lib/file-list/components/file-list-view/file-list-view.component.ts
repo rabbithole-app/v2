@@ -18,6 +18,8 @@ import {
   lucideFolderUp,
   lucideUpload,
 } from '@ng-icons/lucide';
+import { toast } from 'ngx-sonner';
+import { intersectionWith } from 'remeda';
 import { filter, map, mergeWith } from 'rxjs';
 
 import { injectCoreWorker } from '@rabbithole/core';
@@ -27,18 +29,16 @@ import {
   PermissionsService,
 } from '@rabbithole/core/storage-runtime';
 import { Entry } from '@rabbithole/encrypted-storage';
-import { toast } from 'ngx-sonner';
-import { intersectionWith } from 'remeda';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 
 import { GRAY_ICONS_CONFIG } from '../../constants';
+import { FileListResolverData } from '../../resolvers/file-list';
 import { FileListService } from '../../services';
 import { FILE_LIST_ICONS_CONFIG } from '../../tokens';
 import { DirectoryColor, NodeItem } from '../../types';
-import { FileListResolverData } from '../../resolvers/file-list';
 import { GridViewComponent } from '../grid-view/grid-view.component';
 import { MoveDialogComponent } from '../move-dialog/move-dialog.component';
 import { NewFolderDialogComponent } from '../new-folder-dialog/new-folder-dialog.component';
@@ -78,11 +78,6 @@ export class FileListViewComponent {
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   fileListService = inject(FileListService);
   canWrite = this.fileListService.canWrite;
-  propertiesDrawerItems = signal<NodeItem[]>([]);
-  #dialogService = inject(HlmDialogService);
-  #encryptedStorage = injectEncryptedStorage();
-  #permissionsService = inject(PermissionsService);
-  private readonly propertiesDrawer = viewChild(PropertiesDrawerComponent);
   #route = inject(ActivatedRoute);
   items = toSignal(
     this.#route.data.pipe(
@@ -100,7 +95,14 @@ export class FileListViewComponent {
     ),
     { requireSync: true },
   );
+  propertiesDrawerItems = signal<NodeItem[]>([]);
   #coreWorkerService = injectCoreWorker();
+  #dialogService = inject(HlmDialogService);
+  #drawerOpen = false;
+  #encryptedStorage = injectEncryptedStorage();
+  #permissionsService = inject(PermissionsService);
+
+  private readonly propertiesDrawer = viewChild(PropertiesDrawerComponent);
 
   constructor() {
     this.#coreWorkerService.postMessage({
@@ -120,20 +122,7 @@ export class FileListViewComponent {
       );
   }
 
-  _handleNewFolder() {
-    const existingNames = this.items()
-      .filter((i) => i.type === 'directory')
-      .map((i) => i.name);
-    const dialogRef = this.#dialogService.open(NewFolderDialogComponent, {
-      contentClass: 'min-w-[420px]',
-      context: { existingNames },
-    });
-    dialogRef.closed$
-      .pipe(filter((v): v is string => typeof v === 'string'))
-      .subscribe((name) => this.fileListService.createFolder(name));
-  }
-
-  _handleColor({ id, color }: { id: bigint; color: DirectoryColor }) {
+  _handleColor({ id, color }: { color: DirectoryColor; id: bigint; }) {
     this.fileListService.updateColor(id, color);
   }
 
@@ -143,22 +132,6 @@ export class FileListViewComponent {
 
   _handleDownload(selected: bigint[]) {
     this.fileListService.download(selected);
-  }
-
-  _handleManageAccess(selected: bigint[]) {
-    const items = this.#resolveItems(selected);
-    if (items.length === 0) return;
-    this.#openPropertiesDrawer(items, 'permissions');
-  }
-
-  _handleSelectionChange(selected: bigint[]) {
-    if (!this.#drawerOpen) return;
-    if (selected.length === 0) {
-      this.propertiesDrawerItems.set([]);
-      return;
-    }
-    const items = this.#resolveItems(selected);
-    this.#updateDrawerItems(items);
   }
 
   _handleMakePublic(selected: bigint[]) {
@@ -182,6 +155,12 @@ export class FileListViewComponent {
     );
   }
 
+  _handleManageAccess(selected: bigint[]) {
+    const items = this.#resolveItems(selected);
+    if (items.length === 0) return;
+    this.#openPropertiesDrawer(items, 'permissions');
+  }
+
   _handleMove(selected: bigint[]) {
     const items = this.#resolveItems(selected);
     const excludePaths = items
@@ -197,6 +176,19 @@ export class FileListViewComponent {
       .subscribe((target) =>
         this.fileListService.moveItems(selected, target ?? undefined),
       );
+  }
+
+  _handleNewFolder() {
+    const existingNames = this.items()
+      .filter((i) => i.type === 'directory')
+      .map((i) => i.name);
+    const dialogRef = this.#dialogService.open(NewFolderDialogComponent, {
+      contentClass: 'min-w-[420px]',
+      context: { existingNames },
+    });
+    dialogRef.closed$
+      .pipe(filter((v): v is string => typeof v === 'string'))
+      .subscribe((name) => this.fileListService.createFolder(name));
   }
 
   _handleProperties(item: NodeItem) {
@@ -221,12 +213,28 @@ export class FileListViewComponent {
       );
   }
 
-  #drawerOpen = false;
+  _handleSelectionChange(selected: bigint[]) {
+    if (!this.#drawerOpen) return;
+    if (selected.length === 0) {
+      this.propertiesDrawerItems.set([]);
+      return;
+    }
+    const items = this.#resolveItems(selected);
+    this.#updateDrawerItems(items);
+  }
 
   #openPropertiesDrawer(items: NodeItem[], tab: 'info' | 'permissions') {
     this.#drawerOpen = true;
     this.#updateDrawerItems(items);
     this.propertiesDrawer()?.open(tab);
+  }
+
+  #resolveItems(selected: bigint[]): NodeItem[] {
+    return intersectionWith(
+      this.items(),
+      selected,
+      (item, id) => item.id === id,
+    );
   }
 
   #updateDrawerItems(items: NodeItem[]) {
@@ -241,13 +249,5 @@ export class FileListViewComponent {
       this.#permissionsService.setEntry(null);
     }
     this.propertiesDrawerItems.set(items);
-  }
-
-  #resolveItems(selected: bigint[]): NodeItem[] {
-    return intersectionWith(
-      this.items(),
-      selected,
-      (item, id) => item.id === id,
-    );
   }
 }

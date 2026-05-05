@@ -30,7 +30,13 @@ import {
   StoragesService,
   type UpdateInfo,
 } from '@rabbithole/core';
+import {
+  buildUpgradeCopy,
+  buildUpgradeSteps,
+  type UpgradeStepId,
+} from '@rabbithole/core';
 import { AssetManager } from '@rabbithole/encrypted-storage';
+import { ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -41,13 +47,6 @@ import {
   HlmDialogTitle,
 } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { ProcessStepListComponent } from '@rabbithole/ui/process-steps';
-
-import {
-  buildUpgradeCopy,
-  buildUpgradeSteps,
-  type UpgradeStepId,
-} from '../../utils';
 
 type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
 
@@ -94,17 +93,31 @@ export class UpgradeStorageDialogComponent {
   readonly currentReleaseTag = computed(
     () => this.updateInfo().currentReleaseTag ?? 'unknown',
   );
+  readonly #errorMessage = signal<string | null>(null);
+  readonly errorMessage = this.#errorMessage.asReadonly();
+  readonly #isPreparing = signal(false);
+
+  readonly isPreparing = this.#isPreparing.asReadonly();
   readonly previousUpgradeError = computed(
     () => this.#context.storage.lastUpgradeError ?? null,
   );
-  readonly #errorMessage = signal<string | null>(null);
-  readonly errorMessage = this.#errorMessage.asReadonly();
-
-  readonly #isPreparing = signal(false);
-  readonly isPreparing = this.#isPreparing.asReadonly();
   readonly #step = signal<WizardStep>('review');
   readonly step = this.#step.asReadonly();
   readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateInfo()));
+  readonly #storagesService = inject(StoragesService);
+  readonly #rawUpgradeStatus = computed(() => this.#storagesService.upgradeStatus());
+  // Track whether we've seen an in-progress status from the backend.
+  // This prevents false "upgrade failed" and UI flicker when the effect/template
+  // fires before the first poll returns the new upgrading status.
+  readonly #sawUpgrading = signal(false);
+  // Filtered status that hides stale Completed before upgrade actually starts on backend
+  readonly upgradeStatus = computed(() => {
+    const status = this.#rawUpgradeStatus();
+    if (!status) return null;
+    if (status.type === 'Completed' && !this.#sawUpgrading()) return null;
+    return status;
+  });
+  readonly #activeUpgradeStep = signal<UpgradeStepId>('permissions');
   readonly upgradeSteps = computed(() =>
     buildUpgradeSteps(this.upgradeStatus(), {
       errorMessage: this.errorMessage(),
@@ -114,20 +127,6 @@ export class UpgradeStorageDialogComponent {
       wasmUpdateAvailable: this.updateInfo().wasmUpdateAvailable,
     }),
   );
-  readonly #storagesService = inject(StoragesService);
-  readonly #rawUpgradeStatus = computed(() => this.#storagesService.upgradeStatus());
-  // Track whether we've seen an in-progress status from the backend.
-  // This prevents false "upgrade failed" and UI flicker when the effect/template
-  // fires before the first poll returns the new upgrading status.
-  readonly #sawUpgrading = signal(false);
-  readonly #activeUpgradeStep = signal<UpgradeStepId>('permissions');
-  // Filtered status that hides stale Completed before upgrade actually starts on backend
-  readonly upgradeStatus = computed(() => {
-    const status = this.#rawUpgradeStatus();
-    if (!status) return null;
-    if (status.type === 'Completed' && !this.#sawUpgrading()) return null;
-    return status;
-  });
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
   readonly #httpAgent = injectHttpAgent();
 
@@ -170,6 +169,10 @@ export class UpgradeStorageDialogComponent {
         });
       }
     });
+  }
+
+  finishUpgrade(): void {
+    this.#storagesService.clearTrackedUpgrade();
   }
 
   async startUpgrade(): Promise<void> {
@@ -218,10 +221,6 @@ export class UpgradeStorageDialogComponent {
     }
   }
 
-  finishUpgrade(): void {
-    this.#storagesService.clearTrackedUpgrade();
-  }
-
   tryAgain(): void {
     this.#step.set('review');
     this.#errorMessage.set(null);
@@ -240,14 +239,14 @@ function upgradeStepIdFromStatus(
   updateInfo: UpdateInfo,
 ): UpgradeStepId {
   switch (status.type) {
-    case 'UpgradingWasm':
-      return 'wasm';
-    case 'UpgradingFrontend':
-      return 'frontend';
+    case 'Completed':
     case 'RevokingInstallerPermission':
     case 'UpdatingControllers':
-    case 'Completed':
       return 'finalize';
+    case 'UpgradingFrontend':
+      return 'frontend';
+    case 'UpgradingWasm':
+      return 'wasm';
     default:
       return firstUpdateStep(updateInfo);
   }

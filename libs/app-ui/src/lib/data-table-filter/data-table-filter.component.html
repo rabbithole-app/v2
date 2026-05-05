@@ -51,7 +51,7 @@
 
           @switch (column.type) {
             @case ('boolean') {
-              <label
+              <div
                 hlmButtonGroupText
                 class="h-8 cursor-pointer bg-background px-2 text-sm font-normal text-foreground"
               >
@@ -63,7 +63,7 @@
                 <span class="truncate">
                   {{ _booleanLabel(_booleanValue(filter), column) }}
                 </span>
-              </label>
+              </div>
             }
             @case ('custom') {
               @if (_customValueTemplate(filter.columnId); as valueTemplate) {

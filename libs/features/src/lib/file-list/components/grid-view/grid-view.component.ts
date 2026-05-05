@@ -121,12 +121,12 @@ export class GridViewComponent implements OnDestroy {
       R.chunk(this.state().columns),
     ),
   );
-  color = output<{ id: bigint; color: DirectoryColor }>();
+  color = output<{ color: DirectoryColor; id: bigint; }>();
   delete = output<bigint[]>();
   download = output<bigint[]>();
   folderColorControl = new FormControl<DirectoryColor>('blue');
-  manageAccess = output<bigint[]>();
   makePublic = output<bigint[]>();
+  manageAccess = output<bigint[]>();
   move = output<bigint[]>();
   properties = output<NodeItem>();
   rename = output<bigint[]>();
@@ -239,12 +239,6 @@ export class GridViewComponent implements OnDestroy {
         this.rename.emit(selected);
         break;
     }
-  }
-
-  _handleProperties(selected: bigint[]) {
-    if (selected.length !== 1) return;
-    const item = this.items().find((i) => i.id === selected[0]);
-    if (item) this.properties.emit(item);
   }
 
   _handleItemClick(event: MouseEvent, item: NodeItem) {
@@ -464,6 +458,12 @@ export class GridViewComponent implements OnDestroy {
       default:
       // this.keyManager.onKeydown(event);
     }
+  }
+
+  _handleProperties(selected: bigint[]) {
+    if (selected.length !== 1) return;
+    const item = this.items().find((i) => i.id === selected[0]);
+    if (item) this.properties.emit(item);
   }
 
   ngOnDestroy(): void {

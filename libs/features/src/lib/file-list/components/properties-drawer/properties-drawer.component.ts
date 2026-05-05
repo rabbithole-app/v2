@@ -171,17 +171,17 @@ import { isDirectory, isFile, NodeItem } from '../../types';
 })
 export class PropertiesDrawerComponent {
   activeTab = signal<'info' | 'permissions'>('info');
-  isFileItem = isFile;
   items = input.required<NodeItem[]>();
+  canManage = computed(() =>
+    this.items().every(({ callerPermission: p }) => p === 'ReadWriteManage'),
+  );
+
+  isFileItem = isFile;
 
   permissionsService = inject(PermissionsService);
 
   singleItem = computed(() =>
     this.items().length === 1 ? this.items()[0] : null,
-  );
-
-  canManage = computed(() =>
-    this.items().every(({ callerPermission: p }) => p === 'ReadWriteManage'),
   );
 
   totalSize = computed(() =>
@@ -201,6 +201,11 @@ export class PropertiesDrawerComponent {
   });
 
   private readonly drawer = viewChild(RbthDrawerComponent);
+
+  _openPermissionsTab() {
+    this.activeTab.set('permissions');
+    this.permissionsService.loadPermitted();
+  }
 
   async batchGrant(args: Omit<GrantStoragePermission, 'entry'>) {
     for (const item of this.items()) {
@@ -247,11 +252,6 @@ export class PropertiesDrawerComponent {
       this.permissionsService.loadPermitted();
     }
     this.drawer()?.open();
-  }
-
-  _openPermissionsTab() {
-    this.activeTab.set('permissions');
-    this.permissionsService.loadPermitted();
   }
 
   revokePermission(args: Omit<RevokeStoragePermission, 'entry'>) {

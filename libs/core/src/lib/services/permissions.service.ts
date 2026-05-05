@@ -4,7 +4,6 @@ import { toast } from 'ngx-sonner';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
 import {
-  EncryptedStorage,
   Entry,
   GrantStoragePermission,
   RevokeStoragePermission,

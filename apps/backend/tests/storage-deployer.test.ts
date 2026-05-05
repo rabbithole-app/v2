@@ -50,6 +50,32 @@ import { BackendManager } from "./setup/backend-manager";
 import { E8S_PER_ICP, ICP_LEDGER_CANISTER_ID, ICP_TRANSACTION_FEE, ONE_TRILLION_CYCLES } from "./setup/constants";
 import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 
+async function drainTreasuryIcpBelowCmcFunding(
+  manager: BackendManager,
+  backendFixture: CanisterFixture<RabbitholeActorService>,
+): Promise<void> {
+  const icp = await manager.icpLedgerActor.icrc1_balance_of({
+    owner: backendFixture.canisterId,
+    subaccount: [BackendManager.TREASURY_SUBACCOUNT],
+  });
+  const keepDust = ICP_TRANSACTION_FEE;
+
+  if (icp <= 100_000n + keepDust) return;
+
+  backendFixture.actor.setIdentity(manager.ownerIdentity);
+  const result = await backendFixture.actor.withdrawFromTreasury({
+    tokenId: { ICP: null },
+    amount: icp - keepDust,
+    to: {
+      IC: {
+        owner: manager.ownerIdentity.getPrincipal(),
+        subaccount: [],
+      },
+    },
+  });
+  if ("err" in result) throw new Error(`Drain treasury ICP failed: ${JSON.stringify(result.err)}`);
+}
+
 /**
  * Helper to find active (in-progress) storage from list
  */
@@ -148,32 +174,6 @@ async function fundUserForLicenseOnly(
     fee: [], memo: [], from_subaccount: [], created_at_time: [],
   });
   if ("Err" in result) throw new Error(`Fund failed: ${JSON.stringify(result)}`);
-}
-
-async function drainTreasuryIcpBelowCmcFunding(
-  manager: BackendManager,
-  backendFixture: CanisterFixture<RabbitholeActorService>,
-): Promise<void> {
-  const icp = await manager.icpLedgerActor.icrc1_balance_of({
-    owner: backendFixture.canisterId,
-    subaccount: [BackendManager.TREASURY_SUBACCOUNT],
-  });
-  const keepDust = ICP_TRANSACTION_FEE;
-
-  if (icp <= 100_000n + keepDust) return;
-
-  backendFixture.actor.setIdentity(manager.ownerIdentity);
-  const result = await backendFixture.actor.withdrawFromTreasury({
-    tokenId: { ICP: null },
-    amount: icp - keepDust,
-    to: {
-      IC: {
-        owner: manager.ownerIdentity.getPrincipal(),
-        subaccount: [],
-      },
-    },
-  });
-  if ("err" in result) throw new Error(`Drain treasury ICP failed: ${JSON.stringify(result.err)}`);
 }
 
 /**
