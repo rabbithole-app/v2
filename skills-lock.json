@@ -42,6 +42,12 @@
       "sourceType": "github",
       "computedHash": "4b8f9ac545376886b6473084ae5de6c77edc4856c2da339f95d3a0b22528068d"
     },
+    "docs-writer": {
+      "source": "google-gemini/gemini-cli",
+      "sourceType": "github",
+      "skillPath": ".gemini/skills/docs-writer/SKILL.md",
+      "computedHash": "ddb3671168efa5f2fe481740a57ca147619ffffe2cf764ada6229bde01fed3df"
+    },
     "evm-rpc": {
       "source": "dfinity/icskills",
       "sourceType": "github",

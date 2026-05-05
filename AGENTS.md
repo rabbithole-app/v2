@@ -271,41 +271,76 @@ After modifying Motoko canisters:
 
 ## Agent Skills
 
-Skills are managed via the `skills` npm package (https://skills.sh). **Do not edit skill files manually and do not duplicate their descriptions in this file — `npx skills ls` is always more up-to-date.**
+Use the installed project skills proactively. The user does not need to name a
+skill explicitly; infer relevant skills from the task, read the matching
+`SKILL.md`, and follow it before editing or advising.
 
-### Layout
+### Skill discovery
 
-- `.agents/skills/<name>/` — canonical content (real files); read directly by Codex, OpenCode, and other "universal" agents (their `skillsDir = ".agents/skills"` per the CLI source)
-- `.Codex/skills/<name>` → `../../.agents/skills/<name>` (symlink; Codex is the only agent in this project that needs its own dir)
-- `skills-lock.json` — source + content hash for each managed skill
+The canonical skill content lives in `.agents/skills/<name>/SKILL.md`. Treat
+that directory as the source of truth for local instructions. `skills-lock.json`
+tracks installed skill sources and hashes, while agent-specific directories
+such as `.claude/skills/<name>` are symlink mirrors and must not be edited
+directly.
 
-Agents used in this project: **Codex, Codex, OpenCode**. Do NOT install for Cursor / Gemini-CLI / others — they aren't used. (Even if they were, both are universal and would also read from `.agents/skills/`, so no extra dir needed.)
+Use this discovery flow:
 
-### Commands
+1. Prefer the "Available skills" list already provided in the agent context.
+2. If the task may need a skill, inspect `.agents/skills/<name>/SKILL.md`.
+3. If the available list looks stale, run `npx skills ls`.
+4. If `npx skills ls` is unavailable, scan `.agents/skills/*/SKILL.md`.
+5. Announce the selected skill in one short sentence when it materially affects
+   the work.
+
+Do not create a separate `SKILLS.md` file. It would duplicate metadata and can
+be skipped by future agents, while `AGENTS.md` is the project-level instruction
+file that agents are expected to read.
+
+### Skill maintenance
+
+Skills are managed via the `skills` npm package (https://skills.sh). Do not edit
+skill files manually, and do not duplicate full skill descriptions in this file.
+Use `npx skills ls` or the frontmatter in each `SKILL.md` for current names and
+descriptions.
 
 ```bash
-npx skills ls                                                              # list installed
-npx skills add dfinity/icskills --skill <name> -a universal -a Codex -y    # install
-npx skills update -p -y                                                    # update all project skills
-npx skills remove -s <name> -a universal -a Codex -y                 # remove
+npx skills ls
+npx skills add dfinity/icskills --skill <name> -a universal -a Codex -y
+npx skills update -p -y
+npx skills remove -s <name> -a universal -a Codex -y
 ```
 
-**Never use `--agent '*'`** — `add` accepts it and expands skills into ALL ~30 supported agents, creating `.adal/`, `.augment/`, `.bob/`, ... in the project root (and an OpenClaw `./skills/` folder without a leading dot). `remove`/`update` then no longer understand that wildcard. **Always pass `-a universal -a Codex` explicitly** — `universal` covers Codex, OpenCode, and any future universal agent without creating extra dirs.
+Never use `--agent '*'`. It expands skills into many agent-specific directories
+and makes later cleanup harder. Prefer `.agents/skills` as the canonical
+universal location and keep any agent-specific mirrors as symlinks.
 
-### Sources
+### Skill routing map
 
-- **dfinity/icskills** — IC platform: `asset-canister`, `canhelp`, `canister-security`, `certified-variables`, `ckbtc`, `custom-domains`, `cycles-management`, `evm-rpc`, `https-outcalls`, `ic-dashboard`, `icp-cli`, `icrc-ledger`, `internet-identity`, `motoko`, `multi-canister`, `stable-memory`, `vetkd`, `wallet-integration`. Mirror with current versions: `https://skills.internetcomputer.org/.well-known/skills/<name>/SKILL.md`. **Intentionally excluded:** `sns-launch`.
-- **caffeinelabs/skills** — Caffeine extensions: `extension-authorization`, `extension-camera`, `extension-core-infrastructure`, `extension-email`, `extension-email-calendar-events`, `extension-email-marketing`, `extension-email-raw`, `extension-email-verification`, `extension-http-outcalls`, `extension-invite-links`, `extension-object-storage`, `extension-qr-code`, `extension-stripe`, `extension-user-approval`. React frontend hooks in these skills must be adapted to Angular patterns.
-- **No source in lock file** (manually managed, `npx skills update` does not refresh them): `angular-developer`, `angular-cdk-integration`,  `angular-spartan-styling`, `rxjs-expert`, `rxjs-patterns-for-angular`, `frontend-design`, `scrollytelling`, `skill-creator`, `skill-lookup`, `excalidraw`.
+Use this map as a quick trigger guide, then read the selected skill file for the
+actual workflow:
 
-### Groups by purpose
-
-- **Angular (frontend)** — `angular-developer`, `angular-spartan-styling`, `angular-cdk-integration`
-- **RxJS** — `rxjs-patterns-for-angular`, `rxjs-expert`
-- **ICP backend** — all skills from dfinity/icskills (see above)
-- **Caffeine extensions** — all skills from caffeinelabs/skills (see above)
-- **Design / diagrams** — `frontend-design`, `scrollytelling`, `excalidraw`
-- **Skill-meta** — `skill-creator`, `skill-lookup`
+- **Markdown and docs**: `docs-writer`; add `rspress-best-practices` for
+  Rspress docs site configuration, MDX, routing, or search.
+- **Angular frontend**: `angular-developer`, `angular-spartan-styling`,
+  `angular-cdk-integration`.
+- **Frontend design and motion**: `frontend-design`, `transitions-dev`,
+  `scrollytelling`.
+- **RxJS**: `rxjs-patterns-for-angular`, `rxjs-expert`.
+- **Nx workspace work**: `nx-workspace`, `nx-run-tasks`, `nx-generate`,
+  `nx-plugins`, `nx-import`, `link-workspace-packages`, `monitor-ci`.
+- **Rspack and bundle analysis**: `rspack-best-practices`,
+  `rsdoctor-analysis`.
+- **ICP CLI and deployment**: `icp-cli`, `asset-canister`, `custom-domains`,
+  `cycles-management`, `ic-dashboard`, `canhelp`.
+- **Motoko and canister architecture**: `motoko`, `canister-security`,
+  `stable-memory`, `multi-canister`, `certified-variables`, `https-outcalls`,
+  `evm-rpc`.
+- **IC identity, wallets, tokens, and crypto**: `internet-identity`,
+  `wallet-integration`, `icrc-ledger`, `ckbtc`, `vetkd`.
+- **Caffeine extensions**: all `extension-*` skills. Adapt React-oriented
+  frontend instructions to Angular patterns in this repository.
+- **Diagrams and planning**: `excalidraw`, `grill-me`.
+- **Skill management**: `skill-lookup`, `skill-creator`.
 
 ## Testing Infrastructure
 
