@@ -1,0 +1,67 @@
+@let user = userDetail();
+
+<header class="flex min-w-0 items-center gap-3">
+  <a
+    hlmBtn
+    variant="outline"
+    size="icon"
+    routerLink="/dashboard/admin/users"
+  >
+    <ng-icon hlmIcon name="lucideArrowLeft" size="sm" />
+    <span class="sr-only">Back to users</span>
+  </a>
+
+  <div hlmItem class="min-w-0 flex-1 border-0 bg-transparent p-0">
+    <div hlmItemMedia>
+      <hlm-avatar class="size-9 shrink-0 border bg-muted text-xs">
+        @if (_avatarSrc(user); as src) {
+          <img hlmAvatarImage [src]="src" [alt]="_profileTitle(user)" />
+        }
+        <img
+          hlmAvatarFallback
+          src="/avatar-placeholder.svg"
+          [alt]="_profileTitle(user)"
+        />
+      </hlm-avatar>
+    </div>
+
+    <div hlmItemContent class="min-w-0">
+      <span hlmItemTitle class="max-w-full">
+        {{ _profileTitle(user) }}
+      </span>
+
+      @if (_showPrincipalSubtitle(user)) {
+        <rbth-copy-to-clipboard
+          size="xs"
+          class="max-w-full self-start text-muted-foreground"
+          [content]="user.id.toText()"
+        >
+          {{ user.id.toText() }}
+        </rbth-copy-to-clipboard>
+      }
+    </div>
+
+    <div hlmItemActions class="flex-wrap">
+      <span hlmBadge [variant]="_roleVariant(user.role)">
+        {{ _roleLabel(user.role) }}
+      </span>
+      <span hlmBadge variant="outline">
+        {{ _identityProvider(user) }}
+      </span>
+      <span hlmBadge [variant]="user.trialUsed ? 'secondary' : 'outline'">
+        trial {{ user.trialUsed ? 'used' : 'unused' }}
+      </span>
+      <span
+        hlmBadge
+        [variant]="user.identity.verifiedEmail[0] ? 'default' : 'outline'"
+      >
+        @if (user.identity.verifiedEmail[0]) {
+          <ng-icon hlmIcon name="lucideCheck" size="xs" />
+        } @else {
+          <ng-icon hlmIcon name="lucideX" size="xs" />
+        }
+        email
+      </span>
+    </div>
+  </div>
+</header>

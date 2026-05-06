@@ -1,0 +1,297 @@
+<header class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-normal">Licenses</h1>
+  </div>
+</header>
+
+<rbth-data-table-filter
+  [columns]="_filterColumns"
+  [filters]="_filters()"
+  (filtersChange)="_setFilters($event)"
+>
+  <ng-template
+    rbthFilterValue="owner"
+    let-setValues="setValues"
+    let-values="values"
+  >
+    <core-user-target-combobox
+      class="block w-72 [&_hlm-combobox-chips]:h-8 [&_hlm-combobox-chips]:min-h-8 [&_hlm-combobox-chips]:flex-nowrap [&_hlm-combobox-chips]:overflow-hidden [&_hlm-combobox-chips]:rounded-none [&_hlm-combobox-chips]:border-s-0 [&_hlm-combobox-chips]:py-1"
+      [allowTypedEmail]="false"
+      placeholder="Search owner"
+      [value]="_userTargets(values)"
+      (valueChange)="setValues($event)"
+    >
+      <ng-template coreUserTargetComboboxValue let-selected>
+        {{ _userTargetSummary(selected) }}
+      </ng-template>
+    </core-user-target-combobox>
+  </ng-template>
+
+  <div rbthDataTableFilterActions class="flex items-center gap-2">
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="h-8 shrink-0"
+      [disabled]="_licenses.isLoading()"
+      (click)="_reload()"
+    >
+      <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+      Refresh
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="h-8 shrink-0"
+      [hlmDropdownMenuTrigger]="columnsMenu"
+    >
+      <ng-icon hlmIcon name="lucideColumns3" size="sm" />
+      Columns
+    </button>
+  </div>
+
+  <ng-template #columnsMenu>
+    <hlm-dropdown-menu class="w-56">
+      <hlm-dropdown-menu-label>Visible columns</hlm-dropdown-menu-label>
+      <hlm-dropdown-menu-separator />
+      @for (column of _columnOptions; track column.id) {
+        <button
+          hlmDropdownMenuCheckbox
+          [checked]="_columnVisible(column.id)"
+          [disabled]="column.required === true"
+          (triggered)="_toggleColumn(column.id)"
+        >
+          <hlm-dropdown-menu-checkbox-indicator />
+          {{ column.label }}
+        </button>
+      }
+    </hlm-dropdown-menu>
+  </ng-template>
+</rbth-data-table-filter>
+
+@if (_licenses.error()) {
+  <div
+    class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+  >
+    Licenses could not be loaded.
+  </div>
+}
+
+<div class="min-w-0 overflow-hidden rounded-md border">
+  <div class="max-h-[68vh] min-h-80 overflow-auto">
+    <table
+      hlmTable
+      class="min-w-full table-fixed"
+      [style.width.px]="_table.getTotalSize()"
+    >
+      <colgroup>
+        @for (column of _table.getVisibleLeafColumns(); track column.id) {
+          <col [style.width.px]="column.getSize()" />
+        }
+      </colgroup>
+
+      <thead hlmTHead class="sticky top-0 z-10 bg-background">
+        @for (headerGroup of _table.getHeaderGroups(); track headerGroup.id) {
+          <tr hlmTr>
+            @for (header of headerGroup.headers; track header.id) {
+              <th
+                hlmTh
+                [attr.colspan]="header.colSpan"
+                [style.width.px]="header.getSize()"
+                class="relative select-none"
+              >
+                @if (!header.isPlaceholder) {
+                  @if (_sortable(header.column.id)) {
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1.5 font-medium"
+                      (click)="_toggleSort(header.column.id)"
+                    >
+                      {{ header.column.columnDef.header }}
+                      <ng-icon
+                        hlmIcon
+                        [name]="_sortIcon(header.column.id)"
+                        size="sm"
+                        class="text-muted-foreground"
+                      />
+                    </button>
+                  } @else {
+                    {{ header.column.columnDef.header }}
+                  }
+                }
+
+                @if (header.column.getCanResize()) {
+                  <button
+                    type="button"
+                    class="absolute inset-y-1 right-0 w-1 cursor-col-resize rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 active:opacity-100"
+                    [class.opacity-100]="
+                      _table.getState().columnSizingInfo.isResizingColumn ===
+                      header.column.id
+                    "
+                    (mousedown)="header.getResizeHandler()($event)"
+                    (touchstart)="header.getResizeHandler()($event)"
+                    aria-label="Resize column"
+                  ></button>
+                }
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+
+      <tbody hlmTBody>
+        @for (row of _table.getRowModel().rows; track row.id) {
+          @let license = row.original;
+          <tr hlmTr>
+            @for (cell of row.getVisibleCells(); track cell.id) {
+              <td hlmTd [style.width.px]="cell.column.getSize()">
+                @switch (cell.column.id) {
+                  @case ('owner') {
+                    <rbth-copy-to-clipboard [content]="license.owner.toText()">
+                      {{ license.owner.toText() }}
+                    </rbth-copy-to-clipboard>
+                  }
+                  @case ('canisterId') {
+                    @if (license.canisterId[0]; as canisterId) {
+                      <rbth-copy-to-clipboard [content]="canisterId.toText()">
+                        {{ canisterId.toText() }}
+                      </rbth-copy-to-clipboard>
+                    } @else {
+                      <span class="text-sm text-muted-foreground">Unbound</span>
+                    }
+                  }
+                  @case ('status') {
+                    <span
+                      hlmBadge
+                      [variant]="_badgeVariant(license.statusTag)"
+                    >
+                      {{ license.statusTag }}
+                    </span>
+                  }
+                  @case ('amount') {
+                    <span class="text-sm whitespace-nowrap tabular-nums">
+                      {{ _formatAmount(license) }}
+                    </span>
+                  }
+                  @case ('paymentId') {
+                    <rbth-copy-to-clipboard
+                      [content]="license.receipt.paymentId"
+                    >
+                      {{ license.receipt.paymentId }}
+                    </rbth-copy-to-clipboard>
+                  }
+                  @case ('paidAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _date(license.receipt.paidAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('refund') {
+                    @if (_refundDate(license); as refundDate) {
+                      <div class="flex min-w-0 flex-col">
+                        <span class="truncate text-sm">
+                          {{ _refundLabel(license) }}
+                        </span>
+                        <span class="text-xs text-muted-foreground">
+                          {{ refundDate | date: 'medium' }}
+                        </span>
+                      </div>
+                    }
+                  }
+                  @case ('createdAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _date(license.createdAt) | date: 'medium' }}
+                    </span>
+                  }
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td
+              hlmTd
+              class="h-40 text-center"
+              [attr.colspan]="_table.getVisibleLeafColumns().length"
+            >
+              @if (_licenses.isLoading()) {
+                <span
+                  class="inline-flex items-center gap-2 text-sm text-muted-foreground"
+                >
+                  <hlm-spinner size="sm" />
+                  Loading licenses...
+                </span>
+              } @else {
+                <span class="text-sm text-muted-foreground">
+                  No licenses found
+                </span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer
+  class="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+>
+  <span> Showing {{ _rangeStart() }}-{{ _rangeEnd() }} of {{ _total() }} </span>
+
+  <div class="flex flex-wrap items-center justify-end gap-2">
+    <span class="text-sm">Rows per page</span>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="min-w-20 justify-between"
+      [hlmDropdownMenuTrigger]="pageSizeMenu"
+    >
+      {{ _pageSize() }}
+      <ng-icon
+        hlmIcon
+        name="lucideChevronDown"
+        size="sm"
+        class="text-muted-foreground"
+      />
+    </button>
+    <ng-template #pageSizeMenu>
+      <hlm-dropdown-menu class="w-32">
+        @for (size of _pageSizes; track size) {
+          <button
+            hlmDropdownMenuCheckbox
+            [checked]="_pageSize() === size"
+            (triggered)="_setPageSize(size)"
+          >
+            <hlm-dropdown-menu-checkbox-indicator />
+            {{ size }}
+          </button>
+        }
+      </hlm-dropdown-menu>
+    </ng-template>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_pageIndex() === 0 || _licenses.isLoading()"
+      (click)="_previousPage()"
+    >
+      <ng-icon hlmIcon name="lucideChevronLeft" size="sm" />
+      Previous
+    </button>
+    <span class="min-w-20 text-center">
+      Page {{ _pageIndex() + 1 }} / {{ _pageCount() }}
+    </span>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_pageIndex() + 1 >= _pageCount() || _licenses.isLoading()"
+      (click)="_nextPage()"
+    >
+      Next
+      <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
+    </button>
+  </div>
+</footer>

@@ -68,17 +68,14 @@ mixin(
     await* Treasury.distributeAmbassadorShare(treasury, args);
   };
 
-  // ---- Public API ----
-
-  public query ({ caller }) func getMyWalletAddresses() : async {
+  func treasuryGetWalletAddresses(userId : Principal) : {
     icSubaccount : Blob;
     evmAddress : ?Text;
     solAddress : ?Text;
   } {
-    assert not Principal.isAnonymous(caller);
-    let subaccount = Account.principalToSubaccount(caller);
+    let subaccount = Account.principalToSubaccount(userId);
     let walletCache = treasury.store.walletCache;
-    let cached = switch (Map.get(walletCache, Principal.compare, caller)) {
+    let cached = switch (Map.get(walletCache, Principal.compare, userId)) {
       case (?w) w;
       case null {
         { icSubaccount = subaccount; evmAddress = null; solAddress = null };
@@ -89,6 +86,17 @@ mixin(
       evmAddress = cached.evmAddress;
       solAddress = cached.solAddress;
     };
+  };
+
+  // ---- Public API ----
+
+  public query ({ caller }) func getMyWalletAddresses() : async {
+    icSubaccount : Blob;
+    evmAddress : ?Text;
+    solAddress : ?Text;
+  } {
+    assert not Principal.isAnonymous(caller);
+    treasuryGetWalletAddresses(caller);
   };
 
   public shared ({ caller }) func withdraw(args : TreasuryTypes.WithdrawArgs) : async TreasuryTypes.WithdrawResult {

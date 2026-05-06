@@ -1,0 +1,396 @@
+<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-normal">Releases</h1>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_actionInFlight() === 'refresh'"
+      (click)="_refreshReleases()"
+    >
+      <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+      Refresh releases
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_actionInFlight() === 'register-latest'"
+      (click)="_registerLatestWasmHash()"
+    >
+      <ng-icon hlmIcon name="lucideHash" size="sm" />
+      Register latest
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_actionInFlight() === 'deployer:start' || _actionInFlight() === 'deployer:stop'"
+      (click)="_stopOrStartDeployer()"
+    >
+      <ng-icon
+        hlmIcon
+        [name]="_deployerRunning.value() ? 'lucidePause' : 'lucidePlay'"
+        size="sm"
+      />
+      {{ _deployerRunning.value() ? 'Stop deployer' : 'Start deployer' }}
+    </button>
+  </div>
+</header>
+
+<dl class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+  <section hlmCard class="p-6 py-4 shadow-xs">
+    <div hlmCardContent class="p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideTag" size="sm" class="text-foreground" />
+        Releases
+      </dt>
+      <dd class="mt-2 flex items-baseline gap-2.5">
+        <span class="text-3xl font-semibold tabular-nums text-foreground">
+          {{ _status.value().releasesCount.toString() }}
+        </span>
+      </dd>
+    </div>
+  </section>
+
+  <section hlmCard class="p-6 py-4 shadow-xs">
+    <div hlmCardContent class="p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideDownload" size="sm" class="text-foreground" />
+        Downloads
+      </dt>
+      <dd class="mt-2 flex items-baseline gap-2.5">
+        <span class="text-3xl font-semibold tabular-nums text-foreground">
+          {{ _status.value().completedDownloads.toString() }}
+        </span>
+        <span class="text-sm font-medium text-muted-foreground">
+          {{ _status.value().pendingDownloads.toString() }} pending
+        </span>
+      </dd>
+    </div>
+  </section>
+
+  <section hlmCard class="p-6 py-4 shadow-xs">
+    <div hlmCardContent class="p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideServerCog" size="sm" class="text-foreground" />
+        Deployment
+      </dt>
+      <dd class="mt-2 flex items-baseline gap-2.5">
+        <span class="text-3xl font-semibold text-foreground">
+          {{ _status.value().hasDeploymentReadyRelease ? 'Ready' : 'Pending' }}
+        </span>
+      </dd>
+    </div>
+  </section>
+
+  <section hlmCard class="min-w-0 p-6 py-4 shadow-xs">
+    <div hlmCardContent class="min-w-0 p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideHash" size="sm" class="text-foreground" />
+        Default key
+      </dt>
+      <dd class="mt-3 min-w-0">
+        <span class="block truncate font-mono text-sm font-semibold">
+          {{ _status.value().defaultVersionKey || 'none' }}
+        </span>
+      </dd>
+    </div>
+  </section>
+</dl>
+
+<hlm-dialog
+  [state]="_manualRegisterState()"
+  (stateChanged)="_manualRegisterState.set($event)"
+>
+  <hlm-dialog-content
+    *hlmDialogPortal
+    class="w-[min(28rem,calc(100vw-2rem))] sm:!max-w-xl"
+  >
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>Register WASM hash</h3>
+    </hlm-dialog-header>
+
+    <div class="grid gap-4">
+      <label class="grid gap-2 text-sm">
+        <span class="font-medium">Release tag</span>
+        <input
+          hlmInput
+          [value]="_manualReleaseTag()"
+          (input)="_manualReleaseTag.set($any($event.target).value)"
+        />
+      </label>
+
+      <label class="grid gap-2 text-sm">
+        <span class="font-medium">WASM hash hex</span>
+        <input
+          hlmInput
+          class="font-mono"
+          [value]="_manualHash()"
+          (input)="_manualHash.set($any($event.target).value)"
+        />
+      </label>
+    </div>
+
+    <hlm-dialog-footer>
+      <button hlmBtn variant="outline" hlmDialogClose>Cancel</button>
+      <button
+        hlmBtn
+        [disabled]="_actionInFlight() === 'register-manual'"
+        (click)="_submitManualWasmHash()"
+      >
+        @if (_actionInFlight() === 'register-manual') {
+          <hlm-spinner size="sm" />
+        }
+        Register
+      </button>
+    </hlm-dialog-footer>
+  </hlm-dialog-content>
+</hlm-dialog>
+
+@if (_status.error()) {
+  <div
+    class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+  >
+    Releases could not be loaded.
+  </div>
+}
+
+<div class="min-w-0 overflow-hidden rounded-md border">
+  <div class="max-h-[68vh] min-h-80 overflow-auto">
+    <table hlmTable class="min-w-full table-fixed">
+      <thead hlmTHead class="sticky top-0 z-10 bg-background">
+        <tr hlmTr>
+          <th hlmTh class="w-10"></th>
+          <th hlmTh class="w-48">Tag</th>
+          <th hlmTh class="w-72">Name</th>
+          <th hlmTh class="w-32">Type</th>
+          <th hlmTh class="w-36">Downloaded</th>
+          <th hlmTh class="w-36">Ready</th>
+          <th hlmTh class="w-56">Assets</th>
+          <th hlmTh class="w-48">Published</th>
+          <th hlmTh class="w-48">Created</th>
+        </tr>
+      </thead>
+
+      <tbody hlmTBody>
+        @for (release of _releases(); track release.tagName) {
+          <tr hlmTr>
+            <td hlmTd>
+              <button
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                class="size-7"
+                [attr.aria-expanded]="_isExpanded(release)"
+                (click)="_toggleReleaseExpanded(release)"
+              >
+                <ng-icon
+                  hlmIcon
+                  [name]="_isExpanded(release) ? 'lucideChevronDown' : 'lucideChevronRight'"
+                  size="sm"
+                />
+                <span class="sr-only">Toggle release assets</span>
+              </button>
+            </td>
+            <td hlmTd>
+              <span class="font-mono text-sm">{{ release.tagName }}</span>
+            </td>
+            <td hlmTd>
+              <span class="block truncate text-sm">{{ release.name }}</span>
+            </td>
+            <td hlmTd>
+              <span hlmBadge [variant]="_releaseTypeVariant(release)">
+                {{ _releaseType(release) }}
+              </span>
+            </td>
+            <td hlmTd>
+              <span
+                hlmBadge
+                [variant]="release.isDownloaded ? 'default' : 'secondary'"
+              >
+                @if (release.isDownloaded) {
+                  <ng-icon hlmIcon name="lucideCheck" size="xs" />
+                }
+                {{ release.isDownloaded ? 'Yes' : 'No' }}
+              </span>
+            </td>
+            <td hlmTd>
+              <span
+                hlmBadge
+                [variant]="release.isDeploymentReady ? 'default' : 'secondary'"
+              >
+                @if (release.isDeploymentReady) {
+                  <ng-icon hlmIcon name="lucideCheck" size="xs" />
+                }
+                {{ release.isDeploymentReady ? 'Ready' : 'Pending' }}
+              </span>
+            </td>
+            <td hlmTd>
+              <div class="flex items-center gap-2 text-sm">
+                <span>
+                  {{ _downloadedAssets(release) }} /
+                  {{ release.assets.length }} downloaded
+                </span>
+                @if (_errorAssets(release) > 0) {
+                  <span hlmBadge variant="destructive">
+                    {{ _errorAssets(release) }} failed
+                  </span>
+                }
+              </div>
+            </td>
+            <td hlmTd>
+              <span class="text-sm whitespace-nowrap">
+                {{ _optionalDate(release.publishedAt) | date: 'medium' }}
+              </span>
+            </td>
+            <td hlmTd>
+              <span class="text-sm whitespace-nowrap">
+                {{ _date(release.createdAt) | date: 'medium' }}
+              </span>
+            </td>
+          </tr>
+
+          @if (_isExpanded(release)) {
+            <tr hlmTr>
+              <td hlmTd colspan="9" class="bg-muted/30 p-4">
+                <div class="flex flex-wrap items-start gap-3">
+                  @for (asset of release.assets; track _assetName(asset)) {
+                    <section
+                      hlmCard
+                      size="sm"
+                      class="w-[30rem] max-w-full"
+                    >
+                      <div hlmCardHeader>
+                        <div class="flex min-w-0 items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <h3 hlmCardTitle class="truncate font-mono">
+                            {{ asset.name }}
+                          </h3>
+                          <p hlmCardDescription>
+                            {{ asset.contentType }} ·
+                            {{ _formatBytes(asset.size) }}
+                          </p>
+                        </div>
+                        <span
+                          hlmBadge
+                          [variant]="_assetDownloadVariant(asset)"
+                          class="shrink-0"
+                        >
+                          {{ _assetDownloadLabel(asset) }}
+                        </span>
+                        </div>
+                      </div>
+
+                      <div hlmCardContent class="space-y-2">
+                        @if (asset.sha256[0]; as sha256) {
+                          <rbth-copy-to-clipboard
+                            class="w-full"
+                            size="xs"
+                            [content]="_hashHex(sha256)"
+                          >
+                            {{ _hashHex(sha256) }}
+                          </rbth-copy-to-clipboard>
+                        }
+
+                        @if (_assetExtractionLabel(asset); as extraction) {
+                          <p class="text-xs text-muted-foreground">
+                            extraction {{ extraction }}
+                          </p>
+                        }
+                      </div>
+                    </section>
+                  } @empty {
+                    <span class="text-sm text-muted-foreground">
+                      No assets
+                    </span>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        } @empty {
+          <tr hlmTr>
+            <td hlmTd class="h-40 text-center" colspan="9">
+              @if (_status.isLoading()) {
+                <span
+                  class="inline-flex items-center gap-2 text-sm text-muted-foreground"
+                >
+                  <hlm-spinner size="sm" />
+                  Loading releases...
+                </span>
+              } @else {
+                <span class="text-sm text-muted-foreground">
+                  No releases found
+                </span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<rbth-frame class="min-w-0">
+  <header rbthFrameHeader class="flex-row items-center justify-between gap-3">
+    <div rbthFrameTitle>Known WASM hashes</div>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_actionInFlight() === 'register-manual'"
+      (click)="_registerManualWasmHash()"
+    >
+      <ng-icon hlmIcon name="lucideHash" size="sm" />
+      Register hash
+    </button>
+  </header>
+
+  <div rbthFramePanel class="max-h-72 min-w-0 overflow-auto p-0">
+    <table hlmTable class="min-w-full table-fixed">
+      <thead hlmTHead>
+        <tr hlmTr>
+          <th hlmTh class="w-80">Release</th>
+          <th hlmTh>Hash</th>
+          <th hlmTh class="w-56">Registered</th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @for (hash of _knownHashes.value(); track _hashHex(hash.hash)) {
+          <tr hlmTr>
+            <td hlmTd class="min-w-0">
+              <span class="block truncate font-mono text-sm">
+                {{ hash.releaseTag }}
+              </span>
+            </td>
+            <td hlmTd class="min-w-0">
+              <rbth-copy-to-clipboard
+                class="w-full"
+                [content]="_hashHex(hash.hash)"
+              >
+                {{ _hashHex(hash.hash) }}
+              </rbth-copy-to-clipboard>
+            </td>
+            <td hlmTd class="min-w-0">
+              <span class="text-sm whitespace-nowrap">
+                {{ _date(hash.registeredAt) | date: 'medium' }}
+              </span>
+            </td>
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td hlmTd class="h-24 text-center" colspan="3">
+              <span class="text-sm text-muted-foreground">
+                No known hashes registered
+              </span>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</rbth-frame>

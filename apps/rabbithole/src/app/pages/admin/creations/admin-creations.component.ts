@@ -134,7 +134,7 @@ const STATUS_OPTIONS = [
     DatePipe,
     NgIcon,
     AdminCreationStatusPopoverComponent,
-      HlmBadge,
+    HlmBadge,
     HlmIcon,
     HlmSpinner,
     RbthDataTableFilterComponent,
@@ -215,7 +215,6 @@ export class AdminCreationsComponent {
     'creationId',
     { parse: (value) => this._parseCreationIdQueryParam(value) },
   );
-
   protected readonly _pageIndex = signal(0);
   protected readonly _pageSize = signal(20);
   protected readonly _sortField = signal<CreationSortField>('createdAt');
@@ -337,6 +336,9 @@ export class AdminCreationsComponent {
   protected readonly _hiddenColumns = signal<Set<ColumnId>>(
     new Set<ColumnId>(['completedAt', 'id', 'licensePaymentId', 'subnetId']),
   );
+  protected readonly _ownerQueryParam = injectQueryParams('owner', {
+    parse: (value) => this._parseOwnerQueryParam(value),
+  });
   protected readonly _rows = computed(() => this._creations.value().data);
   protected readonly _total = computed(() => {
     const total = this._creations.value().total;
@@ -378,6 +380,12 @@ export class AdminCreationsComponent {
       const creationId = this._creationIdQueryParam();
 
       untracked(() => this._applyCreationIdQueryValue(creationId));
+    });
+
+    effect(() => {
+      const owner = this._ownerQueryParam();
+
+      untracked(() => this._applyOwnerQueryValue(owner));
     });
   }
 
@@ -515,7 +523,7 @@ export class AdminCreationsComponent {
   protected _setFilters(filters: RbthFiltersState): void {
     this._filters.set(filters);
     this._pageIndex.set(0);
-    this._syncCreationIdQueryParam(filters);
+    this._syncFilterQueryParams(filters);
   }
 
   protected _setPageSize(value: number | null): void {
@@ -627,6 +635,36 @@ export class AdminCreationsComponent {
     ]);
   }
 
+  private _applyOwnerQueryValue(owner: string | null): void {
+    const currentFilters = this._filters();
+    if (owner == null) {
+      if (this._ownerFilterValue(currentFilters) == null) return;
+
+      this._setFilters(
+        currentFilters.filter((filter) => filter.columnId !== 'owner'),
+      );
+      return;
+    }
+
+    if (this._ownerFilterValue(currentFilters) === owner) return;
+
+    this._setFilters([
+      ...currentFilters.filter((filter) => filter.columnId !== 'owner'),
+      {
+        columnId: 'owner',
+        operator: 'isAnyOf',
+        type: 'custom',
+        values: [
+          {
+            kind: 'principal',
+            label: owner,
+            principalId: owner,
+          },
+        ],
+      },
+    ]);
+  }
+
   private _booleanFilter(columnId: string): [] | [boolean] {
     const filter = this._filters().find(
       (item): item is RbthBooleanFilterModel =>
@@ -671,6 +709,11 @@ export class AdminCreationsComponent {
     return this._parseCreationIdQueryParam(
       new URLSearchParams(query).get('creationId'),
     );
+  }
+
+  private _currentOwnerQueryValue(): string | null {
+    const [, query = ''] = this.#location.path().split('?');
+    return this._parseOwnerQueryParam(new URLSearchParams(query).get('owner'));
   }
 
   private _dateFilter(
@@ -809,11 +852,34 @@ export class AdminCreationsComponent {
     return principals.length ? [principals] : [];
   }
 
+  private _ownerFilterValue(filters: RbthFiltersState): string | null {
+    const filter = filters.find(
+      (item) => item.columnId === 'owner' && item.type === 'custom',
+    );
+    if (!filter) return null;
+
+    const principalTargets = this._userTargets(filter.values).filter(
+      (target) => target.kind !== 'email',
+    );
+    return principalTargets.length === 1 ? principalTargets[0].principalId : null;
+  }
+
   private _parseCreationIdQueryParam(value: string | null): number | null {
     if (!value) return null;
 
     const parsed = Number(value);
     return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  private _parseOwnerQueryParam(value: string | null): string | null {
+    if (!value) return null;
+
+    try {
+      Principal.fromText(value);
+      return value;
+    } catch {
+      return null;
+    }
   }
 
   private _principalFilter(columnId: string): [] | [Principal[]] {
@@ -879,9 +945,15 @@ export class AdminCreationsComponent {
     return BigInt(startOfDay(date).getTime()) * 1_000_000n;
   }
 
-  private _syncCreationIdQueryParam(filters: RbthFiltersState): void {
+  private _syncFilterQueryParams(filters: RbthFiltersState): void {
     const creationId = this._creationIdFilterValue(filters);
-    if (this._currentCreationIdQueryValue() === creationId) return;
+    const owner = this._ownerFilterValue(filters);
+    if (
+      this._currentCreationIdQueryValue() === creationId &&
+      this._currentOwnerQueryValue() === owner
+    ) {
+      return;
+    }
 
     const [path, query = ''] = this.#location.path().split('?');
     const queryParams = new URLSearchParams(query);
@@ -889,6 +961,11 @@ export class AdminCreationsComponent {
       queryParams.delete('creationId');
     } else {
       queryParams.set('creationId', creationId.toString());
+    }
+    if (owner == null) {
+      queryParams.delete('owner');
+    } else {
+      queryParams.set('owner', owner);
     }
 
     const nextQuery = queryParams.toString();

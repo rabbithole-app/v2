@@ -144,13 +144,10 @@ export class BalanceService {
   });
 
   balances = computed<TokenBalance[]>(() => this.#balancesResource.value() ?? []);
-
   hideZero = signal(true);
-
   nonZeroBalances = computed(() =>
     this.balances().filter((b) => b.balance > 0n),
   );
-
   visibleBalances = computed(() =>
     this.hideZero() ? this.nonZeroBalances() : this.balances(),
   );
@@ -158,9 +155,23 @@ export class BalanceService {
   baseBalances = computed(() =>
     this.visibleBalances().filter((b) => b.chain === 'base'),
   );
+  error = computed(
+    () =>
+      this.#walletResource.error() ??
+      this.#ratesResource.error() ??
+      this.#balancesResource.error() ??
+      null,
+  );
 
   icBalances = computed(() =>
     this.visibleBalances().filter((b) => b.chain === 'ic'),
+  );
+
+  isLoading = computed(
+    () =>
+      this.#walletResource.isLoading() ||
+      this.#ratesResource.isLoading() ||
+      this.#balancesResource.isLoading(),
   );
 
   solanaBalances = computed(() =>

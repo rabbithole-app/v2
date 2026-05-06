@@ -1,0 +1,455 @@
+<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-normal">Subscriptions</h1>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <hlm-alert-dialog>
+      <button
+        hlmBtn
+        brnAlertDialogTrigger
+        variant="outline"
+        size="sm"
+        [disabled]="_actionInFlight() === 'expire-overdue'"
+      >
+        <ng-icon hlmIcon name="lucideTimerReset" size="sm" />
+        Expire overdue
+      </button>
+      <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
+        <hlm-alert-dialog-header>
+          <h3 hlmAlertDialogTitle>
+            Mark overdue subscriptions as expired?
+          </h3>
+          <p hlmAlertDialogDescription>
+            Confirming will call the backend expiration job immediately. Every
+            active subscription whose expiry time is already in the past will be
+            changed to the expired status.
+          </p>
+        </hlm-alert-dialog-header>
+        <hlm-alert-dialog-footer>
+          <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
+          <button
+            hlmAlertDialogAction
+            (click)="ctx.close(); _triggerExpireOverdue()"
+          >
+            Mark as expired
+          </button>
+        </hlm-alert-dialog-footer>
+      </hlm-alert-dialog-content>
+    </hlm-alert-dialog>
+
+    <hlm-alert-dialog>
+      <button
+        hlmBtn
+        brnAlertDialogTrigger
+        variant="outline"
+        size="sm"
+        [disabled]="_actionInFlight() === 'auto-renewals'"
+      >
+        <ng-icon hlmIcon name="lucideRotateCcw" size="sm" />
+        Auto renewals
+      </button>
+      <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
+        <hlm-alert-dialog-header>
+          <h3 hlmAlertDialogTitle>Run subscription auto-renewals?</h3>
+          <p hlmAlertDialogDescription>
+            Confirming will call the backend auto-renewal job immediately.
+            Eligible active or expired subscriptions may be renewed and user
+            balances may be charged.
+          </p>
+        </hlm-alert-dialog-header>
+        <hlm-alert-dialog-footer>
+          <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
+          <button
+            hlmAlertDialogAction
+            (click)="ctx.close(); _triggerAutoRenewals()"
+          >
+            Run auto renewals
+          </button>
+        </hlm-alert-dialog-footer>
+      </hlm-alert-dialog-content>
+    </hlm-alert-dialog>
+  </div>
+</header>
+
+<rbth-data-table-filter
+  [columns]="_filterColumns"
+  [filters]="_filters()"
+  (filtersChange)="_setFilters($event)"
+>
+  <ng-template
+    rbthFilterValue="user"
+    let-setValues="setValues"
+    let-values="values"
+  >
+    <core-user-target-combobox
+      class="block w-72 [&_hlm-combobox-chips]:h-8 [&_hlm-combobox-chips]:min-h-8 [&_hlm-combobox-chips]:flex-nowrap [&_hlm-combobox-chips]:overflow-hidden [&_hlm-combobox-chips]:rounded-none [&_hlm-combobox-chips]:border-s-0 [&_hlm-combobox-chips]:py-1"
+      [allowTypedEmail]="false"
+      placeholder="Search user"
+      [value]="_userTargets(values)"
+      (valueChange)="setValues($event)"
+    >
+      <ng-template coreUserTargetComboboxValue let-selected>
+        {{ _userTargetSummary(selected) }}
+      </ng-template>
+    </core-user-target-combobox>
+  </ng-template>
+
+  <div rbthDataTableFilterActions class="flex items-center gap-2">
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="h-8 shrink-0"
+      [disabled]="_subscriptions.isLoading()"
+      (click)="_reload()"
+    >
+      <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+      Refresh
+    </button>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="h-8 shrink-0"
+      [hlmDropdownMenuTrigger]="columnsMenu"
+    >
+      <ng-icon hlmIcon name="lucideColumns3" size="sm" />
+      Columns
+    </button>
+  </div>
+
+  <ng-template #columnsMenu>
+    <hlm-dropdown-menu class="w-56">
+      <hlm-dropdown-menu-label>Visible columns</hlm-dropdown-menu-label>
+      <hlm-dropdown-menu-separator />
+      @for (column of _columnOptions; track column.id) {
+        <button
+          hlmDropdownMenuCheckbox
+          [checked]="_columnVisible(column.id)"
+          [disabled]="column.required === true"
+          (triggered)="_toggleColumn(column.id)"
+        >
+          <hlm-dropdown-menu-checkbox-indicator />
+          {{ column.label }}
+        </button>
+      }
+    </hlm-dropdown-menu>
+  </ng-template>
+</rbth-data-table-filter>
+
+@if (_subscriptions.error()) {
+  <div
+    class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+  >
+    Subscriptions could not be loaded.
+  </div>
+}
+
+<div class="min-w-0 overflow-hidden rounded-md border">
+  <div class="max-h-[68vh] min-h-80 overflow-auto">
+    <table
+      hlmTable
+      class="min-w-full table-fixed"
+      [style.width.px]="_table.getTotalSize()"
+    >
+      <colgroup>
+        @for (column of _table.getVisibleLeafColumns(); track column.id) {
+          <col [style.width.px]="column.getSize()" />
+        }
+      </colgroup>
+
+      <thead hlmTHead class="sticky top-0 z-10 bg-background">
+        @for (headerGroup of _table.getHeaderGroups(); track headerGroup.id) {
+          <tr hlmTr>
+            @for (header of headerGroup.headers; track header.id) {
+              <th
+                hlmTh
+                [attr.colspan]="header.colSpan"
+                [style.width.px]="header.getSize()"
+                class="relative select-none"
+              >
+                @if (!header.isPlaceholder) {
+                  @if (_sortable(header.column.id)) {
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1.5 font-medium"
+                      (click)="_toggleSort(header.column.id)"
+                    >
+                      {{ header.column.columnDef.header }}
+                      <ng-icon
+                        hlmIcon
+                        [name]="_sortIcon(header.column.id)"
+                        size="sm"
+                        class="text-muted-foreground"
+                      />
+                    </button>
+                  } @else {
+                    {{ header.column.columnDef.header }}
+                  }
+                }
+
+                @if (header.column.getCanResize()) {
+                  <button
+                    type="button"
+                    class="absolute inset-y-1 right-0 w-1 cursor-col-resize rounded-full bg-border opacity-0 transition-opacity hover:opacity-100 active:opacity-100"
+                    [class.opacity-100]="
+                      _table.getState().columnSizingInfo.isResizingColumn ===
+                      header.column.id
+                    "
+                    (mousedown)="header.getResizeHandler()($event)"
+                    (touchstart)="header.getResizeHandler()($event)"
+                    aria-label="Resize column"
+                  ></button>
+                }
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+
+      <tbody hlmTBody>
+        @for (row of _table.getRowModel().rows; track row.id) {
+          @let subscription = row.original;
+          <tr hlmTr>
+            @for (cell of row.getVisibleCells(); track cell.id) {
+              <td hlmTd [style.width.px]="cell.column.getSize()">
+                @switch (cell.column.id) {
+                  @case ('user') {
+                    <rbth-copy-to-clipboard
+                      [content]="subscription.userId.toText()"
+                    >
+                      {{ subscription.userId.toText() }}
+                    </rbth-copy-to-clipboard>
+                  }
+                  @case ('plan') {
+                    <span
+                      hlmBadge
+                      [variant]="_badgeVariant(_planLabel(subscription.plan))"
+                    >
+                      {{ _planLabel(subscription.plan) }}
+                    </span>
+                  }
+                  @case ('status') {
+                    <span
+                      hlmBadge
+                      [variant]="_badgeVariant(_statusLabel(subscription.status))"
+                    >
+                      {{ _statusLabel(subscription.status) }}
+                    </span>
+                  }
+                  @case ('expiresAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _optionalDate(subscription.expiresAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('autoRenew') {
+                    <span
+                      hlmBadge
+                      [variant]="subscription.autoRenew ? 'default' : 'outline'"
+                    >
+                      {{ subscription.autoRenew ? 'Enabled' : 'Disabled' }}
+                    </span>
+                  }
+                  @case ('trialUsedBytes') {
+                    <span class="text-sm tabular-nums">
+                      {{ _formatBytes(subscription.trialUsedBytes) }}
+                    </span>
+                  }
+                  @case ('activatedAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _date(subscription.activatedAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('updatedAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _date(subscription.updatedAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('createdAt') {
+                    <span class="text-sm whitespace-nowrap">
+                      {{ _date(subscription.createdAt) | date: 'medium' }}
+                    </span>
+                  }
+                  @case ('actions') {
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      class="size-8"
+                      [hlmDropdownMenuTrigger]="actionsMenu"
+                      [disabled]="_actionDisabled(subscription)"
+                    >
+                      @if (_actionDisabled(subscription)) {
+                        <hlm-spinner size="sm" />
+                      } @else {
+                        <ng-icon hlmIcon name="lucideEllipsis" size="sm" />
+                      }
+                    </button>
+                    <ng-template #actionsMenu>
+                      <hlm-dropdown-menu class="w-48">
+                        <hlm-dropdown-menu-label>
+                          Subscription
+                        </hlm-dropdown-menu-label>
+                        <hlm-dropdown-menu-separator />
+                        <button
+                          hlmDropdownMenuItem
+                          (triggered)="_openSubscriptionDialog(subscription, 'activate', 'Trial')"
+                        >
+                          Activate trial
+                        </button>
+                        <button
+                          hlmDropdownMenuItem
+                          (triggered)="_openSubscriptionDialog(subscription, 'activate', 'Pro')"
+                        >
+                          Activate Pro
+                        </button>
+                        <hlm-dropdown-menu-separator />
+                        <button
+                          hlmDropdownMenuItem
+                          (triggered)="_openSubscriptionDialog(subscription, 'renew', 'Trial')"
+                        >
+                          Renew trial
+                        </button>
+                        <button
+                          hlmDropdownMenuItem
+                          (triggered)="_openSubscriptionDialog(subscription, 'renew', 'Pro')"
+                        >
+                          Renew Pro
+                        </button>
+                      </hlm-dropdown-menu>
+                    </ng-template>
+                  }
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td
+              hlmTd
+              class="h-40 text-center"
+              [attr.colspan]="_table.getVisibleLeafColumns().length"
+            >
+              @if (_subscriptions.isLoading()) {
+                <span
+                  class="inline-flex items-center gap-2 text-sm text-muted-foreground"
+                >
+                  <hlm-spinner size="sm" />
+                  Loading subscriptions...
+                </span>
+              } @else {
+                <span class="text-sm text-muted-foreground">
+                  No subscriptions found
+                </span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer
+  class="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
+>
+  <span> Showing {{ _rangeStart() }}-{{ _rangeEnd() }} of {{ _total() }} </span>
+
+  <div class="flex flex-wrap items-center justify-end gap-2">
+    <span class="text-sm">Rows per page</span>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      class="min-w-20 justify-between"
+      [hlmDropdownMenuTrigger]="pageSizeMenu"
+    >
+      {{ _pageSize() }}
+      <ng-icon
+        hlmIcon
+        name="lucideChevronDown"
+        size="sm"
+        class="text-muted-foreground"
+      />
+    </button>
+    <ng-template #pageSizeMenu>
+      <hlm-dropdown-menu class="w-32">
+        @for (size of _pageSizes; track size) {
+          <button
+            hlmDropdownMenuCheckbox
+            [checked]="_pageSize() === size"
+            (triggered)="_setPageSize(size)"
+          >
+            <hlm-dropdown-menu-checkbox-indicator />
+            {{ size }}
+          </button>
+        }
+      </hlm-dropdown-menu>
+    </ng-template>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_pageIndex() === 0 || _subscriptions.isLoading()"
+      (click)="_previousPage()"
+    >
+      <ng-icon hlmIcon name="lucideChevronLeft" size="sm" />
+      Previous
+    </button>
+    <span class="min-w-20 text-center">
+      Page {{ _pageIndex() + 1 }} / {{ _pageCount() }}
+    </span>
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      [disabled]="_pageIndex() + 1 >= _pageCount() || _subscriptions.isLoading()"
+      (click)="_nextPage()"
+    >
+      Next
+      <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
+    </button>
+  </div>
+</footer>
+
+<hlm-dialog [state]="_dialogState()" (stateChanged)="_dialogState.set($event)">
+  <hlm-dialog-content *hlmDialogPortal class="sm:max-w-md">
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>
+        {{ _dialogMode() === 'activate' ? 'Activate' : 'Renew' }}
+        {{ _dialogPlan() }} subscription
+      </h3>
+      <p hlmDialogDescription>
+        @if (_dialogSubscription(); as subscription) {
+          {{ subscription.userId.toText() }}
+        }
+      </p>
+    </hlm-dialog-header>
+
+    <label class="grid gap-2 text-sm">
+      <span class="font-medium">Duration, days</span>
+      <input
+        hlmInput
+        type="number"
+        min="1"
+        [value]="_dialogDays()"
+        (input)="_dialogDays.set($any($event.target).value)"
+      />
+    </label>
+
+    <hlm-dialog-footer>
+      <button hlmBtn variant="outline" hlmDialogClose>Cancel</button>
+      <button
+        hlmBtn
+        [disabled]="_actionInFlight() !== null"
+        (click)="_submitSubscriptionDialog()"
+      >
+        @if (_actionInFlight() !== null) {
+          <hlm-spinner size="sm" />
+        }
+        Apply
+      </button>
+    </hlm-dialog-footer>
+  </hlm-dialog-content>
+</hlm-dialog>

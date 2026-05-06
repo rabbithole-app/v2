@@ -1,0 +1,193 @@
+@let detail = userDetail();
+@let user = detail.user;
+@let subscription = detail.subscription;
+
+<div
+  class="grid items-start gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]"
+>
+  <rbth-frame class="min-w-0">
+    <header rbthFrameHeader>
+      <div rbthFrameTitle>Identity</div>
+    </header>
+    <div rbthFramePanel class="grid gap-4 sm:grid-cols-2">
+      <div class="min-w-0">
+        <div class="text-sm text-muted-foreground">Principal</div>
+        <rbth-copy-to-clipboard class="w-full" [content]="user.id.toText()">
+          {{ user.id.toText() }}
+        </rbth-copy-to-clipboard>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Role</div>
+        <div class="font-medium">{{ _roleLabel(user.role) }}</div>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Name</div>
+        <div class="font-medium">{{ _optionalText(user.identity.name) }}</div>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Email</div>
+        <div class="font-medium">{{ _optionalText(user.identity.email) }}</div>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Created</div>
+        <div class="font-medium">
+          {{ _date(user.createdAt) | date: 'medium' }}
+        </div>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Last login</div>
+        <div class="font-medium">
+          {{ _optionalDate(user.lastLoginAt) | date: 'medium' }}
+        </div>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Identity synced</div>
+        <div class="font-medium">
+          {{ _optionalDate(user.identity.syncedAt) | date: 'medium' }}
+        </div>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Updated</div>
+        <div class="font-medium">
+          {{ _date(user.updatedAt) | date: 'medium' }}
+        </div>
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Inviter</div>
+        @if (user.inviter[0]; as inviter) {
+          <rbth-copy-to-clipboard class="w-full" [content]="inviter.toText()">
+            {{ inviter.toText() }}
+          </rbth-copy-to-clipboard>
+        } @else {
+          <div class="font-medium">none</div>
+        }
+      </div>
+      <div>
+        <div class="text-sm text-muted-foreground">Referral applied</div>
+        <div class="font-medium">
+          {{ _optionalDate(user.referralAppliedAt) | date: 'medium' }}
+        </div>
+      </div>
+    </div>
+  </rbth-frame>
+
+  <rbth-frame class="min-w-0">
+    <header rbthFrameHeader>
+      <div rbthFrameTitle>Subscription</div>
+    </header>
+    <div rbthFramePanel>
+      @if (subscription) {
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <div class="text-sm text-muted-foreground">Plan</div>
+            <span hlmBadge>{{ _planLabel(subscription.plan) }}</span>
+          </div>
+          <div>
+            <div class="text-sm text-muted-foreground">Status</div>
+            <span hlmBadge [variant]="_statusVariant(subscription.status)">
+              {{ _statusLabel(subscription.status) }}
+            </span>
+          </div>
+          <div>
+            <div class="text-sm text-muted-foreground">Auto renew</div>
+            <div class="font-medium">
+              {{ subscription.autoRenew ? 'yes' : 'no' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-sm text-muted-foreground">Trial used bytes</div>
+            <div class="font-medium">
+              {{ _formatBytes(subscription.trialUsedBytes) }}
+            </div>
+          </div>
+          <div>
+            <div class="text-sm text-muted-foreground">Activated</div>
+            <div class="font-medium">
+              {{ _date(subscription.activatedAt) | date: 'medium' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-sm text-muted-foreground">Expires</div>
+            <div class="font-medium">
+              {{ _optionalDate(subscription.expiresAt) | date: 'medium' }}
+            </div>
+          </div>
+        </div>
+      } @else {
+        <span class="text-sm text-muted-foreground">
+          No subscription record found.
+        </span>
+      }
+    </div>
+  </rbth-frame>
+</div>
+
+<section class="mt-6 space-y-3">
+  <h2 hlmH3>Storages</h2>
+
+  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    @for (creation of detail.creations; track creation.id.toString()) {
+      <div hlmItem variant="outline" class="min-w-0">
+        <div hlmItemMedia variant="icon">
+          <ng-icon hlmIcon name="lucideHardDrive" />
+        </div>
+        <div hlmItemContent class="min-w-0">
+          @if (_canisterIdText(creation); as canisterId) {
+            <rbth-copy-to-clipboard
+              hlmItemTitle
+              class="max-w-full"
+              [content]="canisterId"
+            >
+              {{ canisterId }}
+            </rbth-copy-to-clipboard>
+          } @else {
+            <span hlmItemTitle class="text-muted-foreground">
+              {{ _creationLabel(creation) }} #{{ creation.id.toString() }}
+            </span>
+          }
+
+          <p hlmItemDescription>
+            @if (creation.statusTag === 'Completed') {
+              <span hlmBadge variant="outline" class="text-xs text-green-600">
+                <ng-icon hlmIcon name="lucideCheck" size="xs" />
+                Ready
+              </span>
+            } @else {
+              <span hlmBadge [variant]="_badgeVariant(creation.statusTag)">
+                {{ creation.statusTag }}
+              </span>
+            }
+          </p>
+        </div>
+
+        @if (
+          creation.statusTag === 'Completed' && _canisterAppUrl(creation);
+          as appUrl
+        ) {
+          <div hlmItemActions>
+            <a
+              hlmBtn
+              size="sm"
+              variant="outline"
+              [href]="appUrl"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open app
+              <ng-icon hlmIcon name="lucideExternalLink" size="sm" />
+            </a>
+          </div>
+        }
+      </div>
+    } @empty {
+      <div hlmItem variant="outline">
+        <div hlmItemMedia variant="icon">
+          <ng-icon hlmIcon name="lucideHardDrive" />
+        </div>
+        <div hlmItemContent>
+          <span hlmItemTitle>No storages found</span>
+        </div>
+      </div>
+    }
+  </div>
+</section>

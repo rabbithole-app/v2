@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   input,
   output,
   signal,
@@ -23,10 +22,10 @@ import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import { BalanceService } from '../../../services/balance.service';
 import { calculatePaymentEligibility } from '../../../utils/payment-eligibility';
 import { WalletNetworksViewComponent } from '../wallet-networks-view/wallet-networks-view.component';
 import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-summary-header.component';
+import { injectWalletBalanceContext } from '../wallet/wallet-balance-context';
 
 @Component({
   selector: 'core-wallet-balance-payment-panel',
@@ -52,11 +51,11 @@ import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-su
 })
 export class WalletBalancePaymentPanelComponent {
   readonly requiredUsd = input.required<number>();
-  readonly #balanceService = inject(BalanceService);
+  readonly #walletContext = injectWalletBalanceContext();
 
   readonly eligibility = computed(() =>
     calculatePaymentEligibility(
-      this.#balanceService.balances(),
+      this.#walletContext.balances(),
       this.requiredUsd(),
     ),
   );
@@ -72,6 +71,6 @@ export class WalletBalancePaymentPanelComponent {
   /** Re-fetch wallet addresses, FX rates, and on-chain balances. Use after
    * topping up SOL/ETH/ICP so the UI shows the new funds without a page reload. */
   refresh(): void {
-    this.#balanceService.reload();
+    this.#walletContext.reload();
   }
 }

@@ -2,21 +2,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   input,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideCircleAlert, lucideCircleCheck } from '@ng-icons/lucide';
 
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
-import { BalanceService } from '../../../services/balance.service';
 import { formatUsd } from '../../../utils/format-number';
 import { calculatePaymentEligibility } from '../../../utils/payment-eligibility';
+import { injectWalletBalanceContext } from '../wallet/wallet-balance-context';
 
 @Component({
   selector: 'core-wallet-summary-header',
-  imports: [NgIcon, HlmIcon],
+  imports: [NgIcon, HlmIcon, HlmSpinner],
   providers: [provideIcons({ lucideCircleAlert, lucideCircleCheck })],
   host: { class: 'block' },
   template: `
@@ -31,8 +31,19 @@ import { calculatePaymentEligibility } from '../../../utils/payment-eligibility'
         [class.text-2xl]="size() === 'md'"
         [class.text-base]="size() === 'sm'"
       >
-        {{ formattedTotal() }}
+        @if (walletContext.isLoading()) {
+          <hlm-spinner class="text-2xl" />
+        } @else {
+          {{ formattedTotal() }}
+        }
       </p>
+
+      @if (walletContext.error()) {
+        <p class="mt-1 flex items-center gap-2 text-xs text-destructive">
+          <ng-icon hlmIcon size="xs" name="lucideCircleAlert" />
+          <span>Wallet balances could not be loaded.</span>
+        </p>
+      }
 
       @if (eligibility(); as e) {
         <p
@@ -42,7 +53,7 @@ import { calculatePaymentEligibility } from '../../../utils/payment-eligibility'
           [class.text-muted-foreground]="e.status !== 'sufficient'"
         >
           <ng-icon
-            hlm
+            hlmIcon
             size="xs"
             [name]="
               e.status === 'sufficient' ? 'lucideCircleCheck' : 'lucideCircleAlert'
@@ -57,19 +68,19 @@ import { calculatePaymentEligibility } from '../../../utils/payment-eligibility'
 })
 export class WalletSummaryHeaderComponent {
   readonly requiredUsd = input<number | null>(null);
-  readonly #balanceService = inject(BalanceService);
+  readonly walletContext = injectWalletBalanceContext();
 
   readonly eligibility = computed(() => {
     const required = this.requiredUsd();
     if (required === null) return null;
     return calculatePaymentEligibility(
-      this.#balanceService.balances(),
+      this.walletContext.balances(),
       required,
     );
   });
 
   readonly formattedTotal = computed(() =>
-    formatUsd(this.#balanceService.totalUsd()),
+    formatUsd(this.walletContext.totalUsd()),
   );
 
   readonly size = input<'md' | 'sm'>('md');

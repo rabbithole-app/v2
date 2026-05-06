@@ -7,6 +7,7 @@ import {
   resource,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -24,6 +25,7 @@ import {
   lucideChevronLeft,
   lucideChevronRight,
   lucideColumns3,
+  lucideExternalLink,
   lucideRefreshCw,
 } from '@ng-icons/lucide';
 import {
@@ -117,9 +119,10 @@ const EMPTY_PAGE: AdminUsersPage = {
     HlmCheckbox,
     HlmIcon,
     HlmSpinner,
-      RbthDataTableFilterComponent,
+    RbthDataTableFilterComponent,
     RbthFilterValueDirective,
     RbthTransparentSelectBackdropDirective,
+    RouterLink,
     UserIdentityComponent,
     UserTargetComboboxComponent,
     UserTargetComboboxValueDirective,
@@ -138,6 +141,7 @@ const EMPTY_PAGE: AdminUsersPage = {
       lucideChevronLeft,
       lucideChevronRight,
       lucideColumns3,
+      lucideExternalLink,
       lucideRefreshCw,
       hugeApple,
       hugeDeveloper,

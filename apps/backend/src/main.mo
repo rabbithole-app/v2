@@ -36,6 +36,7 @@ import KnownWasmHashesMixin "KnownWasmHashes/mixin";
 import UsersMixin "Users/mixin";
 import IdentityVerificationMixin "IdentityVerification/mixin";
 import NotificationsMixin "Notifications/mixin";
+import Settings "Settings/lib";
 import SettingsMixin "Settings/mixin";
 import TreasuryMixin "Treasury/mixin";
 import SubscriptionsMixin "Subscriptions/mixin";
@@ -127,6 +128,22 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     },
     { assertAdmin },
   );
+
+  public query ({ caller }) func adminGetUserWalletMeta(userId : Principal) : async {
+    walletAddresses : {
+      icSubaccount : Blob;
+      evmAddress : ?Text;
+      solAddress : ?Text;
+    };
+    settings : Settings.UserSettings;
+  } {
+    assertAdmin(caller);
+    {
+      walletAddresses = treasuryGetWalletAddresses(userId);
+      settings = getUserSettings(userId);
+    };
+  };
+
   include SubscriptionsMixin(
     db,
     { assertAdmin },

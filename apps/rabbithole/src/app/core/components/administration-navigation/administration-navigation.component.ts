@@ -9,7 +9,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideCircleAlert,
+  lucideCreditCard,
   lucideGauge,
+  lucideKeyRound,
+  lucidePackageOpen,
   lucideServerCog,
   lucideUsers,
 } from '@ng-icons/lucide';
@@ -33,7 +36,10 @@ import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
   providers: [
     provideIcons({
       lucideCircleAlert,
+      lucideCreditCard,
       lucideGauge,
+      lucideKeyRound,
+      lucidePackageOpen,
       lucideServerCog,
       lucideUsers,
     }),
@@ -70,6 +76,24 @@ export class AdministrationNavigationComponent {
       icon: 'lucideCircleAlert',
       label: 'CMC Recovery',
       route: '/dashboard/admin/cmc-recovery',
+    },
+    {
+      exact: false,
+      icon: 'lucideCreditCard',
+      label: 'Subscriptions',
+      route: '/dashboard/admin/subscriptions',
+    },
+    {
+      exact: false,
+      icon: 'lucideKeyRound',
+      label: 'Licenses',
+      route: '/dashboard/admin/licenses',
+    },
+    {
+      exact: false,
+      icon: 'lucidePackageOpen',
+      label: 'Releases',
+      route: '/dashboard/admin/releases',
     },
     {
       exact: false,

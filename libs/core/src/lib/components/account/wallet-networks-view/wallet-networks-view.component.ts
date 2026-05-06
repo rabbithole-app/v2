@@ -29,14 +29,13 @@ import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 
 import { injectMainActor } from '../../../injectors';
 import {
-  BalanceService,
   TOKEN_CONFIGS,
   type TokenBalance,
   type TokenConfig,
-  type WalletAddresses,
 } from '../../../services/balance.service';
 import { MAIN_CANISTER_ID_TOKEN } from '../../../tokens';
 import { formatUsd } from '../../../utils/format-number';
+import { injectWalletBalanceContext } from '../wallet/wallet-balance-context';
 
 type NetworkDefinition = {
   addressLabel: string;
@@ -110,25 +109,17 @@ const NETWORK_DEFINITIONS: NetworkDefinition[] = [
 })
 export class WalletNetworksViewComponent {
   readonly activeTab = signal<WalletChain>('ic');
-  readonly balances = input<TokenBalance[] | null>(null);
   readonly canGenerateAddresses = input(true);
+  readonly #walletContext = injectWalletBalanceContext();
+  readonly error = this.#walletContext.error;
   readonly generatingChain = signal<WalletChain | null>(null);
-
   readonly hideZeroBalances = input<boolean | null>(null);
-  readonly #balanceService = inject(BalanceService);
-
   readonly hideZero = computed(
-    () => this.hideZeroBalances() ?? this.#balanceService.hideZero(),
-  );
-  readonly walletAddressesInput = input<WalletAddresses | null>(null, {
-    alias: 'walletAddresses',
-  });
-  readonly walletAddresses = computed(
-    () => this.walletAddressesInput() ?? this.#balanceService.walletAddresses(),
+    () => this.hideZeroBalances() ?? this.#walletContext.hideZero(),
   );
 
+  readonly walletAddresses = this.#walletContext.walletAddresses;
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
-
   readonly icAccountId = computed(() => {
     const wallet = this.walletAddresses();
     if (!wallet) return null;
@@ -145,6 +136,8 @@ export class WalletNetworksViewComponent {
       subAccount,
     }).toHex();
   });
+
+  readonly isLoading = this.#walletContext.isLoading;
   readonly networks = computed(() =>
     NETWORK_DEFINITIONS.map((network) => {
       const balances = this.getVisibleBalances(network.id);
@@ -159,11 +152,10 @@ export class WalletNetworksViewComponent {
   );
 
   readonly visibleBalances = computed(() => {
-    const balances = this.balances();
-    if (!balances) return this.#balanceService.visibleBalances();
+    const source = this.#walletContext.balances();
     return this.hideZero()
-      ? balances.filter((balance) => balance.balance > 0n)
-      : balances;
+      ? source.filter((balance) => balance.balance > 0n)
+      : source;
   });
 
   readonly #actor = injectMainActor();
@@ -198,7 +190,7 @@ export class WalletNetworksViewComponent {
         throw new Error('Address generation is not available right now');
       }
 
-      this.#balanceService.reload();
+      this.#walletContext.reload();
       toast.success(
         chain === 'base' ? 'Base address generated' : 'Solana address generated',
         { id: toastId },

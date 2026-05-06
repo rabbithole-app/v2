@@ -1,15 +1,26 @@
-<hlm-tabs [tab]="activeTab()" class="w-full">
-  <hlm-tabs-list class="!h-auto w-fit max-w-full items-stretch">
-    @for (network of networks(); track network.id) {
-      <button
-        [hlmTabsTrigger]="network.id"
-        class="h-auto min-h-10 whitespace-nowrap px-3 py-2 text-center leading-tight"
-        (click)="selectTab(network.id)"
-      >
-        {{ network.tabLabel }}
-      </button>
-    }
-  </hlm-tabs-list>
+@if (error()) {
+  <div
+    class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+  >
+    Wallet balances could not be loaded.
+  </div>
+} @else if (isLoading() && !walletAddresses()) {
+  <div class="flex min-h-48 items-center justify-center">
+    <hlm-spinner class="text-2xl" />
+  </div>
+} @else {
+  <hlm-tabs [tab]="activeTab()" class="w-full">
+    <hlm-tabs-list class="!h-auto w-fit max-w-full items-stretch">
+      @for (network of networks(); track network.id) {
+        <button
+          [hlmTabsTrigger]="network.id"
+          class="h-auto min-h-10 whitespace-nowrap px-3 py-2 text-center leading-tight"
+          (click)="selectTab(network.id)"
+        >
+          {{ network.tabLabel }}
+        </button>
+      }
+    </hlm-tabs-list>
 
   @for (network of networks(); track network.id) {
     <div [hlmTabsContent]="network.id" class="mt-4">
@@ -152,4 +163,5 @@
       </ng-template>
     </div>
   }
-</hlm-tabs>
+  </hlm-tabs>
+}

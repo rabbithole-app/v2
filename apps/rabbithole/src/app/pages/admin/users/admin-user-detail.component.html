@@ -1,0 +1,377 @@
+@let detail = userDetail();
+@let user = _user();
+@let subscription = _subscription();
+
+<app-admin-user-header [userDetail]="user" />
+
+<dl class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  <section hlmCard class="p-6 py-4 shadow-xs">
+    <div hlmCardContent class="p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideShield" size="sm" class="text-foreground" />
+        Subscription
+      </dt>
+      <dd class="mt-2 flex items-baseline gap-2.5">
+        <span class="text-2xl font-semibold text-foreground">
+          {{ _subscriptionSummary(subscription) }}
+        </span>
+      </dd>
+    </div>
+  </section>
+
+  <section hlmCard class="p-6 py-4 shadow-xs">
+    <div hlmCardContent class="p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideDatabase" size="sm" class="text-foreground" />
+        Creations
+      </dt>
+      <dd class="mt-2 flex items-baseline gap-2.5">
+        <span class="text-3xl font-semibold tabular-nums text-foreground">
+          {{ detail.creationsTotal }}
+        </span>
+        @if (_activeCreations() > 0) {
+          <span class="text-sm font-medium text-muted-foreground">
+            {{ _activeCreations() }} active
+          </span>
+        }
+        @if (_failedCreations() > 0) {
+          <span class="text-sm font-medium text-destructive">
+            {{ _failedCreations() }} failed
+          </span>
+        }
+      </dd>
+    </div>
+  </section>
+
+  <section hlmCard class="p-6 py-4 shadow-xs">
+    <div hlmCardContent class="p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideReceipt" size="sm" class="text-foreground" />
+        Licenses
+      </dt>
+      <dd class="mt-2 flex items-baseline gap-2.5">
+        <span class="text-3xl font-semibold tabular-nums text-foreground">
+          {{ detail.licensesTotal }}
+        </span>
+        @if (_unboundLicenses() > 0) {
+          <span class="text-sm font-medium text-muted-foreground">
+            {{ _unboundLicenses() }} unbound
+          </span>
+        }
+        @if (_refundedLicenses() > 0) {
+          <span class="text-sm font-medium text-destructive">
+            {{ _refundedLicenses() }} refunded
+          </span>
+        }
+      </dd>
+    </div>
+  </section>
+
+  <section hlmCard class="p-6 py-4 shadow-xs">
+    <div hlmCardContent class="p-0">
+      <dt class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <ng-icon hlmIcon name="lucideWallet" size="sm" class="text-foreground" />
+        Wallet
+      </dt>
+      <dd class="mt-2 flex items-baseline gap-2.5">
+        <span class="text-3xl font-semibold tabular-nums text-foreground">
+          @if (_walletMeta.isLoading() || _walletBalances.isLoading()) {
+            <hlm-spinner class="text-2xl" />
+          } @else if (_walletMeta.value()) {
+            {{ _formatUsd(_walletTotalUsd()) }}
+          } @else {
+            unavailable
+          }
+        </span>
+        <span class="text-sm font-medium text-muted-foreground">
+          balances
+        </span>
+      </dd>
+    </div>
+  </section>
+</dl>
+
+<div hlmTabs [tab]="_activeTab()" class="min-w-0">
+  <div hlmTabsList class="w-fit">
+    <button hlmTabsTrigger="overview" (click)="_activeTab.set('overview')">
+      Overview
+    </button>
+    <button hlmTabsTrigger="wallet" (click)="_activeTab.set('wallet')">
+      Wallet
+    </button>
+    <button hlmTabsTrigger="creations" (click)="_activeTab.set('creations')">
+      Creations
+    </button>
+    <button hlmTabsTrigger="licenses" (click)="_activeTab.set('licenses')">
+      Licenses
+    </button>
+  </div>
+
+  <div hlmTabsContent="overview" class="mt-4">
+    <app-admin-user-overview [userDetail]="detail" />
+  </div>
+
+  <div hlmTabsContent="wallet" class="mt-4">
+    @let walletMeta = _walletMeta.value();
+    <div
+      class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]"
+    >
+      <rbth-frame class="min-w-0">
+        <header rbthFrameHeader class="flex-row items-center justify-between gap-3">
+          <div rbthFrameTitle>Wallet</div>
+          <button
+            hlmBtn
+            variant="outline"
+            size="sm"
+            [disabled]="_walletMeta.isLoading() || _walletBalances.isLoading()"
+            (click)="_walletMeta.error() ? _retryWalletMeta() : reload()"
+          >
+            @if (_walletMeta.isLoading() || _walletBalances.isLoading()) {
+              <hlm-spinner class="text-base" />
+            } @else {
+              <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+            }
+            Refresh
+          </button>
+        </header>
+        <div rbthFramePanel>
+          @if (walletMeta) {
+            <core-wallet-networks-view
+              [canGenerateAddresses]="false"
+              [hideZeroBalances]="false"
+            />
+          } @else if (_walletMeta.isLoading()) {
+            <div class="flex h-40 items-center justify-center">
+              <hlm-spinner class="text-2xl" />
+            </div>
+          } @else {
+            <span class="text-sm text-muted-foreground">
+              Wallet metadata is not loaded.
+            </span>
+          }
+        </div>
+      </rbth-frame>
+
+      <rbth-frame class="min-w-0">
+        <header rbthFrameHeader>
+          <div rbthFrameTitle>Wallet settings</div>
+        </header>
+        <div rbthFramePanel class="space-y-4">
+          @if (walletMeta) {
+            <core-wallet-summary-header size="md" />
+            <div>
+              <div class="text-sm text-muted-foreground">Auto renew</div>
+              <div class="font-medium">
+                {{ walletMeta.settings.autoRenew ? 'enabled' : 'disabled' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-sm text-muted-foreground">Auto top-up</div>
+              <div class="font-medium">
+                {{ walletMeta.settings.autoTopUp ? 'enabled' : 'disabled' }}
+              </div>
+            </div>
+            <div>
+              <div class="text-sm text-muted-foreground">Top-up target</div>
+              <div class="font-medium">
+                {{ _formatCycles(walletMeta.settings.topUpAmountCycles) }}
+              </div>
+            </div>
+            <div>
+              <div class="text-sm text-muted-foreground">Spending priority</div>
+              <div class="mt-1 flex flex-wrap gap-1.5">
+                @for (token of walletMeta.settings.spendingPriority; track $index) {
+                  <span hlmBadge variant="outline">
+                    {{ _tokenLabel(token) }}
+                  </span>
+                }
+              </div>
+            </div>
+          } @else {
+            <span class="text-sm text-muted-foreground">
+              Open this tab to load wallet settings.
+            </span>
+          }
+        </div>
+      </rbth-frame>
+    </div>
+  </div>
+
+  <div hlmTabsContent="creations" class="mt-4">
+    <section class="min-w-0 space-y-3">
+      <header class="flex items-center justify-between gap-3">
+        <h2 hlmH3>Creations</h2>
+        <div class="flex items-center gap-3">
+          <span hlmMuted>
+            Showing {{ _creations().length }} of {{ detail.creationsTotal }}
+          </span>
+          <a
+            hlmBtn
+            variant="outline"
+            size="sm"
+            [routerLink]="['/dashboard/admin/creations']"
+            [queryParams]="{ owner: user.id.toText() }"
+          >
+            View all
+          </a>
+        </div>
+      </header>
+
+      <div class="max-h-96 min-w-0 overflow-auto rounded-md border">
+        <table hlmTable class="min-w-full table-fixed">
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh class="w-20">ID</th>
+              <th hlmTh class="w-48">Status</th>
+              <th hlmTh class="w-64">Canister</th>
+              <th hlmTh class="w-48">Release</th>
+              <th hlmTh class="w-40">Payout</th>
+              <th hlmTh class="w-48">Created</th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (creation of _creations(); track creation.id.toString()) {
+              <tr hlmTr>
+                <td hlmTd>
+                  <a
+                    class="font-mono text-sm underline-offset-4 hover:underline"
+                    [routerLink]="['/dashboard/admin/creations']"
+                    [queryParams]="{ creationId: creation.id.toString() }"
+                  >
+                    #{{ creation.id.toString() }}
+                  </a>
+                </td>
+                <td hlmTd>
+                  <span hlmBadge [variant]="_badgeVariant(creation.statusTag)">
+                    {{ creation.statusTag }}
+                  </span>
+                </td>
+                <td hlmTd>
+                  @if (creation.canisterId[0]; as canisterId) {
+                    <rbth-copy-to-clipboard
+                      class="w-full"
+                      [content]="canisterId.toText()"
+                    >
+                      {{ canisterId.toText() }}
+                    </rbth-copy-to-clipboard>
+                  } @else {
+                    <span class="text-sm text-muted-foreground">not created</span>
+                  }
+                </td>
+                <td hlmTd>
+                  <span class="text-sm">{{ creation.releaseTag }}</span>
+                </td>
+                <td hlmTd>
+                  <span
+                    hlmBadge
+                    [variant]="_badgeVariant(creation.ambassadorPayoutStatusTag)"
+                  >
+                    {{ creation.ambassadorPayoutStatusTag }}
+                  </span>
+                </td>
+                <td hlmTd>
+                  <span class="text-sm whitespace-nowrap">
+                    {{ _date(creation.createdAt) | date: 'medium' }}
+                  </span>
+                </td>
+              </tr>
+            } @empty {
+              <tr hlmTr>
+                <td hlmTd class="h-24 text-center" colspan="6">
+                  <span class="text-sm text-muted-foreground">
+                    No creations found.
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div hlmTabsContent="licenses" class="mt-4">
+    <section class="min-w-0 space-y-3">
+      <header class="flex items-center justify-between gap-3">
+        <h2 hlmH3>Licenses</h2>
+        <div class="flex items-center gap-3">
+          <span hlmMuted>
+            Showing {{ _licenses().length }} of {{ detail.licensesTotal }}
+          </span>
+          <a
+            hlmBtn
+            variant="outline"
+            size="sm"
+            [routerLink]="['/dashboard/admin/licenses']"
+            [queryParams]="{ owner: user.id.toText() }"
+          >
+            View all
+          </a>
+        </div>
+      </header>
+
+      <div class="max-h-96 min-w-0 overflow-auto rounded-md border">
+        <table hlmTable class="min-w-full table-fixed">
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh class="w-32">Status</th>
+              <th hlmTh class="w-40">Amount</th>
+              <th hlmTh class="w-72">Payment</th>
+              <th hlmTh class="w-64">Canister</th>
+              <th hlmTh class="w-48">Paid</th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (license of _licenses(); track license.receipt.paymentId) {
+              <tr hlmTr>
+                <td hlmTd>
+                  <span hlmBadge [variant]="_badgeVariant(license.statusTag)">
+                    {{ license.statusTag }}
+                  </span>
+                </td>
+                <td hlmTd>
+                  <span class="text-sm font-medium">
+                    {{ _formatAmount(license) }}
+                  </span>
+                </td>
+                <td hlmTd>
+                  <rbth-copy-to-clipboard
+                    class="w-full"
+                    [content]="license.receipt.paymentId"
+                  >
+                    {{ license.receipt.paymentId }}
+                  </rbth-copy-to-clipboard>
+                </td>
+                <td hlmTd>
+                  @if (license.canisterId[0]; as canisterId) {
+                    <rbth-copy-to-clipboard
+                      class="w-full"
+                      [content]="canisterId.toText()"
+                    >
+                      {{ canisterId.toText() }}
+                    </rbth-copy-to-clipboard>
+                  } @else {
+                    <span class="text-sm text-muted-foreground">unbound</span>
+                  }
+                </td>
+                <td hlmTd>
+                  <span class="text-sm whitespace-nowrap">
+                    {{ _date(license.receipt.paidAt) | date: 'medium' }}
+                  </span>
+                </td>
+              </tr>
+            } @empty {
+              <tr hlmTr>
+                <td hlmTd class="h-24 text-center" colspan="5">
+                  <span class="text-sm text-muted-foreground">
+                    No licenses found.
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>

@@ -1,4 +1,5 @@
-import { Route } from '@angular/router';
+import { EnvironmentInjector, inject, runInInjectionContext } from '@angular/core';
+import { ActivatedRouteSnapshot, Route, RouterStateSnapshot } from '@angular/router';
 
 import {
   adminGuard,
@@ -122,6 +123,49 @@ export const appRoutes: Route[] = [
               import(
                 './pages/admin/cmc-recovery/admin-cmc-recovery.component'
               ).then((m) => m.AdminCmcRecoveryComponent),
+          },
+          {
+            path: 'subscriptions',
+            loadComponent: () =>
+              import(
+                './pages/admin/subscriptions/admin-subscriptions.component'
+              ).then((m) => m.AdminSubscriptionsComponent),
+          },
+          {
+            path: 'licenses',
+            loadComponent: () =>
+              import('./pages/admin/licenses/admin-licenses.component').then(
+                (m) => m.AdminLicensesComponent,
+              ),
+          },
+          {
+            path: 'releases',
+            loadComponent: () =>
+              import('./pages/admin/releases/admin-releases.component').then(
+                (m) => m.AdminReleasesComponent,
+              ),
+          },
+          {
+            path: 'users/:principal',
+            resolve: {
+              userDetail: (
+                route: ActivatedRouteSnapshot,
+                state: RouterStateSnapshot,
+              ) => {
+                const injector = inject(EnvironmentInjector);
+                return import(
+                  './pages/admin/users/admin-user-detail.resolver'
+                ).then((m) =>
+                  runInInjectionContext(injector, () =>
+                    m.adminUserDetailResolver(route, state),
+                  ),
+                );
+              },
+            },
+            loadComponent: () =>
+              import(
+                './pages/admin/users/admin-user-detail.component'
+              ).then((m) => m.AdminUserDetailComponent),
           },
           {
             path: 'users',

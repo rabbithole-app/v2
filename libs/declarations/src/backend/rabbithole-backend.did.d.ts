@@ -396,6 +396,17 @@ export interface Rabbithole {
    * / (per-account, not per-storage; only once per account).
    */
   'addStorage' : ActorMethod<[Principal, Uint8Array], Result_6>,
+  'adminGetUserWalletMeta' : ActorMethod<
+    [Principal],
+    {
+      'walletAddresses' : {
+        'icSubaccount' : Uint8Array,
+        'solAddress' : [] | [string],
+        'evmAddress' : [] | [string],
+      },
+      'settings' : UserSettings,
+    }
+  >,
   'adminListUsers' : ActorMethod<[AdminUserListOptions], AdminUsersPage>,
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
   'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
@@ -434,12 +445,6 @@ export interface Rabbithole {
     }
   >,
   'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
-  /**
-   * / Transfer ICP from the treasury subaccount to CMC for a target
-   * / canister. Caller must ensure sufficient balance via
-   * / `guardTreasuryIcpReserve`. CMC `#Refunded` returns ICP to the
-   * / same subaccount, keeping the round-trip inside treasury.
-   */
   'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,

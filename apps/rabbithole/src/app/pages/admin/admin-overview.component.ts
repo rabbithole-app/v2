@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  forwardRef,
   inject,
   resource,
 } from '@angular/core';
@@ -25,6 +26,8 @@ import {
   fetchTokenBalancesForWallet,
   fetchTokenRates,
   type TokenBalance,
+  WALLET_BALANCE_CONTEXT,
+  type WalletBalanceContext,
   WalletNetworksViewComponent,
 } from '@rabbithole/core/wallet';
 import {
@@ -52,6 +55,10 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
   ],
   providers: [
     provideIcons({ lucideDatabase, lucideRefreshCw, lucideWalletCards }),
+    {
+      provide: WALLET_BALANCE_CONTEXT,
+      useExisting: forwardRef(() => AdminOverviewComponent),
+    },
   ],
   templateUrl: './admin-overview.component.html',
   host: {
@@ -59,23 +66,17 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AdminOverviewComponent {
-  readonly #actor = injectMainActor();
-  protected readonly _backendCyclesBalance = resource({
-    params: () => this.#actor(),
-    loader: async ({ params }) => params.getBackendCyclesBalance(),
-    defaultValue: 0n,
-  });
+export class AdminOverviewComponent implements WalletBalanceContext {
   protected readonly _tokenRates = resource({
     loader: fetchTokenRates,
     defaultValue: { ETH: 0, ICP: 0, SOL: 0 },
   });
+  readonly #actor = injectMainActor();
   protected readonly _treasuryWallet = resource({
     params: () => this.#actor(),
     loader: async ({ params }) => params.getTreasuryWalletAddresses(),
   });
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
-
   readonly #ledgerAgent = HttpAgent.create(inject(HTTP_AGENT_OPTIONS_TOKEN));
 
   readonly #rpcConfig = inject(MULTI_CHAIN_RPC_CONFIG_TOKEN);
@@ -99,25 +100,53 @@ export class AdminOverviewComponent {
     },
     defaultValue: [] as TokenBalance[],
   });
+
+  readonly balances = computed(() => this._treasuryBalances.value());
+  protected readonly _treasuryWalletError = computed(
+    () =>
+      this._treasuryWallet.error() ??
+      this._treasuryBalances.error() ??
+      this._tokenRates.error() ??
+      null,
+  );
+
+  readonly error = this._treasuryWalletError;
+  readonly hideZero = computed(() => false);
+  protected readonly _treasuryWalletLoading = computed(
+    () =>
+      this._treasuryWallet.isLoading() ||
+      this._treasuryBalances.isLoading() ||
+      this._tokenRates.isLoading(),
+  );
+  readonly isLoading = this._treasuryWalletLoading;
   protected readonly _treasuryTotalUsd = computed(() =>
     this._treasuryBalances
       .value()
       .reduce((sum, balance) => sum + balance.usdValue, 0),
   );
-
+  readonly totalUsd = this._treasuryTotalUsd;
+  protected readonly _treasuryWalletAddresses = computed(
+    () => this._treasuryWallet.value() ?? null,
+  );
+  readonly walletAddresses = this._treasuryWalletAddresses;
+  protected readonly _backendCyclesBalance = resource({
+    params: () => this.#actor(),
+    loader: async ({ params }) => params.getBackendCyclesBalance(),
+    defaultValue: 0n,
+  });
   protected readonly _treasuryTotalUsdLabel = computed(() =>
     formatUsd(this._treasuryTotalUsd()),
   );
 
-  protected _formatCycles(value: bigint): string {
-    return `${formatTCycles(value)} TCycles`;
-  }
-
-  protected _reload(): void {
+  reload(): void {
     this._backendCyclesBalance.reload();
     this._tokenRates.reload();
     this._treasuryBalances.reload();
     this._treasuryWallet.reload();
+  }
+
+  protected _formatCycles(value: bigint): string {
+    return `${formatTCycles(value)} TCycles`;
   }
 
 }

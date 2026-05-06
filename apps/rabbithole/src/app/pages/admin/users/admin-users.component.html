@@ -176,13 +176,33 @@
               >
                 @switch (cell.column.id) {
                   @case ('user') {
-                    <rbth-user-identity
-                      class="min-w-72"
-                      [avatarSrc]="_profileAvatarSrc(user)"
-                      [copyPrincipal]="true"
-                      [principalId]="user.id.toText()"
-                      [title]="_userLabel(user)"
-                    />
+                    <div class="flex min-w-72 items-center gap-2">
+                      <rbth-user-identity
+                        class="min-w-0 flex-1"
+                        [avatarSrc]="_profileAvatarSrc(user)"
+                        [copyPrincipal]="true"
+                        [principalId]="user.id.toText()"
+                        [title]="_userLabel(user)"
+                      />
+                      <a
+                        hlmBtn
+                        variant="ghost"
+                        size="icon"
+                        class="size-8 shrink-0"
+                        [routerLink]="[
+                          '/dashboard/admin/users',
+                          user.id.toText(),
+                        ]"
+                        hlmTooltip="Open user"
+                      >
+                        <ng-icon
+                          hlmIcon
+                          name="lucideExternalLink"
+                          size="sm"
+                        />
+                        <span class="sr-only">Open user</span>
+                      </a>
+                    </div>
                   }
                   @case ('role') {
                     <hlm-select

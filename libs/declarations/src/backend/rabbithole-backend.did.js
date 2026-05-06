@@ -64,6 +64,12 @@ export const idlFactory = ({ IDL }) => {
     'InvalidWasm' : IDL.Text,
   });
   const Result_6 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const UserSettings = IDL.Record({
+    'spendingPriority' : IDL.Vec(TokenId),
+    'topUpAmountCycles' : IDL.Nat,
+    'autoRenew' : IDL.Bool,
+    'autoTopUp' : IDL.Bool,
+  });
   const SortDirection = IDL.Variant({
     'Descending' : IDL.Null,
     'Ascending' : IDL.Null,
@@ -459,12 +465,6 @@ export const idlFactory = ({ IDL }) => {
     'releases' : IDL.Vec(ReleaseFullStatus),
     'completedDownloads' : IDL.Nat,
   });
-  const UserSettings = IDL.Record({
-    'spendingPriority' : IDL.Vec(TokenId),
-    'topUpAmountCycles' : IDL.Nat,
-    'autoRenew' : IDL.Bool,
-    'autoTopUp' : IDL.Bool,
-  });
   const Status = IDL.Variant({
     'Active' : IDL.Null,
     'Cancelled' : IDL.Null,
@@ -791,6 +791,20 @@ export const idlFactory = ({ IDL }) => {
       ),
     'activateTrial' : IDL.Func([], [], []),
     'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_6], []),
+    'adminGetUserWalletMeta' : IDL.Func(
+        [IDL.Principal],
+        [
+          IDL.Record({
+            'walletAddresses' : IDL.Record({
+              'icSubaccount' : IDL.Vec(IDL.Nat8),
+              'solAddress' : IDL.Opt(IDL.Text),
+              'evmAddress' : IDL.Opt(IDL.Text),
+            }),
+            'settings' : UserSettings,
+          }),
+        ],
+        ['query'],
+      ),
     'adminListUsers' : IDL.Func(
         [AdminUserListOptions],
         [AdminUsersPage],

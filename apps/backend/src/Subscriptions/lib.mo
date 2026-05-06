@@ -1,6 +1,7 @@
 import Array "mo:core/Array";
 import IC "mo:core/InternetComputer";
 import List "mo:core/List";
+import Nat "mo:core/Nat";
 import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
@@ -78,6 +79,7 @@ module {
   };
 
   public let TRIAL_LIMIT_BYTES : Nat = 100_000_000; // 100 MB
+  let LIST_SUBSCRIPTIONS_LIMIT_CAP : Nat = 100;
 
   let SubscriptionSchema : ZenDB.Types.Schema = #Record([
     ("userId", #Principal),
@@ -102,7 +104,7 @@ module {
 
   func convertListOptionsToDBQuery(options : ListOptions) : ZenDB.QueryBuilder {
     let dbQuery = ZenDB.QueryBuilder();
-    ignore dbQuery.Limit(options.pagination.limit);
+    ignore dbQuery.Limit(Nat.min(options.pagination.limit, LIST_SUBSCRIPTIONS_LIMIT_CAP));
     ignore dbQuery.Skip(options.pagination.offset);
 
     switch (options.filter.userId) {

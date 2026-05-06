@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  inject,
   input,
   signal,
 } from '@angular/core';
@@ -13,10 +12,10 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
-import { BalanceService } from '../../../services/balance.service';
 import { calculatePaymentEligibility } from '../../../utils/payment-eligibility';
 import { WalletNetworksViewComponent } from '../wallet-networks-view/wallet-networks-view.component';
 import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-summary-header.component';
+import { injectWalletBalanceContext } from '../wallet/wallet-balance-context';
 
 @Component({
   selector: 'core-wallet-balance-panel',
@@ -36,11 +35,11 @@ import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-su
 export class WalletBalancePanelComponent {
   readonly requiredUsd = input.required<number>();
 
-  readonly #balanceService = inject(BalanceService);
+  readonly #walletContext = injectWalletBalanceContext();
 
   readonly eligibility = computed(() =>
     calculatePaymentEligibility(
-      this.#balanceService.balances(),
+      this.#walletContext.balances(),
       this.requiredUsd(),
     ),
   );
@@ -50,6 +49,6 @@ export class WalletBalancePanelComponent {
   readonly expanded = signal(false);
 
   refresh(): void {
-    this.#balanceService.reload();
+    this.#walletContext.reload();
   }
 }

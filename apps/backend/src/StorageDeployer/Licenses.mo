@@ -1,6 +1,7 @@
 import Array "mo:core/Array";
 import IC "mo:core/InternetComputer";
 import List "mo:core/List";
+import Nat "mo:core/Nat";
 import Nat64 "mo:core/Nat64";
 import Option "mo:core/Option";
 import Principal "mo:core/Principal";
@@ -13,6 +14,8 @@ import ZenDB "mo:zendb";
 import Types "Types";
 
 module {
+  let LIST_LICENSES_LIMIT_CAP : Nat = 100;
+
   public type License = Types.License;
   public type PaymentReceipt = Types.PaymentReceipt;
   public type PaymentStatus = Types.PaymentStatus;
@@ -69,7 +72,7 @@ module {
 
   func convertListOptionsToDBQuery(options : ListLicensesOptions) : ZenDB.QueryBuilder {
     let dbQuery = ZenDB.QueryBuilder();
-    ignore dbQuery.Limit(options.pagination.limit);
+    ignore dbQuery.Limit(Nat.min(options.pagination.limit, LIST_LICENSES_LIMIT_CAP));
     ignore dbQuery.Skip(options.pagination.offset);
 
     // Currently `id : ?[Nat]` is not usable because ZenDB's DocumentId is
