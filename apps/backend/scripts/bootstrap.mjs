@@ -181,16 +181,27 @@ async function main() {
 }
 
 async function pocketIcJsonPost(url, body) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body, (_, value) =>
-      typeof value === 'bigint' ? value.toString() : value,
-    ),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${url} failed with HTTP ${res.status}: ${text}`);
-  return JSON.parse(text);
+  const payload = JSON.stringify(body, (_, value) =>
+    typeof value === 'bigint' ? value.toString() : value,
+  );
+
+  for (let attempt = 1; attempt <= 120; attempt += 1) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: payload,
+    });
+    const text = await res.text();
+    if (res.ok) return JSON.parse(text);
+
+    if (res.status !== 409 || attempt === 120) {
+      throw new Error(`${url} failed with HTTP ${res.status}: ${text}`);
+    }
+
+    await sleep(250);
+  }
+
+  throw new Error(`${url} failed after retries`);
 }
 
 async function pocketIcUpdateCall({
@@ -258,9 +269,13 @@ async function waitForFile(p, timeoutMs = 120_000) {
     } catch {
       // Not ready yet — retry after sleep.
     }
-    await new Promise((r) => setTimeout(r, 1000));
+    await sleep(1000);
   }
   throw new Error(`Timeout waiting for ${p}`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 main().catch((err) => {

@@ -4,7 +4,18 @@
     <rbth-feat-file-list-upload-drawer />
   }
 </div>
-@if (items().length === 0) {
+@if (noAccess()) {
+  <rbth-feat-file-list-no-access-empty
+    [accessRequest]="accessRequest()"
+    [cancelling]="accessRequestCancelling()"
+    [refreshing]="accessRequestRefreshing()"
+    [submitting]="accessRequestSubmitting()"
+    (cancelAccessRequest)="_handleCancelAccessRequest($event)"
+    (refreshAccessRequest)="_handleRefreshAccessRequest()"
+    (reloadStorage)="_handleReloadAfterAccessApproved()"
+    (requestAccess)="_handleRequestAccess()"
+  />
+} @else if (items().length === 0) {
   <div hlmEmpty class="min-h-[400px]" [hlmContextMenuTrigger]="emptyAreaContextMenu" [disabled]="!canWrite()">
     <div hlmEmptyHeader>
       <div hlmEmptyMedia variant="icon">
@@ -34,6 +45,7 @@
     (move)="_handleMove($event)"
     (rename)="_handleRename($event)"
     (properties)="_handleProperties($event)"
+    (share)="_handleShare($event)"
     (selectionChange)="_handleSelectionChange($event)"
   />
 }
@@ -64,3 +76,13 @@
 </ng-template>
 
 <rbth-feat-properties-drawer [items]="propertiesDrawerItems()" />
+<core-share-dialog
+  [scopeLabel]="shareDialogScopeLabel()"
+  [scopeKind]="shareDialogScopeKind()"
+  [itemCount]="shareDialogItems().length"
+  [accessList]="shareDialogItems().length === 1 ? shareAccessList() : []"
+  [accessListLoading]="shareAccessListLoading()"
+  (accessGrantsChange)="_handleShareAccessGrants($event)"
+  (cancelPendingAccessGrant)="_handleShareCancelPendingAccessGrant($event)"
+  (revokeAccessGrants)="_handleShareRevokeAccessGrants($event)"
+/>

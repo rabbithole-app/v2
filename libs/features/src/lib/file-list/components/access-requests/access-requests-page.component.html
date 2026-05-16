@@ -1,0 +1,56 @@
+    <section
+      class="-mx-4 -my-6 grid min-h-[calc(100vh-3.5rem)] flex-1 overflow-hidden sm:-mx-6 md:grid-cols-[340px_minmax(0,1fr)]"
+    >
+      <hlm-sidebar
+        collapsible="none"
+        class="!h-full !min-h-0 !w-full border-b md:border-r md:border-b-0"
+      >
+        <div hlmSidebarContent>
+          @if (store.errorMessage(); as message) {
+            <div class="mx-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive">
+              {{ message }}
+            </div>
+          }
+
+          <div hlmSidebarGroup>
+            <div hlmSidebarGroupLabel>Access requests</div>
+            <div hlmSidebarGroupContent>
+              @if (store.loading()) {
+                <div class="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
+                  Loading access requests...
+                </div>
+              } @else {
+                <ul hlmSidebarMenu>
+                  @for (request of store.sortedRequests(); track request.id) {
+                    @let profile = store.requesterProfile(request.requester);
+                    <li hlmSidebarMenuItem>
+                      <a
+                        hlmSidebarMenuButton
+                        size="lg"
+                        [routerLink]="[request.id.toString()]"
+                        routerLinkActive
+                        #activeLink="routerLinkActive"
+                        [isActive]="activeLink.isActive"
+                      >
+                        <rbth-feat-access-request-sidebar-item
+                          [avatarSrc]="profile?.avatarSrc"
+                          [relativeTime]="store.formatRelativeTime(request.createdAt)"
+                          [statusIconName]="store.statusIconName(request.status)"
+                          [statusLabel]="store.statusLabel(request.status)"
+                          [title]="profile?.title ?? store.shortPrincipal(request.requester)"
+                          [username]="profile?.username"
+                        />
+                      </a>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          </div>
+        </div>
+      </hlm-sidebar>
+
+      <main class="min-w-0 overflow-auto bg-background">
+        <router-outlet />
+      </main>
+    </section>

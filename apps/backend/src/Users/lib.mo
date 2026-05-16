@@ -68,6 +68,11 @@ module {
     avatarUrl : ?Text;
   };
 
+  public type PublicProfileLookup = {
+    principal : Principal;
+    profile : ?PublicProfileSummary;
+  };
+
   public type TimeRangeFilter = {
     min : ?Time.Time;
     max : ?Time.Time;
@@ -128,6 +133,11 @@ module {
     id : Principal;
     match : UserDirectoryMatch;
     profile : ?PublicProfileSummary;
+  };
+
+  public type VerifiedEmailIdentity = {
+    principal : Principal;
+    email : Text;
   };
 
   public type VerifiedIdentityAttributes = Types.VerifiedIdentityAttributes;
@@ -402,6 +412,22 @@ module {
       let ?user = get(caller) else return null;
       let ?profile = user.profile else return null;
       ?toProfile(caller, profile);
+    };
+
+    public func getPublicProfiles(principals : [Principal]) : [PublicProfileLookup] {
+      Array.map<Principal, PublicProfileLookup>(
+        principals,
+        func(principal) {
+          let profile = switch (get(principal)) {
+            case (?user) switch (user.profile) {
+              case (?value) ?toPublicProfileSummary(value);
+              case null null;
+            };
+            case null null;
+          };
+          { principal; profile };
+        },
+      );
     };
 
     public func deleteProfile(caller : Principal) : ZenDB.Types.Result<Profile, Text> {
@@ -812,6 +838,31 @@ module {
         },
       );
       Array.sliceToArray<UserDirectoryItem>(sorted, 0, Nat.min(effectiveLimit, sorted.size()));
+    };
+
+    public func listVerifiedEmailIdentities() : [VerifiedEmailIdentity] {
+      let #ok({ documents }) = usersCollection.search(ZenDB.QueryBuilder()) else return [];
+      let result = Array.map<(ZenDB.Types.DocumentId, User, [ZenDB.Types.TextMatch]), ?VerifiedEmailIdentity>(
+        documents,
+        func((_, user, _)) : ?VerifiedEmailIdentity {
+          let isVerified = switch (user.identity.verifiedEmail) {
+            case (?value) value;
+            case null false;
+          };
+          if (not isVerified) return null;
+          switch (user.identity.email) {
+            case (?email) ?{ principal = user.id; email };
+            case null null;
+          };
+        },
+      );
+      Array.map<?VerifiedEmailIdentity, VerifiedEmailIdentity>(
+        Array.filter<?VerifiedEmailIdentity>(result, func(item) = item != null),
+        func(item) = switch (item) {
+          case (?value) value;
+          case null Runtime.unreachable();
+        },
+      );
     };
 
     func directorySortLabel(item : UserDirectoryItem) : Text {

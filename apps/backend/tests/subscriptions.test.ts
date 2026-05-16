@@ -166,7 +166,7 @@ describe("Subscriptions", () => {
     await actor.onStorageLowCycles(1000n, 5n, { warning: null });
 
     // Verify no notification was created for alice
-    const page = await actor.getNotifications([], 10n);
+    const page = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     expect(page.data).toHaveLength(0);
   });
 

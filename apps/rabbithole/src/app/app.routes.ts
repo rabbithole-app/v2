@@ -183,6 +183,13 @@ export const appRoutes: Route[] = [
             (m) => m.allowancesRoutes,
           ),
       },
+      {
+        path: 'shared-with-me',
+        loadChildren: () =>
+          import('@rabbithole/features/shared-with-me').then(
+            (m) => m.sharedWithMeRoutes,
+          ),
+      },
       // Route :id with canMatch - will match only if id is a Principal
       {
         path: ':id',
@@ -205,6 +212,13 @@ export const appRoutes: Route[] = [
                 loadChildren: () =>
                   import('@rabbithole/features/file-list').then(
                     (m) => m.fileListRoutes,
+                  ),
+              },
+              {
+                path: 'access-requests',
+                loadChildren: () =>
+                  import('@rabbithole/features/file-list').then(
+                    (m) => m.accessRequestsRoutes,
                   ),
               },
               {

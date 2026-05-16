@@ -144,6 +144,16 @@ mixin (
     users.getProfile(caller);
   };
 
+  public query ({ caller }) func getPublicProfiles(principals : [Principal]) : async [Users.PublicProfileLookup] {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (principals.size() > 100) {
+      throw Error.reject("cannot resolve more than 100 public profiles at once");
+    };
+    users.getPublicProfiles(principals);
+  };
+
   public query func usernameExists(username : Text) : async Bool {
     users.usernameExists(username);
   };

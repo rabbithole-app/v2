@@ -1151,21 +1151,21 @@ describe("StorageDeployer", () => {
 
     // Snapshot admin inbox before the refund so we can find the new event.
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const before = await backendFixture.actor.getNotifications([], 100n);
+    const before = await backendFixture.actor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
 
     backendFixture.actor.setIdentity(identity);
     const refundResult = await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
     expect(refundResult).toHaveProperty("ok");
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const after = await backendFixture.actor.getNotifications([], 100n);
+    const after = await backendFixture.actor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
     // Admin got at least one extra notification after the refund.
     expect(after.data.length).toBeGreaterThan(before.data.length);
     // And that notification is #creationRefunded for the matching creationId.
     const refundEvent = after.data.find((n) => {
-      const key = Object.keys(n.event)[0];
+      const key = Object.keys(n.payload)[0];
       if (key !== "creationRefunded") return false;
-      return (n.event as { creationRefunded: { creationId: bigint } }).creationRefunded.creationId === creationId;
+      return (n.payload as { creationRefunded: { creationId: bigint } }).creationRefunded.creationId === creationId;
     });
     expect(refundEvent).toBeDefined();
   });

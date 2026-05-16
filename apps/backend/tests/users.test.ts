@@ -142,6 +142,7 @@ describe("Users", () => {
     expect(storedUser.identity.email).toEqual(["andri.schatz@dfinity.org"]);
     expect(storedUser.identity.name).toEqual(["Andri Schatz"]);
     expect(storedUser.identity.provider).toEqual(["google"]);
+    expect(storedUser.identity.verifiedEmail).toEqual([true]);
     expect(storedUser.lastLoginAt).toHaveLength(1);
     expect(storedUser.identity.syncedAt).toHaveLength(1);
 

@@ -13,7 +13,7 @@
       auth_uri = "https://openid.localhost/auth";
       auth_scope = vec { "openid"; "profile"; "email" };
       fedcm_uri = null;
-      email_verification = opt variant { Unknown };
+      email_verification = opt variant { Google };
     };
   };
   sso_discoverable_domains = opt vec {};

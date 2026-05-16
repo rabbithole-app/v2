@@ -1,0 +1,76 @@
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-semibold">Shared with me</h1>
+  <div hlmButtonGroup>
+    <button
+      hlmBtn
+      variant="outline"
+      size="icon"
+      [disabled]="store.isLoading()"
+      (click)="store.reload()"
+    >
+      @if (store.isLoading()) {
+        <hlm-spinner size="xs" />
+      } @else {
+        <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+      }
+    </button>
+  </div>
+</div>
+
+@if (store.errorMessage(); as message) {
+  <div hlmEmpty class="min-h-0 flex-1">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <ng-icon name="lucideInbox" />
+      </div>
+      <div hlmEmptyTitle>Shared storages failed to load</div>
+      <div hlmEmptyDescription>{{ message }}</div>
+    </div>
+  </div>
+} @else if (store.sharedStorages().length > 0) {
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    @for (storage of store.sharedStorages(); track storage.storageCanisterId.toText()) {
+      @defer (on viewport) {
+        <rbth-feat-shared-with-me-storage-card
+          [storage]="storage"
+          [ownerProfile]="store.ownerProfile(storage.access.accountOwner)"
+        />
+      } @placeholder {
+        <div class="min-h-[116px] rounded-lg border bg-card p-4">
+          <div class="mb-4 flex items-center gap-3">
+            <div class="size-10 rounded-md bg-muted"></div>
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="h-4 w-3/4 rounded bg-muted"></div>
+              <div class="h-3 w-24 rounded bg-muted"></div>
+            </div>
+          </div>
+          <div class="h-9 w-32 rounded-md bg-muted"></div>
+        </div>
+      }
+    }
+  </div>
+} @else if (store.isLoading()) {
+  <div hlmEmpty class="min-h-0 flex-1">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <hlm-spinner />
+      </div>
+      <div hlmEmptyTitle>Loading shared storages</div>
+      <div hlmEmptyDescription>
+        Fetching storages shared with your account...
+      </div>
+    </div>
+  </div>
+} @else {
+  <div hlmEmpty class="min-h-0 flex-1">
+    <div hlmEmptyHeader>
+      <div hlmEmptyMedia variant="icon">
+        <ng-icon name="lucideShare2" />
+      </div>
+      <div hlmEmptyTitle>No shared storages</div>
+      <div hlmEmptyDescription>
+        Storages shared with your verified account will appear here.
+      </div>
+    </div>
+  </div>
+}

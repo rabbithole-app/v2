@@ -21,6 +21,15 @@
         "parallel": false
       }
     },
+    "reset-local": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "node scripts/reset-local.mjs",
+        "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
+        "parallel": false
+      }
+    },
     "deploy": {
       "executor": "nx:run-commands",
       "options": {

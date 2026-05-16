@@ -20,6 +20,7 @@ module {
     #invalidOrigin;
     #expired;
     #malformedPayload;
+    #verifiedEmailRequired;
   };
 
   public type IdentityAttributesSyncResult = {

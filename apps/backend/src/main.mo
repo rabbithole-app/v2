@@ -22,9 +22,13 @@ import CORSMiddleware "mo:liminal/Middleware/CORS";
 import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
+import StorageTypes "mo:encrypted-storage/Types";
 
 import TreasuryTypes "mo:treasury/Types";
 import TreasuryConst "mo:treasury/Const";
+import BackendEvents "BackendEvents/lib";
+import IdentityVerification "IdentityVerification/lib";
+import BackendIdentityHandler "IdentityVerification/BackendHandler";
 import Payments "Payments/lib";
 import StorageDeployerOrchestrator "StorageDeployer";
 import CMCTypes "Types/CMCTypes";
@@ -33,11 +37,14 @@ import XRCTypes "Types/XRCTypes";
 import Account "StorageDeployer/Utils/Account";
 
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
+import Users "Users/lib";
 import UsersMixin "Users/mixin";
 import IdentityVerificationMixin "IdentityVerification/mixin";
 import NotificationsMixin "Notifications/mixin";
 import Settings "Settings/lib";
 import SettingsMixin "Settings/mixin";
+import SharedAccess "SharedAccess/lib";
+import StorageAccessBackendConsumer "StorageAccessBridge/BackendConsumer";
 import TreasuryMixin "Treasury/mixin";
 import SubscriptionsMixin "Subscriptions/mixin";
 import PaymentsMixin "Payments/mixin";
@@ -54,6 +61,22 @@ import Utils "Utils/lib";
 
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
+
+  func resolveBackendExpectedIdentityOrigin<system>() : Text {
+    switch (Runtime.envVar<system>("PUBLIC_AUTH_EXPECTED_ORIGIN")) {
+      case (?origin) return origin;
+      case null {};
+    };
+
+    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-frontend")) {
+      case (?frontendId) return "https://" # frontendId # ".icp0.io";
+      case null return "https://rabbithole.app";
+    };
+  };
+
+  func resolveTrustedIdentitySigner<system>() : Principal {
+    Principal.fromText(Utils.envText<system>("PUBLIC_CANISTER_ID:internet_identity_backend", "rdmx6-jaaaa-aaaaa-aaadq-cai"));
+  };
 
   // --- Assets & HTTP ---
 
@@ -115,10 +138,49 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     },
   );
   include IdentityVerificationMixin({
-    upsertFromVerifiedAttributes;
+    onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+      await BackendIdentityHandler.onVerifiedAttributes(
+        sharedAccess,
+        {
+          upsertFromVerifiedAttributes;
+          claimStorageEmailAccessByCommitment;
+        },
+        caller,
+        attrs,
+      );
+    };
+    resolveTrustedIdentitySigner;
+    resolveExpectedIdentityOrigin = resolveBackendExpectedIdentityOrigin;
   });
   include KnownWasmHashesMixin({ assertAdmin });
-  include NotificationsMixin();
+  include NotificationsMixin({
+    listAdmins = func() : [Principal] = users.listByRole(#admin);
+  });
+  transient let backendEvents : BackendEvents.EventSink = {
+    emit = consumeBackendEvent;
+  };
+  let sharedAccess = SharedAccess.new();
+
+  public type SharedStorageAccessView = {
+    access : SharedAccess.SharedStorageAccess;
+    storageStatus : ?StorageDeployerOrchestrator.CreationStatus;
+    updateAvailable : ?StorageDeployerOrchestrator.UpdateInfo;
+  };
+
+  func claimStorageEmailAccessByCommitment(principal : Principal, storageCanisterId : Principal, commitment : Blob) : async () {
+    let storage : actor {
+      claimPendingAccessByBackendAttestation : StorageTypes.ClaimPendingAccessByBackendAttestationArguments -> async [StorageTypes.PrincipalAccessGrant];
+    } = actor (Principal.toText(storageCanisterId));
+    try {
+      ignore await storage.claimPendingAccessByBackendAttestation({
+        principal;
+        emailCommitments = [commitment];
+      });
+    } catch error {
+      ignore error;
+    };
+  };
+
   include SettingsMixin();
   include TreasuryMixin(
     {
@@ -157,13 +219,53 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   );
   let STORAGE_INITIAL_CYCLES : Nat = 1_500_000_000_000;
 
-  /// Fanout a notification to every principal with role = #admin.
-  /// `users` comes from `UsersMixin`; `notifyUser` from `NotificationsMixin`.
-  /// Skips iteration if no admins exist (bootstrap race).
-  func notifyAdmins(event : Notifications.TypedEvent) {
-    for (admin in users.listByRole(#admin).vals()) {
-      notifyUser(admin, event);
+  func emitBackendNotification(recipient : Principal, payload : Notifications.NotificationPayload) {
+    backendEvents.emit(#notificationRequested({ recipient; payload; correlationId = null }));
+  };
+
+  func emitBackendAdminNotification(payload : Notifications.NotificationPayload) {
+    backendEvents.emit(#adminNotificationRequested({ payload; correlationId = null }));
+  };
+
+  func creationProgress(status : StorageDeployerOrchestrator.CreationStatus) : ?BackendEvents.Progress {
+    switch (status) {
+      case (#InstallingWasm({ progress })) ?progress;
+      case (#UploadingFrontend({ progress })) ?progress;
+      case (#UpgradingWasm({ progress })) ?progress;
+      case (#UpgradingFrontend({ progress })) ?progress;
+      case _ null;
     };
+  };
+
+  func creationTerminal(status : StorageDeployerOrchestrator.CreationStatus) : Bool {
+    switch (status) {
+      case (#Completed(_) or #Failed(_)) true;
+      case _ false;
+    };
+  };
+
+  func emitCreationChanged(record : StorageDeployerOrchestrator.StorageCreationRecord) {
+    backendEvents.emit(#creationChanged({
+      accountOwner = record.owner;
+      creationId = record.id;
+      canisterId = record.canisterId;
+      stage = record.statusTag;
+      progress = creationProgress(record.status);
+      terminal = creationTerminal(record.status);
+      eventIndex = record.events.size();
+    }));
+  };
+
+  func emitCreationRecordChanged(creationId : Nat) {
+    switch (StorageDeployerOrchestrator.getCreationRecordById(creations, creationId)) {
+      case (?record) emitCreationChanged(record);
+      case null {};
+    };
+  };
+
+  func appendCreationEvent(creationId : Nat, status : StorageDeployerOrchestrator.CreationStatus) {
+    StorageDeployerOrchestrator.appendEvent(creations, creationId, status);
+    emitCreationRecordChanged(creationId);
   };
 
   /// Deferred ambassador payout — fires from the orchestrator at
@@ -206,25 +308,25 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
         case (#err(e)) #failed(debug_show e);
       };
       StorageDeployerOrchestrator.setAmbassadorPayoutStatus(creations, creationId, status);
-      notifyAdminsOnPayoutFailure(creationId, owner, status);
+      emitAdminPayoutFailureNotification(creationId, owner, status);
     } catch (e) {
       Debug.print("[ambassador payout] trapped creationId=" # Nat.toText(creationId) # ": " # Error.message(e));
       let status : StorageDeployerOrchestrator.AmbassadorPayoutStatus = #failed("trapped: " # Error.message(e));
       StorageDeployerOrchestrator.setAmbassadorPayoutStatus(creations, creationId, status);
-      notifyAdminsOnPayoutFailure(creationId, owner, status);
+      emitAdminPayoutFailureNotification(creationId, owner, status);
     };
   };
 
   /// Fanout a `#ambassadorPayoutFailed` event to admins when the deferred
   /// payout lands in `#failed` state. Silent on `#completed` / `#pending`
   /// / `#skipped` — those don't need admin attention.
-  func notifyAdminsOnPayoutFailure(
+  func emitAdminPayoutFailureNotification(
     creationId : Nat,
     owner : Principal,
     status : StorageDeployerOrchestrator.AmbassadorPayoutStatus,
   ) {
     switch (status) {
-      case (#failed(reason)) notifyAdmins(#ambassadorPayoutFailed({ creationId; owner; reason }));
+      case (#failed(reason)) emitBackendAdminNotification(#ambassadorPayoutFailed({ creationId; owner; reason }));
       case _ {};
     };
   };
@@ -244,6 +346,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     bindLicense = ?bindLicenseCallback;
     payAmbassadorShare = ?payAmbassadorShareCallback;
     onCmcNotifyFailed = null;
+    onCreationChanged = ?emitCreationChanged;
   };
 
   // --- Internal: create storage for a user (called after license payment) ---
@@ -273,7 +376,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     initArgs.icpaySecretKey,
     { assertAdmin },
     {
-      notifyUser;
+      events = backendEvents;
       getAmbassadorChain;
       activateSubscription = activateSubscriptionInternal;
       grantPaidPeriod = grantPaidPeriodInternal;
@@ -542,7 +645,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
               "creation failed before canister existed",
             );
             ignore StorageDeployerOrchestrator.removeRefundedCreation(creations, creationId);
-            notifyAdmins(#creationRefunded({
+            emitBackendAdminNotification(#creationRefunded({
               creationId;
               owner;
               tokenId = debug_show license.receipt.tokenId;
@@ -573,8 +676,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     {
       resumeFailedCreationInternal;
       refundFailedCreationInternal;
-      notifyUser;
-      notifyAdmins;
+      events = backendEvents;
       selfCanisterId = canisterId;
     },
   );
@@ -623,8 +725,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     {
       getUserSettings;
       getAmbassadorChain;
-      notifyUser;
-      notifyAdmins;
+      events = backendEvents;
       verifyCanisterOwner;
       transferIcpToCmc;
       notifyTopUp = notifyTopUpCmc;
@@ -678,7 +779,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ignore Timer.recurringTimer<system>(#seconds(86400), func() : async () {
     let expiredUsers = expireOverdueSubscriptions();
     for (userId in expiredUsers.vals()) {
-      notifyUser(userId, #subscriptionExpired);
+      emitBackendNotification(userId, #subscriptionExpired);
     };
     syncLatestWasmHash();
     processAutoRenewals<system>();
@@ -725,6 +826,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       case (#err(#ReleaseNotFound)) return #err(#ActivationFailed("No release available"));
       case (#err(e)) return #err(#ActivationFailed(debug_show e));
     };
+    emitCreationRecordChanged(creationId);
 
     // 2. Schedule charge + deploy on a separate message. User gets the id back
     //    within milliseconds regardless of how long the payment pipeline takes.
@@ -758,30 +860,30 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
         case (#checkingBalances) #ProcessingPayment(#CheckingBalances);
         case (#charging(c)) #ProcessingPayment(#Charging(c));
       };
-      StorageDeployerOrchestrator.appendEvent(creations, creationId, status);
+      appendCreationEvent(creationId, status);
     };
 
     let chargeResult = try {
       await* chargeForLicense<system>(caller, onChargePhase);
     } catch (err) {
-      StorageDeployerOrchestrator.appendEvent(creations, creationId, #Failed("Charge trapped: " # Error.message(err)));
+      appendCreationEvent(creationId, #Failed("Charge trapped: " # Error.message(err)));
       return;
     };
 
     let charged = switch (chargeResult) {
       case (#ok(c)) c;
       case (#insufficientFunds(details)) {
-        StorageDeployerOrchestrator.appendEvent(creations, creationId, #Failed("Insufficient funds: need " # formatUsdCents(details.required)));
+        appendCreationEvent(creationId, #Failed("Insufficient funds: need " # formatUsdCents(details.required)));
         return;
       };
       case (#err(msg)) {
-        StorageDeployerOrchestrator.appendEvent(creations, creationId, #Failed("Charge failed: " # msg));
+        appendCreationEvent(creationId, #Failed("Charge failed: " # msg));
         return;
       };
     };
 
     // Record license — this is the commit point for the payment.
-    StorageDeployerOrchestrator.appendEvent(creations, creationId, #ProcessingPayment(#RecordingLicense));
+    appendCreationEvent(creationId, #ProcessingPayment(#RecordingLicense));
     let receipt : StorageDeployerOrchestrator.PaymentReceipt = {
       tokenId = charged.tokenId;
       amount = charged.amount;
@@ -796,15 +898,15 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     StorageDeployerOrchestrator.setLicensePaymentId(creations, creationId, charged.paymentId);
 
     // Activate Trial if not already subscribed.
-    StorageDeployerOrchestrator.appendEvent(creations, creationId, #ProcessingPayment(#Activating));
+    appendCreationEvent(creationId, #ProcessingPayment(#Activating));
     ignore activateSubscriptionInternal(caller, #Trial, null);
 
     // Hand off to the deploy queue. startStorageCreation will flip the record
     // to #Pending (distinct tag — new timeline event).
-    StorageDeployerOrchestrator.appendEvent(creations, creationId, #ProcessingPayment(#Queueing));
+    appendCreationEvent(creationId, #ProcessingPayment(#Queueing));
     switch (StorageDeployerOrchestrator.startStorageCreation<system>(storageOrchestrator, creations, creationId, options, orchestratorCallbacks)) {
       case (#ok()) {};
-      case (#err(e)) StorageDeployerOrchestrator.appendEvent(creations, creationId, #Failed("Start failed: " # e));
+      case (#err(e)) appendCreationEvent(creationId, #Failed("Start failed: " # e));
     };
   };
 
@@ -880,6 +982,29 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     storageOrchestrator.listStorages(creations, caller);
   };
 
+  public query ({ caller }) func listSharedWithMeStorages() : async [SharedAccess.SharedStorageAccess] {
+    assert not Principal.isAnonymous(caller);
+    SharedAccess.listForPrincipal(sharedAccess, caller);
+  };
+
+  public query ({ caller }) func listSharedWithMeStorageViews() : async [SharedStorageAccessView] {
+    assert not Principal.isAnonymous(caller);
+    Array.map<SharedAccess.SharedStorageAccess, SharedStorageAccessView>(
+      SharedAccess.listForPrincipal(sharedAccess, caller),
+      func(access) {
+        let record = creations.findByCanister(access.storageCanisterId);
+        {
+          access;
+          storageStatus = switch (record) {
+            case (?value) ?value.status;
+            case null null;
+          };
+          updateAvailable = StorageDeployerOrchestrator.checkStorageUpdate(storageOrchestrator, creations, access.storageCanisterId);
+        };
+      },
+    );
+  };
+
   /// Register an externally-deployed storage canister with this backend.
   ///
   /// Required: caller must be a controller of `canisterId`, and the
@@ -896,7 +1021,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ///   - That divergence is intentional. A controller registers the
   ///     canister for managed services; data access stays gated by
   ///     the storage canister's permission rules (see
-  ///     `grantStoragePermission` / `revokeStoragePermission`).
+  ///     `createAccessBatch` / `revokeAccessBatch`).
   ///
   /// Backend id trust — not verified:
   ///   - Caller could have set `PUBLIC_CANISTER_ID:rabbithole-backend`
@@ -1013,9 +1138,30 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     severity : { #warning; #critical },
   ) : async () {
     let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(creations, caller) else return;
-    notifyUser(storageOwner, #lowCycles({ canisterId = caller; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
+    emitBackendNotification(storageOwner, #lowCycles({ canisterId = caller; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
     // Trigger auto top-up if user has it enabled
     await processAutoTopUp(storageOwner, caller, balance, severity);
+  };
+
+  public shared ({ caller }) func onStorageAccessChanged(envelope : BackendEvents.StorageAccessChanged) : async () {
+    let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(creations, caller) else return;
+    let normalizedEnvelope = StorageAccessBackendConsumer.normalizeStorageAccessChanged(storageOwner, caller, envelope);
+    let matchedEmailRecipients = switch (StorageAccessBackendConsumer.pendingEmailCommitment(normalizedEnvelope)) {
+      case (?commitment) {
+        StorageAccessBackendConsumer.verifiedEmailPrincipalsForCommitment(users.listVerifiedEmailIdentities(), normalizedEnvelope.storageCanisterId, commitment);
+      };
+      case null [];
+    };
+    StorageAccessBackendConsumer.apply(sharedAccess, normalizedEnvelope, matchedEmailRecipients);
+    backendEvents.emit(#storageAccessChanged(normalizedEnvelope));
+    switch (StorageAccessBackendConsumer.pendingEmailCommitment(normalizedEnvelope)) {
+      case (?commitment) {
+        for (principal in matchedEmailRecipients.vals()) {
+          await claimStorageEmailAccessByCommitment(principal, normalizedEnvelope.storageCanisterId, commitment);
+        };
+      };
+      case null {};
+    };
   };
 
   public query func getReleasesFullStatus() : async StorageDeployerOrchestrator.ReleasesFullStatus {

@@ -1,42 +1,55 @@
-import { Component, computed, inject, Signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
-import { provideIcons } from '@ng-icons/core';
 import {
+  Component,
+  computed,
+  inject,
+  Injector,
+  resource,
+  runInInjectionContext,
+  Signal,
+} from "@angular/core";
+import { toSignal } from "@angular/core/rxjs-interop";
+import { ActivatedRoute } from "@angular/router";
+import { Principal } from "@icp-sdk/core/principal";
+import { provideIcons } from "@ng-icons/core";
+import {
+  lucideClipboardList,
   lucideDatabase,
   lucideFolder,
   lucideHardDrive,
-} from '@ng-icons/lucide';
-import { map } from 'rxjs/operators';
+} from "@ng-icons/lucide";
+import { map } from "rxjs/operators";
 
+import { NavigationComponent, NavItem } from "@rabbithole/core";
 import {
-  NavigationComponent,
-  NavItem,
-} from '@rabbithole/core';
+  type AccessRequestsCapability,
+  AccessRequestsCapabilityService,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  provideEncryptedStorage,
+} from "@rabbithole/core/storage-runtime";
 import {
   HlmSidebarGroup,
   HlmSidebarGroupContent,
   HlmSidebarGroupLabel,
-} from '@spartan-ng/helm/sidebar';
+} from "@spartan-ng/helm/sidebar";
+
+const EMPTY_ACCESS_REQUESTS_CAPABILITY: AccessRequestsCapability = {
+  canManage: false,
+  pendingCount: 0,
+};
 
 @Component({
-  selector: 'app-storage-navigation',
-  template: `<div hlmSidebarGroupLabel>
-      Navigation
-    </div>
+  selector: "app-storage-navigation",
+  template: `<div hlmSidebarGroupLabel>Navigation</div>
     <div hlmSidebarGroupContent>
       <core-navigation [data]="data()" [exact]="'/dashboard/' + canisterId()" />
     </div> `,
-  imports: [
-    NavigationComponent,
-    HlmSidebarGroupLabel,
-    HlmSidebarGroupContent,
-  ],
+  imports: [NavigationComponent, HlmSidebarGroupLabel, HlmSidebarGroupContent],
   providers: [
     provideIcons({
       lucideDatabase,
       lucideHardDrive,
       lucideFolder,
+      lucideClipboardList,
     }),
   ],
   hostDirectives: [HlmSidebarGroup],
@@ -44,26 +57,78 @@ import {
 export class StorageNavigationComponent {
   #route = inject(ActivatedRoute);
   canisterId = toSignal(
-    this.#route.paramMap.pipe(map((params) => params.get('id'))),
+    this.#route.paramMap.pipe(map((params) => params.get("id"))),
+    { initialValue: null },
   );
+  readonly #injector = inject(Injector);
+  // eslint-disable-next-line perfectionist/sort-classes -- parent injector must exist before the resource loader runs.
+  readonly #requestAccessCapability = resource({
+    params: () => this.canisterId(),
+    loader: ({ params: canisterId }) =>
+      this.#loadAccessRequestsCapability(canisterId),
+    defaultValue: EMPTY_ACCESS_REQUESTS_CAPABILITY,
+  });
   data: Signal<NavItem[]> = computed(() => {
     const canisterId = this.canisterId();
+    if (!canisterId) return [];
+    const accessRequestsCapability =
+      this.#requestAccessCapability.value() ?? EMPTY_ACCESS_REQUESTS_CAPABILITY;
     return [
       {
-        title: 'Storage',
+        title: "Storage",
         url: `/dashboard/${canisterId}`,
-        icon: 'lucideHardDrive',
+        icon: "lucideHardDrive",
       },
       {
-        title: 'My Files',
+        title: "My Files",
         url: `/dashboard/${canisterId}/drive`,
-        icon: 'lucideFolder',
+        icon: "lucideFolder",
       },
+      ...(accessRequestsCapability.canManage
+        ? [
+            {
+              title: "Access requests",
+              url: `/dashboard/${canisterId}/access-requests`,
+              icon: "lucideClipboardList",
+              badgeCount: accessRequestsCapability.pendingCount,
+            },
+          ]
+        : []),
       {
-        title: 'Canister settings',
+        title: "Canister settings",
         url: `/dashboard/${canisterId}/canister`,
-        icon: 'lucideDatabase',
+        icon: "lucideDatabase",
       },
     ];
   });
+
+  async #loadAccessRequestsCapability(
+    canisterId: string | null,
+  ): Promise<AccessRequestsCapability> {
+    if (!canisterId) {
+      return EMPTY_ACCESS_REQUESTS_CAPABILITY;
+    }
+
+    try {
+      return await runInInjectionContext(
+        Injector.create({
+          providers: [
+            {
+              provide: ENCRYPTED_STORAGE_CANISTER_ID,
+              useValue: Principal.fromText(canisterId),
+            },
+            provideEncryptedStorage(),
+            AccessRequestsCapabilityService,
+          ],
+          parent: this.#injector,
+        }),
+        async () => {
+          const capability = inject(AccessRequestsCapabilityService);
+          return capability.load();
+        },
+      );
+    } catch {
+      return EMPTY_ACCESS_REQUESTS_CAPABILITY;
+    }
+  }
 }

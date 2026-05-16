@@ -29,18 +29,6 @@ export const appRoutes: Route[] = [
 ];
 ```
 
-Или для standalone компонентов:
-
-```typescript
-{
-  path: 'canisters',
-  loadComponent: () =>
-    import('@rabbithole/features/canisters').then(
-      (m) => m.CanistersComponent
-    ),
-}
-```
-
 ## Добавление новой фичи
 
 1. Создайте папку `src/lib/<feature-name>/`

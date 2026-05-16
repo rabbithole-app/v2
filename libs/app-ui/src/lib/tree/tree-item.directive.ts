@@ -18,7 +18,7 @@ import { injectTreeConfig } from './tree.token';
     'data-slot': 'tree-item',
     '[style.--tree-padding]': 'treePadding()',
     '[attr.data-folder]': 'isExpandable()',
-    '[attr.data-disabled]': 'isDisabled()',
+    '[attr.data-disabled]': 'isDisabled() ? true : null',
     '[attr.data-selected]': 'isSelected()',
     '[attr.data-drag-target]': 'false',
     '[attr.data-search-match]': 'false',
@@ -44,10 +44,6 @@ export class RbthTreeDirective {
     isDeepEqual(this.#treeComponent.selected(), this.cdkTreeNode.data),
   );
   protected config = injectTreeConfig();
-  // wrapping in computed allows you to get the value ща думуд after initialization cdkTreeNode
-  // treePadding = computed(
-  //   () => `${this.cdkTreeNode.level * this.config.indent}px`,
-  // );
   treePadding = toSignal(
     this.cdkTreeNode._dataChanges
       .asObservable()

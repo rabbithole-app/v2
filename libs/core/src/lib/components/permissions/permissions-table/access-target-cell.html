@@ -1,0 +1,28 @@
+    <div class="min-w-0">
+      <div class="truncate text-sm font-medium" [class.font-bold]="isCurrentUser()">
+        @if (hasDisplayEmail()) {
+          {{ targetValue() }}
+        } @else if (isEmailInvite()) {
+          Pending email invite
+        } @else if (resolvedProfile(); as profile) {
+          {{ profile.title }}
+        } @else {
+          <rbth-copy-to-clipboard [content]="targetValue()">
+            {{ shortPrincipal() }}
+          </rbth-copy-to-clipboard>
+        }
+      </div>
+      <div class="truncate text-xs text-muted-foreground">
+        @if (hasDisplayEmail()) {
+          {{ emailSubtitle() }}
+        } @else if (isEmailInvite()) {
+          Email is hidden by this storage canister
+        } @else if (resolvedProfile(); as profile) {
+          {{ profile.subtitle }}
+        } @else if (isCurrentUser()) {
+          You
+        } @else {
+          {{ targetValue() }}
+        }
+      </div>
+    </div>

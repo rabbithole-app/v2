@@ -1,0 +1,40 @@
+    <div hlmItemMedia>
+      @if (avatarSrc(); as src) {
+        <hlm-avatar class="size-8 border bg-muted text-xs">
+          <img hlmAvatarImage [src]="src" [alt]="title()" />
+          <img hlmAvatarFallback src="/avatar-placeholder.svg" [alt]="title()" />
+        </hlm-avatar>
+      } @else {
+        <span
+          class="flex size-8 items-center justify-center rounded-full border bg-muted text-muted-foreground"
+        >
+          <ng-icon [name]="iconName()" hlmIcon size="sm" />
+        </span>
+      }
+    </div>
+
+    <div hlmItemContent>
+      <div hlmItemHeader>
+        <div hlmItemTitle>
+          @if (titleTemplate(); as template) {
+            <ng-container [ngTemplateOutlet]="template.templateRef" />
+          } @else {
+            {{ title() }}
+          }
+        </div>
+      </div>
+
+      @if (descriptionTemplate(); as template) {
+        <p hlmItemDescription>
+          <ng-container [ngTemplateOutlet]="template.templateRef" />
+        </p>
+      } @else if (description(); as value) {
+        <p hlmItemDescription>{{ value }}</p>
+      }
+    </div>
+
+    @if (actionsTemplate(); as template) {
+      <div hlmItemActions>
+        <ng-container [ngTemplateOutlet]="template.templateRef" />
+      </div>
+    }

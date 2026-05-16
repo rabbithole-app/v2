@@ -5,6 +5,8 @@ import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import CertifiedAssets "mo:certified-assets/Stable";
 
+import AccessTypes "Access/Types";
+import StorageEventTypes "StorageEvents/Types";
 import V1 "Migrations/V1/Types";
 import Migrations "Migrations/lib";
 
@@ -14,9 +16,57 @@ module {
   public type VersionedStableStore = Migrations.VersionedStableStore;
   public type UpgradeOptions = Migrations.UpgradeOptions;
 
-  /* -------------- Re-exports from V1 (current stable types) --------------- */
+  /* -------------- Re-exports from current stable types --------------------- */
 
   public type StableStore = V1.StableStore;
+
+  /* -------------- Re-exports from Access ---------------------------------- */
+
+  public type AccessRef = AccessTypes.AccessRef;
+  public type AccessClass = AccessTypes.AccessClass;
+  public type AccessSource = AccessTypes.AccessSource;
+  public type AccessScope = AccessTypes.AccessScope;
+  public type OwnerEquivalentPrincipal = AccessTypes.OwnerEquivalentPrincipal;
+  public type PrincipalAccessGrant = AccessTypes.PrincipalAccessGrant;
+  public type EmailClaimOrigin = AccessTypes.EmailClaimOrigin;
+  public type EmailClaim = AccessTypes.EmailClaim;
+  public type EmailClaimState = AccessTypes.EmailClaimState;
+  public type PendingAccessGrant = AccessTypes.PendingAccessGrant;
+  public type AccessRequestStatus = AccessTypes.AccessRequestStatus;
+  public type AccessRequestDecision = AccessTypes.AccessRequestDecision;
+  public type AccessRequest = AccessTypes.AccessRequest;
+  public type StorageAccessEvent = AccessTypes.StorageAccessEvent;
+  public type StorageEvent = StorageEventTypes.StorageEvent;
+  public type StoredStorageEvent = StorageEventTypes.StoredStorageEvent;
+  public type AddRecoveryOwnerOptions = AccessTypes.AddRecoveryOwnerOptions;
+  public type RecoveryStatus = AccessTypes.RecoveryStatus;
+  public type RegisterRecoveryControllerResult = AccessTypes.RegisterRecoveryControllerResult;
+  public type CreateAccessBatchItem = AccessTypes.CreateAccessBatchItem;
+  public type CreateAccessBatchArguments = AccessTypes.CreateAccessBatchArguments;
+  public type CreateAccessBatchResult = AccessTypes.CreateAccessBatchResult;
+  public type RevokeAccessBatchItem = AccessTypes.RevokeAccessBatchItem;
+  public type RevokeAccessBatchArguments = AccessTypes.RevokeAccessBatchArguments;
+  public type RevokeAccessBatchResult = AccessTypes.RevokeAccessBatchResult;
+  public type CreatePrincipalAccessGrantResult = AccessTypes.CreatePrincipalAccessGrantResult;
+  public type CreatePendingAccessGrantResult = AccessTypes.CreatePendingAccessGrantResult;
+  public type AccessGrantListMode = AccessTypes.AccessGrantListMode;
+  public type ListAccessGrantsArguments = AccessTypes.ListAccessGrantsArguments;
+  public type ListedPrincipalAccessGrant = AccessTypes.ListedPrincipalAccessGrant;
+  public type ListedPendingAccessGrant = AccessTypes.ListedPendingAccessGrant;
+  public type AccessGrantList = AccessTypes.AccessGrantList;
+  public type CreatePendingAccessGrantArguments = AccessTypes.CreatePendingAccessGrantArguments;
+  public type ClaimPendingAccessGrantArguments = AccessTypes.ClaimPendingAccessGrantArguments;
+  public type ClaimPendingAccessByVerifiedAttributesArguments = AccessTypes.ClaimPendingAccessByVerifiedAttributesArguments;
+  public type ClaimPendingAccessByBackendAttestationArguments = AccessTypes.ClaimPendingAccessByBackendAttestationArguments;
+  public type ClaimedPendingAccessGrant = AccessTypes.ClaimedPendingAccessGrant;
+  public type CancelPendingAccessGrantArguments = AccessTypes.CancelPendingAccessGrantArguments;
+  public type CancelPendingAccessGrantResult = AccessTypes.CancelPendingAccessGrantResult;
+  public type CreateDurableAccessGrantArguments = AccessTypes.CreateDurableAccessGrantArguments;
+  public type CreateAccessRequestArguments = AccessTypes.CreateAccessRequestArguments;
+  public type CancelAccessRequestArguments = AccessTypes.CancelAccessRequestArguments;
+  public type ResolveAccessRequestArguments = AccessTypes.ResolveAccessRequestArguments;
+
+  /* -------------- Re-exports from V1 (filesystem/storage types) ----------- */
   public type SubscriptionStatus = V1.SubscriptionStatus;
   public type SubscriptionCache = V1.SubscriptionCache;
   public type Plan = V1.Plan;
@@ -100,18 +150,11 @@ module {
     };
   };
 
-  public type GrantPermissionArguments = {
+  public type HasPermissionArguments = {
     entry : ?Entry;
     user : Principal;
     permission : Permission;
   };
-
-  public type RevokePermissionArguments = {
-    entry : ?Entry;
-    user : Principal;
-  };
-
-  public type HasPermissionArguments = GrantPermissionArguments;
 
   /* ---------------------------------- File ---------------------------------- */
 
@@ -188,6 +231,7 @@ module {
   };
 
   public type EncryptedStorageInitArgs = {
+    accountOwner : Principal;
     canisterId : Principal;
     vetKdKeyId : ManagementCanister.VetKdKeyid;
     domainSeparator : Text;

@@ -1,0 +1,185 @@
+    <section class="flex min-h-full flex-col">
+      <a
+        class="m-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground md:hidden"
+        routerLink="../"
+      >
+        <ng-icon name="lucideChevronLeft" hlmIcon size="sm" />
+        Requests
+      </a>
+
+      @if (invalidRequestId()) {
+        <div hlmEmpty class="min-h-[420px]">
+          <div hlmEmptyHeader>
+            <div hlmEmptyMedia variant="icon">
+              <ng-icon name="lucideCircleAlert" />
+            </div>
+            <div hlmEmptyTitle>Invalid request</div>
+            <div hlmEmptyDescription>
+              This access request URL is not valid.
+            </div>
+          </div>
+        </div>
+      } @else if (store.loading() && !request()) {
+        <div class="flex min-h-[420px] items-center justify-center">
+          <hlm-spinner />
+        </div>
+      } @else if (request(); as accessRequest) {
+        @let profile = store.requesterProfile(accessRequest.requester);
+        <header class="px-5 pt-6 pb-4">
+          <div class="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0 space-y-2">
+              <rbth-user-identity
+                class="min-w-0"
+                [avatarSrc]="profile?.avatarSrc"
+                [title]="profile?.title ?? store.shortPrincipal(accessRequest.requester)"
+                [username]="profile?.username"
+                [principalId]="accessRequest.requester.toText()"
+                [copyPrincipal]="true"
+              />
+              <div class="flex flex-wrap gap-x-3 gap-y-1 pl-12 text-xs text-muted-foreground">
+                <span>#{{ accessRequest.id }}</span>
+                <span>Created {{ store.formatTime(accessRequest.createdAt) }}</span>
+                @if (accessRequest.decidedAt[0]; as decidedAt) {
+                  <span>Updated {{ store.formatTime(decidedAt) }}</span>
+                }
+              </div>
+            </div>
+            <span
+              hlmBadge
+              class="w-fit shrink-0"
+              variant="outline"
+            >
+              <ng-icon
+                hlmIcon
+                data-icon="inline-start"
+                [name]="store.statusIconName(accessRequest.status)"
+                size="xs"
+              />
+              {{ store.statusLabel(accessRequest.status) }}
+            </span>
+          </div>
+        </header>
+
+        <form class="min-h-0 flex-1 px-5 pb-5" [formGroup]="form">
+          <main class="mx-auto flex max-w-3xl flex-col gap-5">
+            <div hlmFieldGroup class="gap-5">
+              <hlm-alert>
+                <ng-icon name="lucideMessageSquareText" />
+                <h4 hlmAlertTitle>Requester note</h4>
+                <p hlmAlertDescription>
+                  {{ store.optionalText(accessRequest.message) ?? 'No message provided.' }}
+                </p>
+              </hlm-alert>
+
+              @if (store.isPending(accessRequest)) {
+                <div hlmCard size="sm">
+                  <header hlmCardHeader>
+                    <div hlmCardTitle>Grant access</div>
+                  </header>
+
+                  <div hlmCardContent>
+                    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+                      <div hlmField>
+                        <div hlmFieldLabel>Scope</div>
+                        <rbth-tree-select
+                          [tree]="store.tree()"
+                          selectable="all"
+                          rootLabel="Whole storage"
+                          placeholder="Choose file or folder"
+                          [allowRoot]="true"
+                          [disabled]="store.treeLoading()"
+                          [loading]="store.treeLoading()"
+                          [(selected)]="selectedScope"
+                        >
+                          <ng-template
+                            rbthTreeSelectTrigger
+                            let-loading="loading"
+                            let-selected="selected"
+                            let-placeholder="placeholder"
+                          >
+                            <span class="flex min-w-0 items-center gap-2">
+                              @if (loading) {
+                                <hlm-spinner class="size-4" />
+                              } @else {
+                                <ng-icon
+                                  [name]="scopeIcon(selected)"
+                                  hlmIcon
+                                  size="sm"
+                                />
+                              }
+                              <span class="truncate">
+                                {{ scopeLabel(selected, placeholder) }}
+                              </span>
+                            </span>
+                          </ng-template>
+                        </rbth-tree-select>
+                      </div>
+
+                      <div hlmField>
+                        <label hlmFieldLabel for="access-request-permission">
+                          Permission
+                        </label>
+                        <hlm-select
+                          coreTransparentSelectBackdrop
+                          id="access-request-permission"
+                          formControlName="permission"
+                        >
+                          <hlm-select-trigger class="w-full">
+                            {{ permissionLabel(form.controls.permission.value) }}
+                          </hlm-select-trigger>
+                          <hlm-select-content *hlmSelectPortal class="w-56">
+                            <hlm-select-item value="Read">View</hlm-select-item>
+                            <hlm-select-item value="ReadWrite">Edit</hlm-select-item>
+                            <hlm-select-item value="ReadWriteManage">Manage</hlm-select-item>
+                          </hlm-select-content>
+                        </hlm-select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <footer hlmCardFooter class="justify-end gap-2">
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="destructive"
+                      [disabled]="store.isBusy(accessRequest.id)"
+                      (click)="reject(accessRequest)"
+                    >
+                      <ng-icon name="lucideX" hlmIcon size="sm" />
+                      Reject
+                    </button>
+                    <button
+                      hlmBtn
+                      type="button"
+                      [disabled]="!canApprove() || store.isBusy(accessRequest.id)"
+                      (click)="approve(accessRequest)"
+                    >
+                      <ng-icon name="lucideCheck" hlmIcon size="sm" />
+                      Grant access
+                    </button>
+                  </footer>
+                </div>
+              }
+            </div>
+          </main>
+        </form>
+      } @else {
+        <div hlmEmpty class="min-h-[420px]">
+          <div hlmEmptyHeader>
+            <div hlmEmptyMedia variant="icon">
+              <ng-icon name="lucideCircleAlert" />
+            </div>
+            <div hlmEmptyTitle>Request not found</div>
+            <div hlmEmptyDescription>
+              The request may have been removed or is no longer visible to your account.
+            </div>
+          </div>
+          <div hlmEmptyContent>
+            <button hlmBtn type="button" variant="outline" (click)="store.loadRequests()">
+              <ng-icon name="lucideRefreshCw" hlmIcon size="sm" />
+              Refresh
+            </button>
+          </div>
+        </div>
+      }
+    </section>

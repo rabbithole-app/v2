@@ -111,7 +111,10 @@
             <div hlmComboboxGroup>
               <div hlmComboboxLabel>Users</div>
               @for (item of foundOptions(); track targetKey(item)) {
-                <hlm-combobox-item [value]="item">
+                <hlm-combobox-item
+                  [value]="item"
+                  (pointerdown)="selectOption(item, $event)"
+                >
                   <ng-container
                     [ngTemplateOutlet]="targetOption"
                     [ngTemplateOutletContext]="{ $implicit: item }"
@@ -125,7 +128,10 @@
             <div hlmComboboxGroup>
               <div hlmComboboxLabel>Use typed value</div>
               @for (item of typedOptions(); track targetKey(item)) {
-                <hlm-combobox-item [value]="item">
+                <hlm-combobox-item
+                  [value]="item"
+                  (pointerdown)="selectOption(item, $event)"
+                >
                   <ng-container
                     [ngTemplateOutlet]="targetOption"
                     [ngTemplateOutletContext]="{ $implicit: item }"

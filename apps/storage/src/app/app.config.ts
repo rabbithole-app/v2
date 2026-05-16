@@ -14,7 +14,6 @@ import {
   withPreloading,
 } from '@angular/router';
 import { HttpAgentOptions } from '@icp-sdk/core/agent';
-import { Principal } from '@icp-sdk/core/principal';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 import { firstValueFrom } from 'rxjs';
 
@@ -39,6 +38,7 @@ import {
   MAIN_BACKEND_URL_TOKEN,
   MAIN_CANISTER_ID_TOKEN,
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
+  principalFromConfig,
   provideCoreWorker,
   SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
 } from '@rabbithole/core/app-runtime';
@@ -46,7 +46,10 @@ import {
 import { appRoutes } from './app.routes';
 import { ConfigService } from './core/services/config.service';
 
-const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
+const MANAGEMENT_CANISTER_ID = principalFromConfig(
+  'aaaaa-aa',
+  'IC management canister',
+);
 
 export const provideAuthService = (): Provider => ({
   provide: AUTH_SERVICE,
@@ -67,7 +70,10 @@ function storageAuthConfig(): AuthConfig {
     delegationPath: '/delegation',
     delegationTargets: [
       runtimeConfig.canisterId,
-      Principal.fromText(runtimeConfig.backendCanisterId),
+      principalFromConfig(
+        runtimeConfig.backendCanisterId,
+        'storage.runtimeConfig.backendCanisterId',
+      ),
       MANAGEMENT_CANISTER_ID,
     ],
     loginOptions: {
@@ -107,7 +113,11 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: MAIN_CANISTER_ID_TOKEN,
-      useFactory: () => Principal.fromText(injectStorageRuntimeConfig().backendCanisterId),
+      useFactory: () =>
+        principalFromConfig(
+          injectStorageRuntimeConfig().backendCanisterId,
+          'storage.runtimeConfig.backendCanisterId',
+        ),
     },
     {
       provide: HTTP_AGENT_OPTIONS_TOKEN,

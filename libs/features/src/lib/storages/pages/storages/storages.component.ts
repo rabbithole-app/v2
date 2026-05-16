@@ -38,7 +38,7 @@ import { StorageCardComponent } from '../../components';
     }),
   ],
   host: {
-    class: 'space-y-4',
+    class: 'flex min-h-0 flex-1 flex-col gap-4',
   },
   templateUrl: './storages.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

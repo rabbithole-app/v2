@@ -122,6 +122,7 @@ export const IdentityAttributesSyncResult = IDL.Variant({
     nonceMismatch: IDL.Null,
     nonceNotFound: IDL.Null,
     untrustedSigner: IDL.Null,
+    verifiedEmailRequired: IDL.Null,
   }),
   ok: IDL.Null,
 });
@@ -331,7 +332,7 @@ export async function deployInternetIdentity(pic: PocketIc): Promise<void> {
         auth_scope: ["openid", "profile", "email"],
         auth_uri: "https://accounts.google.com/o/oauth2/v2/auth",
         client_id: "360587991668-63bpc1gngp1s5gbo1aldal4a50c1j0bb.apps.googleusercontent.com",
-        email_verification: [],
+        email_verification: [{ Google: null }],
         fedcm_uri: ["https://accounts.google.com/gsi/fedcm.json"],
         issuer: "https://accounts.google.com",
         jwks_uri: "https://www.googleapis.com/oauth2/v3/certs",
@@ -359,6 +360,7 @@ export async function getGoogleSignedAttributes(
       account_number: [],
       attributes: [
         { key: "openid:https://accounts.google.com:email", omit_scope: false, value: [] },
+        { key: "openid:https://accounts.google.com:verified_email", omit_scope: false, value: [] },
         { key: "openid:https://accounts.google.com:name", omit_scope: false, value: [] },
       ],
       identity_number: identityNumber,

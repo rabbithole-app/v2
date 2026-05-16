@@ -2,11 +2,19 @@ import { ActorConfig } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 
 import {
+  AccessClass,
+  AccessGrantListMode as AccessGrantListModeRaw,
+  AccessRequest as AccessRequestRaw,
+  AccessRequestStatus as AccessRequestStatusRaw,
+  AccessScope,
+  AccessSource,
   EncryptionMode,
   Entry as EntryRaw,
+  PendingAccessGrant,
   EncryptedStorageHttpPermission as PermissionRaw,
   StorageBackend,
   StoragePermission as StoragePermissionRaw,
+  Time,
 } from '@rabbithole/declarations/encrypted-storage';
 
 import { Readable } from './readable/readable';
@@ -63,6 +71,21 @@ export type ContentEncoding =
   | 'gzip'
   | 'identity';
 
+export type CreateStorageAccessGrant = {
+  entry?: Entry;
+  permission: StoragePermission;
+  target: StorageAccessTarget;
+};
+
+export type CreateStorageAccessGrants = {
+  items: CreateStorageAccessGrant[];
+};
+
+export type CreateStorageAccessRequest = {
+  email?: string;
+  message?: string;
+};
+
 export type EncryptedStorageConfig = {
   /** Blob storage gateway URL (e.g., "https://blob.caffeine.ai"). Required for BlobStorage backend. */
   blobStorageGatewayUrl?: string;
@@ -75,12 +98,6 @@ export type EncryptedStorageStoreConfig = Omit<StoreConfig, 'contentEncoding'>;
 export type Entry = [ExtractVariantKeys<EntryKind>, string];
 
 export type EntryKind = EntryRaw[0];
-
-export type GrantStoragePermission = {
-  entry?: Entry;
-  permission: StoragePermission;
-  user: Principal | string;
-};
 
 export type Permission = ExtractVariantKeys<PermissionRaw>;
 
@@ -97,12 +114,47 @@ export type Progress =
       >;
     };
 
-export type RevokeStoragePermission = {
+export type ResolveStorageAccessRequest =
+  | {
+      decision: 'approved';
+      entry?: Entry;
+      permission: StoragePermission;
+      requestId: bigint;
+    }
+  | {
+      decision: 'rejected';
+      requestId: bigint;
+    };
+
+export type RevokeStorageAccessGrant = {
   entry?: Entry;
-  user: Principal | string;
+  principal: Principal | string;
 };
 
-export type StoragePermission = ExtractVariantKeys<StoragePermissionRaw>;
+export type RevokeStorageAccessGrants = {
+  items: RevokeStorageAccessGrant[];
+};
+
+export type StorageAccessGrantListMode = ExtractVariantKeys<AccessGrantListModeRaw>;
+
+export type StorageAccessRequest = AccessRequestRaw;
+
+export type StorageAccessRequestStatus = AccessRequestStatusRaw;
+
+export type StorageAccessTarget =
+  | { email: string }
+  | { principal: Principal | string };
+
+export type StorageClaimedPrincipal = {
+  claimedAt: Time;
+  origin: StorageClaimedPrincipalOrigin;
+  principal: string;
+  principalGrantId: bigint;
+};
+
+export type StorageClaimedPrincipalOrigin = 'rabbithole' | 'storage';
+
+export type StoragePendingAccessGrant = PendingAccessGrant;
 
 /**
  * Upload progress in bytes
@@ -112,8 +164,19 @@ export type StoragePermission = ExtractVariantKeys<StoragePermissionRaw>;
 //   total: number;
 // }
 
+export type StoragePermission = ExtractVariantKeys<StoragePermissionRaw>;
+
 export type StoragePermissionItem = {
+  accessClass?: AccessClass;
+  claimedPrincipals?: StorageClaimedPrincipal[];
+  emailCommitment?: Uint8Array;
+  grantId?: bigint;
+  inheritedFrom?: AccessScope;
   permission: StoragePermission;
+  scope?: AccessScope;
+  source?: AccessSource;
+  status?: 'active' | 'pending';
+  targetKind?: 'email' | 'emailCommitment' | 'principal';
   user: string;
 };
 
@@ -195,6 +258,7 @@ export type StoreReadableArgs = [readable: Readable, config?: StoreConfig];
 
 export type TreeNode = {
   children?: TreeNode[];
+  kind?: 'directory' | 'file';
   name: string;
   path?: string;
 };

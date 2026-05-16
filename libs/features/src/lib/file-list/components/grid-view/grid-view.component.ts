@@ -26,6 +26,7 @@ import {
   lucideGlobe,
   lucideInfo,
   lucidePencil,
+  lucideShare2,
   lucideTrash2,
   lucideUpload,
   lucideUsers,
@@ -69,6 +70,7 @@ const GRID_CELL_COLUMN_GAP = 16;
       lucideTrash2,
       lucideDownload,
       lucidePencil,
+      lucideShare2,
       lucideFolderTree,
       lucideInfo,
       lucideUsers,
@@ -131,8 +133,9 @@ export class GridViewComponent implements OnDestroy {
   properties = output<NodeItem>();
   rename = output<bigint[]>();
   selectionChange = output<bigint[]>();
-
+  share = output<bigint[]>();
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
   protected readonly _computedClass = computed(() =>
     hlm(
       'flex flex-1 flex-wrap content-start gap-4 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] rounded-lg',
@@ -168,6 +171,7 @@ export class GridViewComponent implements OnDestroy {
         : undefined;
     },
   });
+  #lastEmittedSelectionKey = '';
   #route = inject(ActivatedRoute);
   #router = inject(Router);
 
@@ -182,7 +186,11 @@ export class GridViewComponent implements OnDestroy {
         }
       });
     effect(() => {
-      this.selectionChange.emit(this.state().selected);
+      const selected = this.state().selected;
+      const key = selected.join(':');
+      if (key === this.#lastEmittedSelectionKey) return;
+      this.#lastEmittedSelectionKey = key;
+      this.selectionChange.emit(selected);
     });
   }
 

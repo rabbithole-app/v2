@@ -164,7 +164,7 @@ function attributeKeys(authEvent: AuthSessionEvent): string[] {
   }
 
   if (authEvent.openIdIssuer) {
-    return ['name', 'email'].map(
+    return ['name', 'email', 'verified_email'].map(
       (key) => `openid:${authEvent.openIdIssuer}:${key}`,
     );
   }

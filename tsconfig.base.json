@@ -120,6 +120,9 @@
       "@rabbithole/ui/tree": [
         "libs/app-ui/src/lib/tree/index.ts"
       ],
+      "@rabbithole/ui/tree-select": [
+        "libs/app-ui/src/lib/tree-select/index.ts"
+      ],
       "@rabbithole/utils": [
         "libs/utils/src/index.ts"
       ],
@@ -137,6 +140,9 @@
       ],
       "@rabbithole/features/releases": [
         "libs/features/src/lib/releases/index.ts"
+      ],
+      "@rabbithole/features/shared-with-me": [
+        "libs/features/src/lib/shared-with-me/index.ts"
       ],
       "@rabbithole/features/payment": [
         "libs/features/src/lib/payment/index.ts"
@@ -161,12 +167,6 @@
       ],
       "@rabbithole/pages/profile": [
         "libs/pages/src/lib/profile/profile.component.ts"
-      ],
-      "@rabbithole/pages/create-profile": [
-        "libs/pages/src/lib/create-profile/create-profile.component.ts"
-      ],
-      "@rabbithole/pages/permissions": [
-        "libs/pages/src/lib/permissions/permissions.component.ts"
       ],
       "@rabbithole/pages/pricing": [
         "libs/pages/src/lib/pricing/pricing.component.ts"

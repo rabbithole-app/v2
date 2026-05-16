@@ -6,17 +6,22 @@ import {
 } from '@angular/router';
 import { fromNullable } from '@dfinity/utils';
 
+import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   createEncryptedStorageCanisterProviderFromSnapshot,
   injectEncryptedStorage,
   provideEncryptedStorage,
 } from '@rabbithole/core/storage-runtime';
-import { StoragePermission } from '@rabbithole/encrypted-storage';
+import {
+  StorageAccessRequest,
+  StoragePermission,
+} from '@rabbithole/encrypted-storage';
 
 import { NodeItem } from '../types';
 import { convertToNodeItem } from '../utils';
 
 export type FileListResolverData = {
+  accessRequest: StorageAccessRequest | null;
   directoryPermission: StoragePermission | null;
   items: NodeItem[];
 };
@@ -26,6 +31,7 @@ export const fileListResolver: ResolveFn<FileListResolverData> = (
   _state: RouterStateSnapshot,
 ) => {
   const segments = route.url.map((segment) => segment.path);
+  const authService = inject(AUTH_SERVICE);
   const injector = inject(Injector);
 
   return runInInjectionContext(
@@ -44,7 +50,12 @@ export const fileListResolver: ResolveFn<FileListResolverData> = (
         .list(path ? ['Directory', path] : undefined);
 
       const permRaw = fromNullable(directoryPermission);
+      const accessRequest =
+        !permRaw && authService.isAuthenticated()
+          ? await encryptedStorageInstance.getMyAccessRequest()
+          : null;
       return {
+        accessRequest,
         items: entries.map((v) => convertToNodeItem(v, path ?? undefined)),
         directoryPermission: permRaw
           ? (Object.keys(permRaw)[0] as StoragePermission)

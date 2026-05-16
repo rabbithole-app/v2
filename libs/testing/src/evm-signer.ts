@@ -40,6 +40,8 @@ export const TEST_FUNDER_PRIVATE_KEY =
 export const TEST_FUNDER_ADDRESS =
   "0x7ba0edcc915019b7ff8d2e27f2f19be960c022af";
 
+const DEFAULT_TX_MINING_TIMEOUT_MS = 120_000;
+
 // ---- Helpers ----
 
 interface SignTxParams {
@@ -251,7 +253,7 @@ export async function signTransaction(params: SignTxParams): Promise<string> {
 export async function waitForTx(
   rpcUrl: string,
   txHash: string,
-  timeoutMs = 30_000,
+  timeoutMs = DEFAULT_TX_MINING_TIMEOUT_MS,
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {

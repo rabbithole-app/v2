@@ -6,6 +6,7 @@ import Time "mo:core/Time";
 import IC "mo:ic";
 
 import T "mo:encrypted-storage/Types";
+import Access "mo:encrypted-storage/Access/lib";
 import Const "mo:encrypted-storage/Const";
 
 module SubscriptionGate {
@@ -97,7 +98,7 @@ module SubscriptionGate {
 
   /* ----------------------------- Sync Gates ------------------------------- */
 
-  /// Check if cached subscription allows encryption operations (upload, grantPermission).
+  /// Check if cached subscription allows encryption and sharing operations.
   /// Sync — uses cache only, no inter-canister call.
   public func canUseEncryption(self : T.StableStore) : Result.Result<(), Text> {
     switch (self.subscriptionCache) {
@@ -115,11 +116,12 @@ module SubscriptionGate {
   };
 
   /// Check if caller can decrypt (getEncryptedVetkey).
-  /// Owner can ALWAYS decrypt (even when expired) — sovereignty guarantee.
-  /// Shared users can only decrypt when active/trial.
-  public func canDecrypt(self : T.StableStore, caller : Principal, owner : Principal) : Result.Result<(), Text> {
-    if (caller == owner) {
-      // Owner can ALWAYS decrypt their own files — sovereignty guarantee
+  /// Account owner and recovery owners can ALWAYS decrypt (even when expired) — sovereignty guarantee.
+  /// Ordinary shared users can only decrypt when active/trial.
+  public func canDecrypt(self : T.StableStore, caller : Principal, owner : Principal, keyId : T.KeyId) : Result.Result<(), Text> {
+    if (caller == owner or Access.isOwnerEquivalent(self.access, caller) or Access.hasActiveDurableGrantForKey(self.access, caller, keyId)) {
+      // Owner-equivalent and durable succession principals can ALWAYS decrypt
+      // permitted files. Ordinary sharing still follows the subscription gate.
       switch (self.subscriptionCache) {
         case (?{ status = #active(_) or #trial(_) or #expired or #free }) #ok;
         case (?{ status = #invalidWasm }) #err("Invalid WASM — contact support");

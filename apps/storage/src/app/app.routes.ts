@@ -29,6 +29,13 @@ export const appRoutes: Route[] = [
                 (m) => m.fileListRoutes,
               ),
           },
+          {
+            path: 'access-requests',
+            loadChildren: () =>
+              import('@rabbithole/features/file-list').then(
+                (m) => m.accessRequestsRoutes,
+              ),
+          },
         ],
       },
       {

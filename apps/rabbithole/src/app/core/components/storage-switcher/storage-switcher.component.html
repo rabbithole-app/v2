@@ -63,6 +63,19 @@
           </button>
         </li>
       }
+
+      <li hlmSidebarMenuItem>
+        <a
+          rbthSidebarMenuButton
+          routerLink="/dashboard/shared-with-me"
+          routerLinkActive
+          #sharedWithMeRla="routerLinkActive"
+          [isActive]="sharedWithMeRla.isActive"
+        >
+          <ng-icon hlmIcon name="lucideShare2" size="sm" hlmMenuIcon />
+          <span class="min-w-0 flex-1 truncate">Shared with me</span>
+        </a>
+      </li>
     </ul>
   </div>
 </div>

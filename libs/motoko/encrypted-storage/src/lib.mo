@@ -1,5 +1,6 @@
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
+import Nat "mo:core/Nat";
 import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Order "mo:core/Order";
@@ -19,6 +20,8 @@ import Vector "mo:vector";
 import CertifiedAssets "mo:certified-assets/Stable";
 
 import T "Types";
+import Access "Access/lib";
+import StorageEvents "StorageEvents/lib";
 import Migrations "Migrations/lib";
 import Utils "Utils";
 import FileSystem "FileSystem";
@@ -42,6 +45,7 @@ module EncryptedFileStorage {
   /// ```motoko
   /// stable var versionedStore = EncryptedStorage.initStableStore({
   ///   canisterId;
+  ///   accountOwner = owner;
   ///   vetKdKeyId = keyId;
   ///   domainSeparator = "file_storage_dapp";
   ///   region = MemoryRegion.new();
@@ -51,7 +55,7 @@ module EncryptedFileStorage {
   /// versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
   /// let storage = EncryptedStorage.fromVersion(versionedStore);
   /// ```
-  public func initStableStore({ region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs; backendId; storageBackendType } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
+  public func initStableStore({ accountOwner; region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs; backendId; storageBackendType } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
     let fs = FileSystem.new({
       region;
       rootPermissions;
@@ -81,6 +85,11 @@ module EncryptedFileStorage {
 
       // Caffeine Blob Storage
       storageBackendType;
+
+      // Access foundation
+      access = Access.new(accountOwner);
+      storageEvents = StorageEvents.new();
+      storageEventReadState = StorageEvents.newReadState();
     });
   };
 
@@ -109,6 +118,972 @@ module EncryptedFileStorage {
       backendId = self.backendId;
       storageBackendType = self.storageBackendType;
     };
+  };
+
+  /* -------------------------------- Access -------------------------------- */
+
+  public func recordStorageAccessEvent(self : T.StableStore, event : T.StorageAccessEvent) : T.StoredStorageEvent {
+    let correlationId = "storage:" # Principal.toText(self.canisterId) # ":event:" # Nat.toText(self.storageEvents.nextEventId);
+    StorageEvents.emit(self.storageEvents, ?correlationId, storageAccessEventVisibleTo(event), #access(event));
+  };
+
+  public func listStorageEvents(self : T.StableStore, caller : Principal, afterId : ?Nat, limit : Nat) : Result.Result<[T.StoredStorageEvent], Text> {
+    #ok(StorageEvents.listVisible(self.storageEvents, caller, Access.isOwnerEquivalent(self.access, caller), afterId, limit));
+  };
+
+  public func listLatestStorageEvents(self : T.StableStore, caller : Principal, limit : Nat) : Result.Result<[T.StoredStorageEvent], Text> {
+    #ok(StorageEvents.listLatestVisible(self.storageEvents, caller, Access.isOwnerEquivalent(self.access, caller), limit));
+  };
+
+  public func getStorageEventsUnreadCount(self : T.StableStore, caller : Principal) : Result.Result<Nat, Text> {
+    #ok(StorageEvents.getUnreadCount(self.storageEvents, self.storageEventReadState, caller, Access.isOwnerEquivalent(self.access, caller)));
+  };
+
+  public func markStorageEventsRead(self : T.StableStore, caller : Principal, upToEventId : Nat) : Result.Result<(), Text> {
+    StorageEvents.markRead(self.storageEventReadState, self.storageEvents, caller, upToEventId);
+    #ok();
+  };
+
+  public func markAllVisibleStorageEventsRead(self : T.StableStore, caller : Principal) : Result.Result<(), Text> {
+    StorageEvents.markAllVisibleRead(self.storageEventReadState, self.storageEvents, caller, Access.isOwnerEquivalent(self.access, caller));
+    #ok();
+  };
+
+  func storageAccessEventVisibleTo(event : T.StorageAccessEvent) : [Principal] {
+    switch (event) {
+      case (#pendingGrantCreated({ ref })) principalAccessRefVisibleTo(ref);
+      case (#pendingGrantClaimed({ principal })) [principal];
+      case (#pendingGrantCancelled({ ref })) principalAccessRefVisibleTo(ref);
+      case (#principalGrantCreated({ principal })) [principal];
+      case (#principalGrantRevoked({ principal })) [principal];
+      case (#recoveryControllerRegistered({ principal })) [principal];
+      case (#recoveryControllerCleared({ principal })) [principal];
+      case (#recoveryOwnerAdded({ principal })) [principal];
+      case (#recoveryOwnerRemoved({ principal })) [principal];
+      case (#accessRequestCreated({ requester })) [requester];
+      case (#accessRequestResolved({ requester })) [requester];
+      case (#accessRequestCancelled({ requester })) [requester];
+    };
+  };
+
+  func principalAccessRefVisibleTo(ref : T.AccessRef) : [Principal] {
+    switch (ref) {
+      case (#principal(principal)) [principal];
+      case (#email(_)) [];
+      case (#emailCommitment(_)) [];
+    };
+  };
+
+  public func isOwnerEquivalent(self : T.StableStore, principal : Principal) : Bool {
+    Access.isOwnerEquivalent(self.access, principal);
+  };
+
+  public func listOwnerEquivalentPrincipals(self : T.StableStore, caller : Principal) : Result.Result<[T.OwnerEquivalentPrincipal], Text> {
+    if (not Access.isOwnerEquivalent(self.access, caller)) {
+      return #err("caller is not owner-equivalent");
+    };
+    #ok(Access.listOwnerEquivalentPrincipals(self.access));
+  };
+
+  public func getRecoveryStatus(self : T.StableStore, caller : Principal) : Result.Result<T.RecoveryStatus, Text> {
+    if (not Access.isOwnerEquivalent(self.access, caller)) {
+      return #err("caller is not owner-equivalent");
+    };
+    #ok(Access.getRecoveryStatus(self.access));
+  };
+
+  public func registerRecoveryController(
+    self : T.StableStore,
+    caller : Principal,
+    principal : Principal,
+  ) : Result.Result<T.RegisterRecoveryControllerResult, Text> {
+    Access.registerRecoveryController(self.access, caller, principal);
+  };
+
+  public func clearRecoveryController(self : T.StableStore, caller : Principal) : Result.Result<Principal, Text> {
+    Access.clearRecoveryController(self.access, caller);
+  };
+
+  public func addRecoveryOwner(
+    self : T.StableStore,
+    caller : Principal,
+    principal : Principal,
+    options : T.AddRecoveryOwnerOptions,
+  ) : Result.Result<T.OwnerEquivalentPrincipal, Text> {
+    Access.addRecoveryOwner(self.access, caller, principal, {
+      controllerRecovery = options.controllerRecovery;
+      rootPermissionBeforeRecovery = null;
+    });
+  };
+
+  func restoreRecoveryRootPermission(self : T.StableStore, record : T.OwnerEquivalentPrincipal) {
+    switch (record.rootPermissionBeforeRecovery) {
+      case (?permission) ignore Map.put(self.fs.rootPermissions, Map.phash, record.principal, permission);
+      case null Map.delete(self.fs.rootPermissions, Map.phash, record.principal);
+    };
+  };
+
+  public func takeRecoveryOwnership(self : T.StableStore, caller : Principal) : Result.Result<T.OwnerEquivalentPrincipal, Text> {
+    let rootPermissionBeforeRecovery = Map.get(self.fs.rootPermissions, Map.phash, caller);
+    switch (Access.takeRecoveryOwnership(self.access, caller, rootPermissionBeforeRecovery)) {
+      case (#err(message)) #err(message);
+      case (#ok({ current; previous })) {
+        switch (previous) {
+          case (?record) if (record.principal != current.principal) restoreRecoveryRootPermission(self, record);
+          case _ {};
+        };
+        ignore Map.put(self.fs.rootPermissions, Map.phash, current.principal, #ReadWriteManage);
+        #ok(current);
+      };
+    };
+  };
+
+  public func activateRecoveryOwnership(self : T.StableStore, caller : Principal, principal : Principal) : Result.Result<T.OwnerEquivalentPrincipal, Text> {
+    let rootPermissionBeforeRecovery = Map.get(self.fs.rootPermissions, Map.phash, principal);
+    switch (Access.activateRecoveryOwnership(self.access, caller, principal, rootPermissionBeforeRecovery)) {
+      case (#err(message)) #err(message);
+      case (#ok({ current; previous })) {
+        switch (previous) {
+          case (?record) if (record.principal != current.principal) restoreRecoveryRootPermission(self, record);
+          case _ {};
+        };
+        ignore Map.put(self.fs.rootPermissions, Map.phash, current.principal, #ReadWriteManage);
+        #ok(current);
+      };
+    };
+  };
+
+  public func removeRecoveryOwner(self : T.StableStore, caller : Principal, principal : Principal) : Result.Result<(), Text> {
+    switch (Access.removeRecoveryOwner(self.access, caller, principal)) {
+      case (#err(message)) #err(message);
+      case (#ok(record)) {
+        restoreRecoveryRootPermission(self, record);
+        #ok;
+      };
+    };
+  };
+
+  func scopeToFindBy(scope : T.AccessScope) : T.FindBy {
+    switch (scope) {
+      case (#root) #root;
+      case (#entry(entry)) #entry(entry);
+      case (#keyId(keyId)) #keyId(keyId);
+    };
+  };
+
+  func resolveExistingEntry(self : T.StableStore, (kind, path) : T.Entry) : ?T.NodeStore {
+    let segments = Text.split(path, #char '/') |> Vector.fromIter<Text>(_);
+    let cleaned = Vector.new<Text>();
+    for (segment in Vector.vals(segments)) {
+      if (segment != "") Vector.add(cleaned, segment);
+    };
+
+    if (Vector.size(cleaned) == 0) {
+      return null;
+    };
+
+    let nodeName = switch (Vector.removeLast(cleaned)) {
+      case (?value) value;
+      case null return null;
+    };
+    let filename : ?Text = if (kind == #File) ?nodeName else null;
+    var parentId : ?Nat64 = null;
+
+    for (name in Vector.vals(cleaned)) {
+      let ?{ id } = Map.get(self.fs.nodes, Utils.hashNodes, (#Directory, parentId, name)) else return null;
+      parentId := ?id;
+    };
+
+    let nodeKey : T.NodeKey = switch (filename) {
+      case (?name) (#File, parentId, name);
+      case null (#Directory, parentId, nodeName);
+    };
+    Map.get(self.fs.nodes, Utils.hashNodes, nodeKey);
+  };
+
+  func resolveAccessScope(self : T.StableStore, scope : T.AccessScope) : Result.Result<(T.AccessScope, T.FindBy), Text> {
+    switch (scope) {
+      case (#root) #ok(#root, #root);
+      case (#keyId(keyId)) {
+        let ?_node = Common.findNodeByKeyId(self.fs, keyId) else return #err("access scope not found");
+        #ok(#keyId(keyId), #keyId(keyId));
+      };
+      case (#entry(entry)) {
+        let ?node = resolveExistingEntry(self, entry) else return #err("access scope not found");
+        #ok(#keyId(node.keyId), #keyId(node.keyId));
+      };
+    };
+  };
+
+  func accessScopeFromFindBy(self : T.StableStore, findBy : T.FindBy) : Result.Result<T.AccessScope, Text> {
+    switch (findBy) {
+      case (#root) #ok(#root);
+      case (#keyId(keyId)) #ok(#keyId(keyId));
+      case (#nodeKey(nodeKey)) {
+        let ?node = Map.get(self.fs.nodes, Utils.hashNodes, nodeKey) else return #err("access scope not found");
+        #ok(#keyId(node.keyId));
+      };
+      case (#entry(entry)) {
+        let ?node = resolveExistingEntry(self, entry) else return #err("access scope not found");
+        #ok(#keyId(node.keyId));
+      };
+    };
+  };
+
+  func accessScopeFromEntry(entry : ?T.Entry) : T.AccessScope {
+    switch (entry) {
+      case (?value) #entry(value);
+      case null #root;
+    };
+  };
+
+  func scopeEqual(a : T.AccessScope, b : T.AccessScope) : Bool {
+    switch (a, b) {
+      case (#root, #root) true;
+      case (#entry(aEntry), #entry(bEntry)) aEntry == bEntry;
+      case (#keyId(aKeyId), #keyId(bKeyId)) aKeyId == bKeyId;
+      case _ false;
+    };
+  };
+
+  func containsGrantId(grantIds : [Nat], grantId : Nat) : Bool {
+    for (id in grantIds.vals()) {
+      if (id == grantId) return true;
+    };
+    false;
+  };
+
+  func vectorContainsGrantId(grants : Vector.Vector<T.PrincipalAccessGrant>, grantId : Nat) : Bool {
+    for (grant in Vector.vals(grants)) {
+      if (grant.id == grantId) return true;
+    };
+    false;
+  };
+
+  func highestPermission(a : ?T.Permission, b : T.Permission) : T.Permission {
+    switch (a) {
+      case (?value) {
+        if (Order.isLess(Utils.permissionCompare(value, b))) b else value;
+      };
+      case null b;
+    };
+  };
+
+  func strongestActivePermissionForPrincipalScopeExcluding(
+    self : T.StableStore,
+    principal : Principal,
+    scope : T.AccessScope,
+    excludedGrantIds : [Nat],
+  ) : ?T.Permission {
+    var permission : ?T.Permission = null;
+    for (grant in Access.listPrincipalAccessGrants(self.access).vals()) {
+      if (
+        grant.principal == principal and
+        grant.revokedAt == null and
+        scopeEqual(grant.scope, scope) and
+        not containsGrantId(excludedGrantIds, grant.id)
+      ) {
+        permission := ?highestPermission(permission, grant.permission);
+      };
+    };
+    permission;
+  };
+
+  func reconcilePrincipalAccessAfterRevokes(
+    self : T.StableStore,
+    caller : Principal,
+    revokedGrants : [T.PrincipalAccessGrant],
+  ) : Result.Result<(), Text> {
+    let revokedIds = Array.map<T.PrincipalAccessGrant, Nat>(revokedGrants, func(grant) = grant.id);
+    for (grant in revokedGrants.vals()) {
+      let (_, findBy) = switch (resolveAccessScope(self, grant.scope)) {
+        case (#err(message)) return #err(message);
+        case (#ok(value)) value;
+      };
+      switch (strongestActivePermissionForPrincipalScopeExcluding(self, grant.principal, grant.scope, revokedIds)) {
+        case (?permission) {
+          switch (Permissions.setUserRights(self.fs, caller, findBy, grant.principal, permission)) {
+            case (#err(message)) return #err(message);
+            case (#ok) {};
+          };
+        };
+        case null {
+          switch (Permissions.removeUserRights(self.fs, caller, findBy, grant.principal)) {
+            case (#err(message)) return #err(message);
+            case (#ok) {};
+          };
+        };
+      };
+    };
+    #ok;
+  };
+
+  func claimedPrincipalGrantsForPendingReplacements(
+    self : T.StableStore,
+    ref : T.AccessRef,
+    scope : T.AccessScope,
+    accessClass : T.AccessClass,
+  ) : [T.PrincipalAccessGrant] {
+    let grants = Vector.new<T.PrincipalAccessGrant>();
+    for (pending in Access.getActivePendingAccessGrantsToReplace(self.access, ref, scope, accessClass).vals()) {
+      for (grant in Access.getClaimedPrincipalAccessGrantsForPending(self.access, pending).vals()) {
+        if (not vectorContainsGrantId(grants, grant.id)) {
+          Vector.add(grants, grant);
+        };
+      };
+    };
+    Vector.toArray(grants);
+  };
+
+  func canonicalScopeForList(self : T.StableStore, scope : T.AccessScope) : ?T.AccessScope {
+    switch (resolveAccessScope(self, scope)) {
+      case (#ok((canonicalScope, _))) ?canonicalScope;
+      case (#err(_)) null;
+    };
+  };
+
+  func isAncestorScope(self : T.StableStore, ancestorScope : T.AccessScope, targetScope : T.AccessScope) : Bool {
+    switch (ancestorScope, targetScope) {
+      case (#root, _) true;
+      case (_, #root) false;
+      case (#keyId(ancestorKeyId), #keyId(targetKeyId)) {
+        let ?_ancestor = Common.findNodeByKeyId(self.fs, ancestorKeyId) else return false;
+        var current = Common.findNodeByKeyId(self.fs, targetKeyId);
+        label parents while (true) {
+          switch (current) {
+            case null return false;
+            case (?node) {
+              if (node.keyId == ancestorKeyId) return true;
+              switch (node.parentId) {
+                case (?parentId) current := Common.findNodeById(self.fs, parentId);
+                case null return false;
+              };
+            };
+          };
+        };
+        false;
+      };
+      case _ false;
+    };
+  };
+
+  func grantScopeMatch(
+    self : T.StableStore,
+    targetScope : T.AccessScope,
+    mode : T.AccessGrantListMode,
+    grantScope : T.AccessScope,
+  ) : ?{ canonicalScope : T.AccessScope; inheritedFrom : ?T.AccessScope } {
+    let ?canonicalGrantScope = canonicalScopeForList(self, grantScope) else return null;
+    if (scopeEqual(canonicalGrantScope, targetScope)) {
+      return ?{ canonicalScope = canonicalGrantScope; inheritedFrom = null };
+    };
+    switch (mode) {
+      case (#exact) null;
+      case (#effective) {
+        if (isAncestorScope(self, canonicalGrantScope, targetScope)) {
+          ?{ canonicalScope = canonicalGrantScope; inheritedFrom = ?canonicalGrantScope };
+        } else {
+          null;
+        };
+      };
+    };
+  };
+
+  func pendingGrantIsActive(grant : T.PendingAccessGrant) : Bool {
+    if (grant.claimedAt != null or grant.cancelledAt != null) return false;
+    switch (grant.expiresAt) {
+      case (?expiresAt) Time.now() <= expiresAt;
+      case null true;
+    };
+  };
+
+  type ValidatedAccessBatchItem = {
+    #principal : {
+      principal : Principal;
+      accessClass : T.AccessClass;
+      scope : T.AccessScope;
+      findBy : T.FindBy;
+      permission : T.Permission;
+      source : T.AccessSource;
+    };
+    #pending : T.CreatePendingAccessGrantArguments;
+  };
+
+  type ValidatedRevokeAccessBatchItem = {
+    original : T.RevokeAccessBatchItem;
+    scope : T.AccessScope;
+    findBy : T.FindBy;
+  };
+
+  type ValidatedPendingAccessMaterialization = {
+    pending : T.PendingAccessGrant;
+    scope : T.AccessScope;
+    findBy : T.FindBy;
+  };
+
+  func validateCreateAccessBatchItem(
+    self : T.StableStore,
+    caller : Principal,
+    item : T.CreateAccessBatchItem,
+  ) : Result.Result<ValidatedAccessBatchItem, Text> {
+    let (canonicalScope, findBy) = switch (resolveAccessScope(self, item.scope)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    switch (Permissions.getUserRights(self.fs, caller, findBy, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok(_)) {};
+    };
+
+    switch (item.ref) {
+      case (#principal(principal)) {
+        switch (item.accessClass) {
+          case (#ownerEquivalent) return #err("owner-equivalent access cannot be granted through access batch");
+          case (#ordinary or #durable) {};
+        };
+        if (Principal.equal(principal, caller)) {
+          return #err("caller cannot grant access to self in access batch");
+        };
+        switch (Access.validatePrincipalAccessGrant(principal, item.accessClass, item.source)) {
+          case (#err(message)) return #err(message);
+          case (#ok) {};
+        };
+        #ok(#principal({
+          principal;
+          accessClass = item.accessClass;
+          scope = canonicalScope;
+          findBy;
+          permission = item.permission;
+          source = item.source;
+        }));
+      };
+      case (#email(_) or #emailCommitment(_)) {
+        switch (item.accessClass) {
+          case (#ownerEquivalent) return #err("owner-equivalent access cannot be pending");
+          case (#ordinary or #durable) {};
+        };
+        #ok(#pending({ item with scope = canonicalScope }));
+      };
+    };
+  };
+
+  func validateRevokeAccessBatchItem(
+    self : T.StableStore,
+    caller : Principal,
+    item : T.RevokeAccessBatchItem,
+  ) : Result.Result<ValidatedRevokeAccessBatchItem, Text> {
+    if (Principal.equal(item.principal, caller)) {
+      return #err("caller cannot revoke access from self in access batch");
+    };
+    let (canonicalScope, findBy) = switch (resolveAccessScope(self, item.scope)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    switch (Permissions.getUserRights(self.fs, caller, findBy, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok(_)) {};
+    };
+    #ok({ original = item; scope = canonicalScope; findBy });
+  };
+
+  func validatePendingAccessMaterialization(
+    self : T.StableStore,
+    caller : Principal,
+    pending : T.PendingAccessGrant,
+  ) : Result.Result<ValidatedPendingAccessMaterialization, Text> {
+    let (canonicalScope, findBy) = switch (resolveAccessScope(self, pending.scope)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    switch (Access.validatePrincipalAccessGrant(caller, pending.accessClass, pending.source)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    switch (Permissions.getUserRights(self.fs, pending.createdBy, findBy, pending.createdBy)) {
+      case (#err(message)) return #err(message);
+      case (#ok(_)) {};
+    };
+    #ok({ pending; scope = canonicalScope; findBy });
+  };
+
+  public func emailCommitmentForCanister(canisterId : Principal, email : Text) : Blob {
+    let normalizedEmail = Text.toLower(Text.trim(email, #char ' '));
+    let sha256 = Sha256.Digest(#sha256);
+    sha256.writeBlob(Text.encodeUtf8("rabbithole:storage-access:v1"));
+    sha256.writeBlob(Principal.toBlob(canisterId));
+    sha256.writeBlob(Text.encodeUtf8(normalizedEmail));
+    sha256.sum();
+  };
+
+  public func emailCommitment(self : T.StableStore, email : Text) : Blob {
+    emailCommitmentForCanister(self.canisterId, email);
+  };
+
+  func ensureCanManageScope(self : T.StableStore, caller : Principal, scope : T.AccessScope) : Result.Result<(), Text> {
+    let (_, findBy) = switch (resolveAccessScope(self, scope)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    // getUserRights internally requires ReadWriteManage for the requested scope.
+    switch (Permissions.getUserRights(self.fs, caller, findBy, caller)) {
+      case (#err(message)) #err(message);
+      case (#ok(_)) #ok;
+    };
+  };
+
+  func ensureCanManageRoot(self : T.StableStore, caller : Principal) : Result.Result<(), Text> {
+    if (Access.isOwnerEquivalent(self.access, caller)) {
+      return #ok;
+    };
+    ensureCanManageScope(self, caller, #root);
+  };
+
+  func materializePendingAccessGrant(self : T.StableStore, caller : Principal, pending : T.PendingAccessGrant) : Result.Result<T.ClaimedPendingAccessGrant, Text> {
+    let validated = switch (validatePendingAccessMaterialization(self, caller, pending)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    applyPendingAccessMaterialization(self, caller, validated, null);
+  };
+
+  func existingEmailClaimGrant(
+    self : T.StableStore,
+    principal : Principal,
+    pending : T.PendingAccessGrant,
+    origin : T.EmailClaimOrigin,
+  ) : Result.Result<?T.PrincipalAccessGrant, Text> {
+    switch (Access.getEmailClaimForOrigin(pending, origin)) {
+      case (?claim) {
+        if (claim.principal != principal) {
+          return #err("pending access grant origin already claimed");
+        };
+        switch (Access.getPrincipalAccessGrant(self.access, claim.principalGrantId)) {
+          case (?grant) {
+            if (grant.revokedAt != null) {
+              return #err("claimed principal grant is revoked");
+            };
+            #ok(?grant);
+          };
+          case null #err("claimed principal grant not found");
+        };
+      };
+      case null #ok(null);
+    };
+  };
+
+  func applyPendingAccessMaterialization(
+    self : T.StableStore,
+    principal : Principal,
+    validated : ValidatedPendingAccessMaterialization,
+    claimOrigin : ?T.EmailClaimOrigin,
+  ) : Result.Result<T.ClaimedPendingAccessGrant, Text> {
+    let pending = validated.pending;
+    switch (claimOrigin) {
+      case (?origin) {
+        switch (existingEmailClaimGrant(self, principal, pending, origin)) {
+          case (#err(message)) return #err(message);
+          case (#ok(?grant)) return #ok({ pendingGrant = pending; principalGrant = grant; claimOrigin; created = false });
+          case (#ok(null)) {};
+        };
+      };
+      case null {};
+    };
+    switch (Permissions.setUserRights(self.fs, pending.createdBy, validated.findBy, principal, pending.permission)) {
+      case (#err(message)) #err(message);
+      case (#ok) {
+        switch (Access.createPrincipalAccessGrant(self.access, pending.createdBy, principal, pending.accessClass, validated.scope, pending.permission, pending.source)) {
+          case (#err(message)) #err(message);
+          case (#ok(result)) {
+            let nextPending = switch (claimOrigin) {
+              case (?origin) {
+                switch (Access.markPendingAccessGrantEmailClaimed(self.access, principal, result.grant.id, origin, pending)) {
+                  case (#err(message)) return #err(message);
+                  case (#ok(value)) value;
+                };
+              };
+              case null Access.markPendingAccessGrantClaimed(self.access, principal, pending);
+            };
+            #ok({ pendingGrant = nextPending; principalGrant = result.grant; claimOrigin; created = true });
+          };
+        };
+      };
+    };
+  };
+
+  public func createPendingAccessGrant(self : T.StableStore, caller : Principal, args : T.CreatePendingAccessGrantArguments, shareGate : ?(() -> Result.Result<(), Text>)) : Result.Result<T.CreatePendingAccessGrantResult, Text> {
+    let (canonicalScope, findBy) = switch (resolveAccessScope(self, args.scope)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    switch (Permissions.getUserRights(self.fs, caller, findBy, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok(_)) {};
+    };
+    switch (shareGate) {
+      case (?gate) switch (gate()) {
+        case (#ok) {};
+        case (#err(message)) return #err(message);
+      };
+      case null {};
+    };
+    let pendingArgs = { args with scope = canonicalScope };
+    let revokedPrincipalGrants = claimedPrincipalGrantsForPendingReplacements(self, pendingArgs.ref, pendingArgs.scope, pendingArgs.accessClass);
+    switch (reconcilePrincipalAccessAfterRevokes(self, caller, revokedPrincipalGrants)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    switch (Access.createPendingAccessGrant(self.access, caller, pendingArgs)) {
+      case (#err(message)) #err(message);
+      case (#ok(result)) {
+        for (grant in revokedPrincipalGrants.vals()) {
+          ignore Access.revokePrincipalAccessGrantById(self.access, grant.id);
+        };
+        #ok({ result with revokedPrincipalGrants });
+      };
+    };
+  };
+
+  public func createAccessBatch(self : T.StableStore, caller : Principal, args : T.CreateAccessBatchArguments, shareGate : ?(() -> Result.Result<(), Text>)) : Result.Result<T.CreateAccessBatchResult, Text> {
+    if (args.items.size() == 0) {
+      return #ok({
+        principalGrants = [];
+        pendingGrants = [];
+        revokedPrincipalGrants = [];
+        cancelledPendingGrants = [];
+      });
+    };
+    if (args.items.size() > 100) {
+      return #err("access batch cannot contain more than 100 items");
+    };
+    switch (shareGate) {
+      case (?gate) switch (gate()) {
+        case (#ok) {};
+        case (#err(message)) return #err(message);
+      };
+      case null {};
+    };
+
+    let validated = Vector.new<ValidatedAccessBatchItem>();
+    for (item in args.items.vals()) {
+      switch (validateCreateAccessBatchItem(self, caller, item)) {
+        case (#err(message)) return #err(message);
+        case (#ok(value)) Vector.add(validated, value);
+      };
+    };
+
+    let principalGrants = Vector.new<T.PrincipalAccessGrant>();
+    let pendingGrants = Vector.new<T.PendingAccessGrant>();
+    let revokedPrincipalGrants = Vector.new<T.PrincipalAccessGrant>();
+    let cancelledPendingGrants = Vector.new<T.PendingAccessGrant>();
+    for (item in Vector.vals(validated)) {
+      switch (item) {
+        case (#principal(value)) {
+          switch (Permissions.setUserRights(self.fs, caller, value.findBy, value.principal, value.permission)) {
+            case (#err(message)) return #err("access batch apply failed after validation: " # message);
+            case (#ok) {};
+          };
+          switch (Access.createPrincipalAccessGrant(self.access, caller, value.principal, value.accessClass, value.scope, value.permission, value.source)) {
+            case (#err(message)) return #err("access batch metadata failed after validation: " # message);
+            case (#ok(result)) {
+              for (grant in result.revoked.vals()) {
+                Vector.add(revokedPrincipalGrants, grant);
+              };
+              Vector.add(principalGrants, result.grant);
+            };
+          };
+        };
+        case (#pending(value)) {
+          let pendingRevokedGrants = claimedPrincipalGrantsForPendingReplacements(self, value.ref, value.scope, value.accessClass);
+          switch (reconcilePrincipalAccessAfterRevokes(self, caller, pendingRevokedGrants)) {
+            case (#err(message)) return #err("access batch pending revoke failed after validation: " # message);
+            case (#ok) {};
+          };
+          switch (Access.createPendingAccessGrant(self.access, caller, value)) {
+            case (#err(message)) return #err("access batch pending grant failed after validation: " # message);
+            case (#ok(result)) {
+              for (grant in pendingRevokedGrants.vals()) {
+                ignore Access.revokePrincipalAccessGrantById(self.access, grant.id);
+                Vector.add(revokedPrincipalGrants, grant);
+              };
+              for (grant in result.cancelled.vals()) {
+                Vector.add(cancelledPendingGrants, grant);
+              };
+              Vector.add(pendingGrants, result.grant);
+            };
+          };
+        };
+      };
+    };
+    #ok({
+      principalGrants = Vector.toArray(principalGrants);
+      pendingGrants = Vector.toArray(pendingGrants);
+      revokedPrincipalGrants = Vector.toArray(revokedPrincipalGrants);
+      cancelledPendingGrants = Vector.toArray(cancelledPendingGrants);
+    });
+  };
+
+  public func revokeAccessBatch(self : T.StableStore, caller : Principal, args : T.RevokeAccessBatchArguments) : Result.Result<T.RevokeAccessBatchResult, Text> {
+    if (args.items.size() == 0) {
+      return #ok({ revoked = [] });
+    };
+    if (args.items.size() > 100) {
+      return #err("access batch cannot contain more than 100 items");
+    };
+
+    let validated = Vector.new<ValidatedRevokeAccessBatchItem>();
+    for (item in args.items.vals()) {
+      switch (validateRevokeAccessBatchItem(self, caller, item)) {
+        case (#err(message)) return #err(message);
+        case (#ok(value)) Vector.add(validated, value);
+      };
+    };
+
+    let revoked = Vector.new<T.RevokeAccessBatchItem>();
+    for (item in Vector.vals(validated)) {
+      switch (Permissions.removeUserRights(self.fs, caller, item.findBy, item.original.principal)) {
+        case (#err(message)) return #err("access batch revoke failed after validation: " # message);
+        case (#ok) {};
+      };
+      Access.revokePrincipalAccessGrants(self.access, item.original.principal, item.scope, null);
+      Vector.add(revoked, item.original);
+    };
+    #ok({ revoked = Vector.toArray(revoked) });
+  };
+
+  public func claimPendingAccessGrant(self : T.StableStore, caller : Principal, args : T.ClaimPendingAccessGrantArguments) : Result.Result<T.ClaimedPendingAccessGrant, Text> {
+    switch (Access.getClaimablePendingAccessGrant(self.access, caller, args)) {
+      case (#err(message)) #err(message);
+      case (#ok(pending)) materializePendingAccessGrant(self, caller, pending);
+    };
+  };
+
+  func claimPendingEmailAccess(
+    self : T.StableStore,
+    principal : Principal,
+    args : T.ClaimPendingAccessByVerifiedAttributesArguments,
+    origin : T.EmailClaimOrigin,
+  ) : Result.Result<[T.ClaimedPendingAccessGrant], Text> {
+    let pendingGrants = Access.getClaimablePendingAccessGrantsByVerifiedAttributes(self.access, principal, args, origin);
+    let validatedGrants = Vector.new<ValidatedPendingAccessMaterialization>();
+    for (pending in pendingGrants.vals()) {
+      switch (validatePendingAccessMaterialization(self, principal, pending)) {
+        case (#err(message)) return #err(message);
+        case (#ok(validated)) Vector.add(validatedGrants, validated);
+      };
+    };
+    let grants = Vector.new<T.ClaimedPendingAccessGrant>();
+    for (validated in Vector.vals(validatedGrants)) {
+      switch (applyPendingAccessMaterialization(self, principal, validated, ?origin)) {
+        case (#err(message)) return #err(message);
+        case (#ok(grant)) Vector.add(grants, grant);
+      };
+    };
+    #ok(Vector.toArray(grants));
+  };
+
+  public func claimPendingAccessByVerifiedAttributes(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.ClaimPendingAccessByVerifiedAttributesArguments,
+  ) : Result.Result<[T.ClaimedPendingAccessGrant], Text> {
+    claimPendingEmailAccess(self, caller, args, #storage);
+  };
+
+  public func claimPendingAccessByBackendAttestation(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.ClaimPendingAccessByBackendAttestationArguments,
+  ) : Result.Result<[T.ClaimedPendingAccessGrant], Text> {
+    let ?backendId = self.backendId else return #err("storage backend is not configured");
+    if (not Principal.equal(caller, backendId)) {
+      return #err("caller is not trusted backend");
+    };
+    if (Principal.isAnonymous(args.principal)) {
+      return #err("anonymous principal cannot claim email access");
+    };
+    claimPendingEmailAccess(self, args.principal, { emailCommitments = args.emailCommitments }, #rabbithole);
+  };
+
+  public func cancelPendingAccessGrant(self : T.StableStore, caller : Principal, args : T.CancelPendingAccessGrantArguments) : Result.Result<T.CancelPendingAccessGrantResult, Text> {
+    let ?pending = Access.getPendingAccessGrant(self.access, args.grantId) else return #err("pending access grant not found");
+    switch (Access.validatePendingAccessGrantCancellation(self.access, caller, pending)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    let revokedPrincipalGrants = Access.getClaimedPrincipalAccessGrantsForPending(self.access, pending);
+    switch (reconcilePrincipalAccessAfterRevokes(self, caller, revokedPrincipalGrants)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    switch (Access.cancelPendingAccessGrant(self.access, caller, args)) {
+      case (#err(message)) #err(message);
+      case (#ok(result)) #ok({ result with revokedPrincipalGrants });
+    };
+  };
+
+  public func listPendingAccessGrants(self : T.StableStore, caller : Principal) : Result.Result<[T.PendingAccessGrant], Text> {
+    if (not Access.isOwnerEquivalent(self.access, caller)) {
+      return #err("caller is not owner-equivalent");
+    };
+    #ok(Access.listPendingAccessGrants(self.access));
+  };
+
+  public func listAccessGrants(self : T.StableStore, caller : Principal, args : T.ListAccessGrantsArguments) : Result.Result<T.AccessGrantList, Text> {
+    let requestedScope = Option.get(args.scope, #root);
+    let (targetScope, _) = switch (resolveAccessScope(self, requestedScope)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    switch (ensureCanManageScope(self, caller, targetScope)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+
+    let principalGrants = Vector.new<T.ListedPrincipalAccessGrant>();
+    for (grant in Access.listPrincipalAccessGrants(self.access).vals()) {
+      switch (grantScopeMatch(self, targetScope, args.mode, grant.scope)) {
+        case (?match) {
+          Vector.add(principalGrants, {
+            grant = { grant with scope = match.canonicalScope };
+            inheritedFrom = match.inheritedFrom;
+          });
+        };
+        case null {};
+      };
+    };
+
+    let pendingGrants = Vector.new<T.ListedPendingAccessGrant>();
+    for (grant in Access.listPendingAccessGrants(self.access).vals()) {
+      if (pendingGrantIsActive(grant)) {
+        switch (grantScopeMatch(self, targetScope, args.mode, grant.scope)) {
+          case (?match) {
+            Vector.add(pendingGrants, {
+              grant = { grant with scope = match.canonicalScope };
+              inheritedFrom = match.inheritedFrom;
+            });
+          };
+          case null {};
+        };
+      };
+    };
+
+    #ok({
+      scope = targetScope;
+      mode = args.mode;
+      principalGrants = Vector.toArray(principalGrants);
+      pendingGrants = Vector.toArray(pendingGrants);
+    });
+  };
+
+  public func createDurableAccessGrant(self : T.StableStore, caller : Principal, args : T.CreateDurableAccessGrantArguments, shareGate : ?(() -> Result.Result<(), Text>)) : Result.Result<T.PrincipalAccessGrant, Text> {
+    let (canonicalScope, findBy) = switch (resolveAccessScope(self, args.scope)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    switch (Permissions.getUserRights(self.fs, caller, findBy, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok(_)) {};
+    };
+    switch (shareGate) {
+      case (?gate) switch (gate()) {
+        case (#ok) {};
+        case (#err(message)) return #err(message);
+      };
+      case null {};
+    };
+    switch (Access.validatePrincipalAccessGrant(args.principal, #durable, args.source)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    switch (Permissions.setUserRights(self.fs, caller, findBy, args.principal, args.permission)) {
+      case (#err(message)) #err(message);
+      case (#ok) Access.createPrincipalAccessGrant(self.access, caller, args.principal, #durable, canonicalScope, args.permission, args.source) |> Result.mapOk(_, func(result) = result.grant);
+    };
+  };
+
+  public func hasActiveDurableGrantForKey(self : T.StableStore, caller : Principal, keyId : T.KeyId) : Bool {
+    Access.hasActiveDurableGrantForKey(self.access, caller, keyId);
+  };
+
+  public func createAccessRequest(self : T.StableStore, caller : Principal, args : T.CreateAccessRequestArguments) : Result.Result<(T.AccessRequest, Bool), Text> {
+    Access.createAccessRequest(self.access, caller, args);
+  };
+
+  public func cancelAccessRequest(self : T.StableStore, caller : Principal, args : T.CancelAccessRequestArguments) : Result.Result<T.AccessRequest, Text> {
+    Access.cancelAccessRequest(self.access, caller, args);
+  };
+
+  public func getMyAccessRequest(self : T.StableStore, caller : Principal) : Result.Result<?T.AccessRequest, Text> {
+    if (Principal.isAnonymous(caller)) {
+      return #err("anonymous caller not allowed");
+    };
+    #ok(Access.getLatestAccessRequestByRequester(self.access, caller));
+  };
+
+  public func resolveAccessRequest(self : T.StableStore, caller : Principal, args : T.ResolveAccessRequestArguments, shareGate : ?(() -> Result.Result<(), Text>)) : Result.Result<(T.AccessRequest, ?T.PrincipalAccessGrant), Text> {
+    switch (args.decision) {
+      case (#rejected) {
+        switch (ensureCanManageRoot(self, caller)) {
+          case (#err(message)) return #err(message);
+          case (#ok) {};
+        };
+        switch (Access.resolveAccessRequest(self.access, caller, args)) {
+          case (#err(message)) #err(message);
+          case (#ok(request)) #ok(request, null);
+        };
+      };
+      case (#approved({ scope; permission })) {
+        switch (ensureCanManageRoot(self, caller)) {
+          case (#err(message)) return #err(message);
+          case (#ok) {};
+        };
+        let request = switch (Access.getPendingAccessRequest(self.access, args.requestId)) {
+          case (#err(message)) return #err(message);
+          case (#ok(value)) value;
+        };
+        let (canonicalScope, findBy) = switch (resolveAccessScope(self, scope)) {
+          case (#err(message)) return #err(message);
+          case (#ok(value)) value;
+        };
+        switch (Permissions.getUserRights(self.fs, caller, findBy, caller)) {
+          case (#err(message)) return #err(message);
+          case (#ok(_)) {};
+        };
+        switch (shareGate) {
+          case (?gate) switch (gate()) {
+            case (#ok) {};
+            case (#err(message)) return #err(message);
+          };
+          case null {};
+        };
+        switch (Access.validatePrincipalAccessGrant(request.requester, #ordinary, #accessRequest(request.id))) {
+          case (#err(message)) return #err(message);
+          case (#ok) {};
+        };
+        switch (Permissions.setUserRights(self.fs, caller, findBy, request.requester, permission)) {
+          case (#err(message)) #err(message);
+          case (#ok) {
+            switch (Access.createPrincipalAccessGrant(self.access, caller, request.requester, #ordinary, canonicalScope, permission, #accessRequest(request.id))) {
+              case (#err(message)) #err(message);
+              case (#ok(result)) {
+                switch (Access.resolveAccessRequest(self.access, caller, args)) {
+                  case (#err(message)) #err(message);
+                  case (#ok(resolved)) #ok(resolved, ?result.grant);
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  public func listAccessRequests(self : T.StableStore, caller : Principal) : Result.Result<[T.AccessRequest], Text> {
+    switch (ensureCanManageRoot(self, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    #ok(Access.listAccessRequests(self.access));
   };
 
   /// Handles HTTP requests.
@@ -584,29 +1559,29 @@ module EncryptedFileStorage {
     };
 
     switch (FileSystem.delete(self.fs, args)) {
-      case (#ok(?node)) {
-        switch (node.metadata) {
-          case (#File(file)) {
-            // Decertify endpoints before deallocation
-            switch (File.getCurrentVersion(file)) {
-              case (?version) {
-                // Decertify /encrypted/ endpoint
-                switch (version.sha256) {
-                  case (?sha) CertifiedAssets.remove(self.certs, endpoint(node.keyId, sha));
-                  case null {};
+      case (#ok(nodes)) {
+        for (node in nodes.vals()) {
+          switch (node.metadata) {
+            case (#File(file)) {
+              // Recursive directory deletes return every removed node, so each file
+              // must clean up its own chunk storage and certified endpoints here.
+              switch (File.getCurrentVersion(file)) {
+                case (?version) {
+                  switch (version.sha256) {
+                    case (?sha) CertifiedAssets.remove(self.certs, endpoint(node.keyId, sha));
+                    case null {};
+                  };
+                  decertifyBlobInfo(self, node.keyId, version);
                 };
-                // Decertify /blob-info/ endpoint
-                decertifyBlobInfo(self, node.keyId, version);
+                case null {};
               };
-              case null {};
+              File.deallocateAll(self.fs, file);
             };
-            File.deallocateAll(self.fs, file);
+            case _ {};
           };
-          case _ {};
         };
       };
       case (#err(message)) return #err message;
-      case _ {};
     };
 
     #ok;
@@ -829,37 +1804,6 @@ module EncryptedFileStorage {
     };
   };
 
-  /// Grants or modifies access rights for a user to a given entry.
-  /// Only the file owner or a user with management rights can perform this action.
-  /// The file owner cannot change their own rights.
-  public func grantPermission(self : T.StableStore, caller : T.Caller, args : T.GrantPermissionArguments, onShareGate : ?(() -> Result.Result<(), Text>)) : Result.Result<(), Text> {
-    // Subscription gate: sharing requires active/trial
-    switch (onShareGate) {
-      case (?check) switch (check()) {
-        case (#err msg) return #err msg;
-        case (#ok) {};
-      };
-      case null {};
-    };
-
-    let findBy = switch (FileSystem.getFilterByFromEntry(self.fs, args.entry)) {
-      case (#ok v) v;
-      case (#err message) return #err message;
-    };
-    Permissions.setUserRights(self.fs, caller, findBy, args.user, args.permission);
-  };
-
-  /// Revokes a user's access to a shared file.
-  /// The file owner cannot remove their own access.
-  /// Only the file owner or a user with management rights can perform this action.
-  public func revokePermission(self : T.StableStore, caller : T.Caller, args : T.RevokePermissionArguments) : Result.Result<(), Text> {
-    let findBy = switch (FileSystem.getFilterByFromEntry(self.fs, args.entry)) {
-      case (#ok v) v;
-      case (#err message) return #err message;
-    };
-    Permissions.removeUserRights(self.fs, caller, findBy, args.user);
-  };
-
   func nodeKeyFromDetails(node : T.NodeDetails) : T.NodeKey {
     switch (node.metadata) {
       case (#File _) (#File, node.parentId, node.name);
@@ -1013,27 +1957,6 @@ module EncryptedFileStorage {
     } else { entries };
 
     #ok({ entries = enrichedEntries; directoryPermission });
-  };
-
-  // Retrieves the list of users with rights for the specified entry
-  public func listPermitted(self : T.StableStore, caller : Principal, entry : ?T.Entry) : async* Result.Result<[(Principal, T.PermissionExt)], Text> {
-    let findBy = switch (FileSystem.getFilterByFromEntry(self.fs, entry)) {
-      case (#ok v) v;
-      case (#err message) return #err message;
-    };
-    let controllers = await* Permissions.getCanisterControllers(self.canisterId);
-    Permissions.getSharedUserAccessForKey(self.fs, caller, findBy) |> Result.mapOk(
-      _,
-      func list = Array.map<(Principal, T.Permission), (Principal, T.PermissionExt)>(
-        list,
-        func(user, permission) = switch (
-          Array.any(controllers, func(controller) = Principal.equal(user, controller))
-        ) {
-          case true (user, #Controller);
-          case false (user, permission);
-        },
-      ),
-    );
   };
 
   /// Generates a text representation of the file system tree

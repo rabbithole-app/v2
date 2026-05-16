@@ -17,7 +17,7 @@ import { CellContext, injectFlexRenderContext } from '@tanstack/angular-table';
 import { ClassValue } from 'clsx';
 
 import {
-  GrantStoragePermission,
+  CreateStorageAccessGrants,
   StoragePermission,
   StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
@@ -60,62 +60,38 @@ import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit
     EditPermissionFormTriggerDirective,
   ],
   providers: [provideIcons({ lucideUserPen, lucideTrash2 })],
-  template: `
-    <core-edit-permission-form
-      [principal]="principal"
-      [permission]="permission"
-      (permissionChange)="edit.emit($event)"
-    >
-      <button
-        class="size-8"
-        variant="ghost"
-        size="icon"
-        hlmTooltip="Edit permission"
-        coreEditPermissionFormTrigger
-      >
-        <ng-icon hlmIcon name="lucideUserPen" size="sm" />
-        <span class="sr-only">Edit</span>
-      </button>
-    </core-edit-permission-form>
-    <hlm-alert-dialog>
-      <button
-        class="size-8 text-destructive hover:text-destructive"
-        hlmBtn
-        variant="ghost"
-        size="icon"
-        hlmTooltip="Revoke permission"
-        brnAlertDialogTrigger
-      >
-        <span class="sr-only">Revoke</span>
-        <ng-icon hlmIcon size="sm" name="lucideTrash2" />
-      </button>
-      <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
-        <hlm-alert-dialog-header>
-          <h3 hlmAlertDialogTitle>Are you absolutely sure?</h3>
-          <p hlmAlertDialogDescription>
-            This action cannot be undone. This will permanently delete your
-            account and remove your data from our servers.
-          </p>
-        </hlm-alert-dialog-header>
-        <hlm-alert-dialog-footer>
-          <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
-          <button hlmAlertDialogAction (click)="handleRevoke()">
-            Revoke permission
-          </button>
-        </hlm-alert-dialog-footer>
-      </hlm-alert-dialog-content>
-    </hlm-alert-dialog>
-  `,
+  templateUrl: "./actions-cell.html",
   host: {
     '[class]': '_computedClass()',
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActionsCellComponent {
+  cancelPending = output<bigint>();
   dialogRef = viewChild.required(BrnDialog);
-  edit = output<Omit<GrantStoragePermission, 'entry'>>();
+  edit = output<CreateStorageAccessGrants>();
   revoke = output();
   readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+  get canEdit() {
+    return this._context.row.original.targetKind === 'principal' && !this.isPending;
+  }
+
+  get grantId() {
+    return this._context.row.original.grantId;
+  }
+
+  get isClaimedEmailInvite() {
+    const item = this._context.row.original;
+    return (
+      item.targetKind !== 'principal' &&
+      (item.claimedPrincipals?.length ?? 0) > 0
+    );
+  }
+
+  get isPending() {
+    return this._context.row.original.status === 'pending';
+  }
 
   get permission() {
     return this._context.row.getValue<StoragePermission>('permission');
@@ -134,6 +110,14 @@ export class ActionsCellComponent {
 
   handleRevoke() {
     this.dialogRef().close();
+    if (
+      (this.isPending || this.isClaimedEmailInvite) &&
+      this.grantId !== undefined
+    ) {
+      this.cancelPending.emit(this.grantId);
+      return;
+    }
+
     this.revoke.emit();
   }
 }

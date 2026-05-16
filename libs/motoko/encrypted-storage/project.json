@@ -7,8 +7,8 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/motoko",
-        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/encrypted-storage && dfx canister create --all && dfx build encrypted-storage'",
+        "cwd": "libs/motoko/encrypted-storage",
+        "command": "icp build encrypted-storage",
         "parallel": false
       }
     },
@@ -28,19 +28,11 @@
         "parallel": false
       }
     },
-    "doc": {
-      "executor": "nx:run-commands",
-      "options": {
-        "cwd": "libs/motoko",
-        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/encrypted-storage && $(dfx cache show)/mo-doc --source src --format plain'",
-        "parallel": false
-      }
-    },
     "deploy": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/motoko",
-        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/encrypted-storage && dfx deploy encrypted-storage'",
+        "cwd": "libs/motoko/encrypted-storage",
+        "command": "icp deploy -e local encrypted-storage",
         "parallel": false
       }
     }

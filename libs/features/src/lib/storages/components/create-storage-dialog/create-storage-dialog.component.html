@@ -29,7 +29,7 @@
         @case ('configure') {
           <!-- Storage Backend -->
           <div hlmField>
-            <label hlmFieldLabel>Storage type</label>
+            <div hlmFieldLabel>Storage type</div>
             <hlm-field-content>
               <hlm-radio-group [value]="storageBackend()" (valueChange)="$event && selectStorageBackend($event)">
                 <div
@@ -74,7 +74,7 @@
 
           <!-- VetKey Security Level -->
           <div hlmField>
-            <label hlmFieldLabel>VetKey security level</label>
+            <div hlmFieldLabel>VetKey security level</div>
             <hlm-field-content>
               <hlm-radio-group [value]="vetKeyLevel()" (valueChange)="$event && selectVetKeyLevel($event)">
                 <div

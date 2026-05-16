@@ -117,12 +117,12 @@ describe("Backend self-topup from treasury", () => {
     // check without ever attempting a transfer. The failure notification
     // should only fire on real errors — an early-exit is not a failure.
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const before = await backendFixture.actor.getNotifications([], 100n);
+    const before = await backendFixture.actor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
     await backendFixture.actor.triggerSelfTopUp();
-    const after = await backendFixture.actor.getNotifications([], 100n);
+    const after = await backendFixture.actor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
 
     const newlyFailed = after.data.slice(0, after.data.length - before.data.length).filter((n) => {
-      return Object.keys(n.event)[0] === "backendSelfTopUpFailed";
+      return Object.keys(n.payload)[0] === "backendSelfTopUpFailed";
     });
     expect(newlyFailed).toHaveLength(0);
   });

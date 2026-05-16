@@ -1,3 +1,4 @@
+import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 
@@ -6,6 +7,7 @@ import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 
 import EncryptedStorage "";
+import EncryptedStorageClass "Class";
 import T "Types";
 
 shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = this {
@@ -16,6 +18,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   transient let canisterId = Principal.fromActor(this);
 
   var versionedStore = EncryptedStorage.initStableStore({
+    accountOwner = owner;
     canisterId;
     vetKdKeyId = keyId;
     domainSeparator = "file_storage_dapp";
@@ -34,19 +37,18 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     backendId = null; // standalone mode — no backend
     storageBackendType = #OnChain;
   });
-  versionedStore := EncryptedStorage.upgradeStableStore(versionedStore, { backendId = null });
+  versionedStore := EncryptedStorage.upgradeStableStore(versionedStore, { accountOwner = owner; backendId = null });
   transient let storage = EncryptedStorage.fromVersion(versionedStore);
+  transient let storageApi = EncryptedStorageClass.Storage(storage, null);
+
+  func isCurrentController(principal : Principal) : async Bool {
+    let status = await IC.ic.canister_status({ canister_id = canisterId });
+    Array.any(status.settings.controllers, func(controller : Principal) : Bool = Principal.equal(controller, principal));
+  };
 
   public query ({ caller }) func list(entry : ?T.Entry) : async T.ListResponse {
     switch (EncryptedStorage.list(storage, caller, entry)) {
       case (#ok response) response;
-      case (#err(message)) throw Error.reject(message);
-    };
-  };
-
-  public shared ({ caller }) func listPermitted(entry : ?T.Entry) : async [(Principal, T.PermissionExt)] {
-    switch (await* EncryptedStorage.listPermitted(storage, caller, entry)) {
-      case (#ok items) items;
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -111,16 +113,239 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     EncryptedStorage.hasPermission(storage, caller, args);
   };
 
-  public shared ({ caller }) func grantPermission(args : T.GrantPermissionArguments) : async () {
-    switch (EncryptedStorage.grantPermission(storage, caller, args, null)) {
+  public query ({ caller }) func listOwnerEquivalentPrincipals() : async [T.OwnerEquivalentPrincipal] {
+    switch (storageApi.listOwnerEquivalentPrincipals(caller)) {
+      case (#ok(items)) items;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getRecoveryStatus() : async T.RecoveryStatus {
+    switch (storageApi.getRecoveryStatus(caller)) {
+      case (#ok(status)) status;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func registerRecoveryController(principal : Principal) : async T.RegisterRecoveryControllerResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (Principal.isAnonymous(principal)) {
+      throw Error.reject("anonymous principal not allowed");
+    };
+    if (not (await isCurrentController(principal))) {
+      throw Error.reject("principal is not a controller");
+    };
+    switch (storageApi.registerRecoveryController(caller, principal)) {
+      case (#ok(result)) result;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func clearRecoveryController() : async Principal {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.clearRecoveryController(caller)) {
+      case (#ok(principal)) principal;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func addRecoveryOwner(principal : Principal, options : T.AddRecoveryOwnerOptions) : async T.OwnerEquivalentPrincipal {
+    switch (storageApi.addRecoveryOwner(caller, principal, options)) {
+      case (#ok(record)) record;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func takeRecoveryOwnership() : async T.OwnerEquivalentPrincipal {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (not (await isCurrentController(caller))) {
+      throw Error.reject("caller is not a controller");
+    };
+    switch (storageApi.takeRecoveryOwnership(caller)) {
+      case (#ok(record)) record;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func activateRecoveryOwnership(principal : Principal) : async T.OwnerEquivalentPrincipal {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (Principal.isAnonymous(principal)) {
+      throw Error.reject("anonymous principal not allowed");
+    };
+    if (not (await isCurrentController(principal))) {
+      throw Error.reject("principal is not a controller");
+    };
+    switch (storageApi.activateRecoveryOwnership(caller, principal)) {
+      case (#ok(record)) record;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func removeRecoveryOwner(principal : Principal) : async () {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (await isCurrentController(principal)) {
+      throw Error.reject("principal is still a controller; remove controller first");
+    };
+    switch (storageApi.removeRecoveryOwner(caller, principal)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public shared ({ caller }) func revokePermission(args : T.RevokePermissionArguments) : async () {
-    switch (EncryptedStorage.revokePermission(storage, caller, args)) {
+  public shared ({ caller }) func createPendingAccessGrant(args : T.CreatePendingAccessGrantArguments) : async T.PendingAccessGrant {
+    switch (storageApi.createPendingAccessGrant(caller, args)) {
+      case (#ok(result)) result;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func createAccessBatch(args : T.CreateAccessBatchArguments) : async T.CreateAccessBatchResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.createAccessBatch(caller, args)) {
+      case (#ok(result)) result;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func revokeAccessBatch(args : T.RevokeAccessBatchArguments) : async T.RevokeAccessBatchResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.revokeAccessBatch(caller, args)) {
+      case (#ok(result)) result;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func claimPendingAccessGrant(args : T.ClaimPendingAccessGrantArguments) : async T.PrincipalAccessGrant {
+    switch (storageApi.claimPendingAccessGrant(caller, args)) {
+      case (#ok(grant)) grant;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func claimPendingAccessByBackendAttestation(args : T.ClaimPendingAccessByBackendAttestationArguments) : async [T.PrincipalAccessGrant] {
+    switch (storageApi.claimPendingAccessByBackendAttestation(caller, args)) {
+      case (#ok(grants)) grants;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func cancelPendingAccessGrant(args : T.CancelPendingAccessGrantArguments) : async T.PendingAccessGrant {
+    switch (storageApi.cancelPendingAccessGrant(caller, args)) {
+      case (#ok(grant)) grant;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listPendingAccessGrants() : async [T.PendingAccessGrant] {
+    switch (storageApi.listPendingAccessGrants(caller)) {
+      case (#ok(items)) items;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listAccessGrants(args : T.ListAccessGrantsArguments) : async T.AccessGrantList {
+    switch (storageApi.listAccessGrants(caller, args)) {
+      case (#ok(result)) result;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listStorageEvents(afterId : ?Nat, limit : Nat) : async [T.StoredStorageEvent] {
+    switch (storageApi.listStorageEvents(caller, afterId, limit)) {
+      case (#ok(events)) events;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listLatestStorageEvents(limit : Nat) : async [T.StoredStorageEvent] {
+    switch (storageApi.listLatestStorageEvents(caller, limit)) {
+      case (#ok(events)) events;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getStorageEventsUnreadCount() : async Nat {
+    switch (storageApi.getStorageEventsUnreadCount(caller)) {
+      case (#ok(count)) count;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func markStorageEventsRead(upToEventId : Nat) : async () {
+    switch (storageApi.markStorageEventsRead(caller, upToEventId)) {
       case (#ok) {};
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func markAllVisibleStorageEventsRead() : async () {
+    switch (storageApi.markAllVisibleStorageEventsRead(caller)) {
+      case (#ok) {};
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func createDurableAccessGrant(args : T.CreateDurableAccessGrantArguments) : async T.PrincipalAccessGrant {
+    switch (storageApi.createDurableAccessGrant(caller, args)) {
+      case (#ok(grant)) grant;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func requestAccess(args : T.CreateAccessRequestArguments) : async T.AccessRequest {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.createAccessRequest(caller, args)) {
+      case (#ok(request)) request;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func cancelAccessRequest(args : T.CancelAccessRequestArguments) : async T.AccessRequest {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.cancelAccessRequest(caller, args)) {
+      case (#ok(request)) request;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getMyAccessRequest() : async ?T.AccessRequest {
+    switch (storageApi.getMyAccessRequest(caller)) {
+      case (#ok(request)) request;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func resolveAccessRequest(args : T.ResolveAccessRequestArguments) : async T.AccessRequest {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.resolveAccessRequest(caller, args)) {
+      case (#ok(request)) request;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listAccessRequests() : async [T.AccessRequest] {
+    switch (storageApi.listAccessRequests(caller)) {
+      case (#ok(requests)) requests;
       case (#err(message)) throw Error.reject(message);
     };
   };

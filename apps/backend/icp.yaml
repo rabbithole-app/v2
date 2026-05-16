@@ -90,6 +90,7 @@ canisters:
         GITHUB_REPO: "repo"
         PUBLIC_ENV_NAME: "DEV"
         PUBLIC_AUTH_EXPECTED_ORIGIN: "http://localhost:4200"
+        PUBLIC_STORAGE_AUTH_EXPECTED_ORIGIN: "http://localhost:4201"
         PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: "xc7sj-uyaaa-aaaaf-qbrja-cai"
 
   - name: encrypted-storage
@@ -122,7 +123,7 @@ canisters:
     build:
       steps:
         - type: pre-built
-          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-05-02/internet_identity_backend.wasm.gz
+          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-05-08/internet_identity_backend.wasm.gz
     # Source Candid is kept in init-args/internet_identity_backend.did.
     # The hex file is didc-encoded with II's init type because icp-cli infers
     # untyped nested OpenID records incorrectly.
@@ -134,7 +135,7 @@ canisters:
     build:
       steps:
         - type: pre-built
-          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-05-02/internet_identity_frontend.wasm.gz
+          url: https://github.com/dfinity/internet-identity/releases/download/release-2026-05-08/internet_identity_frontend.wasm.gz
     init_args:
       path: ./init-args/internet_identity_frontend.did
       format: candid

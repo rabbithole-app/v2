@@ -3,7 +3,10 @@ import {
   Component,
   computed,
   inject,
+  signal,
+  viewChild,
 } from '@angular/core';
+import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideAlertCircle,
@@ -13,31 +16,57 @@ import {
   lucideBell,
   lucideCheckCircle,
   lucideCircleDollarSign,
+  lucideClipboardList,
   lucideDownload,
+  lucideKeyRound,
+  lucideMail,
   lucideRefreshCw,
+  lucideShieldCheck,
   lucideSparkles,
   lucideWallet,
   lucideXCircle,
 } from '@ng-icons/lucide';
-import { BrnPopoverImports } from '@spartan-ng/brain/popover';
+import { BrnSheetContent, BrnSheetTrigger } from '@spartan-ng/brain/sheet';
 
-import type { StoredNotification, TypedEvent } from '@rabbithole/declarations/backend';
+import type { NotificationPayload } from '@rabbithole/declarations/backend';
+import type { StorageEvent } from '@rabbithole/declarations/encrypted-storage';
+import {
+  RbthDrawerComponent,
+  RbthDrawerContentComponent,
+  RbthDrawerFooterComponent,
+  RbthDrawerHeaderComponent,
+  RbthDrawerTitleDirective,
+} from '@rabbithole/ui/drawer';
+import { HlmBadge } from '@spartan-ng/helm/badge';
+import { HlmAvatarBadge } from '@spartan-ng/helm/avatar';
 import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
-import { HlmPopoverImports } from '@spartan-ng/helm/popover';
-import { HlmSeparator } from '@spartan-ng/helm/separator';
+import { HlmItemImports } from '@spartan-ng/helm/item';
+import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 
-import { NotificationService } from '../../../services';
+import { AggregatedNotification, NotificationService } from '../../../services';
+
+type NotificationFilter = 'all' | 'backend' | 'storage' | 'unread';
 
 @Component({
   selector: 'core-notification-bell',
   imports: [
-    ...BrnPopoverImports,
-    ...HlmPopoverImports,
+    HlmBadge,
+    HlmAvatarBadge,
     HlmButton,
     HlmIcon,
-    HlmSeparator,
     NgIcon,
+    BrnSheetContent,
+    BrnSheetTrigger,
+    RbthDrawerComponent,
+    RbthDrawerContentComponent,
+    RbthDrawerFooterComponent,
+    RbthDrawerHeaderComponent,
+    RbthDrawerTitleDirective,
+    ...HlmEmptyImports,
+    ...HlmItemImports,
+    ...HlmTabsImports,
   ],
   providers: [
     provideIcons({
@@ -48,110 +77,179 @@ import { NotificationService } from '../../../services';
       lucideBell,
       lucideCheckCircle,
       lucideCircleDollarSign,
+      lucideClipboardList,
       lucideDownload,
+      lucideKeyRound,
+      lucideMail,
       lucideRefreshCw,
+      lucideShieldCheck,
       lucideSparkles,
       lucideWallet,
       lucideXCircle,
     }),
   ],
-  template: `
-    <button
-      hlmBtn
-      variant="ghost"
-      size="icon"
-      class="relative"
-      brnPopoverTrigger
-      (click)="onBellClick()"
-    >
-      <ng-icon name="lucideBell" hlmIcon size="sm" />
-      @if (hasUnread()) {
-        <span class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-          {{ badgeText() }}
-        </span>
-      }
-    </button>
-
-    <div hlmPopoverContent *brnPopoverContent="let ctx" class="w-80 p-0">
-        <div class="flex items-center justify-between px-4 py-3">
-          <h3 class="text-sm font-semibold">Notifications</h3>
-          @if (hasUnread()) {
-            <button hlmBtn variant="ghost" size="sm" (click)="markAllAsRead()">
-              Mark all read
-            </button>
-          }
-        </div>
-        <hlm-separator />
-        <div class="max-h-80 overflow-y-auto">
-          @if (notifications().length === 0) {
-            <p class="px-4 py-6 text-center text-sm text-muted-foreground">
-              No notifications yet
-            </p>
-          } @else {
-            @for (notification of notifications(); track notification.id) {
-              <button
-                type="button"
-                class="flex w-full gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
-                [class.opacity-60]="notification.read"
-                (click)="markRead(notification)"
-              >
-                <ng-icon
-                  [name]="eventIcon(notification.event)"
-                  hlmIcon
-                  size="sm"
-                  [class]="eventIconClass(notification.event)"
-                  class="mt-0.5 shrink-0"
-                />
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium">{{ eventTitle(notification.event) }}</p>
-                  <p class="text-xs text-muted-foreground truncate">
-                    {{ eventDescription(notification.event) }}
-                  </p>
-                  <p class="text-xs text-muted-foreground mt-0.5">
-                    {{ formatTime(notification.createdAt) }}
-                  </p>
-                </div>
-                @if (!notification.read) {
-                  <span class="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0"></span>
-                }
-              </button>
-            }
-          }
-        </div>
-    </div>
-  `,
+  templateUrl: './notification-bell.component.html',
   host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotificationBellComponent {
-  #notificationService = inject(NotificationService);
-
-  unreadCount = this.#notificationService.unreadCount;
-  badgeText = computed(() => {
+  readonly #notificationService = inject(NotificationService);
+  readonly unreadCount = this.#notificationService.unreadCount;
+  readonly badgeText = computed(() => {
     const count = this.unreadCount();
     return count > 9n ? '9+' : count.toString();
   });
-  hasUnread = computed(() => this.unreadCount() > 0n);
 
-  notifications = this.#notificationService.notifications;
+  readonly filter = signal<NotificationFilter>('all');
+  readonly items = this.#notificationService.items;
+  readonly filteredItems = computed(() => {
+    const filter = this.filter();
+    return this.items().filter((item) => {
+      if (filter === 'unread') return !item.read;
+      if (filter === 'backend')
+        return (
+          item.source === 'backend' &&
+          !this.#isBackendStorageEvent(item.raw.payload)
+        );
+      if (filter === 'storage') return this.#isStorageNotification(item);
+      return true;
+    });
+  });
+  readonly hasUnread = computed(() => this.unreadCount() > 0n);
+  readonly isLoading = this.#notificationService.isLoading;
+  readonly #router = inject(Router);
+  private readonly drawer = viewChild(RbthDrawerComponent);
 
-  eventDescription(event: TypedEvent): string {
+  formatTime(ns: bigint): string {
+    const ms = Number(ns) / 1_000_000;
+    const diff = Date.now() - ms;
+    if (diff < 60_000) return 'Just now';
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} min ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} hr ago`;
+    return new Date(ms).toLocaleDateString();
+  }
+
+  itemDescription(item: AggregatedNotification): string {
+    return item.source === 'backend'
+      ? this.#backendDescription(item.raw.payload)
+      : this.#storageDescription(item.raw.event);
+  }
+
+  itemIcon(item: AggregatedNotification): string {
+    return item.source === 'backend'
+      ? this.#backendIcon(item.raw.payload)
+      : this.#storageIcon(item.raw.event);
+  }
+
+  itemIconClass(item: AggregatedNotification): string {
+    return item.source === 'backend'
+      ? this.#backendIconClass(item.raw.payload)
+      : this.#storageIconClass(item.raw.event);
+  }
+
+  itemSourceLabel(item: AggregatedNotification): string {
+    return this.#isStorageNotification(item) ? 'Storage' : 'Backend';
+  }
+
+  itemTitle(item: AggregatedNotification): string {
+    return item.source === 'backend'
+      ? this.#backendTitle(item.raw.payload)
+      : this.#storageTitle(item.raw.event);
+  }
+
+  markAllAsRead(): void {
+    void this.#notificationService.markAllAsRead();
+  }
+
+  onDrawerStateChanged(state: 'closed' | 'open'): void {
+    if (state === 'open') {
+      void this.#notificationService.loadNotifications(50n);
+    }
+  }
+
+  async openNotification(item: AggregatedNotification): Promise<void> {
+    await this.#notificationService.markItemAsRead(item);
+
+    const url = this.#notificationUrl(item);
+    if (url) {
+      this.drawer()?.close();
+      await this.#router.navigateByUrl(url);
+    }
+  }
+
+  #accessClassLabel(value: unknown): string {
+    if (this.#hasKey(value, 'ownerEquivalent')) return 'recovery access';
+    if (this.#hasKey(value, 'durable')) return 'durable access';
+    return 'standard access';
+  }
+
+  #accessSourceLabel(value: unknown): string {
+    if (this.#hasKey(value, 'accessRequest')) return 'access request';
+    if (this.#hasKey(value, 'ordinaryInvite')) return 'invite';
+    if (this.#hasKey(value, 'durablePolicy')) return 'durable policy';
+    if (this.#hasKey(value, 'recoverySetup')) return 'recovery setup';
+    return 'direct grant';
+  }
+
+  #backendDescription(event: NotificationPayload): string {
     if ('subscriptionActivated' in event) {
       const plan = Object.keys(event.subscriptionActivated.plan)[0];
       return `${plan} plan`;
     }
-    if ('paymentReceived' in event) return `${event.paymentReceived.amount} ${event.paymentReceived.tokenId}`;
-    if ('depositReceived' in event) return `${event.depositReceived.amount} ${event.depositReceived.tokenId}`;
+    if ('paymentReceived' in event)
+      return `${event.paymentReceived.amount} ${event.paymentReceived.tokenId}`;
+    if ('depositReceived' in event)
+      return `${event.depositReceived.amount} ${event.depositReceived.tokenId}`;
     if ('autoRenewFailed' in event) return event.autoRenewFailed.reason;
-    if ('lowCycles' in event) return `~${event.lowCycles.estimatedDaysLeft} days left`;
+    if ('lowCycles' in event)
+      return `${event.lowCycles.canisterId.toText()} has ~${event.lowCycles.estimatedDaysLeft} days left`;
+    if ('topUpCompleted' in event)
+      return `${event.topUpCompleted.canisterId.toText()} received cycles`;
     if ('topUpFailed' in event) return event.topUpFailed.reason;
+    if ('autoTopUpCompleted' in event)
+      return `${event.autoTopUpCompleted.canisterId.toText()} received cycles`;
     if ('autoTopUpFailed' in event) return event.autoTopUpFailed.reason;
-    if ('updateAvailable' in event) return `v${event.updateAvailable.releaseTag}`;
-    if ('trialStarted' in event) return `${Number(event.trialStarted.limitBytes) / 1_000_000} MB limit`;
+    if ('updateAvailable' in event)
+      return `${event.updateAvailable.canisterId.toText()} can update to ${event.updateAvailable.releaseTag}`;
+    if ('trialStarted' in event)
+      return `${Number(event.trialStarted.limitBytes) / 1_000_000} MB limit`;
+    if ('balanceLow' in event)
+      return `Required amount: ${event.balanceLow.requiredAmount}`;
+    if ('backendLowCycles' in event)
+      return `Backend cycles ${event.backendLowCycles.current} / threshold ${event.backendLowCycles.threshold}`;
+    if ('creationRefunded' in event)
+      return `Refunded ${event.creationRefunded.amount} ${event.creationRefunded.tokenId}`;
+    if ('backendSelfTopUpFailed' in event)
+      return event.backendSelfTopUpFailed.reason;
+    if ('ambassadorPayoutFailed' in event)
+      return event.ambassadorPayoutFailed.reason;
+    if ('cmcNotifyStuck' in event)
+      return `CMC notify #${event.cmcNotifyStuck.id.toString()} failed: ${event.cmcNotifyStuck.reason}`;
+    if ('treasuryIcpLow' in event)
+      return `Balance ${event.treasuryIcpLow.currentBalance} / required ${event.treasuryIcpLow.required}`;
+    if ('storageAccessRequestCreated' in event)
+      return `${event.storageAccessRequestCreated.requester.toText()} requested access`;
+    if ('storageAccessRequestResolved' in event)
+      return `Request #${event.storageAccessRequestResolved.requestId.toString()} was ${this.#statusLabel(event.storageAccessRequestResolved.status)}`;
+    if ('storageAccessRequestCancelled' in event)
+      return `${event.storageAccessRequestCancelled.requester.toText()} cancelled request #${event.storageAccessRequestCancelled.requestId.toString()}`;
+    if ('storageInviteCreated' in event)
+      return `Invite #${event.storageInviteCreated.grantId.toString()} for ${this.#accessClassLabel(event.storageInviteCreated.accessClass)}`;
+    if ('storageInviteClaimed' in event)
+      return `${event.storageInviteClaimed.principal.toText()} claimed invite #${event.storageInviteClaimed.grantId.toString()}`;
+    if ('storageInviteCancelled' in event)
+      return `Invite #${event.storageInviteCancelled.grantId.toString()} was cancelled`;
+    if ('storageAccessGranted' in event)
+      return `${this.#accessClassLabel(event.storageAccessGranted.accessClass)} from ${this.#accessSourceLabel(event.storageAccessGranted.source)}`;
+    if ('storageAccessRevoked' in event) return 'Your storage access changed';
+    if ('storageRecoveryOwnerAdded' in event)
+      return `Recovery owner access added for ${event.storageRecoveryOwnerAdded.canisterId.toText()}`;
+    if ('storageRecoveryOwnerRemoved' in event)
+      return `Recovery owner access removed for ${event.storageRecoveryOwnerRemoved.canisterId.toText()}`;
     return '';
   }
 
-  eventIcon(event: TypedEvent): string {
+  #backendIcon(event: NotificationPayload): string {
     if ('subscriptionActivated' in event) return 'lucideCheckCircle';
     if ('subscriptionExpired' in event) return 'lucideAlertTriangle';
     if ('subscriptionRenewed' in event) return 'lucideRefreshCw';
@@ -166,17 +264,63 @@ export class NotificationBellComponent {
     if ('trialStarted' in event) return 'lucideSparkles';
     if ('updateAvailable' in event) return 'lucideDownload';
     if ('balanceLow' in event) return 'lucideWallet';
+    if ('backendLowCycles' in event) return 'lucideBatteryLow';
+    if ('creationRefunded' in event) return 'lucideCircleDollarSign';
+    if ('backendSelfTopUpFailed' in event) return 'lucideXCircle';
+    if ('ambassadorPayoutFailed' in event) return 'lucideXCircle';
+    if ('cmcNotifyStuck' in event) return 'lucideAlertCircle';
+    if ('treasuryIcpLow' in event) return 'lucideWallet';
+    if ('storageAccessRequestCreated' in event) return 'lucideClipboardList';
+    if ('storageAccessRequestResolved' in event) return 'lucideCheckCircle';
+    if ('storageAccessRequestCancelled' in event) return 'lucideXCircle';
+    if ('storageInviteCreated' in event) return 'lucideMail';
+    if ('storageInviteClaimed' in event) return 'lucideCheckCircle';
+    if ('storageInviteCancelled' in event) return 'lucideXCircle';
+    if ('storageAccessGranted' in event) return 'lucideShieldCheck';
+    if ('storageAccessRevoked' in event) return 'lucideXCircle';
+    if ('storageRecoveryOwnerAdded' in event) return 'lucideKeyRound';
+    if ('storageRecoveryOwnerRemoved' in event) return 'lucideKeyRound';
     return 'lucideBell';
   }
 
-  eventIconClass(event: TypedEvent): string {
-    if ('subscriptionActivated' in event || 'subscriptionRenewed' in event || 'topUpCompleted' in event || 'autoTopUpCompleted' in event) return 'text-green-600';
-    if ('subscriptionExpired' in event || 'lowCycles' in event || 'balanceLow' in event) return 'text-amber-600';
-    if ('autoRenewFailed' in event || 'topUpFailed' in event || 'autoTopUpFailed' in event) return 'text-red-600';
+  #backendIconClass(event: NotificationPayload): string {
+    if (
+      'subscriptionActivated' in event ||
+      'subscriptionRenewed' in event ||
+      'topUpCompleted' in event ||
+      'autoTopUpCompleted' in event ||
+      'storageAccessRequestResolved' in event ||
+      'storageInviteClaimed' in event ||
+      'storageAccessGranted' in event ||
+      'creationRefunded' in event
+    )
+      return 'text-green-600';
+    if (
+      'subscriptionExpired' in event ||
+      'lowCycles' in event ||
+      'balanceLow' in event ||
+      'backendLowCycles' in event ||
+      'treasuryIcpLow' in event ||
+      'storageAccessRequestCreated' in event ||
+      'storageInviteCreated' in event
+    )
+      return 'text-amber-600';
+    if (
+      'autoRenewFailed' in event ||
+      'topUpFailed' in event ||
+      'autoTopUpFailed' in event ||
+      'backendSelfTopUpFailed' in event ||
+      'ambassadorPayoutFailed' in event ||
+      'cmcNotifyStuck' in event ||
+      'storageAccessRequestCancelled' in event ||
+      'storageInviteCancelled' in event ||
+      'storageAccessRevoked' in event
+    )
+      return 'text-red-600';
     return 'text-muted-foreground';
   }
 
-  eventTitle(event: TypedEvent): string {
+  #backendTitle(event: NotificationPayload): string {
     if ('subscriptionActivated' in event) return 'Subscription activated';
     if ('subscriptionExpired' in event) return 'Subscription expired';
     if ('subscriptionRenewed' in event) return 'Subscription renewed';
@@ -191,29 +335,194 @@ export class NotificationBellComponent {
     if ('trialStarted' in event) return 'Trial started';
     if ('updateAvailable' in event) return 'Update available';
     if ('balanceLow' in event) return 'Balance running low';
+    if ('backendLowCycles' in event) return 'Backend cycles low';
+    if ('creationRefunded' in event) return 'Storage creation refunded';
+    if ('backendSelfTopUpFailed' in event) return 'Backend top-up failed';
+    if ('ambassadorPayoutFailed' in event) return 'Ambassador payout failed';
+    if ('cmcNotifyStuck' in event) return 'CMC notification stuck';
+    if ('treasuryIcpLow' in event) return 'Treasury ICP low';
+    if ('storageAccessRequestCreated' in event) return 'Access request';
+    if ('storageAccessRequestResolved' in event)
+      return 'Access request resolved';
+    if ('storageAccessRequestCancelled' in event)
+      return 'Access request cancelled';
+    if ('storageInviteCreated' in event) return 'Storage invite';
+    if ('storageInviteClaimed' in event) return 'Storage invite claimed';
+    if ('storageInviteCancelled' in event) return 'Storage invite cancelled';
+    if ('storageAccessGranted' in event) return 'Access granted';
+    if ('storageAccessRevoked' in event) return 'Access revoked';
+    if ('storageRecoveryOwnerAdded' in event) return 'Recovery owner added';
+    if ('storageRecoveryOwnerRemoved' in event) return 'Recovery owner removed';
     return 'Notification';
   }
 
-  formatTime(ns: bigint): string {
-    const ms = Number(ns) / 1_000_000;
-    const diff = Date.now() - ms;
-    if (diff < 60_000) return 'Just now';
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} min ago`;
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} hr ago`;
-    return new Date(ms).toLocaleDateString();
+  #hasKey(value: unknown, key: string): boolean {
+    return !!value && typeof value === 'object' && key in value;
   }
 
-  markAllAsRead(): void {
-    this.#notificationService.markAllAsRead();
+  #isBackendStorageEvent(event: NotificationPayload): boolean {
+    return (
+      'storageAccessRequestCreated' in event ||
+      'storageAccessRequestResolved' in event ||
+      'storageAccessRequestCancelled' in event ||
+      'storageInviteCreated' in event ||
+      'storageInviteClaimed' in event ||
+      'storageInviteCancelled' in event ||
+      'storageAccessGranted' in event ||
+      'storageAccessRevoked' in event ||
+      'storageRecoveryOwnerAdded' in event ||
+      'storageRecoveryOwnerRemoved' in event
+    );
   }
 
-  markRead(notification: StoredNotification): void {
-    if (!notification.read) {
-      this.#notificationService.markAsRead([notification.id]);
+  #isStorageNotification(item: AggregatedNotification): boolean {
+    return (
+      item.source === 'storage' ||
+      (item.source === 'backend' &&
+        this.#isBackendStorageEvent(item.raw.payload))
+    );
+  }
+
+  #notificationUrl(item: AggregatedNotification): string | null {
+    if (item.source === 'storage') {
+      return this.#storageUrl(item.storageCanisterId.toText(), item.raw.event);
     }
+
+    const event = item.raw.payload;
+    if ('storageAccessRequestCreated' in event) {
+      return `/dashboard/${event.storageAccessRequestCreated.canisterId.toText()}/access-requests/${event.storageAccessRequestCreated.requestId.toString()}`;
+    }
+    if ('storageAccessRequestCancelled' in event) {
+      return `/dashboard/${event.storageAccessRequestCancelled.canisterId.toText()}/access-requests`;
+    }
+    if ('storageAccessRequestResolved' in event) {
+      return `/dashboard/${event.storageAccessRequestResolved.canisterId.toText()}/drive`;
+    }
+    if ('storageInviteCreated' in event || 'storageAccessGranted' in event) {
+      return '/dashboard/shared-with-me';
+    }
+    if ('storageInviteClaimed' in event) {
+      return `/dashboard/${event.storageInviteClaimed.canisterId.toText()}/drive`;
+    }
+    if ('storageAccessRevoked' in event) {
+      return `/dashboard/${event.storageAccessRevoked.canisterId.toText()}/drive`;
+    }
+    if ('storageRecoveryOwnerAdded' in event) {
+      return `/dashboard/${event.storageRecoveryOwnerAdded.canisterId.toText()}/drive`;
+    }
+    if ('storageRecoveryOwnerRemoved' in event) {
+      return `/dashboard/${event.storageRecoveryOwnerRemoved.canisterId.toText()}/drive`;
+    }
+    if ('updateAvailable' in event) {
+      return `/dashboard/${event.updateAvailable.canisterId.toText()}/drive`;
+    }
+    if ('lowCycles' in event) {
+      return `/dashboard/${event.lowCycles.canisterId.toText()}/drive`;
+    }
+    return null;
   }
 
-  onBellClick(): void {
-    this.#notificationService.loadNotifications(20n);
+  #statusLabel(value: unknown): string {
+    if (this.#hasKey(value, 'approved')) return 'approved';
+    if (this.#hasKey(value, 'rejected')) return 'rejected';
+    if (this.#hasKey(value, 'cancelled')) return 'cancelled';
+    return 'pending';
+  }
+
+  #storageDescription(event: StorageEvent): string {
+    const access = event.access;
+    if ('accessRequestCreated' in access)
+      return `${access.accessRequestCreated.requester.toText()} requested access`;
+    if ('accessRequestResolved' in access)
+      return `Request #${access.accessRequestResolved.requestId.toString()} was ${this.#statusLabel(access.accessRequestResolved.status)}`;
+    if ('accessRequestCancelled' in access)
+      return `${access.accessRequestCancelled.requester.toText()} cancelled request #${access.accessRequestCancelled.requestId.toString()}`;
+    if ('pendingGrantCreated' in access)
+      return `Invite #${access.pendingGrantCreated.grantId.toString()} for ${this.#accessClassLabel(access.pendingGrantCreated.accessClass)}`;
+    if ('pendingGrantClaimed' in access)
+      return `${access.pendingGrantClaimed.principal.toText()} claimed invite #${access.pendingGrantClaimed.grantId.toString()}`;
+    if ('pendingGrantCancelled' in access)
+      return `Invite #${access.pendingGrantCancelled.grantId.toString()} was cancelled`;
+    if ('principalGrantCreated' in access)
+      return `${access.principalGrantCreated.principal.toText()} received ${this.#accessClassLabel(access.principalGrantCreated.accessClass)}`;
+    if ('principalGrantRevoked' in access)
+      return `${access.principalGrantRevoked.principal.toText()} access was revoked`;
+    if ('recoveryControllerRegistered' in access)
+      return `${access.recoveryControllerRegistered.principal.toText()} registered recovery control`;
+    if ('recoveryControllerCleared' in access)
+      return `${access.recoveryControllerCleared.principal.toText()} cleared recovery control`;
+    if ('recoveryOwnerAdded' in access)
+      return `${access.recoveryOwnerAdded.principal.toText()} became recovery owner`;
+    if ('recoveryOwnerRemoved' in access)
+      return `${access.recoveryOwnerRemoved.principal.toText()} recovery owner access removed`;
+    return '';
+  }
+
+  #storageIcon(event: StorageEvent): string {
+    const access = event.access;
+    if ('accessRequestCreated' in access) return 'lucideClipboardList';
+    if ('accessRequestResolved' in access) return 'lucideCheckCircle';
+    if ('accessRequestCancelled' in access) return 'lucideXCircle';
+    if ('pendingGrantCreated' in access) return 'lucideMail';
+    if ('pendingGrantClaimed' in access) return 'lucideCheckCircle';
+    if ('pendingGrantCancelled' in access) return 'lucideXCircle';
+    if ('principalGrantCreated' in access) return 'lucideShieldCheck';
+    if ('principalGrantRevoked' in access) return 'lucideXCircle';
+    if ('recoveryControllerRegistered' in access) return 'lucideKeyRound';
+    if ('recoveryControllerCleared' in access) return 'lucideKeyRound';
+    if ('recoveryOwnerAdded' in access) return 'lucideKeyRound';
+    if ('recoveryOwnerRemoved' in access) return 'lucideKeyRound';
+    return 'lucideBell';
+  }
+
+  #storageIconClass(event: StorageEvent): string {
+    const access = event.access;
+    if (
+      'accessRequestResolved' in access ||
+      'pendingGrantClaimed' in access ||
+      'principalGrantCreated' in access ||
+      'recoveryOwnerAdded' in access
+    )
+      return 'text-green-600';
+    if ('accessRequestCreated' in access || 'pendingGrantCreated' in access)
+      return 'text-amber-600';
+    if (
+      'accessRequestCancelled' in access ||
+      'pendingGrantCancelled' in access ||
+      'principalGrantRevoked' in access ||
+      'recoveryOwnerRemoved' in access
+    )
+      return 'text-red-600';
+    return 'text-muted-foreground';
+  }
+
+  #storageTitle(event: StorageEvent): string {
+    const access = event.access;
+    if ('accessRequestCreated' in access) return 'Access request';
+    if ('accessRequestResolved' in access) return 'Access request resolved';
+    if ('accessRequestCancelled' in access) return 'Access request cancelled';
+    if ('pendingGrantCreated' in access) return 'Storage invite';
+    if ('pendingGrantClaimed' in access) return 'Storage invite claimed';
+    if ('pendingGrantCancelled' in access) return 'Storage invite cancelled';
+    if ('principalGrantCreated' in access) return 'Access granted';
+    if ('principalGrantRevoked' in access) return 'Access revoked';
+    if ('recoveryControllerRegistered' in access)
+      return 'Recovery controller registered';
+    if ('recoveryControllerCleared' in access)
+      return 'Recovery controller cleared';
+    if ('recoveryOwnerAdded' in access) return 'Recovery owner added';
+    if ('recoveryOwnerRemoved' in access) return 'Recovery owner removed';
+    return 'Storage event';
+  }
+
+  #storageUrl(canisterId: string, event: StorageEvent): string {
+    const access = event.access;
+    if ('accessRequestCreated' in access) {
+      return `/dashboard/${canisterId}/access-requests/${access.accessRequestCreated.requestId.toString()}`;
+    }
+    if ('accessRequestCancelled' in access) {
+      return `/dashboard/${canisterId}/access-requests`;
+    }
+    return `/dashboard/${canisterId}/drive`;
   }
 }

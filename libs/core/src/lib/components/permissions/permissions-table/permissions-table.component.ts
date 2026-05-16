@@ -4,6 +4,7 @@ import {
   inject,
   input,
   output,
+  resource,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -30,8 +31,8 @@ import {
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import type {
-  GrantStoragePermission,
-  RevokeStoragePermission,
+  CreateStorageAccessGrants,
+  RevokeStorageAccessGrants,
   StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 import { HlmButton } from '@spartan-ng/helm/button';
@@ -42,15 +43,19 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { hlmMuted } from '@spartan-ng/helm/typography';
 
+import { injectMainActor } from '../../../injectors/main-actor';
 import {
   PermissionCell,
-  PrincipalCell,
   TableHeadSelection,
   TableHeadSortButton,
   TableRowSelection,
 } from '../../ui/tanstack';
-import { EditPermissionFormComponent } from '../edit-permission-form/edit-permission-form';
-import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
+import { ShareDialogTriggerDirective } from '../share-dialog/share-dialog-trigger';
+import {
+  AccessScopeKind,
+  ShareDialogComponent,
+} from '../share-dialog/share-dialog.component';
+import { AccessTargetCell, AccessTargetProfile } from './access-target-cell';
 import { ActionsCellComponent } from './actions-cell';
 
 const permissionSortingFn: SortingFn<StoragePermissionItem> = (
@@ -92,9 +97,9 @@ const statusFilterFn: FilterFn<StoragePermissionItem> = (
     HlmInput,
     BrnSelectImports,
     HlmSelectImports,
-    EditPermissionFormComponent,
     HlmButton,
-    EditPermissionFormTriggerDirective,
+    ShareDialogComponent,
+    ShareDialogTriggerDirective,
     ...HlmTableImports,
   ],
   providers: [provideIcons({ lucideChevronDown, lucideUserPlus })],
@@ -104,13 +109,57 @@ const statusFilterFn: FilterFn<StoragePermissionItem> = (
   templateUrl: './permissions-table.component.html',
 })
 export class PermissionsTableComponent {
+  cancelPendingAccessGrant = output<bigint>();
+  createAccessGrants = output<CreateStorageAccessGrants>();
   #authService = inject(AUTH_SERVICE);
   currentPrincipalId = computed(() => this.#authService.principalId());
   data = input<StoragePermissionItem[]>([]);
-  grant = output<Omit<GrantStoragePermission, 'entry'>>();
   readonly hlmMuted = hlmMuted;
-  revoke = output<Omit<RevokeStoragePermission, 'entry'>>();
+  itemCount = input(1);
+  loading = input(false);
+  revokeAccessGrants = output<RevokeStorageAccessGrants>();
+  scopeKind = input<AccessScopeKind>('file');
+  scopeLabel = input('Selected item');
   protected readonly _availablePageSizes = [5, 10, 20, 10000];
+  protected readonly _principalTargets = computed(() => [
+    ...new Set(
+      this.data()
+        .filter((item) => item.targetKind === 'principal')
+        .map((item) => item.user),
+    ),
+  ]);
+  #mainActor = injectMainActor();
+  protected readonly _profiles = resource({
+    params: () => ({
+      actor: this.#mainActor(),
+      principalIds: this._principalTargets(),
+      currentPrincipalId: this.currentPrincipalId(),
+    }),
+    loader: async ({ params: { actor, principalIds, currentPrincipalId } }) => {
+      if (principalIds.length === 0) return new Map<string, AccessTargetProfile>();
+
+      const lookups = await actor.getPublicProfiles(
+        principalIds.map((principalId) => Principal.fromText(principalId)),
+      );
+      return new Map(
+        lookups.map(({ principal, profile }) => {
+          const principalId = principal.toText();
+          const summary = profile[0];
+          const title = summary
+            ? (summary.displayName[0]
+              ? `${summary.displayName[0]} · @${summary.username}`
+              : `@${summary.username}`)
+            : this.#shortPrincipal(principalId);
+          const subtitle = currentPrincipalId === principalId
+            ? 'You'
+            : principalId;
+
+          return [principalId, { title, subtitle }] as const;
+        }),
+      );
+    },
+    defaultValue: new Map<string, AccessTargetProfile>(),
+  });
   protected readonly _columns = computed<ColumnDef<StoragePermissionItem>[]>(
     () => [
       {
@@ -122,16 +171,25 @@ export class PermissionsTableComponent {
         enableHiding: false,
       },
       {
-        header: 'Principal ID',
+        header: 'Target',
         accessorKey: 'user',
         id: 'user',
         cell: ({ row }) =>
-          flexRenderComponent(PrincipalCell, {
+          flexRenderComponent(AccessTargetCell, {
             inputs: {
-              isBold:
-                row.getValue<string>('user') === this.currentPrincipalId(),
+              currentPrincipalId: this.currentPrincipalId(),
+              profile: this._profiles.value().get(row.original.user) ?? null,
             },
           }),
+      },
+      {
+        header: 'Status',
+        accessorKey: 'status',
+        id: 'status',
+        cell: ({ row }) =>
+          (row.getValue<string | undefined>('status') ?? 'active') === 'pending'
+            ? 'Pending invite'
+            : 'Active',
       },
       {
         accessorKey: 'permission',
@@ -158,10 +216,16 @@ export class PermissionsTableComponent {
           flexRenderComponent(ActionsCellComponent, {
             inputs: {},
             outputs: {
-              edit: (args) => this.grant.emit(args),
+              cancelPending: (grantId: bigint) =>
+                this.cancelPendingAccessGrant.emit(grantId),
+              edit: (args) => this.createAccessGrants.emit(args),
               revoke: () =>
-                this.revoke.emit({
-                  user: Principal.fromText(row.getValue<string>('user')),
+                this.revokeAccessGrants.emit({
+                  items: [
+                    {
+                      principal: Principal.fromText(row.getValue<string>('user')),
+                    },
+                  ],
                 }),
             },
           }),
@@ -224,7 +288,13 @@ export class PermissionsTableComponent {
 
   protected _filterChanged(event: Event) {
     this._table
-      .getColumn('principal')
+      .getColumn('user')
       ?.setFilterValue((event.target as HTMLInputElement).value);
+  }
+
+  #shortPrincipal(principalId: string): string {
+    return principalId.length > 18
+      ? `${principalId.slice(0, 8)}...${principalId.slice(-6)}`
+      : principalId;
   }
 }

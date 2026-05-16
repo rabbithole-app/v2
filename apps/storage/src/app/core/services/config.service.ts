@@ -4,7 +4,7 @@ import { Principal } from '@icp-sdk/core/principal';
 import { catchError, map, of, retry } from 'rxjs';
 
 import { AuthConfig } from '@rabbithole/auth';
-import { canisterOrigin, canisterUrl } from '@rabbithole/core/app-runtime';
+import { canisterUrl, principalFromConfig } from '@rabbithole/core/app-runtime';
 
 import { environment } from '../../../environments/environment';
 import { DevStorageCanisterIdService } from './dev-storage-canister-id.service';
@@ -116,15 +116,14 @@ export class ConfigService {
   }
 
   #fromInfoJson(info: StorageInfoJson): StorageRuntimeConfig {
-    const canisterId = Principal.fromText(info.canisterId);
+    const canisterId = principalFromConfig(
+      info.canisterId,
+      'storage.infoJson.canisterId',
+    );
     const isLocalHost =
       location.hostname === 'localhost' || location.hostname.endsWith('.localhost');
     const envName = isLocalHost ? 'DEV' : environment.envName;
     const httpAgentHost = isLocalHost ? 'https://localhost' : environment.httpAgentHost;
-    const frontendCanisterId = info.rabbitholeFrontendCanisterId;
-    const appUrl = isLocalHost && frontendCanisterId
-      ? canisterOrigin(frontendCanisterId, httpAgentHost)
-      : environment.appUrl;
     const identityProviderUrl =
       envName === 'DEV' && info.internetIdentityFrontendCanisterId
         ? canisterUrl(info.internetIdentityFrontendCanisterId, httpAgentHost, '/authorize')
@@ -142,7 +141,7 @@ export class ConfigService {
         : [...environment.openIdProviders];
 
     return this.#buildConfig({
-      appUrl,
+      appUrl: environment.appUrl,
       backendCanisterId: info.rabbitholeBackendCanisterId || environment.backendCanisterId,
       canisterId,
       envName,

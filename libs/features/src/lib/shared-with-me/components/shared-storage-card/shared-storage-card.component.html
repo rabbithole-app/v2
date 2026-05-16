@@ -1,0 +1,145 @@
+<div hlmItem variant="outline" class="w-full">
+  <div hlmItemMedia variant="icon">
+    <ng-icon hlmIcon name="lucideHardDrive" />
+  </div>
+
+  <div hlmItemContent>
+    <div class="flex flex-wrap items-center gap-2">
+      <rbth-copy-to-clipboard hlmItemTitle [content]="canisterIdText()">
+        {{ canisterIdText() }}
+      </rbth-copy-to-clipboard>
+
+      @if (statusLabel(); as label) {
+        <span
+          hlmBadge
+          variant="outline"
+          class="text-xs"
+          [class.text-green-600]="label === 'Ready'"
+          [class.text-blue-600]="label === 'Updating'"
+        >
+          <ng-icon
+            hlmIcon
+            [name]="label === 'Updating' ? 'lucideClock' : 'lucideCircleCheck'"
+            size="xs"
+          />
+          {{ label }}
+        </span>
+      }
+
+      @for (accessClass of storage().activeAccessClasses; track $index) {
+        <span hlmBadge variant="outline" class="text-xs">
+          <ng-icon hlmIcon name="lucideShieldCheck" size="xs" />
+          {{ accessClassLabel(accessClass) }}
+        </span>
+      }
+
+      @if (storage().pendingAccessClasses.length > 0) {
+        <span hlmBadge variant="outline" class="text-xs text-muted-foreground">
+          <ng-icon hlmIcon name="lucideClock" size="xs" />
+          Pending invite
+        </span>
+      }
+
+      <span
+        class="inline-flex size-6 items-center justify-center"
+        [hlmTooltip]="'Shared ' + (storage().firstSeenAt | date: 'medium')"
+      >
+        <ng-icon hlmIcon name="lucideCalendar" size="sm" />
+      </span>
+
+      @if (sourceLabel(); as source) {
+        <span hlmBadge variant="outline" class="text-xs text-muted-foreground">
+          {{ source }}
+        </span>
+      }
+
+      <hlm-hover-card>
+        <button
+          hlmBtn
+          hlmHoverCardTrigger
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          class="size-7 rounded-full p-0"
+        >
+          <hlm-avatar class="size-5 shrink-0 border bg-muted text-[10px]">
+            @if (ownerProfile()?.avatarSrc; as src) {
+              <img hlmAvatarImage [src]="src" [alt]="ownerTitle()" />
+            }
+            <img
+              hlmAvatarFallback
+              src="/avatar-placeholder.svg"
+              [alt]="ownerTitle()"
+            />
+          </hlm-avatar>
+        </button>
+        <hlm-hover-card-content *hlmHoverCardPortal class="w-80">
+          <div class="flex justify-between space-x-4">
+            <hlm-avatar size="sm" class="shrink-0 border bg-muted text-xs">
+              @if (ownerProfile()?.avatarSrc; as src) {
+                <img hlmAvatarImage [src]="src" [alt]="ownerTitle()" />
+              }
+              <img
+                hlmAvatarFallback
+                src="/avatar-placeholder.svg"
+                [alt]="ownerTitle()"
+              />
+            </hlm-avatar>
+
+            <div class="min-w-0 flex-1 space-y-1">
+              <h4 class="truncate text-sm font-semibold">
+                {{ ownerHoverTitle() }}
+              </h4>
+              <rbth-copy-to-clipboard
+                class="text-muted-foreground"
+                size="xs"
+                [content]="ownerPrincipalId()"
+              >
+                {{ ownerPrincipalId() }}
+              </rbth-copy-to-clipboard>
+            </div>
+          </div>
+        </hlm-hover-card-content>
+      </hlm-hover-card>
+    </div>
+  </div>
+
+  <div hlmItemActions>
+    <div hlmButtonGroup>
+      <a
+        hlmBtn
+        variant="outline"
+        size="sm"
+        [routerLink]="
+          canOpen() ? ['/dashboard', canisterIdText(), 'drive'] : null
+        "
+        [class.pointer-events-none]="!canOpen()"
+        [class.opacity-50]="!canOpen()"
+        [hlmTooltip]="openTooltip()"
+      >
+        Open
+        <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
+      </a>
+      <button
+        hlmBtn
+        variant="outline"
+        size="icon-sm"
+        [disabled]="!canOpen()"
+        [hlmDropdownMenuTrigger]="actionsMenu"
+      >
+        <ng-icon hlmIcon name="lucideEllipsisVertical" size="sm" />
+      </button>
+    </div>
+
+    <ng-template #actionsMenu>
+      <hlm-dropdown-menu class="w-48">
+        <hlm-dropdown-menu-group>
+          <button hlmDropdownMenuItem (click)="openStorageApp()">
+            <ng-icon hlm name="lucideExternalLink" hlmMenuIcon size="sm" />
+            Open storage app
+          </button>
+        </hlm-dropdown-menu-group>
+      </hlm-dropdown-menu>
+    </ng-template>
+  </div>
+</div>

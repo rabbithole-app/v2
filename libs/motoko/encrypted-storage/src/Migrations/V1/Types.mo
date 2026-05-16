@@ -10,6 +10,8 @@ import Vector "mo:vector";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import CertifiedAssets "mo:certified-assets/Stable";
 
+import AccessTypes "../../Access/Types";
+import StorageEventTypes "../../StorageEvents/Types";
 import StableTID "../../StableTID";
 
 module {
@@ -195,7 +197,7 @@ module {
     domainSeparatorBytes : Blob;
     var streamingCallback : ?StreamingCallback;
 
-    /* === Subscription & Backend (ex-V2) === */
+    /* === Subscription & Backend === */
     var backendId : ?Principal;
     var subscriptionCache : ?SubscriptionCache;
     var encryptedBytesUsed : Nat;
@@ -207,5 +209,10 @@ module {
 
     /* === Caffeine Blob Storage === */
     storageBackendType : StorageBackend;
+
+    /* === Access & Storage Events === */
+    access : AccessTypes.Store;
+    storageEvents : StorageEventTypes.Store;
+    storageEventReadState : StorageEventTypes.ReadState;
   };
 };

@@ -134,9 +134,9 @@ describe('PaymentsMixin', () => {
 
     // Verify notification was created
     actor.setIdentity(userAlice);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const depositNotif = notifs.data.find(
-      (n: any) => 'depositReceived' in n.event
+      (n: any) => 'depositReceived' in n.payload
     );
     expect(depositNotif).toBeDefined();
   });
@@ -155,7 +155,7 @@ describe('PaymentsMixin', () => {
     await actor.flushPaymentQueue();
 
     actor.setIdentity(userAlice);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     expect(notifs.data).toHaveLength(0);
   });
 
@@ -173,9 +173,9 @@ describe('PaymentsMixin', () => {
 
     // Before flush — notifications should not exist yet (events queued)
     actor.setIdentity(userAlice);
-    const before = await actor.getNotifications([], 10n);
+    const before = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const depositsBefore = before.data.filter(
-      (n: any) => 'depositReceived' in n.event
+      (n: any) => 'depositReceived' in n.payload
     );
     expect(depositsBefore).toHaveLength(0);
 
@@ -185,9 +185,9 @@ describe('PaymentsMixin', () => {
 
     // After flush — both events processed
     actor.setIdentity(userAlice);
-    const after = await actor.getNotifications([], 10n);
+    const after = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const depositsAfter = after.data.filter(
-      (n: any) => 'depositReceived' in n.event
+      (n: any) => 'depositReceived' in n.payload
     );
     expect(depositsAfter).toHaveLength(2);
   });

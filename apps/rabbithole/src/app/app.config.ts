@@ -12,7 +12,6 @@ import {
   withPreloading,
 } from '@angular/router';
 import { HttpAgentOptions } from '@icp-sdk/core/agent';
-import { Principal } from '@icp-sdk/core/principal';
 import { isTauri } from '@tauri-apps/api/core';
 
 import {
@@ -35,6 +34,7 @@ import {
   MAIN_BACKEND_URL_TOKEN,
   MAIN_CANISTER_ID_TOKEN,
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
+  principalFromConfig,
   provideCoreWorker,
   provideIcAuthSignOutHandler,
   provideReferralCapture,
@@ -84,7 +84,10 @@ export const appConfig: ApplicationConfig = {
     { provide: AUTH_CONFIG, useValue: authConfig },
     {
       provide: MAIN_CANISTER_ID_TOKEN,
-      useValue: Principal.fromText(environment.backendCanisterId),
+      useValue: principalFromConfig(
+        environment.backendCanisterId,
+        'rabbithole.environment.backendCanisterId',
+      ),
     },
     {
       provide: HTTP_AGENT_OPTIONS_TOKEN,

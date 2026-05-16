@@ -16,6 +16,7 @@ import Vector "mo:vector";
 
 import TreasuryTypes "mo:treasury/Types";
 
+import BackendEvents "../BackendEvents/lib";
 import Balance "lib";
 import CMCTypes "../Types/CMCTypes";
 import CmcRecovery "../CmcRecovery/lib";
@@ -49,8 +50,7 @@ mixin (
   deps : {
     getUserSettings : (Principal) -> Settings.UserSettings;
     getAmbassadorChain : (Principal) -> Users.AmbassadorChain;
-    notifyUser : (Principal, Notifications.TypedEvent) -> ();
-    notifyAdmins : (Notifications.TypedEvent) -> ();
+    events : BackendEvents.EventSink;
     verifyCanisterOwner : (Principal, Principal) -> Bool;
     /// Transfer ICP from the treasury subaccount to CMC for a target
     /// canister. Unified pool: user top-ups, auto top-ups, and backend
@@ -71,6 +71,14 @@ mixin (
     backendCyclesTarget : Nat;
   },
 ) {
+  func emitBalanceNotification(recipient : Principal, event : Notifications.NotificationPayload) {
+    deps.events.emit(#notificationRequested({ recipient; payload = event; correlationId = null }));
+  };
+
+  func emitBalanceAdminNotification(event : Notifications.NotificationPayload) {
+    deps.events.emit(#adminNotificationRequested({ payload = event; correlationId = null }));
+  };
+
   // ---- Rate fetching ----
 
   func fetchRates(
@@ -458,8 +466,8 @@ mixin (
         switch (subscriptions.grantPaidPeriod(userId, plan, Subscriptions.THIRTY_DAYS_NS)) {
           case (#ok(result)) {
             switch (result.action) {
-              case (#Created or #Reactivated) deps.notifyUser(userId, #subscriptionActivated({ plan }));
-              case (#Renewed) deps.notifyUser(userId, #subscriptionRenewed({ plan; expiresAt = ?result.expiresAt }));
+              case (#Created or #Reactivated) emitBalanceNotification(userId, #subscriptionActivated({ plan }));
+              case (#Renewed) emitBalanceNotification(userId, #subscriptionRenewed({ plan; expiresAt = ?result.expiresAt }));
             };
             #ok();
           };
@@ -503,22 +511,22 @@ mixin (
           switch (subscriptions.grantPaidPeriod(userId, plan, Subscriptions.THIRTY_DAYS_NS)) {
             case (#ok(grantResult)) {
               switch (grantResult.action) {
-                case (#Renewed) deps.notifyUser(userId, #subscriptionRenewed({ plan; expiresAt = ?grantResult.expiresAt }));
-                case (#Created or #Reactivated) deps.notifyUser(userId, #subscriptionActivated({ plan }));
+                case (#Renewed) emitBalanceNotification(userId, #subscriptionRenewed({ plan; expiresAt = ?grantResult.expiresAt }));
+                case (#Created or #Reactivated) emitBalanceNotification(userId, #subscriptionActivated({ plan }));
               };
             };
             case (#err(msg)) {
               // Charge succeeded but grant failed — refund the user
               await* safeRefund(userId, charged.tokenId, charged.amount, "renewal failed after charge: " # msg);
-              deps.notifyUser(userId, #autoRenewFailed({ reason = "Charged but renewal failed, refund initiated: " # msg }));
+              emitBalanceNotification(userId, #autoRenewFailed({ reason = "Charged but renewal failed, refund initiated: " # msg }));
             };
           };
         };
         case (#insufficientFunds(details)) {
-          deps.notifyUser(userId, #balanceLow({ requiredAmount = details.required }));
+          emitBalanceNotification(userId, #balanceLow({ requiredAmount = details.required }));
         };
         case (#err(msg)) {
-          deps.notifyUser(userId, #autoRenewFailed({ reason = msg }));
+          emitBalanceNotification(userId, #autoRenewFailed({ reason = msg }));
         };
       };
     } catch (e) {
@@ -559,7 +567,7 @@ mixin (
         case (?exp) {
           if (Time.now() - exp >= threeDays) {
             ignore subscriptions.activate(userId, #Free, null);
-            deps.notifyUser(userId, #subscriptionExpired);
+            emitBalanceNotification(userId, #subscriptionExpired);
           };
         };
         case null {};
@@ -609,8 +617,8 @@ mixin (
       case (?currentBalance) {
         // Refund user immediately — treasury can't cover the top-up safely.
         await* safeRefund(caller, charged.tokenId, charged.amount, "treasury ICP reserve low");
-        deps.notifyAdmins(#treasuryIcpLow({ currentBalance; required = cmcDebit; reserve = TREASURY_ICP_RESERVE }));
-        deps.notifyUser(caller, #topUpFailed({ canisterId; reason = "Service temporarily unavailable — try later" }));
+        emitBalanceAdminNotification(#treasuryIcpLow({ currentBalance; required = cmcDebit; reserve = TREASURY_ICP_RESERVE }));
+        emitBalanceNotification(caller, #topUpFailed({ canisterId; reason = "Service temporarily unavailable — try later" }));
         return #err("Treasury ICP reserve low — refunded, try later");
       };
       case null {};
@@ -621,7 +629,7 @@ mixin (
       case (#err(msg)) {
         // Refund user — simple reverse transfer (100%, no ambassador complication)
         await* safeRefund(caller, charged.tokenId, charged.amount, "topUp CMC failure");
-        deps.notifyUser(caller, #topUpFailed({ canisterId; reason = "ICP transfer failed: " # msg }));
+        emitBalanceNotification(caller, #topUpFailed({ canisterId; reason = "ICP transfer failed: " # msg }));
         return #err("ICP transfer to CMC failed: " # msg);
       };
     };
@@ -630,7 +638,7 @@ mixin (
     let topUpResult = await deps.notifyTopUp(Nat64.fromNat(blockIndex), canisterId);
     switch (topUpResult) {
       case (#ok(_cycles)) {
-        deps.notifyUser(caller, #topUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
+        emitBalanceNotification(caller, #topUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
         #ok({ cyclesAdded = charged.actualCycles });
       };
       case (#err(err)) {
@@ -640,7 +648,7 @@ mixin (
           ?{ payer = caller; tokenId = charged.tokenId; amount = charged.amount },
           err,
         );
-        deps.notifyUser(caller, #topUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
+        emitBalanceNotification(caller, #topUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
         #err("CMC top-up notification failed: " # debug_show err);
       };
     };
@@ -691,7 +699,7 @@ mixin (
     try {
       let xdrPermyriadPerIcp = await rates.getIcpXdrRate();
       let ?icpUsdRate = await rates.getXrcRate("ICP", "USD") else {
-        deps.notifyUser(storageOwner, #autoTopUpFailed({ canisterId; reason = "Failed to fetch ICP/USD rate" }));
+        emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Failed to fetch ICP/USD rate" }));
         Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
         return;
       };
@@ -700,7 +708,7 @@ mixin (
       let charged = switch (chargeResult) {
         case (#ok(info)) info;
         case (#err(_)) {
-          deps.notifyUser(storageOwner, #autoTopUpFailed({ canisterId; reason = "Insufficient balance" }));
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Insufficient balance" }));
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
           return;
         };
@@ -715,8 +723,8 @@ mixin (
         case (?currentBalance) {
           pendingCharge := null;
           await* safeRefund(storageOwner, charged.tokenId, charged.amount, "autoTopUp: treasury ICP reserve low");
-          deps.notifyAdmins(#treasuryIcpLow({ currentBalance; required = cmcDebit; reserve = TREASURY_ICP_RESERVE }));
-          deps.notifyUser(storageOwner, #autoTopUpFailed({ canisterId; reason = "Service temporarily unavailable" }));
+          emitBalanceAdminNotification(#treasuryIcpLow({ currentBalance; required = cmcDebit; reserve = TREASURY_ICP_RESERVE }));
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Service temporarily unavailable" }));
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
           return;
         };
@@ -728,7 +736,7 @@ mixin (
         case (#err(msg)) {
           pendingCharge := null; // refund handled below
           await* safeRefund(storageOwner, charged.tokenId, charged.amount, "autoTopUp ICP transfer failure");
-          deps.notifyUser(storageOwner, #autoTopUpFailed({ canisterId; reason = "ICP transfer failed: " # msg }));
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "ICP transfer failed: " # msg }));
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
           return;
         };
@@ -738,7 +746,7 @@ mixin (
       switch (topUpResult) {
         case (#ok(_)) {
           pendingCharge := null; // success, no refund needed
-          deps.notifyUser(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
+          emitBalanceNotification(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
         };
         case (#err(err)) {
           pendingCharge := null; // cmcHandleNotifyError takes over (may refund, or enqueue pending op)
@@ -748,7 +756,7 @@ mixin (
             ?{ payer = storageOwner; tokenId = charged.tokenId; amount = charged.amount },
             err,
           );
-          deps.notifyUser(storageOwner, #autoTopUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
         };
       };
     } catch (e) {
@@ -769,7 +777,7 @@ mixin (
         case null {};
       };
       Debug.print("processAutoTopUp error: " # Error.message(e));
-      deps.notifyUser(storageOwner, #autoTopUpFailed({ canisterId; reason = "Internal error" }));
+      emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Internal error" }));
     };
 
     Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
@@ -799,7 +807,7 @@ mixin (
     // (threshold < target) acts as hysteresis so we don't flap around a
     // single watermark.
     if (current < deps.backendCyclesThreshold and not backendLowCyclesNotified) {
-      deps.notifyAdmins(#backendLowCycles({
+      emitBalanceAdminNotification(#backendLowCycles({
         current;
         threshold = deps.backendCyclesThreshold;
       }));
@@ -838,7 +846,7 @@ mixin (
     } catch (e) {
       let reason = "trap: " # Error.message(e);
       Debug.print("[selfTopUp] " # reason);
-      deps.notifyAdmins(#backendSelfTopUpFailed({ reason }));
+      emitBalanceAdminNotification(#backendSelfTopUpFailed({ reason }));
     };
     selfTopUpInFlight := false;
   };
@@ -873,7 +881,7 @@ mixin (
       case (#err msg) {
         let reason = "treasury→CMC transfer failed: " # msg;
         Debug.print("[selfTopUp] " # reason);
-        deps.notifyAdmins(#backendSelfTopUpFailed({ reason }));
+        emitBalanceAdminNotification(#backendSelfTopUpFailed({ reason }));
         return;
       };
     };

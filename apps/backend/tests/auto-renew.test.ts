@@ -140,9 +140,9 @@ describe('Auto-renew & Auto-topup settings', () => {
 
     // No renewal notification (autoRenew disabled)
     actor.setIdentity(userAlice);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const renewNotif = notifs.data.find((n: any) =>
-      'subscriptionRenewed' in n.event || 'balanceLow' in n.event || 'autoRenewFailed' in n.event,
+      'subscriptionRenewed' in n.payload || 'balanceLow' in n.payload || 'autoRenewFailed' in n.payload,
     );
     expect(renewNotif).toBeUndefined();
   });
@@ -168,9 +168,9 @@ describe('Auto-renew & Auto-topup settings', () => {
 
     // No renewal notification (Trial not eligible for auto-renew)
     actor.setIdentity(userAlice);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const renewNotif = notifs.data.find((n: any) =>
-      'subscriptionRenewed' in n.event || 'balanceLow' in n.event,
+      'subscriptionRenewed' in n.payload || 'balanceLow' in n.payload,
     );
     expect(renewNotif).toBeUndefined();
   });

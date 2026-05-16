@@ -153,6 +153,7 @@ module StorageDeployerOrchestrator {
   /// based on whether the creation record still exists (callback may have
   /// removed it on terminal refund).
   public type OnCmcNotifyFailed = (creationId : Nat, blockIndex : Nat, err : CMCTypes.NotifyError) -> async* ();
+  public type OnCreationChanged = (StorageCreationRecord) -> ();
 
   /// Bundle of callbacks threaded through the orchestrator's async task
   /// machinery. Using a record (rather than separate params) keeps the
@@ -162,10 +163,28 @@ module StorageDeployerOrchestrator {
     bindLicense : ?BindLicense;
     payAmbassadorShare : ?PayAmbassadorShare;
     onCmcNotifyFailed : ?OnCmcNotifyFailed;
+    onCreationChanged : ?OnCreationChanged;
   };
 
   public type RuntimeState = {
     var unifiedQueueProcessing : Bool;
+  };
+
+  func appendCreationEvent(
+    creations : Creations.Creations,
+    creationId : Nat,
+    status : CreationStatus,
+    onCreationChanged : ?OnCreationChanged,
+  ) {
+    switch (creations.appendEvent(creationId, status)) {
+      case (?record) {
+        switch (onCreationChanged) {
+          case (?callback) callback(record);
+          case null {};
+        };
+      };
+      case null {};
+    };
   };
 
   public func newRuntimeState() : RuntimeState {
@@ -236,8 +255,7 @@ module StorageDeployerOrchestrator {
     store.cashierCanisterId := ?Principal.fromText(Utils.envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
   };
 
-  /// Merge system-pinned env vars (PUBLIC_CANISTER_ID:rabbithole-backend,
-  /// VETKEY_NAME, CAFFFEINE_STORAGE_CASHIER_PRINCIPAL) with caller-supplied custom pairs.
+  /// Merge storage env vars derived from backend runtime config with caller-supplied custom pairs.
   /// Public so CmcRecovery can rebuild the exact same `environment_variables`
   /// when retrying `notify_create_canister` on ambiguous failure — otherwise
   /// CMC might process a not-yet-resolved block with different env vars.
@@ -264,6 +282,14 @@ module StorageDeployerOrchestrator {
     };
     switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:internet_identity_frontend")) {
       case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_CANISTER_ID:internet_identity_frontend"; value });
+      case null {};
+    };
+    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:internet_identity_backend")) {
+      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_CANISTER_ID:internet_identity_backend"; value });
+      case null {};
+    };
+    switch (Runtime.envVar<system>("PUBLIC_STORAGE_AUTH_EXPECTED_ORIGIN")) {
+      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_AUTH_EXPECTED_ORIGIN"; value });
       case null {};
     };
 
@@ -631,6 +657,10 @@ module StorageDeployerOrchestrator {
       // createStorage (direct, no payment flow) → no license, no payout expected.
       newRecord(creationId, caller, releaseTag, options.initArg, options.envPairs, existingCanisterId, null, #Pending, null, [], #skipped),
     );
+    switch (callbacks.onCreationChanged, creations.get(creationId)) {
+      case (?callback, ?record) callback(record);
+      case _ {};
+    };
 
     // 5. Add initial orchestrator task
     let taskType : TaskType = switch (options.target) {
@@ -731,7 +761,7 @@ module StorageDeployerOrchestrator {
       case null {};
     };
 
-    ignore creations.appendEvent(creationId, #Pending);
+    appendCreationEvent(creations, creationId, #Pending, callbacks.onCreationChanged);
 
     // Persist subnetId so CmcRecovery retry can reconstruct the exact
     // original `subnet_selection` for `notify_create_canister`. Only the
@@ -925,30 +955,30 @@ module StorageDeployerOrchestrator {
             case (#WasmUploadChunk(args)) {
               switch (await WasmInstaller.executeUploadChunk(store.wasmInstaller, args)) {
                 case (#ok(_)) {
-                  syncWasmProgressStatus(store, creations, task.creationId, args.canisterId);
+                  syncWasmProgressStatus(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
                 };
                 case (#err(e)) {
-                  await handleTaskFailure(store, creations, task.creationId, "WASM chunk upload failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM chunk upload failed: " # e, callbacks.onCreationChanged);
                 };
               };
             };
             case (#WasmInstallCode(args)) {
               switch (await WasmInstaller.executeInstallCode(store.wasmInstaller, args)) {
                 case (#ok) {
-                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId);
+                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
                 };
                 case (#err(e)) {
-                  await handleTaskFailure(store, creations, task.creationId, "WASM install failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM install failed: " # e, callbacks.onCreationChanged);
                 };
               };
             };
             case (#WasmInstallChunked(args)) {
               switch (await WasmInstaller.executeInstallChunked(store.wasmInstaller, args)) {
                 case (#ok) {
-                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId);
+                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
                 };
                 case (#err(e)) {
-                  await handleTaskFailure(store, creations, task.creationId, "WASM chunked install failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM chunked install failed: " # e, callbacks.onCreationChanged);
                 };
               };
             };
@@ -959,19 +989,19 @@ module StorageDeployerOrchestrator {
                 };
                 case (#err(e)) {
                   syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                  await handleTaskFailure(store, creations, task.creationId, "Frontend create batch failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "Frontend create batch failed: " # e, callbacks.onCreationChanged);
                 };
               };
             };
             case (#FrontendUploadChunks(args)) {
               switch (await FrontendInstaller.executeUploadChunks(store.frontendInstaller, args.canisterId, args.files)) {
                 case (#ok) {
-                  syncFrontendProgressStatus(store, creations, task.creationId, args.canisterId);
+                  syncFrontendProgressStatus(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
                   syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
                 };
                 case (#err(e)) {
                   syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                  await handleTaskFailure(store, creations, task.creationId, "Frontend upload chunks failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "Frontend upload chunks failed: " # e, callbacks.onCreationChanged);
                 };
               };
             };
@@ -984,18 +1014,18 @@ module StorageDeployerOrchestrator {
                 };
                 case (#err(e)) {
                   syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                  await handleTaskFailure(store, creations, task.creationId, "Frontend commit failed: " # e);
+                  await handleTaskFailure(store, creations, task.creationId, "Frontend commit failed: " # e, callbacks.onCreationChanged);
                 };
               };
             };
             case (#RevokeInstallerPermission(args)) {
               switch (store.canisterId) {
                 case null {
-                  await handleTaskFailure(store, creations, task.creationId, "Deployer canister ID not set");
+                  await handleTaskFailure(store, creations, task.creationId, "Deployer canister ID not set", callbacks.onCreationChanged);
                 };
                 case (?deployerCanisterId) {
                   // Update status
-                  ignore creations.appendEvent(task.creationId, #RevokingInstallerPermission({ canisterId = args.canisterId }));
+                  appendCreationEvent(creations, task.creationId, #RevokingInstallerPermission({ canisterId = args.canisterId }), callbacks.onCreationChanged);
 
                   // Use http-assets interface to revoke permission
                   let assetsCanister = actor (Principal.toText(args.canisterId)) : HttpAssetsTypes.AssetsInterface;
@@ -1022,7 +1052,7 @@ module StorageDeployerOrchestrator {
             task.attempts += 1;
             Queue.pushBack(store.unifiedQueue, task);
           } else {
-            await handleTaskFailure(store, creations, task.creationId, "Task failed after 3 attempts: " # errMsg);
+            await handleTaskFailure(store, creations, task.creationId, "Task failed after 3 attempts: " # errMsg, callbacks.onCreationChanged);
           };
         };
 
@@ -1077,7 +1107,7 @@ module StorageDeployerOrchestrator {
     };
   };
 
-  func syncWasmProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+  func syncWasmProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, onCreationChanged : ?OnCreationChanged) {
     let ?record = creations.get(creationId) else return;
 
     let syncVariant = func(progress : Types.Progress) : Types.CreationStatus {
@@ -1090,19 +1120,19 @@ module StorageDeployerOrchestrator {
 
     switch (WasmInstaller.getStatus(store.wasmInstaller, canisterId)) {
       case (?#UploadingChunks(progress)) {
-        ignore creations.appendEvent(creationId, syncVariant({ processed = progress.uploaded; total = progress.total }));
+        appendCreationEvent(creations, creationId, syncVariant({ processed = progress.uploaded; total = progress.total }), onCreationChanged);
       };
       case (?#Pending) {
-        ignore creations.appendEvent(creationId, syncVariant({ processed = 0; total = 0 }));
+        appendCreationEvent(creations, creationId, syncVariant({ processed = 0; total = 0 }), onCreationChanged);
       };
       case (?#Installing) {
-        ignore creations.appendEvent(creationId, syncVariant({ processed = 0; total = 0 }));
+        appendCreationEvent(creations, creationId, syncVariant({ processed = 0; total = 0 }), onCreationChanged);
       };
       case _ {};
     };
   };
 
-  func syncFrontendProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+  func syncFrontendProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, onCreationChanged : ?OnCreationChanged) {
     let ?record = creations.get(creationId) else return;
 
     switch (FrontendInstaller.getInstallationStatus(store.frontendInstaller, canisterId)) {
@@ -1113,7 +1143,7 @@ module StorageDeployerOrchestrator {
         } else {
           #UploadingFrontend({ canisterId; progress = progressInfo });
         };
-        ignore creations.appendEvent(creationId, newStatus);
+        appendCreationEvent(creations, creationId, newStatus, onCreationChanged);
       };
       case _ {};
     };
@@ -1138,9 +1168,10 @@ module StorageDeployerOrchestrator {
     licensePaymentId : ?Text,
     bindLicense : ?BindLicense,
     payAmbassadorShare : ?PayAmbassadorShare,
+    onCreationChanged : ?OnCreationChanged,
   ) : async* () {
     ignore creations.mutate(creationId, func(r) = { r with canisterId = ?canisterId });
-    ignore creations.appendEvent(creationId, #CanisterCreated({ canisterId }));
+    appendCreationEvent(creations, creationId, #CanisterCreated({ canisterId }), onCreationChanged);
 
     // Bind license to canister via callback (if configured). The callback
     // closes over the Licenses class in main.mo.
@@ -1170,20 +1201,21 @@ module StorageDeployerOrchestrator {
     let bindLicense = callbacks.bindLicense;
     let payAmbassadorShare = callbacks.payAmbassadorShare;
     let onCmcNotifyFailed = callbacks.onCmcNotifyFailed;
+    let onCreationChanged = callbacks.onCreationChanged;
 
     switch (task.taskType) {
       case (#CreateCanister({ options })) {
         let ?deployerCanisterId = store.canisterId else {
-          ignore creations.appendEvent(creationId, #Failed("Deployer canister ID not set"));
+          appendCreationEvent(creations, creationId, #Failed("Deployer canister ID not set"), onCreationChanged);
           return;
         };
 
-        ignore creations.appendEvent(creationId, #CheckingBalance);
+        appendCreationEvent(creations, creationId, #CheckingBalance, onCreationChanged);
 
         let { initialCycles; subnetId } = switch (options.target) {
           case (#Create(params)) params;
           case (#Existing(_)) {
-            ignore creations.appendEvent(creationId, #Failed("CreateCanister task received Existing target"));
+            appendCreationEvent(creations, creationId, #Failed("CreateCanister task received Existing target"), onCreationChanged);
             return;
           };
         };
@@ -1191,8 +1223,8 @@ module StorageDeployerOrchestrator {
         let envVars = buildEnvironmentVariables(store, record.envPairs);
         switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId, envVars)) {
           case (#ok(canisterId)) {
-            await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare);
-            queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
+            await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare, onCreationChanged);
+            queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install }, onCreationChanged);
           };
           case (#err(e)) {
             switch (e) {
@@ -1206,17 +1238,17 @@ module StorageDeployerOrchestrator {
                   case null {};
                 };
                 if (Option.isSome(creations.get(creationId))) {
-                  ignore creations.appendEvent(creationId, #Failed("Canister creation failed: CMC notification failed"));
+                  appendCreationEvent(creations, creationId, #Failed("Canister creation failed: CMC notification failed"), onCreationChanged);
                 };
               };
               case (#InsufficientBalance(_)) {
-                ignore creations.appendEvent(creationId, #Failed("Canister creation failed: Insufficient balance"));
+                appendCreationEvent(creations, creationId, #Failed("Canister creation failed: Insufficient balance"), onCreationChanged);
               };
               case (#TransferFailed(_)) {
-                ignore creations.appendEvent(creationId, #Failed("Canister creation failed: Transfer failed"));
+                appendCreationEvent(creations, creationId, #Failed("Canister creation failed: Transfer failed"), onCreationChanged);
               };
               case (#RemoteCallFailed(details)) {
-                ignore creations.appendEvent(creationId, #Failed(remoteCallFailureMessage(details)));
+                appendCreationEvent(creations, creationId, #Failed(remoteCallFailureMessage(details)), onCreationChanged);
               };
             };
           };
@@ -1228,50 +1260,53 @@ module StorageDeployerOrchestrator {
         // minted) — same side effects as CreateCanister. Ambassador payout
         // dedup protects against double-pay if the original CreateCanister
         // already fired it.
-        await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare);
+        await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare, onCreationChanged);
         if (await canisterHasExpectedWasm(store, canisterId, record.releaseTag)) {
-          queuePostWasmTasks<system>(store, creations, creationId, canisterId);
+          queuePostWasmTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
         } else {
-          queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install });
+          queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install }, onCreationChanged);
         };
       };
 
       case (#InstallWasm({ canisterId; releaseTag; initArg })) {
         if (await canisterHasExpectedWasm(store, canisterId, releaseTag)) {
-          queuePostWasmTasks<system>(store, creations, creationId, canisterId);
+          queuePostWasmTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
         } else {
-          queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode = #install });
+          queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode = #install }, onCreationChanged);
         };
       };
 
       case (#InstallFrontend({ canisterId; releaseTag = _ })) {
         // This case handles legacy flow - shouldn't be reached in new architecture
-        queueFrontendTasks<system>(store, creations, creationId, canisterId);
+        queueFrontendTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
       };
 
       case (#UpdateControllers({ canisterId })) {
-        ignore creations.appendEvent(creationId, #UpdatingControllers({ canisterId }));
+        appendCreationEvent(creations, creationId, #UpdatingControllers({ canisterId }), onCreationChanged);
 
         switch (store.canisterId) {
           case null {
-            finalizeCompletion(store, creations, creationId, canisterId);
+            finalizeCompletion(store, creations, creationId, canisterId, onCreationChanged);
             ignore creations.mutate(
               creationId,
               func(r) = { r with lastUpgradeError = ?("Controller cleanup failed: Deployer canister ID not set") },
             );
           };
           case (?deployerCanisterId) {
-            // env vars already set at canister creation; null = don't overwrite.
+            // Re-apply backend-derived env vars on every install/upgrade so
+            // older storage canisters pick up newly required runtime config.
+            let envVars = buildEnvironmentVariables(store, record.envPairs);
+
             // Preserve every existing controller except the temporary deployer/backend canister.
-            switch (await updateCanisterSettings(canisterId, deployerCanisterId, null)) {
+            switch (await updateCanisterSettings(canisterId, deployerCanisterId, envVars)) {
               case (#ok) {
-                finalizeCompletion(store, creations, creationId, canisterId);
+                finalizeCompletion(store, creations, creationId, canisterId, onCreationChanged);
               };
               case (#err(e)) {
                 // At this point WASM/frontend installation has already completed.
                 // Controller handoff is a cleanup step; failing it must not leave
                 // the storage in a failed upgrade state or keep stale release hashes.
-                finalizeCompletion(store, creations, creationId, canisterId);
+                finalizeCompletion(store, creations, creationId, canisterId, onCreationChanged);
                 ignore creations.mutate(
                   creationId,
                   func(r) = { r with lastUpgradeError = ?("Controller cleanup failed: " # e) },
@@ -1283,7 +1318,7 @@ module StorageDeployerOrchestrator {
       };
 
       case (#Complete({ canisterId })) {
-        finalizeCompletion(store, creations, creationId, canisterId);
+        finalizeCompletion(store, creations, creationId, canisterId, onCreationChanged);
       };
     };
   };
@@ -1321,6 +1356,7 @@ module StorageDeployerOrchestrator {
     store : Store,
     creations : Creations.Creations,
     args : { creationId : Nat; canisterId : Principal; releaseTag : Text; initArg : Blob; mode : IC.CanisterInstallMode },
+    onCreationChanged : ?OnCreationChanged,
   ) {
     let { creationId; canisterId; releaseTag; initArg; mode } = args;
     let ?record = creations.get(creationId) else return;
@@ -1335,7 +1371,7 @@ module StorageDeployerOrchestrator {
         progress = { processed = 0; total = 0 };
       });
     };
-    ignore creations.appendEvent(creationId, statusVariant);
+    appendCreationEvent(creations, creationId, statusVariant, onCreationChanged);
 
     switch (getWasmBlob(store, releaseTag)) {
       case (#ok(wasmBlob)) {
@@ -1368,20 +1404,20 @@ module StorageDeployerOrchestrator {
           store.nextTaskId += 1;
         };
 
-        syncWasmProgressStatus(store, creations, creationId, canisterId);
+        syncWasmProgressStatus(store, creations, creationId, canisterId, onCreationChanged);
       };
       case (#err(e)) {
         if (isPendingDownloadError(e)) {
           requeueWasmTasks(store, creations, args);
         } else {
-          ignore creations.appendEvent(creationId, #Failed("Failed to get WASM: " # e));
+          appendCreationEvent(creations, creationId, #Failed("Failed to get WASM: " # e), onCreationChanged);
         };
       };
     };
   };
 
   /// Decide what to do after WASM install — frontend or finalize directly
-  func queuePostWasmTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+  func queuePostWasmTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, onCreationChanged : ?OnCreationChanged) {
     let ?record = creations.get(creationId) else return;
 
     if (record.isUpgrade and not record.upgradeIncludesFrontend) {
@@ -1389,19 +1425,19 @@ module StorageDeployerOrchestrator {
       queueRevokeInstallerPermission(store, creations, creationId, canisterId);
     } else {
       // Full installation or upgrade with frontend — queue frontend
-      queueFrontendTasks<system>(store, creations, creationId, canisterId);
+      queueFrontendTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
     };
   };
 
   /// Queue frontend installation tasks
-  func queueFrontendTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
+  func queueFrontendTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, onCreationChanged : ?OnCreationChanged) {
     let ?record = creations.get(creationId) else return;
 
     FrontendInstaller.resetCanisterState(store.frontendInstaller, canisterId);
 
     let value = { canisterId; progress = { processed = 0; total = 0 } };
     let newStatus = if (record.isUpgrade) #UpgradingFrontend(value) else #UploadingFrontend(value);
-    ignore creations.appendEvent(creationId, newStatus);
+    appendCreationEvent(creations, creationId, newStatus, onCreationChanged);
 
     let versionKey = "storage-frontend@latest";
 
@@ -1422,10 +1458,10 @@ module StorageDeployerOrchestrator {
           store.nextTaskId += 1;
         };
 
-        syncFrontendProgressStatus(store, creations, creationId, canisterId);
+        syncFrontendProgressStatus(store, creations, creationId, canisterId, onCreationChanged);
       };
       case (#err(e)) {
-        ignore creations.appendEvent(creationId, #Failed("Failed to generate frontend tasks: " # e));
+        appendCreationEvent(creations, creationId, #Failed("Failed to generate frontend tasks: " # e), onCreationChanged);
       };
     };
   };
@@ -1466,7 +1502,7 @@ module StorageDeployerOrchestrator {
   /// Handle task failure
   /// For upgrades: revert to Completed (canister is still alive and functional)
   /// For initial creation: mark as Failed
-  func handleTaskFailure(store : Store, creations : Creations.Creations, creationId : Nat, errorMsg : Text) : async () {
+  func handleTaskFailure(store : Store, creations : Creations.Creations, creationId : Nat, errorMsg : Text, onCreationChanged : ?OnCreationChanged) : async () {
     let ?record = creations.get(creationId) else return;
 
     purgeQueuedTasksForCreation(store, creationId);
@@ -1484,16 +1520,16 @@ module StorageDeployerOrchestrator {
       // Clear upgrade flags + stash the error BEFORE firing the event so the
       // #Completed snapshot persists the explanation.
       let ?canisterId = record.canisterId else {
-        ignore creations.appendEvent(creationId, #Failed(errorMsg));
+        appendCreationEvent(creations, creationId, #Failed(errorMsg), onCreationChanged);
         return;
       };
       ignore creations.mutate(
         creationId,
         func(r) = { r with isUpgrade = false; upgradeIncludesFrontend = false; lastUpgradeError = ?errorMsg },
       );
-      ignore creations.appendEvent(creationId, #Completed({ canisterId }));
+      appendCreationEvent(creations, creationId, #Completed({ canisterId }), onCreationChanged);
     } else {
-      ignore creations.appendEvent(creationId, #Failed(errorMsg));
+      appendCreationEvent(creations, creationId, #Failed(errorMsg), onCreationChanged);
     };
   };
 
@@ -1557,6 +1593,7 @@ module StorageDeployerOrchestrator {
     creations : Creations.Creations,
     creationId : Nat,
     canisterId : Principal,
+    onCreationChanged : ?OnCreationChanged,
   ) {
     let nextWasmHash = switch (GitHubReleases.latestStorageWasm(store.githubReleases)) {
       case (#ok(details)) ?details.sha256;
@@ -1590,7 +1627,7 @@ module StorageDeployerOrchestrator {
         };
       },
     );
-    ignore creations.appendEvent(creationId, #Completed({ canisterId }));
+    appendCreationEvent(creations, creationId, #Completed({ canisterId }), onCreationChanged);
   };
 
   /// Get update info for a storage record
@@ -1684,12 +1721,12 @@ module StorageDeployerOrchestrator {
     // 5. Queue tasks
     if (needsWasm) {
       // WASM upgrade — mode = #upgrade, use original initArg (required for post_upgrade)
-      queueWasmTasks(self, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #upgrade(?{ wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false }) });
+      queueWasmTasks(self, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #upgrade(?{ wasm_memory_persistence = ?#keep; skip_pre_upgrade = ?false }) }, callbacks.onCreationChanged);
       // If frontend also needed, it will be queued after WASM completes
       // (queuePostWasmTasks handles this after #WasmInstallCode/#WasmInstallChunked)
     } else if (needsFrontend) {
       // Frontend only
-      queueFrontendTasks<system>(self, creations, creationId, canisterId);
+      queueFrontendTasks<system>(self, creations, creationId, canisterId, callbacks.onCreationChanged);
     };
 
     // Start queue processing

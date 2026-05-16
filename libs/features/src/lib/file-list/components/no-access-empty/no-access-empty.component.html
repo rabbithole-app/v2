@@ -1,0 +1,93 @@
+    <div hlmEmpty class="min-h-0 flex-1">
+      <div hlmEmptyHeader>
+        <div hlmEmptyMedia variant="icon">
+          <ng-icon name="lucideLockKeyhole" />
+        </div>
+        <div hlmEmptyTitle>No access to this storage</div>
+        <div hlmEmptyDescription>
+          Ask the owner or a manager to grant you access.
+        </div>
+      </div>
+
+      <div hlmEmptyContent>
+        @if (accessRequest(); as request) {
+          <hlm-alert class="max-w-md text-left">
+            <ng-icon [name]="statusIcon(request)" />
+            <h4 hlmAlertTitle>{{ statusLabel(request) }}</h4>
+            <p hlmAlertDescription class="text-balance">
+              @if ('pending' in request.status) {
+                The owner or a manager can approve your request.
+              } @else if ('approved' in request.status) {
+                Your request was approved. Reload the storage to check available files.
+              } @else if ('rejected' in request.status) {
+                The owner or a manager rejected this request.
+              } @else {
+                This access request was cancelled.
+              }
+            </p>
+          </hlm-alert>
+        }
+
+        <div class="flex flex-wrap justify-center gap-2">
+          @if (accessRequest(); as request) {
+            @if ('pending' in request.status) {
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                [disabled]="refreshing()"
+                (click)="refreshAccessRequest.emit()"
+              >
+                <ng-icon name="lucideRefreshCw" hlmIcon size="sm" />
+                @if (refreshing()) {
+                  Checking...
+                } @else {
+                  Check status
+                }
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                [disabled]="cancelling()"
+                (click)="cancelAccessRequest.emit(request)"
+              >
+                <ng-icon name="lucideX" hlmIcon size="sm" />
+                @if (cancelling()) {
+                  Cancelling...
+                } @else {
+                  Cancel request
+                }
+              </button>
+            } @else if ('approved' in request.status) {
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                (click)="reloadStorage.emit()"
+              >
+                <ng-icon name="lucideRefreshCw" hlmIcon size="sm" />
+                Reload storage
+              </button>
+            }
+          }
+
+          @if (canCreateAccessRequest()) {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [disabled]="submitting()"
+              (click)="requestAccess.emit()"
+            >
+              <ng-icon name="lucideSend" hlmIcon size="sm" />
+              @if (submitting()) {
+                Sending...
+              } @else {
+                Request access
+              }
+            </button>
+          }
+        </div>
+      </div>
+    </div>

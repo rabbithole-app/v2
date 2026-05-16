@@ -16,15 +16,13 @@ import {
   init,
 } from '../declarations/encrypted-storage/encrypted-storage.did.js';
 
-// Define the path to your canister's WASM file
 export const WASM_PATH = resolve(
   import.meta.dirname,
   '..',
-  '.dfx',
-  'local',
-  'canisters',
+  '.icp',
+  'cache',
+  'artifacts',
   'encrypted-storage',
-  'encrypted-storage.wasm',
 );
 
 const ownerIdentity = createIdentity('owner');
@@ -77,6 +75,43 @@ describe('FileSystem', () => {
     // tear down the PocketIC instance
     await pic?.tearDown();
   });
+
+  async function grantPermission(args: {
+    entry: Parameters<_SERVICE['hasPermission']>[0]['entry'];
+    permission: Parameters<_SERVICE['hasPermission']>[0]['permission'];
+    user: Principal;
+  }): Promise<null> {
+    await actor.createAccessBatch({
+      items: [
+        {
+          ref: { principal: args.user },
+          accessClass: { ordinary: null },
+          scope:
+            args.entry.length > 0 ? { entry: args.entry[0] } : { root: null },
+          permission: args.permission,
+          source: { directGrant: null },
+          expiresAt: [],
+        },
+      ],
+    });
+    return null;
+  }
+
+  async function revokePermission(args: {
+    entry: Parameters<_SERVICE['hasPermission']>[0]['entry'];
+    user: Principal;
+  }): Promise<null> {
+    await actor.revokeAccessBatch({
+      items: [
+        {
+          principal: args.user,
+          scope:
+            args.entry.length > 0 ? { entry: args.entry[0] } : { root: null },
+        },
+      ],
+    });
+    return null;
+  }
 
   describe('hasPermission', () => {
     test('Owner should have #ReadWriteManage', async () => {
@@ -288,7 +323,7 @@ describe('FileSystem', () => {
     });
 
     test('should merge access rights', async () => {
-      const before: Parameters<typeof actor.grantPermission>[] = [
+      const before: Parameters<typeof grantPermission>[] = [
         [
           {
             entry: [[DIRECTORY, 'Photos']],
@@ -326,7 +361,7 @@ describe('FileSystem', () => {
         ],
       ];
       for (const args of before) {
-        await actor.grantPermission(...args);
+        await grantPermission(...args);
         expect(await actor.hasPermission(...args)).toBeTruthy();
       }
 
@@ -476,7 +511,7 @@ describe('FileSystem', () => {
     });
 
     test('should preserve file access after rename', async () => {
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[FILE, 'Documents/report.pdf']],
         user: aliceIdentity.getPrincipal(),
         permission: READ,
@@ -494,7 +529,7 @@ describe('FileSystem', () => {
     });
   });
 
-  describe('grantPermission', () => {
+  describe('createAccessBatch', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
@@ -511,27 +546,27 @@ describe('FileSystem', () => {
         createMode: CREATE_NEW,
         encryptionMode: [],
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
         user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
         user: bobIdentity.getPrincipal(),
         permission: READ,
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
         user: charlieIdentity.getPrincipal(),
         permission: READ_WRITE_MANAGE,
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
         user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
         user: Principal.anonymous(),
         permission: READ,
@@ -688,9 +723,9 @@ describe('FileSystem', () => {
         ).toBeTruthy();
       });
 
-      test('should grant permission lower then #Admin', async () => {
+      test('should create access batch permission lower then #Admin', async () => {
         // add #Read permission
-        const result = await actor.grantPermission({
+        const result = await grantPermission({
           entry: [
             [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
           ],
@@ -718,7 +753,7 @@ describe('FileSystem', () => {
 
         // add #Write permission
         //   actor.setPrincipal(charlieIdentity.getPrincipal());
-        const result2 = await actor.grantPermission({
+        const result2 = await grantPermission({
           entry: [
             [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
           ],
@@ -737,7 +772,7 @@ describe('FileSystem', () => {
           }),
         ).toBeTruthy();
 
-        const result3 = await actor.grantPermission({
+        const result3 = await grantPermission({
           entry: [
             [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
           ],
@@ -774,19 +809,19 @@ describe('FileSystem', () => {
     });
   });
 
-  describe('revokePermission', () => {
+  describe('revokeAccessBatch', () => {
     beforeEach(async () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
         createMode: CREATE_NEW,
         encryptionMode: [],
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
         user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
         user: Principal.anonymous(),
         permission: READ,
@@ -795,7 +830,7 @@ describe('FileSystem', () => {
 
     describe('Alice', () => {
       test('should not have #ReadWrite permission', async () => {
-        const result = await actor.revokePermission({
+        const result = await revokePermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
           user: aliceIdentity.getPrincipal(),
         });
@@ -812,7 +847,7 @@ describe('FileSystem', () => {
 
     describe('anonymous', () => {
       test('should not have #Read permission', async () => {
-        const result = await actor.revokePermission({
+        const result = await revokePermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
           user: Principal.anonymous(),
         });
@@ -840,17 +875,17 @@ describe('FileSystem', () => {
         createMode: CREATE_NEW,
         encryptionMode: [],
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]']],
         user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]']],
         user: bobIdentity.getPrincipal(),
         permission: READ,
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-charlie[rwm]']],
         user: charlieIdentity.getPrincipal(),
         permission: READ_WRITE_MANAGE,
@@ -924,7 +959,9 @@ describe('FileSystem', () => {
       });
 
       test('owner: directoryPermission is ReadWriteManage on subdirectory', async () => {
-        const { directoryPermission } = await actor.list([[DIRECTORY, 'Shared']]);
+        const { directoryPermission } = await actor.list([
+          [DIRECTORY, 'Shared'],
+        ]);
         expect(directoryPermission).toEqual([READ_WRITE_MANAGE]);
       });
 
@@ -948,7 +985,9 @@ describe('FileSystem', () => {
 
       test('Alice: directoryPermission on Shared directory', async () => {
         actor.setIdentity(aliceIdentity);
-        const { directoryPermission } = await actor.list([[DIRECTORY, 'Shared']]);
+        const { directoryPermission } = await actor.list([
+          [DIRECTORY, 'Shared'],
+        ]);
         // Alice doesn't have direct permission on Shared, inherited from child access
         expect(directoryPermission).toBeTruthy();
       });
@@ -1012,7 +1051,9 @@ describe('FileSystem', () => {
         // Shared/with-charlie[rwm] has charlie(RWM) = 1 permission
         const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
         expect(entries.length).toBe(2);
-        const withAliceBob = entries.find((e) => e.name === 'with-alice[rw]-bob[r]');
+        const withAliceBob = entries.find(
+          (e) => e.name === 'with-alice[rw]-bob[r]',
+        );
         const withCharlie = entries.find((e) => e.name === 'with-charlie[rwm]');
         expect(withAliceBob).toBeTruthy();
         expect(withCharlie).toBeTruthy();
@@ -1094,7 +1135,7 @@ describe('FileSystem', () => {
         createMode: CREATE_NEW,
         encryptionMode: [],
       });
-      await actor.grantPermission({
+      await grantPermission({
         entry: [[DIRECTORY, 'test/dir/subdir']],
         user: aliceIdentity.getPrincipal(),
         permission: READ_WRITE,
@@ -1129,7 +1170,343 @@ describe('FileSystem', () => {
   });
 
   describe('with owner', () => {
-    describe('grantPermission (3 users)', async () => {
+    describe('listAccessGrants', () => {
+      beforeEach(async () => {
+        await actor.create({
+          entry: [DIRECTORY, 'Shared/photos'],
+          createMode: CREATE_NEW,
+          encryptionMode: [],
+        });
+      });
+
+      test('returns pending email grants with display email', async () => {
+        const emailCommitment = new Uint8Array([1, 2, 3, 4]);
+
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: {
+                email: {
+                  email: 'editor@example.com',
+                  emailCommitment,
+                },
+              },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+
+        const result = await actor.listAccessGrants({
+          scope: [{ entry: [DIRECTORY, 'Shared'] }],
+          mode: { exact: null },
+        });
+
+        expect(result.pendingGrants).toHaveLength(1);
+        expect(result.pendingGrants[0].grant.ref).toEqual({
+          email: {
+            email: 'editor@example.com',
+            emailCommitment,
+          },
+        });
+      });
+
+      test('distinguishes exact and effective grants', async () => {
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: { principal: aliceIdentity.getPrincipal() },
+              accessClass: { ordinary: null },
+              scope: { root: null },
+              permission: READ,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+
+        const exact = await actor.listAccessGrants({
+          scope: [{ entry: [DIRECTORY, 'Shared/photos'] }],
+          mode: { exact: null },
+        });
+        const effective = await actor.listAccessGrants({
+          scope: [{ entry: [DIRECTORY, 'Shared/photos'] }],
+          mode: { effective: null },
+        });
+
+        expect(exact.principalGrants).toHaveLength(0);
+        expect(effective.principalGrants).toHaveLength(1);
+        expect(effective.principalGrants[0].grant.principal.toText()).toBe(
+          aliceIdentity.getPrincipal().toText(),
+        );
+        expect(effective.principalGrants[0].inheritedFrom).toEqual([
+          { root: null },
+        ]);
+      });
+
+      test('deduplicates repeated principal grants on the same scope', async () => {
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: { principal: aliceIdentity.getPrincipal() },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: { principal: aliceIdentity.getPrincipal() },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ_WRITE,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+
+        const result = await actor.listAccessGrants({
+          scope: [{ entry: [DIRECTORY, 'Shared'] }],
+          mode: { exact: null },
+        });
+
+        expect(result.principalGrants).toHaveLength(1);
+        expect(result.principalGrants[0].grant.principal.toText()).toBe(
+          aliceIdentity.getPrincipal().toText(),
+        );
+        expect(result.principalGrants[0].grant.permission).toEqual(READ_WRITE);
+      });
+
+      test('deduplicates repeated email grants on the same scope', async () => {
+        const emailCommitment = new Uint8Array([5, 6, 7, 8]);
+
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: {
+                email: {
+                  email: 'editor@example.com',
+                  emailCommitment,
+                },
+              },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: {
+                email: {
+                  email: 'editor@example.com',
+                  emailCommitment,
+                },
+              },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ_WRITE,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+
+        const result = await actor.listAccessGrants({
+          scope: [{ entry: [DIRECTORY, 'Shared'] }],
+          mode: { exact: null },
+        });
+
+        expect(result.pendingGrants).toHaveLength(1);
+        expect(result.pendingGrants[0].grant.permission).toEqual(READ_WRITE);
+        expect(result.pendingGrants[0].grant.ref).toEqual({
+          email: {
+            email: 'editor@example.com',
+            emailCommitment,
+          },
+        });
+      });
+
+      test('records storage events for standalone access mutations', async () => {
+        expect(await actor.getStorageEventsUnreadCount()).toBe(0n);
+
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: { principal: aliceIdentity.getPrincipal() },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+
+        const events = await actor.listStorageEvents([], 10n);
+        expect(
+          events.some(
+            (storedEvent) =>
+              'access' in storedEvent.event &&
+              'principalGrantCreated' in storedEvent.event.access,
+          ),
+        ).toBe(true);
+        expect(await actor.getStorageEventsUnreadCount()).toBeGreaterThan(0n);
+
+        await actor.markStorageEventsRead(events[events.length - 1].id);
+        expect(await actor.getStorageEventsUnreadCount()).toBe(0n);
+      });
+
+      test('lists latest visible storage events and marks them read in one call', async () => {
+        await actor.createAccessBatch({
+          items: [
+            {
+              ref: { principal: aliceIdentity.getPrincipal() },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+            {
+              ref: { principal: bobIdentity.getPrincipal() },
+              accessClass: { ordinary: null },
+              scope: { entry: [DIRECTORY, 'Shared'] },
+              permission: READ_WRITE,
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        });
+
+        const events = await actor.listLatestStorageEvents(10n);
+
+        expect(events.length).toBeGreaterThanOrEqual(2);
+        expect(events[0].id).toBeGreaterThan(events[1].id);
+        expect(await actor.getStorageEventsUnreadCount()).toBeGreaterThan(0n);
+
+        await actor.markAllVisibleStorageEventsRead();
+
+        expect(await actor.getStorageEventsUnreadCount()).toBe(0n);
+      });
+    });
+
+    describe('access requests', () => {
+      test('returns an existing pending request instead of creating duplicates', async () => {
+        actor.setIdentity(aliceIdentity);
+        const first = await actor.requestAccess({
+          emailCommitment: [],
+          message: ['Please grant access'],
+        });
+        const second = await actor.requestAccess({
+          emailCommitment: [],
+          message: ['Please grant access again'],
+        });
+
+        expect(second.id).toBe(first.id);
+        expect(second.message).toEqual(['Please grant access']);
+
+        actor.setIdentity(ownerIdentity);
+        const requests = await actor.listAccessRequests();
+
+        expect(requests).toHaveLength(1);
+        expect(requests[0].id).toBe(first.id);
+        expect(requests[0].requester.toText()).toBe(
+          aliceIdentity.getPrincipal().toText(),
+        );
+      });
+
+      test('returns only the caller latest access request', async () => {
+        actor.setIdentity(aliceIdentity);
+        const request = await actor.requestAccess({
+          emailCommitment: [],
+          message: ['Please grant access'],
+        });
+
+        const mine = await actor.getMyAccessRequest();
+        expect(mine).toHaveLength(1);
+        expect(mine[0].id).toBe(request.id);
+        expect(mine[0].requester.toText()).toBe(
+          aliceIdentity.getPrincipal().toText(),
+        );
+
+        actor.setIdentity(bobIdentity);
+        await expect(actor.listAccessRequests()).rejects.toThrow();
+        expect(await actor.getMyAccessRequest()).toEqual([]);
+      });
+
+      test('allows a root manager to list and resolve access requests', async () => {
+        await grantPermission({
+          entry: [],
+          user: bobIdentity.getPrincipal(),
+          permission: READ_WRITE_MANAGE,
+        });
+
+        actor.setIdentity(aliceIdentity);
+        const request = await actor.requestAccess({
+          emailCommitment: [],
+          message: ['Please grant access'],
+        });
+
+        actor.setIdentity(bobIdentity);
+        const requests = await actor.listAccessRequests();
+        expect(requests.some((item) => item.id === request.id)).toBe(true);
+
+        const resolved = await actor.resolveAccessRequest({
+          requestId: request.id,
+          decision: {
+            approved: {
+              scope: { root: null },
+              permission: READ,
+            },
+          },
+        });
+
+        expect(resolved.status).toEqual({ approved: null });
+        expect(
+          await actor.hasPermission({
+            entry: [],
+            user: aliceIdentity.getPrincipal(),
+            permission: READ,
+          }),
+        ).toBe(true);
+
+        actor.setIdentity(aliceIdentity);
+        const mine = await actor.getMyAccessRequest();
+        expect(mine).toHaveLength(1);
+        expect(mine[0].id).toBe(request.id);
+        expect(mine[0].status).toEqual({ approved: null });
+      });
+
+      test('rejects access requests from principals that already have access', async () => {
+        await grantPermission({
+          entry: [],
+          user: aliceIdentity.getPrincipal(),
+          permission: READ,
+        });
+
+        actor.setIdentity(aliceIdentity);
+        await expect(
+          actor.requestAccess({
+            emailCommitment: [],
+            message: ['Please grant access'],
+          }),
+        ).rejects.toThrow(/caller already has access/);
+      });
+    });
+
+    describe('createAccessBatch (3 users)', async () => {
       beforeEach(async () => {
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]/photos'],
@@ -1146,17 +1523,17 @@ describe('FileSystem', () => {
           createMode: CREATE_NEW,
           encryptionMode: [],
         });
-        await actor.grantPermission({
+        await grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]']],
           user: aliceIdentity.getPrincipal(),
           permission: READ_WRITE,
         });
-        await actor.grantPermission({
+        await grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
           user: aliceIdentity.getPrincipal(),
           permission: READ_WRITE,
         });
-        await actor.grantPermission({
+        await grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]']],
           user: bobIdentity.getPrincipal(),
           permission: READ,

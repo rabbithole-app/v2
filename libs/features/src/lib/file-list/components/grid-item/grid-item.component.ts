@@ -1,11 +1,13 @@
 import { FocusableOption, Highlightable } from '@angular/cdk/a11y';
-import { booleanAttribute, ElementRef, signal } from '@angular/core';
 import {
+  booleanAttribute,
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideEye, lucideLock, lucideUsers } from '@ng-icons/lucide';
@@ -73,7 +75,7 @@ export type GridItemVariants = VariantProps<typeof gridItemVariants>;
     '[attr.aria-selected]': 'selected()',
     '[attr.aria-label]': 'itemName()',
     '[attr.id]': '_itemId()',
-    '[attr.aria-disabled]': '_disabled() || _isDownloading()',
+    '[attr.aria-disabled]': 'disabled || _isDownloading()',
   },
   styles: [
     `
@@ -107,13 +109,21 @@ export type GridItemVariants = VariantProps<typeof gridItemVariants>;
   ],
 })
 export class GridItemComponent implements FocusableOption, Highlightable {
-  _disabled = input(false, { transform: booleanAttribute, alias: 'disabled' });
   active = input(false, { transform: booleanAttribute });
   data = input.required<NodeItem>();
+  disabledInput = input(false, {
+    alias: 'disabled',
+    transform: booleanAttribute,
+  });
   element = inject(ElementRef);
   loading = input(false, { transform: booleanAttribute });
   selected = input(false, { transform: booleanAttribute });
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
+
+  get disabled(): boolean {
+    return this.disabledInput();
+  }
+
   #downloadService = inject(DownloadService);
 
   protected readonly downloadProgress = computed<DownloadProgressState | null>(() => {

@@ -15,6 +15,7 @@ import Json "mo:json";
 import LiminalApp "mo:liminal/App";
 import TreasuryTypes "mo:treasury/Types";
 
+import BackendEvents "../BackendEvents/lib";
 import Payments "lib";
 import Notifications "../Notifications/lib";
 import Subscriptions "../Subscriptions/lib";
@@ -24,7 +25,7 @@ mixin(
   icpaySecretKey : ?Blob,
   admin : { assertAdmin : (Principal) -> () },
   deps : {
-    notifyUser : (Principal, Notifications.TypedEvent) -> ();
+    events : BackendEvents.EventSink;
     getAmbassadorChain : (Principal) -> Users.AmbassadorChain;
     activateSubscription : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>;
     grantPaidPeriod : (Principal, Subscriptions.Plan, Time.Time) -> Result.Result<Subscriptions.PaidPeriodResult, Text>;
@@ -39,6 +40,10 @@ mixin(
   // ---- Transient state ----
   transient let eventQueue : Queue.Queue<ICPayWebhooks.WebhookEvent> = Queue.empty();
   transient var drainScheduled : Bool = false;
+
+  func emitPaymentNotification(recipient : Principal, event : Notifications.NotificationPayload) {
+    deps.events.emit(#notificationRequested({ recipient; payload = event; correlationId = null }));
+  };
 
   // ---- ICPay Middleware ----
 
@@ -120,7 +125,7 @@ mixin(
       switch (purpose) {
         case (#deposit) {
           // Funds already on user wallet via ICPay relay. Just notify.
-          deps.notifyUser(userId, #depositReceived({ amount = payment.amount; tokenId = tokenIdText }));
+          emitPaymentNotification(userId, #depositReceived({ amount = payment.amount; tokenId = tokenIdText }));
         };
         case (#license) {
           let chain = deps.getAmbassadorChain(userId);
@@ -144,7 +149,7 @@ mixin(
             case (#ok() or #err(#AlreadyActive)) {};
             case _ {};
           };
-          deps.notifyUser(userId, #paymentReceived({ purpose = "license"; amount = payment.amount; tokenId = tokenIdText }));
+          emitPaymentNotification(userId, #paymentReceived({ purpose = "license"; amount = payment.amount; tokenId = tokenIdText }));
 
           switch (Payments.extractStorageConfig(payment.metadata)) {
             case (?config) {
@@ -174,13 +179,13 @@ mixin(
           switch (deps.grantPaidPeriod(userId, #Pro, Subscriptions.THIRTY_DAYS_NS)) {
             case (#ok(result)) {
               switch (result.action) {
-                case (#Created or #Reactivated) deps.notifyUser(userId, #subscriptionActivated({ plan = #Pro }));
-                case (#Renewed) deps.notifyUser(userId, #subscriptionRenewed({ plan = #Pro; expiresAt = ?result.expiresAt }));
+                case (#Created or #Reactivated) emitPaymentNotification(userId, #subscriptionActivated({ plan = #Pro }));
+                case (#Renewed) emitPaymentNotification(userId, #subscriptionRenewed({ plan = #Pro; expiresAt = ?result.expiresAt }));
               };
             };
             case (#err(e)) {
               Debug.print("Payment " # payment.id # ": grantPaidPeriod failed, manual intervention required: " # e);
-              deps.notifyUser(userId, #paymentReceived({ purpose = "pro_monthly"; amount = payment.amount; tokenId = tokenIdText }));
+              emitPaymentNotification(userId, #paymentReceived({ purpose = "pro_monthly"; amount = payment.amount; tokenId = tokenIdText }));
             };
           };
         };

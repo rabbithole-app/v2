@@ -19,12 +19,20 @@ describe("Notifications", () => {
 
   test("no notifications by default", async () => {
     actor.setIdentity(userAlice);
-    const count = await actor.getUnreadCount();
+    const count = await actor.getUnreadNotificationCount();
     expect(count).toBe(0n);
 
-    const page = await actor.getNotifications([], 10n);
+    const page = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     expect(page.data).toHaveLength(0);
     expect(page.unreadCount).toBe(0n);
+
+    const unreadPage = await actor.listNotifications({
+      afterId: [],
+      limit: 10n,
+      unreadOnly: true,
+    });
+    expect(unreadPage.data).toHaveLength(0);
+    expect(unreadPage.unreadCount).toBe(0n);
   });
 
   test("activateTrial does not break notifications", async () => {
@@ -32,21 +40,21 @@ describe("Notifications", () => {
     await actor.ensureUser([]);
     await actor.activateTrial();
 
-    const count = await actor.getUnreadCount();
+    const count = await actor.getUnreadNotificationCount();
     expect(count).toBe(0n);
   });
 
   test("markAllAsRead works on empty inbox", async () => {
     actor.setIdentity(userAlice);
-    await actor.markAllNotificationsAsRead();
-    const count = await actor.getUnreadCount();
+    await actor.markAllNotificationsRead();
+    const count = await actor.getUnreadNotificationCount();
     expect(count).toBe(0n);
   });
 
-  test("markNotificationsAsRead works on empty inbox", async () => {
+  test("markNotificationsRead works on empty inbox", async () => {
     actor.setIdentity(userAlice);
-    await actor.markNotificationsAsRead([1n, 2n, 3n]);
-    const count = await actor.getUnreadCount();
+    await actor.markNotificationsRead([1n, 2n, 3n]);
+    const count = await actor.getUnreadNotificationCount();
     expect(count).toBe(0n);
   });
 });

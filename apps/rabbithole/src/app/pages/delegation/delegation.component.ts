@@ -33,6 +33,7 @@ import { linkedQueryParam } from 'ngxtension/linked-query-param';
 import { AUTH_CONFIG, AUTH_SERVICE, AuthSignInOptions } from '@rabbithole/auth';
 import {
   injectMainActor,
+  principalFromConfig,
   ProfileService,
 } from '@rabbithole/core';
 import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
@@ -147,7 +148,10 @@ export class DelegationComponent {
   readonly storageCanisterId = computed(() => this.target()?.toText() ?? null);
   readonly targets = computed(() => {
     const storageCanisterId = this.target();
-    const backendCanisterId = Principal.fromText(environment.backendCanisterId);
+    const backendCanisterId = principalFromConfig(
+      environment.backendCanisterId,
+      'rabbithole.environment.backendCanisterId',
+    );
     return [
       backendCanisterId,
       MANAGEMENT_CANISTER_ID,

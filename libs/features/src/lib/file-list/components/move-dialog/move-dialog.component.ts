@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -11,6 +12,8 @@ import {
   lucideFolderOpen,
 } from '@ng-icons/lucide';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
+import { cva } from 'class-variance-authority';
+import { SignalMap } from 'ngxtension/collections';
 
 import { EncryptedStorage, Entry, TreeNode } from '@rabbithole/encrypted-storage';
 import { HlmButton } from '@spartan-ng/helm/button';
@@ -30,6 +33,26 @@ interface FlatTreeItem {
   path: string;
 }
 
+const moveTargetVariants = cva(
+  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+  {
+    variants: {
+      selected: {
+        true: 'bg-accent text-accent-foreground',
+        false: '',
+      },
+      disabled: {
+        true: 'cursor-not-allowed opacity-40',
+        false: 'hover:bg-accent hover:text-accent-foreground',
+      },
+    },
+    defaultVariants: {
+      selected: false,
+      disabled: false,
+    },
+  },
+);
+
 @Component({
   selector: 'rbth-feat-move-dialog',
   template: `
@@ -45,11 +68,7 @@ interface FlatTreeItem {
       } @else {
         @if (showRoot()) {
           <button
-            class="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md"
-            [class.bg-accent]="selectedPath() === ''"
-            [class.hover:bg-accent]="!rootDisabled"
-            [class.opacity-40]="rootDisabled"
-            [class.cursor-not-allowed]="rootDisabled"
+            [class]="rootButtonClass()"
             (click)="rootDisabled || select(null)"
           >
             <ng-icon name="lucideFolder" class="!size-4" />
@@ -58,11 +77,7 @@ interface FlatTreeItem {
         }
         @for (item of flatItems(); track item.path) {
           <button
-            class="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-md"
-            [class.bg-accent]="selectedPath() === item.path"
-            [class.hover:bg-accent]="!item.disabled"
-            [class.opacity-40]="item.disabled"
-            [class.cursor-not-allowed]="item.disabled"
+            [class]="itemButtonClasses.get(item.path)"
             [style.padding-left.px]="8 + item.level * 20"
             (click)="select(item)"
           >
@@ -111,11 +126,18 @@ interface FlatTreeItem {
 export class MoveDialogComponent {
   readonly dialogRef = inject(BrnDialogRef);
   readonly flatItems = signal<FlatTreeItem[]>([]);
+  readonly itemButtonClasses = new SignalMap<string, string>();
   readonly loading = signal(true);
   readonly #context = injectBrnDialogContext<{ currentParentPaths: (string | null)[]; encryptedStorage: EncryptedStorage; excludePaths?: string[]; }>();
   readonly #currentParentPaths = this.#context.currentParentPaths;
   readonly rootDisabled = this.#currentParentPaths.includes(null);
   readonly selectedPath = signal<string | null>(null);
+  readonly rootButtonClass = computed(() =>
+    moveTargetVariants({
+      disabled: this.rootDisabled,
+      selected: this.selectedPath() === '',
+    }),
+  );
   readonly showRoot = signal(false);
   readonly #encryptedStorage = this.#context.encryptedStorage;
   readonly #excludePaths = this.#context.excludePaths ?? [];
@@ -133,6 +155,7 @@ export class MoveDialogComponent {
   select(item: FlatTreeItem | null) {
     if (item?.disabled) return;
     this.selectedPath.set(item?.path ?? '');
+    this.#syncItemButtonClasses();
   }
 
   submit() {
@@ -150,7 +173,7 @@ export class MoveDialogComponent {
   toggle(item: FlatTreeItem, event: Event) {
     event.stopPropagation();
     item.expanded = !item.expanded;
-    this.flatItems.set(this.#flatten(this.#tree));
+    this.#setFlatItems(this.#flatten(this.#tree));
   }
 
   #convertTree(nodes: TreeNode[], level: number, parentExcluded = false): FlatTreeItem[] {
@@ -194,9 +217,36 @@ export class MoveDialogComponent {
       const isFullTree = tree.length > 0 && tree.every((n) => !n.name?.includes('/'));
       this.showRoot.set(isFullTree);
       this.#tree = this.#convertTree(tree, 0);
-      this.flatItems.set(this.#flatten(this.#tree));
+      this.#setFlatItems(this.#flatten(this.#tree));
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  #setFlatItems(items: FlatTreeItem[]): void {
+    this.flatItems.set(items);
+    this.#syncItemButtonClasses();
+  }
+
+  #syncItemButtonClasses(): void {
+    const items = this.flatItems();
+    const paths = new Set(items.map((item) => item.path));
+    const selectedPath = this.selectedPath();
+
+    for (const item of items) {
+      this.itemButtonClasses.set(
+        item.path,
+        moveTargetVariants({
+          disabled: item.disabled,
+          selected: selectedPath === item.path,
+        }),
+      );
+    }
+
+    for (const path of this.itemButtonClasses.keys()) {
+      if (!paths.has(path)) {
+        this.itemButtonClasses.delete(path);
+      }
     }
   }
 }

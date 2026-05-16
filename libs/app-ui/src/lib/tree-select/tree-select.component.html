@@ -1,0 +1,74 @@
+    <brn-popover
+      align="start"
+      sideOffset="6"
+      [state]="popoverState()"
+      (stateChanged)="setPopoverState($event)"
+    >
+      <button
+        brnPopoverTrigger
+        type="button"
+        [class]="triggerClass()"
+        [disabled]="disabled()"
+        [attr.data-placeholder]="selected() ? null : ''"
+      >
+        @if (triggerTemplate(); as trigger) {
+          <ng-container
+            *ngTemplateOutlet="trigger.templateRef; context: triggerContext()"
+          />
+        } @else {
+          <span class="flex min-w-0 items-center gap-2">
+            @if (loading()) {
+              <hlm-spinner class="size-4" />
+            } @else {
+              <ng-icon [name]="selectedIcon()" hlmIcon size="sm" />
+            }
+            <span class="truncate">{{ selectedLabel() }}</span>
+          </span>
+        }
+        <ng-icon
+          name="lucideChevronDown"
+          class="text-muted-foreground pointer-events-none shrink-0 text-base"
+        />
+      </button>
+
+      <div
+        hlmPopoverContent
+        *brnPopoverContent
+        class="w-[var(--rbth-tree-select-width,24rem)] max-w-[calc(100vw-2rem)] overflow-hidden p-0"
+      >
+        <div class="p-2">
+          @if (allowRoot()) {
+            <button
+              type="button"
+              [class]="rootOptionClass()"
+              (click)="selectRoot()"
+            >
+              <ng-icon
+                name="lucideHardDrive"
+                hlmIcon
+                size="sm"
+                class="text-muted-foreground"
+              />
+              {{ rootLabel() }}
+            </button>
+          }
+
+          @if (tree().length > 0) {
+            <div class="mt-1 max-h-80 overflow-auto">
+              <rbth-tree
+                [data]="tree()"
+                [expandedKeys]="expandedKeys()"
+                (expandedKeysChange)="setExpandedKeys($event)"
+                [selectable]="selectable()"
+                [selected]="selectedNode()"
+                (selectedChange)="selectNode($event)"
+              />
+            </div>
+          } @else {
+            <div class="py-8 text-center text-sm text-muted-foreground">
+              {{ emptyLabel() }}
+            </div>
+          }
+        </div>
+      </div>
+    </brn-popover>

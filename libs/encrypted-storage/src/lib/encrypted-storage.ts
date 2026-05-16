@@ -14,20 +14,32 @@ import mime from 'mime/lite';
 import { isMatching, match, P } from 'ts-pattern';
 
 import {
+  CreateAccessBatchArguments,
+  type EmailClaim,
   EncryptedStorageActorService,
   encryptedStorageIdlFactory,
   Entry as EntryRaw,
+  ListedPendingAccessGrant,
+  ListedPrincipalAccessGrant,
+  Permission__1,
   StorageBackend,
 } from '@rabbithole/declarations/encrypted-storage';
 
 import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
 import { BlobHashTree, verifyBlobIntegrity, YHash } from './blob-storage/merkle-tree';
 import {
+  CreateStorageAccessGrant,
+  CreateStorageAccessGrants,
+  CreateStorageAccessRequest,
   EncryptedStorageConfig,
   Entry,
-  GrantStoragePermission,
   Progress,
-  RevokeStoragePermission,
+  ResolveStorageAccessRequest,
+  RevokeStorageAccessGrant,
+  RevokeStorageAccessGrants,
+  StorageAccessGrantListMode,
+  type StorageClaimedPrincipal,
+  StoragePendingAccessGrant,
   StoragePermission,
   StoragePermissionItem,
   StoreArgs,
@@ -53,6 +65,7 @@ const CAFFEINE_PLAINTEXT_CHUNK_SIZE = CAFFEINE_CHUNK_SIZE - AES_GCM_OVERHEAD;
 export class EncryptedStorage {
   readonly #actor: ActorSubclass<EncryptedStorageActorService>;
   readonly #blobStorageClient?: BlobStorageGatewayClient;
+  readonly #canisterId?: Principal;
   readonly #domainSeparator = 'file_storage_dapp';
   readonly #limit: LimitFn;
   readonly #maxChunkSize: number;
@@ -75,6 +88,9 @@ export class EncryptedStorage {
       ...actorConfig
     } = config;
     this.#actor = Actor.createActor<EncryptedStorageActorService>(encryptedStorageIdlFactory, actorConfig);
+    this.#canisterId = typeof actorConfig.canisterId === 'string'
+      ? Principal.fromText(actorConfig.canisterId)
+      : actorConfig.canisterId;
     this.#storageBackend = typeof storageBackend === 'string'
       ? { [storageBackend]: null } as StorageBackend
       : storageBackend;
@@ -91,6 +107,28 @@ export class EncryptedStorage {
         gatewayUrl: blobStorageGatewayUrl,
       });
     }
+  }
+
+  async cancelAccessRequest(requestId: bigint) {
+    return await this.#actor.cancelAccessRequest({ requestId });
+  }
+
+  async cancelPendingAccessGrant(grantId: bigint) {
+    return await this.#actor.cancelPendingAccessGrant({ grantId });
+  }
+
+  async createAccessGrants({ items }: CreateStorageAccessGrants) {
+    const args: CreateAccessBatchArguments = {
+      items: items.map((item) => ({
+        ref: this.#accessRef(item),
+        accessClass: { ordinary: null },
+        scope: item.entry ? { entry: toEntryRaw(item.entry) } : { root: null },
+        permission: toStoragePermission(item.permission),
+        source: { directGrant: null },
+        expiresAt: [],
+      })),
+    };
+    return await this.#createAccessBatchWithSubscriptionRefresh(args);
   }
 
   async createDirectory(
@@ -306,20 +344,17 @@ export class EncryptedStorage {
     return vetkey.asDerivedKeyMaterial();
   }
 
+  async getMyAccessRequest() {
+    const [request] = await this.#actor.getMyAccessRequest();
+    return request ?? null;
+  }
+
   /** Query and cache the storage backend type for this canister. */
   async getStorageBackend(): Promise<StorageBackend> {
     if (!this.#storageBackend) {
       this.#storageBackend = await this.#actor.getStorageBackendType();
     }
     return this.#storageBackend;
-  }
-
-  async grantPermission({ user, permission, entry }: GrantStoragePermission) {
-    return await this.#actor.grantStoragePermission({
-      entry: toOptionalEntryRaw(entry),
-      user: typeof user === 'string' ? Principal.fromText(user) : user,
-      permission: toStoragePermission(permission),
-    });
   }
 
   async hasPermission({
@@ -343,13 +378,36 @@ export class EncryptedStorage {
     return response;
   }
 
-  async listPermitted(entry?: Entry): Promise<StoragePermissionItem[]> {
-    const list = await this.#actor.listPermitted(toOptionalEntryRaw(entry));
+  async listAccessGrants(
+    entry?: Entry,
+    mode: StorageAccessGrantListMode = 'exact',
+  ): Promise<StoragePermissionItem[]> {
+    const result = await this.#actor.listAccessGrants({
+      mode: this.#accessGrantListMode(mode),
+      scope: entry ? [{ entry: toEntryRaw(entry) }] : [],
+    });
 
-    return list.map(([principal, permission]) => ({
-      user: principal.toString(),
-      permission: Object.keys(permission)[0] as StoragePermission,
-    }));
+    const pendingItems = result.pendingGrants.map((grant) =>
+      this.#pendingGrantToPermissionItem(grant),
+    );
+    const claimedPrincipalGrantIds = new Set(
+      pendingItems.flatMap((item) =>
+        item.claimedPrincipals?.map((claim) => claim.principalGrantId) ?? [],
+      ),
+    );
+    const principalItems = result.principalGrants
+      .filter(({ grant }) => !claimedPrincipalGrantIds.has(grant.id))
+      .map((grant) => this.#principalGrantToPermissionItem(grant));
+
+    return [...principalItems, ...pendingItems];
+  }
+
+  async listAccessRequests() {
+    return await this.#actor.listAccessRequests();
+  }
+
+  async listPendingAccessGrants(): Promise<StoragePendingAccessGrant[]> {
+    return await this.#actor.listPendingAccessGrants();
   }
 
   async listVersions(entry: Entry) {
@@ -365,10 +423,35 @@ export class EncryptedStorage {
     });
   }
 
+  async refreshSubscription() {
+    return await this.#actor.refreshSubscription();
+  }
+
   async rename(entry: Entry, newName: string) {
     return await this.#actor.rename({
       entry: toEntryRaw(entry),
       newName,
+    });
+  }
+
+  async requestAccess({ email, message }: CreateStorageAccessRequest) {
+    return await this.#actor.requestAccess({
+      emailCommitment: email ? [this.#emailCommitment(email)] : [],
+      message: message ? [message] : [],
+    });
+  }
+
+  async resolveAccessRequest(args: ResolveStorageAccessRequest) {
+    return await this.#actor.resolveAccessRequest({
+      requestId: args.requestId,
+      decision: args.decision === 'approved'
+        ? {
+            approved: {
+              scope: args.entry ? { entry: toEntryRaw(args.entry) } : { root: null },
+              permission: toStoragePermission(args.permission),
+            },
+          }
+        : { rejected: null },
     });
   }
 
@@ -379,11 +462,14 @@ export class EncryptedStorage {
     });
   }
 
-  async revokePermission({ user, entry }: RevokeStoragePermission) {
-    return await this.#actor.revokeStoragePermission({
-      entry: toOptionalEntryRaw(entry),
-      user: typeof user === 'string' ? Principal.fromText(user) : user,
-    });
+  async revokeAccessGrants({ items }: RevokeStorageAccessGrants) {
+    const args = {
+      items: items.map((item) => ({
+        principal: this.#principal(item),
+        scope: item.entry ? { entry: toEntryRaw(item.entry) } : { root: null },
+      })),
+    };
+    return await this.#actor.revokeAccessBatch(args);
   }
 
   async saveThumbnail(entry: Entry, blob: Blob) {
@@ -701,8 +787,79 @@ export class EncryptedStorage {
     } as Parameters<EncryptedStorageActorService['update']>[0]); // color is dynamic, keep cast
   }
 
+  #accessGrantListMode(mode: StorageAccessGrantListMode) {
+    return mode === 'effective' ? { effective: null } : { exact: null };
+  }
+
+  #accessRef(item: CreateStorageAccessGrant) {
+    if ('principal' in item.target) {
+      return { principal: this.#principal(item.target) };
+    }
+
+    const email = item.target.email.trim();
+    if (!email) {
+      throw new Error('email access target cannot be empty');
+    }
+
+    return {
+      email: {
+        email,
+        emailCommitment: this.#emailCommitment(email),
+      },
+    };
+  }
+
+  #claimedPrincipal(
+    origin: StorageClaimedPrincipal['origin'],
+    claim: EmailClaim | undefined,
+  ): StorageClaimedPrincipal[] {
+    if (!claim) return [];
+    return [{
+      claimedAt: claim.claimedAt,
+      origin,
+      principal: claim.principal.toText(),
+      principalGrantId: claim.principalGrantId,
+    }];
+  }
+
+  #claimedPrincipals(
+    emailClaimState: ListedPendingAccessGrant['grant']['emailClaimState'],
+  ): StorageClaimedPrincipal[] {
+    return [
+      ...this.#claimedPrincipal('rabbithole', emailClaimState.rabbithole[0]),
+      ...this.#claimedPrincipal('storage', emailClaimState.storage[0]),
+    ];
+  }
+
   #contentType(fileName: string) {
     return mime.getType(fileName) ?? 'application/octet-stream';
+  }
+
+  async #createAccessBatchWithSubscriptionRefresh(args: CreateAccessBatchArguments) {
+    try {
+      return await this.#actor.createAccessBatch(args);
+    } catch (err) {
+      if (!this.#isSubscriptionStatusUnknownError(err)) {
+        throw err;
+      }
+
+      await this.refreshSubscription();
+
+      return await this.#actor.createAccessBatch(args);
+    }
+  }
+
+  #emailCommitment(email: string): Uint8Array {
+    if (!this.#canisterId) {
+      throw new Error('canisterId is required to create email access grants');
+    }
+
+    return sha256
+      .create()
+      .update(new TextEncoder().encode('rabbithole:storage-access:v1'))
+      .update(this.#canisterId.toUint8Array())
+      .update(new TextEncoder().encode(email.trim().toLowerCase()))
+      .digest();
   }
 
   async #fetchCertifiedBlobInfo(
@@ -765,5 +922,91 @@ export class EncryptedStorage {
     await set([fileOwner.toString()], derivedKeyMaterial.getCryptoKey());
 
     return derivedKeyMaterial;
+  }
+
+  #isSubscriptionStatusUnknownError(err: unknown): boolean {
+    return String(err).includes('Subscription status unknown');
+  }
+
+  #pendingGrantToPermissionItem({
+    grant,
+    inheritedFrom,
+  }: ListedPendingAccessGrant): StoragePermissionItem {
+    const claimedPrincipals = this.#claimedPrincipals(grant.emailClaimState);
+    const status = claimedPrincipals.length > 0 ? 'active' : 'pending';
+
+    if ('principal' in grant.ref) {
+      return {
+        accessClass: grant.accessClass,
+        grantId: grant.id,
+        inheritedFrom: inheritedFrom[0],
+        permission: this.#storagePermissionFromRaw(grant.permission),
+        scope: grant.scope,
+        source: grant.source,
+        status: 'pending',
+        targetKind: 'principal',
+        user: grant.ref.principal.toText(),
+      };
+    }
+
+    if ('email' in grant.ref) {
+      return {
+        accessClass: grant.accessClass,
+        claimedPrincipals,
+        emailCommitment: grant.ref.email.emailCommitment,
+        grantId: grant.id,
+        inheritedFrom: inheritedFrom[0],
+        permission: this.#storagePermissionFromRaw(grant.permission),
+        scope: grant.scope,
+        source: grant.source,
+        status,
+        targetKind: 'email',
+        user: grant.ref.email.email,
+      };
+    }
+
+    return {
+      accessClass: grant.accessClass,
+      claimedPrincipals,
+      emailCommitment: grant.ref.emailCommitment,
+      grantId: grant.id,
+      inheritedFrom: inheritedFrom[0],
+      permission: this.#storagePermissionFromRaw(grant.permission),
+      scope: grant.scope,
+      source: grant.source,
+      status,
+      targetKind: 'emailCommitment',
+      user: `Email invite ${this.#shortBytes(grant.ref.emailCommitment)}`,
+    };
+  }
+
+  #principal(args: Pick<RevokeStorageAccessGrant, 'principal'>) {
+    return typeof args.principal === 'string'
+      ? Principal.fromText(args.principal)
+      : args.principal;
+  }
+
+  #principalGrantToPermissionItem({ grant, inheritedFrom }: ListedPrincipalAccessGrant): StoragePermissionItem {
+    return {
+      accessClass: grant.accessClass,
+      grantId: grant.id,
+      inheritedFrom: inheritedFrom[0],
+      permission: this.#storagePermissionFromRaw(grant.permission),
+      scope: grant.scope,
+      source: grant.source,
+      status: 'active',
+      targetKind: 'principal',
+      user: grant.principal.toString(),
+    };
+  }
+
+  #shortBytes(bytes: Uint8Array): string {
+    return Array.from(bytes.slice(0, 4))
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  #storagePermissionFromRaw(permission: Permission__1): StoragePermission {
+    return Object.keys(permission)[0] as StoragePermission;
   }
 }

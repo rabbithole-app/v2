@@ -121,7 +121,7 @@ export class UserTargetComboboxComponent {
             {
               kind: 'principal',
               principalId,
-              label: this.shortPrincipal(principalId),
+              label: match === 'emailExact' ? search : this.shortPrincipal(principalId),
               match,
               matchedEmail: match === 'emailExact' ? search : undefined,
               searchText: match === 'emailExact' ? search : undefined,
@@ -137,7 +137,7 @@ export class UserTargetComboboxComponent {
           {
             kind: 'user',
             principalId,
-            label,
+            label: match === 'emailExact' ? search : label,
             username,
             displayName,
             avatarUrl: this.avatarSrc(this.optional(profile.avatarUrl)),
@@ -258,6 +258,15 @@ export class UserTargetComboboxComponent {
   readonly itemToString = (item: UserTarget | null) =>
     item ? this.targetSearchText(item) : '';
 
+  selectOption(item: UserTarget, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.value().some((value) => this.sameTarget(value, item))) {
+      this.value.update((value) => [...value, item]);
+    }
+    this.search.set('');
+  }
+
   setValue(value: UserTarget[] | null): void {
     this.value.set(value ?? []);
   }
@@ -293,6 +302,9 @@ export class UserTargetComboboxComponent {
       if (item.match === 'emailExact')
         return item.matchedEmail ?? 'Found by email';
       return item.match ? 'Principal ID' : 'Use principal ID';
+    }
+    if (item.match === 'emailExact' && item.matchedEmail) {
+      return item.matchedEmail;
     }
 
     return item.displayName

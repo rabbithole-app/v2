@@ -9,6 +9,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 
 import { RbthSidebarMenuButton } from '@rabbithole/ui/sidebar';
+import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import {
   HlmSidebarMenu,
@@ -18,6 +19,7 @@ import {
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 export type NavItem = {
+  badgeCount?: number;
   icon: string;
   title: string;
   url: string;
@@ -29,6 +31,7 @@ export type NavItem = {
     RouterLink,
     RouterLinkActive,
     NgIcon,
+    HlmBadge,
     HlmSidebarMenu,
     HlmSidebarMenuItem,
     RbthSidebarMenuButton,

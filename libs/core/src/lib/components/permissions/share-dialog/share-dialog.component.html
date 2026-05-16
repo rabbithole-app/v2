@@ -1,0 +1,337 @@
+<hlm-dialog>
+  <ng-content />
+  <hlm-dialog-content
+    class="max-h-[90vh] w-[min(94vw,680px)] overflow-y-auto sm:max-w-[680px]"
+    *brnDialogContent="let ctx"
+  >
+    <hlm-dialog-header>
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <h3 hlmDialogTitle>Access</h3>
+        <span
+          hlmBadge
+          variant="outline"
+          class="inline-flex w-auto max-w-full gap-1.5"
+        >
+          <ng-icon [name]="scopeBadgeIcon()" />
+          <span class="shrink-0">{{ scopeBadgeLabel() }}</span>
+          <span
+            class="min-w-0 truncate text-muted-foreground"
+            [title]="isBatchScope() ? undefined : scopeLabel()"
+          >
+            @if (isBatchScope()) {
+              {{ itemCount() }} selected items
+            } @else {
+              {{ scopeLabel() }}
+            }
+          </span>
+        </span>
+      </div>
+      <p hlmDialogDescription>Manage sharing and permissions.</p>
+    </hlm-dialog-header>
+
+    <div hlmTabs [tab]="activeTab()" class="space-y-5">
+      <div hlmTabsList class="grid w-full grid-cols-2">
+        <button
+          hlmTabsTrigger="share"
+          type="button"
+          (click)="activeTab.set('share')"
+        >
+          Share
+        </button>
+        <button
+          hlmTabsTrigger="manage"
+          type="button"
+          (click)="activeTab.set('manage')"
+        >
+          Manage access
+        </button>
+      </div>
+
+      <div hlmTabsContent="share" class="m-0">
+        <div hlmFieldGroup class="gap-5">
+          <div hlmField class="gap-2">
+            <div hlmFieldTitle>People</div>
+            <core-user-target-combobox
+              class="block w-full"
+              placeholder="Search user, principal, or email"
+              [value]="selectedTargets()"
+              (valueChange)="handleTargetsChange($event)"
+            />
+          </div>
+
+          @if (selectedTargets().length > 0) {
+            <div hlmField>
+              <div hlmFieldTitle>Selected</div>
+
+              <div class="space-y-2">
+                @for (target of selectedTargets(); track targetKey(target)) {
+                  <core-access-target-item
+                    variant="outline"
+                    size="sm"
+                    [avatarSrc]="targetAvatarSrc(target)"
+                    [iconName]="targetIcon(target)"
+                    [title]="targetIdentityTitle(target)"
+                  >
+                    <ng-template coreAccessTargetItemDescription>
+                      @if (targetPrincipalId(target); as principalId) {
+                        <rbth-copy-to-clipboard
+                          [content]="principalId"
+                          size="xs"
+                          class="text-muted-foreground"
+                        >
+                          {{ principalId }}
+                        </rbth-copy-to-clipboard>
+                      } @else {
+                        Pending email invite
+                      }
+                    </ng-template>
+
+                    <ng-template coreAccessTargetItemActions>
+                      @if (target.kind === 'email') {
+                        <span
+                          hlmBadge
+                          class="gap-1 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                        >
+                          <ng-icon
+                            name="lucideCircleDashed"
+                            hlmIcon
+                            size="sm"
+                            class="!size-3"
+                          />
+                          Pending
+                        </span>
+                      }
+                      @if (targetPermission(target) === 'ReadWriteManage') {
+                        <brn-popover sideOffset="6" align="end">
+                          <button
+                            hlmBtn
+                            brnPopoverTrigger
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            class="shrink-0 text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+                            aria-label="Manage access details"
+                          >
+                            <ng-icon
+                              name="lucideShieldAlert"
+                              hlmIcon
+                              size="sm"
+                            />
+                          </button>
+                          <div
+                            hlmPopoverContent
+                            *brnPopoverContent
+                            class="w-64 text-sm"
+                          >
+                            Manage access lets this person invite others and
+                            remove access for this scope.
+                          </div>
+                        </brn-popover>
+                      }
+                      <hlm-select
+                        coreTransparentSelectBackdrop
+                        class="w-32 shrink-0"
+                        [ngModel]="targetPermission(target)"
+                        (ngModelChange)="setTargetPermission(target, $event)"
+                      >
+                        <hlm-select-trigger class="h-8 w-32">
+                          {{ permissionLabel(targetPermission(target)) }}
+                        </hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal class="w-40">
+                          @for (option of permissions; track option.value) {
+                            <hlm-select-item [value]="option.value">
+                              {{ option.label }}
+                            </hlm-select-item>
+                          }
+                        </hlm-select-content>
+                      </hlm-select>
+                    </ng-template>
+                  </core-access-target-item>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div hlmTabsContent="manage" class="m-0">
+        @if (currentAccessVisible()) {
+          @if (accessListLoading()) {
+            <div hlmFieldGroup class="gap-4">
+              <div hlmField class="gap-3">
+                <div class="space-y-1">
+                  <div hlmFieldTitle>Current access</div>
+                  <p hlmFieldDescription>
+                    People and invites already attached to this item.
+                  </p>
+                </div>
+                <div
+                  class="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground"
+                >
+                  Loading access list...
+                </div>
+              </div>
+            </div>
+          } @else if (accessList().length === 0) {
+            <div hlmEmpty class="border border-dashed">
+              <div hlmEmptyHeader>
+                <div hlmEmptyMedia variant="icon">
+                  <ng-icon name="lucideUsersRound" />
+                </div>
+                <div hlmEmptyTitle>No access yet</div>
+                <div hlmEmptyDescription>
+                  Share this item to add people or create email invites.
+                </div>
+              </div>
+              <div hlmEmptyContent>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  (click)="activeTab.set('share')"
+                >
+                  <ng-icon name="lucideShare2" hlmIcon size="sm" />
+                  Share access
+                </button>
+              </div>
+            </div>
+          } @else {
+            <div hlmFieldGroup class="gap-4">
+              <div hlmField class="gap-3">
+                <div class="space-y-1">
+                  <div hlmFieldTitle>Current access</div>
+                  <p hlmFieldDescription>
+                    People and invites already attached to this item.
+                  </p>
+                </div>
+                <div class="space-y-2">
+                  @for (item of accessList(); track item.grantId ?? item.user) {
+                    @let profile = accessProfile(item);
+                    <core-access-target-item
+                      variant="outline"
+                      size="sm"
+                      [avatarSrc]="profile?.avatarSrc"
+                      [iconName]="accessTargetIcon(item)"
+                      [title]="accessTargetTitle(item)"
+                    >
+                      <ng-template coreAccessTargetItemDescription>
+                        @if (item.targetKind === 'principal') {
+                          <rbth-copy-to-clipboard
+                            [content]="item.user"
+                            size="xs"
+                            class="text-muted-foreground"
+                          >
+                            {{ item.user }}
+                          </rbth-copy-to-clipboard>
+                        } @else if (item.claimedPrincipals?.length) {
+                          <div class="space-y-1">
+                            @for (
+                              claim of item.claimedPrincipals;
+                              track claim.origin
+                            ) {
+                              <div class="flex min-w-0 items-center gap-1.5">
+                                <rbth-copy-to-clipboard
+                                  [content]="claim.principal"
+                                  size="xs"
+                                  class="min-w-0 text-muted-foreground"
+                                >
+                                  {{ claim.principal }}
+                                </rbth-copy-to-clipboard>
+                                <ng-icon
+                                  [name]="claimedPrincipalOriginIcon(claim.origin)"
+                                  [hlmTooltip]="claimedPrincipalOriginLabel(claim.origin)"
+                                  hlmIcon
+                                  size="sm"
+                                  class="shrink-0 text-muted-foreground"
+                                />
+                              </div>
+                            }
+                          </div>
+                        } @else {
+                          {{ accessTargetSubtitle(item) }}
+                        }
+                      </ng-template>
+
+                      <ng-template coreAccessTargetItemActions>
+                        @if (item.status === 'pending') {
+                          <span
+                            hlmBadge
+                            class="gap-1 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                          >
+                            <ng-icon
+                              name="lucideCircleDashed"
+                              hlmIcon
+                              size="sm"
+                              class="!size-3"
+                            />
+                            Pending
+                          </span>
+                        }
+                        <span hlmBadge variant="secondary">
+                          {{ permissionLabel(item.permission) }}
+                        </span>
+                        @if (canCancelInvite(item)) {
+                          <button
+                            hlmBtn
+                            [hlmTooltip]="removeAccessLabel(item)"
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            class="size-8 text-destructive hover:text-destructive"
+                            (click)="handleRemoveAccess(item)"
+                          >
+                            <ng-icon name="lucideTrash2" hlmIcon size="sm" />
+                            <span class="sr-only">
+                              {{ removeAccessLabel(item) }}
+                            </span>
+                          </button>
+                        } @else if (item.targetKind === 'principal') {
+                          <button
+                            hlmBtn
+                            hlmTooltip="Revoke access"
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            class="size-8 text-destructive hover:text-destructive"
+                            (click)="handleRevokeAccessGrant(item)"
+                          >
+                            <ng-icon name="lucideTrash2" hlmIcon size="sm" />
+                            <span class="sr-only">Revoke access</span>
+                          </button>
+                        }
+                      </ng-template>
+                    </core-access-target-item>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        } @else {
+          <div
+            class="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground"
+          >
+            Access list is available when one item is selected.
+          </div>
+        }
+      </div>
+    </div>
+
+    <hlm-dialog-footer>
+      <button hlmBtn type="button" variant="outline" (click)="close()">
+        Close
+      </button>
+      @if (activeTab() === 'share') {
+        <button
+          hlmBtn
+          type="button"
+          [disabled]="!canSubmit()"
+          (click)="handleSubmit()"
+        >
+          <ng-icon name="lucideShare2" hlmIcon size="sm" />
+          Share
+        </button>
+      }
+    </hlm-dialog-footer>
+  </hlm-dialog-content>
+</hlm-dialog>

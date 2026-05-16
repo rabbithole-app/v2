@@ -1,0 +1,127 @@
+<rbth-drawer
+  side="right"
+  [hasBackdrop]="true"
+  (stateChanged)="onDrawerStateChanged($event)"
+>
+  <button hlmBtn brnSheetTrigger variant="ghost" size="icon" class="relative">
+    <ng-icon name="lucideBell" hlmIcon size="sm" />
+    @if (hasUnread()) {
+      <span
+        class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground"
+      >
+        {{ badgeText() }}
+      </span>
+    }
+  </button>
+
+  <rbth-drawer-content *brnSheetContent="let ctx" class="overflow-hidden">
+    <rbth-drawer-header class="border-b">
+      <div rbthDrawerTitle>
+        <span>Notifications</span>
+        <span class="text-sm font-normal text-muted-foreground">
+          Backend notifications and current storage events.
+        </span>
+      </div>
+    </rbth-drawer-header>
+
+    <div
+      hlmTabs
+      [tab]="filter()"
+      class="border-b border-stroke-soft-200 px-5 py-3"
+    >
+      <div hlmTabsList class="grid w-full grid-cols-4">
+        <button hlmTabsTrigger="all" (click)="filter.set('all')">All</button>
+        <button hlmTabsTrigger="unread" (click)="filter.set('unread')">
+          Unread
+        </button>
+        <button hlmTabsTrigger="backend" (click)="filter.set('backend')">
+          Backend
+        </button>
+        <button hlmTabsTrigger="storage" (click)="filter.set('storage')">
+          Storage
+        </button>
+      </div>
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-y-auto p-2">
+      @if (isLoading() && filteredItems().length === 0) {
+        <div hlmEmpty class="min-h-full border-0">
+          <div hlmEmptyHeader>
+            <div hlmEmptyMedia variant="icon">
+              <ng-icon name="lucideBell" hlmIcon size="sm" />
+            </div>
+            <div hlmEmptyTitle>Loading notifications</div>
+            <div hlmEmptyDescription>
+              Fetching backend notifications and storage events.
+            </div>
+          </div>
+        </div>
+      } @else if (filteredItems().length === 0) {
+        <div hlmEmpty class="min-h-full border-0">
+          <div hlmEmptyHeader>
+            <div hlmEmptyMedia variant="icon">
+              <ng-icon name="lucideBell" hlmIcon size="sm" />
+            </div>
+            <div hlmEmptyTitle>No notifications</div>
+            <div hlmEmptyDescription>
+              New backend and storage updates will appear here.
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div hlmItemGroup class="gap-1">
+          @for (item of filteredItems(); track item.id) {
+            <button
+              type="button"
+              hlmItem
+              size="sm"
+              class="text-left hover:bg-muted/50"
+              [class.opacity-60]="item.read"
+              (click)="openNotification(item)"
+            >
+              <div hlmItemMedia variant="icon" class="relative">
+                <ng-icon
+                  [name]="itemIcon(item)"
+                  hlmIcon
+                  size="sm"
+                  [class]="itemIconClass(item)"
+                />
+                @if (!item.read) {
+                  <span
+                    hlmAvatarBadge
+                    aria-label="Unread"
+                    class="-bottom-0.5 -right-0.5 size-2.5"
+                  ></span>
+                }
+              </div>
+              <div hlmItemContent class="min-w-0">
+                <div hlmItemHeader>
+                  <div hlmItemTitle class="max-w-full truncate">
+                    {{ itemTitle(item) }}
+                  </div>
+                  <span hlmBadge variant="outline" class="shrink-0 text-[11px]">
+                    {{ itemSourceLabel(item) }}
+                  </span>
+                </div>
+                <p hlmItemDescription class="text-xs">
+                  {{ itemDescription(item) }}
+                </p>
+                <p class="text-start text-xs text-muted-foreground">
+                  {{ formatTime(item.createdAt) }}
+                </p>
+              </div>
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    @if (hasUnread()) {
+      <rbth-drawer-footer class="justify-end">
+        <button hlmBtn variant="outline" size="sm" (click)="markAllAsRead()">
+          Mark all read
+        </button>
+      </rbth-drawer-footer>
+    }
+  </rbth-drawer-content>
+</rbth-drawer>

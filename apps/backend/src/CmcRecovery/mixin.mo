@@ -9,6 +9,7 @@ import Timer "mo:core/Timer";
 
 import TreasuryTypes "mo:treasury/Types";
 
+import BackendEvents "../BackendEvents/lib";
 import CmcRecovery "lib";
 import CMCTypes "../Types/CMCTypes";
 import Notifications "../Notifications/lib";
@@ -38,13 +39,20 @@ mixin (
     resumeFailedCreationInternal : (Nat) -> async Result.Result<(), Text>;
     /// Internal refund — idempotent (Timer + admin call race).
     refundFailedCreationInternal : (Nat) -> async Result.Result<(), Text>;
-    notifyUser : (Principal, Notifications.TypedEvent) -> ();
-    notifyAdmins : (Notifications.TypedEvent) -> ();
+    events : BackendEvents.EventSink;
     /// For `#selfTopUp` retry — the backend canister's own principal.
     selfCanisterId : Principal;
   },
 ) {
   let cmcStore = CmcRecovery.new();
+
+  func emitCmcNotification(recipient : Principal, event : Notifications.NotificationPayload) {
+    deps.events.emit(#notificationRequested({ recipient; payload = event; correlationId = null }));
+  };
+
+  func emitCmcAdminNotification(event : Notifications.NotificationPayload) {
+    deps.events.emit(#adminNotificationRequested({ payload = event; correlationId = null }));
+  };
 
   // ---- Internal: shared entry point for all 4 call sites ----
 
@@ -74,7 +82,7 @@ mixin (
           { kind; blockIndex; source; refund; lastError = reason },
         );
         Debug.print("[cmc recovery] ambiguous enqueue id=" # Nat.toText(id) # " blockIndex=" # Nat.toText(blockIndex) # " " # reason);
-        deps.notifyAdmins(#cmcNotifyStuck({
+        emitCmcAdminNotification(#cmcNotifyStuck({
           id;
           canisterId = targetCanisterId(source, deps.selfCanisterId);
           blockIndex;
@@ -160,7 +168,7 @@ mixin (
   };
 
   /// `#userTopUp` / `#autoTopUp` retry: replay notify_top_up for the
-  /// existing canister. On success → remove row + notifyUser. On failure →
+  /// existing canister. On success → remove row + emit user notification. On failure →
   /// classify: terminal → refund + remove, ambiguous → bump attempts.
   func retryTopUp(
     op : CmcRecovery.PendingCmcOp,
@@ -174,12 +182,12 @@ mixin (
         CmcRecovery.incrResolved(cmcStore);
         switch (op.refund) {
           case (?ctx) {
-            let event : Notifications.TypedEvent = if (isAuto) {
+            let event : Notifications.NotificationPayload = if (isAuto) {
               #autoTopUpCompleted({ canisterId; cyclesAmount = cycles });
             } else {
               #topUpCompleted({ canisterId; cyclesAmount = cycles });
             };
-            deps.notifyUser(ctx.payer, event);
+            emitCmcNotification(ctx.payer, event);
           };
           case null {};
         };
@@ -268,7 +276,7 @@ mixin (
           case null op.attempts;
         };
         // Re-notify admins with current context.
-        deps.notifyAdmins(#cmcNotifyStuck({
+        emitCmcAdminNotification(#cmcNotifyStuck({
           id = op.id;
           canisterId = targetCanisterId(op.source, deps.selfCanisterId);
           blockIndex = op.blockIndex;

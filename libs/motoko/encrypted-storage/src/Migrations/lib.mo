@@ -1,3 +1,5 @@
+import Principal "mo:core/Principal";
+
 import V1Types "V1/Types";
 
 module Migrations {
@@ -6,10 +8,11 @@ module Migrations {
   };
 
   public type UpgradeOptions = {
+    accountOwner : Principal;
     backendId : ?Principal;
   };
 
-  type CurrentStableStore = V1Types.StableStore;
+  public type CurrentStableStore = V1Types.StableStore;
 
   public func upgrade(versions : VersionedStableStore, options : UpgradeOptions) : VersionedStableStore {
     switch (versions) {

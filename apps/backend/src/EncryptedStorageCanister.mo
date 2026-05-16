@@ -1,5 +1,9 @@
+import Array "mo:core/Array";
+import Blob "mo:core/Blob";
 import Cycles "mo:core/Cycles";
+import Debug "mo:core/Debug";
 import Error "mo:core/Error";
+import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
@@ -18,13 +22,16 @@ import AssetCanister "mo:liminal/AssetCanister";
 import Sha256 "mo:sha2/Sha256";
 import Json "mo:json";
 import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
-
 import EncryptedStorage "mo:encrypted-storage";
 import EncryptedStorageClass "mo:encrypted-storage/Class";
 import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
 import T "mo:encrypted-storage/Types";
 import SubscriptionGate "SubscriptionGate";
 import HttpAssetsMixin "HttpAssetsMixin";
+import IdentityVerification "IdentityVerification/lib";
+import IdentityVerificationMixin "IdentityVerification/mixin";
+import StorageIdentityHandler "IdentityVerification/StorageHandler";
+import StorageAccessClient "StorageAccessBridge/StorageClient";
 import Utils "Utils/lib";
 
 shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
@@ -47,6 +54,8 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
   let canisterId = Principal.fromActor(this);
 
+  var pendingStorageAccessEnvelopes : [StorageAccessClient.Envelope] = [];
+
   // Initialize HttpAssets first to use its certificate store
   var assetStableData = HttpAssets.init_stable_store(canisterId, owner);
   assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
@@ -56,6 +65,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   // Use shared certificate store from HttpAssets for EncryptedStorage
   var versionedStorage = EncryptedStorage.initStableStore({
+    accountOwner = owner;
     canisterId;
     vetKdKeyId = keyId;
     domainSeparator = "file_storage_dapp";
@@ -69,14 +79,33 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   });
   versionedStorage := EncryptedStorage.upgradeStableStore(versionedStorage, {
+    accountOwner = owner;
     backendId;
   });
   transient let storage = EncryptedStorage.fromVersion(versionedStorage);
+
+  func enqueueStorageAccessChanged(event : T.StoredStorageEvent) : () {
+    pendingStorageAccessEnvelopes := StorageAccessClient.append(
+      pendingStorageAccessEnvelopes,
+      StorageAccessClient.toEnvelope(owner, canisterId, event),
+    );
+  };
+
+  func drainStorageAccessChangedQueue() : async () {
+    if (pendingStorageAccessEnvelopes.size() == 0) return;
+    let batch = pendingStorageAccessEnvelopes;
+    pendingStorageAccessEnvelopes := [];
+    let failed = await StorageAccessClient.dispatch(storage.backendId, batch);
+    if (failed.size() > 0) {
+      pendingStorageAccessEnvelopes := StorageAccessClient.prependAll(failed, pendingStorageAccessEnvelopes);
+    };
+  };
 
   // Create class wrapper with subscription gates
   transient let es = EncryptedStorageClass.Storage(storage, ?{
     canUploadEncrypted = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canUploadEncrypted(storage, bytes);
     canUseEncryption = func() : Result.Result<(), Text> = SubscriptionGate.canUseEncryption(storage);
+    onAccessChanged = ?enqueueStorageAccessChanged;
   });
 
   // Reset cached module hash on upgrade (body re-executes for persistent actor class)
@@ -90,6 +119,11 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       storage.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
     },
   );
+
+  func isCurrentController(principal : Principal) : async Bool {
+    let status = await IC.ic.canister_status({ canister_id = canisterId });
+    Array.any(status.settings.controllers, func(controller : Principal) : Bool = Principal.equal(controller, principal));
+  };
 
 
   // Fire-and-forget low-cycles notification to backend
@@ -112,6 +146,36 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       case null {};
     };
   };
+
+  func resolveExpectedStorageIdentityOrigin<system>() : Text {
+    switch (Runtime.envVar<system>("PUBLIC_AUTH_EXPECTED_ORIGIN")) {
+      case (?origin) return origin;
+      case null {};
+    };
+    "https://" # Principal.toText(canisterId) # ".icp0.io";
+  };
+
+  func resolveTrustedIdentitySigner<system>() : Principal {
+    Principal.fromText(Utils.envText<system>("PUBLIC_CANISTER_ID:internet_identity_backend", "rdmx6-jaaaa-aaaaa-aaadq-cai"));
+  };
+
+  include IdentityVerificationMixin({
+    onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+      await StorageIdentityHandler.onVerifiedAttributes(
+        {
+          emailCommitment = func(email : Text) : Blob = EncryptedStorage.emailCommitment(storage, email);
+          claimByEmailCommitments = func(principal : Principal, commitments : [Blob]) : Result.Result<[T.PrincipalAccessGrant], Text> {
+            es.claimPendingAccessByVerifiedAttributes(principal, { emailCommitments = commitments });
+          };
+          afterClaim = drainStorageAccessChangedQueue;
+        },
+        caller,
+        attrs,
+      );
+    };
+    resolveTrustedIdentitySigner;
+    resolveExpectedIdentityOrigin = resolveExpectedStorageIdentityOrigin;
+  });
 
   transient let installerAssetPermissions : ?HttpAssets.SetPermissions =
     if (installer == owner) {
@@ -218,13 +282,6 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  public shared ({ caller }) func listPermitted(entry : ?T.Entry) : async [(Principal, T.PermissionExt)] {
-    switch (await* es.listPermitted(caller, entry)) {
-      case (#ok items) items;
-      case (#err(message)) throw Error.reject(message);
-    };
-  };
-
   public shared ({ caller }) func create(args : T.CreateArguments) : async T.NodeDetails {
     switch (es.create(caller, args)) {
       case (#ok value) { reportLowCyclesIfNeeded<system>(); value };
@@ -285,15 +342,309 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     es.hasPermission(caller, args);
   };
 
-  public shared ({ caller }) func grantStoragePermission(args : T.GrantPermissionArguments) : async () {
-    switch (es.grantPermission(caller, args)) {
+  public query ({ caller }) func listOwnerEquivalentPrincipals() : async [T.OwnerEquivalentPrincipal] {
+    switch (es.listOwnerEquivalentPrincipals(caller)) {
+      case (#ok(items)) items;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getRecoveryStatus() : async T.RecoveryStatus {
+    switch (es.getRecoveryStatus(caller)) {
+      case (#ok(status)) status;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func registerRecoveryController(principal : Principal) : async T.RegisterRecoveryControllerResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (Principal.isAnonymous(principal)) {
+      throw Error.reject("anonymous principal not allowed");
+    };
+    if (not (await isCurrentController(principal))) {
+      throw Error.reject("principal is not a controller");
+    };
+    switch (es.registerRecoveryController(caller, principal)) {
+      case (#ok(result)) {
+        await drainStorageAccessChangedQueue();
+        result;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func clearRecoveryController() : async Principal {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.clearRecoveryController(caller)) {
+      case (#ok(principal)) {
+        await drainStorageAccessChangedQueue();
+        principal;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func addRecoveryOwner(principal : Principal, options : T.AddRecoveryOwnerOptions) : async T.OwnerEquivalentPrincipal {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.addRecoveryOwner(caller, principal, options)) {
+      case (#ok(record)) {
+        await drainStorageAccessChangedQueue();
+        record;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func takeRecoveryOwnership() : async T.OwnerEquivalentPrincipal {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (not (await isCurrentController(caller))) {
+      throw Error.reject("caller is not a controller");
+    };
+    switch (es.takeRecoveryOwnership(caller)) {
+      case (#ok(record)) {
+        await drainStorageAccessChangedQueue();
+        record;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func activateRecoveryOwnership(principal : Principal) : async T.OwnerEquivalentPrincipal {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (Principal.isAnonymous(principal)) {
+      throw Error.reject("anonymous principal not allowed");
+    };
+    if (not (await isCurrentController(principal))) {
+      throw Error.reject("principal is not a controller");
+    };
+    switch (es.activateRecoveryOwnership(caller, principal)) {
+      case (#ok(record)) {
+        await drainStorageAccessChangedQueue();
+        record;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func removeRecoveryOwner(principal : Principal) : async () {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    if (await isCurrentController(principal)) {
+      throw Error.reject("principal is still a controller; remove controller first");
+    };
+    switch (es.removeRecoveryOwner(caller, principal)) {
+      case (#ok) { await drainStorageAccessChangedQueue() };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func createPendingAccessGrant(args : T.CreatePendingAccessGrantArguments) : async T.PendingAccessGrant {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.createPendingAccessGrant(caller, args)) {
+      case (#ok(grant)) {
+        await drainStorageAccessChangedQueue();
+        grant;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func createAccessBatch(args : T.CreateAccessBatchArguments) : async T.CreateAccessBatchResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.createAccessBatch(caller, args)) {
+      case (#ok(result)) {
+        await drainStorageAccessChangedQueue();
+        result;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func revokeAccessBatch(args : T.RevokeAccessBatchArguments) : async T.RevokeAccessBatchResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.revokeAccessBatch(caller, args)) {
+      case (#ok(result)) {
+        await drainStorageAccessChangedQueue();
+        result;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func claimPendingAccessGrant(args : T.ClaimPendingAccessGrantArguments) : async T.PrincipalAccessGrant {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.claimPendingAccessGrant(caller, args)) {
+      case (#ok(grant)) {
+        await drainStorageAccessChangedQueue();
+        grant;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func claimPendingAccessByBackendAttestation(args : T.ClaimPendingAccessByBackendAttestationArguments) : async [T.PrincipalAccessGrant] {
+    switch (es.claimPendingAccessByBackendAttestation(caller, args)) {
+      case (#ok(grants)) {
+        await drainStorageAccessChangedQueue();
+        grants;
+      };
+      case (#err(message)) {
+        throw Error.reject(message);
+      };
+    };
+  };
+
+  public shared ({ caller }) func cancelPendingAccessGrant(args : T.CancelPendingAccessGrantArguments) : async T.PendingAccessGrant {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.cancelPendingAccessGrant(caller, args)) {
+      case (#ok(grant)) {
+        await drainStorageAccessChangedQueue();
+        grant;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listPendingAccessGrants() : async [T.PendingAccessGrant] {
+    switch (es.listPendingAccessGrants(caller)) {
+      case (#ok(items)) items;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listAccessGrants(args : T.ListAccessGrantsArguments) : async T.AccessGrantList {
+    switch (es.listAccessGrants(caller, args)) {
+      case (#ok(result)) result;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func createDurableAccessGrant(args : T.CreateDurableAccessGrantArguments) : async T.PrincipalAccessGrant {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.createDurableAccessGrant(caller, args)) {
+      case (#ok(grant)) {
+        await drainStorageAccessChangedQueue();
+        grant;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func requestAccess(args : T.CreateAccessRequestArguments) : async T.AccessRequest {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.createAccessRequest(caller, args)) {
+      case (#ok(request)) {
+        await drainStorageAccessChangedQueue();
+        request;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func cancelAccessRequest(args : T.CancelAccessRequestArguments) : async T.AccessRequest {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.cancelAccessRequest(caller, args)) {
+      case (#ok(request)) {
+        await drainStorageAccessChangedQueue();
+        request;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getMyAccessRequest() : async ?T.AccessRequest {
+    switch (es.getMyAccessRequest(caller)) {
+      case (#ok(request)) request;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func resolveAccessRequest(args : T.ResolveAccessRequestArguments) : async T.AccessRequest {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (args.decision) {
+      case (#approved(_)) {
+        switch (await* SubscriptionGate.ensureSubscription(storage)) {
+          case (#ok(_)) {};
+          case (#err(message)) throw Error.reject(message);
+        };
+      };
+      case (#rejected) {};
+    };
+    switch (es.resolveAccessRequest(caller, args)) {
+      case (#ok(request)) {
+        await drainStorageAccessChangedQueue();
+        request;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listAccessRequests() : async [T.AccessRequest] {
+    switch (es.listAccessRequests(caller)) {
+      case (#ok(requests)) requests;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listStorageEvents(afterId : ?Nat, limit : Nat) : async [T.StoredStorageEvent] {
+    switch (es.listStorageEvents(caller, afterId, limit)) {
+      case (#ok(events)) events;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listLatestStorageEvents(limit : Nat) : async [T.StoredStorageEvent] {
+    switch (es.listLatestStorageEvents(caller, limit)) {
+      case (#ok(events)) events;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getStorageEventsUnreadCount() : async Nat {
+    switch (es.getStorageEventsUnreadCount(caller)) {
+      case (#ok(count)) count;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func markStorageEventsRead(upToEventId : Nat) : async () {
+    switch (es.markStorageEventsRead(caller, upToEventId)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
 
-  public shared ({ caller }) func revokeStoragePermission(args : T.RevokePermissionArguments) : async () {
-    switch (es.revokePermission(caller, args)) {
+  public shared ({ caller }) func markAllVisibleStorageEventsRead() : async () {
+    switch (es.markAllVisibleStorageEventsRead(caller)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
@@ -317,7 +668,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       case (#err(message)) throw Error.reject(message);
       case (#ok _) {};
     };
-    switch (SubscriptionGate.canDecrypt(storage, caller, owner)) {
+    switch (SubscriptionGate.canDecrypt(storage, caller, owner, keyId)) {
       case (#err(message)) throw Error.reject(message);
       case (#ok) {};
     };

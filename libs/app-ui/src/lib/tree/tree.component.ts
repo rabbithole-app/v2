@@ -25,6 +25,8 @@ import { RbthTreeDirective } from './tree-item.directive';
 import { TreeNode } from './tree.model';
 import { injectTreeConfig } from './tree.token';
 
+export type TreeSelectableMode = 'all' | 'files' | 'folders';
+
 export type WithRequiredProperty<Type, Key extends keyof Type> = {
   [Property in Key]-?: Type[Property];
 } & Type;
@@ -66,19 +68,27 @@ function flattenNodes(nodes: TreeNode[]): TreeNode[] {
 export class RbthTreeComponent {
   config = injectTreeConfig();
   data = input.required<TreeNode[]>();
+
+  expandedKeys = model<readonly string[] | undefined>(undefined);
+  selectable = input<TreeSelectableMode>('all');
   selected = model<TreeNode>();
   tree = viewChild.required<CdkTree<TreeNode>>(CdkTree);
   readonly userClass = input<ClassValue>('');
   protected readonly computedClass = computed(() =>
     hlm('contents', this.userClass()),
   );
+  #expansionJobId = 0;
+  #isApplyingExpansion = false;
 
   constructor() {
     effect(() => {
       const data = this.data();
-      if (data.length) {
-        this.#expandNodesToLevel(data, 0, 2);
+      const expandedKeys = this.expandedKeys();
+      if (!data.length) {
+        return;
       }
+
+      this.#scheduleApplyExpansion(data, expandedKeys);
     });
   }
 
@@ -87,6 +97,34 @@ export class RbthTreeComponent {
   expansionKey = (node: TreeNode) => node.path;
 
   hasChild = (_: number, node: TreeNode) => !!node.children?.length;
+
+  isFolder(node: TreeNode): boolean {
+    return node.kind === 'directory' || node.children !== undefined;
+  }
+
+  isSelectable(node: TreeNode): boolean {
+    const selectable = this.selectable();
+    if (selectable === 'all') return true;
+    if (selectable === 'folders') return this.isFolder(node);
+    return !this.isFolder(node);
+  }
+
+  rememberExpansionState(): void {
+    if (this.#isApplyingExpansion) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      const expandedKeys = this.#collectExpandedKeys();
+      this.expandedKeys.set(expandedKeys);
+    });
+  }
+
+  select(node: TreeNode): void {
+    if (this.isSelectable(node)) {
+      this.selected.set(node);
+    }
+  }
 
   shouldRender(node: TreeNode) {
     let parent = this.#getParentNode(node);
@@ -100,6 +138,23 @@ export class RbthTreeComponent {
   }
 
   trackBy = (_index: number, node: TreeNode) => this.expansionKey(node);
+
+  #applyExpansion(apply: () => void): void {
+    this.#isApplyingExpansion = true;
+    apply();
+    queueMicrotask(() => {
+      this.#isApplyingExpansion = false;
+    });
+  }
+
+  #collectExpandedKeys(): string[] {
+    const expandedKeys = flattenNodes(this.data())
+      .filter((node) => this.#isExpandable(node) && this.tree().isExpanded(node))
+      .map((node) => this.expansionKey(node))
+      .filter((key): key is string => !!key);
+
+    return expandedKeys;
+  }
 
   #expandNodesToLevel(
     nodes: TreeNode[],
@@ -133,5 +188,38 @@ export class RbthTreeComponent {
     node: TreeNode,
   ): node is WithRequiredProperty<TreeNode, 'children'> {
     return !!node.children?.length;
+  }
+
+  #restoreExpandedKeys(nodes: TreeNode[], expandedKeys: readonly string[]) {
+    const tree = this.tree();
+    const expandedKeySet = new Set(expandedKeys);
+
+    tree.collapseAll();
+
+    for (const node of flattenNodes(nodes)) {
+      const key = this.expansionKey(node);
+      if (key && expandedKeySet.has(key) && this.#isExpandable(node)) {
+        tree.expand(node);
+      }
+    }
+  }
+
+  #scheduleApplyExpansion(
+    data: TreeNode[],
+    expandedKeys: readonly string[] | undefined,
+  ): void {
+    const jobId = ++this.#expansionJobId;
+
+    setTimeout(() => {
+      if (jobId !== this.#expansionJobId) {
+        return;
+      }
+
+      if (expandedKeys === undefined) {
+        this.#applyExpansion(() => this.#expandNodesToLevel(data, 0, 2));
+      } else {
+        this.#applyExpansion(() => this.#restoreExpandedKeys(data, expandedKeys));
+      }
+    });
   }
 }

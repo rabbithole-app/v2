@@ -289,4 +289,31 @@ describe('provideRegistration', () => {
       { timeout: 2500 },
     );
   });
+
+  it('should request the verified email attribute for OpenID issuer sign-in', async () => {
+    mockActor.getUser
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([
+        { id: 'test', inviter: [], createdAt: 0n, updatedAt: 0n },
+      ]);
+    mockAuthService.requestAttributes.mockResolvedValue({} as never);
+
+    await setup();
+
+    triggerAuthEvent({
+      hasAttributes: true,
+      openIdIssuer: 'https://openid.localhost',
+    });
+
+    await vi.waitFor(() => {
+      expect(mockAuthService.requestAttributes).toHaveBeenCalledWith({
+        keys: [
+          'openid:https://openid.localhost:name',
+          'openid:https://openid.localhost:email',
+          'openid:https://openid.localhost:verified_email',
+        ],
+        nonce: new Uint8Array([1, 2, 3]),
+      });
+    });
+  });
 });

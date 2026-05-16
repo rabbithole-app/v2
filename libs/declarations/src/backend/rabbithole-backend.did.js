@@ -306,100 +306,6 @@ export const idlFactory = ({ IDL }) => {
     'payer' : IDL.Principal,
     'treasuryAmount' : IDL.Nat,
   });
-  const TypedEvent = IDL.Variant({
-    'backendLowCycles' : IDL.Record({
-      'threshold' : IDL.Nat,
-      'current' : IDL.Nat,
-    }),
-    'topUpCompleted' : IDL.Record({
-      'canisterId' : IDL.Principal,
-      'cyclesAmount' : IDL.Nat,
-    }),
-    'depositReceived' : IDL.Record({
-      'tokenId' : IDL.Text,
-      'amount' : IDL.Nat,
-    }),
-    'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
-    'cmcNotifyStuck' : IDL.Record({
-      'id' : IDL.Nat,
-      'blockIndex' : IDL.Nat,
-      'caller' : IDL.Principal,
-      'canisterId' : IDL.Principal,
-      'reason' : IDL.Text,
-    }),
-    'ambassadorPayoutFailed' : IDL.Record({
-      'owner' : IDL.Principal,
-      'creationId' : IDL.Nat,
-      'reason' : IDL.Text,
-    }),
-    'subscriptionExpired' : IDL.Null,
-    'autoRenewFailed' : IDL.Record({ 'reason' : IDL.Text }),
-    'topUpFailed' : IDL.Record({
-      'canisterId' : IDL.Principal,
-      'reason' : IDL.Text,
-    }),
-    'autoTopUpCompleted' : IDL.Record({
-      'canisterId' : IDL.Principal,
-      'cyclesAmount' : IDL.Nat,
-    }),
-    'creationRefunded' : IDL.Record({
-      'tokenId' : IDL.Text,
-      'owner' : IDL.Principal,
-      'creationId' : IDL.Nat,
-      'amount' : IDL.Nat,
-    }),
-    'treasuryIcpLow' : IDL.Record({
-      'currentBalance' : IDL.Nat,
-      'reserve' : IDL.Nat,
-      'required' : IDL.Nat,
-    }),
-    'subscriptionRenewed' : IDL.Record({
-      'expiresAt' : IDL.Opt(IDL.Int),
-      'plan' : IDL.Variant({
-        'Pro' : IDL.Null,
-        'Free' : IDL.Null,
-        'Trial' : IDL.Null,
-      }),
-    }),
-    'balanceLow' : IDL.Record({ 'requiredAmount' : IDL.Nat }),
-    'paymentReceived' : IDL.Record({
-      'tokenId' : IDL.Text,
-      'amount' : IDL.Nat,
-      'purpose' : IDL.Text,
-    }),
-    'subscriptionActivated' : IDL.Record({
-      'plan' : IDL.Variant({
-        'Pro' : IDL.Null,
-        'Free' : IDL.Null,
-        'Trial' : IDL.Null,
-      }),
-    }),
-    'updateAvailable' : IDL.Record({
-      'releaseTag' : IDL.Text,
-      'canisterId' : IDL.Principal,
-    }),
-    'autoTopUpFailed' : IDL.Record({
-      'canisterId' : IDL.Principal,
-      'reason' : IDL.Text,
-    }),
-    'lowCycles' : IDL.Record({
-      'estimatedDaysLeft' : IDL.Nat,
-      'severity' : IDL.Variant({ 'warning' : IDL.Null, 'critical' : IDL.Null }),
-      'remaining' : IDL.Nat,
-      'canisterId' : IDL.Principal,
-    }),
-    'backendSelfTopUpFailed' : IDL.Record({ 'reason' : IDL.Text }),
-  });
-  const StoredNotification = IDL.Record({
-    'id' : IDL.Nat,
-    'createdAt' : Time,
-    'read' : IDL.Bool,
-    'event' : TypedEvent,
-  });
-  const NotificationsPage = IDL.Record({
-    'data' : IDL.Vec(StoredNotification),
-    'unreadCount' : IDL.Nat,
-  });
   const PendingRefund = IDL.Record({
     'tokenId' : TokenId,
     'userId' : IDL.Principal,
@@ -415,6 +321,10 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Time,
     'updatedAt' : Time,
     'avatarUrl' : IDL.Opt(IDL.Text),
+  });
+  const PublicProfileLookup = IDL.Record({
+    'principal' : IDL.Principal,
+    'profile' : IDL.Opt(PublicProfileSummary),
   });
   const AssetDownloadStatus = IDL.Variant({
     'Error' : IDL.Text,
@@ -637,6 +547,190 @@ export const idlFactory = ({ IDL }) => {
     'data' : IDL.Vec(License),
     'instructions' : IDL.Nat,
   });
+  const ListNotificationsArgs = IDL.Record({
+    'limit' : IDL.Nat,
+    'afterId' : IDL.Opt(IDL.Nat),
+    'unreadOnly' : IDL.Bool,
+  });
+  const NotificationSource = IDL.Variant({
+    'storage' : IDL.Null,
+    'backend' : IDL.Null,
+  });
+  const SourceEventRef = IDL.Variant({
+    'storage' : IDL.Record({
+      'storageEventId' : IDL.Nat,
+      'canisterId' : IDL.Principal,
+    }),
+    'backend' : IDL.Record({ 'kind' : IDL.Text }),
+  });
+  const NotificationSeverity = IDL.Variant({
+    'warning' : IDL.Null,
+    'info' : IDL.Null,
+    'critical' : IDL.Null,
+    'success' : IDL.Null,
+  });
+  const AccessClass = IDL.Variant({
+    'ordinary' : IDL.Null,
+    'ownerEquivalent' : IDL.Null,
+    'durable' : IDL.Null,
+  });
+  const AccessSource = IDL.Variant({
+    'durablePolicy' : IDL.Nat,
+    'accessRequest' : IDL.Nat,
+    'directGrant' : IDL.Null,
+    'ordinaryInvite' : IDL.Nat,
+    'recoverySetup' : IDL.Null,
+  });
+  const AccessRequestStatus = IDL.Variant({
+    'cancelled' : IDL.Null,
+    'pending' : IDL.Null,
+    'approved' : IDL.Null,
+    'rejected' : IDL.Null,
+  });
+  const NotificationPayload = IDL.Variant({
+    'storageAccessRevoked' : IDL.Record({
+      'accessClass' : IDL.Opt(AccessClass),
+      'canisterId' : IDL.Principal,
+    }),
+    'backendLowCycles' : IDL.Record({
+      'threshold' : IDL.Nat,
+      'current' : IDL.Nat,
+    }),
+    'topUpCompleted' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'cyclesAmount' : IDL.Nat,
+    }),
+    'depositReceived' : IDL.Record({
+      'tokenId' : IDL.Text,
+      'amount' : IDL.Nat,
+    }),
+    'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
+    'cmcNotifyStuck' : IDL.Record({
+      'id' : IDL.Nat,
+      'blockIndex' : IDL.Nat,
+      'caller' : IDL.Principal,
+      'canisterId' : IDL.Principal,
+      'reason' : IDL.Text,
+    }),
+    'storageAccessRequestCancelled' : IDL.Record({
+      'requestId' : IDL.Nat,
+      'requester' : IDL.Principal,
+      'canisterId' : IDL.Principal,
+    }),
+    'ambassadorPayoutFailed' : IDL.Record({
+      'owner' : IDL.Principal,
+      'creationId' : IDL.Nat,
+      'reason' : IDL.Text,
+    }),
+    'subscriptionExpired' : IDL.Null,
+    'storageInviteCreated' : IDL.Record({
+      'source' : AccessSource,
+      'grantId' : IDL.Nat,
+      'accessClass' : AccessClass,
+      'canisterId' : IDL.Principal,
+    }),
+    'autoRenewFailed' : IDL.Record({ 'reason' : IDL.Text }),
+    'storageAccessGranted' : IDL.Record({
+      'source' : AccessSource,
+      'grantId' : IDL.Opt(IDL.Nat),
+      'accessClass' : AccessClass,
+      'canisterId' : IDL.Principal,
+    }),
+    'topUpFailed' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'reason' : IDL.Text,
+    }),
+    'storageInviteCancelled' : IDL.Record({
+      'grantId' : IDL.Nat,
+      'canisterId' : IDL.Principal,
+    }),
+    'storageRecoveryOwnerAdded' : IDL.Record({ 'canisterId' : IDL.Principal }),
+    'autoTopUpCompleted' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'cyclesAmount' : IDL.Nat,
+    }),
+    'creationRefunded' : IDL.Record({
+      'tokenId' : IDL.Text,
+      'owner' : IDL.Principal,
+      'creationId' : IDL.Nat,
+      'amount' : IDL.Nat,
+    }),
+    'treasuryIcpLow' : IDL.Record({
+      'currentBalance' : IDL.Nat,
+      'reserve' : IDL.Nat,
+      'required' : IDL.Nat,
+    }),
+    'storageRecoveryOwnerRemoved' : IDL.Record({
+      'canisterId' : IDL.Principal,
+    }),
+    'storageInviteClaimed' : IDL.Record({
+      'principal' : IDL.Principal,
+      'source' : AccessSource,
+      'grantId' : IDL.Nat,
+      'accessClass' : AccessClass,
+      'canisterId' : IDL.Principal,
+    }),
+    'subscriptionRenewed' : IDL.Record({
+      'expiresAt' : IDL.Opt(IDL.Int),
+      'plan' : IDL.Variant({
+        'Pro' : IDL.Null,
+        'Free' : IDL.Null,
+        'Trial' : IDL.Null,
+      }),
+    }),
+    'storageAccessRequestCreated' : IDL.Record({
+      'requestId' : IDL.Nat,
+      'requester' : IDL.Principal,
+      'canisterId' : IDL.Principal,
+    }),
+    'balanceLow' : IDL.Record({ 'requiredAmount' : IDL.Nat }),
+    'paymentReceived' : IDL.Record({
+      'tokenId' : IDL.Text,
+      'amount' : IDL.Nat,
+      'purpose' : IDL.Text,
+    }),
+    'subscriptionActivated' : IDL.Record({
+      'plan' : IDL.Variant({
+        'Pro' : IDL.Null,
+        'Free' : IDL.Null,
+        'Trial' : IDL.Null,
+      }),
+    }),
+    'storageAccessRequestResolved' : IDL.Record({
+      'status' : AccessRequestStatus,
+      'requestId' : IDL.Nat,
+      'canisterId' : IDL.Principal,
+    }),
+    'updateAvailable' : IDL.Record({
+      'releaseTag' : IDL.Text,
+      'canisterId' : IDL.Principal,
+    }),
+    'autoTopUpFailed' : IDL.Record({
+      'canisterId' : IDL.Principal,
+      'reason' : IDL.Text,
+    }),
+    'lowCycles' : IDL.Record({
+      'estimatedDaysLeft' : IDL.Nat,
+      'severity' : IDL.Variant({ 'warning' : IDL.Null, 'critical' : IDL.Null }),
+      'remaining' : IDL.Nat,
+      'canisterId' : IDL.Principal,
+    }),
+    'backendSelfTopUpFailed' : IDL.Record({ 'reason' : IDL.Text }),
+  });
+  const StoredNotification = IDL.Record({
+    'id' : IDL.Nat,
+    'source' : NotificationSource,
+    'createdAt' : Time,
+    'read' : IDL.Bool,
+    'sourceEvent' : IDL.Opt(SourceEventRef),
+    'severity' : NotificationSeverity,
+    'correlationId' : IDL.Opt(IDL.Text),
+    'payload' : NotificationPayload,
+  });
+  const NotificationsPage = IDL.Record({
+    'data' : IDL.Vec(StoredNotification),
+    'unreadCount' : IDL.Nat,
+  });
   const CmcOpSource = IDL.Variant({
     'storageCreation' : IDL.Record({ 'creationId' : IDL.Nat }),
     'selfTopUp' : IDL.Null,
@@ -662,6 +756,23 @@ export const idlFactory = ({ IDL }) => {
     'blockIndex' : IDL.Nat,
     'lastError' : IDL.Text,
     'refund' : IDL.Opt(RefundContext),
+  });
+  const SharedStorageAccess = IDL.Record({
+    'storageCanisterId' : IDL.Principal,
+    'activeAccessClasses' : IDL.Vec(AccessClass),
+    'lastStorageEventId' : IDL.Nat,
+    'firstSeenAt' : Time,
+    'pendingAccessClasses' : IDL.Vec(AccessClass),
+    'updatedAt' : Time,
+    'accountOwner' : IDL.Principal,
+    'pendingGrantIds' : IDL.Vec(IDL.Nat),
+    'lastCorrelationId' : IDL.Opt(IDL.Text),
+    'lastSource' : IDL.Opt(AccessSource),
+  });
+  const SharedStorageAccessView = IDL.Record({
+    'access' : SharedStorageAccess,
+    'storageStatus' : IDL.Opt(CreationStatus),
+    'updateAvailable' : IDL.Opt(UpdateInfo),
   });
   const StorageInfo = IDL.Record({
     'id' : IDL.Nat,
@@ -691,6 +802,80 @@ export const idlFactory = ({ IDL }) => {
     'total' : IDL.Opt(IDL.Nat),
     'data' : IDL.Vec(Subscription),
     'instructions' : IDL.Nat,
+  });
+  const EmailClaimOrigin = IDL.Variant({
+    'storage' : IDL.Null,
+    'rabbithole' : IDL.Null,
+  });
+  const EmailClaim = IDL.Record({
+    'principalGrantId' : IDL.Nat,
+    'principal' : IDL.Principal,
+    'origin' : EmailClaimOrigin,
+    'claimedAt' : Time,
+  });
+  const EmailClaimState = IDL.Record({
+    'storage' : IDL.Opt(EmailClaim),
+    'rabbithole' : IDL.Opt(EmailClaim),
+  });
+  const StorageAccessLifecycleEvent = IDL.Variant({
+    'accessRequestResolved' : IDL.Record({
+      'status' : AccessRequestStatus,
+      'requestId' : IDL.Nat,
+      'requester' : IDL.Principal,
+    }),
+    'accessRequestCreated' : IDL.Record({
+      'requestId' : IDL.Nat,
+      'requester' : IDL.Principal,
+    }),
+    'recoveryControllerRegistered' : IDL.Record({
+      'principal' : IDL.Principal,
+      'previous' : IDL.Opt(IDL.Principal),
+    }),
+    'pendingGrantCreated' : IDL.Record({
+      'source' : AccessSource,
+      'recipient' : IDL.Opt(IDL.Principal),
+      'emailCommitment' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+      'grantId' : IDL.Nat,
+      'accessClass' : AccessClass,
+    }),
+    'recoveryControllerCleared' : IDL.Record({ 'principal' : IDL.Principal }),
+    'recoveryOwnerAdded' : IDL.Record({ 'principal' : IDL.Principal }),
+    'pendingGrantClaimed' : IDL.Record({
+      'principal' : IDL.Principal,
+      'emailClaimState' : IDL.Opt(EmailClaimState),
+      'source' : AccessSource,
+      'grantId' : IDL.Nat,
+      'claimOrigin' : IDL.Opt(EmailClaimOrigin),
+      'accessClass' : AccessClass,
+    }),
+    'accessRequestCancelled' : IDL.Record({
+      'requestId' : IDL.Nat,
+      'requester' : IDL.Principal,
+    }),
+    'principalGrantCreated' : IDL.Record({
+      'principal' : IDL.Principal,
+      'source' : AccessSource,
+      'grantId' : IDL.Opt(IDL.Nat),
+      'accessClass' : AccessClass,
+    }),
+    'pendingGrantCancelled' : IDL.Record({
+      'recipient' : IDL.Opt(IDL.Principal),
+      'emailCommitment' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+      'grantId' : IDL.Nat,
+    }),
+    'principalGrantRevoked' : IDL.Record({
+      'principal' : IDL.Principal,
+      'accessClass' : IDL.Opt(AccessClass),
+    }),
+    'recoveryOwnerRemoved' : IDL.Record({ 'principal' : IDL.Principal }),
+  });
+  const CorrelationId = IDL.Text;
+  const StorageAccessChanged = IDL.Record({
+    'storageCanisterId' : IDL.Principal,
+    'storageEventId' : IDL.Nat,
+    'event' : StorageAccessLifecycleEvent,
+    'correlationId' : IDL.Opt(CorrelationId),
+    'accountOwner' : IDL.Principal,
   });
   const StorageBackendType = IDL.Variant({
     'OnChain' : IDL.Null,
@@ -739,6 +924,7 @@ export const idlFactory = ({ IDL }) => {
     'malformedPayload' : IDL.Null,
     'invalidOrigin' : IDL.Null,
     'nonceMismatch' : IDL.Null,
+    'verifiedEmailRequired' : IDL.Null,
     'nonceNotFound' : IDL.Null,
   });
   const IdentityAttributesSyncResult = IDL.Variant({
@@ -858,13 +1044,13 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
-    'getNotifications' : IDL.Func(
-        [IDL.Opt(Time), IDL.Nat],
-        [NotificationsPage],
-        ['query'],
-      ),
     'getPendingRefunds' : IDL.Func([], [IDL.Vec(PendingRefund)], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
+    'getPublicProfiles' : IDL.Func(
+        [IDL.Vec(IDL.Principal)],
+        [IDL.Vec(PublicProfileLookup)],
+        ['query'],
+      ),
     'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
     'getSettings' : IDL.Func([], [UserSettings], ['query']),
     'getSolAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
@@ -881,7 +1067,7 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
-    'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUnreadNotificationCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getUser' : IDL.Func([], [IDL.Opt(User)], ['query']),
     'http_request' : IDL.Func(
         [RawQueryHttpRequest],
@@ -912,6 +1098,11 @@ export const idlFactory = ({ IDL }) => {
         [GetLicensesResponse],
         ['query'],
       ),
+    'listNotifications' : IDL.Func(
+        [ListNotificationsArgs],
+        [NotificationsPage],
+        ['query'],
+      ),
     'listPendingCmcOps' : IDL.Func(
         [
           IDL.Record({
@@ -922,6 +1113,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(PendingCmcOp)],
         ['query'],
       ),
+    'listSharedWithMeStorageViews' : IDL.Func(
+        [],
+        [IDL.Vec(SharedStorageAccessView)],
+        ['query'],
+      ),
+    'listSharedWithMeStorages' : IDL.Func(
+        [],
+        [IDL.Vec(SharedStorageAccess)],
+        ['query'],
+      ),
     'listStorages' : IDL.Func([], [IDL.Vec(StorageInfo)], ['query']),
     'listSubscriptions' : IDL.Func(
         [ListOptions],
@@ -929,8 +1130,10 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'listUsersByRole' : IDL.Func([Role], [IDL.Vec(IDL.Principal)], ['query']),
-    'markAllNotificationsAsRead' : IDL.Func([], [], []),
-    'markNotificationsAsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
+    'markAllNotificationsRead' : IDL.Func([], [], []),
+    'markNotificationsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
+    'markNotificationsReadUpTo' : IDL.Func([IDL.Nat], [], []),
+    'onStorageAccessChanged' : IDL.Func([StorageAccessChanged], [], []),
     'onStorageLowCycles' : IDL.Func(
         [
           IDL.Nat,

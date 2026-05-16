@@ -14,7 +14,7 @@ export type {
   GetSubscriptionsResponse,
   StoredNotification,
   NotificationsPage,
-  TypedEvent,
+  NotificationPayload,
   KnownWasmHash,
   PurchaseError,
   UserSettings,

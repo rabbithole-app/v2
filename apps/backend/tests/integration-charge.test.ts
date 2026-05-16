@@ -18,7 +18,7 @@ import {
   type RabbitholeActorService,
   rabbitholeIdlFactory,
   type StoredNotification,
-  type TypedEvent,
+  type NotificationPayload,
 } from '@rabbithole/declarations';
 import {
   BaseManager,
@@ -78,10 +78,10 @@ const l1Identity = createIdentity('integ-l1');
 type BackendActor = RabbitholeActorService;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-type NotificationKey = KeysOfUnion<TypedEvent>;
+type NotificationKey = KeysOfUnion<NotificationPayload>;
 
 type NotificationOf<Key extends NotificationKey> = {
-  event: Extract<TypedEvent, Record<Key, unknown>>;
+  payload: Extract<NotificationPayload, Record<Key, unknown>>;
 } & StoredNotification;
 type PurchaseSubscriptionResult = Awaited<
   ReturnType<BackendActor['purchaseSubscription']>
@@ -159,7 +159,7 @@ function hasNotificationEvent<Key extends NotificationKey>(
   notification: StoredNotification,
   key: Key,
 ): notification is NotificationOf<Key> {
-  return key in notification.event;
+  return key in notification.payload;
 }
 
 // ========== Test Suite 1: Deposit + Wallet + Settings ==========
@@ -373,7 +373,7 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     expect(sub).toHaveLength(0);
 
     // But notification received
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const depositNotif = findNotification(notifs.data, 'depositReceived');
     expect(depositNotif).toBeDefined();
   });
@@ -381,10 +381,10 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
   test('payment notification includes correct data', async () => {
     // Check that the license activation from earlier created a paymentReceived notification
     actor.setIdentity(userIdentity);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const paymentNotif = findNotification(notifs.data, 'paymentReceived');
     expect(paymentNotif).toBeDefined();
-    expect(paymentNotif.event.paymentReceived.purpose).toBe('license');
+    expect(paymentNotif.payload.paymentReceived.purpose).toBe('license');
   });
 });
 
@@ -459,7 +459,7 @@ describe('Integration: auto-renew and grace period', () => {
 
     // chargeForService fails → balanceLow notification
     actor.setIdentity(user);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const lowNotif = findNotification(notifs.data, 'balanceLow');
     expect(lowNotif).toBeDefined();
   });
@@ -510,7 +510,7 @@ describe('Integration: auto-renew and grace period', () => {
     expect(sub[0].plan).toEqual({ Free: null });
 
     // Should have subscriptionExpired notification
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const expiredNotif = findNotification(notifs.data, 'subscriptionExpired');
     expect(expiredNotif).toBeDefined();
   });
@@ -620,7 +620,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
     expect(sub[0].status).toEqual({ Active: null });
 
     // Verify notification
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const renewNotif = findNotification(notifs.data, 'subscriptionRenewed');
     expect(renewNotif).toBeDefined();
   });
@@ -664,7 +664,7 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
 
     // Should have balanceLow notification
     actor.setIdentity(user);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const lowNotif = findNotification(notifs.data, 'balanceLow');
     expect(lowNotif).toBeDefined();
   });
@@ -765,12 +765,12 @@ describe('Integration: auto-renew with ICP at CMC rate', () => {
 
     // Exactly one renewal notification
     actor.setIdentity(user);
-    const notifs = await actor.getNotifications([], 20n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 20n, unreadOnly: false });
     const renewNotifs = notifs.data.filter((notification): notification is NotificationOf<'subscriptionRenewed'> =>
       hasNotificationEvent(notification, 'subscriptionRenewed'),
     );
     expect(renewNotifs).toHaveLength(1);
-    expect(renewNotifs[0].event.subscriptionRenewed.plan).toEqual({ Pro: null });
+    expect(renewNotifs[0].payload.subscriptionRenewed.plan).toEqual({ Pro: null });
   });
 });
 
@@ -887,7 +887,7 @@ describe('Integration: chargeForService with ckETH (XRC)', () => {
     expect(sub[0].plan).toEqual({ Pro: null });
     expect(sub[0].status).toEqual({ Active: null });
 
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const renewNotif = findNotification(notifs.data, 'subscriptionRenewed');
     expect(renewNotif).toBeDefined();
   });
@@ -1000,7 +1000,7 @@ describe('Integration: ICP insufficient falls to ckUSDC', () => {
     expect(sub[0].plan).toEqual({ Pro: null });
     expect(sub[0].status).toEqual({ Active: null });
 
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const renewNotif = findNotification(notifs.data, 'subscriptionRenewed');
     expect(renewNotif).toBeDefined();
   });
@@ -1278,7 +1278,7 @@ describe('Integration: topUpFromBalance full flow', () => {
 
     // topUpFailed notification
     actor.setIdentity(storageUser);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const failNotif = findNotification(notifs.data, 'topUpFailed');
     expect(failNotif).toBeDefined();
   });
@@ -1370,7 +1370,7 @@ describe('Integration: topUpFromBalance full flow', () => {
 
     // Notification
     actor.setIdentity(storageUser);
-    const notifs = await actor.getNotifications([], 20n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 20n, unreadOnly: false });
     const topUpNotif = findNotification(notifs.data, 'autoTopUpCompleted');
     expect(topUpNotif).toBeDefined();
   });
@@ -1619,7 +1619,7 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
 
     await waitWithAutoProgress(manager.pic, async () => {
       actor.setIdentity(evmUser);
-      const notifs = await actor.getNotifications([], 10n);
+      const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
       return hasAnyNotification(notifs.data, 'subscriptionRenewed')
         || hasAnyNotification(notifs.data, 'subscriptionActivated');
     });
@@ -1664,7 +1664,7 @@ describe('Integration: chargeForService with BaseETH (EVM testnet)', () => {
     // Poll for subscriptionRenewed (ICP fallback) or balanceLow notification
     await waitWithAutoProgress(manager.pic, async () => {
       actor.setIdentity(fallbackUser);
-      const notifs = await actor.getNotifications([], 10n);
+      const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
       return (
         hasAnyNotification(notifs.data, 'subscriptionRenewed') ||
         hasAnyNotification(notifs.data, 'balanceLow')
@@ -1747,7 +1747,7 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
 
     await waitWithAutoProgress(manager.pic, async () => {
       actor.setIdentity(solUser);
-      const notifs = await actor.getNotifications([], 10n);
+      const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
       return hasAnyNotification(notifs.data, 'subscriptionRenewed')
         || hasAnyNotification(notifs.data, 'subscriptionActivated');
     });
@@ -1778,13 +1778,13 @@ describe('Integration: chargeForService with SOL (Solana testnet)', () => {
 
     await waitWithAutoProgress(manager.pic, async () => {
       actor.setIdentity(noFundsUser);
-      const notifs = await actor.getNotifications([], 10n);
+      const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
       return hasAnyNotification(notifs.data, 'balanceLow');
     });
 
     // Should have balanceLow notification
     actor.setIdentity(noFundsUser);
-    const notifs = await actor.getNotifications([], 10n);
+    const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const lowNotif = findNotification(notifs.data, 'balanceLow');
     expect(lowNotif).toBeDefined();
   }, 300_000);

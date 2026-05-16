@@ -1,0 +1,55 @@
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>Request access</h3>
+      <p hlmDialogDescription>
+        Ask the owner or a manager to grant access to this storage.
+      </p>
+    </hlm-dialog-header>
+
+    <div class="space-y-5 py-4">
+      <div hlmField>
+        <div hlmFieldTitle>Signed in as</div>
+        <rbth-copy-to-clipboard
+          [content]="principalId()"
+          class="text-sm text-muted-foreground"
+        >
+          <span class="break-all whitespace-normal">{{ principalId() }}</span>
+        </rbth-copy-to-clipboard>
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="access-request-message">
+          Message <span class="text-muted-foreground">(optional)</span>
+        </label>
+        <textarea
+          hlmTextarea
+          id="access-request-message"
+          rows="4"
+          maxlength="500"
+          placeholder="Add context for the owner..."
+          [formControl]="messageControl"
+        ></textarea>
+        <p hlmFieldDescription>
+          The owner decides which files or folders to share and what permission
+          level to grant.
+        </p>
+        @if (messageControl.hasError('maxlength')) {
+          <p hlmFieldHint class="text-destructive">
+            Message cannot be longer than 500 characters.
+          </p>
+        }
+      </div>
+    </div>
+
+    <hlm-dialog-footer>
+      <button hlmBtn type="button" variant="outline" (click)="dialogRef.close()">
+        Cancel
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        [disabled]="messageControl.invalid"
+        (click)="submit()"
+      >
+        Send request
+      </button>
+    </hlm-dialog-footer>

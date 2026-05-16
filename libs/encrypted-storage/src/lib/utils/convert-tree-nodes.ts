@@ -18,12 +18,17 @@ export function convertTreeNodes(
         },
         ({ name, children }) => {
           const path = prefix ? `${prefix}/${name}` : name;
-          return { name, path, children: convertTreeNodes(children, path) };
+          return {
+            name,
+            path,
+            kind: 'directory',
+            children: convertTreeNodes(children, path),
+          };
         },
       )
       .with({ name: P.string.select('name') }, ({ name }) => {
         const path = prefix ? `${prefix}/${name}` : name;
-        return { name, path };
+        return { name, path, kind: 'file' };
       })
       .exhaustive(),
   );

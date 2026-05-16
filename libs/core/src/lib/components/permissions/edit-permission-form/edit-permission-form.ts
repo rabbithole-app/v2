@@ -14,7 +14,7 @@ import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { isNonNull, isNonNullish } from 'remeda';
 
 import type {
-  GrantStoragePermission,
+  CreateStorageAccessGrants,
   StoragePermission,
 } from '@rabbithole/encrypted-storage';
 import { HlmButton } from '@spartan-ng/helm/button';
@@ -57,7 +57,7 @@ import {
   ],
 })
 export class EditPermissionFormComponent {
-  dialog = viewChild.required(HlmDialog);
+  accessGrantsChange = output<CreateStorageAccessGrants>();
   #fb = inject(FormBuilder);
   userControl = this.#fb.control<string | null>(null, {
     validators: [Validators.required, principalValidator],
@@ -70,8 +70,15 @@ export class EditPermissionFormComponent {
   });
   principal = input<string>();
   isEditMode = computed(() => isNonNullish(this.principal()));
+  readonly selectedUsers = signal<UserTarget[]>([]);
+  canSubmit = computed(() => {
+    if (this.form.controls.permission.invalid) return false;
+    return this.isEditMode()
+      ? this.userControl.valid
+      : this.selectedUsers().length > 0;
+  });
+  dialog = viewChild.required(HlmDialog);
   permission = input<StoragePermission>();
-  permissionChange = output<Omit<GrantStoragePermission, 'entry'>>();
   readonly permissions = [
     { value: 'Read', label: 'Read', description: 'Permission to read' },
     {
@@ -85,7 +92,6 @@ export class EditPermissionFormComponent {
       description: 'Rights to modify the permissions of other identities',
     },
   ];
-  readonly selectedUsers = signal<UserTarget[]>([]);
 
   constructor() {
     effect(() => {
@@ -109,8 +115,23 @@ export class EditPermissionFormComponent {
   handleSubmit() {
     const { user, permission } = this.form.getRawValue();
 
-    if (isNonNull(user) && isNonNull(permission)) {
-      this.permissionChange.emit({ user, permission });
+    if (!isNonNull(permission)) return;
+
+    if (this.isEditMode()) {
+      if (isNonNull(user)) {
+        this.accessGrantsChange.emit({
+          items: [{ target: { principal: user }, permission }],
+        });
+      }
+    } else if (this.selectedUsers().length > 0) {
+      this.accessGrantsChange.emit({
+        items: this.selectedUsers().map((target) => ({
+          target: target.kind === 'email'
+            ? { email: target.email }
+            : { principal: target.principalId },
+          permission,
+        })),
+      });
     }
 
     if (!this.isEditMode()) {
@@ -122,7 +143,7 @@ export class EditPermissionFormComponent {
   }
 
   handleUsersChange(targets: UserTarget[] | null): void {
-    const selected = (targets ?? []).slice(-1);
+    const selected = targets ?? [];
     this.selectedUsers.set(selected);
     const principalTarget = selected.find((target) => target.kind !== 'email');
     this.userControl.setValue(principalTarget?.principalId ?? null);

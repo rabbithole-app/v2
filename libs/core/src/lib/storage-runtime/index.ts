@@ -13,3 +13,5 @@ export * from '../tokens/upload';
 export * from '../types/upload';
 export * from '../types/worker';
 export * from '../utils/storage-init-args';
+export * from './access-requests-capability.service';
+export * from './access-requests.guard';

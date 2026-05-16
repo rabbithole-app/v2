@@ -16,5 +16,6 @@ export * from './lib/terminal';
 export * from './lib/timeline-steps';
 export * from './lib/toaster';
 export * from './lib/tree';
+export * from './lib/tree-select';
 export * from './lib/trial-progress';
 export * from './lib/user-identity';

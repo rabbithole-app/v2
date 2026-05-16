@@ -2,7 +2,7 @@ import { InjectionToken } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { HttpAgent, HttpAgentOptions } from '@icp-sdk/core/agent';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
-import { filter, switchMap } from 'rxjs/operators';
+import { filter, map, switchMap } from 'rxjs/operators';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
@@ -19,18 +19,20 @@ export const [injectHttpAgent, provideHttpAgent, HTTP_AGENT_TOKEN] =
       httpAgentOptions: ExtractInjectionToken<typeof HTTP_AGENT_OPTIONS_TOKEN>,
     ) => {
       const identity$ = toObservable(authService.identity);
+      const createAgent = (identity = authService.identity()) =>
+        HttpAgent.createSync({
+          ...httpAgentOptions,
+          identity,
+        });
+
       return toSignal(
         authService.ready$.pipe(
           filter((v) => v),
           switchMap(() =>
-            identity$.pipe(
-              switchMap((identity) =>
-                HttpAgent.create({ ...httpAgentOptions, identity }),
-              ),
-            ),
+            identity$.pipe(map((identity) => createAgent(identity))),
           ),
         ),
-        { initialValue: HttpAgent.createSync(httpAgentOptions) },
+        { initialValue: createAgent() },
       );
     },
     {

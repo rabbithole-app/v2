@@ -68,10 +68,14 @@
       @if (canManage) {
         <button
           hlmDropdownMenuItem
-          (click)="manageAccess.emit(selected)"
+          (click)="share.emit(selected)"
         >
-          <ng-icon hlm name="lucideUsers" hlmMenuIcon />
-          Manage Access
+          <ng-icon hlm name="lucideShare2" hlmMenuIcon />
+          @if (selected.length > 1) {
+            Share ({{ selected.length }})
+          } @else {
+            Share
+          }
         </button>
         <button
           hlmDropdownMenuItem
@@ -79,6 +83,17 @@
         >
           <ng-icon hlm name="lucideGlobe" hlmMenuIcon />
           Make Public
+        </button>
+        <button
+          hlmDropdownMenuItem
+          (click)="manageAccess.emit(selected)"
+        >
+          <ng-icon hlm name="lucideUsers" hlmMenuIcon />
+          @if (selected.length > 1) {
+            Manage access ({{ selected.length }})
+          } @else {
+            Manage access
+          }
         </button>
       }
       <button

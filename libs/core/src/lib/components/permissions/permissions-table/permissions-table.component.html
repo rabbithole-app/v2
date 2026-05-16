@@ -6,11 +6,16 @@
     (input)="_filterChanged($event)"
   />
   <div class="flex items-center gap-2">
-    <core-edit-permission-form (permissionChange)="grant.emit($event)">
-      <button variant="outline" coreEditPermissionFormTrigger>
-        <ng-icon hlmIcon name="lucideUserPlus" size="sm" />Add permission
+    <core-share-dialog
+      [scopeLabel]="scopeLabel()"
+      [scopeKind]="scopeKind()"
+      [itemCount]="itemCount()"
+      (accessGrantsChange)="createAccessGrants.emit($event)"
+    >
+      <button variant="outline" coreShareDialogTrigger>
+        <ng-icon hlmIcon name="lucideUserPlus" size="sm" />Share
       </button>
-    </core-edit-permission-form>
+    </core-share-dialog>
     <button
       hlmBtn
       variant="outline"
@@ -90,7 +95,11 @@
               class="h-24 text-center"
               [attr.colspan]="_columns().length"
             >
-              No results.
+              @if (loading()) {
+                Loading access list...
+              } @else {
+                No access grants yet.
+              }
             </td>
           </tr>
         }
@@ -113,7 +122,7 @@
         <hlm-select-trigger class="w-20 inline-flex">
           <hlm-select-value />
         </hlm-select-trigger>
-        <hlm-select-content>
+        <hlm-select-content *hlmSelectPortal>
           @for (size of _availablePageSizes; track size) {
             <hlm-select-item [value]="size">
               {{ size === 10000 ? 'All' : size }}

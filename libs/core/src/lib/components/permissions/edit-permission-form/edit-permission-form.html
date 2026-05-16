@@ -23,8 +23,7 @@
         } @else {
           <core-user-target-combobox
             class="block w-full"
-            [allowTypedEmail]="false"
-            placeholder="Search user or principal"
+            placeholder="Search user, principal or email"
             [value]="selectedUsers()"
             (valueChange)="handleUsersChange($event)"
           />
@@ -60,7 +59,7 @@
       <button
         hlmBtn
         type="button"
-        [disabled]="form.invalid"
+        [disabled]="!canSubmit()"
         (click)="handleSubmit()"
       >
         @if (isEditMode()) {

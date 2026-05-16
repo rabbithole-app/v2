@@ -4,17 +4,17 @@ import Map "mo:core/Map";
 import Principal "mo:core/Principal";
 import Random "mo:core/Random";
 import Result "mo:core/Result";
-import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Prim "mo:⛔";
 
 import IdentityVerification "lib";
-import Utils "../Utils/lib";
 
 mixin(
   deps : {
-    upsertFromVerifiedAttributes : (Principal, IdentityVerification.VerifiedIdentityAttributes) -> Result.Result<(), Text>;
+    onVerifiedAttributes : (Principal, IdentityVerification.VerifiedIdentityAttributes) -> async Result.Result<(), IdentityVerification.IdentityAttributesSyncError>;
+    resolveTrustedIdentitySigner : <system>() -> Principal;
+    resolveExpectedIdentityOrigin : <system>() -> Text;
   }
 ) {
   type AttributeMap = IdentityVerification.AttributeMap;
@@ -53,7 +53,7 @@ mixin(
     };
 
     let signer = Principal.fromBlob(signerBlob);
-    let trustedIdentitySigner = Principal.fromText(Utils.envText<system>("PUBLIC_CANISTER_ID:internet_identity_backend", "rdmx6-jaaaa-aaaaa-aaadq-cai"));
+    let trustedIdentitySigner = deps.resolveTrustedIdentitySigner<system>();
     if (signer != trustedIdentitySigner) {
       return #err(#untrustedSigner);
     };
@@ -63,41 +63,58 @@ mixin(
       return #err(#malformedPayload);
     };
 
-    let ?dataNonce = extractBlob(attrsMap, "implicit:nonce") else {
+    let ?dataNonce = IdentityVerification.extractBlob(attrsMap, "implicit:nonce") else {
       return #err(#malformedPayload);
     };
     if (dataNonce != nonce) {
       return #err(#nonceMismatch);
     };
 
-    let ?origin = extractText(attrsMap, "implicit:origin") else {
+    let ?origin = IdentityVerification.extractText(attrsMap, "implicit:origin") else {
       return #err(#malformedPayload);
     };
-    let expectedIdentityOrigin = resolveExpectedIdentityOrigin<system>();
+    let expectedIdentityOrigin = deps.resolveExpectedIdentityOrigin<system>();
     if (origin != expectedIdentityOrigin) {
       return #err(#invalidOrigin);
     };
 
-    let ?issuedAt = extractNat(attrsMap, "implicit:issued_at_timestamp_ns") else {
+    let ?issuedAt = IdentityVerification.extractNat(attrsMap, "implicit:issued_at_timestamp_ns") else {
       return #err(#malformedPayload);
     };
     if (not IdentityVerification.isFresh(issuedAt, Int.abs(Time.now()))) {
       return #err(#expired);
     };
 
-    let attrs : IdentityVerification.VerifiedIdentityAttributes = {
-      email = extractScopedText(attrsMap, "email");
-      name = extractScopedText(attrsMap, "name");
-      verifiedEmail = switch (extractScopedBool(attrsMap, "verified_email")) {
+    let email = IdentityVerification.extractScopedText(attrsMap, "email");
+    let verifiedEmail = switch (IdentityVerification.extractScopedBool(attrsMap, "verified_email")) {
+      case (?value) ?value;
+      case null switch (IdentityVerification.extractScopedBool(attrsMap, "email_verified")) {
         case (?value) ?value;
-        case null extractScopedBool(attrsMap, "email_verified");
+        case null switch (IdentityVerification.extractScopedText(attrsMap, "verified_email")) {
+          // II exposes `verified_email` as the verified email value, not as a Bool.
+          case (?verifiedEmailText) switch (email) {
+            case (?emailText) ?(Text.toLower(verifiedEmailText) == Text.toLower(emailText));
+            case null ?(Text.trim(verifiedEmailText, #char ' ') != "");
+          };
+          case null null;
+        };
       };
-      provider = inferProvider(attrsMap);
     };
 
-    switch (deps.upsertFromVerifiedAttributes(caller, attrs)) {
-      case (#ok _) #ok;
-      case (#err _) #err(#malformedPayload);
+    let attrs : IdentityVerification.VerifiedIdentityAttributes = {
+      email;
+      name = IdentityVerification.extractScopedText(attrsMap, "name");
+      verifiedEmail;
+      provider = IdentityVerification.inferProvider(attrsMap);
+    };
+
+    switch (await deps.onVerifiedAttributes(caller, attrs)) {
+      case (#ok _) {
+        #ok;
+      };
+      case (#err error) {
+        #err(error);
+      };
     };
   };
 
@@ -109,94 +126,4 @@ mixin(
     };
   };
 
-  func resolveExpectedIdentityOrigin<system>() : Text {
-    switch (Runtime.envVar<system>("PUBLIC_AUTH_EXPECTED_ORIGIN")) {
-      case (?origin) return origin;
-      case null {};
-    };
-
-    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:internet_identity_backend")) {
-      case (?_) return "http://localhost:4200";
-      case null {};
-    };
-
-    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-frontend")) {
-      case (?frontendId) return "https://" # frontendId # ".icp0.io";
-      case null return "https://rabbithole.app";
-    };
-  };
-
-  func get(entries : AttributeMap, key : Text) : ?Icrc3Value {
-    for ((entryKey, value) in entries.vals()) {
-      if (entryKey == key) return ?value;
-    };
-    null;
-  };
-
-  func extractBlob(entries : AttributeMap, key : Text) : ?Blob {
-    switch (get(entries, key)) {
-      case (?#Blob value) ?value;
-      case _ null;
-    };
-  };
-
-  func extractText(entries : AttributeMap, key : Text) : ?Text {
-    switch (get(entries, key)) {
-      case (?#Text value) ?value;
-      case _ null;
-    };
-  };
-
-  func extractNat(entries : AttributeMap, key : Text) : ?Nat {
-    switch (get(entries, key)) {
-      case (?#Nat value) ?value;
-      case _ null;
-    };
-  };
-
-  func extractScopedText(entries : AttributeMap, attrName : Text) : ?Text {
-    switch (extractText(entries, attrName)) {
-      case (?value) return ?value;
-      case null {};
-    };
-    for ((key, value) in entries.vals()) {
-      if (Text.startsWith(key, #text("openid:")) and Text.endsWith(key, #text(":" # attrName))) {
-        switch value {
-          case (#Text text) return ?text;
-          case _ {};
-        };
-      };
-    };
-    null;
-  };
-
-  func extractScopedBool(entries : AttributeMap, attrName : Text) : ?Bool {
-    switch (get(entries, attrName)) {
-      case (?#Bool value) return ?value;
-      case _ {};
-    };
-    for ((key, value) in entries.vals()) {
-      if (Text.startsWith(key, #text("openid:")) and Text.endsWith(key, #text(":" # attrName))) {
-        switch value {
-          case (#Bool bool) return ?bool;
-          case _ {};
-        };
-      };
-    };
-    null;
-  };
-
-  func inferProvider(entries : AttributeMap) : ?Text {
-    for ((key, _) in entries.vals()) {
-      if (Text.startsWith(key, #text("openid:"))) {
-        if (Text.contains(key, #text("openid.localhost"))) return ?"dev_openid";
-        if (Text.contains(key, #text("accounts.google.com"))) return ?"google";
-        if (Text.contains(key, #text("appleid.apple.com"))) return ?"apple";
-        if (Text.contains(key, #text("login.microsoftonline.com"))) return ?"microsoft";
-        return ?"openid";
-      };
-      if (Text.startsWith(key, #text("sso:"))) return ?"sso";
-    };
-    null;
-  };
 };

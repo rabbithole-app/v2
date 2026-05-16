@@ -11,7 +11,7 @@
 //      context. icp-cli text-encoding cannot resolve partial variant label
 //      sets correctly, so init args with variants MUST be pre-encoded.
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -73,7 +73,8 @@ async function generate({ name, mainFile, outDir, initArgsType }) {
   for (const ext of ['js', 'd.ts']) {
     const src = join(tmpDir, 'declarations', `${name}.did.${ext}`);
     const dst = join(target, `${name}.did.${ext}`);
-    await fs.copyFile(src, dst);
+    execFileSync('rm', ['-f', dst], { cwd: BACKEND_DIR, stdio: 'inherit' });
+    execFileSync('cp', ['-f', src, dst], { cwd: BACKEND_DIR, stdio: 'inherit' });
     console.log(`[generate-declarations] wrote ${dst}`);
   }
 

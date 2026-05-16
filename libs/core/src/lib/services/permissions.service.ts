@@ -4,9 +4,11 @@ import { toast } from 'ngx-sonner';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
 import {
+  CreateStorageAccessGrant,
+  CreateStorageAccessGrants,
   Entry,
-  GrantStoragePermission,
-  RevokeStoragePermission,
+  RevokeStorageAccessGrant,
+  RevokeStorageAccessGrants,
   StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 
@@ -32,42 +34,59 @@ export class PermissionsService {
   permitted = computed(() => this.#state().permitted);
   permittedLoading = computed(() => this.#state().permittedLoading);
   state = this.#state.asReadonly();
-  #grantPermission = new Subject<Omit<GrantStoragePermission, 'entry'>>();
-  #revokePermission = new Subject<Omit<RevokeStoragePermission, 'entry'>>();
+  #cancelPendingAccessGrant = new Subject<bigint>();
+  #createAccessGrants = new Subject<CreateStorageAccessGrants>();
+  #revokeAccessGrants = new Subject<RevokeStorageAccessGrants>();
 
   constructor() {
-    const revoke$ = this.#revokePermission.asObservable().pipe(
-      map((args) => this.#addEntry(args)),
-      mergeMap((args) => this.#revokePermissionHandler(args)),
+    const cancelPending$ = this.#cancelPendingAccessGrant.asObservable().pipe(
+      mergeMap((grantId) => this.#cancelPendingAccessGrantHandler(grantId)),
     );
-    const grant$ = this.#grantPermission.asObservable().pipe(
-      map((args) => this.#addEntry(args)),
-      mergeMap((args) => this.#grantPermissionHandler(args)),
+    const revoke$ = this.#revokeAccessGrants.asObservable().pipe(
+      map((args) => this.#addEntryToItems(args)),
+      mergeMap((args) => this.#revokeAccessGrantsHandler(args)),
     );
-    grant$.pipe(mergeWith(revoke$), takeUntilDestroyed()).subscribe(() => {
-      this.loadPermitted();
-    });
+    const grant$ = this.#createAccessGrants.asObservable().pipe(
+      map((args) => this.#addEntryToItems(args)),
+      mergeMap((args) => this.#createAccessGrantsHandler(args)),
+    );
+    grant$
+      .pipe(mergeWith(revoke$, cancelPending$), takeUntilDestroyed())
+      .subscribe((success) => {
+        if (success) {
+          this.loadPermitted();
+        }
+      });
   }
 
-  grantPermission(args: Omit<GrantStoragePermission, 'entry'>) {
-    this.#grantPermission.next(args);
+  cancelPendingAccessGrant(grantId: bigint) {
+    this.#cancelPendingAccessGrant.next(grantId);
+  }
+
+  createAccessGrants(args: CreateStorageAccessGrants) {
+    this.#createAccessGrants.next(args);
   }
 
   async loadPermitted() {
     const encryptedStorage = this.encryptedStorage();
     const { entry } = this.#state();
-    if (!entry) return;
+    if (!entry) {
+      return;
+    }
     this.#state.update((s) => ({ ...s, permittedLoading: true }));
     try {
-      const items = await encryptedStorage.listPermitted(entry || undefined);
+      const items = await encryptedStorage.listAccessGrants(entry || undefined);
       this.#state.update((s) => ({ ...s, permitted: items, permittedLoading: false }));
-    } catch {
+    } catch (err) {
+      const errorMessage =
+        parseCanisterRejectError(err) ?? 'Access list failed to load';
+      toast.error(errorMessage);
       this.#state.update((s) => ({ ...s, permitted: [], permittedLoading: false }));
     }
   }
 
-  revokePermission(args: Omit<RevokeStoragePermission, 'entry'>) {
-    this.#revokePermission.next(args);
+  revokeAccessGrants(args: RevokeStorageAccessGrants) {
+    this.#revokeAccessGrants.next(args);
   }
 
   setEntry(entry: Entry | null) {
@@ -75,37 +94,61 @@ export class PermissionsService {
   }
 
 
-  #addEntry<T = GrantStoragePermission | RevokeStoragePermission>(
-    args: Omit<T, 'entry'>,
-  ): T {
+  #addEntryToItems<T extends CreateStorageAccessGrant | RevokeStorageAccessGrant>(
+    args: { items: T[] },
+  ): { items: T[] } {
     const { entry } = this.state();
 
-    return { ...args, entry } as T;
+    return {
+      items: args.items.map((item) => ({
+        ...item,
+        entry: item.entry ?? entry ?? undefined,
+      })),
+    };
   }
 
-  async #grantPermissionHandler(args: GrantStoragePermission) {
-    const id = toast.loading('Grant permission...');
+  async #cancelPendingAccessGrantHandler(grantId: bigint) {
+    const id = toast.loading('Updating access...');
     const encryptedStorage = this.encryptedStorage();
     try {
-      await encryptedStorage.grantPermission(args);
-      toast.success('Permission succesfully granted', { id });
+      await encryptedStorage.cancelPendingAccessGrant(grantId);
+      toast.success('Access updated', { id });
+      return true;
     } catch (err) {
       const errorMessage =
         parseCanisterRejectError(err) ?? 'An error has occurred';
       toast.error(errorMessage, { id });
+      return false;
     }
   }
 
-  async #revokePermissionHandler(args: RevokeStoragePermission) {
-    const id = toast.loading('Revoke permission...');
+  async #createAccessGrantsHandler(args: CreateStorageAccessGrants) {
+    const id = toast.loading('Create access grants...');
     const encryptedStorage = this.encryptedStorage();
     try {
-      await encryptedStorage.revokePermission(args);
-      toast.success('Permission succesfully revoked', { id });
+      await encryptedStorage.createAccessGrants(args);
+      toast.success('Access grants created', { id });
+      return true;
     } catch (err) {
       const errorMessage =
         parseCanisterRejectError(err) ?? 'An error has occurred';
       toast.error(errorMessage, { id });
+      return false;
+    }
+  }
+
+  async #revokeAccessGrantsHandler(args: RevokeStorageAccessGrants) {
+    const id = toast.loading('Revoke access grants...');
+    const encryptedStorage = this.encryptedStorage();
+    try {
+      await encryptedStorage.revokeAccessGrants(args);
+      toast.success('Access grants revoked', { id });
+      return true;
+    } catch (err) {
+      const errorMessage =
+        parseCanisterRejectError(err) ?? 'An error has occurred';
+      toast.error(errorMessage, { id });
+      return false;
     }
   }
 }

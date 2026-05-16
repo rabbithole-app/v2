@@ -1,0 +1,31 @@
+    <hlm-avatar class="size-8 shrink-0 border bg-background text-xs">
+      @if (avatarSrc(); as src) {
+        <img hlmAvatarImage [src]="src" [alt]="title()" />
+      }
+      <img hlmAvatarFallback src="/avatar-placeholder.svg" [alt]="title()" />
+    </hlm-avatar>
+
+    <span class="min-w-0 flex-1">
+      <span class="flex min-w-0 items-center gap-2">
+        <span class="min-w-0 flex-1 truncate text-sm font-medium">
+          {{ title() }}
+        </span>
+        <span hlmBadge variant="outline" class="shrink-0">
+          <ng-icon
+            hlmIcon
+            data-icon="inline-start"
+            [name]="statusIconName()"
+            size="xs"
+          />
+          {{ statusLabel() }}
+        </span>
+      </span>
+
+      <span class="flex min-w-0 items-center gap-1 text-xs font-normal text-muted-foreground">
+        @if (username(); as value) {
+          <span class="min-w-0 truncate">@{{ value }}</span>
+          <span class="shrink-0">·</span>
+        }
+        <span class="shrink-0">{{ relativeTime() }}</span>
+      </span>
+    </span>

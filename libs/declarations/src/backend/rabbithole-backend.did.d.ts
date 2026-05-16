@@ -10,6 +10,18 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export type AccessClass = { 'ordinary' : null } |
+  { 'ownerEquivalent' : null } |
+  { 'durable' : null };
+export type AccessRequestStatus = { 'cancelled' : null } |
+  { 'pending' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null };
+export type AccessSource = { 'durablePolicy' : bigint } |
+  { 'accessRequest' : bigint } |
+  { 'directGrant' : null } |
+  { 'ordinaryInvite' : bigint } |
+  { 'recoverySetup' : null };
 export type AddStorageError = { 'NotController' : null } |
   { 'CanisterAlreadyUsed' : { 'canisterId' : Principal } } |
   { 'InvalidWasm' : string };
@@ -103,6 +115,7 @@ export type CmcOpSource = { 'storageCreation' : { 'creationId' : bigint } } |
   { 'selfTopUp' : null } |
   { 'userTopUp' : { 'canisterId' : Principal } } |
   { 'autoTopUp' : { 'canisterId' : Principal } };
+export type CorrelationId = string;
 export interface CreateProfileArgs {
   'username' : string,
   'displayName' : [] | [string],
@@ -172,6 +185,18 @@ export interface DistributionRecord {
 }
 export type DistributionStatus = { 'completed' : null } |
   { 'partial' : null };
+export interface EmailClaim {
+  'principalGrantId' : bigint,
+  'principal' : Principal,
+  'origin' : EmailClaimOrigin,
+  'claimedAt' : Time,
+}
+export type EmailClaimOrigin = { 'storage' : null } |
+  { 'rabbithole' : null };
+export interface EmailClaimState {
+  'storage' : [] | [EmailClaim],
+  'rabbithole' : [] | [EmailClaim],
+}
 export interface EnvPair { 'value' : string, 'name' : string }
 export interface EvmChainConfig {
   'evmRpcCanisterId' : string,
@@ -229,6 +254,7 @@ export type IdentityAttributesSyncError = { 'expired' : null } |
   { 'malformedPayload' : null } |
   { 'invalidOrigin' : null } |
   { 'nonceMismatch' : null } |
+  { 'verifiedEmailRequired' : null } |
   { 'nonceNotFound' : null };
 export type IdentityAttributesSyncResult = { 'ok' : null } |
   { 'err' : IdentityAttributesSyncError };
@@ -280,6 +306,11 @@ export interface ListLicensesOptions {
     'canisterId' : [] | [Array<Principal>],
   },
 }
+export interface ListNotificationsArgs {
+  'limit' : bigint,
+  'afterId' : [] | [bigint],
+  'unreadOnly' : boolean,
+}
 export interface ListOptions {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
   'count' : boolean,
@@ -291,6 +322,145 @@ export interface ListOptions {
     'plan' : [] | [Array<Plan>],
   },
 }
+export type NotificationPayload = {
+    'storageAccessRevoked' : {
+      'accessClass' : [] | [AccessClass],
+      'canisterId' : Principal,
+    }
+  } |
+  { 'backendLowCycles' : { 'threshold' : bigint, 'current' : bigint } } |
+  { 'topUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint } } |
+  { 'depositReceived' : { 'tokenId' : string, 'amount' : bigint } } |
+  { 'trialStarted' : { 'limitBytes' : bigint } } |
+  {
+    'cmcNotifyStuck' : {
+      'id' : bigint,
+      'blockIndex' : bigint,
+      'caller' : Principal,
+      'canisterId' : Principal,
+      'reason' : string,
+    }
+  } |
+  {
+    'storageAccessRequestCancelled' : {
+      'requestId' : bigint,
+      'requester' : Principal,
+      'canisterId' : Principal,
+    }
+  } |
+  {
+    'ambassadorPayoutFailed' : {
+      'owner' : Principal,
+      'creationId' : bigint,
+      'reason' : string,
+    }
+  } |
+  { 'subscriptionExpired' : null } |
+  {
+    'storageInviteCreated' : {
+      'source' : AccessSource,
+      'grantId' : bigint,
+      'accessClass' : AccessClass,
+      'canisterId' : Principal,
+    }
+  } |
+  { 'autoRenewFailed' : { 'reason' : string } } |
+  {
+    'storageAccessGranted' : {
+      'source' : AccessSource,
+      'grantId' : [] | [bigint],
+      'accessClass' : AccessClass,
+      'canisterId' : Principal,
+    }
+  } |
+  { 'topUpFailed' : { 'canisterId' : Principal, 'reason' : string } } |
+  {
+    'storageInviteCancelled' : { 'grantId' : bigint, 'canisterId' : Principal }
+  } |
+  { 'storageRecoveryOwnerAdded' : { 'canisterId' : Principal } } |
+  {
+    'autoTopUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint }
+  } |
+  {
+    'creationRefunded' : {
+      'tokenId' : string,
+      'owner' : Principal,
+      'creationId' : bigint,
+      'amount' : bigint,
+    }
+  } |
+  {
+    'treasuryIcpLow' : {
+      'currentBalance' : bigint,
+      'reserve' : bigint,
+      'required' : bigint,
+    }
+  } |
+  { 'storageRecoveryOwnerRemoved' : { 'canisterId' : Principal } } |
+  {
+    'storageInviteClaimed' : {
+      'principal' : Principal,
+      'source' : AccessSource,
+      'grantId' : bigint,
+      'accessClass' : AccessClass,
+      'canisterId' : Principal,
+    }
+  } |
+  {
+    'subscriptionRenewed' : {
+      'expiresAt' : [] | [bigint],
+      'plan' : { 'Pro' : null } |
+        { 'Free' : null } |
+        { 'Trial' : null },
+    }
+  } |
+  {
+    'storageAccessRequestCreated' : {
+      'requestId' : bigint,
+      'requester' : Principal,
+      'canisterId' : Principal,
+    }
+  } |
+  { 'balanceLow' : { 'requiredAmount' : bigint } } |
+  {
+    'paymentReceived' : {
+      'tokenId' : string,
+      'amount' : bigint,
+      'purpose' : string,
+    }
+  } |
+  {
+    'subscriptionActivated' : {
+      'plan' : { 'Pro' : null } |
+        { 'Free' : null } |
+        { 'Trial' : null },
+    }
+  } |
+  {
+    'storageAccessRequestResolved' : {
+      'status' : AccessRequestStatus,
+      'requestId' : bigint,
+      'canisterId' : Principal,
+    }
+  } |
+  { 'updateAvailable' : { 'releaseTag' : string, 'canisterId' : Principal } } |
+  { 'autoTopUpFailed' : { 'canisterId' : Principal, 'reason' : string } } |
+  {
+    'lowCycles' : {
+      'estimatedDaysLeft' : bigint,
+      'severity' : { 'warning' : null } |
+        { 'critical' : null },
+      'remaining' : bigint,
+      'canisterId' : Principal,
+    }
+  } |
+  { 'backendSelfTopUpFailed' : { 'reason' : string } };
+export type NotificationSeverity = { 'warning' : null } |
+  { 'info' : null } |
+  { 'critical' : null } |
+  { 'success' : null };
+export type NotificationSource = { 'storage' : null } |
+  { 'backend' : null };
 export interface NotificationsPage {
   'data' : Array<StoredNotification>,
   'unreadCount' : bigint,
@@ -348,6 +518,10 @@ export interface Profile {
   'avatarUrl' : [] | [string],
 }
 export interface Progress { 'total' : bigint, 'processed' : bigint }
+export interface PublicProfileLookup {
+  'principal' : Principal,
+  'profile' : [] | [PublicProfileSummary],
+}
 export interface PublicProfileSummary {
   'username' : string,
   'displayName' : [] | [string],
@@ -381,7 +555,7 @@ export interface Rabbithole {
    * /   - That divergence is intentional. A controller registers the
    * /     canister for managed services; data access stays gated by
    * /     the storage canister's permission rules (see
-   * /     `grantStoragePermission` / `revokeStoragePermission`).
+   * /     `createAccessBatch` / `revokeAccessBatch`).
    * /
    * / Backend id trust — not verified:
    * /   - Caller could have set `PUBLIC_CANISTER_ID:rabbithole-backend`
@@ -444,9 +618,12 @@ export interface Rabbithole {
       'evmAddress' : [] | [string],
     }
   >,
-  'getNotifications' : ActorMethod<[[] | [Time], bigint], NotificationsPage>,
   'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
+  'getPublicProfiles' : ActorMethod<
+    [Array<Principal>],
+    Array<PublicProfileLookup>
+  >,
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
   'getSettings' : ActorMethod<[], UserSettings>,
   'getSolAddress' : ActorMethod<[], [] | [string]>,
@@ -460,7 +637,7 @@ export interface Rabbithole {
       'evmAddress' : [] | [string],
     }
   >,
-  'getUnreadCount' : ActorMethod<[], bigint>,
+  'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUser' : ActorMethod<[], [] | [User]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
   'http_request_streaming_callback' : ActorMethod<
@@ -496,15 +673,23 @@ export interface Rabbithole {
     [[] | [ListLicensesOptions]],
     GetLicensesResponse
   >,
+  'listNotifications' : ActorMethod<[ListNotificationsArgs], NotificationsPage>,
   'listPendingCmcOps' : ActorMethod<
     [{ 'limit' : [] | [bigint], 'afterId' : [] | [bigint] }],
     Array<PendingCmcOp>
   >,
+  'listSharedWithMeStorageViews' : ActorMethod<
+    [],
+    Array<SharedStorageAccessView>
+  >,
+  'listSharedWithMeStorages' : ActorMethod<[], Array<SharedStorageAccess>>,
   'listStorages' : ActorMethod<[], Array<StorageInfo>>,
   'listSubscriptions' : ActorMethod<[ListOptions], GetSubscriptionsResponse>,
   'listUsersByRole' : ActorMethod<[Role], Array<Principal>>,
-  'markAllNotificationsAsRead' : ActorMethod<[], undefined>,
-  'markNotificationsAsRead' : ActorMethod<[Array<bigint>], undefined>,
+  'markAllNotificationsRead' : ActorMethod<[], undefined>,
+  'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
+  'markNotificationsReadUpTo' : ActorMethod<[bigint], undefined>,
+  'onStorageAccessChanged' : ActorMethod<[StorageAccessChanged], undefined>,
   'onStorageLowCycles' : ActorMethod<
     [bigint, bigint, { 'warning' : null } | { 'critical' : null }],
     undefined
@@ -670,6 +855,23 @@ export type Result_6 = { 'ok' : bigint } |
 export type Role = { 'admin' : null } |
   { 'moderator' : null } |
   { 'user' : null };
+export interface SharedStorageAccess {
+  'storageCanisterId' : Principal,
+  'activeAccessClasses' : Array<AccessClass>,
+  'lastStorageEventId' : bigint,
+  'firstSeenAt' : Time,
+  'pendingAccessClasses' : Array<AccessClass>,
+  'updatedAt' : Time,
+  'accountOwner' : Principal,
+  'pendingGrantIds' : Array<bigint>,
+  'lastCorrelationId' : [] | [string],
+  'lastSource' : [] | [AccessSource],
+}
+export interface SharedStorageAccessView {
+  'access' : SharedStorageAccess,
+  'storageStatus' : [] | [CreationStatus],
+  'updateAvailable' : [] | [UpdateInfo],
+}
 export interface SolanaChainConfig {
   'solRpcCanisterId' : string,
   'assets' : Array<SupportedAsset>,
@@ -678,6 +880,10 @@ export interface SolanaChainConfig {
 }
 export type SortDirection = { 'Descending' : null } |
   { 'Ascending' : null };
+export type SourceEventRef = {
+    'storage' : { 'storageEventId' : bigint, 'canisterId' : Principal }
+  } |
+  { 'backend' : { 'kind' : string } };
 export interface StatsView {
   'totalResolved' : bigint,
   'totalRefunded' : bigint,
@@ -688,6 +894,75 @@ export type Status = { 'Active' : null } |
   { 'Cancelled' : null } |
   { 'Expired' : null };
 export interface StatusEvent { 'status' : CreationStatus, 'timestamp' : Time }
+export interface StorageAccessChanged {
+  'storageCanisterId' : Principal,
+  'storageEventId' : bigint,
+  'event' : StorageAccessLifecycleEvent,
+  'correlationId' : [] | [CorrelationId],
+  'accountOwner' : Principal,
+}
+export type StorageAccessLifecycleEvent = {
+    'accessRequestResolved' : {
+      'status' : AccessRequestStatus,
+      'requestId' : bigint,
+      'requester' : Principal,
+    }
+  } |
+  {
+    'accessRequestCreated' : { 'requestId' : bigint, 'requester' : Principal }
+  } |
+  {
+    'recoveryControllerRegistered' : {
+      'principal' : Principal,
+      'previous' : [] | [Principal],
+    }
+  } |
+  {
+    'pendingGrantCreated' : {
+      'source' : AccessSource,
+      'recipient' : [] | [Principal],
+      'emailCommitment' : [] | [Uint8Array],
+      'grantId' : bigint,
+      'accessClass' : AccessClass,
+    }
+  } |
+  { 'recoveryControllerCleared' : { 'principal' : Principal } } |
+  { 'recoveryOwnerAdded' : { 'principal' : Principal } } |
+  {
+    'pendingGrantClaimed' : {
+      'principal' : Principal,
+      'emailClaimState' : [] | [EmailClaimState],
+      'source' : AccessSource,
+      'grantId' : bigint,
+      'claimOrigin' : [] | [EmailClaimOrigin],
+      'accessClass' : AccessClass,
+    }
+  } |
+  {
+    'accessRequestCancelled' : { 'requestId' : bigint, 'requester' : Principal }
+  } |
+  {
+    'principalGrantCreated' : {
+      'principal' : Principal,
+      'source' : AccessSource,
+      'grantId' : [] | [bigint],
+      'accessClass' : AccessClass,
+    }
+  } |
+  {
+    'pendingGrantCancelled' : {
+      'recipient' : [] | [Principal],
+      'emailCommitment' : [] | [Uint8Array],
+      'grantId' : bigint,
+    }
+  } |
+  {
+    'principalGrantRevoked' : {
+      'principal' : Principal,
+      'accessClass' : [] | [AccessClass],
+    }
+  } |
+  { 'recoveryOwnerRemoved' : { 'principal' : Principal } };
 export type StorageBackendType = { 'OnChain' : null } |
   { 'BlobStorage' : null };
 export interface StorageCreationRecord {
@@ -727,9 +1002,13 @@ export interface StorageInfo {
 }
 export interface StoredNotification {
   'id' : bigint,
+  'source' : NotificationSource,
   'createdAt' : Time,
   'read' : boolean,
-  'event' : TypedEvent,
+  'sourceEvent' : [] | [SourceEventRef],
+  'severity' : NotificationSeverity,
+  'correlationId' : [] | [string],
+  'payload' : NotificationPayload,
 }
 export type StreamingCallback = ActorMethod<
   [StreamingToken],
@@ -790,84 +1069,6 @@ export interface TransferRecord {
   'amount' : bigint,
   'evmAddress' : [] | [string],
 }
-export type TypedEvent = {
-    'backendLowCycles' : { 'threshold' : bigint, 'current' : bigint }
-  } |
-  { 'topUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint } } |
-  { 'depositReceived' : { 'tokenId' : string, 'amount' : bigint } } |
-  { 'trialStarted' : { 'limitBytes' : bigint } } |
-  {
-    'cmcNotifyStuck' : {
-      'id' : bigint,
-      'blockIndex' : bigint,
-      'caller' : Principal,
-      'canisterId' : Principal,
-      'reason' : string,
-    }
-  } |
-  {
-    'ambassadorPayoutFailed' : {
-      'owner' : Principal,
-      'creationId' : bigint,
-      'reason' : string,
-    }
-  } |
-  { 'subscriptionExpired' : null } |
-  { 'autoRenewFailed' : { 'reason' : string } } |
-  { 'topUpFailed' : { 'canisterId' : Principal, 'reason' : string } } |
-  {
-    'autoTopUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint }
-  } |
-  {
-    'creationRefunded' : {
-      'tokenId' : string,
-      'owner' : Principal,
-      'creationId' : bigint,
-      'amount' : bigint,
-    }
-  } |
-  {
-    'treasuryIcpLow' : {
-      'currentBalance' : bigint,
-      'reserve' : bigint,
-      'required' : bigint,
-    }
-  } |
-  {
-    'subscriptionRenewed' : {
-      'expiresAt' : [] | [bigint],
-      'plan' : { 'Pro' : null } |
-        { 'Free' : null } |
-        { 'Trial' : null },
-    }
-  } |
-  { 'balanceLow' : { 'requiredAmount' : bigint } } |
-  {
-    'paymentReceived' : {
-      'tokenId' : string,
-      'amount' : bigint,
-      'purpose' : string,
-    }
-  } |
-  {
-    'subscriptionActivated' : {
-      'plan' : { 'Pro' : null } |
-        { 'Free' : null } |
-        { 'Trial' : null },
-    }
-  } |
-  { 'updateAvailable' : { 'releaseTag' : string, 'canisterId' : Principal } } |
-  { 'autoTopUpFailed' : { 'canisterId' : Principal, 'reason' : string } } |
-  {
-    'lowCycles' : {
-      'estimatedDaysLeft' : bigint,
-      'severity' : { 'warning' : null } |
-        { 'critical' : null },
-      'remaining' : bigint,
-      'canisterId' : Principal,
-    }
-  } |
-  { 'backendSelfTopUpFailed' : { 'reason' : string } };
 export interface UpdateInfo {
   'currentWasmHash' : [] | [Uint8Array],
   'wasmUpdateAvailable' : boolean,

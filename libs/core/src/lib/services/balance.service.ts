@@ -4,10 +4,11 @@ import { Principal } from '@icp-sdk/core/principal';
 
 import type { TokenId } from '@rabbithole/declarations/backend';
 
-import { BACKEND_CANISTER_ID, LEDGER_CANISTER_ID } from '../constants';
+import { LEDGER_CANISTER_ID } from '../constants';
 import { HTTP_AGENT_OPTIONS_TOKEN, injectMainActor } from '../injectors';
 import {
   BACKEND_FEATURES_ENABLED_TOKEN,
+  MAIN_CANISTER_ID_TOKEN,
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
   type MultiChainRpcConfig,
 } from '../tokens';
@@ -120,8 +121,9 @@ export class BalanceService {
 
   walletAddresses = computed(() => this.#walletResource.value() ?? null);
 
-  #ledgerAgent = HttpAgent.create(inject(HTTP_AGENT_OPTIONS_TOKEN));
+  #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
 
+  #ledgerAgent = HttpAgent.create(inject(HTTP_AGENT_OPTIONS_TOKEN));
   #rpcConfig = inject(MULTI_CHAIN_RPC_CONFIG_TOKEN);
 
   #balancesResource = resource({
@@ -137,7 +139,7 @@ export class BalanceService {
         wallet,
         rates,
         ledgerAgent,
-        ownerPrincipal: Principal.fromText(BACKEND_CANISTER_ID),
+        ownerPrincipal: this.#backendCanisterId,
         rpcConfig: this.#rpcConfig,
       });
     },

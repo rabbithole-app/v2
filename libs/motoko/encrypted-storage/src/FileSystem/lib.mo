@@ -222,9 +222,9 @@ module FileSystem {
     };
   };
 
-  public func delete(self : Store, { entry; recursive } : T.DeleteArguments) : Result.Result<?T.NodeStore, Text> {
+  public func delete(self : Store, { entry; recursive } : T.DeleteArguments) : Result.Result<[T.NodeStore], Text> {
     let ?nodeKey = findKeyByEntry(self, ?entry) else return #err(ErrorMessages.entryNotFound(entry));
-    deleteNode(self, nodeKey, recursive) |> Result.mapErr<?T.NodeStore, { #NotFound; #NotEmpty }, Text>(
+    deleteNode(self, nodeKey, recursive) |> Result.mapErr<[T.NodeStore], { #NotFound; #NotEmpty }, Text>(
       _,
       func e = switch e {
         case (#NotFound) ErrorMessages.entryNotFound(entry);
@@ -233,11 +233,20 @@ module FileSystem {
     );
   };
 
-  func deleteNode(self : Store, nodeKey : T.NodeKey, recursive : Bool) : Result.Result<?T.NodeStore, { #NotFound; #NotEmpty }> {
+  func nodeKeyFromNode(node : T.NodeStore) : T.NodeKey {
+    switch (node.metadata) {
+      case (#File(_)) (#File, node.parentId, node.name);
+      case (#Directory(_)) (#Directory, node.parentId, node.name);
+    };
+  };
+
+  func deleteNode(self : Store, nodeKey : T.NodeKey, recursive : Bool) : Result.Result<[T.NodeStore], { #NotFound; #NotEmpty }> {
     let ?node = Map.get(self.nodes, hashNodes, nodeKey) else return #err(#NotFound);
     let notEmpty = not recursive and hasChildren(self, node.id);
 
     if (notEmpty) return #err(#NotEmpty);
+
+    let removedNodes = Vector.new<T.NodeStore>();
 
     switch (nodeKey) {
       case (#File, _, _) {};
@@ -245,15 +254,23 @@ module FileSystem {
         if (recursive) {
           let iter = listByParentId(self, ?node.id) |> Iter.fromArray _;
           for (subnode in iter) {
-            ignore deleteNode(self, (#Directory, ?node.id, subnode.name), true);
+            switch (deleteNode(self, nodeKeyFromNode(subnode), true)) {
+              case (#ok(children)) {
+                for (child in children.vals()) {
+                  Vector.add(removedNodes, child);
+                };
+              };
+              case (#err(err)) return #err(err);
+            };
           };
         };
       };
     };
 
-    let removed = Map.remove(self.nodes, hashNodes, nodeKey);
+    let ?removed = Map.remove(self.nodes, hashNodes, nodeKey) else return #err(#NotFound);
+    Vector.add(removedNodes, removed);
 
-    #ok removed;
+    #ok(Vector.toArray(removedNodes));
   };
 
   public func move(self : Store, source : T.Entry, optTarget : ?T.Entry) : Result.Result<(), Text> {

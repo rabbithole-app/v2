@@ -10,15 +10,15 @@
     *cdkTreeNodeDef="let node"
     rbthTreeItem
     [cdkTreeNodeTypeaheadLabel]="node.name"
-    [isDisabled]="!shouldRender(node)"
-    (click)="selected.set(node)"
+    [isDisabled]="!shouldRender(node) || !isSelectable(node)"
+    (click)="select(node)"
   >
     <span rbthTreeItemLabel
       ><ng-icon
         class="text-muted-foreground pointer-events-none"
         hlm
         size="sm"
-        name="lucideFile"
+        [name]="isFolder(node) ? 'lucideFolder' : 'lucideFile'"
       />{{ node.name }}</span
     >
   </cdk-tree-node>
@@ -26,19 +26,26 @@
     *cdkTreeNodeDef="let node; when: hasChild"
     rbthTreeItem
     [cdkTreeNodeTypeaheadLabel]="node.name"
-    [isDisabled]="!shouldRender(node)"
+    [isDisabled]="!shouldRender(node) || !isSelectable(node)"
     [isExpandable]="true"
-    (click)="selected.set(node)"
+    (expandedChange)="rememberExpansionState()"
+    (click)="select(node)"
   >
     <span rbthTreeItemLabel>
-      <span class="flex items-center" cdkTreeNodeToggle>
+      <button
+        type="button"
+        class="flex items-center"
+        cdkTreeNodeToggle
+        [attr.aria-label]="'Toggle ' + node.name"
+        (click)="$event.stopPropagation()"
+      >
         <ng-icon
           class="text-muted-foreground in-aria-[expanded=false]:-rotate-90"
           hlm
           size="sm"
           name="lucideChevronDown"
         />
-      </span>
+      </button>
       <span class="flex items-center gap-2">
         @let iconName =
           tree.isExpanded(node) ? 'lucideFolderOpen' : 'lucideFolder';

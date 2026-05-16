@@ -15,7 +15,7 @@ import {
  * so it doesn't re-trigger on back navigation.
  */
 @Component({
-  selector: 'rbth-create-storage-trigger',
+  selector: 'rbth-feat-create-storage-trigger',
   template: '',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

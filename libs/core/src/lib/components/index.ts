@@ -5,12 +5,14 @@ export * from './account/account-menu-trigger-content/account-menu-trigger-conte
 export * from './account/account-menu-trigger-content/account-menu-trigger-content.component';
 export * from './account/account-menu/account-menu.component';
 export * from './charts/radar-chart/radar-chart.component';
-export * from './layout/login-wrapper/login-wrapper.component'
 export * from './layout/navigation/navigation.component';
 export * from './layout/sidebar-header/sidebar-header.component';
 export * from './layout/sidebar/sidebar.component';
+export * from './permissions/access-target-item/access-target-item.component';
 export * from './permissions/edit-permission-form/edit-permission-form';
 export * from './permissions/edit-permission-form/edit-permission-form-trigger';
 export * from './permissions/permissions-table/permissions-table.component';
+export * from './permissions/share-dialog/share-dialog-trigger';
+export * from './permissions/share-dialog/share-dialog.component';
 export * from './ui';
 export * from './users/user-target-combobox';

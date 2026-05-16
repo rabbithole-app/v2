@@ -1,11 +1,16 @@
-import { Component } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
 import {
+  lucideClipboardList,
   lucideFolder,
   lucideHardDrive,
 } from '@ng-icons/lucide';
 
 import { NavigationComponent, NavItem } from '@rabbithole/core';
+import {
+  AccessRequestsCapabilityService,
+  provideEncryptedStorage,
+} from '@rabbithole/core/storage-runtime';
 import {
   HlmSidebarGroup,
   HlmSidebarGroupContent,
@@ -16,7 +21,7 @@ import {
   selector: 'app-storage-navigation',
   template: `<div hlmSidebarGroupLabel>Storage</div>
     <div hlmSidebarGroupContent>
-      <core-navigation [data]="data" />
+      <core-navigation [data]="data()" />
     </div> `,
   imports: [
     NavigationComponent,
@@ -27,12 +32,16 @@ import {
     provideIcons({
       lucideHardDrive,
       lucideFolder,
+      lucideClipboardList,
     }),
+    provideEncryptedStorage(),
+    AccessRequestsCapabilityService,
   ],
   hostDirectives: [HlmSidebarGroup],
 })
 export class StorageNavigationComponent {
-  data: NavItem[] = [
+  readonly #accessRequestsCapability = inject(AccessRequestsCapabilityService);
+  readonly data = computed<NavItem[]>(() => [
     {
       title: 'Storage',
       url: `/`,
@@ -43,5 +52,15 @@ export class StorageNavigationComponent {
       url: `/drive`,
       icon: 'lucideFolder',
     },
-  ];
+    ...(this.#accessRequestsCapability.canManage()
+      ? [
+          {
+            title: 'Access requests',
+            url: `/access-requests`,
+            icon: 'lucideClipboardList',
+            badgeCount: this.#accessRequestsCapability.pendingCount(),
+          },
+        ]
+      : []),
+  ]);
 }

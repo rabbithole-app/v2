@@ -1,0 +1,77 @@
+    <rbth-drawer side="right" [hasBackdrop]="true">
+      <rbth-drawer-content *brnSheetContent="let ctx">
+        <rbth-drawer-header>
+          <h2 rbthDrawerTitle class="truncate">
+            @if (items().length === 1) {
+              {{ items()[0].name }}
+            } @else {
+              {{ items().length }} items selected
+            }
+          </h2>
+        </rbth-drawer-header>
+
+        <div class="flex-1 overflow-y-auto px-4 py-4">
+          @if (singleItem(); as item) {
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Type</span>
+                <span>{{ isFileItem(item) ? 'File' : 'Directory' }}</span>
+              </div>
+              @if (isFileItem(item)) {
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Size</span>
+                  <span>{{ formatSize(item.size) }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Content type</span>
+                  <span>{{ item.contentType }}</span>
+                </div>
+              }
+              <div class="flex justify-between items-center">
+                <span class="text-muted-foreground">Encryption</span>
+                <span hlmBadge [variant]="encryptionBadgeVariant(item)">
+                  @if (encryptionMode(item) === 'encrypted') {
+                    <ng-icon name="lucideLock" class="!size-3" />
+                    Encrypted
+                  } @else {
+                    Plaintext
+                  }
+                </span>
+              </div>
+              @if (isFileItem(item)) {
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Versions</span>
+                  <span>{{ item.versionCount }}</span>
+                </div>
+              }
+              <div class="border-t border-border my-2"></div>
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Created</span>
+                <span>{{ item.createdAt | date: 'short' }}</span>
+              </div>
+              @if (item.modifiedAt) {
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Modified</span>
+                  <span>{{ item.modifiedAt | date: 'short' }}</span>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Items</span>
+                <span>{{ items().length }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Total size</span>
+                <span>{{ formatSize(totalSize()) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Types</span>
+                <span>{{ typesSummary() }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </rbth-drawer-content>
+    </rbth-drawer>

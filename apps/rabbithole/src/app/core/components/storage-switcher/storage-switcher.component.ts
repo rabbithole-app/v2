@@ -5,17 +5,24 @@ import {
   inject,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router } from '@angular/router';
+import {
+  NavigationEnd,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+} from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronsUpDown,
   lucideHardDrive,
   lucideLoader2,
   lucidePlus,
+  lucideShare2,
 } from '@ng-icons/lucide';
 import { filter, map, startWith } from 'rxjs';
 
 import { isPrincipal, StoragesService } from '@rabbithole/core';
+import { RbthSidebarMenuButton } from '@rabbithole/ui/sidebar';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
@@ -25,9 +32,24 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
   selector: 'app-storage-switcher',
   templateUrl: './storage-switcher.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgIcon, HlmIcon, HlmSpinner, ...HlmSidebarImports, ...HlmDropdownMenuImports],
+  imports: [
+    NgIcon,
+    RouterLink,
+    RouterLinkActive,
+    HlmIcon,
+    HlmSpinner,
+    RbthSidebarMenuButton,
+    ...HlmSidebarImports,
+    ...HlmDropdownMenuImports,
+  ],
   providers: [
-    provideIcons({ lucideChevronsUpDown, lucideHardDrive, lucideLoader2, lucidePlus }),
+    provideIcons({
+      lucideChevronsUpDown,
+      lucideHardDrive,
+      lucideLoader2,
+      lucidePlus,
+      lucideShare2,
+    }),
   ],
 })
 export class StorageSwitcherComponent {

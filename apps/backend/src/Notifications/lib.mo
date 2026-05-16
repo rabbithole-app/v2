@@ -1,99 +1,24 @@
-import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Map "mo:core/Map";
 import Time "mo:core/Time";
 
 import Vector "mo:vector";
 
-module {
-  public type TypedEvent = {
-    #subscriptionActivated : { plan : { #Free; #Trial; #Pro } };
-    #subscriptionExpired;
-    #trialStarted : { limitBytes : Nat };
-    #lowCycles : {
-      canisterId : Principal;
-      remaining : Nat;
-      estimatedDaysLeft : Nat;
-      severity : { #warning; #critical };
-    };
-    #updateAvailable : { canisterId : Principal; releaseTag : Text };
-    #paymentReceived : { purpose : Text; amount : Nat; tokenId : Text };
-    #depositReceived : { amount : Nat; tokenId : Text };
-    #subscriptionRenewed : { plan : { #Free; #Trial; #Pro }; expiresAt : ?Int };
-    #balanceLow : { requiredAmount : Nat };
-    #autoRenewFailed : { reason : Text };
-    #topUpCompleted : { canisterId : Principal; cyclesAmount : Nat };
-    #topUpFailed : { canisterId : Principal; reason : Text };
-    #autoTopUpCompleted : { canisterId : Principal; cyclesAmount : Nat };
-    #autoTopUpFailed : { canisterId : Principal; reason : Text };
-    // --- Admin-targeted events (fanout to role=#admin) ------------------
-    // Fired once on crossing threshold → cleared when cycles recover above.
-    #backendLowCycles : { current : Nat; threshold : Nat };
-    // Fired after a user's license is refunded successfully.
-    #creationRefunded : {
-      creationId : Nat;
-      owner : Principal;
-      tokenId : Text;
-      amount : Nat;
-    };
-    // Fired for selfTopUpFromTreasury traps and outer (pre-CMC) failures only
-    // — treasury→CMC ICP transfer rejection, rate-fetch traps, etc. CMC-level
-    // `notify_top_up` errors are now routed through CmcRecovery and surface
-    // as `#cmcNotifyStuck { id }` with a retriable pending op.
-    #backendSelfTopUpFailed : { reason : Text };
-    // Fired when deferred ambassador payout for a creation fails. Admin
-    // uses `retryAmbassadorPayout(creationId)` to re-attempt.
-    #ambassadorPayoutFailed : {
-      creationId : Nat;
-      owner : Principal;
-      reason : Text;
-    };
-    // Fired when CMC notify_top_up / notify_create_canister lands in a
-    // non-terminal / unsafe-to-refund state (#Processing, #TransactionTooOld,
-    // or #Other with ambiguous error). `id` is the PendingCmcOp row — admin
-    // calls `retryPendingCmcOp(id)` after verifying canister balance, or
-    // `dismissPendingCmcOp(id)` to drop it.
-    #cmcNotifyStuck : {
-      id : Nat;
-      canisterId : Principal;
-      blockIndex : Nat;
-      reason : Text;
-      caller : Principal;
-    };
-    // Fired when treasury ICP balance is too low to safely debit a
-    // requested CMC top-up without violating the refund/payout reserve.
-    // Admin should convert non-ICP revenue to ICP (manual DEX swap) or
-    // fund treasury subaccount directly.
-    #treasuryIcpLow : {
-      currentBalance : Nat;
-      required : Nat;
-      reserve : Nat;
-    };
-  };
+import Types "Types";
 
-  public type StoredNotification = {
-    id : Nat;
-    event : TypedEvent;
-    read : Bool;
-    createdAt : Time.Time;
-  };
+module {
+  public type NotificationPayload = Types.NotificationPayload;
+  public type NotificationSeverity = Types.NotificationSeverity;
+  public type NotificationSource = Types.NotificationSource;
+  public type SourceEventRef = Types.SourceEventRef;
+  public type StoredNotification = Types.StoredNotification;
+  public type Inbox = Types.Inbox;
+  public type Store = Types.Store;
+  public type NotificationsPage = Types.NotificationsPage;
+  public type ListNotificationsArgs = Types.ListNotificationsArgs;
 
   let MAX_INBOX_SIZE : Nat = 500;
-
-  public type Inbox = {
-    items : Vector.Vector<StoredNotification>;
-    var unreadCount : Nat;
-  };
-
-  public type Store = {
-    inboxes : Map.Map<Principal, Inbox>;
-    var nextId : Nat;
-  };
-
-  public type NotificationsPage = {
-    data : [StoredNotification];
-    unreadCount : Nat;
-  };
+  let READ_NOTIFICATION_RETENTION_NS : Int = 2_592_000_000_000_000; // 30 days
 
   public func new() : Store {
     {
@@ -127,17 +52,55 @@ module {
     null;
   };
 
-  public func notify(store : Store, recipient : Principal, event : TypedEvent) {
-    let inbox = getOrCreateInbox(store, recipient);
+  func replaceItems(inbox : Inbox, items : Vector.Vector<StoredNotification>) {
+    while (Vector.size(inbox.items) > 0) {
+      ignore Vector.removeLast(inbox.items);
+    };
+    for (item in Vector.vals(items)) {
+      Vector.add(inbox.items, item);
+    };
+  };
 
-    Vector.add(inbox.items, {
-      id = store.nextId;
-      event;
-      read = false;
-      createdAt = Time.now();
-    });
+  func cleanupReadByAge(inbox : Inbox, now : Time.Time) {
+    let retained = Vector.new<StoredNotification>();
+    var changed = false;
+
+    for (notif in Vector.vals(inbox.items)) {
+      let expiredRead = notif.read and now - notif.createdAt > READ_NOTIFICATION_RETENTION_NS;
+      if (expiredRead) {
+        changed := true;
+      } else {
+        Vector.add(retained, notif);
+      };
+    };
+
+    if (changed) {
+      replaceItems(inbox, retained);
+    };
+  };
+
+  public func enqueue(store : Store, delivery : Types.Delivery) {
+    let inbox = getOrCreateInbox(store, delivery.recipient);
+
+    let now = Time.now();
+    let id = store.nextId;
+
+    Vector.add(
+      inbox.items,
+      {
+        id;
+        payload = delivery.payload;
+        read = false;
+        createdAt = now;
+        correlationId = delivery.correlationId;
+        source = delivery.source;
+        sourceEvent = delivery.sourceEvent;
+        severity = delivery.severity;
+      },
+    );
     store.nextId += 1;
     inbox.unreadCount += 1;
+    cleanupReadByAge(inbox, now);
 
     // Trim: remove oldest read, or oldest overall as hard cap
     if (Vector.size(inbox.items) > MAX_INBOX_SIZE) {
@@ -160,37 +123,51 @@ module {
         if (j != idx) Vector.add(newItems, Vector.get(inbox.items, j));
         j += 1;
       };
-      // Swap contents: clear old, copy new
-      while (Vector.size(inbox.items) > 0) { ignore Vector.removeLast(inbox.items) };
-      for (item in Vector.vals(newItems)) { Vector.add(inbox.items, item) };
+      replaceItems(inbox, newItems);
     };
   };
 
-  public func getNotifications(store : Store, caller : Principal, since : ?Time.Time, limit : Nat) : NotificationsPage {
-    let ?inbox = Map.get(store.inboxes, Principal.compare, caller) else return { data = []; unreadCount = 0 };
+  public func listNotifications(store : Store, caller : Principal, args : ListNotificationsArgs) : NotificationsPage {
+    let ?inbox = Map.get(store.inboxes, Principal.compare, caller) else return {
+      data = [];
+      unreadCount = 0;
+    };
 
-    let size = Vector.size(inbox.items);
+    let maxItems = if (args.limit == 0 or args.limit > 100) 100 else args.limit;
     let results = Vector.new<StoredNotification>();
-    var collected : Nat = 0;
+    var eventIndex = Vector.size(inbox.items);
 
-    // Iterate newest-first (end of vector = most recent)
-    var i = size;
-    while (i > 0 and collected < limit) {
-      i -= 1;
-      let notif = Vector.get(inbox.items, i);
-      switch since {
-        case (?s) {
-          if (notif.createdAt <= s) { i := 0 } // older — stop
-          else { Vector.add(results, notif); collected += 1 };
-        };
-        case null { Vector.add(results, notif); collected += 1 };
+    while (eventIndex > 0 and Vector.size(results) < maxItems) {
+      eventIndex -= 1;
+      let notif = Vector.get(inbox.items, eventIndex);
+      let isAfter = switch (args.afterId) {
+        case (?id) notif.id > id;
+        case null true;
+      };
+      if (isAfter and (not args.unreadOnly or not notif.read)) {
+        Vector.add(results, notif);
       };
     };
 
     { data = Vector.toArray(results); unreadCount = inbox.unreadCount };
   };
 
-  public func getUnreadCount(store : Store, caller : Principal) : Nat {
+  public func markReadUpTo(store : Store, caller : Principal, upToId : Nat) {
+    let ?inbox = Map.get(store.inboxes, Principal.compare, caller) else return;
+
+    var i : Nat = 0;
+    let size = Vector.size(inbox.items);
+    while (i < size) {
+      let notif = Vector.get(inbox.items, i);
+      if (notif.id <= upToId and not notif.read) {
+        Vector.put(inbox.items, i, { notif with read = true });
+        inbox.unreadCount -= 1;
+      };
+      i += 1;
+    };
+  };
+
+  public func getUnreadNotificationCount(store : Store, caller : Principal) : Nat {
     let ?inbox = Map.get(store.inboxes, Principal.compare, caller) else return 0;
     inbox.unreadCount;
   };
@@ -227,4 +204,5 @@ module {
     };
     inbox.unreadCount := 0;
   };
+
 };
