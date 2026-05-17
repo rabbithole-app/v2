@@ -6,6 +6,11 @@
     "name": "storage",
     "label": "Storage"
   },
+  {
+    "type": "dir",
+    "name": "sharing",
+    "label": "Shared access"
+  },
   "payment",
   "authentication",
   "trust-model"

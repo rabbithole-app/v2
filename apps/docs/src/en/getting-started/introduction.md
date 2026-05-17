@@ -20,7 +20,7 @@ Every encrypted storage service promises "we can't read your files." But there's
 | "We don't read your files" | Promise | **Impossible by design** |
 | Encryption keys | Stored on company servers | **Never exist in one place** |
 | Government request | Company may comply | **Nothing to hand over** |
-| Company shuts down | Data may be lost | **Data persists on blockchain** |
+| Company shuts down | Data may be lost | **Your canister keeps running while funded** |
 | Who owns the infrastructure | The company | **You** |
 
 ## Why vetKeys change everything

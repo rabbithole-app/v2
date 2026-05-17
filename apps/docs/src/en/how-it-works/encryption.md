@@ -45,7 +45,9 @@ flowchart LR
 - **Nobody can read your files** — not even the Rabbithole team
 - **Even the blockchain nodes** can't decrypt your data — they store only encrypted fragments. While IC nodes can technically access canister memory, all your data is encrypted with vetKeys before it reaches the canister. Without the threshold key derivation (which requires your identity), the stored data is indistinguishable from random noise
 - **TEE support adds hardening, not the primary guarantee** — the Internet Computer is gradually rolling out [TEE support](https://forum.dfinity.org/t/upcoming-proposal-the-first-tee-enabled-subnet/64180) based on AMD SEV-SNP. This strengthens runtime isolation, but Rabbithole's main privacy guarantee still comes from client-side encryption and key derivation, not from trusting hardware alone
-- **If Rabbithole shuts down** — your encrypted data persists on the blockchain
+- **If Rabbithole shuts down** — encrypted on-chain files stay in your
+  canister while it remains funded; Blob Storage files keep their trusted
+  records in your canister and depend on the Blob Storage retention lifecycle
 - **Each fragment is independent** — a problem with one doesn't affect others
 
 ## How encryption keys work
@@ -130,7 +132,7 @@ vetKey derivation costs approximately **$0.035 per operation**. This is paid fro
 
 ## Technical Details
 
-:::details{title="Click to expand technical details"}
+:::details{title="Algorithms, fragment sizes, and vetKD flow"}
 
 ### Algorithm
 

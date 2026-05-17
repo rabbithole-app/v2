@@ -6,6 +6,11 @@
     "name": "storage",
     "label": "Хранение данных"
   },
+  {
+    "type": "dir",
+    "name": "sharing",
+    "label": "Совместный доступ"
+  },
   "payment",
   "authentication",
   "trust-model"

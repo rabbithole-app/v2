@@ -16,12 +16,16 @@ Rabbithole is a decentralized encrypted file storage service built on the Intern
 When you create a storage, a smart contract (canister) is deployed on the Internet Computer. After setup:
 
 - **You are the sole controller** — Rabbithole removes itself from controllers
-- **You own your data** — stored in your canister, encrypted with keys only you can derive
+- **You own your data** — your canister stores ownership, access rules, and
+  trusted records; on-chain files are stored in the canister, while Blob Storage
+  files store their file bytes outside the canister
 - **You are responsible** for your canister's cycle balance (operational fuel)
 
 ## What you can store
 
-You may store any files that are legal in your jurisdiction. Since all files are encrypted client-side, we cannot monitor or filter content. You are solely responsible for what you store.
+You may store any files that are legal in your jurisdiction. In encrypted mode,
+we cannot read file contents because encryption happens in your browser. You are
+solely responsible for what you store.
 
 ## What we provide
 
@@ -58,7 +62,9 @@ Rabbithole is provided "as is" without warranty of any kind. We are not liable f
 
 - You can stop using Rabbithole at any time. Your canister continues to operate independently
 - You can delete your canister and all data at any time
-- We may discontinue the rabbithole.app interface, but your canister and data remain on the blockchain
+- We may discontinue the rabbithole.app interface, but your canister continues
+  independently while it has cycles. File availability depends on your selected
+  storage mode and storage funding.
 
 ## Changes to these terms
 

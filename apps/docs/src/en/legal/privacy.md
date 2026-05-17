@@ -16,7 +16,9 @@ Rabbithole is designed around encrypted storage, and in encrypted mode we **cann
 - **Encrypted file contents** — in encrypted mode, we never see plaintext
 - **Encryption keys** — in encrypted mode, they are derived via threshold cryptography and never exist in one place
 - **Passwords** — there are none; authentication is via Internet Identity (passkeys/biometrics)
-- **Email addresses** — not required for registration
+- **Email addresses by default** — registration does not require email. If you
+  consent to share a verified email attribute, Rabbithole uses it for features
+  such as invite-by-email access and future notifications.
 - **Browsing history or tracking data** — no analytics, no cookies, no third-party trackers
 
 ## What we do process
@@ -52,7 +54,9 @@ Your data persists as long as your canister has cycles (fuel). You can:
 - Delete your data at any time
 - Export your data at any time
 
-If Rabbithole ceases to exist, your data remains accessible via your canister's direct URL.
+If Rabbithole ceases to exist, your canister remains accessible via its direct
+URL while it has cycles. On-chain files remain in the canister; Blob Storage
+file availability depends on the Blob Storage retention lifecycle.
 
 ## Third-party services
 

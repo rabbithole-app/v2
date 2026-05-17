@@ -9,10 +9,12 @@ import { Badge, OverviewGroup } from '@rspress/core/theme';
 
 ## Storage mode and encryption mode are separate choices
 
-Rabbithole is designed around end-to-end encryption and personal canister ownership.
+Rabbithole is designed around end-to-end encryption and personal canister
+ownership.
 
 These storage modes describe **where a file is stored**.  
-Encryption is a **separate setting** and may depend on your plan and folder configuration.
+Encryption is a **separate setting** and may depend on your plan and folder
+configuration.
 
 There are two storage modes:
 
@@ -26,10 +28,12 @@ If you want everything to stay inside your personal canister, choose **On-chain 
 
 :::
 
-:::details{title="TODO: document the UI setting once it is exposed"}
+:::details{title="Where you choose the storage mode"}
 
-Rabbithole already supports separate storage and encryption settings in the codebase.  
-This page will be updated once the interface exposes that choice directly during folder setup or file upload.
+When you create a storage, Rabbithole asks you to choose **Blob Storage** or
+**On-chain Storage** before payment. Encryption remains a separate feature gate:
+the selected storage mode decides where file bytes live, while the encryption
+mode decides whether those bytes are encrypted before upload.
 
 :::
 
@@ -74,15 +78,20 @@ It does not guarantee that a file will remain available forever.
 
 ## What stays the same in both modes
 
-- Your personal canister remains the place that keeps file ownership and access rules.
-- Rabbithole is built around encrypted storage, even though encryption depends on plan and folder settings.
+- Your personal canister remains the place that keeps file ownership and access
+  rules.
+- Rabbithole is built around encrypted storage, even though encryption depends
+  on plan and folder settings.
 - Integrity verification remains part of the storage path.
 
 ## What happens if Rabbithole disappears?
 
-**On-chain Storage:** your file remains inside your canister as long as the canister stays funded with [cycles](/en/how-it-works/payment).
+**On-chain Storage:** your file remains inside your canister as long as the
+canister stays funded with [cycles](/en/how-it-works/payment).
 
-**Blob Storage:** your canister still keeps the file record and the information needed to verify the file. Availability then depends on the Blob Storage funding and retention lifecycle.
+**Blob Storage:** your canister still keeps the file record and the information
+needed to verify the file. Availability then depends on the Blob Storage funding
+and retention lifecycle.
 
 :::note{title="Rabbithole is an interface, not the owner of your data"}
 
@@ -107,6 +116,10 @@ Your canister is the durable system of record. Rabbithole is one way to access i
       {
         text: 'How Rabbithole verifies your files',
         link: '/en/how-it-works/storage/integrity',
+      },
+      {
+        text: 'How shared access works',
+        link: '/en/how-it-works/sharing/',
       },
       {
         text: 'Payment & Cycles',

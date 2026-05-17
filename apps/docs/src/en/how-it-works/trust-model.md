@@ -12,7 +12,7 @@ Every storage system requires some level of trust. Here's exactly what Rabbithol
 The strongest privacy guarantees apply when encryption is enabled.  
 Without encryption, Rabbithole still enforces ownership and access rules, but storage infrastructure may see file contents.
 
-TEE support on the Internet Computer improves runtime isolation, but it should be viewed as an additional hardening layer, not as Rabbithole's primary privacy guarantee.
+TEE support on the Internet Computer improves runtime isolation. Treat it as an additional hardening layer, not as Rabbithole's primary privacy guarantee.
 
 ### You do NOT need to trust
 

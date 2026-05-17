@@ -6,11 +6,14 @@ export default defineConfig({
   root: 'src',
   title: 'Rabbithole Docs',
   description: 'Decentralized encrypted file storage on the Internet Computer',
-  logo: "/logo.svg",
-  logoText: "Rabbithole",
+  logo: '/logo.svg',
+  logoText: 'Rabbithole',
   icon: '/favicon.ico',
   globalStyles: path.resolve(__dirname, 'src/styles/custom.css'),
   lang: 'en',
+  markdown: {
+    defaultWrapCode: true,
+  },
   locales: [
     {
       lang: 'en',
@@ -26,6 +29,11 @@ export default defineConfig({
     },
   ],
   themeConfig: {
+    editLink: {
+      docRepoBaseUrl:
+        'https://github.com/rabbithole-app/v2/tree/main/apps/docs/src',
+    },
+    lastUpdated: true,
     socialLinks: [
       {
         icon: 'github',
@@ -35,8 +43,8 @@ export default defineConfig({
       {
         icon: 'x',
         mode: 'link',
-        content: 'https://x.com/rabbithole_ic'
-      }
+        content: 'https://x.com/rabbithole_ic',
+      },
     ],
     locales: [
       {

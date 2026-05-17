@@ -7,7 +7,9 @@ sidebar:
 
 ## Your storage runs on cycles
 
-On the Internet Computer, computation and storage are paid for with **cycles** — a stable unit of work pegged to a basket of currencies. Your personal canister needs cycles to stay alive and serve your files.
+On the Internet Computer, computation and storage are paid for with
+**cycles** — a stable unit of work pegged to a basket of currencies. Your
+personal canister needs cycles to stay alive and serve your files.
 
 You don't need to think about cycles directly. Rabbithole handles it for you.
 
@@ -27,7 +29,8 @@ flowchart LR
 
 ### Pro subscription
 
-With a Pro subscription, you keep a balance in supported tokens. Rabbithole automatically converts and tops up your canister's cycles every 30 days.
+With a Pro subscription, you keep a balance in supported tokens. Rabbithole
+automatically converts and tops up your canister's cycles every 30 days.
 
 **Supported tokens:**
 
@@ -52,21 +55,29 @@ Your balance is used for:
 
 ## Self-managed storage
 
-You don't need a Pro subscription to keep your storage alive. Since your canister belongs to you, you can manage cycles yourself:
+You don't need a Pro subscription to keep your storage alive. Since your
+canister belongs to you, you can manage cycles yourself:
 
-- **Manual top-up** — via the [NNS dapp](https://nns.ic0.app), `dfx` CLI, or any ICP wallet
+- **Manual top-up** — via the [NNS dapp](https://nns.ic0.app),
+  `icp-cli`, or any ICP wallet
 - **Automated top-up** — using third-party services like [CycleOps](https://cycleops.dev) for automatic monitoring and refills
 
 :::tip{title="Your canister, your choice"}
 
-Rabbithole's Pro service is a convenience layer. The underlying canister is a standard Internet Computer smart contract — you can always manage it independently with any ICP tooling.
+Rabbithole's Pro service is a convenience layer. The underlying canister is a
+standard Internet Computer smart contract, and you can manage it independently
+with ICP tooling.
 
 :::
 
 ## What happens when cycles run out?
 
 **On-chain storage:**
-Your canister enters a **frozen** state when cycles drop below the freezing threshold. Data is preserved but inaccessible until you add more cycles. The canister is not deleted — you can always recover it.
+Your canister enters a **frozen** state when cycles drop below the freezing
+threshold. Data is preserved but the canister may stop processing calls until
+you add more cycles. If a canister remains unfunded long enough, the Internet
+Computer can uninstall or remove it according to the network's canister
+lifecycle rules. Keep a cycle buffer and monitor the balance.
 
 **Blob Storage:**
 The Cashier canister can no longer charge your canister for storage fees. There is a **30-day grace period** — your data remains on the gateway but becomes inaccessible. After 30 days with zero balance, the gateway removes the data permanently.
@@ -81,7 +92,7 @@ If you're using Blob Storage, make sure your canister always has enough cycles. 
 
 ## Technical Details
 
-:::details{title="Click to expand technical details"}
+:::details{title="Cycles pricing and top-up flow"}
 
 ### Cycles pricing (approximate)
 
@@ -133,7 +144,7 @@ Every 30 days, Rabbithole's TopUpManager:
 You can check your canister's cycle balance:
 
 - **In Rabbithole** — the storage dashboard shows current balance
-- **Via `dfx`** — `dfx canister status <canister-id> --network ic`
+- **Via `icp-cli`** — `icp canister status <canister-id> -n ic`
 - **Via NNS** — if your canister is linked to your NNS identity
 
 :::

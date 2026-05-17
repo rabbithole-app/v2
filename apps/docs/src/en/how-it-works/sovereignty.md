@@ -1,27 +1,78 @@
 ---
 title: Data Sovereignty
-description: Why you truly own your data on Rabbithole
+description: What you control when Rabbithole deploys a personal storage canister for you
 sidebar:
   order: 0
 ---
 
-# Your Storage. Your Rules.
+# Data sovereignty in Rabbithole
 
-Rabbithole doesn't just encrypt your files — it gives you **actual ownership** of your storage infrastructure. This is fundamentally different from every other cloud storage service.
+Data sovereignty means your storage is not just an account in Rabbithole's
+database. When you create storage, Rabbithole deploys a personal Internet
+Computer canister for you, installs the storage code and frontend assets, and
+then removes itself from control.
 
-## What makes Rabbithole unique?
+:::tip{title="Short version"}
 
-When you create storage on Rabbithole, we deploy a **personal canister** (smart contract) on the Internet Computer blockchain — and then **hand you the keys**.
+Your storage is a personal canister. Rabbithole helps create it, then hands
+control to your Internet Identity principal. You can access the canister
+directly, manage its cycles, and decide whether to accept future updates.
 
-![Data Sovereignty — Your Storage, Your Rules](/diagrams/fossflow-diagram-1.png)
+:::
 
-After deployment:
-- **You are the sole controller** of your canister
-- Rabbithole **removes itself** from the list of controllers
-- Your canister contains your encrypted files, your frontend UI, and your access rules
-- Nobody — not Rabbithole, not any government, not any hacker — can access or delete your data
+## What you control
 
-## How your storage is created
+After the initial handoff, your principal is the controller of the storage
+canister. That gives you direct control over the infrastructure that stores your
+file records, permissions, frontend assets, and, in On-chain Storage, the file
+bytes themselves.
+
+You control these parts of your storage:
+
+- **Controller rights**: your principal controls canister settings and upgrades.
+- **Direct access**: your canister serves its own frontend at
+  `https://<canister-id>.icp0.io`.
+- **Cycle funding**: you can keep the canister alive with Rabbithole Pro or
+  with direct Internet Computer tooling.
+- **Updates**: you choose whether Rabbithole gets temporary access to install a
+  new version.
+- **Deletion**: you can delete the canister and its data when you no longer need
+  the storage.
+
+## What Rabbithole still provides
+
+Sovereignty does not mean Rabbithole disappears from the user experience. It
+means Rabbithole is a service layer around infrastructure that you control.
+
+Rabbithole can still provide these conveniences:
+
+- **Main app interface** at `rabbithole.app`.
+- **Storage creation** for deploying and initializing a personal canister.
+- **Optional updates** for new WASM modules and frontend assets.
+- **Pro top-ups** that keep your canister funded with cycles automatically.
+- **Blob Storage coordination** when you choose the lower-cost storage mode.
+
+## What sovereignty does not guarantee
+
+Data sovereignty removes Rabbithole as a permanent controller, but it does not
+remove every operational dependency. These limits are important.
+
+- **Cycles are still required**: an unfunded canister can freeze and may later
+  be removed by the Internet Computer network.
+- **Blob Storage has a separate availability model**: your canister keeps the
+  trusted file record, but file bytes depend on Blob Storage funding and
+  retention.
+- **Encryption remains a separate setting**: sovereignty controls ownership and
+  administration; encryption controls file confidentiality.
+- **Lost identity is still a risk**: if you lose access to the Internet Identity
+  that controls the canister, Rabbithole cannot recover control for you.
+- **Updates create a temporary trust window**: when you approve an update,
+  Rabbithole gets temporary access and then removes itself again.
+
+## How storage is created
+
+Rabbithole uses temporary access only to create and initialize your storage. The
+handoff happens before the storage becomes your independent canister.
 
 ```mermaid
 flowchart TB
@@ -39,9 +90,9 @@ flowchart TB
         RV --> RM[Remove Rabbithole as controller]
         RM ==> OWN[You are the sole controller]
     end
-    subgraph S4["Result: Your Storage"]
+    subgraph S4["Result: Your storage"]
         OWN --> A1[rabbithole.app]
-        OWN --> A2["https://&lt;canisterId&gt;.icp0.io"]
+        OWN --> A2["https://&lt;canister-id&gt;.icp0.io"]
     end
     style S1 fill:#e0f2fe,stroke:#0284c7
     style S2 fill:#fef3c7,stroke:#d97706
@@ -54,116 +105,128 @@ flowchart TB
     style A2 fill:#a5d8ff,stroke:#0284c7
 ```
 
-### Step 1: You pay a fixed price
+The creation flow has three phases:
 
-You pay a fixed price in USD. This covers two things:
-- **Canister creation** — the Internet Computer network [charges a fee](https://docs.internetcomputer.org/building-apps/essentials/gas-cost#canister-creation) for creating a new smart contract
-- **Initial cycles balance** — "fuel" your canister needs for computation and storage
+1. **Pay for deployment**: the payment covers canister creation and the initial
+   cycle balance.
+2. **Install the storage**: Rabbithole installs the storage WASM module and the
+   frontend assets served by your canister.
+3. **Complete the handoff**: Rabbithole revokes its asset write permission and
+   removes itself from the canister controllers.
 
-**Rabbithole does not profit from this step.** The entire payment goes to the Internet Computer network. Under the hood, Rabbithole converts your payment to cycles and sends them to the network — but you don't need to think about any of that.
+After that handoff, Rabbithole no longer has permanent administrative access to
+your canister.
 
-### Step 2: Rabbithole deploys your canister
+## How to verify ownership
 
-1. **Creates the canister** — at this point, both you and Rabbithole are listed as controllers (Rabbithole needs temporary access to install code)
-2. **Installs the WASM module** — the storage canister logic, the same open-source code published on GitHub
-3. **Installs frontend assets** — your canister will serve its own web UI
+You can verify the canister controllers with `icp-cli`. Run the command with
+the Internet Computer identity that controls your storage canister.
 
-The Rabbithole backend automatically checks GitHub daily for new releases. When a new version is available, it downloads the latest WASM module and frontend assets — so every new canister gets up-to-date code.
+```bash
+icp canister settings show <your-storage-canister-id> -n ic
+```
 
-### Step 3: Rabbithole steps away
+Check the `controllers` field in the output:
 
-After installation, Rabbithole performs a two-step handoff:
-1. **Revokes its own write permission** on the canister's asset storage — so it can no longer modify your frontend files
-2. **Removes itself as controller** — leaving you as the only controller
+- Your principal must be listed as a controller.
+- Rabbithole must not remain listed after the handoff is complete.
 
-From this moment, you are the only one who can manage your canister. This is enforced at the IC protocol level — there is no backdoor.
+To print the principal of your current `icp-cli` identity, run:
 
-### The result
+```bash
+icp identity principal
+```
 
-You can access your storage in two ways:
-- Through **rabbithole.app** — the main application interface
-- Directly at **https://&lt;canisterId&gt;.icp0.io** — your canister serves its own frontend
+You can also compare the installed module hash with the published release if you
+want to verify the code. See the Internet Computer guide to
+[reproducible builds](https://docs.internetcomputer.org/building-apps/best-practices/reproducible-builds)
+for the full process.
 
-Your identity (Principal ID) is the same in both cases — Rabbithole uses a key delegation mechanism so that Internet Identity recognizes you regardless of which URL you use. Read more on the [Authentication](/en/how-it-works/authentication) page.
+## What happens if Rabbithole disappears?
 
-## What if Rabbithole disappears?
-
-This is the question nobody asks about Google Drive — because the answer is terrifying. With Rabbithole, it's simple: **nothing changes for your data**.
-
-Your canister is a fully autonomous smart contract on the Internet Computer. Rabbithole.app is just a convenient way to interact with it — but it's not the only way and not a requirement.
+Rabbithole is one interface to your storage, not the owner of the canister. If
+`rabbithole.app` is unavailable, the canister can still serve its own frontend
+while it has enough cycles.
 
 ```mermaid
 flowchart LR
     subgraph NORMAL["Normal operation"]
         direction LR
-        U1[You] -->|rabbithole.app| C1[Your Canister]
+        U1[You] -->|rabbithole.app| C1[Your canister]
         U1 -->|direct URL| C1
     end
     subgraph GONE["Rabbithole is offline"]
         direction LR
-        U2[You] -.->|rabbithole.app| X["Unavailable"]
-        U2 ==>|"direct: canisterId.icp0.io"| C2[Your Canister - unchanged]
-        GH[GitHub - open source] -.->|verify code SHA-256| C2
+        U2[You] -.->|rabbithole.app| X[Unavailable]
+        U2 ==>|"direct: canister-id.icp0.io"| C2[Your canister]
     end
     style NORMAL fill:#dcfce7,stroke:#16a34a
     style GONE fill:#fef3c7,stroke:#d97706
     style X fill:#fca5a5,stroke:#ef4444
     style C1 fill:#22c55e,color:#fff
     style C2 fill:#22c55e,color:#fff
-    style GH fill:#e5e7eb,stroke:#6b7280
 ```
 
-- **Your data stays** on the Internet Computer blockchain — the canister keeps running independently
-- **You access it directly** at `https://<canisterId>.icp0.io` — your canister already serves its own frontend
-- **You top up cycles** directly through the IC management interface, without Rabbithole
-- **The code is verifiable** — all WASM modules and frontend assets are [open source](https://github.com/rabbithole-app/v2). You can [verify](https://docs.internetcomputer.org/building-apps/best-practices/reproducible-builds) that the module installed in your canister matches the published release by comparing SHA-256 hashes: `dfx canister info <id> --network ic` returns the module hash
-- **Updates are optional** — your canister works fine without ever being updated
+What remains available depends on your storage mode:
 
-Rabbithole is designed so that its own disappearance doesn't affect your data or access to it. Your canister is self-sufficient from the moment it's created.
+- **On-chain Storage**: file bytes stay inside your canister while it remains
+  funded.
+- **Blob Storage**: your canister keeps the trusted file record and verification
+  data, while file-byte availability depends on the Blob Storage retention
+  lifecycle.
 
----
+## Technical details
 
-:::details{title="How does controller transfer work?"}
+The technical details below explain how Rabbithole performs the handoff and how
+optional updates work after the canister belongs to you.
 
-The handoff is a two-step process:
+:::details{title="Controller transfer and optional updates"}
 
-1. **Revoke `#Commit` permission** — Rabbithole calls `revoke_permission` on the http-assets interface of your canister, removing its ability to write or modify frontend files.
-2. **Remove as controller** — Rabbithole calls `IC.update_settings` with `controllers = [your_principal]`, removing itself entirely. Only your Principal remains.
+### Controller transfer
 
-The Internet Computer's management canister enforces controller rules at the protocol level — once Rabbithole is removed, there is no backdoor, no admin access, no override mechanism. The IC consensus protocol guarantees this.
+The initial handoff has two protocol-level steps:
 
-You can verify your canister's controllers at any time:
-```bash
-dfx canister info <your-canister-id> --network ic
-```
+1. **Revoke `#Commit` permission**: Rabbithole calls `revoke_permission` on the
+   `http-assets` interface, removing its ability to write or modify frontend
+   files.
+2. **Remove Rabbithole as controller**: Rabbithole calls `IC.update_settings`
+   with `controllers = [your_principal]`. Only your principal remains.
 
-:::
+The Internet Computer management canister enforces controller rules at the
+protocol level. After Rabbithole is removed, it has no admin override.
 
-:::details{title="What about canister upgrades?"}
+### Optional canister upgrades
 
-Rabbithole has a built-in update delivery mechanism. When a new version is available, you see a notification banner in the interface. The update process works like this:
-
-1. **You decide** — updates are never forced. You see a banner and choose whether to update
-2. **Temporary access** — if you agree, Rabbithole is temporarily added as a controller of your canister
-3. **Update** — Rabbithole installs the new WASM module and/or frontend assets
-4. **Access removed** — Rabbithole removes itself as controller again
+Rabbithole can deliver updates, but only after you approve a temporary access
+window.
 
 ```mermaid
 sequenceDiagram
     participant U as You
     participant R as Rabbithole
-    participant C as Your Canister
+    participant C as Your canister
 
-    R-->>U: New version available - banner
-    U->>C: Add Rabbithole as controller
+    R-->>U: New version available
+    U->>C: Add Rabbithole as temporary controller
     U->>R: Approve update
-    R->>C: Install new WASM / assets
+    R->>C: Install new WASM or frontend assets
     R->>C: Remove itself as controller
     Note over C: You are the sole controller again
 ```
 
-**Snapshots for safety:** Before any update, you can take a snapshot of your canister's state through the interface. A snapshot captures the current Stable Memory and WASM module. If something goes wrong after an update, you can roll back to the snapshot — restoring your data and code to the exact state before the update.
+Before an update, you can create a snapshot from the Rabbithole interface. A
+snapshot captures the current Stable Memory and WASM module. If the update fails
+or behaves incorrectly, you can restore the canister to the snapshot.
 
-Your data is stored in **Stable Memory** — persistent storage that survives code upgrades. Even if you upgrade the canister's logic, your files remain intact.
+Stable Memory survives canister upgrades, so file records and stored data remain
+available across normal code updates.
 
 :::
+
+## Continue reading
+
+Use these pages to understand the related parts of the model.
+
+- [Authentication](/en/how-it-works/authentication)
+- [Storage](/en/how-it-works/storage)
+- [Payment & Cycles](/en/how-it-works/payment)
