@@ -206,6 +206,12 @@ module {
           #warning,
         )
       ];
+      case (#ownerActivityRecorded(_)) [];
+      case (#durablePolicyCreated(_)) [];
+      case (#durablePolicyGraceStarted(_)) [];
+      case (#durablePolicyMatured(_)) [];
+      case (#durablePolicyReleased(_)) [];
+      case (#durablePolicyCancelled(_)) [];
     };
   };
 

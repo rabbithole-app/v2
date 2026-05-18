@@ -230,6 +230,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   func creationProgress(status : StorageDeployerOrchestrator.CreationStatus) : ?BackendEvents.Progress {
     switch (status) {
       case (#InstallingWasm({ progress })) ?progress;
+      case (#ReinstallingWasm({ progress })) ?progress;
       case (#UploadingFrontend({ progress })) ?progress;
       case (#UpgradingWasm({ progress })) ?progress;
       case (#UpgradingFrontend({ progress })) ?progress;
@@ -350,6 +351,14 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
 
   // --- Internal: create storage for a user (called after license payment) ---
+  func storageVetKeyEnv<system>(level : Payments.StorageVetKeyLevel) : ?[{ name : Text; value : Text }] {
+    let keyName = switch (level) {
+      case (#standard) backendThresholdKeyName;
+      case (#highReplication) "key_1";
+    };
+    ?[{ name = "VETKEY_NAME"; value = keyName }];
+  };
+
   func createStorageForUserInternal<system>(userId : Principal, initArg : Blob, envPairs : ?[{ name : Text; value : Text }]) : Result.Result<(), Text> {
     let result = StorageDeployerOrchestrator.createStorage<system>(
       storageOrchestrator,
@@ -381,6 +390,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       activateSubscription = activateSubscriptionInternal;
       grantPaidPeriod = grantPaidPeriodInternal;
       distributePayment = treasuryDistributePayment;
+      storageVetKeyEnv;
       createStorageForUser = createStorageForUserInternal;
       addLicense = func(owner : Principal, receipt : { tokenId : TreasuryTypes.TokenId; amount : Nat; paymentId : Text; paidAt : Int }) : Result.Result<(), { #DuplicatePayment }> {
         StorageDeployerOrchestrator.addLicense(licenses, owner, {
@@ -544,8 +554,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
-  /// Per-creationId mutex shared between `#resume` and `#refund` strategies
-  /// of `recoverFailedStorage` AND the CmcRecovery Timer continuation.
+  /// Per-creationId mutex shared between recovery strategies of
+  /// `recoverFailedStorage`, `reinstallFailedStorageWasm`, and the
+  /// CmcRecovery Timer continuation.
   /// Acquired synchronously at entry (before any `await`) so concurrent
   /// calls on the same id see the lock and bail. Transient — on upgrade
   /// the set resets (in-flight messages are lost anyway).
@@ -558,7 +569,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// the same id serialize.
   func resumeFailedCreationInternal(creationId : Nat) : async Result.Result<(), Text> {
     if (Set.contains(creationLocks, Nat.compare, creationId)) {
-      return #err("another refund or resume is in progress for this creation");
+      return #err("another refund, resume, or reinstall is in progress for this creation");
     };
     Set.add(creationLocks, Nat.compare, creationId);
 
@@ -603,12 +614,49 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
+  /// Internal repair for failed initial creations whose canister exists but
+  /// cannot continue via plain #install. This uses management-canister
+  /// #reinstall, so it is deliberately kept out of the normal resume path.
+  func reinstallFailedCreationWasmInternal(creationId : Nat) : async Result.Result<(), Text> {
+    if (Set.contains(creationLocks, Nat.compare, creationId)) {
+      return #err("another refund, resume, or reinstall is in progress for this creation");
+    };
+    Set.add(creationLocks, Nat.compare, creationId);
+
+    try {
+      let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
+        return #err("creation not found");
+      };
+      let isFailed = switch (record.status) { case (#Failed _) true; case _ false };
+      if (not isFailed) return #err("creation is not in failed state");
+      let ?paymentId = record.licensePaymentId else {
+        return #err("no license on record — use purchase flow instead");
+      };
+      let ?license = StorageDeployerOrchestrator.findLicenseByPaymentId(licenses, record.owner, paymentId) else {
+        return #err("license for payment not found");
+      };
+      switch (license.receipt.status) {
+        case (#completed) {};
+        case (#refunded _) return #err("license was refunded — cannot reinstall");
+      };
+
+      await StorageDeployerOrchestrator.reinstallFailedCreationWasm<system>(
+        storageOrchestrator,
+        creations,
+        creationId,
+        orchestratorCallbacks,
+      );
+    } finally {
+      Set.remove(creationLocks, Nat.compare, creationId);
+    };
+  };
+
   /// Internal refund — idempotent contract. Missing / already-refunded /
   /// post-canister-creation states return `#err` with no side effects. This
   /// lets CmcRecovery retry race with parallel admin calls safely.
   func refundFailedCreationInternal(creationId : Nat) : async Result.Result<(), Text> {
     if (Set.contains(creationLocks, Nat.compare, creationId)) {
-      return #err("another refund or resume is in progress for this creation");
+      return #err("another refund, resume, or reinstall is in progress for this creation");
     };
     Set.add(creationLocks, Nat.compare, creationId);
 
@@ -796,13 +844,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// unified deploy queue.
   public shared ({ caller }) func purchaseLicenseAndCreateStorage(
     storageBackendType : Payments.StorageBackendType,
-    envPairs : ?[{ name : Text; value : Text }],
+    vetKeyLevel : Payments.StorageVetKeyLevel,
   ) : async Result.Result<Nat, PurchaseError> {
     assert not Principal.isAnonymous(caller);
-
-    // Silently drop reserved-name entries. Rest of the input passes through;
-    // the storage canister applies its own domain validation on accept.
-    let sanitizedEnvPairs = Payments.sanitizeEnvPairs(envPairs);
 
     // Opportunistic self-topup trigger. Fire-and-forget — doesn't delay the purchase.
     maybeTopUpSelf<system>();
@@ -811,7 +855,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     let options : StorageDeployerOrchestrator.CreateStorageOptions = {
       releaseSelector = #Latest;
       initArg;
-      envPairs = sanitizedEnvPairs;
+      envPairs = Payments.sanitizeEnvPairs(storageVetKeyEnv<system>(vetKeyLevel));
       target = #Create({
         initialCycles = STORAGE_INITIAL_CYCLES;
         subnetId = null;
@@ -960,6 +1004,24 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       creationId,
       "Interrupted by admin recovery",
     );
+  };
+
+  /// Owner-or-admin repair for failed initial creations whose canister already
+  /// exists but cannot be resumed with a plain install. Reinstalls the latest
+  /// storage WASM, so completed storages and failed upgrades are rejected.
+  public shared ({ caller }) func reinstallFailedStorageWasm(
+    creationId : Nat,
+  ) : async Result.Result<(), Text> {
+    assert not Principal.isAnonymous(caller);
+
+    let ?owner = StorageDeployerOrchestrator.getCreationOwner(creations, creationId) else {
+      return #err("creation not found");
+    };
+    if (not Principal.equal(caller, owner) and not isAdminPrincipal(caller)) {
+      return #err("not owner and not admin");
+    };
+
+    await reinstallFailedCreationWasmInternal(creationId);
   };
 
   /// List licenses with optional filter + pagination. Callers omit `options`

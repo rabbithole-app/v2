@@ -53,6 +53,19 @@ module {
     public func isOwnerEquivalent(principal : Principal) : Bool =
       Lib.isOwnerEquivalent(store, principal);
 
+    public func recordOwnerActivity(caller : Principal, args : T.RecordOwnerActivityArguments) : Result.Result<T.OwnerActivityRecord, Text> {
+      switch (Lib.recordOwnerActivity(store, caller, args)) {
+        case (#ok(record)) {
+          emitAccessEvent(#ownerActivityRecorded({ principal = record.principal; role = record.role; origin = record.origin }));
+          #ok(record);
+        };
+        case (#err(message)) #err(message);
+      };
+    };
+
+    public func getOwnerActivityState(caller : Principal) : Result.Result<T.OwnerActivityState, Text> =
+      Lib.getOwnerActivityState(store, caller);
+
     public func listOwnerEquivalentPrincipals(caller : Principal) : Result.Result<[T.OwnerEquivalentPrincipal], Text> =
       Lib.listOwnerEquivalentPrincipals(store, caller);
 
@@ -244,6 +257,66 @@ module {
         case (#err(message)) #err(message);
       };
     };
+
+    public func createDurableAccessPolicy(caller : Principal, args : T.CreateDurableAccessPolicyArguments) : Result.Result<T.DurableAccessPolicy, Text> {
+      switch (Lib.createDurableAccessPolicy(store, caller, args, shareGate)) {
+        case (#ok(policy)) {
+          emitAccessEvent(#durablePolicyCreated({ policyId = policy.id; status = policy.status; trigger = policy.trigger }));
+          #ok(policy);
+        };
+        case (#err(message)) #err(message);
+      };
+    };
+
+    func emitDurablePolicyProcessResult(result : T.DurablePolicyProcessResult) {
+      switch (result.policy.status) {
+        case (#grace) emitAccessEvent(#durablePolicyGraceStarted({ policyId = result.policy.id }));
+        case (#matured) emitAccessEvent(#durablePolicyMatured({ policyId = result.policy.id }));
+        case (#released) emitAccessEvent(#durablePolicyReleased({ policyId = result.policy.id }));
+        case _ {};
+      };
+      for (grant in result.principalGrants.vals()) {
+        emitAccessEvent(#principalGrantCreated({ grantId = ?grant.id; principal = grant.principal; accessClass = grant.accessClass; source = grant.source }));
+      };
+      for (grant in result.pendingGrants.vals()) {
+        emitAccessEvent(#pendingGrantCreated({ grantId = grant.id; ref = grant.ref; accessClass = grant.accessClass; source = grant.source }));
+      };
+    };
+
+    public func processDurableAccessPolicies(caller : Principal) : Result.Result<[T.DurablePolicyProcessResult], Text> {
+      switch (Lib.processDurableAccessPolicies(store, caller)) {
+        case (#ok(results)) {
+          for (result in results.vals()) {
+            emitDurablePolicyProcessResult(result);
+          };
+          #ok(results);
+        };
+        case (#err(message)) #err(message);
+      };
+    };
+
+    public func releaseDurableAccessPolicy(caller : Principal, args : T.ReleaseDurableAccessPolicyArguments) : Result.Result<T.DurablePolicyProcessResult, Text> {
+      switch (Lib.releaseDurableAccessPolicy(store, caller, args)) {
+        case (#ok(result)) {
+          emitDurablePolicyProcessResult(result);
+          #ok(result);
+        };
+        case (#err(message)) #err(message);
+      };
+    };
+
+    public func cancelDurableAccessPolicy(caller : Principal, args : T.CancelDurableAccessPolicyArguments) : Result.Result<T.DurableAccessPolicy, Text> {
+      switch (Lib.cancelDurableAccessPolicy(store, caller, args)) {
+        case (#ok(policy)) {
+          emitAccessEvent(#durablePolicyCancelled({ policyId = policy.id }));
+          #ok(policy);
+        };
+        case (#err(message)) #err(message);
+      };
+    };
+
+    public func listDurableAccessPolicies(caller : Principal) : Result.Result<[T.DurableAccessPolicy], Text> =
+      Lib.listDurableAccessPolicies(store, caller);
 
     public func hasActiveDurableGrantForKey(caller : Principal, keyId : T.KeyId) : Bool =
       Lib.hasActiveDurableGrantForKey(store, caller, keyId);

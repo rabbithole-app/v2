@@ -1,10 +1,14 @@
-<div class="flex gap-3 items-center">
-  @let file = data().file;
-  <ng-icon hlm class="opacity-60" size="lg" [name]="file | fileIcon" />
-  <div class="flex-1 space-y-1">
-    <div class="text-sm/6 font-bold">{{ file.name }}</div>
-    <div class="flex items-center gap-1">
-      <span class="text-muted-foreground text-xs">
+@let file = data().file;
+<div hlmItem variant="outline">
+  <div hlmItemMedia>
+    <ng-icon hlm class="opacity-60" size="lg" [name]="file | fileIcon" />
+  </div>
+  <div hlmItemContent class="min-w-0">
+    <h4 hlmItemTitle class="max-w-full truncate font-bold">
+      {{ file.name }}
+    </h4>
+    <div class="text-muted-foreground flex items-center gap-1 text-xs">
+      <span>
         @let d = data();
         @switch (d.status) {
           @case (uploadState.IN_PROGRESS) {
@@ -15,35 +19,70 @@
           }
         }
       </span>
-      <span class="text-muted-foreground text-xs">∙</span>
-      <ng-container [ngTemplateOutlet]="statusIcon" />
-      <ng-container [ngTemplateOutlet]="statusText" />
+      <span>∙</span>
+      <span class="flex items-center gap-1">
+        <ng-container [ngTemplateOutlet]="statusIcon" />
+        <ng-container [ngTemplateOutlet]="statusText" />
+      </span>
     </div>
   </div>
-  <ng-container [ngTemplateOutlet]="actionButtons" />
+  <div hlmItemActions>
+    <ng-container [ngTemplateOutlet]="actionButtons" />
+  </div>
+  @if (showProgress()) {
+    <div hlmItemFooter>
+      <brn-progress
+        rbth
+        class="w-full h-1.5 rounded-full"
+        aria-labelledby="loading"
+        [value]="progress()"
+      >
+        <brn-progress-indicator rbth />
+      </brn-progress>
+    </div>
+  }
 </div>
-@if (showProgress()) {
-  <brn-progress
-    rbth
-    class="w-full h-1.5 rounded-full"
-    aria-labelledby="loading"
-    [value]="progress()"
-  >
-    <brn-progress-indicator rbth />
-  </brn-progress>
-}
 
 <ng-template #statusIcon>
   @let d = data();
   @switch (d.status) {
     @case (uploadState.FAILED) {
-      <ng-icon
-        [hlmTooltip]="d.errorMessage"
-        hlm
-        size="sm"
-        name="lucideTriangleAlert"
-        aria-hidden="true"
-      />
+      @if (failureCopy(); as failure) {
+        <hlm-hover-card>
+          <button
+            hlmHoverCardTrigger
+            type="button"
+            class="flex size-4 items-center justify-center rounded-full text-destructive"
+            aria-label="Show upload error details"
+          >
+            <ng-icon
+              hlm
+              size="sm"
+              name="lucideTriangleAlert"
+              aria-hidden="true"
+            />
+          </button>
+          <hlm-hover-card-content
+            *hlmHoverCardPortal
+            class="w-96 max-w-[calc(100vw-2rem)] p-0"
+          >
+            <div hlmAlert variant="destructive" class="border-0">
+              <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+              <h4 hlmAlertTitle>{{ failure.title }}</h4>
+              <div hlmAlertDescription class="space-y-2">
+                <p>{{ failure.description }}</p>
+                @if (failureTechnicalDetails(); as details) {
+                  <p
+                    class="max-h-44 overflow-auto rounded-md bg-background/60 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap break-words"
+                  >
+                    {{ details }}
+                  </p>
+                }
+              </div>
+            </div>
+          </hlm-hover-card-content>
+        </hlm-hover-card>
+      }
     }
     @case (uploadState.COMPLETED) {
       <ng-icon hlm size="sm" name="lucideCheck" aria-hidden="true" />
@@ -55,11 +94,11 @@
 </ng-template>
 
 <ng-template #statusText>
-  <span class="text-xs ml-1 font-semibold">
+  <span class="text-foreground font-semibold">
     @let d = data();
     @switch (d.status) {
       @case (uploadState.FAILED) {
-        Failed
+        {{ failureCopy()?.title ?? 'Upload failed' }}
       }
       @case (uploadState.COMPLETED) {
         Completed

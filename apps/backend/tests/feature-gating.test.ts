@@ -97,6 +97,22 @@ describe("Feature Gating", () => {
   let backendActor: Actor<RabbitholeActorService>;
   let storageActor: Actor<EncryptedStorageActorService>;
 
+  function unwrapStorageResult<T>(result: { ok: T } | { err: { message: string } }): T {
+    if ("err" in result) {
+      throw new Error(result.err.message);
+    }
+
+    return result.ok;
+  }
+
+  async function createStorageNode(args: Parameters<EncryptedStorageActorService["create"]>[0]) {
+    return unwrapStorageResult(await storageActor.create(args));
+  }
+
+  async function createStorageBatch(args: Parameters<EncryptedStorageActorService["createStorageBatch"]>[0]) {
+    return unwrapStorageResult(await storageActor.createStorageBatch(args));
+  }
+
   beforeAll(async () => {
     // Full backend setup with NNS, ledger, CMC
     manager = await BackendManager.create();
@@ -346,7 +362,7 @@ describe("Feature Gating", () => {
     });
 
     test("plaintext operations work without subscription", async () => {
-      const result = await storageActor.create({
+      const result = await createStorageNode({
         entry: [DIRECTORY, "Documents"],
         createMode: CREATE_NEW,
         encryptionMode: toNullable<EncryptionMode>(),
@@ -414,7 +430,7 @@ describe("Feature Gating", () => {
       expect(added.revokedAt).toEqual([]);
 
       storageActor.setIdentity(userAlice);
-      const recoveryCreated = await storageActor.create({
+      const recoveryCreated = await createStorageNode({
         entry: [DIRECTORY, "RecoveryOwned"],
         createMode: CREATE_NEW,
         encryptionMode: [],
@@ -439,7 +455,7 @@ describe("Feature Gating", () => {
 
       storageActor.setIdentity(userAlice);
       await expect(
-        storageActor.create({
+        createStorageNode({
           entry: [DIRECTORY, "RecoveryRevoked"],
           createMode: CREATE_NEW,
           encryptionMode: [],
@@ -499,7 +515,7 @@ describe("Feature Gating", () => {
       const s = await storageActor.getStatus();
       expect(s.subscriptionStatus[0]).toHaveProperty("trial");
 
-      await storageActor.create({
+      await createStorageNode({
         entry: [DIRECTORY, "TrialShared"],
         createMode: CREATE_NEW,
         encryptionMode: [],
@@ -945,6 +961,67 @@ describe("Feature Gating", () => {
       ).toBe(false);
     });
 
+    test("ordinary grants survive directory rename and move through canonical key scopes", async () => {
+      const recipient = createIdentity("ordinary-key-scope-recipient");
+
+      await ensureOwnerProSubscription();
+
+      storageActor.setIdentity(manager.ownerIdentity);
+      const originalDirectory = await createStorageNode({
+        entry: [DIRECTORY, "StableShare"],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      await createStorageNode({
+        entry: [DIRECTORY, "StableShareTarget"],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      const created = await storageActor.createAccessBatch({
+        items: [
+          {
+            ref: { principal: recipient.getPrincipal() },
+            accessClass: { ordinary: null },
+            scope: { entry: [DIRECTORY, "StableShare"] },
+            permission: { Read: null },
+            source: { directGrant: null },
+            expiresAt: [],
+          },
+        ],
+      });
+      expect(created.principalGrants).toHaveLength(1);
+      expect(created.principalGrants[0]!.scope).toEqual({ keyId: originalDirectory.keyId });
+
+      await storageActor.rename({
+        entry: [DIRECTORY, "StableShare"],
+        newName: "StableShareRenamed",
+      });
+      await storageActor.move({
+        entry: [DIRECTORY, "StableShareRenamed"],
+        target: [[DIRECTORY, "StableShareTarget"]],
+      });
+
+      expect(
+        await storageActor.hasStoragePermission({
+          entry: [[DIRECTORY, "StableShareTarget/StableShareRenamed"]],
+          user: recipient.getPrincipal(),
+          permission: { Read: null },
+        }),
+      ).toBe(true);
+
+      const grants = await storageActor.listAccessGrants({
+        scope: [{ entry: [DIRECTORY, "StableShareTarget/StableShareRenamed"] }],
+        mode: { exact: null },
+      });
+      expect(grants.scope).toEqual({ keyId: originalDirectory.keyId });
+      expect(grants.principalGrants).toHaveLength(1);
+      expect(grants.principalGrants[0]!.grant.scope).toEqual({ keyId: originalDirectory.keyId });
+      expect(grants.principalGrants[0]!.grant.principal.toText()).toBe(
+        recipient.getPrincipal().toText(),
+      );
+    });
+
     test("backend shared-with-me registry materializes pending email invite for verified backend email", async () => {
       const recipient = createIdentity("shared-with-me-email-recipient");
       const email = "shared-with-me@example.com";
@@ -1197,7 +1274,7 @@ describe("Feature Gating", () => {
       await ensureOwnerProSubscription();
 
       storageActor.setIdentity(manager.ownerIdentity);
-      await storageActor.create({
+      await createStorageNode({
         entry: [DIRECTORY, "EmailClaimRollback"],
         createMode: CREATE_NEW,
         encryptionMode: [],
@@ -1413,7 +1490,7 @@ describe("Feature Gating", () => {
     test("approved access request creates ordinary permission for owner-selected scope", async () => {
       storageActor.setIdentity(manager.ownerIdentity);
       await storageActor.refreshSubscription();
-      await storageActor.create({
+      await createStorageNode({
         entry: [DIRECTORY, "RequestApproved"],
         createMode: CREATE_NEW,
         encryptionMode: [],
@@ -1513,7 +1590,7 @@ describe("Feature Gating", () => {
         active: { plan: { Pro: null } },
       });
 
-      await storageActor.create({
+      await createStorageNode({
         entry: [DIRECTORY, "Blocked"],
         createMode: CREATE_NEW,
         encryptionMode: [],
@@ -1549,7 +1626,7 @@ describe("Feature Gating", () => {
     });
 
     test("plaintext create works with expired subscription", async () => {
-      const result = await storageActor.create({
+      const result = await createStorageNode({
         entry: [FILE, "expired-ok.txt"],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(PLAINTEXT),
@@ -1558,7 +1635,7 @@ describe("Feature Gating", () => {
     });
 
     test("plaintext move/rename work with expired subscription", async () => {
-      await storageActor.create({
+      await createStorageNode({
         entry: [DIRECTORY, "TempDir"],
         createMode: CREATE_NEW,
         encryptionMode: [],
@@ -1594,7 +1671,7 @@ describe("Feature Gating", () => {
         active: { plan: { Pro: null } },
       });
 
-      await storageActor.create({
+      await createStorageNode({
         entry: [DIRECTORY, "ProShared"],
         createMode: CREATE_NEW,
         encryptionMode: [],
@@ -1620,7 +1697,7 @@ describe("Feature Gating", () => {
 
       await ensureOwnerProSubscription();
 
-      const file = await storageActor.create({
+      const file = await createStorageNode({
         entry: [FILE, "DurableRevokedKey.txt"],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(ENCRYPTED),
@@ -1653,6 +1730,182 @@ describe("Feature Gating", () => {
 
       storageActor.setIdentity(manager.ownerIdentity);
     });
+
+    test("durable directory grant bypass covers descendant keys after subscription expiry", async () => {
+      const recipient = createIdentity("durable-directory-recipient");
+
+      await ensureOwnerProSubscription();
+
+      await createStorageNode({
+        entry: [DIRECTORY, "DurableDirectory"],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      const file = await createStorageNode({
+        entry: [FILE, "DurableDirectory/Child.txt"],
+        createMode: CREATE_NEW,
+        encryptionMode: toNullable(ENCRYPTED),
+      });
+
+      await storageActor.createDurableAccessGrant({
+        principal: recipient.getPrincipal(),
+        scope: { entry: [DIRECTORY, "DurableDirectory"] },
+        permission: { Read: null },
+        source: { durablePolicy: 6n },
+      });
+
+      await manager.pic.advanceTime(31 * 24 * 60 * 60 * 1000);
+      await manager.pic.tick(10);
+
+      storageActor.setIdentity(recipient);
+      try {
+        await storageActor.getEncryptedVetkey(file.keyId, new Uint8Array(48));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        expect(message).not.toMatch(/Subscription expired/i);
+        expect(message).toMatch(/vetkd|threshold key/i);
+      }
+
+      storageActor.setIdentity(manager.ownerIdentity);
+    });
+
+    test("manual durable policy releases durable grants from canonical key scopes", async () => {
+      const recipient = createIdentity("durable-policy-recipient");
+
+      await ensureOwnerProSubscription();
+
+      await createStorageNode({
+        entry: [DIRECTORY, "DurablePolicy"],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      const policy = await storageActor.createDurableAccessPolicy({
+        recipients: [{ principal: recipient.getPrincipal() }],
+        grants: [
+          {
+            scope: { entry: [DIRECTORY, "DurablePolicy"] },
+            permission: { Read: null },
+          },
+        ],
+        trigger: { manualRelease: null },
+      });
+      expect(policy.status).toEqual({ armed: null });
+      expect("keyId" in policy.grants[0]!.scope).toBe(true);
+
+      await manager.pic.advanceTime(31 * 24 * 60 * 60 * 1000);
+      await manager.pic.tick(10);
+      await storageActor.refreshSubscription();
+
+      const released = await storageActor.releaseDurableAccessPolicy({ policyId: policy.id });
+      expect(released.policy.status).toEqual({ released: null });
+      expect(released.principalGrants).toHaveLength(1);
+      expect(released.principalGrants[0]!.source).toEqual({ durablePolicy: policy.id });
+
+      expect(
+        await storageActor.hasStoragePermission({
+          entry: [[DIRECTORY, "DurablePolicy"]],
+          user: recipient.getPrincipal(),
+          permission: { Read: null },
+        }),
+      ).toBe(true);
+
+      const events = await storageActor.listStorageEvents([], 100n);
+      expect(
+        events.some((item) => "access" in item.event && "durablePolicyReleased" in item.event.access && item.event.access.durablePolicyReleased.policyId === policy.id),
+      ).toBe(true);
+
+      await waitForBackendNotification(
+        recipient,
+        (page) => page.data.some(
+          (item) =>
+            "storageAccessGranted" in item.payload &&
+            item.payload.storageAccessGranted.canisterId.toText() ===
+              storage.canisterId.toText() &&
+            item.payload.storageAccessGranted.accessClass &&
+            "durable" in item.payload.storageAccessGranted.accessClass &&
+            "durablePolicy" in item.payload.storageAccessGranted.source &&
+            item.payload.storageAccessGranted.source.durablePolicy === policy.id,
+        ),
+      );
+
+      backendActor.setIdentity(recipient);
+      const shared = await backendActor.listSharedWithMeStorages();
+      const sharedRecord = shared.find(
+        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+      );
+      expect(sharedRecord?.activeAccessClasses).toContainEqual({ durable: null });
+
+      storageActor.setIdentity(manager.ownerIdentity);
+    });
+
+    test("inactivity durable policy resets grace when owner activity is recorded", async () => {
+      const recipient = createIdentity("durable-inactivity-recipient");
+
+      await ensureOwnerProSubscription();
+
+      await createStorageNode({
+        entry: [DIRECTORY, "DurableInactivity"],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      const policy = await storageActor.createDurableAccessPolicy({
+        recipients: [{ principal: recipient.getPrincipal() }],
+        grants: [
+          {
+            scope: { entry: [DIRECTORY, "DurableInactivity"] },
+            permission: { Read: null },
+          },
+        ],
+        trigger: {
+          inactivity: {
+            inactiveForNs: 60n * 60n * 1_000_000_000n,
+            gracePeriodNs: [60n * 60n * 1_000_000_000n],
+          },
+        },
+      });
+
+      await manager.pic.advanceTime(2 * 60 * 60 * 1000);
+      await manager.pic.tick(10);
+
+      let processed = await storageActor.processDurableAccessPolicies();
+      expect(processed.find((item) => item.policy.id === policy.id)?.policy.status).toEqual({ grace: null });
+
+      await storageActor.recordOwnerActivity({ origin: { storage: null } });
+      await manager.pic.advanceTime(2 * 60 * 60 * 1000);
+      await manager.pic.tick(10);
+
+      processed = await storageActor.processDurableAccessPolicies();
+      expect(processed.find((item) => item.policy.id === policy.id)?.policy.status).toEqual({ armed: null });
+      expect(
+        await storageActor.hasStoragePermission({
+          entry: [[DIRECTORY, "DurableInactivity"]],
+          user: recipient.getPrincipal(),
+          permission: { Read: null },
+        }),
+      ).toBe(false);
+
+      processed = await storageActor.processDurableAccessPolicies();
+      expect(processed.find((item) => item.policy.id === policy.id)?.policy.status).toEqual({ grace: null });
+
+      let released: (typeof processed)[number] | undefined;
+      for (let attempt = 0; attempt < 5 && released === undefined; attempt++) {
+        await manager.pic.advanceTime(2 * 60 * 60 * 1000);
+        await manager.pic.tick(10);
+        processed = await storageActor.processDurableAccessPolicies();
+        released = processed.find((item) => item.policy.id === policy.id && "released" in item.policy.status);
+      }
+      expect(released?.policy.status).toEqual({ released: null });
+      expect(released?.principalGrants).toHaveLength(1);
+      expect(
+        await storageActor.hasStoragePermission({
+          entry: [[DIRECTORY, "DurableInactivity"]],
+          user: recipient.getPrincipal(),
+          permission: { Read: null },
+        }),
+      ).toBe(true);
+    });
   });
 
   // ===================== Trial Limit =====================
@@ -1660,13 +1913,13 @@ describe("Feature Gating", () => {
   describe("Trial Storage Limit", () => {
     test("plaintext createBatch works regardless of subscription", async () => {
       // Pro is active from B3 — plaintext should always work
-      await storageActor.create({
+      await createStorageNode({
         entry: [FILE, "plain-large.bin"],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(PLAINTEXT),
       });
 
-      const batch = await storageActor.createStorageBatch({
+      const batch = await createStorageBatch({
         entry: [FILE, "plain-large.bin"],
         totalSize: 500_000_000n,
       });
@@ -1677,13 +1930,13 @@ describe("Feature Gating", () => {
       await ensureOwnerProSubscription();
       await storageActor.refreshSubscription();
 
-      await storageActor.create({
+      await createStorageNode({
         entry: [FILE, "pro-huge.dat"],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(ENCRYPTED),
       });
 
-      const batch = await storageActor.createStorageBatch({
+      const batch = await createStorageBatch({
         entry: [FILE, "pro-huge.dat"],
         totalSize: 500_000_000n,
       });
@@ -1711,7 +1964,7 @@ describe("Feature Gating", () => {
       const status = await storageActor.getStatus();
       expect(status.subscriptionStatus[0]).toHaveProperty("trial");
 
-      await storageActor.create({
+      await createStorageNode({
         entry: [FILE, "too-big.dat"],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(ENCRYPTED),
@@ -1719,7 +1972,7 @@ describe("Feature Gating", () => {
 
       // 150MB exceeds 100MB trial limit
       await expect(
-        storageActor.createStorageBatch({
+        createStorageBatch({
           entry: [FILE, "too-big.dat"],
           totalSize: 150_000_000n,
         }),
@@ -1728,13 +1981,13 @@ describe("Feature Gating", () => {
 
     test("encrypted createBatch works within trial limit", async () => {
       // Trial still active from previous test
-      await storageActor.create({
+      await createStorageNode({
         entry: [FILE, "small-secret.dat"],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(ENCRYPTED),
       });
 
-      const batch = await storageActor.createStorageBatch({
+      const batch = await createStorageBatch({
         entry: [FILE, "small-secret.dat"],
         totalSize: 1_000n,
       });
@@ -1766,7 +2019,7 @@ describe("Feature Gating", () => {
 
     test("mutations do not crash with cycle monitoring", async () => {
       for (let i = 0; i < 3; i++) {
-        await storageActor.create({
+        await createStorageNode({
           entry: [DIRECTORY, `cycle-test-${i}`],
           createMode: CREATE_NEW,
           encryptionMode: [],
@@ -1783,7 +2036,7 @@ describe("Feature Gating", () => {
     test("cycle balance decreases after operations", async () => {
       const balanceBefore = await storageActor.getCycleBalance();
       for (let i = 0; i < 5; i++) {
-        await storageActor.create({
+        await createStorageNode({
           entry: [DIRECTORY, `burn-${i}`],
           createMode: CREATE_NEW,
           encryptionMode: [],

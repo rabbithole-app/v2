@@ -80,7 +80,8 @@ export function buildUpgradeSteps(
   const foundActiveIndex = included.findIndex((step) => step.id === activeId);
   const activeIndex =
     foundActiveIndex >= 0 ? foundActiveIndex : included.length - 1;
-  const isCompleted = options.completed || status?.type === 'Completed';
+  const isCompleted =
+    !options.isPreparing && (options.completed || status?.type === 'Completed');
   const isFailed = status?.type === 'Failed' || !!options.errorMessage;
   const description = status
     ? upgradeStatusDescription(status)

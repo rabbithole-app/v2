@@ -106,16 +106,13 @@
   }
 
   @case ('error') {
-    <div class="mt-4 space-y-4">
-      <rbth-process-step-list
-        [steps]="upgradeSteps()"
-        [showRetry]="false"
-      />
-
+    <div class="mt-4">
       <div hlmAlert variant="destructive">
         <ng-icon hlmAlertIcon name="lucideCircleAlert" />
         <h4 hlmAlertTitle>Upgrade Failed</h4>
-        <p hlmAlertDescription>{{ errorMessage() }}</p>
+        <p hlmAlertDescription class="max-h-56 overflow-auto whitespace-pre-wrap break-words">
+          {{ errorMessage() }}
+        </p>
       </div>
     </div>
   }

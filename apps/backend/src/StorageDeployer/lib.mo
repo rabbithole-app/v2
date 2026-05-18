@@ -1111,10 +1111,15 @@ module StorageDeployerOrchestrator {
     let ?record = creations.get(creationId) else return;
 
     let syncVariant = func(progress : Types.Progress) : Types.CreationStatus {
-      if (record.isUpgrade) {
-        #UpgradingWasm({ canisterId; progress });
-      } else {
-        #InstallingWasm({ canisterId; progress });
+      switch (record.status) {
+        case (#ReinstallingWasm _) #ReinstallingWasm({ canisterId; progress });
+        case _ {
+          if (record.isUpgrade) {
+            #UpgradingWasm({ canisterId; progress });
+          } else {
+            #InstallingWasm({ canisterId; progress });
+          };
+        };
       };
     };
 
@@ -1268,11 +1273,18 @@ module StorageDeployerOrchestrator {
         };
       };
 
-      case (#InstallWasm({ canisterId; releaseTag; initArg })) {
-        if (await canisterHasExpectedWasm(store, canisterId, releaseTag)) {
-          queuePostWasmTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
-        } else {
-          queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode = #install }, onCreationChanged);
+      case (#InstallWasm({ canisterId; releaseTag; initArg; mode })) {
+        switch (mode) {
+          case (#reinstall) {
+            queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode }, onCreationChanged);
+          };
+          case _ {
+            if (await canisterHasExpectedWasm(store, canisterId, releaseTag)) {
+              queuePostWasmTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
+            } else {
+              queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode }, onCreationChanged);
+            };
+          };
         };
       };
 
@@ -1340,6 +1352,7 @@ module StorageDeployerOrchestrator {
           canisterId = args.canisterId;
           releaseTag = args.releaseTag;
           initArg = args.initArg;
+          mode = args.mode;
         });
       });
       var attempts = 0;
@@ -1362,7 +1375,11 @@ module StorageDeployerOrchestrator {
     let ?record = creations.get(creationId) else return;
 
     let statusVariant = switch (mode) {
-      case (#install or #reinstall) #InstallingWasm({
+      case (#install) #InstallingWasm({
+        canisterId;
+        progress = { processed = 0; total = 0 };
+      });
+      case (#reinstall) #ReinstallingWasm({
         canisterId;
         progress = { processed = 0; total = 0 };
       });
@@ -1578,6 +1595,76 @@ module StorageDeployerOrchestrator {
       ignore creations.appendEvent(creationId, #Failed(reason));
     };
 
+    #ok;
+  };
+
+  /// Reinstall WASM for a failed initial creation whose canister already
+  /// exists but never reached Completed. This is intentionally narrower than
+  /// the regular resume path because `#reinstall` wipes canister state.
+  public func reinstallFailedCreationWasm<system>(
+    self : Store,
+    creations : Creations.Creations,
+    creationId : Nat,
+    callbacks : OrchestratorCallbacks,
+  ) : async Result.Result<(), Text> {
+    let ?record = creations.get(creationId) else return #err("creation not found");
+
+    switch (record.status) {
+      case (#Failed _) {};
+      case _ return #err("creation is not in failed state");
+    };
+
+    if (record.isUpgrade) {
+      return #err("cannot reinstall WASM for a failed upgrade");
+    };
+    switch (record.completedAt, record.installedReleaseTag) {
+      case (?_, _) return #err("cannot reinstall WASM for a completed creation");
+      case (_, ?_) return #err("cannot reinstall WASM for a completed creation");
+      case (null, null) {};
+    };
+
+    let ?canisterId = record.canisterId else {
+      return #err("creation has no canister to reinstall");
+    };
+    let latestReleaseTag = switch (findReleaseTag(self, #Latest)) {
+      case (?tag) tag;
+      case null return #err("latest release not found");
+    };
+
+    purgeQueuedTasksForCreation(self, creationId);
+    FrontendInstaller.resetCanisterState(self.frontendInstaller, canisterId);
+    WasmInstaller.resetCanisterState(self.wasmInstaller, canisterId);
+    ignore await WasmInstaller.clearRemoteChunkStore(canisterId);
+
+    ignore creations.mutate(
+      creationId,
+      func(r) = {
+        r with
+        releaseTag = latestReleaseTag;
+        wasmHash = null;
+        frontendHash = null;
+        installedReleaseTag = null;
+        completedAt = null;
+        isUpgrade = false;
+        upgradeIncludesFrontend = false;
+        lastUpgradeError = null;
+        frontendInstallDiagnostics = null;
+      },
+    );
+
+    queueWasmTasks(
+      self,
+      creations,
+      {
+        creationId;
+        canisterId;
+        releaseTag = latestReleaseTag;
+        initArg = record.initArg;
+        mode = #reinstall;
+      },
+      callbacks.onCreationChanged,
+    );
+    ensureUnifiedTimer<system>(self, creations, callbacks);
     #ok;
   };
 

@@ -279,6 +279,38 @@
                         <ng-icon hlmIcon name="lucideEllipsis" size="sm" />
                       }
                     </button>
+                    <hlm-alert-dialog #reinstallWasmDialog="hlmAlertDialog">
+                      <hlm-alert-dialog-content
+                        *brnAlertDialogContent="let ctx"
+                      >
+                        <hlm-alert-dialog-header>
+                          <h3 hlmAlertDialogTitle>
+                            Reinstall storage WASM?
+                          </h3>
+                          <p hlmAlertDialogDescription>
+                            This will reinstall the latest storage module for
+                            creation #{{ creation.id.toString() }}
+                            @if (creation.canisterId[0]; as canisterId) {
+                              on {{ canisterId.toText() }}
+                            }
+                            . Use it only for creations that never completed.
+                          </p>
+                        </hlm-alert-dialog-header>
+                        <hlm-alert-dialog-footer>
+                          <button hlmAlertDialogCancel (click)="ctx.close()">
+                            Cancel
+                          </button>
+                          <button
+                            hlmAlertDialogAction
+                            variant="destructive"
+                            [disabled]="_actionDisabled(creation)"
+                            (click)="ctx.close(); _reinstallWasm(creation)"
+                          >
+                            Reinstall WASM
+                          </button>
+                        </hlm-alert-dialog-footer>
+                      </hlm-alert-dialog-content>
+                    </hlm-alert-dialog>
                     <ng-template #actionsMenu>
                       <hlm-dropdown-menu class="w-52">
                         <hlm-dropdown-menu-label>
@@ -300,6 +332,14 @@
                         >
                           <ng-icon hlmIcon name="lucideServerCog" size="sm" />
                           Recover stuck
+                        </button>
+                        <button
+                          hlmDropdownMenuItem
+                          [brnAlertDialogTriggerFor]="reinstallWasmDialog"
+                          [disabled]="!_canReinstallWasm(creation)"
+                        >
+                          <ng-icon hlmIcon name="lucideWrench" size="sm" />
+                          Reinstall WASM
                         </button>
                         <button
                           hlmDropdownMenuItem

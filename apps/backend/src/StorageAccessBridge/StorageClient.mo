@@ -51,6 +51,12 @@ module {
       case (#accessRequestCreated({ requestId; requester })) #accessRequestCreated({ requestId; requester });
       case (#accessRequestResolved({ requestId; requester; status })) #accessRequestResolved({ requestId; requester; status });
       case (#accessRequestCancelled({ requestId; requester })) #accessRequestCancelled({ requestId; requester });
+      case (#ownerActivityRecorded({ principal; role; origin })) #ownerActivityRecorded({ principal; role; origin });
+      case (#durablePolicyCreated({ policyId; status; trigger })) #durablePolicyCreated({ policyId; status; trigger });
+      case (#durablePolicyGraceStarted({ policyId })) #durablePolicyGraceStarted({ policyId });
+      case (#durablePolicyMatured({ policyId })) #durablePolicyMatured({ policyId });
+      case (#durablePolicyReleased({ policyId })) #durablePolicyReleased({ policyId });
+      case (#durablePolicyCancelled({ policyId })) #durablePolicyCancelled({ policyId });
     };
   };
 

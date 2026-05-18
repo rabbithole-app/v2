@@ -19,16 +19,37 @@
             Ready
           </span>
           @if (lastUpgradeError(); as error) {
-            <span
-              hlmBadge
-              variant="outline"
-              class="text-xs text-amber-600 cursor-help"
-              hlmTooltip
-              [hlmTooltip]="error"
-            >
-              <ng-icon hlmIcon name="lucideCircleAlert" size="xs" />
-              Last upgrade failed
-            </span>
+            <hlm-hover-card>
+              <span
+                hlmBadge
+                hlmHoverCardTrigger
+                variant="outline"
+                class="text-xs text-amber-600 cursor-help"
+              >
+                <ng-icon hlmIcon name="lucideCircleAlert" size="xs" />
+                Last upgrade failed
+              </span>
+              <hlm-hover-card-content
+                *hlmHoverCardPortal
+                class="w-96 max-w-[calc(100vw-2rem)] p-0"
+              >
+                <div hlmAlert variant="destructive" class="border-0">
+                  <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+                  <h4 hlmAlertTitle>Last upgrade failed</h4>
+                  <div hlmAlertDescription class="min-w-0 space-y-2">
+                    <p class="break-words">
+                      The storage was restored to its previous version. Review the
+                      error before retrying the upgrade.
+                    </p>
+                    <p
+                      class="max-h-44 overflow-auto rounded-md bg-background/60 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap break-words"
+                    >
+                      {{ error }}
+                    </p>
+                  </div>
+                </div>
+              </hlm-hover-card-content>
+            </hlm-hover-card>
           }
           @if (hasUpdate()) {
             <button
@@ -55,16 +76,38 @@
           </span>
         }
         @case ('failed') {
-          <span
-            hlmBadge
-            variant="destructive"
-            class="text-xs cursor-help"
-            hlmTooltip
-            [hlmTooltip]="errorMessage() ?? 'Unknown error'"
-          >
-            <ng-icon name="lucideCircleX" />
-            Error
-          </span>
+          @let error = errorMessage() ?? 'Unknown error';
+          <hlm-hover-card>
+            <span
+              hlmBadge
+              hlmHoverCardTrigger
+              variant="destructive"
+              class="text-xs cursor-help"
+            >
+              <ng-icon name="lucideCircleX" />
+              Error
+            </span>
+            <hlm-hover-card-content
+              *hlmHoverCardPortal
+              class="w-96 max-w-[calc(100vw-2rem)] p-0"
+            >
+              <div hlmAlert variant="destructive" class="border-0">
+                <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+                <h4 hlmAlertTitle>Storage setup failed</h4>
+                <div hlmAlertDescription class="min-w-0 space-y-2">
+                  <p class="break-words">
+                    The storage setup did not complete. Review the error before
+                    resuming or removing this record.
+                  </p>
+                  <p
+                    class="max-h-44 overflow-auto rounded-md bg-background/60 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap break-words"
+                  >
+                    {{ error }}
+                  </p>
+                </div>
+              </div>
+            </hlm-hover-card-content>
+          </hlm-hover-card>
         }
         @case ('pending') {
           <span

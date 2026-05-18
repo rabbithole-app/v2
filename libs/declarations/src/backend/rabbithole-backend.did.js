@@ -206,6 +206,10 @@ export const idlFactory = ({ IDL }) => {
     'TransferringICP' : IDL.Record({ 'amount' : IDL.Nat }),
     'NotifyingCMC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
     'ProcessingPayment' : PaymentPhase,
+    'ReinstallingWasm' : IDL.Record({
+      'progress' : Progress,
+      'canisterId' : IDL.Principal,
+    }),
     'UpgradingFrontend' : IDL.Record({
       'progress' : Progress,
       'canisterId' : IDL.Principal,
@@ -803,6 +807,30 @@ export const idlFactory = ({ IDL }) => {
     'data' : IDL.Vec(Subscription),
     'instructions' : IDL.Nat,
   });
+  const DurablePolicyStatus = IDL.Variant({
+    'cancelled' : IDL.Null,
+    'armed' : IDL.Null,
+    'released' : IDL.Null,
+    'matured' : IDL.Null,
+    'grace' : IDL.Null,
+  });
+  const DurablePolicyTrigger = IDL.Variant({
+    'manualRelease' : IDL.Null,
+    'date' : IDL.Record({ 'releaseAt' : Time }),
+    'inactivity' : IDL.Record({
+      'inactiveForNs' : IDL.Nat,
+      'gracePeriodNs' : IDL.Opt(IDL.Nat),
+    }),
+  });
+  const OwnerActivityOrigin = IDL.Variant({
+    'storage' : IDL.Null,
+    'rabbithole' : IDL.Null,
+    'backend' : IDL.Null,
+  });
+  const OwnerActivityRole = IDL.Variant({
+    'recoveryOwner' : IDL.Null,
+    'accountOwner' : IDL.Null,
+  });
   const EmailClaimOrigin = IDL.Variant({
     'storage' : IDL.Null,
     'rabbithole' : IDL.Null,
@@ -823,6 +851,11 @@ export const idlFactory = ({ IDL }) => {
       'requestId' : IDL.Nat,
       'requester' : IDL.Principal,
     }),
+    'durablePolicyCreated' : IDL.Record({
+      'status' : DurablePolicyStatus,
+      'trigger' : DurablePolicyTrigger,
+      'policyId' : IDL.Nat,
+    }),
     'accessRequestCreated' : IDL.Record({
       'requestId' : IDL.Nat,
       'requester' : IDL.Principal,
@@ -838,7 +871,14 @@ export const idlFactory = ({ IDL }) => {
       'grantId' : IDL.Nat,
       'accessClass' : AccessClass,
     }),
+    'ownerActivityRecorded' : IDL.Record({
+      'principal' : IDL.Principal,
+      'origin' : OwnerActivityOrigin,
+      'role' : OwnerActivityRole,
+    }),
+    'durablePolicyReleased' : IDL.Record({ 'policyId' : IDL.Nat }),
     'recoveryControllerCleared' : IDL.Record({ 'principal' : IDL.Principal }),
+    'durablePolicyMatured' : IDL.Record({ 'policyId' : IDL.Nat }),
     'recoveryOwnerAdded' : IDL.Record({ 'principal' : IDL.Principal }),
     'pendingGrantClaimed' : IDL.Record({
       'principal' : IDL.Principal,
@@ -848,6 +888,7 @@ export const idlFactory = ({ IDL }) => {
       'claimOrigin' : IDL.Opt(EmailClaimOrigin),
       'accessClass' : AccessClass,
     }),
+    'durablePolicyCancelled' : IDL.Record({ 'policyId' : IDL.Nat }),
     'accessRequestCancelled' : IDL.Record({
       'requestId' : IDL.Nat,
       'requester' : IDL.Principal,
@@ -863,6 +904,7 @@ export const idlFactory = ({ IDL }) => {
       'emailCommitment' : IDL.Opt(IDL.Vec(IDL.Nat8)),
       'grantId' : IDL.Nat,
     }),
+    'durablePolicyGraceStarted' : IDL.Record({ 'policyId' : IDL.Nat }),
     'principalGrantRevoked' : IDL.Record({
       'principal' : IDL.Principal,
       'accessClass' : IDL.Opt(AccessClass),
@@ -880,6 +922,10 @@ export const idlFactory = ({ IDL }) => {
   const StorageBackendType = IDL.Variant({
     'OnChain' : IDL.Null,
     'BlobStorage' : IDL.Null,
+  });
+  const StorageVetKeyLevel = IDL.Variant({
+    'highReplication' : IDL.Null,
+    'standard' : IDL.Null,
   });
   const PurchaseError = IDL.Variant({
     'ActivationFailed' : IDL.Text,
@@ -1145,12 +1191,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'processPendingRefunds' : IDL.Func([], [IDL.Nat], []),
     'purchaseLicenseAndCreateStorage' : IDL.Func(
-        [
-          StorageBackendType,
-          IDL.Opt(
-            IDL.Vec(IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text }))
-          ),
-        ],
+        [StorageBackendType, StorageVetKeyLevel],
         [Result_4],
         [],
       ),
@@ -1173,6 +1214,7 @@ export const idlFactory = ({ IDL }) => {
     'recoverStuckCreation' : IDL.Func([IDL.Nat], [Result_2], []),
     'refreshReleases' : IDL.Func([], [], []),
     'registerLatestWasmHash' : IDL.Func([], [], []),
+    'reinstallFailedStorageWasm' : IDL.Func([IDL.Nat], [Result_2], []),
     'renewSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
         [],

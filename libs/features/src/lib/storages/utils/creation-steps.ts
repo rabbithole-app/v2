@@ -63,6 +63,7 @@ function stepForStatus(
     case 'Failed':
       return hasCanisterId ? 'wasm' : 'payment';
     case 'InstallingWasm':
+    case 'ReinstallingWasm':
     case 'UpgradingWasm':
       return 'wasm';
     case 'ProcessingPayment':
@@ -140,11 +141,15 @@ export function buildCreationSteps(
       (id === 'wasm' || id === 'frontend') &&
       status &&
       (status.type === 'InstallingWasm' ||
+        status.type === 'ReinstallingWasm' ||
         status.type === 'UpgradingWasm' ||
         status.type === 'UploadingFrontend' ||
         status.type === 'UpgradingFrontend')
     ) {
-      const isWasm = status.type === 'InstallingWasm' || status.type === 'UpgradingWasm';
+      const isWasm =
+        status.type === 'InstallingWasm' ||
+        status.type === 'ReinstallingWasm' ||
+        status.type === 'UpgradingWasm';
       const belongs = (id === 'wasm' && isWasm) || (id === 'frontend' && !isWasm);
       if (belongs) {
         const { processed, total } = status.progress;
@@ -188,6 +193,7 @@ function statusDescription(status: StorageCreationStatus): string {
     case 'Failed':
       return status.message;
     case 'InstallingWasm':
+    case 'ReinstallingWasm':
     case 'UpgradingWasm':
       return 'Uploading storage module';
     case 'NotifyingCMC':

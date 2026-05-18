@@ -292,6 +292,7 @@ module {
     #NotifyingCMC : { blockIndex : Nat };
     #CanisterCreated : { canisterId : Principal };
     #InstallingWasm : { canisterId : Principal; progress : Progress };
+    #ReinstallingWasm : { canisterId : Principal; progress : Progress };
     #UploadingFrontend : { canisterId : Principal; progress : Progress };
     #RevokingInstallerPermission : { canisterId : Principal };
     #UpdatingControllers : { canisterId : Principal };
@@ -432,6 +433,7 @@ module {
       case (#NotifyingCMC _) "NotifyingCMC";
       case (#CanisterCreated _) "CanisterCreated";
       case (#InstallingWasm _) "InstallingWasm";
+      case (#ReinstallingWasm _) "ReinstallingWasm";
       case (#UploadingFrontend _) "UploadingFrontend";
       case (#RevokingInstallerPermission _) "RevokingInstallerPermission";
       case (#UpdatingControllers _) "UpdatingControllers";
@@ -533,7 +535,12 @@ module {
   public type TaskType = {
     #CreateCanister : { options : CreateStorageOptions };
     #LinkCanister : { canisterId : Principal };
-    #InstallWasm : { canisterId : Principal; releaseTag : Text; initArg : Blob };
+    #InstallWasm : {
+      canisterId : Principal;
+      releaseTag : Text;
+      initArg : Blob;
+      mode : IC.CanisterInstallMode;
+    };
     #InstallFrontend : { canisterId : Principal; releaseTag : Text };
     #UpdateControllers : { canisterId : Principal };
     #Complete : { canisterId : Principal };

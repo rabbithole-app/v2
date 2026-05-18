@@ -76,6 +76,7 @@ export interface CallbackStreamingStrategy {
   'callback' : [Principal, string],
 }
 export interface CancelAccessRequestArguments { 'requestId' : bigint }
+export interface CancelDurableAccessPolicyArguments { 'policyId' : bigint }
 export interface CancelPendingAccessGrantArguments { 'grantId' : bigint }
 export interface CertifiedTree {
   'certificate' : Uint8Array,
@@ -176,6 +177,11 @@ export interface CreateDurableAccessGrantArguments {
   'source' : AccessSource,
   'scope' : AccessScope,
 }
+export interface CreateDurableAccessPolicyArguments {
+  'grants' : Array<DurablePolicyGrantTemplate>,
+  'trigger' : DurablePolicyTrigger,
+  'recipients' : Array<AccessRef>,
+}
 export type CreateMode = { 'GetOrCreate' : null } |
   { 'CreateNew' : null };
 export interface CreatePendingAccessGrantArguments {
@@ -200,6 +206,41 @@ export interface DirectoryMetadata {
   'color' : [] | [DirectoryColor],
   'defaultEncryptionMode' : EncryptionMode,
 }
+export interface DurableAccessPolicy {
+  'id' : bigint,
+  'maturedAt' : [] | [Time],
+  'status' : DurablePolicyStatus,
+  'grants' : Array<DurablePolicyGrantTemplate>,
+  'trigger' : DurablePolicyTrigger,
+  'createdAt' : Time,
+  'createdBy' : Principal,
+  'cancelledAt' : [] | [Time],
+  'proVerifiedAt' : Time,
+  'recipients' : Array<AccessRef>,
+  'releasedAt' : [] | [Time],
+  'graceStartedAt' : [] | [Time],
+  'principalGrantIds' : Array<bigint>,
+  'pendingGrantIds' : Array<bigint>,
+}
+export interface DurablePolicyGrantTemplate {
+  'permission' : Permission__1,
+  'scope' : AccessScope,
+}
+export interface DurablePolicyProcessResult {
+  'pendingGrants' : Array<PendingAccessGrant>,
+  'principalGrants' : Array<PrincipalAccessGrant>,
+  'policy' : DurableAccessPolicy,
+}
+export type DurablePolicyStatus = { 'cancelled' : null } |
+  { 'armed' : null } |
+  { 'released' : null } |
+  { 'matured' : null } |
+  { 'grace' : null };
+export type DurablePolicyTrigger = { 'manualRelease' : null } |
+  { 'date' : { 'releaseAt' : Time } } |
+  {
+    'inactivity' : { 'inactiveForNs' : bigint, 'gracePeriodNs' : [] | [bigint] }
+  };
 export interface EmailClaim {
   'principalGrantId' : bigint,
   'principal' : Principal,
@@ -253,6 +294,10 @@ export interface EncryptedStorageCanister {
     [CancelAccessRequestArguments],
     AccessRequest
   >,
+  'cancelDurableAccessPolicy' : ActorMethod<
+    [CancelDurableAccessPolicyArguments],
+    DurableAccessPolicy
+  >,
   'cancelPendingAccessGrant' : ActorMethod<
     [CancelPendingAccessGrantArguments],
     PendingAccessGrant
@@ -269,7 +314,10 @@ export interface EncryptedStorageCanister {
   'clear' : ActorMethod<[ClearArguments], undefined>,
   'clearRecoveryController' : ActorMethod<[], Principal>,
   'clearStorage' : ActorMethod<[], undefined>,
-  'commitCaffeineUpload' : ActorMethod<[CommitCaffeineUploadArgs], undefined>,
+  'commitCaffeineUpload' : ActorMethod<
+    [CommitCaffeineUploadArgs],
+    StorageResult
+  >,
   'commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
   'commit_proposed_batch' : ActorMethod<
     [CommitProposedBatchArguments],
@@ -280,7 +328,7 @@ export interface EncryptedStorageCanister {
     [] | [Uint8Array]
   >,
   'configure' : ActorMethod<[ConfigureArguments], undefined>,
-  'create' : ActorMethod<[CreateArguments], NodeDetails>,
+  'create' : ActorMethod<[CreateArguments], StorageResult_3>,
   'createAccessBatch' : ActorMethod<
     [CreateAccessBatchArguments],
     CreateAccessBatchResult
@@ -289,17 +337,18 @@ export interface EncryptedStorageCanister {
     [CreateDurableAccessGrantArguments],
     PrincipalAccessGrant
   >,
+  'createDurableAccessPolicy' : ActorMethod<
+    [CreateDurableAccessPolicyArguments],
+    DurableAccessPolicy
+  >,
   'createPendingAccessGrant' : ActorMethod<
     [CreatePendingAccessGrantArguments],
     PendingAccessGrant
   >,
-  'createStorageBatch' : ActorMethod<
-    [CreateBatchArguments],
-    CreateBatchResponse__1
-  >,
+  'createStorageBatch' : ActorMethod<[CreateBatchArguments], StorageResult_2>,
   'createStorageChunk' : ActorMethod<
     [CreateChunkArguments__1],
-    CreateChunkResponse__1
+    StorageResult_1
   >,
   'create_asset' : ActorMethod<[CreateAssetArguments], undefined>,
   'create_batch' : ActorMethod<[{}], CreateBatchResponse>,
@@ -318,6 +367,7 @@ export interface EncryptedStorageCanister {
    */
   'getModuleHash' : ActorMethod<[], [] | [Uint8Array]>,
   'getMyAccessRequest' : ActorMethod<[], [] | [AccessRequest]>,
+  'getOwnerActivityState' : ActorMethod<[], OwnerActivityState>,
   'getRecoveryStatus' : ActorMethod<[], RecoveryStatus>,
   'getStatus' : ActorMethod<[], StorageStatus>,
   'getStorageBackendType' : ActorMethod<[], StorageBackend>,
@@ -343,6 +393,7 @@ export interface EncryptedStorageCanister {
     AccessGrantList
   >,
   'listAccessRequests' : ActorMethod<[], Array<AccessRequest>>,
+  'listDurableAccessPolicies' : ActorMethod<[], Array<DurableAccessPolicy>>,
   'listLatestStorageEvents' : ActorMethod<[bigint], Array<StoredStorageEvent>>,
   'listOwnerEquivalentPrincipals' : ActorMethod<
     [],
@@ -362,11 +413,23 @@ export interface EncryptedStorageCanister {
   'markAllVisibleStorageEventsRead' : ActorMethod<[], undefined>,
   'markStorageEventsRead' : ActorMethod<[bigint], undefined>,
   'move' : ActorMethod<[MoveArguments], undefined>,
+  'processDurableAccessPolicies' : ActorMethod<
+    [],
+    Array<DurablePolicyProcessResult>
+  >,
   'propose_commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
+  'recordOwnerActivity' : ActorMethod<
+    [RecordOwnerActivityArguments],
+    OwnerActivityRecord
+  >,
   'refreshSubscription' : ActorMethod<[], undefined>,
   'registerRecoveryController' : ActorMethod<
     [Principal],
     RegisterRecoveryControllerResult
+  >,
+  'releaseDurableAccessPolicy' : ActorMethod<
+    [ReleaseDurableAccessPolicyArguments],
+    DurablePolicyProcessResult
   >,
   'removeRecoveryOwner' : ActorMethod<[Principal], undefined>,
   'rename' : ActorMethod<[RenameArguments], undefined>,
@@ -404,7 +467,7 @@ export interface EncryptedStorageCanister {
   'takeRecoveryOwnership' : ActorMethod<[], OwnerEquivalentPrincipal>,
   'take_ownership' : ActorMethod<[], undefined>,
   'unset_asset_content' : ActorMethod<[UnsetAssetContentArguments], undefined>,
-  'update' : ActorMethod<[UpdateArguments], undefined>,
+  'update' : ActorMethod<[UpdateArguments], StorageResult>,
   'validate_commit_proposed_batch' : ActorMethod<
     [CommitProposedBatchArguments],
     Result
@@ -503,6 +566,22 @@ export interface NodeDetails {
   'keyId' : KeyId,
 }
 export type Owner = Principal;
+export type OwnerActivityOrigin = { 'storage' : null } |
+  { 'rabbithole' : null } |
+  { 'backend' : null };
+export interface OwnerActivityRecord {
+  'principal' : Principal,
+  'lastSeenAt' : Time,
+  'origin' : OwnerActivityOrigin,
+  'role' : OwnerActivityRole,
+}
+export type OwnerActivityRole = { 'recoveryOwner' : null } |
+  { 'accountOwner' : null };
+export interface OwnerActivityState {
+  'records' : Array<OwnerActivityRecord>,
+  'lastOwnerActivityAt' : Time,
+  'lastOwnerActivityBy' : Principal,
+}
 export interface OwnerEquivalentPrincipal {
   'principal' : Principal,
   'rootPermissionBeforeRecovery' : [] | [Permission__1],
@@ -575,6 +654,7 @@ export interface RawUpdateHttpResponse {
   'streaming_strategy' : [] | [StreamingStrategy],
   'status_code' : number,
 }
+export interface RecordOwnerActivityArguments { 'origin' : OwnerActivityOrigin }
 export interface RecoveryStatus {
   'recoveryOwner' : [] | [OwnerEquivalentPrincipal],
   'recoveryController' : [] | [Principal],
@@ -583,6 +663,7 @@ export interface RegisterRecoveryControllerResult {
   'principal' : Principal,
   'previous' : [] | [Principal],
 }
+export interface ReleaseDurableAccessPolicyArguments { 'policyId' : bigint }
 export interface RenameArguments { 'entry' : Entry, 'newName' : string }
 export interface ResolveAccessRequestArguments {
   'decision' : AccessRequestDecision,
@@ -627,6 +708,13 @@ export type StorageAccessEvent = {
     }
   } |
   {
+    'durablePolicyCreated' : {
+      'status' : DurablePolicyStatus,
+      'trigger' : DurablePolicyTrigger,
+      'policyId' : bigint,
+    }
+  } |
+  {
     'accessRequestCreated' : { 'requestId' : bigint, 'requester' : Principal }
   } |
   {
@@ -643,7 +731,16 @@ export type StorageAccessEvent = {
       'accessClass' : AccessClass,
     }
   } |
+  {
+    'ownerActivityRecorded' : {
+      'principal' : Principal,
+      'origin' : OwnerActivityOrigin,
+      'role' : OwnerActivityRole,
+    }
+  } |
+  { 'durablePolicyReleased' : { 'policyId' : bigint } } |
   { 'recoveryControllerCleared' : { 'principal' : Principal } } |
+  { 'durablePolicyMatured' : { 'policyId' : bigint } } |
   { 'recoveryOwnerAdded' : { 'principal' : Principal } } |
   {
     'pendingGrantClaimed' : {
@@ -655,6 +752,7 @@ export type StorageAccessEvent = {
       'accessClass' : AccessClass,
     }
   } |
+  { 'durablePolicyCancelled' : { 'policyId' : bigint } } |
   {
     'accessRequestCancelled' : { 'requestId' : bigint, 'requester' : Principal }
   } |
@@ -667,6 +765,7 @@ export type StorageAccessEvent = {
     }
   } |
   { 'pendingGrantCancelled' : { 'ref' : AccessRef, 'grantId' : bigint } } |
+  { 'durablePolicyGraceStarted' : { 'policyId' : bigint } } |
   {
     'principalGrantRevoked' : {
       'principal' : Principal,
@@ -676,7 +775,22 @@ export type StorageAccessEvent = {
   { 'recoveryOwnerRemoved' : { 'principal' : Principal } };
 export type StorageBackend = { 'OnChain' : null } |
   { 'BlobStorage' : null };
+export interface StorageError { 'code' : StorageErrorCode, 'message' : string }
+export type StorageErrorCode = { 'Internal' : null } |
+  { 'NotFound' : null } |
+  { 'PermissionDenied' : null } |
+  { 'Validation' : null } |
+  { 'QuotaExceeded' : null } |
+  { 'Conflict' : null };
 export type StorageEvent = { 'access' : StorageAccessEvent };
+export type StorageResult = { 'ok' : null } |
+  { 'err' : StorageError };
+export type StorageResult_1 = { 'ok' : CreateChunkResponse__1 } |
+  { 'err' : StorageError };
+export type StorageResult_2 = { 'ok' : CreateBatchResponse__1 } |
+  { 'err' : StorageError };
+export type StorageResult_3 = { 'ok' : NodeDetails } |
+  { 'err' : StorageError };
 export interface StorageStatus {
   'cycleBalance' : bigint,
   'encryptedBytesUsed' : bigint,

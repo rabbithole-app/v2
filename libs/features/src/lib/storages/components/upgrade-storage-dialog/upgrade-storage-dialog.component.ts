@@ -80,8 +80,14 @@ type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
 export class UpgradeStorageDialogComponent {
   readonly #context = injectBrnDialogContext<{ storage: StorageInfo }>();
   readonly storage = computed(() => this.#context.storage);
+  readonly #storagesService = inject(StoragesService);
+  readonly currentStorage = computed(
+    () =>
+      this.#storagesService.storages().find((storage) => storage.id === this.storage().id) ??
+      this.storage(),
+  );
   readonly updateInfo = computed<UpdateInfo>(() => {
-    const info = this.storage().updateAvailable;
+    const info = this.currentStorage().updateAvailable ?? this.storage().updateAvailable;
     if (!info) {
       throw new Error('updateAvailable must be defined when opening upgrade dialog');
     }
@@ -96,15 +102,14 @@ export class UpgradeStorageDialogComponent {
   readonly #errorMessage = signal<string | null>(null);
   readonly errorMessage = this.#errorMessage.asReadonly();
   readonly #isPreparing = signal(false);
-
   readonly isPreparing = this.#isPreparing.asReadonly();
   readonly previousUpgradeError = computed(
-    () => this.#context.storage.lastUpgradeError ?? null,
+    () => this.currentStorage().lastUpgradeError ?? null,
   );
   readonly #step = signal<WizardStep>('review');
   readonly step = this.#step.asReadonly();
   readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateInfo()));
-  readonly #storagesService = inject(StoragesService);
+  readonly #initialUpgradeError = signal<string | null>(null);
   readonly #rawUpgradeStatus = computed(() => this.#storagesService.upgradeStatus());
   // Track whether we've seen an in-progress status from the backend.
   // This prevents false "upgrade failed" and UI flicker when the effect/template
@@ -114,7 +119,13 @@ export class UpgradeStorageDialogComponent {
   readonly upgradeStatus = computed(() => {
     const status = this.#rawUpgradeStatus();
     if (!status) return null;
-    if (status.type === 'Completed' && !this.#sawUpgrading()) return null;
+    if (status.type === 'Completed' && !this.#sawUpgrading()) {
+      const currentUpgradeError = this.currentStorage().lastUpgradeError ?? null;
+      const initialUpgradeError = this.#initialUpgradeError();
+      if (!currentUpgradeError || currentUpgradeError === initialUpgradeError) {
+        return null;
+      }
+    }
     return status;
   });
   readonly #activeUpgradeStep = signal<UpgradeStepId>('permissions');
@@ -134,21 +145,43 @@ export class UpgradeStorageDialogComponent {
     // Watch upgrade status for completion/failure
     effect(() => {
       const status = this.upgradeStatus();
+      const currentStorage = this.currentStorage();
       const currentStep = untracked(() => this.step());
 
-      if (currentStep !== 'upgrading' || !status) return;
+      if (currentStep !== 'upgrading') return;
+
+      const currentUpgradeError = currentStorage.lastUpgradeError ?? null;
+      const initialUpgradeError = untracked(() => this.#initialUpgradeError());
+      const sawUpgrading = untracked(() => this.#sawUpgrading());
+      const isNewUpgradeError =
+        currentUpgradeError &&
+        (currentUpgradeError !== initialUpgradeError || sawUpgrading);
+
+      if (isNewUpgradeError) {
+        untracked(() => {
+          this.#errorMessage.set(currentUpgradeError);
+          this.#step.set('error');
+          this.#isPreparing.set(false);
+        });
+        toast.error('Upgrade failed');
+        return;
+      }
+
+      if (!status) return;
 
       if (status.type === 'Completed') {
         // Check if upgrade actually succeeded by verifying updateAvailable is gone.
         // If it's still present, the upgrade was reverted due to an error.
-        const storages = this.#storagesService.storages();
-        const current = storages.find((s) => s.id === this.storage().id);
-        const stillHasUpdate = !!current?.updateAvailable;
+        const stillHasUpdate = !!currentStorage.updateAvailable;
 
         if (stillHasUpdate) {
           untracked(() => {
-            this.#errorMessage.set('Upgrade failed. The storage has been restored to its previous state.');
+            this.#errorMessage.set(
+              currentStorage.lastUpgradeError ??
+                'Upgrade failed. The storage has been restored to its previous state.',
+            );
             this.#step.set('error');
+            this.#isPreparing.set(false);
           });
           toast.error('Upgrade failed');
         } else {
@@ -159,6 +192,7 @@ export class UpgradeStorageDialogComponent {
         untracked(() => {
           this.#errorMessage.set(status.message);
           this.#step.set('error');
+          this.#isPreparing.set(false);
         });
         toast.error(`Upgrade failed: ${status.message}`);
       } else {
@@ -180,6 +214,8 @@ export class UpgradeStorageDialogComponent {
     const canisterId = storage.canisterId;
     if (!canisterId) return;
 
+    this.#initialUpgradeError.set(this.currentStorage().lastUpgradeError ?? null);
+    this.#sawUpgrading.set(false);
     this.#step.set('upgrading');
     this.#isPreparing.set(true);
     this.#activeUpgradeStep.set('permissions');
@@ -224,7 +260,9 @@ export class UpgradeStorageDialogComponent {
   tryAgain(): void {
     this.#step.set('review');
     this.#errorMessage.set(null);
+    this.#initialUpgradeError.set(null);
     this.#activeUpgradeStep.set('permissions');
+    this.#sawUpgrading.set(false);
   }
 }
 

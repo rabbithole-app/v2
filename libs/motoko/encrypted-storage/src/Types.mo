@@ -35,6 +35,15 @@ module {
   public type AccessRequestStatus = AccessTypes.AccessRequestStatus;
   public type AccessRequestDecision = AccessTypes.AccessRequestDecision;
   public type AccessRequest = AccessTypes.AccessRequest;
+  public type OwnerActivityOrigin = AccessTypes.OwnerActivityOrigin;
+  public type OwnerActivityRole = AccessTypes.OwnerActivityRole;
+  public type OwnerActivityRecord = AccessTypes.OwnerActivityRecord;
+  public type OwnerActivityState = AccessTypes.OwnerActivityState;
+  public type DurablePolicyTrigger = AccessTypes.DurablePolicyTrigger;
+  public type DurablePolicyStatus = AccessTypes.DurablePolicyStatus;
+  public type DurablePolicyGrantTemplate = AccessTypes.DurablePolicyGrantTemplate;
+  public type DurableAccessPolicy = AccessTypes.DurableAccessPolicy;
+  public type DurablePolicyProcessResult = AccessTypes.DurablePolicyProcessResult;
   public type StorageAccessEvent = AccessTypes.StorageAccessEvent;
   public type StorageEvent = StorageEventTypes.StorageEvent;
   public type StoredStorageEvent = StorageEventTypes.StoredStorageEvent;
@@ -62,6 +71,10 @@ module {
   public type CancelPendingAccessGrantArguments = AccessTypes.CancelPendingAccessGrantArguments;
   public type CancelPendingAccessGrantResult = AccessTypes.CancelPendingAccessGrantResult;
   public type CreateDurableAccessGrantArguments = AccessTypes.CreateDurableAccessGrantArguments;
+  public type CreateDurableAccessPolicyArguments = AccessTypes.CreateDurableAccessPolicyArguments;
+  public type CancelDurableAccessPolicyArguments = AccessTypes.CancelDurableAccessPolicyArguments;
+  public type ReleaseDurableAccessPolicyArguments = AccessTypes.ReleaseDurableAccessPolicyArguments;
+  public type RecordOwnerActivityArguments = AccessTypes.RecordOwnerActivityArguments;
   public type CreateAccessRequestArguments = AccessTypes.CreateAccessRequestArguments;
   public type CancelAccessRequestArguments = AccessTypes.CancelAccessRequestArguments;
   public type ResolveAccessRequestArguments = AccessTypes.ResolveAccessRequestArguments;
@@ -85,6 +98,22 @@ module {
   public type PermissionMap = V1.PermissionMap;
   public type DirectoryColor = V1.DirectoryColor;
   public type Permission = V1.Permission;
+  public type StorageErrorCode = {
+    #PermissionDenied;
+    #NotFound;
+    #Conflict;
+    #QuotaExceeded;
+    #Validation;
+    #Internal;
+  };
+  public type StorageError = {
+    code : StorageErrorCode;
+    message : Text;
+  };
+  public type StorageResult<T> = {
+    #ok : T;
+    #err : StorageError;
+  };
   public type StreamingCallback = V1.StreamingCallback;
   public type StreamingToken = V1.StreamingToken;
   public type StreamingCallbackResponse = V1.StreamingCallbackResponse;

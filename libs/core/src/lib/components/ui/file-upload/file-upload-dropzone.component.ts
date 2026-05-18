@@ -15,6 +15,8 @@ import { cva } from 'class-variance-authority';
 import { ClassValue } from 'clsx';
 import { match, P } from 'ts-pattern';
 
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 import { FileSystemAccessService } from '../../../services';
@@ -22,7 +24,7 @@ import { injectFileUploadConfig } from './file-upload.token';
 import { FormatBytesPipe } from './format-bytes.pipe';
 
 export const dropzoneVariants = cva(
-  'border-input hover:bg-accent/50 data-[dragging=true]:bg-accent/50 flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed p-4 transition-colors',
+  'border-input hover:bg-accent/50 data-[dragging=true]:bg-accent/50 min-h-40 rounded-xl border transition-colors',
   {
     variants: {
       disabled: {
@@ -39,7 +41,14 @@ export const dropzoneVariants = cva(
 
 @Component({
   selector: 'core-file-upload-dropzone',
-  imports: [NgIcon, HlmIcon, FormatBytesPipe, NgTemplateOutlet],
+  imports: [
+    ...HlmButtonImports,
+    ...HlmEmptyImports,
+    NgIcon,
+    HlmIcon,
+    FormatBytesPipe,
+    NgTemplateOutlet,
+  ],
   providers: [provideIcons({ lucideFileUp })],
   templateUrl: './file-upload-dropzone.component.html',
   host: {

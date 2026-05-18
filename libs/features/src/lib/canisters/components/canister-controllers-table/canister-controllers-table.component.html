@@ -92,13 +92,14 @@
 <div class="flex items-center justify-end gap-3">
   @if (table.getRowCount() > 0) {
       <hlm-select
+        coreTransparentSelectBackdrop
         [ngModel]="table.getState().pagination.pageSize"
         (ngModelChange)="table.setPageSize($event); table.resetPageIndex()"
       >
       <hlm-select-trigger class="w-20 inline-flex">
         <hlm-select-value />
       </hlm-select-trigger>
-      <hlm-select-content>
+      <hlm-select-content *hlmSelectPortal>
         @for (size of _availablePageSizes; track size) {
           <hlm-select-item [value]="size">
             {{ size === 10000 ? 'All' : size }}

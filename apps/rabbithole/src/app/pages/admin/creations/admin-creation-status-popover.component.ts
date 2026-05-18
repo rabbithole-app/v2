@@ -13,7 +13,7 @@ import {
   lucideCheck,
   lucideChevronDown,
   lucideCircleDashed,
-  lucideCircleX,
+  lucideX,
 } from '@ng-icons/lucide';
 import { BrnDialogState } from '@spartan-ng/brain/dialog';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
@@ -81,12 +81,15 @@ type StepState = 'active' | 'completed' | 'failed' | 'pending';
     provideIcons({
       lucideChevronDown,
       lucideCircleDashed,
-      lucideCircleX,
+      lucideX,
       lucideCheck,
     }),
   ],
   templateUrl: './admin-creation-status-popover.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class: 'block min-w-0 max-w-full',
+  },
 })
 export class AdminCreationStatusPopoverComponent {
   readonly creation = input.required<CreationListItem>();
@@ -181,6 +184,7 @@ export class AdminCreationStatusPopoverComponent {
     if ('NotifyingCMC' in status) return 'cmc.notify';
     if ('CanisterCreated' in status) return 'canister.created';
     if ('InstallingWasm' in status) return 'wasm.install';
+    if ('ReinstallingWasm' in status) return 'wasm.reinstall';
     if ('UploadingFrontend' in status) return 'frontend.upload';
     if ('RevokingInstallerPermission' in status) return 'permissions.revoke';
     if ('UpdatingControllers' in status) return 'controllers.update';
@@ -289,13 +293,15 @@ export class AdminCreationStatusPopoverComponent {
   protected _progressFromStatus(status: CreationStatus): Progress | null {
     return 'InstallingWasm' in status
       ? status.InstallingWasm.progress
-      : 'UploadingFrontend' in status
-        ? status.UploadingFrontend.progress
-        : 'UpgradingWasm' in status
-          ? status.UpgradingWasm.progress
-          : 'UpgradingFrontend' in status
-            ? status.UpgradingFrontend.progress
-            : null;
+      : 'ReinstallingWasm' in status
+        ? status.ReinstallingWasm.progress
+        : 'UploadingFrontend' in status
+          ? status.UploadingFrontend.progress
+          : 'UpgradingWasm' in status
+            ? status.UpgradingWasm.progress
+            : 'UpgradingFrontend' in status
+              ? status.UpgradingFrontend.progress
+              : null;
   }
 
   protected _progressPercent(progress: Progress): number {
@@ -435,7 +441,13 @@ export class AdminCreationStatusPopoverComponent {
     ) {
       return 'canister';
     }
-    if ('InstallingWasm' in status || 'UpgradingWasm' in status) return 'wasm';
+    if (
+      'InstallingWasm' in status ||
+      'ReinstallingWasm' in status ||
+      'UpgradingWasm' in status
+    ) {
+      return 'wasm';
+    }
     if ('UploadingFrontend' in status || 'UpgradingFrontend' in status) {
       return 'frontend';
     }
@@ -450,7 +462,11 @@ export class AdminCreationStatusPopoverComponent {
   private _eventProgressFor(stepId: DeploymentStepId): Progress | null {
     const event = this._latestEvent((status) => {
       if (stepId === 'wasm') {
-        return 'InstallingWasm' in status || 'UpgradingWasm' in status;
+        return (
+          'InstallingWasm' in status ||
+          'ReinstallingWasm' in status ||
+          'UpgradingWasm' in status
+        );
       }
       if (stepId === 'frontend') {
         return 'UploadingFrontend' in status || 'UpgradingFrontend' in status;
@@ -509,6 +525,7 @@ export class AdminCreationStatusPopoverComponent {
   private _hasProgress(status: CreationStatus): boolean {
     return (
       'InstallingWasm' in status ||
+      'ReinstallingWasm' in status ||
       'UploadingFrontend' in status ||
       'UpgradingWasm' in status ||
       'UpgradingFrontend' in status
@@ -667,6 +684,7 @@ export class AdminCreationStatusPopoverComponent {
     if ('NotifyingCMC' in status) return 'Creating canister via CMC';
     if ('CanisterCreated' in status) return 'Canister created';
     if ('InstallingWasm' in status) return 'Installing storage WASM';
+    if ('ReinstallingWasm' in status) return 'Reinstalling storage WASM';
     if ('UploadingFrontend' in status) return 'Uploading frontend assets';
     if ('RevokingInstallerPermission' in status) {
       return 'Revoking installer permission';
@@ -703,7 +721,9 @@ export class AdminCreationStatusPopoverComponent {
     if (
       currentProgress &&
       ((stepId === 'wasm' &&
-        ('InstallingWasm' in record.status || 'UpgradingWasm' in record.status)) ||
+        ('InstallingWasm' in record.status ||
+          'ReinstallingWasm' in record.status ||
+          'UpgradingWasm' in record.status)) ||
         (stepId === 'frontend' &&
           ('UploadingFrontend' in record.status ||
             'UpgradingFrontend' in record.status)))

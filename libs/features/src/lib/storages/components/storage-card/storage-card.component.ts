@@ -36,12 +36,14 @@ import {
   StoragesService,
 } from '@rabbithole/core';
 import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmHoverCardImports } from '@spartan-ng/helm/hover-card';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
@@ -61,10 +63,12 @@ const STORAGE_DEV_FRONTEND_ORIGIN = 'http://localhost:4201';
     HlmSpinner,
     BrnAlertDialogContent,
     BrnAlertDialogTrigger,
+    ...HlmAlertImports,
     ...HlmAlertDialogImports,
     ...HlmButtonImports,
     ...HlmButtonGroupImports,
     ...HlmDropdownMenuImports,
+    ...HlmHoverCardImports,
     ...HlmItemImports,
     ...HlmTooltipImports,
     CopyToClipboardComponent,
@@ -209,6 +213,7 @@ export class StorageCardComponent {
   #getProgressText(status: StorageCreationStatus): string | null {
     if (
       status.type === 'InstallingWasm' ||
+      status.type === 'ReinstallingWasm' ||
       status.type === 'UploadingFrontend' ||
       status.type === 'UpgradingWasm' ||
       status.type === 'UpgradingFrontend'
@@ -243,6 +248,9 @@ function getUserFriendlyLabel(status: StorageCreationStatus): string {
 
     case 'InstallingWasm':
       return 'Installing storage module...';
+
+    case 'ReinstallingWasm':
+      return 'Reinstalling storage module...';
 
     case 'UpdatingControllers':
       return 'Finalizing setup...';

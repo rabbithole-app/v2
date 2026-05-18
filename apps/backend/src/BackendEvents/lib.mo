@@ -170,6 +170,20 @@ module {
       requestId : Nat;
       requester : Principal;
     };
+    #ownerActivityRecorded : {
+      principal : Principal;
+      role : StorageTypes.OwnerActivityRole;
+      origin : StorageTypes.OwnerActivityOrigin;
+    };
+    #durablePolicyCreated : {
+      policyId : Nat;
+      status : StorageTypes.DurablePolicyStatus;
+      trigger : StorageTypes.DurablePolicyTrigger;
+    };
+    #durablePolicyGraceStarted : { policyId : Nat };
+    #durablePolicyMatured : { policyId : Nat };
+    #durablePolicyReleased : { policyId : Nat };
+    #durablePolicyCancelled : { policyId : Nat };
   };
 
   public type StorageAccessChanged = {

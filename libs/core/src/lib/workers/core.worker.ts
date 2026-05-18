@@ -6,7 +6,6 @@ import { Principal } from '@icp-sdk/core/principal';
 import photonInit, { crop, PhotonImage, resize } from '@silvia-odwyer/photon';
 import { type } from 'arktype';
 import { Zip, ZipPassThrough } from 'fflate';
-import { isNonNull } from 'remeda';
 import {
     defer,
     EMPTY,
@@ -47,7 +46,7 @@ import {
     MAX_THUMBNAIL_HEIGHT,
     MAX_THUMBNAIL_WIDTH,
 } from '../constants/images';
-import { customRepeatWhen } from '../operators';
+import { repeatItemWhen } from '../operators';
 import {
     ArchiveDownloadProgress,
     ArchiveDownloadRequest,
@@ -81,6 +80,9 @@ import {
 
 const postMessage = (message: CoreWorkerMessageOut, transfer?: Transferable[]) =>
   transfer ? self.postMessage(message, transfer) : self.postMessage(message);
+const ANONYMOUS_PRINCIPAL_ID = Principal.anonymous().toText();
+const WORKER_IDENTITY_UNAVAILABLE_MESSAGE =
+  'Your signed-in session is not available to uploads. Sign out and sign in again, then retry.';
 
 // Initialize WASM module - required for worker context
 let wasmInitialized = false;
@@ -264,10 +266,18 @@ const identityRefresh = new Subject<void>();
 const identity$ = identityRefresh.pipe(
   startWith(undefined),
   switchMap(() =>
-    defer(() => loadIdentity()).pipe(
-      filter(isNonNull),
+    defer(async () => {
+      const identity = await loadIdentity();
+      if (!identity || identity.getPrincipal().isAnonymous()) {
+        throw new Error(WORKER_IDENTITY_UNAVAILABLE_MESSAGE);
+      }
+      return identity;
+    }).pipe(
       retry({ delay: 500, count: 3 }),
-      catchError(() => of(new AnonymousIdentity())),
+      catchError((error) => {
+        console.error('[worker:auth-sync] identity unavailable', error);
+        return of(new AnonymousIdentity());
+      }),
     ),
   ),
   shareReplay(1),
@@ -276,14 +286,17 @@ const workerConfig = new ReplaySubject<WorkerConfig>(1);
 const agent$ = identity$.pipe(
   combineLatestWith(workerConfig.asObservable()),
   switchMap(([identity, { httpAgentOptions }]) =>
-    HttpAgent.create({ ...httpAgentOptions, identity }),
+    HttpAgent.create({ ...httpAgentOptions, identity }).then((agent) => ({
+      agent,
+      principalId: identity.getPrincipal().toText(),
+    })),
   ),
   shareReplay(1),
 );
 const encryptedStorage = new ReplaySubject<PrincipalString>(1);
 const encryptedStorageInstances$ = encryptedStorage.asObservable().pipe(
   combineLatestWith(agent$, workerConfig.asObservable()),
-  scan((acc, [canisterId, agent, config]) => {
+  scan((acc, [canisterId, { agent, principalId }, config]) => {
     const encryptedStorage = new EncryptedStorage({
       agent,
       canisterId,
@@ -295,9 +308,9 @@ const encryptedStorageInstances$ = encryptedStorage.asObservable().pipe(
       agent,
       canisterId,
     });
-    acc.set(canisterId, { encryptedStorage, assetManager });
+    acc.set(canisterId, { encryptedStorage, assetManager, principalId });
     return acc;
-  }, new Map<PrincipalString, { assetManager: AssetManager; encryptedStorage: EncryptedStorage }>()),
+  }, new Map<PrincipalString, { assetManager: AssetManager; encryptedStorage: EncryptedStorage; principalId: string }>()),
   shareReplay(1),
 );
 
@@ -313,7 +326,7 @@ const imageCrop = new Subject<ImageCropPayload>();
 function getEncryptedStorageInstance(
   instancesMap: Map<
     PrincipalString,
-    { assetManager: AssetManager; encryptedStorage: EncryptedStorage }
+    { assetManager: AssetManager; encryptedStorage: EncryptedStorage; principalId: string }
   >,
   storageId: PrincipalString,
 ) {
@@ -330,15 +343,23 @@ workerConfig.pipe(
   take(1),
   switchMap((wc) =>
     uploadAssets.asObservable().pipe(
-      customRepeatWhen((item) =>
+      repeatItemWhen((item) =>
         retryUpload.asObservable().pipe(filter((id) => item.id === id)),
       ),
       withLatestFrom(encryptedStorageInstances$),
       mergeMap(([{ id, storageId, bytes, config }, instancesMap]) => {
-        const { assetManager } = getEncryptedStorageInstance(
+        const { assetManager, principalId } = getEncryptedStorageInstance(
           instancesMap,
           storageId,
         );
+        if (principalId === ANONYMOUS_PRINCIPAL_ID) {
+          return of<UploadStatus>({
+            id,
+            status: UploadState.FAILED,
+            errorMessage: WORKER_IDENTITY_UNAVAILABLE_MESSAGE,
+          });
+        }
+
         return new Observable<UploadStatus>((subscriber) => {
           const controller = new AbortController();
           const cancelSub = cancelUpload
@@ -393,16 +414,24 @@ workerConfig.pipe(
   take(1),
   switchMap((wc) =>
     uploadFiles.asObservable().pipe(
-      customRepeatWhen((item) =>
+      repeatItemWhen((item) =>
         retryUpload.asObservable().pipe(filter((id) => item.id === id)),
       ),
       withLatestFrom(encryptedStorageInstances$),
       mergeMap(
         ([{ id, storageId, bytes, config, offscreenCanvas }, instancesMap]) => {
-          const { encryptedStorage } = getEncryptedStorageInstance(
+          const { encryptedStorage, principalId } = getEncryptedStorageInstance(
             instancesMap,
             storageId,
           );
+          if (principalId === ANONYMOUS_PRINCIPAL_ID) {
+            return of<UploadStatus>({
+              id,
+              status: UploadState.FAILED,
+              errorMessage: WORKER_IDENTITY_UNAVAILABLE_MESSAGE,
+            });
+          }
+
           return new Observable<UploadStatus>((subscriber) => {
             const controller = new AbortController();
             const cancelSub = cancelUpload

@@ -38,18 +38,18 @@ export class IcpayService {
 
   /**
    * Pay for a Storage License ($4.90).
-   * Backend webhook expects: { purpose: "license", userId, storageBackendType, vetKeyName }
+   * Backend webhook expects: { purpose: "license", userId, storageBackendType, vetKeyLevel }
    */
   async payLicense(config: {
     storageBackendType: string;
-    vetKeyName: string;
+    vetKeyLevel: string;
   }): Promise<PaymentResult> {
     const userId = this.#authService.identity().getPrincipal().toText();
     return this.#pay(4.90, {
       purpose: 'license',
       userId,
       storageBackendType: config.storageBackendType,
-      vetKeyName: config.vetKeyName,
+      vetKeyLevel: config.vetKeyLevel,
     });
   }
 

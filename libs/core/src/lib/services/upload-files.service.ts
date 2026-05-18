@@ -20,6 +20,9 @@ import {
 import { isPhotonSupportedMimeType } from '../utils';
 import { UploadRegistryService } from './upload-registry.service';
 
+const NO_UPLOAD_PERMISSION_MESSAGE =
+  'No ReadWrite permission for this storage. Ask the storage owner to grant ReadWrite access, then retry.';
+
 const EMPTY_STATE: UploadServiceState = {
   overallProgress: 0,
   isProcessing: false,
@@ -84,7 +87,7 @@ export class UploadFilesService implements IUploadService {
       this.#registry.updateUpload({
         id,
         status: UploadState.FAILED,
-        errorMessage: `Current principal ${principalId} has no ReadWrite permission on storage ${this.#canisterIdText()}`,
+        errorMessage: NO_UPLOAD_PERMISSION_MESSAGE,
       });
       return;
     }

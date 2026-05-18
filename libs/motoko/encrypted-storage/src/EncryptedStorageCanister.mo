@@ -306,6 +306,70 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
+  public shared ({ caller }) func recordOwnerActivity(args : T.RecordOwnerActivityArguments) : async T.OwnerActivityRecord {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.recordOwnerActivity(caller, args)) {
+      case (#ok(record)) record;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getOwnerActivityState() : async T.OwnerActivityState {
+    switch (storageApi.getOwnerActivityState(caller)) {
+      case (#ok(state)) state;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func createDurableAccessPolicy(args : T.CreateDurableAccessPolicyArguments) : async T.DurableAccessPolicy {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.createDurableAccessPolicy(caller, args)) {
+      case (#ok(policy)) policy;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func processDurableAccessPolicies() : async [T.DurablePolicyProcessResult] {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.processDurableAccessPolicies(caller)) {
+      case (#ok(results)) results;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func releaseDurableAccessPolicy(args : T.ReleaseDurableAccessPolicyArguments) : async T.DurablePolicyProcessResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.releaseDurableAccessPolicy(caller, args)) {
+      case (#ok(result)) result;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func cancelDurableAccessPolicy(args : T.CancelDurableAccessPolicyArguments) : async T.DurableAccessPolicy {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (storageApi.cancelDurableAccessPolicy(caller, args)) {
+      case (#ok(policy)) policy;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listDurableAccessPolicies() : async [T.DurableAccessPolicy] {
+    switch (storageApi.listDurableAccessPolicies(caller)) {
+      case (#ok(policies)) policies;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
   public shared ({ caller }) func requestAccess(args : T.CreateAccessRequestArguments) : async T.AccessRequest {
     if (Principal.isAnonymous(caller)) {
       throw Error.reject("anonymous caller not allowed");

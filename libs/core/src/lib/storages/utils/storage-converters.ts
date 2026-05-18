@@ -53,6 +53,11 @@ export function convertCreationStatus(
       progress: convertProgress(progress),
       type: 'InstallingWasm',
     }))
+    .with({ ReinstallingWasm: P.select() }, ({ canisterId, progress }) => ({
+      canisterId,
+      progress: convertProgress(progress),
+      type: 'ReinstallingWasm',
+    }))
     .with({ UploadingFrontend: P.select() }, ({ canisterId, progress }) => ({
       canisterId,
       progress: convertProgress(progress),
@@ -138,6 +143,7 @@ export function getStorageCanisterId(
   if (
     status.type === 'CanisterCreated' ||
     status.type === 'InstallingWasm' ||
+    status.type === 'ReinstallingWasm' ||
     status.type === 'UpgradingWasm' ||
     status.type === 'UploadingFrontend' ||
     status.type === 'UpgradingFrontend' ||

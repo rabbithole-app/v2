@@ -7,6 +7,7 @@ import IC "mo:ic";
 
 import T "mo:encrypted-storage/Types";
 import Access "mo:encrypted-storage/Access/lib";
+import EncryptedStorage "mo:encrypted-storage";
 import Const "mo:encrypted-storage/Const";
 
 module SubscriptionGate {
@@ -119,7 +120,7 @@ module SubscriptionGate {
   /// Account owner and recovery owners can ALWAYS decrypt (even when expired) — sovereignty guarantee.
   /// Ordinary shared users can only decrypt when active/trial.
   public func canDecrypt(self : T.StableStore, caller : Principal, owner : Principal, keyId : T.KeyId) : Result.Result<(), Text> {
-    if (caller == owner or Access.isOwnerEquivalent(self.access, caller) or Access.hasActiveDurableGrantForKey(self.access, caller, keyId)) {
+    if (caller == owner or Access.isOwnerEquivalent(self.access, caller) or EncryptedStorage.hasActiveDurableGrantForKey(self, caller, keyId)) {
       // Owner-equivalent and durable succession principals can ALWAYS decrypt
       // permitted files. Ordinary sharing still follows the subscription gate.
       switch (self.subscriptionCache) {

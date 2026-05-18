@@ -108,6 +108,33 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     onAccessChanged = ?enqueueStorageAccessChanged;
   });
 
+  func classifyStorageError(message : Text) : T.StorageErrorCode {
+    if (Text.startsWith(message, #text "permission denied:")) return #PermissionDenied;
+    if (Text.contains(message, #text "not found")) return #NotFound;
+    if (Text.contains(message, #text "already exists")) return #Conflict;
+    if (Text.contains(message, #text "Maximum number")) return #QuotaExceeded;
+    if (
+      Text.contains(message, #text "Invalid") or
+      Text.contains(message, #text "Expected") or
+      Text.contains(message, #text "out of bounds")
+    ) return #Validation;
+    #Internal;
+  };
+
+  func storageError(message : Text) : T.StorageError {
+    {
+      code = classifyStorageError(message);
+      message;
+    };
+  };
+
+  func storageResult<R>(result : Result.Result<R, Text>) : T.StorageResult<R> {
+    switch (result) {
+      case (#ok value) #ok value;
+      case (#err message) #err(storageError(message));
+    };
+  };
+
   // Reset cached module hash on upgrade (body re-executes for persistent actor class)
   storage.cachedModuleHash := null;
 
@@ -161,7 +188,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   include IdentityVerificationMixin({
     onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
-      await StorageIdentityHandler.onVerifiedAttributes(
+      let result = await StorageIdentityHandler.onVerifiedAttributes(
         {
           emailCommitment = func(email : Text) : Blob = EncryptedStorage.emailCommitment(storage, email);
           claimByEmailCommitments = func(principal : Principal, commitments : [Blob]) : Result.Result<[T.PrincipalAccessGrant], Text> {
@@ -172,6 +199,14 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         caller,
         attrs,
       );
+      switch (result) {
+        case (#ok) {
+          ignore es.recordOwnerActivity(caller, { origin = #storage });
+          await drainStorageAccessChangedQueue();
+          #ok;
+        };
+        case (#err(error)) #err(error);
+      };
     };
     resolveTrustedIdentitySigner;
     resolveExpectedIdentityOrigin = resolveExpectedStorageIdentityOrigin;
@@ -282,17 +317,17 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  public shared ({ caller }) func create(args : T.CreateArguments) : async T.NodeDetails {
+  public shared ({ caller }) func create(args : T.CreateArguments) : async T.StorageResult<T.NodeDetails> {
     switch (es.create(caller, args)) {
-      case (#ok value) { reportLowCyclesIfNeeded<system>(); value };
-      case (#err(message)) throw Error.reject(message);
+      case (#ok value) { reportLowCyclesIfNeeded<system>(); #ok value };
+      case (#err message) #err(storageError(message));
     };
   };
 
-  public shared ({ caller }) func update(args : T.UpdateArguments) : async () {
+  public shared ({ caller }) func update(args : T.UpdateArguments) : async T.StorageResult<()> {
     switch (await* es.update(caller, args)) {
-      case (#ok _) { reportLowCyclesIfNeeded<system>() };
-      case (#err(message)) throw Error.reject(message);
+      case (#ok _) { reportLowCyclesIfNeeded<system>(); #ok };
+      case (#err message) #err(storageError(message));
     };
   };
 
@@ -303,18 +338,12 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  public shared ({ caller }) func createStorageBatch(args : T.CreateBatchArguments) : async T.CreateBatchResponse {
-    switch (es.createBatch(caller, args)) {
-      case (#ok batch) batch;
-      case (#err(message)) throw Error.reject(message);
-    };
+  public shared ({ caller }) func createStorageBatch(args : T.CreateBatchArguments) : async T.StorageResult<T.CreateBatchResponse> {
+    storageResult(es.createBatch(caller, args));
   };
 
-  public shared ({ caller }) func createStorageChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
-    switch (es.createChunk(caller, args)) {
-      case (#ok chunk) chunk;
-      case (#err(message)) throw Error.reject(message);
-    };
+  public shared ({ caller }) func createStorageChunk(args : T.CreateChunkArguments) : async T.StorageResult<T.CreateChunkResponse> {
+    storageResult(es.createChunk(caller, args));
   };
 
   public shared ({ caller }) func move(args : T.MoveArguments) : async () {
@@ -553,6 +582,85 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
+  public shared ({ caller }) func recordOwnerActivity(args : T.RecordOwnerActivityArguments) : async T.OwnerActivityRecord {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.recordOwnerActivity(caller, args)) {
+      case (#ok(record)) {
+        await drainStorageAccessChangedQueue();
+        record;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getOwnerActivityState() : async T.OwnerActivityState {
+    switch (es.getOwnerActivityState(caller)) {
+      case (#ok(state)) state;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func createDurableAccessPolicy(args : T.CreateDurableAccessPolicyArguments) : async T.DurableAccessPolicy {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.createDurableAccessPolicy(caller, args)) {
+      case (#ok(policy)) {
+        await drainStorageAccessChangedQueue();
+        policy;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func processDurableAccessPolicies() : async [T.DurablePolicyProcessResult] {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.processDurableAccessPolicies(caller)) {
+      case (#ok(results)) {
+        await drainStorageAccessChangedQueue();
+        results;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func releaseDurableAccessPolicy(args : T.ReleaseDurableAccessPolicyArguments) : async T.DurablePolicyProcessResult {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.releaseDurableAccessPolicy(caller, args)) {
+      case (#ok(result)) {
+        await drainStorageAccessChangedQueue();
+        result;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func cancelDurableAccessPolicy(args : T.CancelDurableAccessPolicyArguments) : async T.DurableAccessPolicy {
+    if (Principal.isAnonymous(caller)) {
+      throw Error.reject("anonymous caller not allowed");
+    };
+    switch (es.cancelDurableAccessPolicy(caller, args)) {
+      case (#ok(policy)) {
+        await drainStorageAccessChangedQueue();
+        policy;
+      };
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listDurableAccessPolicies() : async [T.DurableAccessPolicy] {
+    switch (es.listDurableAccessPolicies(caller)) {
+      case (#ok(policies)) policies;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
   public shared ({ caller }) func requestAccess(args : T.CreateAccessRequestArguments) : async T.AccessRequest {
     if (Principal.isAnonymous(caller)) {
       throw Error.reject("anonymous caller not allowed");
@@ -720,10 +828,10 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   // _immutableObjectStorageRefillCashier
   include MixinObjectStorage();
 
-  public shared ({ caller }) func commitCaffeineUpload(args : T.CommitCaffeineUploadArgs) : async () {
+  public shared ({ caller }) func commitCaffeineUpload(args : T.CommitCaffeineUploadArgs) : async T.StorageResult<()> {
     switch (es.commitCaffeineUpload(caller, args)) {
-      case (#ok _) { reportLowCyclesIfNeeded<system>() };
-      case (#err(message)) throw Error.reject(message);
+      case (#ok _) { reportLowCyclesIfNeeded<system>(); #ok };
+      case (#err message) #err(storageError(message));
     };
   };
 

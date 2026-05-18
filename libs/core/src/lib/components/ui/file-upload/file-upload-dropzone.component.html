@@ -1,9 +1,10 @@
 @if (disabled()) {
-<div [class]="dropzoneComputedClass()">
+<div hlmEmpty [class]="dropzoneComputedClass()">
   <ng-container [ngTemplateOutlet]="dropzoneContent" />
 </div>
 } @else {
 <div
+  hlmEmpty
   (dragenter)="handleDragEnter($any($event))"
   (dragleave)="handleDragLeave($any($event))"
   (dragover)="handleDragOver($any($event))"
@@ -21,17 +22,14 @@
 </div>
 }
 <ng-template #dropzoneContent>
-  <div class="flex flex-col items-center justify-center text-center">
-    <div
-      class="bg-background mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border"
-      aria-hidden="true"
-    >
-      <ng-icon hlm class="opacity-60" size="sm" name="lucideFileUp" />
+  <div hlmEmptyHeader>
+    <div hlmEmptyMedia variant="icon">
+      <ng-icon name="lucideFileUp" />
     </div>
-    <p class="mb-1.5 text-sm font-medium">Upload files</p>
-    <p class="text-muted-foreground mb-2 text-xs">
-      Drag & drop or click to browse
-    </p>
+    <div hlmEmptyTitle>Upload files</div>
+    <div hlmEmptyDescription>Drag & drop files here or select them</div>
+  </div>
+  <div hlmEmptyContent>
     <div
       class="text-muted-foreground/70 flex flex-wrap justify-center gap-1 text-xs"
     >
@@ -40,6 +38,17 @@
       <span>Max {{ config.maxFiles }} files</span>
       <span>∙</span>
       <span>Up to {{ config.maxSize | formatBytes }}</span>
+    </div>
+    <div
+      class="flex flex-wrap justify-center gap-2"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <button hlmBtn (click)="openFileDialog()">
+        <ng-icon hlm size="sm" name="lucideFileUp" />
+        Select files
+      </button>
+      <ng-content select="[coreFileUploadDropzoneAction]" />
     </div>
   </div>
 </ng-template>

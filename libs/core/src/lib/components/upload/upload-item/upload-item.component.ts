@@ -24,19 +24,21 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { BrnProgress, BrnProgressIndicator } from '@spartan-ng/brain/progress';
-import { ClassValue } from 'clsx';
 
 import {
   RbthProgressDirective,
   RbthProgressIndicatorDirective,
 } from '@rabbithole/ui/progress';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmHoverCardImports } from '@spartan-ng/helm/hover-card';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
-import { hlm } from '@spartan-ng/helm/utils';
 
 import { FileUploadWithStatus, UploadState } from '../../../types';
+import { getUploadFailureCopy } from '../../../utils/upload-failure-copy';
 import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
 
 @Component({
@@ -46,6 +48,9 @@ import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
     NgIcon,
     HlmButton,
     HlmIcon,
+    ...HlmAlertImports,
+    ...HlmHoverCardImports,
+    ...HlmItemImports,
     FormatBytesPipe,
     FileIconPipe,
     BrnProgress,
@@ -77,14 +82,26 @@ import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
       lucideTriangleAlert,
     }),
   ],
-  host: {
-    '[class]': '_computedClass()',
-  },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CoreUploadItemComponent {
   cancelUpload = output();
   data = input.required<FileUploadWithStatus>();
+  failureCopy = computed(() => {
+    const data = this.data();
+
+    return data.status === UploadState.FAILED
+      ? getUploadFailureCopy(data.errorMessage)
+      : null;
+  });
+  failureTechnicalDetails = computed(() => {
+    const failure = this.failureCopy();
+
+    return failure?.technicalDetails &&
+      failure.technicalDetails !== failure.description
+      ? failure.technicalDetails
+      : null;
+  });
   progress = computed(() => {
     const data = this.data();
 
@@ -106,13 +123,4 @@ export class CoreUploadItemComponent {
     ].includes(this.data().status),
   );
   readonly uploadState = UploadState;
-
-  public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
-  protected _computedClass = computed(() =>
-    hlm(
-      'flex w-full flex-col gap-4 rounded-2xl border border-stroke-soft-200 p-3',
-      this.userClass(),
-    ),
-  );
 }

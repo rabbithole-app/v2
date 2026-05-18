@@ -158,6 +158,7 @@ export type CreationStatus = { 'Failed' : string } |
   { 'TransferringICP' : { 'amount' : bigint } } |
   { 'NotifyingCMC' : { 'blockIndex' : bigint } } |
   { 'ProcessingPayment' : PaymentPhase } |
+  { 'ReinstallingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
   {
     'UpgradingFrontend' : { 'progress' : Progress, 'canisterId' : Principal }
   } |
@@ -185,6 +186,16 @@ export interface DistributionRecord {
 }
 export type DistributionStatus = { 'completed' : null } |
   { 'partial' : null };
+export type DurablePolicyStatus = { 'cancelled' : null } |
+  { 'armed' : null } |
+  { 'released' : null } |
+  { 'matured' : null } |
+  { 'grace' : null };
+export type DurablePolicyTrigger = { 'manualRelease' : null } |
+  { 'date' : { 'releaseAt' : Time } } |
+  {
+    'inactivity' : { 'inactiveForNs' : bigint, 'gracePeriodNs' : [] | [bigint] }
+  };
 export interface EmailClaim {
   'principalGrantId' : bigint,
   'principal' : Principal,
@@ -465,6 +476,11 @@ export interface NotificationsPage {
   'data' : Array<StoredNotification>,
   'unreadCount' : bigint,
 }
+export type OwnerActivityOrigin = { 'storage' : null } |
+  { 'rabbithole' : null } |
+  { 'backend' : null };
+export type OwnerActivityRole = { 'recoveryOwner' : null } |
+  { 'accountOwner' : null };
 export type PaymentPhase = { 'CheckingBalances' : null } |
   { 'Starting' : null } |
   { 'Queueing' : null } |
@@ -707,7 +723,7 @@ export interface Rabbithole {
    * / unified deploy queue.
    */
   'purchaseLicenseAndCreateStorage' : ActorMethod<
-    [StorageBackendType, [] | [Array<{ 'value' : string, 'name' : string }>]],
+    [StorageBackendType, StorageVetKeyLevel],
     Result_4
   >,
   'purchaseSubscription' : ActorMethod<[Plan], Result_3>,
@@ -747,6 +763,12 @@ export interface Rabbithole {
    * / Register the latest downloaded WASM hash as known.
    */
   'registerLatestWasmHash' : ActorMethod<[], undefined>,
+  /**
+   * / Owner-or-admin repair for failed initial creations whose canister already
+   * / exists but cannot be resumed with a plain install. Reinstalls the latest
+   * / storage WASM, so completed storages and failed upgrades are rejected.
+   */
+  'reinstallFailedStorageWasm' : ActorMethod<[bigint], Result_2>,
   'renewSubscription' : ActorMethod<
     [Principal, Plan, [] | [bigint]],
     undefined
@@ -909,6 +931,13 @@ export type StorageAccessLifecycleEvent = {
     }
   } |
   {
+    'durablePolicyCreated' : {
+      'status' : DurablePolicyStatus,
+      'trigger' : DurablePolicyTrigger,
+      'policyId' : bigint,
+    }
+  } |
+  {
     'accessRequestCreated' : { 'requestId' : bigint, 'requester' : Principal }
   } |
   {
@@ -926,7 +955,16 @@ export type StorageAccessLifecycleEvent = {
       'accessClass' : AccessClass,
     }
   } |
+  {
+    'ownerActivityRecorded' : {
+      'principal' : Principal,
+      'origin' : OwnerActivityOrigin,
+      'role' : OwnerActivityRole,
+    }
+  } |
+  { 'durablePolicyReleased' : { 'policyId' : bigint } } |
   { 'recoveryControllerCleared' : { 'principal' : Principal } } |
+  { 'durablePolicyMatured' : { 'policyId' : bigint } } |
   { 'recoveryOwnerAdded' : { 'principal' : Principal } } |
   {
     'pendingGrantClaimed' : {
@@ -938,6 +976,7 @@ export type StorageAccessLifecycleEvent = {
       'accessClass' : AccessClass,
     }
   } |
+  { 'durablePolicyCancelled' : { 'policyId' : bigint } } |
   {
     'accessRequestCancelled' : { 'requestId' : bigint, 'requester' : Principal }
   } |
@@ -956,6 +995,7 @@ export type StorageAccessLifecycleEvent = {
       'grantId' : bigint,
     }
   } |
+  { 'durablePolicyGraceStarted' : { 'policyId' : bigint } } |
   {
     'principalGrantRevoked' : {
       'principal' : Principal,
@@ -1000,6 +1040,8 @@ export interface StorageInfo {
   'updateAvailable' : [] | [UpdateInfo],
   'canisterId' : [] | [Principal],
 }
+export type StorageVetKeyLevel = { 'highReplication' : null } |
+  { 'standard' : null };
 export interface StoredNotification {
   'id' : bigint,
   'source' : NotificationSource,

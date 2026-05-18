@@ -14,10 +14,11 @@ module {
   };
 
   public type StorageBackendType = { #BlobStorage; #OnChain };
+  public type StorageVetKeyLevel = { #standard; #highReplication };
 
   /// Env-var names that `buildEnvironmentVariables` pins to system-derived
-  /// values (backend principal, etc.). User-provided pairs with these names
-  /// are silently dropped so the system default always wins.
+  /// values (backend principal, frontend canister, cashier, etc.).
+  /// Caller-provided pairs with these names are dropped so system defaults win.
   public let RESERVED_ENV_NAMES : [Text] = [
     "PUBLIC_CANISTER_ID:rabbithole-backend",
     "PUBLIC_CANISTER_ID:rabbithole-frontend",
@@ -32,11 +33,6 @@ module {
     false;
   };
 
-  /// Strip user-supplied envPairs of anything that would try to override a
-  /// system-pinned name. Non-destructive: everything else passes through
-  /// untouched, so the caller never sees an error from "slightly wrong"
-  /// input. The canister consuming the init arg is still free to apply its
-  /// own domain validation on lengths / character sets.
   public func sanitizeEnvPairs(pairs : ?[{ name : Text; value : Text }]) : ?[{ name : Text; value : Text }] {
     let ?arr = pairs else return null;
     let filtered = Array.filter<{ name : Text; value : Text }>(
@@ -52,24 +48,35 @@ module {
     else null;
   };
 
+  public func parseStorageVetKeyLevel(text : Text) : ?StorageVetKeyLevel {
+    if (text == "standard") ?#standard
+    else if (text == "high-replication" or text == "highReplication") ?#highReplication
+    else null;
+  };
+
   public func encodeStorageInitArg(owner : Principal, storageBackendType : ?StorageBackendType) : Blob {
     to_candid ({ owner; storageBackendType });
   };
 
-  public func extractEnvPairs(metadata : Json.Json) : ?[{ name : Text; value : Text }] {
-    let ?#string(vetKeyName) = Json.get(metadata, "vetKeyName") else return null;
-    ?[{ name = "VETKEY_NAME"; value = vetKeyName }];
-  };
-
   public func extractStorageConfig(metadata : Json.Json) : ?{
     storageBackendType : StorageBackendType;
+    vetKeyLevel : StorageVetKeyLevel;
   } {
     let sbtText = switch (Json.get(metadata, "storageBackendType")) {
       case (?#string(s)) s;
       case _ return null;
     };
     let ?sbt = parseStorageBackendType(sbtText) else return null;
-    ?{ storageBackendType = sbt };
+    let vetKeyLevel = switch (Json.get(metadata, "vetKeyLevel")) {
+      case (?#string(s)) {
+        switch (parseStorageVetKeyLevel(s)) {
+          case (?level) level;
+          case null return null;
+        };
+      };
+      case _ #standard;
+    };
+    ?{ storageBackendType = sbt; vetKeyLevel };
   };
 
   public func parsePurpose(text : Text) : ?PaymentPurpose {

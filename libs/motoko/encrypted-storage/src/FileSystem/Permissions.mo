@@ -25,6 +25,38 @@ module Permissions {
 
   let { phash } = Map;
 
+  func permissionLabel(permission : T.Permission) : Text {
+    switch (permission) {
+      case (#Read) "Read";
+      case (#ReadWrite) "ReadWrite";
+      case (#ReadWriteManage) "ReadWriteManage";
+    };
+  };
+
+  func entryLabel((kind, path) : T.Entry) : Text {
+    let kindLabel = switch (kind) {
+      case (#File) "file";
+      case (#Directory) "directory";
+    };
+
+    kindLabel # " '" # path # "'";
+  };
+
+  func scopeLabel(findBy : T.FindBy) : Text {
+    switch (findBy) {
+      case (#entry entry) entryLabel(entry);
+      case (#root) "storage root";
+      case (#keyId _) "storage key";
+      case (#nodeKey _) "storage node";
+    };
+  };
+
+  func permissionDenied(user : Principal, findBy : T.FindBy, required : T.Permission) : Text {
+    "permission denied: caller " # Principal.toText(user) #
+    " requires " # permissionLabel(required) #
+    " access for " # scopeLabel(findBy);
+  };
+
   func getPermissionsWithKeyId(fs : T.FileSystemStore, findBy : T.FindBy) : Result.Result<(T.PermissionMap, ?T.KeyId), Text> {
     switch (findBy) {
       case (#keyId keyId) {
@@ -171,6 +203,24 @@ module Permissions {
     };
   };
 
+  /// Internal policy materialization helper. The caller authorization must be
+  /// checked before a durable policy is stored; release must not depend on the
+  /// creator still having manage rights months later.
+  public func setUserRightsUnchecked(fs : T.FileSystemStore, findBy : T.FindBy, user : Principal, permission : T.Permission) : Result.Result<(), Text> {
+    let permissions = switch (getPermissionsWithKeyId(fs, findBy)) {
+      case (#ok(permissions, ?keyId)) {
+        if (Principal.equal(user, keyId.0)) {
+          return #err("Cannot change key owner's user rights");
+        };
+        permissions;
+      };
+      case (#ok(permissions, null)) permissions;
+      case (#err message) return #err message;
+    };
+    ignore Map.put(permissions, phash, user, permission);
+    #ok;
+  };
+
   /// Revokes a user's access to a shared vetKey.
   /// The vetKey owner cannot remove their own access.
   /// Only the vetKey owner or a user with management rights can perform this action.
@@ -205,7 +255,7 @@ module Permissions {
       case (?permission) if (not Order.isLess(permissionCompare(permission, #Read))) return #ok(permission);
       case null {};
     };
-    #err("unauthorized");
+    #err(permissionDenied(user, findBy, #Read));
   };
 
   /// Ensures that a user has write access to a vetKey before proceeding.
@@ -215,7 +265,7 @@ module Permissions {
       case (?permission) if (not Order.isLess(permissionCompare(permission, #ReadWrite))) return #ok(permission);
       case null {};
     };
-    #err("unauthorized");
+    #err(permissionDenied(user, findBy, #ReadWrite));
   };
 
   /// Ensures that a user has permission to view user rights for a vetKey.
@@ -225,7 +275,7 @@ module Permissions {
       case (?permission) if (not Order.isLess(permissionCompare(permission, #ReadWriteManage))) return #ok(permission);
       case null {};
     };
-    #err("unauthorized");
+    #err(permissionDenied(user, findBy, #ReadWriteManage));
   };
 
   /// Ensures that a user has management access to a vetKey before proceeding.
@@ -235,7 +285,7 @@ module Permissions {
       case (?permission) if (not Order.isLess(permissionCompare(permission, #ReadWriteManage))) return #ok(permission);
       case null {};
     };
-    #err("unauthorized");
+    #err(permissionDenied(user, findBy, #ReadWriteManage));
   };
 
   public func getCanisterControllers(canisterId : Principal) : async* [Principal] {

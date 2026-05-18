@@ -8,7 +8,7 @@
     hlmBtn
     brnPopoverTrigger
     variant="ghost"
-    class="h-auto min-w-0 justify-start gap-2 px-2 py-1.5 text-left"
+    class="h-auto w-full min-w-0 max-w-full justify-start gap-2 overflow-hidden px-2 py-1.5 text-left"
   >
     <span class="flex size-4 shrink-0 items-center justify-center">
       @switch (_triggerState(creation())) {
@@ -29,7 +29,7 @@
         @case ('failed') {
           <ng-icon
             hlmIcon
-            name="lucideCircleX"
+            name="lucideX"
             size="xs"
             class="text-destructive"
           />
@@ -45,14 +45,17 @@
       }
     </span>
 
-    <span class="flex min-w-0 flex-col items-start gap-0.5">
+    <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5 overflow-hidden">
       <span
         class="max-w-full truncate text-sm font-medium"
         [class.text-destructive]="_triggerState(creation()) === 'failed'"
       >
         {{ _triggerLabel(creation()) }}
       </span>
-      <span class="max-w-full truncate text-xs text-muted-foreground">
+      <span
+        class="block max-w-full truncate text-xs text-muted-foreground"
+        [attr.title]="_triggerDescription(creation())"
+      >
         {{ _triggerDescription(creation()) }}
       </span>
     </span>
@@ -104,7 +107,7 @@
                     @case ('failed') {
                       <ng-icon
                         hlmIcon
-                        name="lucideCircleX"
+                        name="lucideX"
                         size="sm"
                         class="text-destructive"
                       />

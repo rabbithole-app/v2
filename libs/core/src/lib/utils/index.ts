@@ -11,4 +11,5 @@ export * from './parse-canister-reject-error';
 export * from './payment-eligibility';
 export * from './principal';
 export * from './time';
+export * from './upload-failure-copy';
 export * from './worker';

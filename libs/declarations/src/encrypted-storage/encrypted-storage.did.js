@@ -64,7 +64,38 @@ export const idlFactory = ({ IDL }) => {
     'decidedAt' : IDL.Opt(Time),
     'decidedBy' : IDL.Opt(IDL.Principal),
   });
-  const CancelPendingAccessGrantArguments = IDL.Record({ 'grantId' : IDL.Nat });
+  const CancelDurableAccessPolicyArguments = IDL.Record({
+    'policyId' : IDL.Nat,
+  });
+  const DurablePolicyStatus = IDL.Variant({
+    'cancelled' : IDL.Null,
+    'armed' : IDL.Null,
+    'released' : IDL.Null,
+    'matured' : IDL.Null,
+    'grace' : IDL.Null,
+  });
+  const Entry = IDL.Tuple(
+    IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
+    IDL.Text,
+  );
+  const KeyId__1 = IDL.Tuple(IDL.Principal, IDL.Vec(IDL.Nat8));
+  const AccessScope = IDL.Variant({
+    'root' : IDL.Null,
+    'entry' : Entry,
+    'keyId' : KeyId__1,
+  });
+  const DurablePolicyGrantTemplate = IDL.Record({
+    'permission' : Permission__1,
+    'scope' : AccessScope,
+  });
+  const DurablePolicyTrigger = IDL.Variant({
+    'manualRelease' : IDL.Null,
+    'date' : IDL.Record({ 'releaseAt' : Time }),
+    'inactivity' : IDL.Record({
+      'inactiveForNs' : IDL.Nat,
+      'gracePeriodNs' : IDL.Opt(IDL.Nat),
+    }),
+  });
   const AccessRef = IDL.Variant({
     'principal' : IDL.Principal,
     'emailCommitment' : EmailCommitment,
@@ -73,6 +104,23 @@ export const idlFactory = ({ IDL }) => {
       'email' : IDL.Text,
     }),
   });
+  const DurableAccessPolicy = IDL.Record({
+    'id' : IDL.Nat,
+    'maturedAt' : IDL.Opt(Time),
+    'status' : DurablePolicyStatus,
+    'grants' : IDL.Vec(DurablePolicyGrantTemplate),
+    'trigger' : DurablePolicyTrigger,
+    'createdAt' : Time,
+    'createdBy' : IDL.Principal,
+    'cancelledAt' : IDL.Opt(Time),
+    'proVerifiedAt' : Time,
+    'recipients' : IDL.Vec(AccessRef),
+    'releasedAt' : IDL.Opt(Time),
+    'graceStartedAt' : IDL.Opt(Time),
+    'principalGrantIds' : IDL.Vec(IDL.Nat),
+    'pendingGrantIds' : IDL.Vec(IDL.Nat),
+  });
+  const CancelPendingAccessGrantArguments = IDL.Record({ 'grantId' : IDL.Nat });
   const EmailClaimOrigin = IDL.Variant({
     'storage' : IDL.Null,
     'rabbithole' : IDL.Null,
@@ -93,16 +141,6 @@ export const idlFactory = ({ IDL }) => {
     'directGrant' : IDL.Null,
     'ordinaryInvite' : IDL.Nat,
     'recoverySetup' : IDL.Null,
-  });
-  const Entry = IDL.Tuple(
-    IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
-    IDL.Text,
-  );
-  const KeyId__1 = IDL.Tuple(IDL.Principal, IDL.Vec(IDL.Nat8));
-  const AccessScope = IDL.Variant({
-    'root' : IDL.Null,
-    'entry' : Entry,
-    'keyId' : KeyId__1,
   });
   const AccessClass = IDL.Variant({
     'ordinary' : IDL.Null,
@@ -152,6 +190,19 @@ export const idlFactory = ({ IDL }) => {
     'entry' : Entry,
     'rootHash' : IDL.Text,
   });
+  const StorageErrorCode = IDL.Variant({
+    'Internal' : IDL.Null,
+    'NotFound' : IDL.Null,
+    'PermissionDenied' : IDL.Null,
+    'Validation' : IDL.Null,
+    'QuotaExceeded' : IDL.Null,
+    'Conflict' : IDL.Null,
+  });
+  const StorageError = IDL.Record({
+    'code' : StorageErrorCode,
+    'message' : IDL.Text,
+  });
+  const StorageResult = IDL.Variant({ 'ok' : IDL.Null, 'err' : StorageError });
   const BatchId = IDL.Nat;
   const Key = IDL.Text;
   const Header = IDL.Tuple(IDL.Text, IDL.Text);
@@ -262,6 +313,10 @@ export const idlFactory = ({ IDL }) => {
     'parentId' : IDL.Opt(IDL.Nat64),
     'keyId' : KeyId,
   });
+  const StorageResult_3 = IDL.Variant({
+    'ok' : NodeDetails,
+    'err' : StorageError,
+  });
   const CreateAccessBatchItem = IDL.Record({
     'ref' : AccessRef,
     'permission' : Permission__1,
@@ -285,6 +340,11 @@ export const idlFactory = ({ IDL }) => {
     'source' : AccessSource,
     'scope' : AccessScope,
   });
+  const CreateDurableAccessPolicyArguments = IDL.Record({
+    'grants' : IDL.Vec(DurablePolicyGrantTemplate),
+    'trigger' : DurablePolicyTrigger,
+    'recipients' : IDL.Vec(AccessRef),
+  });
   const CreatePendingAccessGrantArguments = IDL.Record({
     'ref' : AccessRef,
     'permission' : Permission__1,
@@ -298,11 +358,19 @@ export const idlFactory = ({ IDL }) => {
     'entry' : Entry,
   });
   const CreateBatchResponse__1 = IDL.Record({ 'batchId' : BatchId });
+  const StorageResult_2 = IDL.Variant({
+    'ok' : CreateBatchResponse__1,
+    'err' : StorageError,
+  });
   const CreateChunkArguments__1 = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
     'batchId' : BatchId,
   });
   const CreateChunkResponse__1 = IDL.Record({ 'chunkId' : IDL.Nat });
+  const StorageResult_1 = IDL.Variant({
+    'ok' : CreateChunkResponse__1,
+    'err' : StorageError,
+  });
   const CreateBatchResponse = IDL.Record({ 'batch_id' : BatchId });
   const CreateChunkArguments = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
@@ -335,6 +403,26 @@ export const idlFactory = ({ IDL }) => {
   });
   const TransportKey = IDL.Vec(IDL.Nat8);
   const VetKey = IDL.Vec(IDL.Nat8);
+  const OwnerActivityOrigin = IDL.Variant({
+    'storage' : IDL.Null,
+    'rabbithole' : IDL.Null,
+    'backend' : IDL.Null,
+  });
+  const OwnerActivityRole = IDL.Variant({
+    'recoveryOwner' : IDL.Null,
+    'accountOwner' : IDL.Null,
+  });
+  const OwnerActivityRecord = IDL.Record({
+    'principal' : IDL.Principal,
+    'lastSeenAt' : Time,
+    'origin' : OwnerActivityOrigin,
+    'role' : OwnerActivityRole,
+  });
+  const OwnerActivityState = IDL.Record({
+    'records' : IDL.Vec(OwnerActivityRecord),
+    'lastOwnerActivityAt' : Time,
+    'lastOwnerActivityBy' : IDL.Principal,
+  });
   const RecoveryStatus = IDL.Record({
     'recoveryOwner' : IDL.Opt(OwnerEquivalentPrincipal),
     'recoveryController' : IDL.Opt(IDL.Principal),
@@ -474,6 +562,11 @@ export const idlFactory = ({ IDL }) => {
       'requestId' : IDL.Nat,
       'requester' : IDL.Principal,
     }),
+    'durablePolicyCreated' : IDL.Record({
+      'status' : DurablePolicyStatus,
+      'trigger' : DurablePolicyTrigger,
+      'policyId' : IDL.Nat,
+    }),
     'accessRequestCreated' : IDL.Record({
       'requestId' : IDL.Nat,
       'requester' : IDL.Principal,
@@ -488,7 +581,14 @@ export const idlFactory = ({ IDL }) => {
       'grantId' : IDL.Nat,
       'accessClass' : AccessClass,
     }),
+    'ownerActivityRecorded' : IDL.Record({
+      'principal' : IDL.Principal,
+      'origin' : OwnerActivityOrigin,
+      'role' : OwnerActivityRole,
+    }),
+    'durablePolicyReleased' : IDL.Record({ 'policyId' : IDL.Nat }),
     'recoveryControllerCleared' : IDL.Record({ 'principal' : IDL.Principal }),
+    'durablePolicyMatured' : IDL.Record({ 'policyId' : IDL.Nat }),
     'recoveryOwnerAdded' : IDL.Record({ 'principal' : IDL.Principal }),
     'pendingGrantClaimed' : IDL.Record({
       'principal' : IDL.Principal,
@@ -498,6 +598,7 @@ export const idlFactory = ({ IDL }) => {
       'claimOrigin' : IDL.Opt(EmailClaimOrigin),
       'accessClass' : AccessClass,
     }),
+    'durablePolicyCancelled' : IDL.Record({ 'policyId' : IDL.Nat }),
     'accessRequestCancelled' : IDL.Record({
       'requestId' : IDL.Nat,
       'requester' : IDL.Principal,
@@ -512,6 +613,7 @@ export const idlFactory = ({ IDL }) => {
       'ref' : AccessRef,
       'grantId' : IDL.Nat,
     }),
+    'durablePolicyGraceStarted' : IDL.Record({ 'policyId' : IDL.Nat }),
     'principalGrantRevoked' : IDL.Record({
       'principal' : IDL.Principal,
       'accessClass' : IDL.Opt(AccessClass),
@@ -544,9 +646,20 @@ export const idlFactory = ({ IDL }) => {
     'entry' : Entry,
     'target' : IDL.Opt(Entry),
   });
+  const DurablePolicyProcessResult = IDL.Record({
+    'pendingGrants' : IDL.Vec(PendingAccessGrant),
+    'principalGrants' : IDL.Vec(PrincipalAccessGrant),
+    'policy' : DurableAccessPolicy,
+  });
+  const RecordOwnerActivityArguments = IDL.Record({
+    'origin' : OwnerActivityOrigin,
+  });
   const RegisterRecoveryControllerResult = IDL.Record({
     'principal' : IDL.Principal,
     'previous' : IDL.Opt(IDL.Principal),
+  });
+  const ReleaseDurableAccessPolicyArguments = IDL.Record({
+    'policyId' : IDL.Nat,
   });
   const RenameArguments = IDL.Record({ 'entry' : Entry, 'newName' : IDL.Text });
   const CreateAccessRequestArguments = IDL.Record({
@@ -662,6 +775,11 @@ export const idlFactory = ({ IDL }) => {
         [AccessRequest],
         [],
       ),
+    'cancelDurableAccessPolicy' : IDL.Func(
+        [CancelDurableAccessPolicyArguments],
+        [DurableAccessPolicy],
+        [],
+      ),
     'cancelPendingAccessGrant' : IDL.Func(
         [CancelPendingAccessGrantArguments],
         [PendingAccessGrant],
@@ -681,7 +799,11 @@ export const idlFactory = ({ IDL }) => {
     'clear' : IDL.Func([ClearArguments], [], []),
     'clearRecoveryController' : IDL.Func([], [IDL.Principal], []),
     'clearStorage' : IDL.Func([], [], []),
-    'commitCaffeineUpload' : IDL.Func([CommitCaffeineUploadArgs], [], []),
+    'commitCaffeineUpload' : IDL.Func(
+        [CommitCaffeineUploadArgs],
+        [StorageResult],
+        [],
+      ),
     'commit_batch' : IDL.Func([CommitBatchArguments], [], []),
     'commit_proposed_batch' : IDL.Func([CommitProposedBatchArguments], [], []),
     'compute_evidence' : IDL.Func(
@@ -690,7 +812,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'configure' : IDL.Func([ConfigureArguments], [], []),
-    'create' : IDL.Func([CreateArguments], [NodeDetails], []),
+    'create' : IDL.Func([CreateArguments], [StorageResult_3], []),
     'createAccessBatch' : IDL.Func(
         [CreateAccessBatchArguments],
         [CreateAccessBatchResult],
@@ -701,6 +823,11 @@ export const idlFactory = ({ IDL }) => {
         [PrincipalAccessGrant],
         [],
       ),
+    'createDurableAccessPolicy' : IDL.Func(
+        [CreateDurableAccessPolicyArguments],
+        [DurableAccessPolicy],
+        [],
+      ),
     'createPendingAccessGrant' : IDL.Func(
         [CreatePendingAccessGrantArguments],
         [PendingAccessGrant],
@@ -708,12 +835,12 @@ export const idlFactory = ({ IDL }) => {
       ),
     'createStorageBatch' : IDL.Func(
         [CreateBatchArguments],
-        [CreateBatchResponse__1],
+        [StorageResult_2],
         [],
       ),
     'createStorageChunk' : IDL.Func(
         [CreateChunkArguments__1],
-        [CreateChunkResponse__1],
+        [StorageResult_1],
         [],
       ),
     'create_asset' : IDL.Func([CreateAssetArguments], [], []),
@@ -737,6 +864,7 @@ export const idlFactory = ({ IDL }) => {
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
     'getModuleHash' : IDL.Func([], [IDL.Opt(IDL.Vec(IDL.Nat8))], []),
     'getMyAccessRequest' : IDL.Func([], [IDL.Opt(AccessRequest)], ['query']),
+    'getOwnerActivityState' : IDL.Func([], [OwnerActivityState], ['query']),
     'getRecoveryStatus' : IDL.Func([], [RecoveryStatus], ['query']),
     'getStatus' : IDL.Func([], [StorageStatus], ['query']),
     'getStorageBackendType' : IDL.Func([], [StorageBackend], ['query']),
@@ -777,6 +905,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'listAccessRequests' : IDL.Func([], [IDL.Vec(AccessRequest)], ['query']),
+    'listDurableAccessPolicies' : IDL.Func(
+        [],
+        [IDL.Vec(DurableAccessPolicy)],
+        ['query'],
+      ),
     'listLatestStorageEvents' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(StoredStorageEvent)],
@@ -807,11 +940,26 @@ export const idlFactory = ({ IDL }) => {
     'markAllVisibleStorageEventsRead' : IDL.Func([], [], []),
     'markStorageEventsRead' : IDL.Func([IDL.Nat], [], []),
     'move' : IDL.Func([MoveArguments], [], []),
+    'processDurableAccessPolicies' : IDL.Func(
+        [],
+        [IDL.Vec(DurablePolicyProcessResult)],
+        [],
+      ),
     'propose_commit_batch' : IDL.Func([CommitBatchArguments], [], []),
+    'recordOwnerActivity' : IDL.Func(
+        [RecordOwnerActivityArguments],
+        [OwnerActivityRecord],
+        [],
+      ),
     'refreshSubscription' : IDL.Func([], [], []),
     'registerRecoveryController' : IDL.Func(
         [IDL.Principal],
         [RegisterRecoveryControllerResult],
+        [],
+      ),
+    'releaseDurableAccessPolicy' : IDL.Func(
+        [ReleaseDurableAccessPolicyArguments],
+        [DurablePolicyProcessResult],
         [],
       ),
     'removeRecoveryOwner' : IDL.Func([IDL.Principal], [], []),
@@ -858,7 +1006,7 @@ export const idlFactory = ({ IDL }) => {
     'takeRecoveryOwnership' : IDL.Func([], [OwnerEquivalentPrincipal], []),
     'take_ownership' : IDL.Func([], [], []),
     'unset_asset_content' : IDL.Func([UnsetAssetContentArguments], [], []),
-    'update' : IDL.Func([UpdateArguments], [], []),
+    'update' : IDL.Func([UpdateArguments], [StorageResult], []),
     'validate_commit_proposed_batch' : IDL.Func(
         [CommitProposedBatchArguments],
         [Result],

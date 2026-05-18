@@ -76,10 +76,10 @@
           <div hlmField>
             <div hlmFieldLabel>VetKey security level</div>
             <hlm-field-content>
-              <hlm-radio-group [value]="vetKeyLevel()" (valueChange)="$event && selectVetKeyLevel($event)">
+              <hlm-radio-group [value]="effectiveVetKeyLevel()" (valueChange)="selectVetKeyLevel($event)">
                 <div
-                  class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
-                  [attr.data-checked]="vetKeyLevel() === 'standard'"
+                  [class]="standardVetKeyOptionClass"
+                  [attr.data-checked]="effectiveVetKeyLevel() === 'standard'"
                   role="button" tabindex="0"
                   (click)="selectVetKeyLevel('standard')"
                   (keydown.enter)="selectVetKeyLevel('standard')"
@@ -97,20 +97,32 @@
                 </div>
 
                 <div
-                  class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
-                  [attr.data-checked]="vetKeyLevel() === 'high-replication'"
-                  role="button" tabindex="0"
+                  [class]="highReplicationVetKeyOptionClass()"
+                  [attr.data-checked]="effectiveVetKeyLevel() === 'high-replication'"
+                  [attr.aria-disabled]="!highReplicationVetKeyAvailable"
+                  role="button"
+                  [attr.tabindex]="highReplicationVetKeyAvailable ? 0 : -1"
                   (click)="selectVetKeyLevel('high-replication')"
                   (keydown.enter)="selectVetKeyLevel('high-replication')"
                   (keydown.space)="selectVetKeyLevel('high-replication'); $event.preventDefault()"
                 >
-                  <hlm-radio value="high-replication" class="mt-0.5"><hlm-radio-indicator /></hlm-radio>
+                  <hlm-radio
+                    value="high-replication"
+                    class="mt-0.5"
+                    [disabled]="!highReplicationVetKeyAvailable"
+                  ><hlm-radio-indicator /></hlm-radio>
                   <div class="flex-1">
                     <div class="flex items-center gap-2">
                       <ng-icon hlmIcon name="lucideShieldCheck" size="sm" />
                       <span class="font-medium">High Replication</span>
                     </div>
-                    <div class="text-muted-foreground text-sm mt-1">34-node subnet. ~$0.035 per key derivation. Higher fault tolerance.</div>
+                    <div class="text-muted-foreground text-sm mt-1">
+                      @if (highReplicationVetKeyAvailable) {
+                        34-node subnet. ~$0.035 per key derivation. Higher fault tolerance.
+                      } @else {
+                        Not available on the local development network.
+                      }
+                    </div>
                   </div>
                 </div>
               </hlm-radio-group>

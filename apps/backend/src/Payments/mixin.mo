@@ -30,6 +30,7 @@ mixin(
     activateSubscription : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>;
     grantPaidPeriod : (Principal, Subscriptions.Plan, Time.Time) -> Result.Result<Subscriptions.PaidPeriodResult, Text>;
     distributePayment : (TreasuryTypes.DistributePaymentArgs) -> async* TreasuryTypes.DistributePaymentResult;
+    storageVetKeyEnv : <system>(Payments.StorageVetKeyLevel) -> ?[{ name : Text; value : Text }];
     createStorageForUser : <system>(Principal, Blob, ?[{ name : Text; value : Text }]) -> Result.Result<(), Text>;
     addLicense : (Principal, { tokenId : TreasuryTypes.TokenId; amount : Nat; paymentId : Text; paidAt : Int }) -> Result.Result<(), { #DuplicatePayment }>;
   },
@@ -154,9 +155,7 @@ mixin(
           switch (Payments.extractStorageConfig(payment.metadata)) {
             case (?config) {
               let initArg = Payments.encodeStorageInitArg(userId, ?config.storageBackendType);
-              // Drop reserved-name entries coming from ICPay webhook metadata
-              // before forwarding to the canister init.
-              let envPairs = Payments.sanitizeEnvPairs(Payments.extractEnvPairs(payment.metadata));
+              let envPairs = Payments.sanitizeEnvPairs(deps.storageVetKeyEnv<system>(config.vetKeyLevel));
               switch (deps.createStorageForUser<system>(userId, initArg, envPairs)) {
                 case (#ok()) Debug.print("Auto-created storage for " # Principal.toText(userId));
                 case (#err(e)) Debug.print("Storage auto-create failed for " # Principal.toText(userId) # ": " # e);

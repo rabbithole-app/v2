@@ -27,6 +27,7 @@ import {
   lucideShieldCheck,
 } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
+import { cva } from 'class-variance-authority';
 import { toast } from 'ngx-sonner';
 import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
@@ -37,9 +38,13 @@ import {
   parseCanisterRejectError,
   StoragesService,
 } from '@rabbithole/core';
+import { ENV_NAME } from '@rabbithole/core/app-runtime';
 import { type StorageBackendType } from '@rabbithole/core/storage-runtime';
 import { WalletBalancePanelComponent } from '@rabbithole/core/wallet';
-import type { StorageBackendType as CandidStorageBackendType } from '@rabbithole/declarations/backend';
+import type {
+  StorageBackendType as CandidStorageBackendType,
+  StorageVetKeyLevel as CandidStorageVetKeyLevel,
+} from '@rabbithole/declarations/backend';
 import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
@@ -53,12 +58,32 @@ import {
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmRadioGroup, HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
+import { hlm } from '@spartan-ng/helm/utils';
 
 import { buildCreationSteps } from '../../utils';
 
 export type VetKeyLevel = 'high-replication' | 'standard';
 
 type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
+
+function isVetKeyLevel(value: unknown): value is VetKeyLevel {
+  return value === 'standard' || value === 'high-replication';
+}
+
+const vetKeyOptionVariants = cva(
+  'flex items-start gap-3 rounded-lg border p-4 transition-colors data-[checked=true]:border-primary data-[checked=true]:bg-muted/50',
+  {
+    variants: {
+      disabled: {
+        false: 'cursor-pointer hover:bg-accent/50',
+        true: 'cursor-not-allowed opacity-50',
+      },
+    },
+    defaultVariants: {
+      disabled: false,
+    },
+  },
+);
 
 @Component({
   selector: 'rbth-feat-storages-create-storage-dialog',
@@ -185,6 +210,14 @@ export class CreateStorageDialogComponent {
 
   readonly storageBackend = this.#storageBackend.asReadonly();
   readonly #vetKeyLevel = signal<VetKeyLevel>('standard');
+  readonly highReplicationVetKeyAvailable = ENV_NAME !== 'DEV';
+  readonly effectiveVetKeyLevel = computed<VetKeyLevel>(() =>
+    this.highReplicationVetKeyAvailable ? this.#vetKeyLevel() : 'standard',
+  );
+  readonly standardVetKeyOptionClass = hlm(vetKeyOptionVariants({ disabled: false }));
+  readonly highReplicationVetKeyOptionClass = computed(() =>
+    hlm(vetKeyOptionVariants({ disabled: !this.highReplicationVetKeyAvailable })),
+  );
 
   // ═══════════════════════════════════════════════════════════════
   // SERVICES
@@ -253,10 +286,12 @@ export class CreateStorageDialogComponent {
       const backendType: CandidStorageBackendType = this.storageBackend() === 'OnChain'
         ? { OnChain: null }
         : { BlobStorage: null };
-      const vetKeyName = this.vetKeyLevel() === 'standard' ? 'test_key_1' : 'key_1';
+      const vetKeyLevel: CandidStorageVetKeyLevel = this.effectiveVetKeyLevel() === 'high-replication'
+        ? { highReplication: null }
+        : { standard: null };
       const result = await this.#actor().purchaseLicenseAndCreateStorage(
         backendType,
-        [[{ name: 'VETKEY_NAME', value: vetKeyName }]],
+        vetKeyLevel,
       );
       if ('ok' in result) {
         // Backend returns creationId immediately — register it so the
@@ -295,7 +330,10 @@ export class CreateStorageDialogComponent {
   // FORM HANDLERS
   // ═══════════════════════════════════════════════════════════════
 
-  selectVetKeyLevel(level: VetKeyLevel): void {
+  selectVetKeyLevel(level: unknown): void {
+    if (!isVetKeyLevel(level)) return;
+    if (level === 'high-replication' && !this.highReplicationVetKeyAvailable) return;
+
     this.#vetKeyLevel.set(level);
   }
 

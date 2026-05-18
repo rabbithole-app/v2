@@ -22,6 +22,7 @@ import { filter, map, mergeWith } from 'rxjs';
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   CanisterDataInfo,
+  CoreTransparentSelectBackdropDirective,
   injectCoreWorker,
 } from '@rabbithole/core';
 import {
@@ -63,6 +64,7 @@ import { ICManagementService } from '../../services';
     ...HlmButtonGroupImports,
     ...HlmSelectImports,
     ...HlmSpinnerImports,
+    CoreTransparentSelectBackdropDirective,
     HlmIcon,
     NgIcon,
     CanisterMemoryComponent,

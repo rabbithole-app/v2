@@ -22,7 +22,10 @@ import {
   PaginationState,
 } from '@tanstack/angular-table';
 
-import { PrincipalCell } from '@rabbithole/core';
+import {
+  CoreTransparentSelectBackdropDirective,
+  PrincipalCell,
+} from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -47,6 +50,7 @@ interface ControllerItem {
     HlmButton,
     HlmSpinner,
     BrnSelectImports,
+    CoreTransparentSelectBackdropDirective,
     HlmSelectImports,
     ...HlmTableImports,
   ],

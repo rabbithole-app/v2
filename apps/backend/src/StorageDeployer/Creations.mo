@@ -67,6 +67,10 @@ module {
       ("canisterId", #Principal),
       ("progress", ProgressSchema),
     ])),
+    ("ReinstallingWasm", #Record([
+      ("canisterId", #Principal),
+      ("progress", ProgressSchema),
+    ])),
     ("UploadingFrontend", #Record([
       ("canisterId", #Principal),
       ("progress", ProgressSchema),

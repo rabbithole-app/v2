@@ -21,6 +21,9 @@ module Access {
   public type ClaimPendingAccessByVerifiedAttributesArguments = Types.ClaimPendingAccessByVerifiedAttributesArguments;
   public type CancelPendingAccessGrantArguments = Types.CancelPendingAccessGrantArguments;
   public type CreateDurableAccessGrantArguments = Types.CreateDurableAccessGrantArguments;
+  public type CreateDurableAccessPolicyArguments = Types.CreateDurableAccessPolicyArguments;
+  public type CancelDurableAccessPolicyArguments = Types.CancelDurableAccessPolicyArguments;
+  public type ReleaseDurableAccessPolicyArguments = Types.ReleaseDurableAccessPolicyArguments;
   public type CreateAccessRequestArguments = Types.CreateAccessRequestArguments;
   public type CancelAccessRequestArguments = Types.CancelAccessRequestArguments;
   public type ResolveAccessRequestArguments = Types.ResolveAccessRequestArguments;
@@ -31,6 +34,7 @@ module Access {
   };
 
   public func new(accountOwner : Principal) : Store {
+    let now = Time.now();
     let ownerEquivalentPrincipals = Map.new<Principal, OwnerEquivalentPrincipal>();
     ignore Map.add(
       ownerEquivalentPrincipals,
@@ -39,22 +43,80 @@ module Access {
       {
         principal = accountOwner;
         kind = #accountOwner;
-        addedAt = Time.now();
+        addedAt = now;
         addedBy = accountOwner;
         revokedAt = null;
         controllerRecoveryEnabled = false;
         rootPermissionBeforeRecovery = null;
       },
     );
+    let ownerActivityRecords = Map.new<Principal, Types.OwnerActivityRecord>();
+    ignore Map.add(
+      ownerActivityRecords,
+      phash,
+      accountOwner,
+      {
+        principal = accountOwner;
+        role = #accountOwner;
+        origin = #backend;
+        lastSeenAt = now;
+      },
+    );
     {
       var nextGrantId = 0;
       var nextAccessRequestId = 0;
+      var nextDurablePolicyId = 0;
       principalGrants = Map.new<Nat, Types.PrincipalAccessGrant>();
       pendingGrants = Map.new<Nat, Types.PendingAccessGrant>();
       accessRequests = Map.new<Nat, Types.AccessRequest>();
+      durablePolicies = Map.new<Nat, Types.DurableAccessPolicy>();
+      ownerActivityRecords;
       ownerEquivalentPrincipals;
       var recoveryController = null;
+      var lastOwnerActivityAt = now;
+      var lastOwnerActivityBy = accountOwner;
     };
+  };
+
+  func ownerActivityRole(store : Store, principal : Principal) : ?Types.OwnerActivityRole {
+    switch (Map.get(store.ownerEquivalentPrincipals, phash, principal)) {
+      case (?record) {
+        if (record.revokedAt != null) {
+          null;
+        } else {
+          switch (record.kind) {
+            case (#accountOwner) ?#accountOwner;
+            case (#recoveryOwner) ?#recoveryOwner;
+          };
+        };
+      };
+      case null null;
+    };
+  };
+
+  public func recordOwnerActivity(store : Store, caller : Principal, origin : Types.OwnerActivityOrigin) : Result.Result<Types.OwnerActivityRecord, Text> {
+    let ?role = ownerActivityRole(store, caller) else return #err("caller is not owner-equivalent");
+    let record : Types.OwnerActivityRecord = {
+      principal = caller;
+      role;
+      origin;
+      lastSeenAt = Time.now();
+    };
+    ignore Map.put(store.ownerActivityRecords, phash, caller, record);
+    store.lastOwnerActivityAt := record.lastSeenAt;
+    store.lastOwnerActivityBy := caller;
+    #ok(record);
+  };
+
+  public func getOwnerActivityState(store : Store, caller : Principal) : Result.Result<Types.OwnerActivityState, Text> {
+    if (not isOwnerEquivalent(store, caller)) {
+      return #err("caller is not owner-equivalent");
+    };
+    #ok({
+      lastOwnerActivityAt = store.lastOwnerActivityAt;
+      lastOwnerActivityBy = store.lastOwnerActivityBy;
+      records = Iter.toArray(Map.vals(store.ownerActivityRecords));
+    });
   };
 
   public func isOwnerEquivalent(store : Store, principal : Principal) : Bool {
@@ -261,6 +323,24 @@ module Access {
     let id = store.nextAccessRequestId;
     store.nextAccessRequestId += 1;
     id;
+  };
+
+  public func nextDurablePolicyId(store : Store) : Nat {
+    let id = store.nextDurablePolicyId;
+    store.nextDurablePolicyId += 1;
+    id;
+  };
+
+  public func putDurablePolicy(store : Store, policy : Types.DurableAccessPolicy) {
+    ignore Map.put(store.durablePolicies, nhash, policy.id, policy);
+  };
+
+  public func getDurablePolicy(store : Store, policyId : Nat) : ?Types.DurableAccessPolicy {
+    Map.get(store.durablePolicies, nhash, policyId);
+  };
+
+  public func listDurablePolicies(store : Store) : [Types.DurableAccessPolicy] {
+    Iter.toArray(Map.vals(store.durablePolicies));
   };
 
   func scopeEqual(a : Types.AccessScope, b : Types.AccessScope) : Bool {

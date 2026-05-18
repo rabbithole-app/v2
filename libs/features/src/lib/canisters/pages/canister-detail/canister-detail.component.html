@@ -5,16 +5,19 @@
       <div class="flex items-center gap-4">
         <h1 class="text-2xl font-semibold">Canister Management</h1>
 
-        <div hlmButtonGroup>
+        <div
+          hlmButtonGroup
+          class="[&>hlm-select>hlm-select-trigger>button]:rounded-r-none"
+        >
           <hlm-select
-            class="[&>div>hlm-select-trigger>button]:rounded-r-none"
+            coreTransparentSelectBackdrop
             [value]="currentCanisterId()"
             (valueChange)="_onCanisterChange($event)"
           >
             <hlm-select-trigger class="w-64">
               <hlm-select-value />
             </hlm-select-trigger>
-            <hlm-select-content>
+            <hlm-select-content *hlmSelectPortal>
               @for (canisterId of canisterList(); track canisterId) {
                 <hlm-select-item [value]="canisterId">
                   {{ canisterId }}

@@ -4,37 +4,42 @@
   </button>
   <rbth-drawer-content *brnSheetContent="let ctx">
     <rbth-drawer-header>
-      <h2 rbthDrawerTitle>Upload</h2>
-      @if (showStorageSwitcher()) {
-        <hlm-select
-          class="ml-auto"
-          [value]="selectedStorageId()"
-          (valueChange)="selectStorage($any($event))"
-        >
-          <hlm-select-trigger class="w-[180px]">
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content>
-            @for (id of storagesWithUploads(); track id) {
-              <hlm-select-item [value]="id">
-                {{ id.slice(0, 8) }}...
-              </hlm-select-item>
-            }
-          </hlm-select-content>
-        </hlm-select>
-      }
+      <div class="flex min-w-0 flex-1 items-center gap-3">
+        <h2 rbthDrawerTitle class="flex-none">Upload</h2>
+        @if (showStorageSwitcher()) {
+          <hlm-select
+            coreTransparentSelectBackdrop
+            [value]="selectedStorageId()"
+            (valueChange)="selectStorage($any($event))"
+          >
+            <hlm-select-trigger class="w-[180px]">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              @for (id of storagesWithUploads(); track id) {
+                <hlm-select-item [value]="id">
+                  {{ id.slice(0, 8) }}...
+                </hlm-select-item>
+              }
+            </hlm-select-content>
+          </hlm-select>
+        }
+      </div>
     </rbth-drawer-header>
     <div class="flex-1 overflow-y-auto space-y-6">
-      <div class="flex gap-2 px-4 pb-2">
-        <button hlmBtn (click)="fileListService.openDirectoryDialog()">
-          <ng-icon hlmIcon size="sm" name="lucideFolderUp" />
-          Upload directory
-        </button>
+      <div class="px-4">
+        <core-file-upload-dropzone (added)="upload($event)">
+          <button
+            coreFileUploadDropzoneAction
+            hlmBtn
+            variant="outline"
+            (click)="fileListService.openDirectoryDialog()"
+          >
+            <ng-icon hlmIcon size="sm" name="lucideFolderUp" />
+            Upload directory
+          </button>
+        </core-file-upload-dropzone>
       </div>
-      <core-file-upload-dropzone
-        class="flex flex-col gap-2 w-full px-4"
-        (added)="upload($event)"
-      />
       @if (activeItems().length) {
         <h3 rbthDrawerSeparator>Active</h3>
         <core-upload-drawer-list [items]="activeItems()" />

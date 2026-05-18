@@ -46,6 +46,7 @@ export type {
   SortDirection,
   StatsView,
   StorageBackendType,
+  StorageVetKeyLevel,
   StorageCreationRecord,
   StorageInfo,
   StoredNotification,

@@ -121,6 +121,75 @@ module {
     decidedBy : ?Principal;
   };
 
+  public type OwnerActivityOrigin = {
+    #rabbithole;
+    #storage;
+    #backend;
+  };
+
+  public type OwnerActivityRole = {
+    #accountOwner;
+    #recoveryOwner;
+  };
+
+  public type OwnerActivityRecord = {
+    principal : Principal;
+    role : OwnerActivityRole;
+    origin : OwnerActivityOrigin;
+    lastSeenAt : Time.Time;
+  };
+
+  public type OwnerActivityState = {
+    lastOwnerActivityAt : Time.Time;
+    lastOwnerActivityBy : Principal;
+    records : [OwnerActivityRecord];
+  };
+
+  public type DurablePolicyTrigger = {
+    #manualRelease;
+    #date : { releaseAt : Time.Time };
+    #inactivity : {
+      inactiveForNs : Nat;
+      gracePeriodNs : ?Nat;
+    };
+  };
+
+  public type DurablePolicyStatus = {
+    #armed;
+    #grace;
+    #matured;
+    #released;
+    #cancelled;
+  };
+
+  public type DurablePolicyGrantTemplate = {
+    scope : AccessScope;
+    permission : Permission;
+  };
+
+  public type DurableAccessPolicy = {
+    id : Nat;
+    recipients : [AccessRef];
+    grants : [DurablePolicyGrantTemplate];
+    trigger : DurablePolicyTrigger;
+    status : DurablePolicyStatus;
+    createdAt : Time.Time;
+    createdBy : Principal;
+    proVerifiedAt : Time.Time;
+    graceStartedAt : ?Time.Time;
+    maturedAt : ?Time.Time;
+    releasedAt : ?Time.Time;
+    cancelledAt : ?Time.Time;
+    principalGrantIds : [Nat];
+    pendingGrantIds : [Nat];
+  };
+
+  public type DurablePolicyProcessResult = {
+    policy : DurableAccessPolicy;
+    principalGrants : [PrincipalAccessGrant];
+    pendingGrants : [PendingAccessGrant];
+  };
+
   public type StorageAccessEvent = {
     #pendingGrantCreated : { grantId : Nat; ref : AccessRef; accessClass : AccessClass; source : AccessSource };
     #pendingGrantClaimed : {
@@ -141,16 +210,27 @@ module {
     #accessRequestCreated : { requestId : Nat; requester : Principal };
     #accessRequestResolved : { requestId : Nat; requester : Principal; status : AccessRequestStatus };
     #accessRequestCancelled : { requestId : Nat; requester : Principal };
+    #ownerActivityRecorded : { principal : Principal; role : OwnerActivityRole; origin : OwnerActivityOrigin };
+    #durablePolicyCreated : { policyId : Nat; status : DurablePolicyStatus; trigger : DurablePolicyTrigger };
+    #durablePolicyGraceStarted : { policyId : Nat };
+    #durablePolicyMatured : { policyId : Nat };
+    #durablePolicyReleased : { policyId : Nat };
+    #durablePolicyCancelled : { policyId : Nat };
   };
 
   public type Store = {
     var nextGrantId : Nat;
     var nextAccessRequestId : Nat;
+    var nextDurablePolicyId : Nat;
     principalGrants : Map.Map<Nat, PrincipalAccessGrant>;
     pendingGrants : Map.Map<Nat, PendingAccessGrant>;
     accessRequests : Map.Map<Nat, AccessRequest>;
+    durablePolicies : Map.Map<Nat, DurableAccessPolicy>;
+    ownerActivityRecords : Map.Map<Principal, OwnerActivityRecord>;
     ownerEquivalentPrincipals : Map.Map<Principal, OwnerEquivalentPrincipal>;
     var recoveryController : ?Principal;
+    var lastOwnerActivityAt : Time.Time;
+    var lastOwnerActivityBy : Principal;
   };
 
   public type AddRecoveryOwnerOptions = {
@@ -283,6 +363,24 @@ module {
     scope : AccessScope;
     permission : Permission;
     source : AccessSource;
+  };
+
+  public type CreateDurableAccessPolicyArguments = {
+    recipients : [AccessRef];
+    grants : [DurablePolicyGrantTemplate];
+    trigger : DurablePolicyTrigger;
+  };
+
+  public type CancelDurableAccessPolicyArguments = {
+    policyId : Nat;
+  };
+
+  public type ReleaseDurableAccessPolicyArguments = {
+    policyId : Nat;
+  };
+
+  public type RecordOwnerActivityArguments = {
+    origin : OwnerActivityOrigin;
   };
 
   public type CreateAccessRequestArguments = {

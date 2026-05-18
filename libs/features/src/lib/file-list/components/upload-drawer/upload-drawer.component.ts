@@ -26,6 +26,7 @@ import {
   UploadRegistryService,
   UploadState,
 } from '@rabbithole/core/storage-runtime';
+import { CoreTransparentSelectBackdropDirective } from '@rabbithole/core/ui';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -53,6 +54,7 @@ import { FileListService } from '../../services';
     NgIcon,
     RbthDrawerSeparatorDirective,
     CoreFileUploadDropzoneComponent,
+    CoreTransparentSelectBackdropDirective,
     UploadDrawerListComponent,
     BrnSelectImports,
     HlmSelectImports,

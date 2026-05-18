@@ -9,6 +9,7 @@ import Result "mo:core/Result";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
+import Int "mo:core/Int";
 import Nat8 "mo:core/Nat8";
 import Time "mo:core/Time";
 
@@ -163,6 +164,12 @@ module EncryptedFileStorage {
       case (#accessRequestCreated({ requester })) [requester];
       case (#accessRequestResolved({ requester })) [requester];
       case (#accessRequestCancelled({ requester })) [requester];
+      case (#ownerActivityRecorded({ principal })) [principal];
+      case (#durablePolicyCreated(_)) [];
+      case (#durablePolicyGraceStarted(_)) [];
+      case (#durablePolicyMatured(_)) [];
+      case (#durablePolicyReleased(_)) [];
+      case (#durablePolicyCancelled(_)) [];
     };
   };
 
@@ -176,6 +183,14 @@ module EncryptedFileStorage {
 
   public func isOwnerEquivalent(self : T.StableStore, principal : Principal) : Bool {
     Access.isOwnerEquivalent(self.access, principal);
+  };
+
+  public func recordOwnerActivity(self : T.StableStore, caller : Principal, args : T.RecordOwnerActivityArguments) : Result.Result<T.OwnerActivityRecord, Text> {
+    Access.recordOwnerActivity(self.access, caller, args.origin);
+  };
+
+  public func getOwnerActivityState(self : T.StableStore, caller : Principal) : Result.Result<T.OwnerActivityState, Text> {
+    Access.getOwnerActivityState(self.access, caller);
   };
 
   public func listOwnerEquivalentPrincipals(self : T.StableStore, caller : Principal) : Result.Result<[T.OwnerEquivalentPrincipal], Text> {
@@ -521,6 +536,12 @@ module EncryptedFileStorage {
     findBy : T.FindBy;
   };
 
+  type ValidatedDurablePolicyGrant = {
+    scope : T.AccessScope;
+    findBy : T.FindBy;
+    permission : T.Permission;
+  };
+
   func validateCreateAccessBatchItem(
     self : T.StableStore,
     caller : Principal,
@@ -599,9 +620,11 @@ module EncryptedFileStorage {
       case (#err(message)) return #err(message);
       case (#ok) {};
     };
-    switch (Permissions.getUserRights(self.fs, pending.createdBy, findBy, pending.createdBy)) {
-      case (#err(message)) return #err(message);
-      case (#ok(_)) {};
+    if (not sourceIsDurablePolicy(pending.source)) {
+      switch (Permissions.getUserRights(self.fs, pending.createdBy, findBy, pending.createdBy)) {
+        case (#err(message)) return #err(message);
+        case (#ok(_)) {};
+      };
     };
     #ok({ pending; scope = canonicalScope; findBy });
   };
@@ -636,6 +659,13 @@ module EncryptedFileStorage {
       return #ok;
     };
     ensureCanManageScope(self, caller, #root);
+  };
+
+  func sourceIsDurablePolicy(source : T.AccessSource) : Bool {
+    switch (source) {
+      case (#durablePolicy(_)) true;
+      case _ false;
+    };
   };
 
   func materializePendingAccessGrant(self : T.StableStore, caller : Principal, pending : T.PendingAccessGrant) : Result.Result<T.ClaimedPendingAccessGrant, Text> {
@@ -688,7 +718,12 @@ module EncryptedFileStorage {
       };
       case null {};
     };
-    switch (Permissions.setUserRights(self.fs, pending.createdBy, validated.findBy, principal, pending.permission)) {
+    let setRightsResult = if (sourceIsDurablePolicy(pending.source)) {
+      Permissions.setUserRightsUnchecked(self.fs, validated.findBy, principal, pending.permission);
+    } else {
+      Permissions.setUserRights(self.fs, pending.createdBy, validated.findBy, principal, pending.permission);
+    };
+    switch (setRightsResult) {
       case (#err(message)) #err(message);
       case (#ok) {
         switch (Access.createPrincipalAccessGrant(self.access, pending.createdBy, principal, pending.accessClass, validated.scope, pending.permission, pending.source)) {
@@ -1001,8 +1036,318 @@ module EncryptedFileStorage {
     };
   };
 
+  func validateDurablePolicyGrants(
+    self : T.StableStore,
+    caller : Principal,
+    grants : [T.DurablePolicyGrantTemplate],
+    requireManage : Bool,
+  ) : Result.Result<[ValidatedDurablePolicyGrant], Text> {
+    if (grants.size() == 0) {
+      return #err("durable policy must contain at least one grant");
+    };
+    if (grants.size() > 100) {
+      return #err("durable policy cannot contain more than 100 grants");
+    };
+    let validated = Vector.new<ValidatedDurablePolicyGrant>();
+    for (grant in grants.vals()) {
+      let (canonicalScope, findBy) = switch (resolveAccessScope(self, grant.scope)) {
+        case (#err(message)) return #err(message);
+        case (#ok(value)) value;
+      };
+      if (requireManage) {
+        switch (Permissions.getUserRights(self.fs, caller, findBy, caller)) {
+          case (#err(message)) return #err(message);
+          case (#ok(_)) {};
+        };
+      };
+      Vector.add(validated, {
+        scope = canonicalScope;
+        findBy;
+        permission = grant.permission;
+      });
+    };
+    #ok(Vector.toArray(validated));
+  };
+
+  func validateDurablePolicyRecipients(recipients : [T.AccessRef]) : Result.Result<(), Text> {
+    if (recipients.size() == 0) {
+      return #err("durable policy must contain at least one recipient");
+    };
+    if (recipients.size() > 100) {
+      return #err("durable policy cannot contain more than 100 recipients");
+    };
+    for (ref in recipients.vals()) {
+      switch (ref) {
+        case (#principal(principal)) {
+          switch (Access.validatePrincipalAccessGrant(principal, #durable, #durablePolicy(0))) {
+            case (#err(message)) return #err(message);
+            case (#ok) {};
+          };
+        };
+        case (#email(_) or #emailCommitment(_)) {};
+      };
+    };
+    #ok;
+  };
+
+  public func createDurableAccessPolicy(self : T.StableStore, caller : Principal, args : T.CreateDurableAccessPolicyArguments, shareGate : ?(() -> Result.Result<(), Text>)) : Result.Result<T.DurableAccessPolicy, Text> {
+    if (Principal.isAnonymous(caller)) {
+      return #err("anonymous caller not allowed");
+    };
+    switch (shareGate) {
+      case (?gate) switch (gate()) {
+        case (#ok) {};
+        case (#err(message)) return #err(message);
+      };
+      case null {};
+    };
+    switch (validateDurablePolicyRecipients(args.recipients)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    let validatedGrants = switch (validateDurablePolicyGrants(self, caller, args.grants, true)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    let policyId = Access.nextDurablePolicyId(self.access);
+    let policy : T.DurableAccessPolicy = {
+      id = policyId;
+      recipients = args.recipients;
+      grants = Array.map<ValidatedDurablePolicyGrant, T.DurablePolicyGrantTemplate>(
+        validatedGrants,
+        func(grant) = { scope = grant.scope; permission = grant.permission },
+      );
+      trigger = args.trigger;
+      status = #armed;
+      createdAt = Time.now();
+      createdBy = caller;
+      proVerifiedAt = Time.now();
+      graceStartedAt = null;
+      maturedAt = null;
+      releasedAt = null;
+      cancelledAt = null;
+      principalGrantIds = [];
+      pendingGrantIds = [];
+    };
+    Access.putDurablePolicy(self.access, policy);
+    #ok(policy);
+  };
+
+  func appendNat(ids : [Nat], value : Nat) : [Nat] {
+    Array.tabulate<Nat>(
+      ids.size() + 1,
+      func(index) {
+        if (index < ids.size()) ids[index] else value;
+      },
+    );
+  };
+
+  func releaseDurablePolicyUnchecked(self : T.StableStore, policy : T.DurableAccessPolicy) : Result.Result<T.DurablePolicyProcessResult, Text> {
+    if (policy.status == #released) {
+      return #ok({ policy; principalGrants = []; pendingGrants = [] });
+    };
+    if (policy.status == #cancelled) {
+      return #err("durable policy is cancelled");
+    };
+
+    let validatedGrants = switch (validateDurablePolicyGrants(self, policy.createdBy, policy.grants, false)) {
+      case (#err(message)) return #err(message);
+      case (#ok(value)) value;
+    };
+    let principalGrants = Vector.new<T.PrincipalAccessGrant>();
+    let pendingGrants = Vector.new<T.PendingAccessGrant>();
+    var principalGrantIds = policy.principalGrantIds;
+    var pendingGrantIds = policy.pendingGrantIds;
+
+    for (recipient in policy.recipients.vals()) {
+      for (grant in validatedGrants.vals()) {
+        switch (recipient) {
+          case (#principal(principal)) {
+            switch (Permissions.setUserRightsUnchecked(self.fs, grant.findBy, principal, grant.permission)) {
+              case (#err(message)) return #err(message);
+              case (#ok) {};
+            };
+            switch (Access.createPrincipalAccessGrant(self.access, policy.createdBy, principal, #durable, grant.scope, grant.permission, #durablePolicy(policy.id))) {
+              case (#err(message)) return #err(message);
+              case (#ok(result)) {
+                principalGrantIds := appendNat(principalGrantIds, result.grant.id);
+                Vector.add(principalGrants, result.grant);
+              };
+            };
+          };
+          case (#email(_) or #emailCommitment(_)) {
+            switch (Access.createPendingAccessGrant(self.access, policy.createdBy, {
+              ref = recipient;
+              accessClass = #durable;
+              scope = grant.scope;
+              permission = grant.permission;
+              source = #durablePolicy(policy.id);
+              expiresAt = null;
+            })) {
+              case (#err(message)) return #err(message);
+              case (#ok(result)) {
+                pendingGrantIds := appendNat(pendingGrantIds, result.grant.id);
+                Vector.add(pendingGrants, result.grant);
+              };
+            };
+          };
+        };
+      };
+    };
+
+    let released = {
+      policy with
+      status = #released;
+      releasedAt = ?Time.now();
+      principalGrantIds;
+      pendingGrantIds;
+    };
+    Access.putDurablePolicy(self.access, released);
+    #ok({
+      policy = released;
+      principalGrants = Vector.toArray(principalGrants);
+      pendingGrants = Vector.toArray(pendingGrants);
+    });
+  };
+
+  func inactivityDueAt(policy : T.DurableAccessPolicy, lastActivityAt : Time.Time) : ?Time.Time {
+    switch (policy.trigger) {
+      case (#inactivity({ inactiveForNs })) ?(lastActivityAt + Int.fromNat(inactiveForNs));
+      case _ null;
+    };
+  };
+
+  func shouldReleasePolicy(policy : T.DurableAccessPolicy, now : Time.Time, lastActivityAt : Time.Time) : Bool {
+    switch (policy.trigger) {
+      case (#manualRelease) false;
+      case (#date({ releaseAt })) now >= releaseAt;
+      case (#inactivity({ inactiveForNs; gracePeriodNs = null })) now >= lastActivityAt + Int.fromNat(inactiveForNs);
+      case (#inactivity({ gracePeriodNs = ?gracePeriodNs })) {
+        switch (policy.graceStartedAt) {
+          case (?startedAt) now >= startedAt + Int.fromNat(gracePeriodNs);
+          case null false;
+        };
+      };
+    };
+  };
+
+  public func processDurableAccessPolicies(self : T.StableStore, caller : Principal) : Result.Result<[T.DurablePolicyProcessResult], Text> {
+    if (Principal.isAnonymous(caller)) {
+      return #err("anonymous caller not allowed");
+    };
+    let results = Vector.new<T.DurablePolicyProcessResult>();
+    let now = Time.now();
+    for (policy in Access.listDurablePolicies(self.access).vals()) {
+      switch (policy.status) {
+        case (#cancelled or #released) {};
+        case (#armed) {
+          switch (policy.trigger) {
+            case (#inactivity({ gracePeriodNs = ?_ })) {
+              switch (inactivityDueAt(policy, self.access.lastOwnerActivityAt)) {
+                case (?dueAt) if (now >= dueAt) {
+                  let next = { policy with status = #grace; graceStartedAt = ?now };
+                  Access.putDurablePolicy(self.access, next);
+                  Vector.add(results, { policy = next; principalGrants = []; pendingGrants = [] });
+                };
+                case _ {};
+              };
+            };
+            case _ {
+              if (shouldReleasePolicy(policy, now, self.access.lastOwnerActivityAt)) {
+                switch (releaseDurablePolicyUnchecked(self, policy)) {
+                  case (#err(message)) return #err(message);
+                  case (#ok(result)) Vector.add(results, result);
+                };
+              };
+            };
+          };
+        };
+        case (#grace) {
+          switch (policy.graceStartedAt) {
+            case (?startedAt) {
+              if (self.access.lastOwnerActivityAt > startedAt) {
+                let next = { policy with status = #armed; graceStartedAt = null };
+                Access.putDurablePolicy(self.access, next);
+                Vector.add(results, { policy = next; principalGrants = []; pendingGrants = [] });
+              } else {
+                switch (policy.trigger) {
+                  case (#inactivity({ gracePeriodNs = ?gracePeriodNs })) {
+                    if (now >= startedAt + Int.fromNat(gracePeriodNs)) {
+                      switch (releaseDurablePolicyUnchecked(self, policy)) {
+                        case (#err(message)) return #err(message);
+                        case (#ok(result)) Vector.add(results, result);
+                      };
+                    };
+                  };
+                  case _ {};
+                };
+              };
+            };
+            case null {
+              let next = { policy with status = #armed; graceStartedAt = null };
+              Access.putDurablePolicy(self.access, next);
+              Vector.add(results, { policy = next; principalGrants = []; pendingGrants = [] });
+            };
+          };
+        };
+        case (#matured) {
+          if (shouldReleasePolicy(policy, now, self.access.lastOwnerActivityAt)) {
+            switch (releaseDurablePolicyUnchecked(self, policy)) {
+              case (#err(message)) return #err(message);
+              case (#ok(result)) Vector.add(results, result);
+            };
+          };
+        };
+      };
+    };
+    #ok(Vector.toArray(results));
+  };
+
+  public func releaseDurableAccessPolicy(self : T.StableStore, caller : Principal, args : T.ReleaseDurableAccessPolicyArguments) : Result.Result<T.DurablePolicyProcessResult, Text> {
+    if (not Access.isOwnerEquivalent(self.access, caller)) {
+      return #err("caller is not owner-equivalent");
+    };
+    let ?policy = Access.getDurablePolicy(self.access, args.policyId) else return #err("durable policy not found");
+    releaseDurablePolicyUnchecked(self, policy);
+  };
+
+  public func cancelDurableAccessPolicy(self : T.StableStore, caller : Principal, args : T.CancelDurableAccessPolicyArguments) : Result.Result<T.DurableAccessPolicy, Text> {
+    if (not Access.isOwnerEquivalent(self.access, caller)) {
+      return #err("caller is not owner-equivalent");
+    };
+    let ?policy = Access.getDurablePolicy(self.access, args.policyId) else return #err("durable policy not found");
+    switch (policy.status) {
+      case (#released) return #err("durable policy already released");
+      case (#cancelled) return #err("durable policy already cancelled");
+      case _ {};
+    };
+    let cancelled = { policy with status = #cancelled; cancelledAt = ?Time.now() };
+    Access.putDurablePolicy(self.access, cancelled);
+    #ok(cancelled);
+  };
+
+  public func listDurableAccessPolicies(self : T.StableStore, caller : Principal) : Result.Result<[T.DurableAccessPolicy], Text> {
+    if (not Access.isOwnerEquivalent(self.access, caller)) {
+      return #err("caller is not owner-equivalent");
+    };
+    #ok(Access.listDurablePolicies(self.access));
+  };
+
   public func hasActiveDurableGrantForKey(self : T.StableStore, caller : Principal, keyId : T.KeyId) : Bool {
-    Access.hasActiveDurableGrantForKey(self.access, caller, keyId);
+    for (grant in Access.listPrincipalAccessGrants(self.access).vals()) {
+      if (grant.principal == caller and grant.accessClass == #durable and grant.revokedAt == null) {
+        switch (grant.scope) {
+          case (#root) return true;
+          case (#keyId(grantKeyId)) {
+            if (grantKeyId == keyId or isAncestorScope(self, #keyId(grantKeyId), #keyId(keyId))) {
+              return true;
+            };
+          };
+          case _ {};
+        };
+      };
+    };
+    false;
   };
 
   public func createAccessRequest(self : T.StableStore, caller : Principal, args : T.CreateAccessRequestArguments) : Result.Result<(T.AccessRequest, Bool), Text> {
@@ -1231,12 +1576,17 @@ module EncryptedFileStorage {
 
     // Check if file is currently in staging (incomplete upload)
     let nodeKey = entryToNodeKey(self.fs, entry);
+    let existingNode = FileSystem.get(self.fs, #entry(entry));
+    let hasExistingNode = switch (existingNode) {
+      case (?_) true;
+      case null false;
+    };
     let inStaging = switch (nodeKey) {
       case (?nk) Map.has(self.staging, Utils.hashNodes, nk);
       case null false;
     };
 
-    let result = switch (inStaging, FileSystem.get(self.fs, #entry(entry)), createMode, kind) {
+    let result = switch (inStaging, existingNode, createMode, kind) {
       // File in staging with GetOrCreate → return existing node (retry upload)
       case (true, ?node, #GetOrCreate, #File) #ok(node);
       // File in staging with CreateNew → error (upload already in progress)
@@ -1247,8 +1597,9 @@ module EncryptedFileStorage {
 
     switch (result) {
       case (#ok(node)) {
-        // Mark new files in staging (not GetOrCreate on existing committed files)
-        let isNewFile = kind == #File and not inStaging and createMode == #CreateNew;
+        // Mark newly-created files in staging regardless of createMode.
+        // Existing committed files returned by GetOrCreate stay visible while uploading a new version.
+        let isNewFile = kind == #File and not inStaging and not hasExistingNode;
         if (isNewFile) {
           let nk : T.NodeKey = (#File, node.parentId, node.name);
           ignore Map.put(self.staging, Utils.hashNodes, nk, {

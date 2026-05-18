@@ -21,14 +21,15 @@ const KEY_STORAGE_DELEGATION = 'delegationChain';
  */
 export const loadIdentity = async (): Promise<Identity | null> => {
   // 1. Try standard AuthClient flow (works for rabbithole with Internet Identity)
-  const authClient = await createAuthClient();
-  const isAuthenticated = authClient.isAuthenticated();
-
-  if (isAuthenticated) {
+  try {
+    const authClient = await createAuthClient();
     const identity = await authClient.getIdentity();
     if (!isNullish(identity) && !identity.getPrincipal().isAnonymous()) {
       return identity;
     }
+  } catch {
+    // Continue to the storage delegation fallback instead of silently uploading
+    // as anonymous when AuthClient session hydration fails in the worker.
   }
 
   // 2. Fallback: try delegation-based auth (used by storage app)

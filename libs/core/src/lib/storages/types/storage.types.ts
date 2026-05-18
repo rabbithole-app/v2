@@ -51,6 +51,7 @@ export type StorageCreationStatus =
   | { amount: bigint; type: 'TransferringICP'; }
   | { blockIndex: bigint; type: 'NotifyingCMC'; }
   | { canisterId: Principal; progress: Progress; type: 'InstallingWasm'; }
+  | { canisterId: Principal; progress: Progress; type: 'ReinstallingWasm'; }
   | { canisterId: Principal; progress: Progress; type: 'UpgradingFrontend'; }
   | { canisterId: Principal; progress: Progress; type: 'UpgradingWasm'; }
   | { canisterId: Principal; progress: Progress; type: 'UploadingFrontend'; }
@@ -72,6 +73,7 @@ export type StorageCreationStatusType =
   | 'NotifyingCMC'
   | 'Pending'
   | 'ProcessingPayment'
+  | 'ReinstallingWasm'
   | 'RevokingInstallerPermission'
   | 'TransferringICP'
   | 'UpdatingControllers'

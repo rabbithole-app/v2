@@ -1679,6 +1679,17 @@ describe('FileSystem', () => {
       expect(fileNames).not.toContain('photo.jpg');
     });
 
+    test('GetOrCreate new file should stay hidden until update()', async () => {
+      await actor.create({
+        entry: [FILE, 'Uploads/get-or-create-new.jpg'],
+        createMode: GET_OR_CREATE,
+        encryptionMode: [],
+      });
+
+      const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
+      expect(items.map((item) => item.name)).not.toContain('get-or-create-new.jpg');
+    });
+
     test('file becomes visible in list() after full upload flow', async () => {
       // Create file
       await actor.create({

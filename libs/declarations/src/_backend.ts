@@ -39,6 +39,7 @@ export type {
   Progress,
   StatsView,
   StorageBackendType,
+  StorageVetKeyLevel,
   // Releases types
   ReleasesFullStatus,
   ReleaseFullStatus,

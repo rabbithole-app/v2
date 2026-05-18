@@ -28,10 +28,7 @@ async function createFailedStorageWithLicense(
   await fundUserForLicenseOnly(manager, backendFixture, identity);
   backendFixture.actor.setIdentity(identity);
 
-  const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-    { OnChain: null },
-    [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-  );
+  const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
   // Charge succeeds → startStorageCreation schedules deploy → deploy hits
   // insufficient ICP → record is marked #Failed. Outer `purchaseLicense...`
   // returns #ok because charge did succeed; failure is async on the queue.
@@ -102,6 +99,10 @@ function formatCreationStatus(status: CreationStatus): string {
   if ("InstallingWasm" in status) {
     const { processed, total } = status.InstallingWasm.progress;
     return `InstallingWasm (${processed}/${total})`;
+  }
+  if ("ReinstallingWasm" in status) {
+    const { processed, total } = status.ReinstallingWasm.progress;
+    return `ReinstallingWasm (${processed}/${total})`;
   }
   if ("UploadingFrontend" in status) {
     const { processed, total } = status.UploadingFrontend.progress;
@@ -462,10 +463,7 @@ describe("StorageDeployer", () => {
 
     // Purchase license and start creation
     console.log("\n=== Starting Storage Creation ===");
-    const createResult = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-    );
+    const createResult = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
     console.log("Create result:", createResult);
     expect(createResult).toHaveProperty("ok");
 
@@ -509,10 +507,7 @@ describe("StorageDeployer", () => {
     await fundUserForStorage(manager, backendFixture, duplicateTestIdentity);
     backendFixture.actor.setIdentity(duplicateTestIdentity);
 
-    const result1 = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-    );
+    const result1 = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
 
     if ("ok" in result1) {
       // Check if there's an active creation using listStorages
@@ -520,10 +515,7 @@ describe("StorageDeployer", () => {
       const activeStorage = findActiveStorage(storages);
 
       if (activeStorage) {
-        const result2 = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-          { OnChain: null },
-          [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-        );
+        const result2 = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
         console.log("Duplicate create result:", result2);
 
         expect(result2).toHaveProperty("err");
@@ -543,10 +535,7 @@ describe("StorageDeployer", () => {
     await fundUserForStorage(manager, backendFixture, secondUserIdentity);
     backendFixture.actor.setIdentity(secondUserIdentity);
 
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-    );
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
     console.log("Second user create result:", result);
     expect(result).toHaveProperty("ok");
 
@@ -568,10 +557,7 @@ describe("StorageDeployer", () => {
     await manager.mintToTreasurySubaccount(ICP_LEDGER_CANISTER_ID, 2n * E8S_PER_ICP);
 
     backendFixture.actor.setIdentity(identity);
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-    );
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
     expect(result).toHaveProperty("ok");
 
     const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
@@ -855,10 +841,7 @@ describe("StorageDeployer", () => {
     await fundUserForStorage(manager, backendFixture, updateInfoTestIdentity);
     backendFixture.actor.setIdentity(updateInfoTestIdentity);
 
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-    );
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
     expect(result).toHaveProperty("ok");
 
     const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
@@ -1040,10 +1023,7 @@ describe("StorageDeployer", () => {
     const identity = createIdentity("resume-not-failed");
     await fundUserForStorage(manager, backendFixture, identity);
     backendFixture.actor.setIdentity(identity);
-    await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-    );
+    await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
     await pollStorageStatus(manager, backendFixture, 60);
     const storages = await backendFixture.actor.listStorages();
     const completed = storages.find(s => "Completed" in s.status);
@@ -1053,6 +1033,27 @@ describe("StorageDeployer", () => {
     expect(result).toHaveProperty("err");
     if ("err" in result) expect(result.err).toMatch(/not in failed state/);
   }, 180000);
+
+  test("reinstallFailedStorageWasm: rejected when failed creation has no canister", async () => {
+    const identity = createIdentity("reinstall-no-canister");
+    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+
+    backendFixture.actor.setIdentity(identity);
+    const result = await backendFixture.actor.reinstallFailedStorageWasm(creationId);
+    expect(result).toHaveProperty("err");
+    if ("err" in result) expect(result.err).toMatch(/no canister/);
+  });
+
+  test("reinstallFailedStorageWasm: rejected for non-owner non-admin", async () => {
+    const owner = createIdentity("reinstall-owner-reject");
+    const creationId = await createFailedStorageWithLicense(manager, backendFixture, owner);
+
+    const stranger = createIdentity("reinstall-stranger");
+    backendFixture.actor.setIdentity(stranger);
+    const result = await backendFixture.actor.reinstallFailedStorageWasm(creationId);
+    expect(result).toHaveProperty("err");
+    if ("err" in result) expect(result.err).toMatch(/not owner and not admin/);
+  });
 
   test("refundFailedStorage: owner receives money back and record is removed", async () => {
     const identity = createIdentity("refund-owner");
@@ -1417,10 +1418,7 @@ describe("StorageDeployer", () => {
     await fundUserForStorage(manager, backendFixture, payer);
 
     // Happy-path purchase.
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: "VETKEY_NAME", value: "dfx_test_key" }]],
-    );
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
     expect(result).toHaveProperty("ok");
     if (!("ok" in result)) throw new Error();
     const creationId = result.ok;

@@ -45,6 +45,7 @@ export function convertSharedStorageView(
 export function isSharedStorageOpenBlocked(view: SharedStorageView): boolean {
   switch (view.storageStatus?.type) {
     case 'InstallingWasm':
+    case 'ReinstallingWasm':
     case 'RevokingInstallerPermission':
     case 'UpdatingControllers':
     case 'UpgradingFrontend':

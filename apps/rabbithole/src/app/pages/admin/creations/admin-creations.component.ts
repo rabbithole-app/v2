@@ -25,7 +25,12 @@ import {
   lucideRefreshCw,
   lucideRotateCcw,
   lucideServerCog,
+  lucideWrench,
 } from '@ng-icons/lucide';
+import {
+  BrnAlertDialogContent,
+  BrnAlertDialogTrigger,
+} from '@spartan-ng/brain/alert-dialog';
 import {
   ColumnDef,
   ColumnSizingState,
@@ -64,6 +69,7 @@ import {
   RbthPrincipalFilterModel,
   RbthTextFilterModel,
 } from '@rabbithole/ui/data-table-filter';
+import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
@@ -118,6 +124,7 @@ const STATUS_OPTIONS = [
   { label: 'Notifying CMC', value: 'NotifyingCMC' },
   { label: 'Canister created', value: 'CanisterCreated' },
   { label: 'Installing WASM', value: 'InstallingWasm' },
+  { label: 'Reinstalling WASM', value: 'ReinstallingWasm' },
   { label: 'Uploading frontend', value: 'UploadingFrontend' },
   { label: 'Revoking installer', value: 'RevokingInstallerPermission' },
   { label: 'Updating controllers', value: 'UpdatingControllers' },
@@ -134,6 +141,8 @@ const STATUS_OPTIONS = [
     DatePipe,
     NgIcon,
     AdminCreationStatusPopoverComponent,
+    BrnAlertDialogContent,
+    BrnAlertDialogTrigger,
     HlmBadge,
     HlmIcon,
     HlmSpinner,
@@ -141,6 +150,7 @@ const STATUS_OPTIONS = [
     RbthFilterValueDirective,
     UserTargetComboboxComponent,
     UserTargetComboboxValueDirective,
+    ...HlmAlertDialogImports,
     ...HlmButtonImports,
     ...HlmDropdownMenuImports,
     ...HlmTableImports,
@@ -161,6 +171,7 @@ const STATUS_OPTIONS = [
       lucideRefreshCw,
       lucideRotateCcw,
       lucideServerCog,
+      lucideWrench,
     }),
   ],
   templateUrl: './admin-creations.component.html',
@@ -414,6 +425,17 @@ export class AdminCreationsComponent {
     );
   }
 
+  protected _canReinstallWasm(record: CreationListItem): boolean {
+    return (
+      record.statusTag === 'Failed' &&
+      !!record.canisterId[0] &&
+      !record.isUpgrade &&
+      !record.completedAt[0] &&
+      !record.installedReleaseTag[0] &&
+      record.licensePaymentId.length > 0
+    );
+  }
+
   protected _canResume(record: CreationListItem): boolean {
     return record.statusTag === 'Failed';
   }
@@ -434,6 +456,7 @@ export class AdminCreationsComponent {
     return (
       this._canResume(record) ||
       this._canRecoverStuck(record) ||
+      this._canReinstallWasm(record) ||
       this._canRetryPayout(record) ||
       this._canRefund(record)
     );
@@ -495,6 +518,15 @@ export class AdminCreationsComponent {
       'recover-stuck',
       () => this.#actor().recoverStuckCreation(record.id),
       'Stuck creation recovery scheduled',
+    );
+  }
+
+  protected async _reinstallWasm(record: CreationListItem): Promise<void> {
+    await this._runResultAction(
+      record,
+      'reinstall-wasm',
+      () => this.#actor().reinstallFailedStorageWasm(record.id),
+      'WASM reinstall scheduled',
     );
   }
 

@@ -105,10 +105,7 @@ describe("Backend self-topup from treasury", () => {
     });
 
     backendFixture.actor.setIdentity(identity);
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-      { OnChain: null },
-      [[{ name: 'VETKEY_NAME', value: 'dfx_test_key' }]],
-    );
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
     expect(result).toHaveProperty("ok");
   });
 

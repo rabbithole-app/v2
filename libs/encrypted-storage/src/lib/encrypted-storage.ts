@@ -62,6 +62,8 @@ const AES_GCM_OVERHEAD = 28;
 /** Max plaintext that fits in one blob storage chunk after AES-GCM encryption */
 const CAFFEINE_PLAINTEXT_CHUNK_SIZE = CAFFEINE_CHUNK_SIZE - AES_GCM_OVERHEAD;
 
+type StorageResult<T> = T | { err: { code?: unknown; message?: string } } | { ok: T };
+
 export class EncryptedStorage {
   readonly #actor: ActorSubclass<EncryptedStorageActorService>;
   readonly #blobStorageClient?: BlobStorageGatewayClient;
@@ -136,11 +138,11 @@ export class EncryptedStorage {
     options?: { encryptionMode?: 'Encrypted' | 'Plaintext' },
   ) {
     const entry: EntryRaw = [{ Directory: null }, path];
-    return await this.#actor.create({
+    return unwrapStorageResult(await this.#actor.create({
       entry,
       createMode: { CreateNew: null },
       encryptionMode: toEncryptionMode(options?.encryptionMode),
-    });
+    }));
   }
 
   delete(entry: Entry) {
@@ -580,12 +582,12 @@ export class EncryptedStorage {
 
     // create file
     const details = await this.#limit(
-      () =>
-        this.#actor.create({
+      async () =>
+        unwrapStorageResult(await this.#actor.create({
           entry,
           createMode: { GetOrCreate: null },
           encryptionMode: toEncryptionMode(config.encryptionMode),
-        }),
+        })),
       config.signal,
     );
 
@@ -678,13 +680,13 @@ export class EncryptedStorage {
         ...state,
         [key]: { status: UploadState.FINALIZING },
       }));
-      await this.#actor.commitCaffeineUpload({
+      unwrapStorageResult(await this.#actor.commitCaffeineUpload({
         entry,
         sha256: new Uint8Array(contentHash.digest()),
         rootHash,
         contentType: config.contentType,
         size: BigInt(totalEncryptedSize),
-      });
+      }));
 
       unmount();
       return;
@@ -694,7 +696,7 @@ export class EncryptedStorage {
 
     // create batch
     const { batchId } = await this.#limit(
-      () => this.#actor.createStorageBatch({ entry, totalSize: BigInt(bytes.byteLength) }),
+      async () => unwrapStorageResult(await this.#actor.createStorageBatch({ entry, totalSize: BigInt(bytes.byteLength) })),
       config.signal,
     );
 
@@ -731,7 +733,7 @@ export class EncryptedStorage {
     const chunkIds: bigint[] = await Promise.all(
       encryptedChunks.map(async (content, index) => {
         const { chunkId } = await this.#limit(
-          () => this.#actor.createStorageChunk({ content, batchId }),
+          async () => unwrapStorageResult(await this.#actor.createStorageChunk({ content, batchId })),
           config.signal,
         );
         const plainChunkSize = Math.min(
@@ -761,7 +763,7 @@ export class EncryptedStorage {
     }));
 
     // update content
-    await this.#actor.update({
+    unwrapStorageResult(await this.#actor.update({
       File: {
         metadata: {
           sha256: [new Uint8Array(this.#sha256[key].digest())],
@@ -770,7 +772,7 @@ export class EncryptedStorage {
         },
         path: key,
       },
-    });
+    }));
 
     unmount();
   }
@@ -779,12 +781,12 @@ export class EncryptedStorage {
     path: string,
     color: string,
   ) {
-    return await this.#actor.update({
+    return unwrapStorageResult(await this.#actor.update({
       Directory: {
         path,
         metadata: { color: [{ [color]: null }] },
       },
-    } as Parameters<EncryptedStorageActorService['update']>[0]); // color is dynamic, keep cast
+    } as Parameters<EncryptedStorageActorService['update']>[0])); // color is dynamic, keep cast
   }
 
   #accessGrantListMode(mode: StorageAccessGrantListMode) {
@@ -1009,4 +1011,27 @@ export class EncryptedStorage {
   #storagePermissionFromRaw(permission: Permission__1): StoragePermission {
     return Object.keys(permission)[0] as StoragePermission;
   }
+}
+
+function storageErrorCodeLabel(code: unknown): string | null {
+  if (!code || typeof code !== 'object') return null;
+  const [label] = Object.keys(code);
+
+  return label ?? null;
+}
+
+function unwrapStorageResult<T>(result: StorageResult<T>): T {
+  if (result && typeof result === 'object' && 'err' in result) {
+    const { code, message } = result.err;
+    const label = storageErrorCodeLabel(code);
+    const fallback = message ?? 'Storage operation failed';
+
+    throw new Error(label ? `[${label}] ${fallback}` : fallback);
+  }
+
+  if (result && typeof result === 'object' && 'ok' in result) {
+    return result.ok;
+  }
+
+  return result as T;
 }
