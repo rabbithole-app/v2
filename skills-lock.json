@@ -12,6 +12,12 @@
       "sourceType": "github",
       "computedHash": "9c7d9f132a00440288123f76af21a50977178b65d3bd56d4077250ec008c71e7"
     },
+    "brand-writer": {
+      "source": "zed-industries/zed",
+      "sourceType": "github",
+      "skillPath": ".factory/skills/brand-writer/SKILL.md",
+      "computedHash": "414f539bb20a7326b1d2e341c62c21669442e437d923a3b91840fe6516eee296"
+    },
     "canhelp": {
       "source": "dfinity/icskills",
       "sourceType": "github",
@@ -133,6 +139,12 @@
       "source": "dfinity/icskills",
       "sourceType": "github",
       "computedHash": "0207638b0c3b0410900d355ad0dc63343f6ac1102b338b0349d430de34265118"
+    },
+    "humanizer": {
+      "source": "zed-industries/zed",
+      "sourceType": "github",
+      "skillPath": ".factory/skills/humanizer/SKILL.md",
+      "computedHash": "421a3d9577f6bb31f61d2aa0d083d36a648fa687a4545c0e4d5bf349c07ad572"
     },
     "ic-dashboard": {
       "source": "dfinity/icskills",
