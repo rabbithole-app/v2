@@ -1,0 +1,105 @@
+---
+title: How to verify ownership
+description: How to confirm that your storage belongs to you and Rabbithole is not a permanent controller
+sidebar:
+  order: 1
+---
+
+# How to verify ownership
+
+Ownership verification answers a simple question: who can manage your storage
+canister right now? For most users, the Rabbithole interface is enough.
+`icp-cli` is useful if you want to verify the same fact directly with Internet
+Computer tooling.
+
+In both cases, compare the controllers with the principal you use to sign in to
+Rabbithole through Internet Identity.
+
+## Check in Rabbithole
+
+Open the canister settings page inside the Rabbithole app:
+
+```text
+/dashboard/<your-storage-canister-id>/canister
+```
+
+The **Controllers** table should contain only the principals you expect. The
+current user's row is shown in bold.
+
+After the handoff is complete, Rabbithole must not remain listed there. If you
+just created storage or approved an update, wait for the operation to finish:
+during setup or update, temporary controller access can be part of the normal
+process.
+
+## Why the plain CLI principal can be different
+
+Internet Identity protects privacy by deriving a principal for each application
+web address. That means the principal for `rabbithole.app` can differ from your
+regular local `icp-cli` identity.
+
+Because of that, these two commands can be misleading on their own:
+
+```bash
+icp identity principal
+icp canister settings show <your-storage-canister-id> -n ic
+```
+
+They may use a local CLI identity rather than the Internet Identity principal
+you use in Rabbithole. For an accurate check, link a local identity to Internet
+Identity through Rabbithole's login host.
+
+## Check with icp-cli
+
+First, check that your `icp-cli` version supports Internet Identity linking:
+
+```bash
+icp identity link ii --help
+```
+
+If the command is unavailable, update `icp-cli` to a version that supports
+`icp identity link ii`.
+
+Then create a local identity linked to your Internet Identity for Rabbithole. In
+`icp-cli` 0.2.7, the app address is passed with `--host`:
+
+```bash
+icp identity link ii --host https://rabbithole.app rabbithole-app
+```
+
+The command opens the Internet Identity sign-in flow and stores a delegation for
+Rabbithole. You can then print the principal for that identity:
+
+```bash
+icp identity principal --identity rabbithole-app
+```
+
+Now verify the canister settings as that identity:
+
+```bash
+icp canister settings show <your-storage-canister-id> -n ic --identity rabbithole-app
+```
+
+Check the `controllers` field in the output:
+
+- your principal must be listed as a controller;
+- Rabbithole must not remain listed after the handoff is complete.
+
+When the delegation expires, refresh the sign-in:
+
+```bash
+icp identity login rabbithole-app
+```
+
+## Verify the code
+
+Controller verification shows who manages the canister. If you also want to
+verify the installed code, compare the module hash with the published release.
+
+The Internet Computer documentation explains the general process in its guide to
+[reproducible builds](https://docs.internetcomputer.org/building-apps/best-practices/reproducible-builds).
+
+## Continue reading
+
+- [Data sovereignty](./)
+- [Storage updates](./updates)
+- [Authentication](/en/how-it-works/authentication)

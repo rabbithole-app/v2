@@ -2,10 +2,10 @@
 title: Shared access
 description: Share storages, folders, and files with people who use Rabbithole or join later
 sidebar:
-  order: 1
+  order: 4
 ---
 
-import { Badge, OverviewGroup } from '@rspress/core/theme';
+import { OverviewGroup } from '@rspress/core/theme';
 
 Shared access lets you give another person access to a storage, folder, or
 file. The storage stays yours, and the person you invite gets only the level of
@@ -92,71 +92,6 @@ replace canister checks.
 
 :::
 
-## Types of shared access
-
-Rabbithole uses simple labels in the interface and more precise labels inside
-the canister.
-
-| User-facing type | Technical class | What it is for |
-|---|---|---|
-| **Standard access** | `ordinary` | Normal sharing and approved access requests. |
-| **Durable access** <Badge text="policy" type="info" outline /> | `durable` | Access described in advance by a policy and activated when the owner stays inactive. |
-| **Recovery access** <Badge text="recovery" type="warning" outline /> | `ownerEquivalent` | A backup owner principal with owner-level powers. |
-
-### Durable access
-
-Durable access is for emergency workflows where the owner defines a policy in
-advance: who receives access, which scope they receive, and which permission
-they receive if the owner is inactive for a configured period.
-
-While the owner keeps using the storage, the storage records owner activity
-and resets the timer. If the owner stays inactive long enough, the policy is
-released and creates normal access grants for the selected recipients.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Owner
-    participant Storage as Storage canister
-    participant Recipient
-
-    Owner->>Storage: Create emergency-access policy
-    Owner->>Storage: Use the storage
-    Storage->>Storage: Reset owner-activity timer
-    Note over Storage: If owner stays inactive long enough
-    Storage->>Storage: Release policy
-    Storage-->>Recipient: Grant predefined access
-```
-
-### Recovery access
-
-Recovery access covers the most conservative scenario: the owner must still be
-able to open the storage directly even if the main Rabbithole interface is
-unavailable.
-
-In the normal flow, you sign in through `rabbithole.app`, and the storage app
-receives a delegation from Rabbithole. The storage then sees the same
-principal that the main app uses.
-
-If the owner signs in directly through the storage URL, such as
-`<your-storage>.icp0.io`, Internet Identity treats that URL as a different
-application. For privacy, Internet Identity derives a separate principal for
-each application origin. Recovery access stores that storage-origin principal
-as a backup owner principal.
-
-Read more on the
-[Authentication](/en/how-it-works/authentication#why-one-user-can-have-different-principals)
-page.
-
-:::note{title="This is an extreme scenario"}
-
-Mentioning the main app being unavailable doesn't describe normal Rabbithole
-operation. It is an extreme case that demonstrates the sovereignty of the
-architecture: the storage remains an independent canister, and the owner needs
-a path to it even in the most negative scenarios.
-
-:::
-
 ## Terms used in this section
 
 These terms appear on the deeper pages.
@@ -186,8 +121,8 @@ These terms appear on the deeper pages.
         link: '/en/how-it-works/sharing/permissions',
       },
       {
-        text: 'Encryption and vetKeys',
-        link: '/en/how-it-works/sharing/encryption-and-vetkeys',
+        text: 'Encrypted sharing',
+        link: '/en/how-it-works/sharing/encryption-in-shared-access',
       },
       {
         text: 'Authentication and identity attributes',

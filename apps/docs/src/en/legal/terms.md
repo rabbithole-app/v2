@@ -5,7 +5,7 @@ description: Terms and conditions for using Rabbithole
 
 # Terms of Service
 
-**Last updated: March 2026**
+**Last updated: May 18, 2026**
 
 ## Overview
 
@@ -13,9 +13,12 @@ Rabbithole is a decentralized encrypted file storage service built on the Intern
 
 ## Your storage canister
 
-When you create a storage, a smart contract (canister) is deployed on the Internet Computer. After setup:
+When you create storage, a smart contract (canister) is deployed on the
+Internet Computer. After setup completes successfully:
 
 - **You are the sole controller** — Rabbithole removes itself from controllers
+  during handoff. During setup, retries, or approved updates, Rabbithole may be
+  added temporarily to install, retry, or update the deployment.
 - **You own your data** — your canister stores ownership, access rules, and
   trusted records; on-chain files are stored in the canister, while Blob Storage
   files store their file bytes outside the canister
@@ -41,8 +44,9 @@ solely responsible for what you store.
 
 ## Payments
 
-- Storage creation requires a one-time payment to cover canister creation and initial cycles
-- The entire payment goes to the Internet Computer network — Rabbithole takes zero profit
+- Storage creation requires a one-time setup payment. It covers canister
+  creation, the initial cycles balance, deployment operations, and related
+  infrastructure costs.
 - Payments are non-refundable once the canister is deployed
 - Future cycle top-ups can be done directly through the Internet Computer without Rabbithole
 
@@ -53,10 +57,19 @@ solely responsible for what you store.
 
 ## Limitation of liability
 
-Rabbithole is provided "as is" without warranty of any kind. We are not liable for:
-- Loss of data due to canister cycle depletion
-- Loss of access due to Internet Identity issues
-- Any damages arising from use of the service
+To the maximum extent permitted by applicable law, Rabbithole is provided "as
+is" and "as available" without warranties of any kind. We are not liable for:
+
+- Loss of data due to canister cycle depletion, storage-mode funding, deletion,
+  or failed exports
+- Loss of access due to Internet Identity, wallet, browser, device, or network
+  issues
+- Failed canister upgrades, failed retries, or rejected updates
+- Indirect, incidental, special, consequential, exemplary, or punitive damages
+  arising from use of the service
+
+Nothing in these terms limits liability that cannot be limited under applicable
+law.
 
 ## Termination
 
@@ -72,7 +85,11 @@ We may update these terms. Changes will be posted on this page. Continued use of
 
 ## Governing law
 
-These terms are governed by the laws applicable to decentralized protocols and smart contracts in your jurisdiction.
+These terms are intended to apply where permitted by law. They do not limit
+non-waivable consumer protection rights in your jurisdiction. The final
+governing-law and venue rules for a paid transaction may also depend on the
+legal entity, wallet, checkout provider, and jurisdiction involved in that
+transaction.
 
 ## Contact
 

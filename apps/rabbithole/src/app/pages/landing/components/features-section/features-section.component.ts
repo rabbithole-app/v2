@@ -90,7 +90,7 @@ export class FeaturesSectionComponent {
       icon: 'lucideKeyRound',
       title: 'Keys that vanish',
       description:
-        'Your encryption key is computed by 13–34 independent nodes via threshold cryptography. It exists only in your browser for a split second.',
+        'Your encryption key is derived through IC threshold cryptography. No single node sees the full key, and the key only exists in your browser briefly.',
       href: 'https://docs.rabbithole.app/en/how-it-works/encryption',
       colSpan: '',
       gradientFrom: '#9E7AFF',
@@ -101,7 +101,7 @@ export class FeaturesSectionComponent {
       icon: 'lucideShield',
       title: 'You are the sole controller',
       description:
-        'Each user gets a personal smart contract. After setup, Rabbithole removes itself — you are the only controller.',
+        'Each user gets a personal smart contract. After handoff, Rabbithole removes itself and you become the only controller.',
       href: 'https://docs.rabbithole.app/en/how-it-works/sovereignty',
       colSpan: '',
       gradientFrom: '#3B82F6',

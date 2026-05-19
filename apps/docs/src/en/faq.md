@@ -9,10 +9,15 @@ These answers explain who controls your storage and what remains under your
 control outside the Rabbithole interface.
 
 ### Who controls my storage canister?
-Only you. After deployment, Rabbithole removes itself from the controller list. You are the sole controller of your canister. See [Data Sovereignty](/en/how-it-works/sovereignty) for details.
+In the completed flow, you do. Rabbithole is a temporary controller during setup
+or an approved update so it can install or retry the deployment, then removes
+itself during handoff. See [Data Sovereignty](/en/how-it-works/sovereignty) for
+details.
 
 ### Can I use my own frontend?
-Yes. Your canister serves its own frontend, which you can replace. The canister API is public — you can interact with it via [Candid](https://internetcomputer.org/docs/building-apps/interact/candid/candid-concepts).
+Yes. Your canister serves its own frontend, which you can replace. The canister
+API is public — you can interact with it through
+[Candid](https://internetcomputer.org/docs/building-apps/interact/candid/candid-concepts).
 
 ### What happens to my data if I stop paying?
 With On-chain Storage, your data remains in your canister while the canister
@@ -26,42 +31,59 @@ Rabbithole.
 These answers cover the basic product model and everyday usage limits.
 
 ### What is Rabbithole?
-A decentralized file storage app built on the Internet Computer, designed around end-to-end encryption and personal canister ownership.
+A decentralized file storage app built on the Internet Computer, designed around
+end-to-end encryption and personal canister ownership.
 
 ### How much does it cost?
-You pay a fixed price to create your storage. This covers canister creation and an initial balance of compute cycles. Rabbithole does not profit from this — the entire payment goes to the Internet Computer network. See [Data Sovereignty](/en/how-it-works/sovereignty) for details.
+You pay a fixed setup price to create your storage. This covers canister
+creation, the initial cycles balance, deployment operations, and the
+infrastructure needed to complete the handoff. See
+[Data Sovereignty](/en/how-it-works/sovereignty) for details.
 
 ### What file types are supported?
-All file types. Rabbithole stores binary file data — the file format does not matter.
+All file types. Rabbithole stores binary file data, so the file format does not
+matter.
 
 ### Is there a file size limit?
-Individual files can be up to hundreds of megabytes. Files are split into fragments automatically.
+Rabbithole does not set a separate hard file-size limit. Files are split into
+fragments automatically; in practice, file size depends on the selected storage
+mode, funded resources, your browser, and connection quality.
 
 ## Security
 
 These answers summarize the confidentiality and recovery model.
 
 ### Can the Rabbithole team read my files?
-Not when encryption is enabled. In that mode, files are encrypted in your browser before upload. Without encryption, access rules still apply, but the full confidentiality guarantees do not.
+No. Rabbithole's code and product interface do not include a mechanism that
+gives the team separate access to user files.
+
+In encrypted mode, your browser encrypts the file before upload, so Rabbithole
+does not receive plaintext data. If you store a file without encryption, the
+canister and selected storage mode handle plaintext bytes. That is no longer a
+zero-knowledge mode, but it does not give the Rabbithole team an admin path to
+your files.
 
 ### What happens if I lose my device?
-You can recover access via Internet Identity's device recovery mechanism. In encrypted mode, your encryption keys are derived from your identity, not stored on any specific device.
+You can recover access through Internet Identity's device recovery mechanism. In
+encrypted mode, your encryption keys are derived from your identity, not stored
+on any specific device.
 
 ### Has Rabbithole been audited?
 The code is open source and available for community review. Formal audits are planned.
 
 ### What encryption does Rabbithole use?
-AES-GCM with per-fragment encryption. Keys are derived via ICP's vetKeys threshold cryptography. See [Encryption](/en/how-it-works/encryption) for details.
+AES-GCM with per-fragment encryption. Keys are derived through ICP's vetKeys
+threshold cryptography. See [Encryption](/en/how-it-works/encryption) for
+details.
 
 ## Technical
 
-These answers define the Internet Computer concepts used throughout the docs.
+These answers cover development, self-deployment, and direct canister access.
 
-### What is the Internet Computer?
-A decentralized blockchain network created by DFINITY. It runs smart contracts (canisters) that can serve web content and store data at scale.
-
-### What are canisters?
-Smart contracts on the Internet Computer. They're like programs running on a decentralized computer network. See [Storage](/en/how-it-works/storage) for details.
+### Where can I learn the basic Internet Computer terms?
+The [Core concepts](/en/getting-started/concepts) page explains the Internet
+Computer, canisters, principals, Internet Identity, controllers, and cycles in
+the Rabbithole context.
 
 ### Can I self-host Rabbithole?
 Yes. The code is [open source](https://github.com/rabbithole-app/v2). You can deploy your own canisters and frontend.

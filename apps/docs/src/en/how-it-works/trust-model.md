@@ -2,7 +2,7 @@
 title: Trust Model
 description: Why you can trust Rabbithole with your files
 sidebar:
-  order: 4
+  order: 6
 ---
 
 ## What do you need to trust?
@@ -12,7 +12,9 @@ Every storage system requires some level of trust. Here's exactly what Rabbithol
 The strongest privacy guarantees apply when encryption is enabled.  
 Without encryption, Rabbithole still enforces ownership and access rules, but storage infrastructure may see file contents.
 
-TEE support on the Internet Computer improves runtime isolation. Treat it as an additional hardening layer, not as Rabbithole's primary privacy guarantee.
+If TEE support is available on the relevant IC subnet, it can improve runtime
+isolation. Treat it as an additional hardening layer, not as Rabbithole's
+primary privacy guarantee.
 
 ### You do NOT need to trust
 
@@ -29,10 +31,16 @@ TEE support on the Internet Computer improves runtime isolation. Treat it as an 
 
 ## Threat model
 
+First, separate the storage modes: encryption adds content confidentiality, but
+access control and integrity verification still matter in both modes.
+
 | Mode | What is protected |
 |------|-------------------|
 | Encrypted | Access control + content confidentiality + integrity verification |
 | Plaintext | Access control + integrity verification |
+
+The next table shows which threats are covered fully, partially, or only in
+encrypted mode.
 
 | Threat | Protected? | How |
 |--------|-----------|-----|

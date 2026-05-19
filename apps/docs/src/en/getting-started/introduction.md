@@ -1,45 +1,94 @@
 ---
 title: Introduction
-description: What is Rabbithole and why it's fundamentally different
+description: Decentralized encrypted file storage you control
 ---
 
-# Rabbithole — privacy-first storage without unnecessary trust
+# Rabbithole — encrypted, decentralized file storage you control
 
-What if your cloud storage couldn't read your files — not because of a policy, but because of **mathematics** when encryption is enabled?
+Rabbithole is file storage for people who want a familiar cloud drive without a
+central owner that must be trusted with files, access rules, and encryption
+keys.
 
-Rabbithole is a decentralized file storage built on the [Internet Computer](https://internetcomputer.org/). In its encrypted mode, Rabbithole does not ask you to trust a company with file confidentiality. It replaces that trust with **verifiable cryptographic guarantees**.
+In a traditional cloud product, your files, backend logic, interface, and access
+rules live inside the operator's infrastructure. Rabbithole works differently:
+it creates separate storage for your account on the
+[Internet Computer](https://internetcomputer.org/), with its own web interface,
+code, state, and access rules.
+
+The Internet Computer matters here because it is not just a blockchain label.
+It is a network where the application can run as a whole: frontend, backend,
+state, and user storage do not need to be moved into a traditional cloud
+account. That lets Rabbithole create more than a row in a company database: it
+creates a separate storage canister and hands control of it to you.
+
+You can think of a
+[canister](https://docs.internetcomputer.org/concepts/canisters/) as a
+smart-contract application: it has code, state, and its own resource balance. In
+Rabbithole, that canister keeps file records, permissions, and, depending on the
+storage mode, the file bytes themselves.
+
+In encrypted mode, the file is encrypted directly in your browser before
+upload. Plaintext data is not sent to the storage backend, and keys are not
+derived from a password or stored by Rabbithole as a master key. The technical
+pages explain [vetKeys](https://docs.internetcomputer.org/concepts/vetkeys/)
+and storage modes later; the starting point is simpler: storage control and
+cryptography are built into the architecture, not only promised by the service.
+
+New to Internet Computer terms? Read [Core concepts](./concepts) first.
+
+## How it works in 30 seconds
+
+```mermaid
+flowchart LR
+    subgraph YB["Your Browser"]
+        A[Your file] --> B[Split into fragments]
+        B --> C[Encrypt locally]
+    end
+    subgraph BC["Internet Computer"]
+        C --> D[Your personal canister]
+    end
+    style YB fill:#f0f9ff,stroke:#0284c7
+    style BC fill:#dcfce7,stroke:#16a34a
+    style C fill:#6c63ff,color:#fff
+    style D fill:#22c55e,color:#fff
+```
+
+1. You sign in with [Internet Identity](https://id.ai), without creating
+   a Rabbithole password.
+2. Rabbithole creates an independent storage canister for your account.
+3. You upload files through the app.
+4. If encryption is enabled, your browser encrypts the file before upload.
+5. When you download it, the browser verifies and decrypts the file locally.
 
 ## The core idea
 
-Rabbithole is designed around end-to-end encryption, even though encryption depends on your plan and folder settings.
+Most cloud storage products ask you to trust an operator's promise: that it will
+protect the backend, enforce permissions correctly, keep the service alive, and
+not expose your files or keys. Rabbithole tries to move more of that trust into
+architecture.
 
-Every encrypted storage service promises "we can't read your files." But there's a fundamental difference between **policy** and **math**:
+Storage ownership is expressed through canister control. Access rules live with
+the storage canister. When encryption is enabled, files are encrypted in your
+browser, and key derivation is handled by the network instead of a
+password-derived master key stored by Rabbithole.
 
-| | Policy-based security | Math-based security (Rabbithole) |
-|---|---|---|
-| "We don't read your files" | Promise | **Impossible by design** |
-| Encryption keys | Stored on company servers | **Never exist in one place** |
-| Government request | Company may comply | **Nothing to hand over** |
-| Company shuts down | Data may be lost | **Your canister keeps running while funded** |
-| Who owns the infrastructure | The company | **You** |
+The result is not magic, and it does not remove every assumption. Your browser,
+the Internet Computer protocol, and Rabbithole's code still matter. But the
+center of gravity changes: the product relies less on "trust us" and more on
+protocol boundaries, canister ownership, and cryptography.
 
-## Why vetKeys change everything
+## How vetKeys fit in
 
-Most encrypted storage services derive your key from a password. That means: if someone gets your password, they get your files. If the company is compelled, they can potentially recover keys.
+Imagine a safe with no single master key. For each file, Rabbithole asks the
+network to derive a file key through
+[vetKeys](https://docs.internetcomputer.org/concepts/vetkeys/): each vetKD node
+returns only its own piece, and the full key is assembled in your browser. One
+node can't open the safe by itself and never sees the full key.
 
-Rabbithole uses [vetKeys](https://docs.internetcomputer.org/building-apps/network-features/vetkeys/introduction/) — a threshold cryptography protocol built into the Internet Computer:
-
-- Your encryption key is **computed on-demand** by 13-34 independent nodes cooperating
-- **No single node** ever knows your complete key
-- The key is **derived from your identity** — no passwords to lose or steal
-- Each file gets a **unique derived key** — compromising one file doesn't compromise others
-- The math is based on **BLS12-381 threshold signatures** and **Identity-Based Encryption (IBE)** — well-studied cryptographic primitives
-
-:::note{title="In simple terms"}
-
-Imagine 13 to 34 guards, each holding a piece of a key. Only when enough of them agree it's you, the pieces combine into a key that exists only in your browser, for a split second, and then vanishes. No guard ever sees the full key.
-
-:::
+Standard and High Replication are Rabbithole's product names for two VetKey
+levels. The node counts belong to the key service, not to file copies. Read
+[Keys and vetKeys](/en/how-it-works/encryption/vetkeys) when you want that
+detail.
 
 ## How it compares
 
@@ -54,39 +103,25 @@ Imagine 13 to 34 guards, each holding a piece of a key. Only when enough of them
 | Storj | Yes | Yes | Yes | Yes | — | Client-side |
 | **Rabbithole** | **Yes** | **Yes** | **Yes** | **Yes** | **Yes** | **Threshold crypto (vetKeys)** |
 
-**What sets Rabbithole apart:**
-- **No passwords for key derivation** — your key comes from your [Internet Identity](https://id.ai/), computed by the network itself
-- **Per-user canister** — you own the smart contract where your data lives. After deployment, Rabbithole removes itself as controller
-- **Verifiable** — all code is [open source](https://github.com/rabbithole-app/v2), the encryption runs in your browser, and the key derivation is enforced by blockchain consensus
+**How Rabbithole differs:**
+- **No passwords for key derivation** — your key comes from your
+  [Internet Identity](https://id.ai), computed by the network itself
+- **Per-user canister** — you own the smart contract where your data lives. After
+  a successful handoff, Rabbithole removes itself as controller
+- **Reviewable implementation** — the code is
+  [open source](https://github.com/rabbithole-app/v2), encryption runs in your
+  browser, and key derivation is enforced by IC consensus
 
-## How it works (in 30 seconds)
-
-```mermaid
-flowchart LR
-    subgraph YB["Your Browser"]
-        A[Your file] --> B[Split into fragments]
-        B --> C[Encrypt with vetKeys]
-    end
-    subgraph BC["Internet Computer"]
-        C --> D[Your personal canister]
-    end
-    style YB fill:#f0f9ff,stroke:#0284c7
-    style BC fill:#dcfce7,stroke:#16a34a
-    style C fill:#6c63ff,color:#fff
-    style D fill:#22c55e,color:#fff
-```
-
-1. **You own your canister** — a personal smart contract deployed just for you. See [Data Sovereignty](/en/how-it-works/sovereignty)
-2. You sign in with **[Internet Identity](https://id.ai/)** — passkeys, biometrics, or social login. No passwords
-3. If encryption is enabled for that file, it is **encrypted in your browser** using keys derived via vetKeys
-4. The file is stored through **your personal canister**
-5. When you download, the file is verified first and **decrypted locally** if encryption was enabled
-
-In encrypted mode, the server never sees your plaintext data. Not because we promise — because it is mathematically blocked by the design.
+In encrypted mode, plaintext is not uploaded to the canister or Blob Storage.
+Rabbithole still relies on your browser, IC consensus, and correct code. The
+[Trust Model](/en/how-it-works/trust-model) page lists those assumptions.
 
 :::tip{title="Want to go deeper?"}
 
-- [How Encryption Works](/en/how-it-works/encryption) — fragments, AES-GCM, key derivation per file
+- [Core concepts](/en/getting-started/concepts) — canisters, principals,
+  controllers, cycles, and vetKeys
+- [How Encryption Works](/en/how-it-works/encryption) — the user-level privacy model
+- [Keys and vetKeys](/en/how-it-works/encryption/vetkeys) — Standard, High Replication, and key derivation
 - [Data Sovereignty](/en/how-it-works/sovereignty) — canister creation, controller transfer, what if Rabbithole disappears
 - [Trust Model](/en/how-it-works/trust-model) — threat model, what you do and don't need to trust
 

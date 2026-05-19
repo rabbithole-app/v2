@@ -1,0 +1,12 @@
+[
+  {
+    "type": "file",
+    "name": "vetkeys",
+    "label": "Ключи и vetKeys"
+  },
+  {
+    "type": "file",
+    "name": "how-encryption-works",
+    "label": "Как устроено шифрование"
+  }
+]

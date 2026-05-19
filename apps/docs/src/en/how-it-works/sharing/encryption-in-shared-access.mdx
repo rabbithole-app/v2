@@ -1,5 +1,5 @@
 ---
-title: Encryption and vetKeys
+title: Encrypted sharing
 description: Why shared encrypted files don't need to be re-encrypted for every recipient
 sidebar:
   order: 4
@@ -13,7 +13,7 @@ session.
 This keeps sharing fast and keeps the owner out of the recipient's read path.
 The owner doesn't need to be online when the recipient opens a shared file.
 
-## The user-level idea
+## What changes when you share
 
 Think of an encrypted file as having two parts:
 
@@ -21,7 +21,7 @@ Think of an encrypted file as having two parts:
 - and a rule that says who can receive the key needed to decrypt them.
 
 When you share the file, Rabbithole changes the rule. It doesn't upload the
-file again, and it doesn't send your private key to the recipient.
+file again, and it doesn't send the recipient a key from the owner.
 
 ```mermaid
 flowchart LR
@@ -38,7 +38,7 @@ flowchart LR
 The storage canister checks the rule before the recipient gets the key material
 needed to decrypt the file.
 
-## Why this is safe
+## How the recipient gets the key
 
 The raw key is not handed to the canister. The browser creates a temporary
 transport key pair and sends only the public part to the canister. The derived
@@ -46,7 +46,30 @@ file key comes back encrypted for that browser session.
 
 Only the browser holding the matching temporary secret can decrypt and use it.
 
-## What sharing changes
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Recipient browser
+    participant S as Storage canister
+    participant FS as Permission store
+    participant V as IC vetKD API
+
+    B->>B: Generate transport key pair
+    B->>S: getEncryptedVetkey(keyId, transport public key)
+    S->>FS: Check Read access for principal
+    FS-->>S: Access allowed or rejected
+    S->>S: Build derivation input from key owner and key name
+    S->>V: vetkd_derive_key(input, context, transport public key)
+    V-->>S: Encrypted vetKey
+    S-->>B: Encrypted vetKey
+    B->>B: Decrypt and verify locally
+    B->>B: Decrypt file chunks
+```
+
+If the user does not have `Read` access for the key ID, the canister rejects
+the request before key derivation. Plaintext files don't expose a vetKey.
+
+## What this means for permissions
 
 Sharing changes permissions, not file contents.
 
@@ -59,50 +82,8 @@ This is why email invites work for encrypted files too. The invite can wait
 until the person signs in, and then the canister grants that person's principal
 the right to request the needed key.
 
-:::details{title="Technical view: vetKey derivation"}
-
-Rabbithole uses vetKeys, also called vetKD, for on-demand key derivation. The
-same canister, context, and input derive the same key, so the canister must
-check access before it asks the IC vetKD API to derive the key.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant B as Browser
-    participant S as Storage canister
-    participant FS as Permission store
-    participant V as IC vetKD API
-
-    B->>B: Generate transport key pair
-    B->>S: getEncryptedVetkey(keyId, transport public key)
-    S->>FS: ensureUserCanRead(keyId, caller)
-    FS-->>S: Effective permission
-    S->>S: Build derivation input from key owner and key name
-    S->>V: vetkd_derive_key(input, context, transport public key)
-    V-->>S: Encrypted vetKey
-    S-->>B: Encrypted vetKey
-    B->>B: Decrypt and verify locally
-    B->>B: Decrypt file chunks
-```
-
-If the caller doesn't have `Read` access for the key ID, the canister rejects
-the request before key derivation. Plaintext files don't expose a vetKey.
-
-:::
-
-## Permission checks and keys
-
-The same permission model controls file operations and key access.
-
-| Operation | Required permission |
-|---|---|
-| Open or download an encrypted file | **View** / `Read` |
-| Request the file key | **View** / `Read` |
-| Upload, rename, move, or delete | **Edit** / `ReadWrite` |
-| Manage sharing | **Manage** / `ReadWriteManage` |
-
-This applies to both storage modes. Blob Storage changes where file bytes live;
-it doesn't bypass the storage canister's permission and key checks.
+The full operation-to-permission table lives in the
+[Permission model](/en/how-it-works/sharing/permissions).
 
 ## Revocation limits
 
@@ -118,5 +99,6 @@ controls future access, not already-exported data.
 Read these pages for the larger model.
 
 - [How encryption works](/en/how-it-works/encryption)
+- [Keys and vetKeys](/en/how-it-works/encryption/vetkeys)
 - [Permission model](/en/how-it-works/sharing/permissions)
 - [Storage modes](/en/how-it-works/storage)

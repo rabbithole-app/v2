@@ -1,0 +1,106 @@
+---
+title: Как проверить владение
+description: Как убедиться, что ваше хранилище принадлежит вам, а Rabbithole не остаётся постоянным контроллером
+sidebar:
+  order: 1
+---
+
+# Как проверить владение
+
+Проверка владения отвечает на простой вопрос: кто сейчас может управлять вашей
+канистрой хранилища? Для большинства пользователей достаточно интерфейса
+Rabbithole. `icp-cli` нужен, если вы хотите проверить тот же факт напрямую через
+инструменты Internet Computer.
+
+В обоих случаях важно сравнивать контроллеров с тем principal, которым вы
+входите в Rabbithole через Internet Identity.
+
+## Проверка в Rabbithole
+
+Откройте страницу настроек канистры внутри приложения Rabbithole:
+
+```text
+/dashboard/<your-storage-canister-id>/canister
+```
+
+В таблице **Controllers** должны быть только ожидаемые
+principal-идентификаторы. Строка текущего пользователя выделяется жирным.
+
+После завершения передачи Rabbithole не должен оставаться в этом списке. Если
+вы только что создали хранилище или подтвердили обновление, дождитесь завершения
+операции: во время настройки или обновления временный доступ контроллера может
+быть частью нормального процесса.
+
+## Почему обычный principal из CLI может не совпасть
+
+Internet Identity защищает приватность тем, что выводит principal для
+конкретного веб-адреса приложения. Поэтому principal для `rabbithole.app` может
+отличаться от обычной локальной identity в `icp-cli`.
+
+Из-за этого две команды сами по себе могут ввести в заблуждение:
+
+```bash
+icp identity principal
+icp canister settings show <your-storage-canister-id> -n ic
+```
+
+Они могут использовать локальную CLI-identity, а не Internet Identity principal,
+которым вы входите в Rabbithole. Для корректной проверки нужно связать
+локальную identity с Internet Identity через login host Rabbithole.
+
+## Проверка через icp-cli
+
+Сначала проверьте, что ваша версия `icp-cli` поддерживает привязку к Internet
+Identity:
+
+```bash
+icp identity link ii --help
+```
+
+Если команда недоступна, обновите `icp-cli` до версии с поддержкой
+`icp identity link ii`.
+
+Затем создайте локальную identity, связанную с вашим Internet Identity для
+Rabbithole. В `icp-cli` 0.2.7 адрес приложения задаётся через `--host`:
+
+```bash
+icp identity link ii --host https://rabbithole.app rabbithole-app
+```
+
+Команда откроет вход через Internet Identity и сохранит делегацию для
+Rabbithole. После этого можно вывести principal именно этой identity:
+
+```bash
+icp identity principal --identity rabbithole-app
+```
+
+Теперь проверьте настройки канистры от имени этой identity:
+
+```bash
+icp canister settings show <your-storage-canister-id> -n ic --identity rabbithole-app
+```
+
+Проверьте поле `controllers` в выводе:
+
+- ваш principal должен быть в списке контроллеров;
+- Rabbithole не должен оставаться в списке после завершения передачи.
+
+Когда делегация истечёт, обновите вход:
+
+```bash
+icp identity login rabbithole-app
+```
+
+## Проверка кода
+
+Проверка контроллеров показывает, кто управляет канистрой. Если вы хотите
+проверить ещё и установленный код, сравните хеш модуля с опубликованным релизом.
+
+Internet Computer описывает общий процесс в руководстве по
+[reproducible builds](https://docs.internetcomputer.org/building-apps/best-practices/reproducible-builds).
+
+## Продолжить чтение
+
+- [Суверенитет данных](./)
+- [Обновления хранилища](./updates)
+- [Аутентификация](/ru/how-it-works/authentication)

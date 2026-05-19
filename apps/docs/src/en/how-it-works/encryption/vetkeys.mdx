@@ -1,0 +1,88 @@
+---
+title: Keys and vetKeys
+description: How Rabbithole derives encryption keys without a user password
+sidebar:
+  order: 1
+---
+
+## Why Rabbithole does not ask for an encryption password
+
+Many encrypted storage products derive file keys from a password or a recovery
+phrase. Rabbithole uses a different model: your browser signs in with
+[Internet Identity](https://id.ai), and the storage canister asks the Internet
+Computer to derive file keys with
+[vetKeys](https://docs.internetcomputer.org/concepts/vetkeys/).
+
+The storage canister does not get a raw password from you. It checks whether the
+caller has access to the file, then requests an encrypted key response for that
+browser session.
+
+## Analogy: a safe and a locked envelope
+
+Imagine a safe with no single master key. Several IC key-service nodes each
+hold only their share of the ability to produce a file key. Your browser brings
+a locked envelope. The network puts the derived file key into that envelope,
+and only your browser has the temporary secret needed to open it.
+
+No individual node sees the full key. Rabbithole does not receive the readable
+file contents. The storage canister's job is to decide whether a principal is
+allowed to ask for the key in the first place.
+
+## What happens during key derivation
+
+The normal flow is short:
+
+1. Your browser asks the storage canister for the key of an encrypted file.
+2. The canister checks access rules for your principal and that file.
+3. The canister calls the Internet Computer vetKD API with the file's derivation
+   input and your browser's temporary public transport key.
+4. The browser receives an encrypted vetKey, verifies it, and turns it into key
+   material for local encryption or decryption.
+
+The same file derives the same key material again, so Rabbithole does not need
+to store a permanent file key in the canister.
+
+## Standard and High Replication
+
+When you create encrypted storage, Rabbithole asks which VetKey level to use.
+This chooses which Internet Computer key service Rabbithole uses for
+derivation.
+
+| Level | Current key-service replication | Approx. derive cost | Good default for |
+|-------|---------------------------------|---------------------|------------------|
+| Standard (default) | 13 nodes | About $0.014 | Most encrypted storage |
+| High Replication | 34 nodes | About $0.035 | Users who want a larger key service and accept higher derive cost |
+
+The 13 and 34 numbers describe the current IC threshold key service behind each
+Rabbithole level. They do not describe the number of file copies, and they do
+not necessarily describe the subnet where your storage canister runs.
+
+If the Internet Computer or Rabbithole configuration changes later, check the
+current options on the storage creation screen. The docs explain the model; the
+creation screen shows the exact option you are about to buy.
+
+## How OpenCloud fits in
+
+[OpenCloud](https://opencloud.org/) lets builders create Internet Computer
+cloud engines with selected nodes and providers. Its
+[pricing guide](https://opencloud.org/pricing) currently shows a 4 x nano-node
+Hobby engine example.
+
+That is a hosting choice, not a replacement for the VetKey level. A storage
+canister has a hosting subnet. VetKey derivation uses the IC subnet that holds
+the selected vetKD master key. The management canister routes the derivation
+request between those layers.
+
+For Rabbithole users today, the visible encryption choice remains Standard or
+High Replication. OpenCloud matters because future deployments could expose
+hosting control separately from the key-service level used for encryption.
+
+## Cost and cycles
+
+Each encrypted upload or download that needs a fresh key derivation consumes
+cycles. Rabbithole estimates the derivation cost in dollars for readability, but
+the canister pays the network in cycles.
+
+This is separate from storage cost. Storage cost pays for keeping bytes
+available. Derivation cost pays for asking the network to produce the encrypted
+file key response.

@@ -1,0 +1,12 @@
+[
+  {
+    "type": "file",
+    "name": "verify-ownership",
+    "label": "How to verify ownership"
+  },
+  {
+    "type": "file",
+    "name": "updates",
+    "label": "Storage updates"
+  }
+]

@@ -1,6 +1,10 @@
 [
-  "sovereignty",
-  "encryption",
+  {
+    "type": "dir",
+    "name": "sovereignty",
+    "label": "Data sovereignty"
+  },
+  "authentication",
   {
     "type": "dir",
     "name": "storage",
@@ -8,10 +12,14 @@
   },
   {
     "type": "dir",
+    "name": "encryption",
+    "label": "Encryption"
+  },
+  {
+    "type": "dir",
     "name": "sharing",
     "label": "Shared access"
   },
   "payment",
-  "authentication",
   "trust-model"
 ]

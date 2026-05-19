@@ -2,7 +2,7 @@
 title: Authentication
 description: How Rabbithole signs you in, protects your privacy, and uses verified identity attributes
 sidebar:
-  order: 3
+  order: 1
 ---
 
 Authentication in Rabbithole starts with Internet Identity and ends with a
@@ -12,7 +12,7 @@ without turning email into your password or encryption key.
 
 ## Sign in without passwords
 
-Rabbithole uses **[Internet Identity](https://id.ai/)**, the Internet
+Rabbithole uses **[Internet Identity](https://id.ai)**, the Internet
 Computer's authentication system. You can sign in with several passwordless
 methods.
 
@@ -244,7 +244,7 @@ payloads.
 Use these resources to learn more about Internet Identity and identity
 attributes.
 
-- [Internet Identity](https://id.ai/)
+- [Internet Identity](https://id.ai)
 - [Internet Identity GitHub repository](https://github.com/dfinity/internet-identity)
 - [Internet Identity specification](https://docs.internetcomputer.org/reference/internet-identity-spec/)
 - [Identity Attributes design discussion](https://forum.dfinity.org/t/identity-attributes/64212)

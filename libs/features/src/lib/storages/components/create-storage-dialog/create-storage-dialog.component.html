@@ -72,9 +72,9 @@
             </hlm-field-content>
           </div>
 
-          <!-- VetKey Security Level -->
+          <!-- VetKey Replication Level -->
           <div hlmField>
-            <div hlmFieldLabel>VetKey security level</div>
+            <div hlmFieldLabel>VetKey replication level</div>
             <hlm-field-content>
               <hlm-radio-group [value]="effectiveVetKeyLevel()" (valueChange)="selectVetKeyLevel($event)">
                 <div
@@ -92,7 +92,9 @@
                       <span class="font-medium">Standard</span>
                       <span class="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">Recommended</span>
                     </div>
-                    <div class="text-muted-foreground text-sm mt-1">13-node subnet. ~$0.014 per key derivation.</div>
+                    <div class="text-muted-foreground text-sm mt-1">
+                      13-node vetKD key service. Lower cycle cost for most encrypted storage.
+                    </div>
                   </div>
                 </div>
 
@@ -118,7 +120,7 @@
                     </div>
                     <div class="text-muted-foreground text-sm mt-1">
                       @if (highReplicationVetKeyAvailable) {
-                        34-node subnet. ~$0.035 per key derivation. Higher fault tolerance.
+                        34-node vetKD key service. Higher cycle cost and stronger replication.
                       } @else {
                         Not available on the local development network.
                       }
@@ -127,8 +129,9 @@
                 </div>
               </hlm-radio-group>
               <hlm-field-description>
-                <a href="https://docs.rabbithole.app/en/how-it-works/storage" target="_blank" rel="noopener" class="underline hover:text-foreground">
-                  Learn more about VetKey security levels
+                Affects key-derivation cost and replication. Your storage canister is deployed separately.
+                <a href="https://docs.rabbithole.app/en/how-it-works/encryption/vetkeys#standard-and-high-replication" target="_blank" rel="noopener" class="underline hover:text-foreground">
+                  Learn more
                 </a>
               </hlm-field-description>
             </hlm-field-content>

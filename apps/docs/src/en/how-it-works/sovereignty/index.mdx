@@ -1,0 +1,164 @@
+---
+title: Data Sovereignty
+description: What you control when Rabbithole deploys personal storage for you
+sidebar:
+  order: 0
+---
+
+# Data sovereignty in Rabbithole
+
+Data sovereignty means your storage is not just an account in Rabbithole's
+database. When you create storage, Rabbithole deploys a personal Internet
+Computer canister for you with storage code, data, and its own web interface.
+
+After the handoff completes, Rabbithole removes itself from the controllers.
+The storage remains part of the Internet Computer, but control moves to you.
+
+:::tip{title="Short version"}
+
+Rabbithole helps create the storage and remains a service around it. The storage
+itself belongs to you: you can open it directly, fund it with cycles, and decide
+whether to accept future updates.
+
+:::
+
+## What you control
+
+After the initial handoff, your Internet Identity principal becomes the
+controller of the storage canister. That gives you direct control over the
+infrastructure that stores file records, access rules, frontend assets, and, in
+On-chain Storage, the file bytes themselves.
+
+You control these parts of your storage:
+
+- **Canister settings**: your principal manages controllers and upgrades.
+- **Direct access**: your canister serves its own frontend at
+  `https://<canister-id>.icp0.io`.
+- **Cycle funding**: you can keep the storage running with Rabbithole Pro or
+  with direct Internet Computer tooling.
+- **Updates**: you choose whether Rabbithole gets temporary access to install a
+  new version.
+- **Deletion**: you can delete the canister and its data when you no longer need
+  the storage.
+
+## What Rabbithole still does
+
+Sovereignty does not mean Rabbithole disappears from the user experience. It
+means Rabbithole becomes a service layer around infrastructure that you control.
+
+Rabbithole can still provide:
+
+- the main app interface at `rabbithole.app`;
+- storage creation and initial setup;
+- optional code and frontend asset updates;
+- Pro top-ups that keep the cycle balance funded automatically;
+- Blob Storage coordination when you choose the lower-cost storage mode.
+
+## How storage is created
+
+Rabbithole uses temporary access only to create and initialize your storage. The
+handoff happens before the storage becomes your independent canister.
+
+```mermaid
+flowchart TB
+    subgraph S1["Step 1: Payment"]
+        U1[You] -->|fixed price| PAY[Rabbithole]
+    end
+    subgraph S2["Step 2: Deployment"]
+        direction TB
+        PAY -->|create canister| CAN[New canister]
+        CAN -->|controllers: You + Rabbithole| W[Install WASM module]
+        W --> FE[Install frontend assets]
+    end
+    subgraph S3["Step 3: Handoff"]
+        FE --> RV[Revoke asset write permission]
+        RV --> RM[Remove Rabbithole as controller]
+        RM ==> OWN[You are the sole controller]
+    end
+    subgraph S4["Result: Your storage"]
+        OWN --> A1[rabbithole.app]
+        OWN --> A2["https://&lt;canister-id&gt;.icp0.io"]
+    end
+    style S1 fill:#e0f2fe,stroke:#0284c7
+    style S2 fill:#fef3c7,stroke:#d97706
+    style S3 fill:#dcfce7,stroke:#16a34a
+    style S4 fill:#f0fdf4,stroke:#16a34a
+    style OWN fill:#22c55e,color:#fff
+    style RM fill:#fb923c,color:#000
+    style RV fill:#fed7aa,stroke:#d97706
+    style A1 fill:#a5d8ff,stroke:#0284c7
+    style A2 fill:#a5d8ff,stroke:#0284c7
+```
+
+The creation flow has three phases:
+
+1. **You pay for deployment**. The setup payment covers canister creation, the
+   initial cycle balance, deployment operations, and related infrastructure
+   costs.
+2. **Rabbithole installs the storage**. The canister receives the storage code
+   and frontend assets it will serve.
+3. **Rabbithole completes the handoff**. The service revokes its asset write
+   permission and removes itself from the canister controllers.
+
+After that handoff, Rabbithole no longer has permanent administrative access to
+your canister. The intended final state is your principal as the only
+controller.
+
+## What happens if Rabbithole is unavailable
+
+Rabbithole is one interface to your storage, not the owner of the canister. If
+`rabbithole.app` is unavailable, the canister can still serve its own frontend
+while it has enough cycles.
+
+```mermaid
+flowchart LR
+    subgraph NORMAL["Normal operation"]
+        direction LR
+        U1[You] -->|rabbithole.app| C1[Your canister]
+        U1 -->|direct URL| C1
+    end
+    subgraph GONE["Rabbithole is unavailable"]
+        direction LR
+        U2[You] -.->|rabbithole.app| X[Unavailable]
+        U2 ==>|"direct: canister-id.icp0.io"| C2[Your canister]
+    end
+    style NORMAL fill:#dcfce7,stroke:#16a34a
+    style GONE fill:#fef3c7,stroke:#d97706
+    style X fill:#fca5a5,stroke:#ef4444
+    style C1 fill:#22c55e,color:#fff
+    style C2 fill:#22c55e,color:#fff
+```
+
+What remains available depends on your storage mode:
+
+- **On-chain Storage**: file bytes stay inside your canister while it remains
+  funded.
+- **Blob Storage**: your canister keeps the trusted file record and verification
+  data, while file-byte availability depends on the Blob Storage retention
+  lifecycle.
+
+## Model boundaries
+
+Data sovereignty removes Rabbithole as a permanent controller, but it does not
+remove every operational dependency. These limits are worth understanding up
+front.
+
+- **Cycles are still required**. An unfunded canister can freeze and may later
+  be removed by the Internet Computer network.
+- **Blob Storage has a separate availability model**. The canister keeps the
+  file record, but file bytes depend on Blob Storage funding and retention.
+- **Encryption is a separate topic**. Sovereignty controls ownership and
+  administration; encryption controls file confidentiality.
+- **Lost identity is still a risk**. If you lose access to the Internet Identity
+  that controls the canister, Rabbithole cannot recover control for you.
+
+## Continue reading
+
+These pages explain the sovereignty model and related product areas in more
+detail.
+
+- [How to verify ownership](./verify-ownership)
+- [Storage updates](./updates)
+- [Authentication](/en/how-it-works/authentication)
+- [Storage](/en/how-it-works/storage)
+- [Payment & Cycles](/en/how-it-works/payment)

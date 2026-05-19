@@ -7,7 +7,7 @@ import { HlmAccordionImports } from '@spartan-ng/helm/accordion';
 const FAQ_ITEMS = [
   {
     question: 'What is a canister?',
-    answer: 'A canister is a smart contract on the Internet Computer blockchain. It stores your files, encryption keys, and permissions. You are the sole controller — no one else can access or modify your data.',
+    answer: 'A canister is a smart contract on the Internet Computer blockchain. It stores your file records, permissions, and on-chain file bytes when you choose On-chain Storage. After handoff, you are the controller; Rabbithole only uses temporary controller access for setup, retries, or approved updates.',
   },
   {
     question: 'Can I lose my files?',
@@ -15,7 +15,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'What payment methods are accepted?',
-    answer: 'We accept ICP, ckUSDC, ckUSDT, ckETH on the Internet Computer, USDC and USDT on Base (Ethereum L2), and SOL, USDC, USDT on Solana. You can also pay via ICPay checkout.',
+    answer: 'We currently accept ICP, ckUSDC, ckUSDT, ckETH on the Internet Computer, USDC and USDT on Base (Ethereum L2), and SOL, USDC, USDT on Solana. Rabbithole shows the available options again before you confirm a payment.',
   },
   {
     question: 'What happens if Rabbithole shuts down?',

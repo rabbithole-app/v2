@@ -5,6 +5,8 @@ sidebar:
   order: 3
 ---
 
+import { Badge } from '@rspress/core/theme';
+
 Permissions answer a simple question: what can this person do with this
 storage, folder, or file?
 
@@ -25,19 +27,20 @@ Rabbithole shows three levels in the interface.
 Choose **View** for a reader, **Edit** for a collaborator, and **Manage** for
 someone who can also invite or remove other people.
 
-:::details{title="Technical names used by the canister"}
+## Operations and required permissions
 
-The canister stores these permissions as:
+The same permission model controls file operations, shared access, and key
+requests for encrypted files. The name after `/` is the canister permission.
 
-| UI label | Canister permission |
+| Operation | Required permission |
 |---|---|
-| **View** | `Read` |
-| **Edit** | `ReadWrite` |
-| **Manage** | `ReadWriteManage` |
+| Open a folder or download a file | **View** / `Read` |
+| Request the key for an encrypted file | **View** / `Read` |
+| Upload, rename, move, or delete | **Edit** / `ReadWrite` |
+| Manage shared access | **Manage** / `ReadWriteManage` |
 
-`ReadWriteManage` is required to inspect and change access grants for a scope.
-
-:::
+Blob Storage changes where file bytes live. It does not bypass permission checks
+in the storage canister.
 
 ## What a scope means
 
@@ -104,6 +107,66 @@ was claimed through Rabbithole or through the direct storage app.
 
 :::
 
+## Special access classes
+
+Most sharing uses standard access. Rabbithole also has rarer access classes for
+recovery and predefined policies.
+
+| User-facing type | Technical class | What it is for |
+|---|---|---|
+| **Standard access** | `ordinary` | Normal sharing and approved access requests. |
+| **Durable access** <Badge text="policy" type="info" outline /> | `durable` | Access described in advance by a policy and activated when the owner stays inactive. |
+| **Recovery access** <Badge text="recovery" type="warning" outline /> | `ownerEquivalent` | A backup owner principal with owner-level powers. |
+
+:::details{title="Durable access"}
+
+Durable access is for emergency workflows. The owner defines in advance who
+receives access, which scope they receive, and which permission they receive if
+the owner is inactive for a configured period.
+
+While the owner keeps using the storage, the canister records owner activity and
+resets the timer. If the owner stays inactive long enough, the policy is
+released and creates normal access grants for the selected recipients.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Owner
+    participant Storage as Storage canister
+    participant Recipient
+
+    Owner->>Storage: Create emergency-access policy
+    Owner->>Storage: Use the storage
+    Storage->>Storage: Reset owner-activity timer
+    Note over Storage: If owner stays inactive long enough
+    Storage->>Storage: Release policy
+    Storage-->>Recipient: Grant predefined access
+```
+
+:::
+
+:::details{title="Recovery access"}
+
+Recovery access covers the most conservative scenario: the owner must still be
+able to open the storage directly even if the main Rabbithole interface is
+unavailable.
+
+In the normal flow, you sign in through `rabbithole.app`, and the storage app
+receives a delegation from Rabbithole. The storage then sees the same principal
+that the main app uses.
+
+If the owner signs in directly through the storage URL, such as
+`<your-storage>.icp0.io`, Internet Identity treats that URL as a different
+application. For privacy, Internet Identity derives a separate principal for
+each application origin. Recovery access stores that storage-origin principal as
+a backup owner principal.
+
+Read more on the
+[Authentication](/en/how-it-works/authentication#why-one-user-can-have-different-principals)
+page.
+
+:::
+
 ## Access requests
 
 If a signed-in user opens a storage without permission, Rabbithole can show a
@@ -145,4 +208,4 @@ These pages cover the systems that permissions depend on.
 
 - [Shared access overview](/en/how-it-works/sharing/)
 - [Email invites](/en/how-it-works/sharing/email-invites)
-- [Encryption and vetKeys](/en/how-it-works/sharing/encryption-and-vetkeys)
+- [Encrypted sharing](/en/how-it-works/sharing/encryption-in-shared-access)

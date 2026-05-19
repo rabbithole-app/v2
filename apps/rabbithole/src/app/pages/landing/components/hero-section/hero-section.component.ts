@@ -30,7 +30,8 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
         </h1>
         <p class="mt-5 max-w-md text-lg text-muted-foreground max-lg:mx-auto">
           No passwords. No master keys.
-          Your files are protected by mathematics, not promises.
+          When encryption is on, files are sealed in your browser and
+          protected by cryptography, not cloud promises.
         </p>
         <div class="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
           <a rbthRainbowBtn size="lg" [routerLink]="ctaLink()">{{ ctaText() }}</a>

@@ -2,7 +2,7 @@
 title: Аутентификация
 description: Как Rabbithole выполняет вход, защищает приватность и использует проверенные Identity Attributes
 sidebar:
-  order: 3
+  order: 1
 ---
 
 Аутентификация в Rabbithole начинается с Internet Identity и приводит к
@@ -13,7 +13,7 @@ principal-идентификатору, который может вызыват
 
 ## Вход без паролей
 
-Rabbithole использует **[Internet Identity](https://id.ai/)** — систему
+Rabbithole использует **[Internet Identity](https://id.ai)** — систему
 аутентификации Internet Computer. Вы можете войти несколькими способами без
 пароля.
 
@@ -256,7 +256,7 @@ sequenceDiagram
 Эти ресурсы помогут глубже разобраться в Internet Identity и Identity
 Attributes.
 
-- [Internet Identity](https://id.ai/)
+- [Internet Identity](https://id.ai)
 - [Internet Identity GitHub repository](https://github.com/dfinity/internet-identity)
 - [Internet Identity specification](https://docs.internetcomputer.org/reference/internet-identity-spec/)
 - [Identity Attributes design discussion](https://forum.dfinity.org/t/identity-attributes/64212)

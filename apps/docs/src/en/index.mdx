@@ -2,7 +2,7 @@
 pageType: home
 hero:
   name: Rabbithole
-  text: Encrypted Storage Without Trust
+  text: Encrypted Storage on the Internet Computer
   tagline: No passwords. No master keys. Your files are protected by mathematics, not promises.
   actions:
     - theme: brand
@@ -12,22 +12,22 @@ hero:
       text: How Encryption Works
       link: /en/how-it-works/encryption
 features:
-  - title: Threshold Cryptography (vetKeys)
-    details: Your encryption key is computed on-demand by 13-34 independent nodes. No single node ever knows the full key. No passwords to lose.
-    icon: 🔐
-  - title: True Data Sovereignty
-    details: Each user gets their own smart contract on the blockchain. After deployment, Rabbithole removes itself — you are the sole controller.
+  - title: Personal storage
+    details: Your storage is a separate Internet Computer canister with its own web interface. After control is transferred, it belongs to you, while Rabbithole remains a service around it, not the owner of your data.
     icon: 🏛️
-  - title: Per-File Key Derivation
-    details: Each file is encrypted with a unique key. Compromising one file doesn't affect others. Sharing doesn't require re-encryption.
+  - title: Encryption before upload
+    details: Rabbithole encrypts the file before it leaves your device. The storage works with encrypted data, not readable file contents.
+    icon: 🔐
+  - title: Keys on demand
+    details: The file key is not sitting ready in storage or at Rabbithole. It is derived through vetKeys at access time and returned encrypted for your browser.
     icon: 🗝️
-  - title: Passwordless Authentication
-    details: Sign in with Internet Identity — passkeys, biometrics, or social login. Email is optional verified metadata for sharing and notifications, not your password.
+  - title: Encrypted sharing
+    details: You can share a storage, folder, or file while keeping encryption. Rabbithole changes the access rule instead of creating a second file copy.
+    icon: 🤝
+  - title: Passwordless sign-in
+    details: Rabbithole uses Internet Identity for passkeys, biometrics, or supported social login. Rabbithole does not keep a separate password database.
     icon: 🔒
-  - title: Decentralized Storage
-    details: Each storage is a standalone Internet Computer canister. It keeps the file structure, access rules, and its own frontend for direct access.
-    icon: ☁️
-  - title: Open Source
-    details: Every line of code is auditable. Verify the encryption, the key derivation, and the access control yourself.
+  - title: Verifiable trust model
+    details: Rabbithole does not ask you to trust words alone. The code is open, and the docs show how encryption, vetKeys, permissions, and storage ownership work.
     icon: 📖
 ---

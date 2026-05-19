@@ -5,7 +5,7 @@ description: How Rabbithole handles your data and protects your privacy
 
 # Privacy Policy
 
-**Last updated: March 2026**
+**Last updated: May 18, 2026**
 
 ## The short version
 
@@ -37,11 +37,16 @@ Your personal storage canister records:
 - File contents — encrypted when encryption is enabled
 - Access permissions you set
 
-All data is stored in your canister, which you own and control. Rabbithole removes itself as controller after setup.
+Your canister stores file records, access rules, and on-chain file bytes. Blob
+Storage files keep their bytes outside the canister, with verification data
+stored in your canister. After a successful setup handoff, Rabbithole is removed
+from controllers.
 
 ### Payment information
 
-When creating a storage canister, payment is processed to cover Internet Computer network costs (cycles). We do not store payment details. The entire payment goes to the network — Rabbithole takes zero profit.
+When creating a storage canister, payment covers Internet Computer network
+costs, the initial cycles balance, deployment operations, and related Rabbithole
+infrastructure. We do not store payment details.
 
 ## Data location
 
@@ -68,7 +73,10 @@ We do not use Google Analytics, Facebook Pixel, or any third-party tracking serv
 
 ## Open source
 
-Our code is [open source on GitHub](https://github.com/rabbithole-app/v2). You can verify every claim in this policy by reading the source code.
+Our code is [open source on GitHub](https://github.com/rabbithole-app/v2). You
+can verify many technical claims in this policy by reading the source code.
+Operational settings, external providers, and network behavior can also affect
+how a deployed instance works.
 
 ## Changes to this policy
 

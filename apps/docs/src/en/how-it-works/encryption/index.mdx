@@ -1,0 +1,158 @@
+---
+title: Encryption
+description: How Rabbithole protects file contents before they leave your browser
+sidebar:
+  order: 3
+---
+
+import { OverviewGroup } from '@rspress/core/theme';
+
+## Encrypted mode starts in your browser
+
+Rabbithole can store files in encrypted or plaintext mode. This section
+describes encrypted mode: your browser encrypts the file before upload, and the
+storage path receives encrypted bytes.
+
+That difference matters. Rabbithole can move the file, store metadata, check
+permissions, and verify integrity, but it does not need the readable file
+contents to do that work.
+
+:::note{title="Encrypted mode only"}
+
+These guarantees apply when encryption is enabled for the file or folder. If
+you upload a file without encryption, access rules still work, but the file is
+not protected by the confidentiality model described here.
+
+:::
+
+```mermaid
+flowchart LR
+    subgraph Browser["Your browser"]
+        F[Your file] --> SP[Split into chunks]
+        SP --> E1[Chunk 1]
+        SP --> E2[Chunk 2]
+        SP --> E3[Chunk N]
+        VK[vetKeys\nIC threshold nodes] -.->|derive file key| ENC
+        E1 --> ENC[AES-GCM\nencrypt]
+        E2 --> ENC
+        E3 --> ENC
+    end
+    subgraph Storage["Your storage"]
+        ENC --> CH[Encrypted chunks]
+        CH --> META[Access rules\nand verification data]
+    end
+    style Browser fill:#f0f9ff,stroke:#0284c7
+    style Storage fill:#dcfce7,stroke:#16a34a
+    style VK fill:#ddd6fe,stroke:#7c3aed
+    style ENC fill:#6c63ff,color:#fff
+    style CH fill:#22c55e,color:#fff
+```
+
+## What this means for you
+
+In encrypted mode, Rabbithole handles sealed data instead of readable data.
+
+- The Rabbithole team cannot read encrypted file contents.
+- Internet Computer nodes and storage services store encrypted chunks, not the
+  plaintext file.
+- The storage canister controls who may request the file key.
+- The key is delivered encrypted for the browser session that requested it.
+- Storage mode is still separate: Blob Storage and On-chain Storage decide where
+  bytes live, while encryption decides whether those bytes are readable.
+
+This is the main idea: Rabbithole is not asking you to trust a promise that the
+operator will not look. It moves the readable file out of the operator's path.
+There are still assumptions, especially around your browser, the served
+frontend, and the Internet Computer protocol. Those assumptions are listed in
+the [Trust Model](/en/how-it-works/trust-model).
+
+## Where the key comes from
+
+Rabbithole does not ask you to create an encryption password. When an encrypted
+file needs to be opened, your browser asks the storage canister for a file key.
+The canister checks whether your principal has access, then asks the Internet
+Computer's [vetKeys](https://docs.internetcomputer.org/concepts/vetkeys/)
+service to derive that key.
+
+The important part: the key does not sit ready-made in the canister, and it is
+not handed to Rabbithole. The Internet Computer returns an encrypted response
+that only the browser making the request can open.
+
+Read [Keys and vetKeys](/en/how-it-works/encryption/vetkeys) if you want to
+understand how Standard differs from High Replication.
+
+## Sharing does not re-encrypt the file
+
+When you share an encrypted file, Rabbithole changes access rules. It does not
+upload a second encrypted copy for the recipient.
+
+If the recipient has access, the canister lets their browser request the same
+file key. If access is revoked, the canister stops allowing future key requests
+for the revoked scope. As with any file-sharing system, revocation cannot erase
+a copy someone already downloaded.
+
+```mermaid
+sequenceDiagram
+    participant A as User A - owner
+    participant C as Canister
+    participant VK as vetKeys - IC nodes
+    participant B as User B - recipient
+
+    A->>C: Grants access to User B
+    Note over C: Canister updates access rules
+
+    B->>C: Requests file
+    C->>C: Checks User B access
+    C->>VK: Requests file-key derivation
+    VK-->>B: Returns key encrypted for B
+    B->>B: Decrypts file in browser
+```
+
+Read [Encrypted sharing](/en/how-it-works/sharing/encryption-in-shared-access)
+for the shared-access flow.
+
+## Learn more
+
+<OverviewGroup
+  group={{
+    name: 'Encryption topics',
+    items: [
+      {
+        text: 'Keys and vetKeys',
+        link: '/en/how-it-works/encryption/vetkeys',
+      },
+      {
+        text: 'How encryption works',
+        link: '/en/how-it-works/encryption/how-encryption-works',
+      },
+      {
+        text: 'Storage modes',
+        link: '/en/how-it-works/storage/',
+      },
+      {
+        text: 'Shared access',
+        link: '/en/how-it-works/sharing/',
+      },
+      {
+        text: 'Trust Model',
+        link: '/en/how-it-works/trust-model',
+      },
+    ],
+  }}
+/>
+
+<OverviewGroup
+  group={{
+    name: 'Official Internet Computer references',
+    items: [
+      {
+        text: 'vetKeys',
+        link: 'https://docs.internetcomputer.org/concepts/vetkeys/',
+      },
+      {
+        text: 'Canister smart contracts',
+        link: 'https://docs.internetcomputer.org/concepts/canisters/',
+      },
+    ],
+  }}
+/>
