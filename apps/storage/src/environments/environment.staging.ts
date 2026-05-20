@@ -1,3 +1,8 @@
+import {
+  BLOB_STORAGE_CASHIER_CANISTER_ID,
+  BLOB_STORAGE_GATEWAY_URL,
+} from '@rabbithole/core/app-runtime';
+
 export const environment = {
   identityProviderUrl: 'https://id.ai/authorize',
   appUrl: 'https://dev.rabbithole.app',
@@ -10,4 +15,6 @@ export const environment = {
   production: false,
   scheme: 'rabbithole',
   backendCanisterId: '',
+  blobStorageGatewayUrl: BLOB_STORAGE_GATEWAY_URL,
+  blobStorageCashierCanisterId: BLOB_STORAGE_CASHIER_CANISTER_ID,
 };

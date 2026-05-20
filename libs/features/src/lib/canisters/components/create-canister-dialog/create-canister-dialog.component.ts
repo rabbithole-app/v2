@@ -20,7 +20,7 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { BrnDialogClose, BrnDialogRef } from '@spartan-ng/brain/dialog';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { map, startWith } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';

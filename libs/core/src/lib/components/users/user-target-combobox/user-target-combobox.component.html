@@ -54,10 +54,10 @@
         } @else {
           @if (item.kind === 'user') {
             <hlm-avatar class="size-7 shrink-0 border bg-muted text-xs">
-              @if (item.avatarUrl) {
+              @if (item.avatarSrc) {
                 <img
                   hlmAvatarImage
-                  [src]="item.avatarUrl"
+                  [src]="item.avatarSrc"
                   [alt]="targetTitle(item)"
                 />
               }

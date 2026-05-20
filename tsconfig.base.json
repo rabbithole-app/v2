@@ -114,9 +114,6 @@
       "@rabbithole/ui/terminal": [
         "libs/app-ui/src/lib/terminal/index.ts"
       ],
-      "@rabbithole/ui/toaster": [
-        "libs/app-ui/src/lib/toaster/index.ts"
-      ],
       "@rabbithole/ui/tree": [
         "libs/app-ui/src/lib/tree/index.ts"
       ],

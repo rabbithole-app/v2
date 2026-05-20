@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
 import { AsyncQueuer, AsyncQueuerState } from '@tanstack/pacer';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { intersectionWith, partition } from 'remeda';
 import { map, mergeAll, Subject } from 'rxjs';
 import { match, P } from 'ts-pattern';

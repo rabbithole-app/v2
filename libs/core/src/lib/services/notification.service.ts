@@ -7,7 +7,7 @@ import {
 import { NavigationEnd, Router } from '@angular/router';
 import { Actor } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { SignalMap } from 'ngxtension/collections';
 import { injectDocumentVisibility } from 'ngxtension/inject-document-visibility';
 import { poll } from 'ngxtension/poll';

@@ -2,9 +2,10 @@ import { DatePipe } from '@angular/common';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Principal } from '@icp-sdk/core/principal';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
+  AvatarService,
   injectMainActor,
   parseCanisterRejectError,
   timeInNanosToDate,
@@ -25,6 +26,7 @@ type AccessProfile = {
 
 @Injectable()
 export class AccessRequestsStore {
+  readonly #avatarService = inject(AvatarService);
   readonly requests = signal<StorageAccessRequest[]>([]);
   readonly approvedCount = computed(() =>
     this.requests().filter((request) => 'approved' in request.status).length,
@@ -195,7 +197,9 @@ export class AccessRequestsStore {
             return [
               principalId,
               {
-                avatarSrc: summary.avatarUrl[0],
+                avatarSrc:
+                  this.#avatarService.avatarSrc(summary.avatarRef[0]) ??
+                  undefined,
                 title: displayName ?? summary.username,
                 username: displayName ? summary.username : undefined,
               },

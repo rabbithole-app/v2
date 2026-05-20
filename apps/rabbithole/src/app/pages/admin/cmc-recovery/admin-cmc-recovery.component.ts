@@ -22,7 +22,7 @@ import {
   BrnAlertDialogContent,
   BrnAlertDialogTrigger,
 } from '@spartan-ng/brain/alert-dialog';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
   injectMainActor,

@@ -1,5 +1,7 @@
 import {
   BACKEND_CANISTER_ID,
+  BLOB_STORAGE_CASHIER_CANISTER_ID,
+  BLOB_STORAGE_GATEWAY_URL,
   canisterUrl,
   ENV_NAME,
   EVM_RPC_URL,
@@ -33,4 +35,6 @@ export const environment = {
   production: false,
   scheme: 'rabbithole',
   backendCanisterId: BACKEND_CANISTER_ID,
+  blobStorageGatewayUrl: BLOB_STORAGE_GATEWAY_URL,
+  blobStorageCashierCanisterId: BLOB_STORAGE_CASHIER_CANISTER_ID,
 };

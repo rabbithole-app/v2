@@ -1,11 +1,11 @@
 import { Component, computed, inject } from "@angular/core";
 import { Router, RouterModule } from "@angular/router";
 
-import { RbthToaster } from "@rabbithole/ui/toaster";
+import { HlmToaster } from "@spartan-ng/helm/sonner";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 @Component({
-  imports: [RouterModule, RbthToaster, HlmSpinner],
+  imports: [RouterModule, HlmToaster, HlmSpinner],
   selector: "app-root",
   template: `
     @if (isNavigating()) {
@@ -16,11 +16,12 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
       <router-outlet />
     }
     @defer (on idle) {
-      <rbth-toaster position="bottom-center" />
+      <hlm-toaster position="bottom-center" />
     }
   `,
 })
 export class AppComponent {
   #router = inject(Router);
+
   isNavigating = computed(() => !!this.#router.currentNavigation());
 }

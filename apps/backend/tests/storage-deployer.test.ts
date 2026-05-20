@@ -1402,7 +1402,7 @@ describe("StorageDeployer", () => {
     const l1 = createIdentity("deferred-l1");
     backendFixture.actor.setIdentity(l1);
     await backendFixture.actor.ensureUser([]);
-    await backendFixture.actor.createProfile({ username: "deferred-l1", displayName: [], avatarUrl: [] });
+    await backendFixture.actor.createProfile({ username: "deferred-l1", displayName: [] });
     const l1Profile = await backendFixture.actor.getProfile();
     const l1Code = l1Profile[0]?.referralCode?.[0];
     expect(l1Code).toBeDefined();

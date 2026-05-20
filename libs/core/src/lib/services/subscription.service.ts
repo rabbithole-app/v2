@@ -2,7 +2,7 @@ import { computed, inject, Injectable, resource } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { fromNullable } from '@dfinity/utils';
 import { Actor } from '@icp-sdk/core/agent';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { catchError, map, of } from 'rxjs';
 import { match, P } from 'ts-pattern';
 

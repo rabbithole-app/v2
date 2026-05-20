@@ -13,7 +13,7 @@ import {
   lucideCoins,
   lucideWallet,
 } from '@ng-icons/lucide';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';

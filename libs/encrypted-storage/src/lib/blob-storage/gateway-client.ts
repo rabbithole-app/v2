@@ -19,9 +19,10 @@ import type { BlobHashTree, YHash } from './merkle-tree';
 
 const GATEWAY_VERSION = 'v1';
 const MAX_CONCURRENT_UPLOADS = 10;
-const MAX_RETRIES = 3;
+const DEFAULT_MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 30_000;
+const DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_BUCKET_NAME = 'default-bucket';
 const DEFAULT_PROJECT_ID = '0000000-0000-0000-0000-00000000000';
 
@@ -37,6 +38,10 @@ export interface BlobStorageGatewayClientConfig {
   gatewayUrl: string;
   /** Caffeine project ID. Defaults to zeroed UUID for standalone usage. */
   projectId?: string;
+  /** Per-request gateway fetch timeout. Defaults to 10 seconds. */
+  requestTimeoutMs?: number;
+  /** Number of retries after the first failed gateway request. Defaults to 3. */
+  maxRetries?: number;
 }
 
 export class BlobStorageGatewayClient {
@@ -45,6 +50,8 @@ export class BlobStorageGatewayClient {
   readonly #canisterId: string;
   readonly #gatewayUrl: string;
   readonly #projectId: string;
+  readonly #requestTimeoutMs: number;
+  readonly #maxRetries: number;
 
   constructor(config: BlobStorageGatewayClientConfig) {
     this.#agent = config.agent;
@@ -52,6 +59,9 @@ export class BlobStorageGatewayClient {
     this.#gatewayUrl = config.gatewayUrl;
     this.#bucketName = config.bucketName ?? DEFAULT_BUCKET_NAME;
     this.#projectId = config.projectId ?? DEFAULT_PROJECT_ID;
+    this.#requestTimeoutMs =
+      config.requestTimeoutMs ?? DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS;
+    this.#maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   }
 
   /**
@@ -99,19 +109,24 @@ export class BlobStorageGatewayClient {
     });
 
     await withRetry(async () => {
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Caffeine-Project-ID': this.#projectId,
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Caffeine-Project-ID': this.#projectId,
+          },
+          body,
         },
-        body,
-      });
+        this.#requestTimeoutMs,
+      );
+
       if (!response.ok) {
         const errorText = await response.text();
         throwHttpError(`Failed to upload blob tree: ${response.status} ${response.statusText} - ${errorText}`, response.status);
       }
-    });
+    }, { maxRetries: this.#maxRetries });
   }
 
   /** Upload a single chunk to the gateway. */
@@ -121,25 +136,29 @@ export class BlobStorageGatewayClient {
     chunkHash: string;
     chunkIndex: number;
   }): Promise<{ isComplete: boolean }> {
-    return withRetry(async () => {
-      const queryParams = new URLSearchParams({
-        owner_id: this.#canisterId,
-        blob_hash: params.blobHash,
-        chunk_hash: params.chunkHash,
-        chunk_index: params.chunkIndex.toString(),
-        bucket_name: this.#bucketName,
-        project_id: this.#projectId,
-      });
-      const url = `${this.#gatewayUrl}/${GATEWAY_VERSION}/chunk/?${queryParams}`;
+    const queryParams = new URLSearchParams({
+      owner_id: this.#canisterId,
+      blob_hash: params.blobHash,
+      chunk_hash: params.chunkHash,
+      chunk_index: params.chunkIndex.toString(),
+      bucket_name: this.#bucketName,
+      project_id: this.#projectId,
+    });
+    const url = `${this.#gatewayUrl}/${GATEWAY_VERSION}/chunk/?${queryParams}`;
 
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'X-Caffeine-Project-ID': this.#projectId,
+    return withRetry(async () => {
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'X-Caffeine-Project-ID': this.#projectId,
+          },
+          body: params.chunkBytes as unknown as BodyInit,
         },
-        body: params.chunkBytes as unknown as BodyInit,
-      });
+        this.#requestTimeoutMs,
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -148,7 +167,7 @@ export class BlobStorageGatewayClient {
 
       const result = (await response.json()) as { status: string };
       return { isComplete: result.status === 'blob_complete' };
-    });
+    }, { maxRetries: this.#maxRetries });
   }
 
   /**
@@ -211,16 +230,21 @@ function throwHttpError(message: string, status: number): never {
   throw error;
 }
 
-async function withRetry<T>(operation: () => Promise<T>): Promise<T> {
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  options?: { maxRetries?: number },
+): Promise<T> {
   let lastError: Error | undefined;
+  const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      if (attempt === MAX_RETRIES || !isRetriableError(error)) {
+      const retriable = isRetriableError(error);
+      if (attempt === maxRetries || !retriable) {
         throw error;
       }
 
@@ -233,4 +257,31 @@ async function withRetry<T>(operation: () => Promise<T>): Promise<T> {
   }
 
   throw lastError ?? new Error('Unknown error during retry');
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const timeoutError = new Error(
+        `Blob Storage gateway request timed out after ${timeoutMs} ms`,
+      );
+      (timeoutError as Error & { cause?: unknown }).cause = error;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideArrowLeft, lucideCheck, lucideX } from '@ng-icons/lucide';
 
-import { MAIN_BACKEND_URL_TOKEN } from '@rabbithole/core';
+import { AvatarService } from '@rabbithole/core';
 import { AdminUserListItem, Role } from '@rabbithole/declarations/backend';
 import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
@@ -39,13 +39,11 @@ type BadgeVariant = 'default' | 'destructive' | 'outline' | 'secondary';
 export class AdminUserHeaderComponent {
   readonly userDetail = input.required<AdminUserListItem>();
 
-  readonly #backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
+  readonly #avatarService = inject(AvatarService);
 
   protected _avatarSrc(user: AdminUserListItem): string | undefined {
-    const avatarUrl = user.profile[0]?.avatarUrl[0];
-    if (!avatarUrl) return undefined;
-    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
-    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
+    return this.#avatarService.avatarSrc(user.profile[0]?.avatarRef[0]) ??
+      undefined;
   }
 
   protected _identityProvider(user: AdminUserListItem): string {

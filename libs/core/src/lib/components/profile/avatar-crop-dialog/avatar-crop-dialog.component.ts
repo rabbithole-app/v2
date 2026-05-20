@@ -10,16 +10,15 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { arrayBufferToUint8Array } from '@dfinity/utils';
 import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import mime from 'mime/lite';
-import { nanoid } from 'nanoid';
 import {
   CropperPosition,
   Dimensions,
   ImageCropperComponent,
   LoadedImage,
 } from 'ngx-image-cropper';
-import { toast } from 'ngx-sonner';
 import {
   catchError,
+  EMPTY,
   finalize,
   first,
   from,
@@ -40,10 +39,19 @@ import {
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 import { MAX_AVATAR_HEIGHT, MAX_AVATAR_WIDTH } from '../../../constants';
-import { injectCoreWorker, injectMainActor } from '../../../injectors';
+import { injectCoreWorker } from '../../../injectors';
 import { messageByAction } from '../../../operators';
 import { ImageCropPayload } from '../../../types';
 import { isPhotonSupportedMimeType } from '../../../utils';
+
+export type AvatarCropDialogResult =
+  | {
+      content: Uint8Array;
+      contentType: string;
+    }
+  | {
+      error: string;
+    };
 
 @Component({
   selector: 'core-avatar-crop-dialog',
@@ -85,15 +93,13 @@ export class AvatarCropDialogComponent {
   private readonly _dialogContext = injectBrnDialogContext<{ image: File }>();
   protected readonly image = this._dialogContext.image;
   private readonly _dialogRef =
-    inject<BrnDialogRef<string | undefined>>(BrnDialogRef);
+    inject<BrnDialogRef<AvatarCropDialogResult | undefined>>(BrnDialogRef);
   #coreWorkerService = injectCoreWorker();
   #destroyRef = inject(DestroyRef);
   #id = crypto.randomUUID();
 
-  #mainActor = injectMainActor();
-
-  close(avatarKey?: string) {
-    this._dialogRef.close(avatarKey);
+  close(result?: AvatarCropDialogResult) {
+    this._dialogRef.close(result);
   }
 
   save() {
@@ -103,10 +109,11 @@ export class AvatarCropDialogComponent {
 
     if (!cropperPosition || !loadedImage || !displaySize) return;
 
+    const shouldCropThroughWorker = isPhotonSupportedMimeType(this.image.type);
+
     this.loading.set(true);
-    const id = toast.loading('Cropping image...');
     iif(
-      () => isPhotonSupportedMimeType(this.image.type),
+      () => shouldCropThroughWorker,
       from(this.image.arrayBuffer()).pipe(
         switchMap((bytes) => {
           const originalPosition = this.#convertCropperPositionToOriginal(
@@ -124,27 +131,27 @@ export class AvatarCropDialogComponent {
       this.#crop(),
     )
       .pipe(
-        switchMap(({ buffer, contentType }) => {
-          const actor = this.#mainActor();
-          const extension = mime.getExtension(contentType);
-          toast.loading('Saving avatar...', { id });
-          return actor.saveAvatar({
-            filename: `avatar_${nanoid(4)}.${extension}`,
-            content: arrayBufferToUint8Array(buffer),
-            contentType,
-          });
-        }),
         finalize(() => this.loading.set(false)),
         catchError((err) => {
-          toast.error('Failed to save avatar: ' + err.message, { id });
-          return throwError(() => err);
+          console.error('Failed to save avatar', err);
+          this.close({
+            error: this.#errorMessage(err),
+          });
+          return EMPTY;
         }),
         takeUntilDestroyed(this.#destroyRef),
       )
-      .subscribe((avatarKey) => {
-        toast.success('Avatar saved successfully', { id });
-        this.close(avatarKey);
+      .subscribe(({ buffer, contentType }) => {
+        this.close({
+          content: arrayBufferToUint8Array(buffer),
+          contentType,
+        });
       });
+  }
+
+  #errorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    return 'Unknown error';
   }
 
   /**

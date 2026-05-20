@@ -32,6 +32,7 @@ import { linkedQueryParam } from 'ngxtension/linked-query-param';
 
 import { AUTH_CONFIG, AUTH_SERVICE, AuthSignInOptions } from '@rabbithole/auth';
 import {
+  AvatarService,
   injectMainActor,
   principalFromConfig,
   ProfileService,
@@ -93,8 +94,11 @@ const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
 })
 export class DelegationComponent {
   #profileService = inject(ProfileService);
+  #avatarService = inject(AvatarService);
   readonly profile = this.#profileService.profile;
-  readonly avatarSrc = computed(() => this.profile()?.avatarUrl[0] ?? null);
+  readonly avatarSrc = computed(() =>
+    this.#avatarService.avatarSrc(this.profile()?.avatarRef[0]),
+  );
   readonly delegationSent = signal(false);
   openIdIssuer = linkedQueryParam('openid');
   openIdProvider = linkedQueryParam('provider');

@@ -20,7 +20,7 @@ import {
   lucideFolderUp,
   lucideUpload,
 } from '@ng-icons/lucide';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { intersectionWith } from 'remeda';
 import { filter, from, map, mergeWith, switchMap } from 'rxjs';
 

@@ -37,11 +37,11 @@ import {
   Updater,
 } from '@tanstack/angular-table';
 import { endOfDay, startOfDay } from 'date-fns';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
+  AvatarService,
   injectMainActor,
-  MAIN_BACKEND_URL_TOKEN,
   timeInNanosToDate,
   UserTarget,
   UserTargetComboboxComponent,
@@ -92,7 +92,7 @@ type ColumnId =
   | 'lastLoginAt'
   | 'name'
   | 'principal'
-  | 'profileAvatarUrl'
+  | 'profileAvatarRef'
   | 'profileDisplayName'
   | 'profileUsername'
   | 'referralAppliedAt'
@@ -320,7 +320,7 @@ export class AdminUsersComponent {
       'identitySyncedAt',
       'inviter',
       'principal',
-      'profileAvatarUrl',
+      'profileAvatarRef',
       'profileDisplayName',
       'profileUsername',
       'referralAppliedAt',
@@ -405,7 +405,7 @@ export class AdminUsersComponent {
   }));
 
   protected readonly _updatingRoleFor = signal<string | null>(null);
-  readonly #backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
+  readonly #avatarService = inject(AvatarService);
 
   protected async _changeUserRole(
     user: AdminUserListItem,
@@ -474,7 +474,10 @@ export class AdminUsersComponent {
   }
 
   protected _profileAvatarSrc(user: AdminUserListItem): string | undefined {
-    return this._avatarSrc(this._profile(user)?.avatarUrl[0]);
+    return (
+      this.#avatarService.avatarSrc(this._profile(user)?.avatarRef[0]) ??
+      undefined
+    );
   }
 
   protected _reloadUsers(): void {
@@ -596,12 +599,6 @@ export class AdminUsersComponent {
       default:
         return null;
     }
-  }
-
-  private _avatarSrc(avatarUrl: string | undefined): string | undefined {
-    if (!avatarUrl) return undefined;
-    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
-    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
   }
 
   private _booleanOption(columnId: string): [] | [boolean] {

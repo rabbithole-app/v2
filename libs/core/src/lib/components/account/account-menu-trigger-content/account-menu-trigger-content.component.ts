@@ -11,7 +11,7 @@ import { Profile } from '@rabbithole/declarations/backend';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { hlm } from '@spartan-ng/helm/utils';
 
-import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens';
+import { AvatarService } from '../../../services/avatar.service';
 
 @Component({
   selector: 'core-account-menu-trigger-content',
@@ -27,12 +27,11 @@ export class AccountMenuTriggerContentComponent {
   readonly _computedClass = computed(() =>
     hlm('w-full max-w-[200px] flex items-center gap-2', this.userClass()),
   );
-  readonly backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
+  readonly #avatarService = inject(AvatarService);
   readonly profile = input.required<Profile>();
-  readonly avatarSrc = computed(() => {
-    const avatarUrl = this.profile().avatarUrl[0] ?? null;
-    return avatarUrl ? `${this.backendUrl}${avatarUrl}` : null;
-  });
+  readonly avatarSrc = computed(() =>
+    this.#avatarService.avatarSrc(this.profile().avatarRef[0]),
+  );
 
   readonly displayName = computed(() => this.profile().displayName[0] ?? null);
 

@@ -26,8 +26,6 @@ function createProfileFixture(index: number): {
     args: {
       username: `profile${index}${faker.string.alphanumeric(6).toLowerCase()}`,
       displayName: index % 2 === 0 ? [`Profile User ${index}`] : [],
-      avatarUrl:
-        index % 3 === 0 ? [`https://example.com/avatar-${index}.png`] : [],
     },
   };
 }
@@ -38,14 +36,12 @@ function createRandomProfileUser(): {
 } {
   const identity = createIdentity(faker.string.uuid());
   const hasDisplayName = faker.datatype.boolean();
-  const hasAvatar = faker.datatype.boolean();
 
   return {
     identity,
     args: {
       username: faker.internet.username().substring(0, 20),
       displayName: hasDisplayName ? [faker.person.fullName()] : [],
-      avatarUrl: hasAvatar ? [faker.image.avatar()] : [],
     },
   };
 }
@@ -159,7 +155,6 @@ describe("Users", () => {
     await actor.createProfile({
       username: "andri-schatz",
       displayName: ["Andri Schatz"],
-      avatarUrl: [],
     });
 
     const profileEmailResults = await actor.searchUserDirectory(
@@ -192,7 +187,6 @@ describe("Users", () => {
     actor.setIdentity(manager.ownerIdentity);
     await actor.ensureUser([]);
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "owner",
     });
@@ -232,7 +226,6 @@ describe("Users", () => {
   test("applyReferralCode requires existing user", async () => {
     actor.setIdentity(manager.ownerIdentity);
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "owner-no-user",
     });
@@ -254,7 +247,6 @@ describe("Users", () => {
     actor.setIdentity(manager.ownerIdentity);
     await actor.ensureUser([]);
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "owner-self",
     });
@@ -287,7 +279,6 @@ describe("Users", () => {
   test("profile has referralCode after creation", async () => {
     actor.setIdentity(userAlice);
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "alice2",
     });
@@ -303,7 +294,6 @@ describe("Users", () => {
   test("referralCode is unique per user", async () => {
     actor.setIdentity(userAlice);
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "alice3",
     });
@@ -311,7 +301,6 @@ describe("Users", () => {
 
     actor.setIdentity(userBob);
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "bob3",
     });
@@ -326,7 +315,6 @@ describe("Users", () => {
     actor.setIdentity(manager.ownerIdentity);
     await actor.ensureUser([]);
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "owner",
     });
@@ -343,7 +331,6 @@ describe("Users", () => {
     await actor.ensureUser([]);
     expect(await actor.applyReferralCode(ownerCode)).toEqual({ ok: null });
     await actor.createProfile({
-      avatarUrl: [],
       displayName: [],
       username: "alice",
     });
@@ -424,19 +411,50 @@ describe("User profiles", () => {
     expect(profile.username).toBe(args.username);
   });
 
-  test("updateProfile updates display name and avatar", async () => {
+  test("avatar upload prepare and commit stores profile avatarRef", async () => {
+    actor.setIdentity(userAlice);
+    await actor.ensureUser([]);
+
+    const content = new TextEncoder().encode("avatar bytes");
+    const prepared = await actor.prepareAvatarUpload({
+      content,
+      contentType: "image/PNG",
+    });
+
+    expect(prepared.rootHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(prepared.contentType).toBe("image/png");
+    expect(Array.from(prepared.blobId)).toEqual(
+      Array.from(new TextEncoder().encode(prepared.rootHash)),
+    );
+
+    const committed = await actor.commitAvatarUpload(prepared.rootHash);
+    expect(committed.rootHash).toBe(prepared.rootHash);
+
+    await actor.createProfile({
+      displayName: [],
+      username: "avatar-user",
+    });
+
+    let profile = expectSingle(await actor.getProfile(), "avatar profile");
+    expect(profile.avatarRef[0]?.rootHash).toBe(prepared.rootHash);
+
+    await actor.clearAvatar();
+    profile = expectSingle(await actor.getProfile(), "cleared avatar profile");
+    expect(profile.avatarRef).toEqual([]);
+  });
+
+  test("updateProfile updates display name", async () => {
     const { identity } = PROFILE_USERS[0];
     actor.setIdentity(identity);
 
     const result = await actor.updateProfile({
-      avatarUrl: [],
       displayName: ["John Do"],
     });
 
     expect(result).toBeNull();
     const profile = expectSingle(await actor.getProfile(), "updated profile");
     expect(profile.displayName).toEqual(["John Do"]);
-    expect(profile.avatarUrl).toEqual([]);
+    expect(profile.avatarRef).toEqual([]);
   });
 
   test("deleteProfile clears the embedded profile", async () => {
@@ -457,5 +475,4 @@ describe("User profiles", () => {
     expect(await actor.usernameExists(username)).toBeTruthy();
     expect(await actor.usernameExists(faker.internet.username())).toBeFalsy();
   });
-
 });

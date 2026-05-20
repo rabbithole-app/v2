@@ -8,7 +8,7 @@ import {
   SnapshotParams,
 } from '@icp-sdk/canisters/ic-management';
 import { Principal } from '@icp-sdk/core/principal';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {

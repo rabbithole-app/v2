@@ -17,11 +17,8 @@ import Runtime "mo:core/Runtime";
 
 import Liminal "mo:liminal";
 import LiminalApp "mo:liminal/App";
-import ZenDB "mo:zendb";
 import CORSMiddleware "mo:liminal/Middleware/CORS";
-import AssetsMiddleware "mo:liminal/Middleware/Assets";
-import HttpAssets "mo:http-assets";
-import AssetCanister "mo:liminal/AssetCanister";
+import ZenDB "mo:zendb";
 import StorageTypes "mo:encrypted-storage/Types";
 
 import TreasuryTypes "mo:treasury/Types";
@@ -37,7 +34,7 @@ import XRCTypes "Types/XRCTypes";
 import Account "StorageDeployer/Utils/Account";
 
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
-import Users "Users/lib";
+import AvatarStorageMixin "AvatarStorage/mixin";
 import UsersMixin "Users/mixin";
 import IdentityVerificationMixin "IdentityVerification/mixin";
 import NotificationsMixin "Notifications/mixin";
@@ -77,14 +74,6 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   func resolveTrustedIdentitySigner<system>() : Principal {
     Principal.fromText(Utils.envText<system>("PUBLIC_CANISTER_ID:internet_identity_backend", "rdmx6-jaaaa-aaaaa-aaadq-cai"));
   };
-
-  // --- Assets & HTTP ---
-
-  var assetStableData = HttpAssets.init_stable_store(canisterId, installer);
-  assetStableData := HttpAssets.upgrade_stable_store(assetStableData);
-
-  transient var assetStore = HttpAssets.Assets(assetStableData, null);
-  transient var assetCanister = AssetCanister.AssetCanister(assetStore);
 
   // --- Database ---
 
@@ -129,14 +118,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // Subscriptions, Payments, Balance) because Users provides `assertAdmin` — the
   // guard is backed by `user.role == #admin` rather than a separate set.
 
-  include UsersMixin(
-    installer,
-    db,
-    {
-      deleteAsset = func(key : Text) { if (assetStore.exists(key)) assetCanister.delete_asset(canisterId, { key }) };
-      storeAsset = func(caller : Principal, args : HttpAssets.StoreArgs) { assetCanister.store(caller, args) };
-    },
-  );
+  include AvatarStorageMixin(canisterId, db);
+  include UsersMixin(installer, db, avatarUploadReservations, avatarDrafts);
   include IdentityVerificationMixin({
     onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
       await BackendIdentityHandler.onVerifiedAttributes(
@@ -350,7 +333,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     onCreationChanged = ?emitCreationChanged;
   };
 
-  // --- Internal: create storage for a user (called after license payment) ---
+  // --- Internal: storage environment for license purchase ---
   func storageVetKeyEnv<system>(level : Payments.StorageVetKeyLevel) : ?[{ name : Text; value : Text }] {
     let keyName = switch (level) {
       case (#standard) backendThresholdKeyName;
@@ -403,6 +386,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       };
     },
   );
+
   // --- Exchange rate & top-up helpers for BalanceMixin ---
 
   transient let CMC_CANISTER_ID = "rkp4c-7iaaa-aaaaa-aaaca-cai";
@@ -818,7 +802,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     },
   );
 
-  // Payment queue drain: check every 10 seconds if there are queued events
+  // Payment queue drain: check every 10 seconds if there are queued webhook events.
   ignore Timer.recurringTimer<system>(#seconds(10), func() : async () {
     schedulePaymentDrain<system>();
   });
@@ -1235,14 +1219,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     await StorageDeployerOrchestrator.refreshReleases<system>(storageOrchestrator);
   };
 
-  // --- HTTP interface ---
+  // --- HTTP interface: ICPay webhook only ---
 
   transient let app = Liminal.App({
     middleware = Array.concat<LiminalApp.Middleware>(
-      [
-        CORSMiddleware.default(),
-        AssetsMiddleware.new({ store = assetStore }),
-      ],
+      [CORSMiddleware.default()],
       switch (getIcpayMiddleware()) { case (?m) [m]; case null [] },
     );
     errorSerializer = Liminal.defaultJsonErrorSerializer;
@@ -1266,12 +1247,4 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     await* app.http_request_update(request);
   };
 
-  public query func http_request_streaming_callback(token : HttpAssets.StreamingToken) : async HttpAssets.StreamingCallbackResponse {
-    switch (assetStore.http_request_streaming_callback(token)) {
-      case (#err(e)) throw Error.reject(e);
-      case (#ok(response)) response;
-    };
-  };
-
-  assetStore.set_streaming_callback(http_request_streaming_callback);
 };

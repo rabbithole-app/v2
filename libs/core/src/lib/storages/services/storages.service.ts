@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import type { Principal } from '@icp-sdk/core/principal';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { connect } from 'ngxtension/connect';
 import {
   distinctUntilChanged,

@@ -23,7 +23,7 @@ import {
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
 import type { ClassValue } from 'clsx';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { match, P } from 'ts-pattern';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';

@@ -1,3 +1,4 @@
+export * from './avatar.service';
 export * from './core.service';
 export * from './cycles-minting-canister.service';
 export * from './download.service';

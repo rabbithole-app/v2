@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { ClassValue } from 'clsx';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import { parseCanisterRejectError } from '@rabbithole/core';
 import { injectAssetManager } from '@rabbithole/core/storage-runtime';

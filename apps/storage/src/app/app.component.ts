@@ -6,19 +6,19 @@ import {
   provideEncryptedStorage,
   provideUploadFilesService,
 } from '@rabbithole/core/storage-runtime';
-import { RbthToaster } from '@rabbithole/ui/toaster';
+import { HlmToaster } from '@spartan-ng/helm/sonner';
 
 @Component({
   selector: 'app-root',
   template: `
     <router-outlet />
     @defer (on idle) {
-      <rbth-toaster position="bottom-center" />
+      <hlm-toaster position="bottom-center" />
     }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
-  imports: [RouterOutlet, RbthToaster],
+  imports: [RouterOutlet, HlmToaster],
   providers: [provideEncryptedStorage(), provideUploadFilesService(), PermissionsService],
 })
 export class AppComponent {}

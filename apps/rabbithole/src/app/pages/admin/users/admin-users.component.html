@@ -327,9 +327,9 @@
                       {{ user.profile[0]?.displayName?.[0] ?? '' }}
                     </span>
                   }
-                  @case ('profileAvatarUrl') {
+                  @case ('profileAvatarRef') {
                     <span class="max-w-64 truncate text-sm">
-                      {{ user.profile[0]?.avatarUrl?.[0] ?? '' }}
+                      {{ user.profile[0]?.avatarRef?.[0]?.rootHash ?? '' }}
                     </span>
                   }
                   @case ('createdAt') {

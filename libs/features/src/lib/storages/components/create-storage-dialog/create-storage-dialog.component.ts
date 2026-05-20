@@ -28,7 +28,7 @@ import {
 } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { cva } from 'class-variance-authority';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
 import {

@@ -35,7 +35,7 @@ import {
   Updater,
 } from '@tanstack/angular-table';
 import { endOfDay, startOfDay } from 'date-fns';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
   formatBytes,

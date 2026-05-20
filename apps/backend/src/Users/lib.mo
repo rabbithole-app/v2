@@ -1,13 +1,17 @@
 import Array "mo:core/Array";
+import Blob "mo:core/Blob";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Nat8 "mo:core/Nat8";
 import Principal "mo:core/Principal";
 import Random "mo:core/Random";
+import Result "mo:core/Result";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 
 import ByteUtils "mo:byte-utils";
+import Hex "mo:hex";
 import Sha256 "mo:sha2/Sha256";
 import ZenDB "mo:zendb";
 
@@ -28,10 +32,31 @@ module {
     syncedAt : ?Time.Time;
   };
 
+  public type AvatarRef = {
+    rootHash : Text;
+    blobId : Blob;
+    sha256 : Blob;
+    contentType : Text;
+    size : Nat;
+    updatedAt : Time.Time;
+  };
+
+  public type AvatarUploadReservation = {
+    avatarRef : AvatarRef;
+    expiresAt : Time.Time;
+  };
+
+  public type PrepareAvatarUploadArgs = {
+    content : Blob;
+    contentType : Text;
+  };
+
+  public type PrepareAvatarUploadResult = AvatarRef;
+
   public type UserProfile = {
     username : Text;
     displayName : ?Text;
-    avatarUrl : ?Text;
+    avatarRef : ?AvatarRef;
     referralCode : ?Text;
     createdAt : Time.Time;
     updatedAt : Time.Time;
@@ -56,7 +81,7 @@ module {
     id : Principal;
     username : Text;
     displayName : ?Text;
-    avatarUrl : ?Text;
+    avatarRef : ?AvatarRef;
     referralCode : ?Text;
     createdAt : Time.Time;
     updatedAt : Time.Time;
@@ -65,7 +90,7 @@ module {
   public type PublicProfileSummary = {
     username : Text;
     displayName : ?Text;
-    avatarUrl : ?Text;
+    avatarRef : ?AvatarRef;
   };
 
   public type PublicProfileLookup = {
@@ -145,23 +170,17 @@ module {
   public type CreateProfileArgs = {
     username : Text;
     displayName : ?Text;
-    avatarUrl : ?Text;
-  };
-
-  public type CreateProfileAvatarArgs = {
-    filename : Text;
-    content : Blob;
-    contentType : Text;
   };
 
   public type UpdateProfileArgs = {
-    avatarUrl : ?Text;
     displayName : ?Text;
   };
 
   let USER_DIRECTORY_LIMIT_CAP : Nat = 20;
   let USER_DIRECTORY_MIN_PROFILE_SEARCH_LENGTH : Nat = 2;
   let ADMIN_USER_LIST_LIMIT_CAP : Nat = 100;
+  let AVATAR_MAX_BYTES : Nat = 1_048_576;
+  let AVATAR_UPLOAD_TTL_NS : Time.Time = 900_000_000_000;
 
   public type ApplyReferralCodeResult = {
     #ok;
@@ -191,6 +210,55 @@ module {
 
   func equalsIgnoreCase(value : Text, expected : Text) : Bool {
     Text.toLower(value) == Text.toLower(expected);
+  };
+
+  func concatBlob(left : Blob, right : Blob) : Blob {
+    Blob.fromArray(Array.concat<Nat8>(Blob.toArray(left), Blob.toArray(right)));
+  };
+
+  func sha256WithDomain(domain : Text, payload : Blob) : Blob {
+    let digest = Sha256.Digest(#sha256);
+    digest.writeBlob(Text.encodeUtf8(domain));
+    digest.writeBlob(payload);
+    digest.sum();
+  };
+
+  func normalizeAvatarContentType(contentType : Text) : ?Text {
+    let value = Text.toLower(Text.trim(contentType, #char ' '));
+    switch (value) {
+      case ("image/jpeg") ?value;
+      case ("image/png") ?value;
+      case ("image/webp") ?value;
+      case _ null;
+    };
+  };
+
+  func avatarRootHash(content : Blob, contentType : Text) : Text {
+    let chunkHash = sha256WithDomain("icfs-chunk/", content);
+    let metadata = "Content-Length: " # Nat.toText(content.size()) # "\nContent-Type: " # contentType # "\n";
+    let metadataHash = sha256WithDomain("icfs-metadata/", Text.encodeUtf8(metadata));
+    let rootHash = sha256WithDomain("ynode/", concatBlob(chunkHash, metadataHash));
+    "sha256:" # Hex.toText(Blob.toArray(rootHash));
+  };
+
+  func createAvatarRef(content : Blob, contentType : Text, now : Time.Time) : Result.Result<AvatarRef, Text> {
+    let size = content.size();
+    if (size == 0) return #err("Avatar content is empty");
+    if (size > AVATAR_MAX_BYTES) return #err("Avatar content exceeds 1 MiB");
+
+    let ?normalizedContentType = normalizeAvatarContentType(contentType) else {
+      return #err("Unsupported avatar content type");
+    };
+
+    let rootHash = avatarRootHash(content, normalizedContentType);
+    #ok({
+      rootHash;
+      blobId = Text.encodeUtf8(rootHash);
+      sha256 = Sha256.fromBlob(#sha256, content);
+      contentType = normalizedContentType;
+      size;
+      updatedAt = now;
+    });
   };
 
   func emptyIdentity(provider : ?Text, syncedAt : ?Time.Time) : UserIdentityAttributes {
@@ -224,7 +292,7 @@ module {
       id;
       username = profile.username;
       displayName = profile.displayName;
-      avatarUrl = profile.avatarUrl;
+      avatarRef = profile.avatarRef;
       referralCode = profile.referralCode;
       createdAt = profile.createdAt;
       updatedAt = profile.updatedAt;
@@ -235,9 +303,18 @@ module {
     {
       username = profile.username;
       displayName = profile.displayName;
-      avatarUrl = profile.avatarUrl;
+      avatarRef = profile.avatarRef;
     };
   };
+
+  let AvatarRefSchema : ZenDB.Types.Schema = #Record([
+    ("rootHash", #Text),
+    ("blobId", #Blob),
+    ("sha256", #Blob),
+    ("contentType", #Text),
+    ("size", #Nat),
+    ("updatedAt", #Int),
+  ]);
 
   let UserSchema : ZenDB.Types.Schema = #Record([
     ("id", #Principal),
@@ -257,7 +334,7 @@ module {
         #Record([
           ("username", #Text),
           ("displayName", #Option(#Text)),
-          ("avatarUrl", #Option(#Text)),
+          ("avatarRef", #Option(AvatarRefSchema)),
           ("referralCode", #Option(#Text)),
           ("createdAt", #Int),
           ("updatedAt", #Int),
@@ -288,9 +365,12 @@ module {
     #Field("profile.displayName", [#MaxSize(100)]),
   ];
 
-  public class Users(db : ZenDB.Database, deleteAsset : (Text) -> ()) {
+  public class Users(
+    db : ZenDB.Database,
+    avatarUploadReservations : Map.Map<Principal, AvatarUploadReservation>,
+    avatarDrafts : Map.Map<Principal, AvatarRef>,
+  ) {
     let #ok(usersCollection) = db.createCollection<User>("users", UserSchema, candifyUsers, ?{ schema_constraints = schemaConstraints }) else Runtime.unreachable();
-    let pendingAvatars : Map.Map<Principal, Text> = Map.empty();
 
     func ensureIndex(name : Text, fields : [(Text, ZenDB.Types.CreateIndexSortDirection)]) {
       switch (usersCollection.getIndex(name)) {
@@ -315,13 +395,6 @@ module {
     ensureIndex("users_identity_synced_at_idx", [("identity.syncedAt", #Ascending)]);
     ensureIndex("users_referral_applied_at_idx", [("referralAppliedAt", #Ascending)]);
 
-    func deleteIfDifferent(key : ?Text, keep : ?Text) {
-      switch key {
-        case (?k) { if (?k != keep) deleteAsset(k) };
-        case null {};
-      };
-    };
-
     func buildUser(principal : Principal, inviter : ?Principal, role : Role, now : Time.Time) : User {
       {
         id = principal;
@@ -342,10 +415,82 @@ module {
       };
     };
 
-    public func trackAvatar(caller : Principal, key : Text) {
-      switch (Map.swap(pendingAvatars, Principal.compare, caller, key)) {
-        case (?prevKey) deleteAsset(prevKey);
-        case null {};
+    public func prepareAvatarUpload(caller : Principal, args : PrepareAvatarUploadArgs) : Result.Result<PrepareAvatarUploadResult, Text> {
+      let now = Time.now();
+      switch (createAvatarRef(args.content, args.contentType, now)) {
+        case (#err(message)) #err(message);
+        case (#ok(avatarRef)) {
+          Map.add(avatarUploadReservations, Principal.compare, caller, {
+            avatarRef;
+            expiresAt = now + AVATAR_UPLOAD_TTL_NS;
+          });
+          #ok(avatarRef);
+        };
+      };
+    };
+
+    public func hasPendingAvatarUpload(caller : Principal, rootHash : Text) : Bool {
+      let ?reservation = Map.get(avatarUploadReservations, Principal.compare, caller) else return false;
+      reservation.avatarRef.rootHash == rootHash and reservation.expiresAt >= Time.now();
+    };
+
+    public func commitAvatarUpload(caller : Principal, rootHash : Text) : ZenDB.Types.Result<AvatarRef, Text> {
+      let ?reservation = Map.get(avatarUploadReservations, Principal.compare, caller) else {
+        return #err("Avatar upload was not prepared");
+      };
+      if (reservation.avatarRef.rootHash != rootHash) return #err("Avatar upload root hash mismatch");
+      if (reservation.expiresAt < Time.now()) {
+        Map.remove(avatarUploadReservations, Principal.compare, caller);
+        return #err("Avatar upload expired");
+      };
+
+      let now = Time.now();
+      let avatarRef = { reservation.avatarRef with updatedAt = now };
+
+      switch (findDocument(caller)) {
+        case (?(docId, user)) {
+          switch (user.profile) {
+            case (?profile) {
+              let nextProfile = { profile with avatarRef = ?avatarRef; updatedAt = now };
+              switch (usersCollection.replace(docId, { user with profile = ?nextProfile; updatedAt = now })) {
+                case (#ok _) {
+                  Map.remove(avatarUploadReservations, Principal.compare, caller);
+                  #ok(avatarRef);
+                };
+                case (#err msg) #err(msg);
+              };
+            };
+            case null {
+              Map.add(avatarDrafts, Principal.compare, caller, avatarRef);
+              Map.remove(avatarUploadReservations, Principal.compare, caller);
+              #ok(avatarRef);
+            };
+          };
+        };
+        case null {
+          Map.add(avatarDrafts, Principal.compare, caller, avatarRef);
+          Map.remove(avatarUploadReservations, Principal.compare, caller);
+          #ok(avatarRef);
+        };
+      };
+    };
+
+    public func clearAvatar(caller : Principal) : ZenDB.Types.Result<(), Text> {
+      Map.remove(avatarUploadReservations, Principal.compare, caller);
+      Map.remove(avatarDrafts, Principal.compare, caller);
+
+      let ?(docId, user) = findDocument(caller) else return #ok();
+      let ?profile = user.profile else return #ok();
+      switch (profile.avatarRef) {
+        case null #ok();
+        case (?_) {
+          let now = Time.now();
+          let nextProfile = { profile with avatarRef = null; updatedAt = now };
+          switch (usersCollection.replace(docId, { user with profile = ?nextProfile; updatedAt = now })) {
+            case (#ok _) #ok();
+            case (#err msg) #err(msg);
+          };
+        };
       };
     };
 
@@ -355,10 +500,11 @@ module {
 
     public func createProfile(caller : Principal, args : CreateProfileArgs) : ZenDB.Types.Result<ZenDB.Types.DocumentId, Text> {
       let now = Time.now();
+      let avatarRef = Map.get(avatarDrafts, Principal.compare, caller);
       let profile : UserProfile = {
         username = args.username;
         displayName = args.displayName;
-        avatarUrl = args.avatarUrl;
+        avatarRef;
         referralCode = ?generateReferralCode(caller);
         createdAt = now;
         updatedAt = now;
@@ -380,7 +526,8 @@ module {
 
       switch (result) {
         case (#ok _) {
-          deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), args.avatarUrl);
+          Map.remove(avatarDrafts, Principal.compare, caller);
+          Map.remove(avatarUploadReservations, Principal.compare, caller);
         };
         case (#err _) {};
       };
@@ -394,16 +541,11 @@ module {
       let nextProfile : UserProfile = {
         profile with
         displayName = args.displayName;
-        avatarUrl = args.avatarUrl;
         updatedAt = now;
       };
 
       switch (usersCollection.replace(docId, { user with profile = ?nextProfile; updatedAt = now })) {
-        case (#ok _) {
-          deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), args.avatarUrl);
-          deleteIfDifferent(profile.avatarUrl, args.avatarUrl);
-          #ok();
-        };
+        case (#ok _) #ok();
         case (#err msg) #err(msg);
       };
     };
@@ -437,8 +579,8 @@ module {
 
       switch (usersCollection.replace(docId, { user with profile = null; updatedAt = now })) {
         case (#ok _) {
-          deleteIfDifferent(profile.avatarUrl, null);
-          deleteIfDifferent(Map.take(pendingAvatars, Principal.compare, caller), profile.avatarUrl);
+          Map.remove(avatarDrafts, Principal.compare, caller);
+          Map.remove(avatarUploadReservations, Principal.compare, caller);
           #ok(toProfile(caller, profile));
         };
         case (#err msg) #err(msg);

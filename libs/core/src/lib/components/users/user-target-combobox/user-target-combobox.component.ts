@@ -21,7 +21,7 @@ import { HlmComboboxImports } from '@spartan-ng/helm/combobox';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 import { injectMainActor } from '../../../injectors/main-actor';
-import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens';
+import { AvatarService } from '../../../services/avatar.service';
 import { CoreTransparentComboboxBackdropDirective } from './transparent-combobox-backdrop.directive';
 
 export interface EmailUserTarget extends UserTargetBase {
@@ -37,7 +37,7 @@ export interface PrincipalUserTarget extends UserTargetBase {
 }
 
 export interface ProfileUserTarget extends UserTargetBase {
-  avatarUrl?: string;
+  avatarSrc?: string;
   displayName?: string;
   kind: 'user';
   match: UserTargetMatch;
@@ -101,6 +101,7 @@ export class UserTargetComboboxComponent {
   readonly search = signal('');
   readonly trimmedSearch = computed(() => this.search().trim());
   readonly #actor = injectMainActor();
+  readonly #avatarService = inject(AvatarService);
   readonly options = resource({
     params: () => ({
       actor: this.#actor(),
@@ -140,7 +141,8 @@ export class UserTargetComboboxComponent {
             label: match === 'emailExact' ? search : label,
             username,
             displayName,
-            avatarUrl: this.avatarSrc(this.optional(profile.avatarUrl)),
+            avatarSrc:
+              this.#avatarService.avatarSrc(profile.avatarRef[0]) ?? undefined,
             match,
             matchedEmail: match === 'emailExact' ? search : undefined,
             searchText: match === 'emailExact' ? search : undefined,
@@ -208,7 +210,6 @@ export class UserTargetComboboxComponent {
     this.searchOptions().filter((item) => item.kind === 'email' || !item.match),
   );
   readonly valueTemplate = contentChild(UserTargetComboboxValueDirective);
-  readonly #backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
 
   readonly filterTarget = (
     item: UserTarget,
@@ -310,12 +311,6 @@ export class UserTargetComboboxComponent {
     return item.displayName
       ? `${item.displayName} · @${item.username ?? item.label}`
       : `@${item.username ?? item.label}`;
-  }
-
-  private avatarSrc(avatarUrl: string | undefined): string | undefined {
-    if (!avatarUrl) return undefined;
-    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
-    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
   }
 
   private directoryMatch(

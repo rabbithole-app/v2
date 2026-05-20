@@ -1,6 +1,6 @@
 import { computed, Injectable, resource } from '@angular/core';
 import { Actor } from '@icp-sdk/core/agent';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import type { UserSettings } from '@rabbithole/declarations/backend';
 

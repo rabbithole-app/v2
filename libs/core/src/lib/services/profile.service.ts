@@ -7,7 +7,7 @@ import {
 } from '@angular/forms';
 import { fromNullable } from '@dfinity/utils';
 import { Actor } from '@icp-sdk/core/agent';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { catchError, map, of } from 'rxjs';
 
 import { CreateProfileArgs, UpdateProfileArgs } from '@rabbithole/declarations/backend';
@@ -48,6 +48,10 @@ export class ProfileService {
     map((v) => v !== undefined),
     catchError(() => of(true)),
   );
+
+  reload() {
+    this.#profileResource.reload();
+  }
 
   checkUsernameValidator(): AsyncValidatorFn {
     return async (

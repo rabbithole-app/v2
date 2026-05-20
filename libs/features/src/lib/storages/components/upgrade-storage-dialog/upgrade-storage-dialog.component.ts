@@ -18,7 +18,7 @@ import {
   lucidePackage,
 } from '@ng-icons/lucide';
 import { BrnDialogClose, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
   injectHttpAgent,

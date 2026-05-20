@@ -138,7 +138,6 @@ describe('User roles (admin)', () => {
     await actor.createProfile({
       username: 'owner-inviter',
       displayName: [],
-      avatarUrl: [],
     });
     const ownerProfile = await actor.getProfile();
     const referralCode = ownerProfile[0]?.referralCode?.[0];
@@ -187,7 +186,6 @@ describe('User roles (admin)', () => {
     await actor.createProfile({
       username: 'alice-admin-test',
       displayName: ['Alice Admin'],
-      avatarUrl: [],
     });
 
     const results = await actor.searchUserDirectory('alice admin', 10n);
@@ -222,7 +220,6 @@ describe('User roles (admin)', () => {
       await actor.createProfile({
         username: `directory-cap-${index}`,
         displayName: [`Directory Cap ${index}`],
-        avatarUrl: [],
       });
     }
 

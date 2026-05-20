@@ -24,6 +24,7 @@ import {
 import { debounceTime, distinctUntilChanged, filter, from, of, switchMap } from 'rxjs';
 
 import { injectMainActor, ProfileService } from '@rabbithole/core';
+import type { AvatarRef } from '@rabbithole/declarations/backend';
 import { AvatarEditorComponent } from '@rabbithole/core/profile';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmFormField, HlmHint } from '@spartan-ng/helm/form-field';
@@ -32,7 +33,6 @@ import { HlmLabel } from '@spartan-ng/helm/label';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 
 interface ProfileFormData {
-  avatarUrl: string | null;
   displayName: string | null;
   username: string;
 }
@@ -57,8 +57,8 @@ export class ProfileComponent {
   readonly profile = this.#profileService.profile;
   readonly isEditMode = computed(() => !!this.profile());
   readonly loading = signal(false);
+  readonly avatarRef = signal<AvatarRef | null>(null);
   readonly model = signal<ProfileFormData>({
-    avatarUrl: null,
     username: '',
     displayName: null,
   });
@@ -104,10 +104,10 @@ export class ProfileComponent {
       if (p) {
         untracked(() => {
           this.model.set({
-            avatarUrl: p.avatarUrl[0] ?? null,
             username: p.username,
             displayName: p.displayName[0] ?? null,
           });
+          this.avatarRef.set(p.avatarRef[0] ?? null);
         });
       }
     });
@@ -149,7 +149,7 @@ export class ProfileComponent {
 
   async #create() {
     if (this.loading()) return;
-    const { username, displayName, avatarUrl } = this.model();
+    const { username, displayName } = this.model();
     if (!username) return;
 
     try {
@@ -157,7 +157,6 @@ export class ProfileComponent {
       await this.#profileService.createProfile({
         username,
         displayName: displayName ? [displayName] : [],
-        avatarUrl: avatarUrl ? [avatarUrl] : [],
       });
     } finally {
       this.loading.set(false);
@@ -166,16 +165,20 @@ export class ProfileComponent {
 
   async #update() {
     if (this.loading()) return;
-    const { displayName, avatarUrl } = this.model();
+    const { displayName } = this.model();
 
     try {
       this.loading.set(true);
       await this.#profileService.updateProfile({
         displayName: displayName ? [displayName] : [],
-        avatarUrl: avatarUrl ? [avatarUrl] : [],
       });
     } finally {
       this.loading.set(false);
     }
+  }
+
+  handleAvatarChanged(avatarRef: AvatarRef | null) {
+    this.avatarRef.set(avatarRef);
+    this.#profileService.reload();
   }
 }

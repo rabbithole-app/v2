@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
-import { BlobStorageGatewayClient } from './gateway-client';
+import {
+  BlobStorageGatewayClient,
+  type BlobStorageGatewayClientConfig,
+} from './gateway-client';
 import { BlobHashTree, YHash } from './merkle-tree';
 
 // Mock global fetch
@@ -11,7 +14,10 @@ const CANISTER_ID = 'aaaaa-aa';
 const GATEWAY_URL = 'https://dev-blob.caffeine.ai';
 const DEFAULT_PROJECT_ID = '0000000-0000-0000-0000-00000000000';
 
-function createClient(agentOverride?: unknown) {
+function createClient(
+  agentOverride?: unknown,
+  configOverride?: Partial<BlobStorageGatewayClientConfig>,
+) {
   const agent = agentOverride ?? {
     call: vi.fn().mockResolvedValue({
       response: {
@@ -27,6 +33,7 @@ function createClient(agentOverride?: unknown) {
       agent: agent as never,
       canisterId: CANISTER_ID,
       gatewayUrl: GATEWAY_URL,
+      ...configOverride,
     }),
     agent,
   };
@@ -134,6 +141,23 @@ describe('BlobStorageGatewayClient', () => {
           totalSize: 1,
         }),
       ).rejects.toThrow('400');
+    });
+
+    it('can disable retries for latency-sensitive uploads', async () => {
+      mockFetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+      const { client } = createClient(undefined, { maxRetries: 0 });
+
+      const chunkHash = await YHash.fromChunk(new Uint8Array([1]));
+      const blobTree = await BlobHashTree.build([chunkHash]);
+
+      await expect(
+        client.uploadBlobTree({
+          blobTree,
+          certificate: new Uint8Array([1]),
+          totalSize: 1,
+        }),
+      ).rejects.toThrow('Failed to fetch');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 

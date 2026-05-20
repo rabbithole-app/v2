@@ -237,12 +237,12 @@ describe('Integration: deposit + wallet + settings', () => {
   });
 });
 
-// ========== Test Suite 2: Webhook → Subscription Activation ==========
-// Mirrors the backend `ICPAY_ENABLED` flag in main.mo — skipped while
-// ICPay middleware is off.
+// ========== Test Suite 2: Webhook -> Subscription Activation ==========
+// Mirrors the backend `ICPAY_ENABLED` flag in main.mo. Webhook-dependent
+// tests skip while ICPay middleware is off.
 const ICPAY_ENABLED = false;
 
-describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscription', () => {
+describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro -> subscription', () => {
   let manager: BaseManager;
   let actor: Actor<BackendActor>;
   let backendCanisterId: Principal;
@@ -263,7 +263,6 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     actor = fixture.actor;
     backendCanisterId = fixture.canisterId;
 
-    // Register users
     actor.setIdentity(l1Identity);
     await actor.ensureUser([]);
     const l1Profile = await actor.getProfile();
@@ -275,7 +274,6 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
       expect(await actor.applyReferralCode(l1Code)).toEqual({ ok: null });
     }
 
-    // Fund backend main account with ICP (simulating ICPay relay for direct purchase)
     manager.icpLedgerActor.setIdentity(minterIdentity);
     await manager.icpLedgerActor.icrc1_transfer({
       to: { owner: backendCanisterId, subaccount: [] },
@@ -292,12 +290,12 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     return Math.floor((await manager.pic.getTime()) / 1000);
   }
 
-  test('webhook license → creates license record', async () => {
+  test('webhook license -> creates license record', async () => {
     const ts = await getPicTimestamp();
     const body = makePaymentCompletedEvent({
       purpose: 'license',
       userId: userIdentity.getPrincipal().toText(),
-      amount: 490_000n, // $4.90 in e8s-like units
+      amount: 490_000n,
       paymentId: 'pay-license-integ',
     });
     const sig = signWebhookPayload(ICPAY_SECRET, body, ts);
@@ -305,20 +303,17 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     const response = await actor.http_request_update(buildHttpRequest(body, sig));
     expect(response.status_code).toBe(200);
 
-    // Flush payment queue
     actor.setIdentity(manager.ownerIdentity);
     await actor.flushPaymentQueue();
 
-    // Verify license created (not subscription)
     actor.setIdentity(userIdentity);
     const licenses = (await actor.listLicenses([])).data;
     expect(licenses).toHaveLength(1);
-    expect(licenses[0].canisterId).toHaveLength(0); // unbound
+    expect(licenses[0].canisterId).toHaveLength(0);
     expect(licenses[0].receipt.paymentId).toBe('pay-license-integ');
   });
 
-  test('webhook pro_monthly → activates Pro subscription with expiry', async () => {
-    // Use different user to avoid AlreadyActive
+  test('webhook pro_monthly -> activates Pro subscription with expiry', async () => {
     const proUser = createIdentity('integ-pro-user');
     actor.setIdentity(proUser);
     await actor.ensureUser([]);
@@ -343,12 +338,11 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     expect(sub).toHaveLength(1);
     expect(sub[0].plan).toEqual({ Pro: null });
     expect(sub[0].status).toEqual({ Active: null });
-    // Should have expiry ~30 days from now
     expect(sub[0].expiresAt).toHaveLength(1);
     expect(sub[0].expiresAt[0]).toBeGreaterThan(0n);
   });
 
-  test('webhook deposit → notification but no subscription change', async () => {
+  test('webhook deposit -> notification but no subscription change', async () => {
     const depositUser = createIdentity('integ-deposit-user');
     actor.setIdentity(depositUser);
     await actor.ensureUser([]);
@@ -367,19 +361,16 @@ describe.skipIf(!ICPAY_ENABLED)('Integration: webhook license/pro → subscripti
     actor.setIdentity(manager.ownerIdentity);
     await actor.flushPaymentQueue();
 
-    // No subscription created
     actor.setIdentity(depositUser);
     const sub = await actor.getSubscription();
     expect(sub).toHaveLength(0);
 
-    // But notification received
     const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const depositNotif = findNotification(notifs.data, 'depositReceived');
     expect(depositNotif).toBeDefined();
   });
 
   test('payment notification includes correct data', async () => {
-    // Check that the license activation from earlier created a paymentReceived notification
     actor.setIdentity(userIdentity);
     const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const paymentNotif = findNotification(notifs.data, 'paymentReceived');
@@ -1471,7 +1462,7 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
     const l1 = createIdentity('dist-l1');
     actor.setIdentity(l1);
     await actor.ensureUser([]);
-    await actor.createProfile({ username: 'dist-l1', displayName: [], avatarUrl: [] });
+    await actor.createProfile({ username: 'dist-l1', displayName: [] });
     const l1Profile = await actor.getProfile();
     const l1Code = l1Profile[0]?.referralCode?.[0];
     expect(l1Code).toBeDefined();
@@ -1481,7 +1472,7 @@ describe('Integration: pendingRefunds and ambassador distribution', () => {
     actor.setIdentity(l2);
     await actor.ensureUser([]);
     expect(await actor.applyReferralCode(l1Code)).toEqual({ ok: null });
-    await actor.createProfile({ username: 'dist-l2', displayName: [], avatarUrl: [] });
+    await actor.createProfile({ username: 'dist-l2', displayName: [] });
     const l2Profile = await actor.getProfile();
     const l2Code = l2Profile[0]?.referralCode?.[0];
     expect(l2Code).toBeDefined();
@@ -1934,7 +1925,6 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
     await actor.createProfile({
       username: 'ambassador',
       displayName: [],
-      avatarUrl: [],
     });
     const ambassadorProfile = await actor.getProfile();
     const referralCode = ambassadorProfile[0]?.referralCode?.[0];

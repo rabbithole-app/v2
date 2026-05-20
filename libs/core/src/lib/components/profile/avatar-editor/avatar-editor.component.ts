@@ -3,14 +3,15 @@ import {
   Component,
   computed,
   inject,
-  model,
+  input,
+  output,
   signal,
 } from '@angular/core';
-import { FormValueControl } from '@angular/forms/signals';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePencil, lucideTrash } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { match, P } from 'ts-pattern';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import {
   HlmAvatar,
@@ -22,9 +23,14 @@ import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
+import type { AvatarRef } from '@rabbithole/declarations/backend';
+
 import { FileSystemAccessService } from '../../../services/file-system-access.service';
-import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens/main';
-import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dialog.component';
+import { AvatarService } from '../../../services/avatar.service';
+import {
+  AvatarCropDialogComponent,
+  type AvatarCropDialogResult,
+} from '../avatar-crop-dialog/avatar-crop-dialog.component';
 
 @Component({
   selector: 'core-avatar-editor',
@@ -45,34 +51,42 @@ import { AvatarCropDialogComponent } from '../avatar-crop-dialog/avatar-crop-dia
     '[class]': '"relative inline-block"',
   },
 })
-export class AvatarEditorComponent implements FormValueControl<string | null> {
-  readonly backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
+export class AvatarEditorComponent {
+  readonly avatarRef = input<AvatarRef | null>(null);
+  readonly avatarChanged = output<AvatarRef | null>();
+  readonly disabled = input(false);
+  readonly #avatarService = inject(AvatarService);
+  readonly avatarSrc = computed(() =>
+    this.#avatarService.avatarSrc(this.avatarRef()),
+  );
 
-  /** FormValueControl contract — Signal Forms binds this automatically via [formField]. */
-  readonly value = model<string | null>(null);
-  readonly avatarSrc = computed(() => {
-    const avatarKey = this.value();
-    return avatarKey ? `${this.backendUrl}${avatarKey}` : null;
-  });
-  readonly disabled = model(false);
-
-  readonly hasValue = computed(() => this.value() !== null);
+  readonly hasValue = computed(() => this.avatarRef() !== null);
+  readonly saving = signal(false);
   #isHovered = signal(false);
 
-  readonly showControls = computed(() => this.#isHovered() && !this.disabled());
-  readonly touched = model(false);
+  readonly disabledState = computed(() => this.disabled() || this.saving());
+  readonly showControls = computed(
+    () => this.#isHovered() && !this.disabledState(),
+  );
 
   readonly #fsAccessService = inject(FileSystemAccessService);
   readonly #hlmDialogService = inject(HlmDialogService);
 
-  handleDelete() {
-    if (this.disabled()) return;
-    this.value.set(null);
-    this.touched.set(true);
+  async handleDelete() {
+    if (this.disabledState()) return;
+    const id = toast.loading('Deleting avatar...');
+    try {
+      await this.#avatarService.clearAvatar();
+      this.avatarChanged.emit(null);
+      toast.success('Avatar deleted', { id });
+    } catch (error) {
+      console.error('Failed to delete avatar', error);
+      toast.error('Failed to delete avatar', { id });
+    }
   }
 
   async handleEdit() {
-    if (this.disabled()) return;
+    if (this.disabledState()) return;
 
     try {
       const fileHandle = await this.#fsAccessService.fileOpen({
@@ -108,13 +122,49 @@ export class AvatarEditorComponent implements FormValueControl<string | null> {
       },
       id: 'avatar-crop-dialog',
       contentClass: 'w-[720px] sm:max-w-[90vw] sm:max-h-[90vh] aspect-auto',
-    }) as BrnDialogRef<string | undefined>;
+    }) as BrnDialogRef<AvatarCropDialogResult | undefined>;
 
-    dialogRef.closed$.subscribe((avatarKey) => {
-      if (avatarKey !== undefined) {
-        this.value.set(avatarKey ?? null);
-        this.touched.set(true);
+    dialogRef.closed$.subscribe((result) => {
+      if (result === undefined) return;
+
+      if ('error' in result) {
+        toast.error('Failed to prepare avatar', {
+          description: result.error,
+          duration: 10_000,
+        });
+        return;
       }
+
+      void this.#saveAvatar(result.content, result.contentType);
     });
+  }
+
+  async #saveAvatar(content: Uint8Array, contentType: string) {
+    this.saving.set(true);
+    const id = toast.loading('Saving avatar...');
+
+    try {
+      const avatarRef = await this.#avatarService.uploadAvatar(
+        content,
+        contentType,
+      );
+      this.avatarChanged.emit(avatarRef);
+      toast.success('Avatar saved successfully', { id });
+    } catch (error) {
+      const message = this.#errorMessage(error);
+      console.error('Failed to save avatar', error);
+      toast.dismiss(id);
+      toast.error('Failed to save avatar', {
+        description: message,
+        duration: 10_000,
+      });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  #errorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    return 'Unknown error';
   }
 }

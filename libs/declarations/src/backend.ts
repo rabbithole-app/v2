@@ -7,6 +7,7 @@ export type {
   AdminUsersPage,
   AssetDownloadStatus,
   AssetFullStatus,
+  AvatarRef,
   BalanceEntry,
   CmcOpKind,
   CmcOpRetryResult,
@@ -65,4 +66,7 @@ export type {
   WithdrawResult,
   _SERVICE as RabbitholeActorService,
 } from './backend/rabbithole-backend.did';
-export { idlFactory as rabbitholeIdlFactory, init as initBackend } from './backend/rabbithole-backend.did';
+export {
+  idlFactory as rabbitholeIdlFactory,
+  init as initBackend,
+} from './backend/rabbithole-backend.did';

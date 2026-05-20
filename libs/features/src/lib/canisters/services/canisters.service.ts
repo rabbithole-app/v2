@@ -1,6 +1,6 @@
 import { computed, Injectable, resource, signal } from '@angular/core';
 import { Principal } from '@icp-sdk/core/principal';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 
 import { injectMainActor, parseCanisterRejectError } from '@rabbithole/core';
 

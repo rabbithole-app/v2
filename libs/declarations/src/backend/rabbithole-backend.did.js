@@ -53,6 +53,17 @@ export const idlFactory = ({ IDL }) => {
     'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'chains' : IDL.Vec(ChainConfig),
   });
+  const ImmutableObjectStorageCreateCertificateResult = IDL.Record({
+    'method' : IDL.Text,
+    'blob_hash' : IDL.Text,
+  });
+  const ImmutableObjectStorageRefillInformation = IDL.Record({
+    'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const ImmutableObjectStorageRefillResult = IDL.Record({
+    'success' : IDL.Opt(IDL.Bool),
+    'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
   const Plan = IDL.Variant({
     'Pro' : IDL.Null,
     'Free' : IDL.Null,
@@ -110,10 +121,18 @@ export const idlFactory = ({ IDL }) => {
     'email' : IDL.Opt(IDL.Text),
     'syncedAt' : IDL.Opt(Time),
   });
+  const AvatarRef = IDL.Record({
+    'sha256' : IDL.Vec(IDL.Nat8),
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+    'updatedAt' : Time,
+    'blobId' : IDL.Vec(IDL.Nat8),
+    'rootHash' : IDL.Text,
+  });
   const PublicProfileSummary = IDL.Record({
     'username' : IDL.Text,
     'displayName' : IDL.Opt(IDL.Text),
-    'avatarUrl' : IDL.Opt(IDL.Text),
+    'avatarRef' : IDL.Opt(AvatarRef),
   });
   const AdminUserListItem = IDL.Record({
     'id' : IDL.Principal,
@@ -159,7 +178,6 @@ export const idlFactory = ({ IDL }) => {
   const CreateProfileArgs = IDL.Record({
     'username' : IDL.Text,
     'displayName' : IDL.Opt(IDL.Text),
-    'avatarUrl' : IDL.Opt(IDL.Text),
   });
   const DeleteStorageError = IDL.Variant({
     'NotFailed' : IDL.Null,
@@ -324,7 +342,7 @@ export const idlFactory = ({ IDL }) => {
     'displayName' : IDL.Opt(IDL.Text),
     'createdAt' : Time,
     'updatedAt' : Time,
-    'avatarUrl' : IDL.Opt(IDL.Text),
+    'avatarRef' : IDL.Opt(AvatarRef),
   });
   const PublicProfileLookup = IDL.Record({
     'principal' : IDL.Principal,
@@ -402,7 +420,7 @@ export const idlFactory = ({ IDL }) => {
     'displayName' : IDL.Opt(IDL.Text),
     'createdAt' : Time,
     'updatedAt' : Time,
-    'avatarUrl' : IDL.Opt(IDL.Text),
+    'avatarRef' : IDL.Opt(AvatarRef),
   });
   const User = IDL.Record({
     'id' : IDL.Principal,
@@ -919,6 +937,18 @@ export const idlFactory = ({ IDL }) => {
     'correlationId' : IDL.Opt(CorrelationId),
     'accountOwner' : IDL.Principal,
   });
+  const PrepareAvatarUploadArgs = IDL.Record({
+    'content' : IDL.Vec(IDL.Nat8),
+    'contentType' : IDL.Text,
+  });
+  const PrepareAvatarUploadResult = IDL.Record({
+    'sha256' : IDL.Vec(IDL.Nat8),
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+    'updatedAt' : Time,
+    'blobId' : IDL.Vec(IDL.Nat8),
+    'rootHash' : IDL.Text,
+  });
   const StorageBackendType = IDL.Variant({
     'OnChain' : IDL.Null,
     'BlobStorage' : IDL.Null,
@@ -949,11 +979,6 @@ export const idlFactory = ({ IDL }) => {
     'notFound' : IDL.Null,
     'stillAmbiguous' : IDL.Record({ 'attempts' : IDL.Nat }),
   });
-  const CreateProfileAvatarArgs = IDL.Record({
-    'content' : IDL.Vec(IDL.Nat8),
-    'contentType' : IDL.Text,
-    'filename' : IDL.Text,
-  });
   const UserDirectoryMatch = IDL.Variant({
     'principalExact' : IDL.Null,
     'emailExact' : IDL.Null,
@@ -981,10 +1006,7 @@ export const idlFactory = ({ IDL }) => {
     'ok' : IDL.Record({ 'cyclesAdded' : IDL.Nat }),
     'err' : IDL.Text,
   });
-  const UpdateProfileArgs = IDL.Record({
-    'displayName' : IDL.Opt(IDL.Text),
-    'avatarUrl' : IDL.Opt(IDL.Text),
-  });
+  const UpdateProfileArgs = IDL.Record({ 'displayName' : IDL.Opt(IDL.Text) });
   const UpgradeStorageError = IDL.Variant({
     'AlreadyUpgrading' : IDL.Null,
     'NoUpdateAvailable' : IDL.Null,
@@ -1016,6 +1038,32 @@ export const idlFactory = ({ IDL }) => {
   });
   const WithdrawResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : WithdrawError });
   const Rabbithole = IDL.Service({
+    '_immutableObjectStorageBlobsAreLive' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [IDL.Vec(IDL.Bool)],
+        ['query'],
+      ),
+    '_immutableObjectStorageBlobsToDelete' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        ['query'],
+      ),
+    '_immutableObjectStorageConfirmBlobDeletion' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [],
+        [],
+      ),
+    '_immutableObjectStorageCreateCertificate' : IDL.Func(
+        [IDL.Text],
+        [ImmutableObjectStorageCreateCertificateResult],
+        [],
+      ),
+    '_immutableObjectStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(ImmutableObjectStorageRefillInformation)],
+        [ImmutableObjectStorageRefillResult],
+        [],
+      ),
+    '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     'activateSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
         [],
@@ -1055,6 +1103,8 @@ export const idlFactory = ({ IDL }) => {
         [SubscriptionCheckResult],
         [],
       ),
+    'clearAvatar' : IDL.Func([], [], []),
+    'commitAvatarUpload' : IDL.Func([IDL.Text], [AvatarRef], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Vec(IDL.Nat8)], []),
     'deleteProfile' : IDL.Func([], [], []),
     'deleteStorage' : IDL.Func([IDL.Nat], [Result_5], []),
@@ -1118,11 +1168,6 @@ export const idlFactory = ({ IDL }) => {
     'http_request' : IDL.Func(
         [RawQueryHttpRequest],
         [RawQueryHttpResponse],
-        ['query'],
-      ),
-    'http_request_streaming_callback' : IDL.Func(
-        [StreamingToken],
-        [StreamingCallbackResponse],
         ['query'],
       ),
     'http_request_update' : IDL.Func(
@@ -1189,6 +1234,11 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'prepareAvatarUpload' : IDL.Func(
+        [PrepareAvatarUploadArgs],
+        [PrepareAvatarUploadResult],
+        [],
+      ),
     'processPendingRefunds' : IDL.Func([], [IDL.Nat], []),
     'purchaseLicenseAndCreateStorage' : IDL.Func(
         [StorageBackendType, StorageVetKeyLevel],
@@ -1223,7 +1273,6 @@ export const idlFactory = ({ IDL }) => {
     'reportTrialBytes' : IDL.Func([IDL.Nat], [], []),
     'retryAmbassadorPayout' : IDL.Func([IDL.Nat], [Result_2], []),
     'retryPendingCmcOp' : IDL.Func([IDL.Nat], [CmcOpRetryResult], []),
-    'saveAvatar' : IDL.Func([CreateProfileAvatarArgs], [IDL.Text], []),
     'searchUserDirectory' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [IDL.Vec(UserDirectoryItem)],

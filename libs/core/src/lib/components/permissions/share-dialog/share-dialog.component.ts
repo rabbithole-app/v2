@@ -57,7 +57,7 @@ import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { injectMainActor } from '../../../injectors/main-actor';
-import { MAIN_BACKEND_URL_TOKEN } from '../../../tokens';
+import { AvatarService } from '../../../services/avatar.service';
 import { CoreTransparentSelectBackdropDirective } from '../../ui/transparent-select-backdrop.directive';
 import {
   UserTarget,
@@ -155,6 +155,7 @@ export class ShareDialogComponent {
     ),
   ]);
   readonly #mainActor = injectMainActor();
+  readonly #avatarService = inject(AvatarService);
   readonly profiles = resource({
     params: () => ({
       actor: this.#mainActor(),
@@ -179,7 +180,9 @@ export class ShareDialogComponent {
           return [
             principalId,
             {
-              avatarSrc: this.avatarSrc(summary.avatarUrl[0]),
+              avatarSrc:
+                this.#avatarService.avatarSrc(summary.avatarRef[0]) ??
+                undefined,
               title: displayName ?? `@${summary.username}`,
               username: summary.username,
             },
@@ -202,7 +205,6 @@ export class ShareDialogComponent {
   });
   readonly scopeLabel = input('Selected item');
   readonly selectedPermissions = signal<Record<string, StoragePermission>>({});
-  readonly #backendUrl = inject(MAIN_BACKEND_URL_TOKEN);
   accessProfile(item: StoragePermissionItem): AccessProfile | null {
     if (item.targetKind !== 'principal') return null;
     return this.profiles.value().get(item.user) ?? null;
@@ -330,7 +332,7 @@ export class ShareDialogComponent {
   }
 
   targetAvatarSrc(target: UserTarget): string | undefined {
-    return target.kind === 'user' ? target.avatarUrl : undefined;
+    return target.kind === 'user' ? target.avatarSrc : undefined;
   }
 
   targetIcon(target: UserTarget): string {
@@ -361,12 +363,6 @@ export class ShareDialogComponent {
 
   targetPrincipalId(target: UserTarget): string | undefined {
     return target.kind === 'email' ? undefined : target.principalId;
-  }
-
-  private avatarSrc(avatarUrl: string | undefined): string | undefined {
-    if (!avatarUrl) return undefined;
-    if (/^(https?:|data:|blob:)/.test(avatarUrl)) return avatarUrl;
-    return `${this.#backendUrl}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
   }
 
   private reset(): void {

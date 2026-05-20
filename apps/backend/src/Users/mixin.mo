@@ -1,25 +1,21 @@
 import Debug "mo:core/Debug";
 import Error "mo:core/Error";
-import Iter "mo:core/Iter";
+import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
 
-import HttpAssets "mo:http-assets";
-import Sha256 "mo:sha2/Sha256";
 import Users "lib";
 import ZenDB "mo:zendb";
 
 mixin (
   installer : Principal,
   db : ZenDB.Database,
-  deps : {
-    deleteAsset : (Text) -> ();
-    storeAsset : (Principal, HttpAssets.StoreArgs) -> ();
-  },
+  avatarUploadReservations : Map.Map<Principal, Users.AvatarUploadReservation>,
+  avatarDrafts : Map.Map<Principal, Users.AvatarRef>,
 ) {
-  transient let users = Users.Users(db, deps.deleteAsset);
+  transient let users = Users.Users(db, avatarUploadReservations, avatarDrafts);
 
   // Bootstrap: the deployer principal (installer) becomes the first admin.
   // Creating a User record here guarantees `isAdmin(installer)` is true before
@@ -115,21 +111,6 @@ mixin (
   };
 
   // ---- Profiles ----
-
-  public shared ({ caller }) func saveAvatar({ filename; content; contentType } : Users.CreateProfileAvatarArgs) : async Text {
-    assert not Principal.isAnonymous(caller);
-    let args : HttpAssets.StoreArgs = {
-      key = "/" # Text.join(Iter.fromArray(["static", Principal.toText(caller), filename]), "/");
-      content;
-      sha256 = ?Sha256.fromBlob(#sha256, content);
-      content_type = contentType;
-      content_encoding = "identity";
-      is_aliased = null;
-    };
-    deps.storeAsset(installer, args);
-    users.trackAvatar(caller, args.key);
-    args.key;
-  };
 
   public shared ({ caller }) func createProfile(args : Users.CreateProfileArgs) : async Blob {
     assert not Principal.isAnonymous(caller);

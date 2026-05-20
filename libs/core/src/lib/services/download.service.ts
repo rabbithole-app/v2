@@ -1,6 +1,6 @@
 import { computed, DestroyRef, inject, Injectable } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { SignalMap } from 'ngxtension/collections';
 import { timer } from 'rxjs';
 

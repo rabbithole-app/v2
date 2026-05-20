@@ -28,6 +28,7 @@ import {
   APP_NAME_TOKEN,
   AUTH_MAX_TIME_TO_LIVE,
   BACKEND_FEATURES_ENABLED_TOKEN,
+  BLOB_STORAGE_CONFIG_TOKEN,
   canisterOrigin,
   ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN,
   ENCRYPTED_STORAGE_CANISTER_ID,
@@ -43,6 +44,7 @@ import {
   SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
 } from '@rabbithole/core/app-runtime';
 
+import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { ConfigService } from './core/services/config.service';
 
@@ -110,6 +112,13 @@ export const appConfig: ApplicationConfig = {
     {
       provide: ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN,
       useFactory: () => injectStorageRuntimeConfig().storageBackendType,
+    },
+    {
+      provide: BLOB_STORAGE_CONFIG_TOKEN,
+      useValue: {
+        gatewayUrl: environment.blobStorageGatewayUrl,
+        cashierCanisterId: environment.blobStorageCashierCanisterId,
+      },
     },
     {
       provide: MAIN_CANISTER_ID_TOKEN,

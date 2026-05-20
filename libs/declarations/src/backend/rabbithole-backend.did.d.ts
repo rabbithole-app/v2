@@ -96,6 +96,14 @@ export interface AssetFullStatus {
 export type AssetLocator = { 'Contract' : string } |
   { 'Mint' : string } |
   { 'Native' : null };
+export interface AvatarRef {
+  'sha256' : Uint8Array,
+  'contentType' : string,
+  'size' : bigint,
+  'updatedAt' : Time,
+  'blobId' : Uint8Array,
+  'rootHash' : string,
+}
 export interface BalanceEntry { 'tokenId' : TokenId, 'balance' : bigint }
 export interface CallbackStreamingStrategy {
   'token' : StreamingToken,
@@ -119,12 +127,6 @@ export type CorrelationId = string;
 export interface CreateProfileArgs {
   'username' : string,
   'displayName' : [] | [string],
-  'avatarUrl' : [] | [string],
-}
-export interface CreateProfileAvatarArgs {
-  'content' : Uint8Array,
-  'contentType' : string,
-  'filename' : string,
 }
 export interface CreationListItem {
   'id' : bigint,
@@ -269,6 +271,17 @@ export type IdentityAttributesSyncError = { 'expired' : null } |
   { 'nonceNotFound' : null };
 export type IdentityAttributesSyncResult = { 'ok' : null } |
   { 'err' : IdentityAttributesSyncError };
+export interface ImmutableObjectStorageCreateCertificateResult {
+  'method' : string,
+  'blob_hash' : string,
+}
+export interface ImmutableObjectStorageRefillInformation {
+  'proposed_top_up_amount' : [] | [bigint],
+}
+export interface ImmutableObjectStorageRefillResult {
+  'success' : [] | [boolean],
+  'topped_up_amount' : [] | [bigint],
+}
 export interface InitArgs {
   'icpaySecretKey' : [] | [Uint8Array],
   'chains' : Array<ChainConfig>,
@@ -524,6 +537,18 @@ export interface PendingRefund {
 export type Plan = { 'Pro' : null } |
   { 'Free' : null } |
   { 'Trial' : null };
+export interface PrepareAvatarUploadArgs {
+  'content' : Uint8Array,
+  'contentType' : string,
+}
+export interface PrepareAvatarUploadResult {
+  'sha256' : Uint8Array,
+  'contentType' : string,
+  'size' : bigint,
+  'updatedAt' : Time,
+  'blobId' : Uint8Array,
+  'rootHash' : string,
+}
 export interface Profile {
   'id' : Principal,
   'referralCode' : [] | [string],
@@ -531,7 +556,7 @@ export interface Profile {
   'displayName' : [] | [string],
   'createdAt' : Time,
   'updatedAt' : Time,
-  'avatarUrl' : [] | [string],
+  'avatarRef' : [] | [AvatarRef],
 }
 export interface Progress { 'total' : bigint, 'processed' : bigint }
 export interface PublicProfileLookup {
@@ -541,7 +566,7 @@ export interface PublicProfileLookup {
 export interface PublicProfileSummary {
   'username' : string,
   'displayName' : [] | [string],
-  'avatarUrl' : [] | [string],
+  'avatarRef' : [] | [AvatarRef],
 }
 export type PurchaseError = { 'ActivationFailed' : string } |
   { 'InvalidPlan' : string } |
@@ -549,6 +574,24 @@ export type PurchaseError = { 'ActivationFailed' : string } |
   { 'AlreadyActive' : null } |
   { 'InsufficientFunds' : { 'required' : bigint } };
 export interface Rabbithole {
+  '_immutableObjectStorageBlobsAreLive' : ActorMethod<
+    [Array<Uint8Array>],
+    Array<boolean>
+  >,
+  '_immutableObjectStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_immutableObjectStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array>],
+    undefined
+  >,
+  '_immutableObjectStorageCreateCertificate' : ActorMethod<
+    [string],
+    ImmutableObjectStorageCreateCertificateResult
+  >,
+  '_immutableObjectStorageRefillCashier' : ActorMethod<
+    [[] | [ImmutableObjectStorageRefillInformation]],
+    ImmutableObjectStorageRefillResult
+  >,
+  '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   'activateSubscription' : ActorMethod<
     [Principal, Plan, [] | [bigint]],
     undefined
@@ -603,6 +646,8 @@ export interface Rabbithole {
   'attributeNonceBegin' : ActorMethod<[], Uint8Array>,
   'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'checkSubscription' : ActorMethod<[Uint8Array], SubscriptionCheckResult>,
+  'clearAvatar' : ActorMethod<[], undefined>,
+  'commitAvatarUpload' : ActorMethod<[string], AvatarRef>,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array>,
   'deleteProfile' : ActorMethod<[], undefined>,
   'deleteStorage' : ActorMethod<[bigint], Result_5>,
@@ -656,10 +701,6 @@ export interface Rabbithole {
   'getUnreadNotificationCount' : ActorMethod<[], bigint>,
   'getUser' : ActorMethod<[], [] | [User]>,
   'http_request' : ActorMethod<[RawQueryHttpRequest], RawQueryHttpResponse>,
-  'http_request_streaming_callback' : ActorMethod<
-    [StreamingToken],
-    StreamingCallbackResponse
-  >,
   'http_request_update' : ActorMethod<
     [RawUpdateHttpRequest],
     RawUpdateHttpResponse
@@ -709,6 +750,10 @@ export interface Rabbithole {
   'onStorageLowCycles' : ActorMethod<
     [bigint, bigint, { 'warning' : null } | { 'critical' : null }],
     undefined
+  >,
+  'prepareAvatarUpload' : ActorMethod<
+    [PrepareAvatarUploadArgs],
+    PrepareAvatarUploadResult
   >,
   'processPendingRefunds' : ActorMethod<[], bigint>,
   /**
@@ -784,7 +829,6 @@ export interface Rabbithole {
    */
   'retryAmbassadorPayout' : ActorMethod<[bigint], Result_2>,
   'retryPendingCmcOp' : ActorMethod<[bigint], CmcOpRetryResult>,
-  'saveAvatar' : ActorMethod<[CreateProfileAvatarArgs], string>,
   'searchUserDirectory' : ActorMethod<
     [string, bigint],
     Array<UserDirectoryItem>
@@ -1119,10 +1163,7 @@ export interface UpdateInfo {
   'frontendUpdateAvailable' : boolean,
   'availableWasmHash' : [] | [Uint8Array],
 }
-export interface UpdateProfileArgs {
-  'displayName' : [] | [string],
-  'avatarUrl' : [] | [string],
-}
+export interface UpdateProfileArgs { 'displayName' : [] | [string] }
 export type UpgradeStorageError = { 'AlreadyUpgrading' : null } |
   { 'NoUpdateAvailable' : null } |
   { 'NotFound' : null } |
@@ -1164,7 +1205,7 @@ export interface UserProfile {
   'displayName' : [] | [string],
   'createdAt' : Time,
   'updatedAt' : Time,
-  'avatarUrl' : [] | [string],
+  'avatarRef' : [] | [AvatarRef],
 }
 export interface UserSettings {
   'spendingPriority' : Array<TokenId>,

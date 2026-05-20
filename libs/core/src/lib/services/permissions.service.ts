@@ -1,6 +1,6 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { toast } from 'ngx-sonner';
+import { toast } from '@spartan-ng/brain/sonner';
 import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 
 import {

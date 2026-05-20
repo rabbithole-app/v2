@@ -1,7 +1,11 @@
-import { computed, Injectable, resource } from '@angular/core';
+import { computed, inject, Injectable, resource } from '@angular/core';
 import type { Principal } from '@icp-sdk/core/principal';
 
-import { injectMainActor, parseCanisterRejectError } from '@rabbithole/core';
+import {
+  AvatarService,
+  injectMainActor,
+  parseCanisterRejectError,
+} from '@rabbithole/core';
 
 import {
   convertSharedStorageView,
@@ -17,6 +21,7 @@ export type SharedStorageOwnerProfile = {
 @Injectable()
 export class SharedWithMeStore {
   readonly #actor = injectMainActor();
+  readonly #avatarService = inject(AvatarService);
 
   readonly sharedStoragesResource = resource({
     params: () => ({ actor: this.#actor() }),
@@ -73,7 +78,9 @@ export class SharedWithMeStore {
           return [
             principalId,
             {
-              avatarSrc: summary.avatarUrl[0],
+              avatarSrc:
+                this.#avatarService.avatarSrc(summary.avatarRef[0]) ??
+                undefined,
               title: displayName ?? summary.username,
               username: displayName ? summary.username : undefined,
             },
