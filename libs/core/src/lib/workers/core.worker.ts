@@ -38,6 +38,7 @@ import {
     AssetManager,
     EncryptedStorage,
     Entry,
+    StorageThumbnailRef,
 } from '@rabbithole/encrypted-storage';
 
 import {
@@ -62,6 +63,8 @@ import {
     imageCropSchema,
     principalSchema,
     PrincipalString,
+    ThumbnailRewrapRequest,
+    thumbnailRewrapRequestSchema,
     UploadAsset,
     uploadAssetSchema,
     UploadFile,
@@ -229,6 +232,15 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
       }
       break;
     }
+    case 'thumbnail:rewrap': {
+      const request = thumbnailRewrapRequestSchema(data.payload);
+      if (request instanceof type.errors) {
+        console.error(request.summary);
+      } else {
+        rewrapThumbnails.next(request);
+      }
+      break;
+    }
     case 'worker:auth-sync': {
       identityRefresh.next();
       break;
@@ -322,6 +334,7 @@ const downloadFiles = new Subject<DownloadRequest>();
 const archiveDownloads = new Subject<ArchiveDownloadRequest>();
 const cancelDownload = new Subject<string>();
 const imageCrop = new Subject<ImageCropPayload>();
+const rewrapThumbnails = new Subject<ThumbnailRewrapRequest>();
 
 function getEncryptedStorageInstance(
   instancesMap: Map<
@@ -465,11 +478,11 @@ workerConfig.pipe(
                   catchError(() => EMPTY),
                 )
                 .subscribe((value) => {
-                  const thumbnailKey = match(value)
+                  const thumbnailRef = match(value)
                     .with(
                       {
                         metadata: {
-                          File: { thumbnailKey: [P.optional(P.string.select())] },
+                          File: { thumbnailRef: [P.select()] },
                         },
                       },
                       (v) => v,
@@ -477,7 +490,7 @@ workerConfig.pipe(
                     .otherwise(() => undefined);
                   postMessage({
                     action: 'upload:thumbnail',
-                    payload: { id, thumbnailKey },
+                    payload: { id, thumbnailRef },
                   });
                 });
             }
@@ -535,6 +548,97 @@ workerConfig.pipe(
 ).subscribe((payload) => {
   postMessage({ action: 'upload:progress-file', payload });
 });
+
+function optionalBytes(value?: number[]): [] | [Uint8Array] {
+  return value ? [new Uint8Array(value)] : [];
+}
+
+function toStorageThumbnailRef(ref: ThumbnailRewrapRequest['thumbnailRef']): StorageThumbnailRef {
+  const encryption =
+    ref.encryption.kind === 'Plaintext'
+      ? { Plaintext: null }
+      : {
+          Encrypted: {
+            scopeKeyId: [
+              Principal.fromText(ref.encryption.scopeKeyId[0]),
+              new Uint8Array(ref.encryption.scopeKeyId[1]),
+            ],
+            wrappedKey: new Uint8Array(ref.encryption.wrappedKey),
+            blobIv: new Uint8Array(ref.encryption.blobIv),
+            algorithm: ref.encryption.algorithm,
+          },
+        };
+
+  if (ref.storageBackend === 'OnChain') {
+    return {
+      OnChain: {
+        key: ref.key,
+        sha256: optionalBytes(ref.sha256),
+        contentType: ref.contentType,
+        size: BigInt(ref.size),
+        encryption,
+      },
+    };
+  }
+
+  return {
+    BlobStorage: {
+      rootHash: ref.rootHash,
+      blobId: new TextEncoder().encode(ref.rootHash),
+      sha256: optionalBytes(ref.sha256),
+      contentType: ref.contentType,
+      size: BigInt(ref.size),
+      encryption,
+    },
+  };
+}
+
+async function processThumbnailRewrap(
+  encryptedStorage: EncryptedStorage,
+  request: ThumbnailRewrapRequest,
+) {
+  await encryptedStorage.rewrapThumbnail(
+    request.entry,
+    toStorageThumbnailRef(request.thumbnailRef),
+  );
+}
+
+workerConfig.pipe(
+  take(1),
+  switchMap((wc) =>
+    rewrapThumbnails.asObservable().pipe(
+      mergeMap(
+        (request) =>
+          encryptedStorageInstances$.pipe(
+            take(1),
+            switchMap((instancesMap) => {
+              try {
+                const { encryptedStorage, principalId } = getEncryptedStorageInstance(
+                  instancesMap,
+                  request.storageId,
+                );
+                if (principalId === ANONYMOUS_PRINCIPAL_ID) {
+                  console.error('[thumbnail:rewrap] identity unavailable');
+                  return EMPTY;
+                }
+
+                return from(processThumbnailRewrap(encryptedStorage, request)).pipe(
+                  catchError((error) => {
+                    console.error('[thumbnail:rewrap] failed', error);
+                    return EMPTY;
+                  }),
+                );
+              } catch (error) {
+                console.error('[thumbnail:rewrap] failed', error);
+                return EMPTY;
+              }
+            }),
+          ),
+        wc.concurrentThumbnailRewraps ?? 2,
+      ),
+    ),
+  ),
+).subscribe();
 
 // Download pipeline
 async function processDownload(

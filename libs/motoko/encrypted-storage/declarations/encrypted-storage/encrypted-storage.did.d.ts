@@ -10,475 +10,635 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export type AccessClass =
-  | { ordinary: null }
-  | { ownerEquivalent: null }
-  | { durable: null };
+export type AccessClass = { 'ordinary' : null } |
+  { 'ownerEquivalent' : null } |
+  { 'durable' : null };
 export interface AccessGrantList {
-  pendingGrants: Array<ListedPendingAccessGrant>;
-  principalGrants: Array<ListedPrincipalAccessGrant>;
-  mode: AccessGrantListMode;
-  scope: AccessScope;
+  'pendingGrants' : Array<ListedPendingAccessGrant>,
+  'principalGrants' : Array<ListedPrincipalAccessGrant>,
+  'mode' : AccessGrantListMode,
+  'scope' : AccessScope,
 }
-export type AccessGrantListMode = { effective: null } | { exact: null };
-export type AccessRef =
-  | { principal: Principal }
-  | { emailCommitment: EmailCommitment }
-  | { email: { emailCommitment: EmailCommitment; email: string } };
+export type AccessGrantListMode = { 'effective' : null } |
+  { 'exact' : null };
+export type AccessRef = { 'principal' : Principal } |
+  { 'emailCommitment' : EmailCommitment } |
+  { 'email' : { 'emailCommitment' : EmailCommitment, 'email' : string } };
 export interface AccessRequest {
-  id: bigint;
-  status: AccessRequestStatus;
-  requester: Principal;
-  createdAt: Time;
-  emailCommitment: [] | [EmailCommitment];
-  message: [] | [string];
-  decidedAt: [] | [Time];
-  decidedBy: [] | [Principal];
+  'id' : bigint,
+  'status' : AccessRequestStatus,
+  'requester' : Principal,
+  'createdAt' : Time,
+  'emailCommitment' : [] | [EmailCommitment],
+  'message' : [] | [string],
+  'decidedAt' : [] | [Time],
+  'decidedBy' : [] | [Principal],
 }
-export type AccessRequestDecision =
-  | {
-      approved: { permission: Permission; scope: AccessScope };
-    }
-  | { rejected: null };
-export type AccessRequestStatus =
-  | { cancelled: null }
-  | { pending: null }
-  | { approved: null }
-  | { rejected: null };
-export type AccessScope =
-  | { root: null }
-  | { entry: Entry }
-  | { keyId: KeyId__1 };
-export type AccessSource =
-  | { durablePolicy: bigint }
-  | { accessRequest: bigint }
-  | { directGrant: null }
-  | { ordinaryInvite: bigint }
-  | { recoverySetup: null };
-export interface AddRecoveryOwnerOptions {
-  controllerRecovery: boolean;
-}
+export type AccessRequestDecision = {
+    'approved' : { 'permission' : Permission, 'scope' : AccessScope }
+  } |
+  { 'rejected' : null };
+export type AccessRequestStatus = { 'cancelled' : null } |
+  { 'pending' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null };
+export type AccessScope = { 'root' : null } |
+  { 'entry' : Entry } |
+  { 'keyId' : KeyId__2 };
+export type AccessSource = { 'durablePolicy' : bigint } |
+  { 'accessRequest' : bigint } |
+  { 'directGrant' : null } |
+  { 'ordinaryInvite' : bigint } |
+  { 'recoverySetup' : null };
+export interface AddRecoveryOwnerOptions { 'controllerRecovery' : boolean }
 export type BatchId = bigint;
-export interface CancelAccessRequestArguments {
-  requestId: bigint;
-}
-export interface CancelPendingAccessGrantArguments {
-  grantId: bigint;
-}
-export interface ChunkContent {
-  content: Uint8Array;
-}
+export interface CancelAccessRequestArguments { 'requestId' : bigint }
+export interface CancelDurableAccessPolicyArguments { 'policyId' : bigint }
+export interface CancelPendingAccessGrantArguments { 'grantId' : bigint }
+export interface ChunkContent { 'content' : Uint8Array }
 export type ChunkId = bigint;
 export interface ClaimPendingAccessByBackendAttestationArguments {
-  principal: Principal;
-  emailCommitments: Array<EmailCommitment>;
+  'principal' : Principal,
+  'emailCommitments' : Array<EmailCommitment>,
 }
-export interface ClaimPendingAccessGrantArguments {
-  grantId: bigint;
+export interface ClaimPendingAccessGrantArguments { 'grantId' : bigint }
+export interface CommitThumbnailUploadArguments {
+  'sha256' : Uint8Array,
+  'contentType' : string,
+  'size' : bigint,
+  'encryption' : ThumbnailEncryptionRef,
+  'entry' : Entry,
+  'rootHash' : string,
 }
 export interface CreateAccessBatchArguments {
-  items: Array<CreateAccessBatchItem>;
+  'items' : Array<CreateAccessBatchItem>,
 }
 export interface CreateAccessBatchItem {
-  ref: AccessRef;
-  permission: Permission;
-  expiresAt: [] | [Time];
-  source: AccessSource;
-  scope: AccessScope;
-  accessClass: AccessClass;
+  'ref' : AccessRef,
+  'permission' : Permission,
+  'expiresAt' : [] | [Time],
+  'source' : AccessSource,
+  'scope' : AccessScope,
+  'accessClass' : AccessClass,
 }
 export interface CreateAccessBatchResult {
-  pendingGrants: Array<PendingAccessGrant>;
-  revokedPrincipalGrants: Array<PrincipalAccessGrant>;
-  principalGrants: Array<PrincipalAccessGrant>;
-  cancelledPendingGrants: Array<PendingAccessGrant>;
+  'pendingGrants' : Array<PendingAccessGrant>,
+  'revokedPrincipalGrants' : Array<PrincipalAccessGrant>,
+  'principalGrants' : Array<PrincipalAccessGrant>,
+  'cancelledPendingGrants' : Array<PendingAccessGrant>,
 }
 export interface CreateAccessRequestArguments {
-  emailCommitment: [] | [EmailCommitment];
-  message: [] | [string];
+  'emailCommitment' : [] | [EmailCommitment],
+  'message' : [] | [string],
 }
 export interface CreateArguments {
-  createMode: CreateMode;
-  entry: Entry;
-  encryptionMode: [] | [EncryptionMode];
+  'createMode' : CreateMode,
+  'entry' : Entry,
+  'encryptionMode' : [] | [EncryptionMode],
 }
-export interface CreateBatchResponse {
-  batchId: BatchId;
-}
+export interface CreateBatchResponse { 'batchId' : BatchId }
 export interface CreateChunkArguments {
-  content: Uint8Array;
-  batchId: BatchId;
+  'content' : Uint8Array,
+  'batchId' : BatchId,
 }
-export interface CreateChunkResponse {
-  chunkId: bigint;
-}
+export interface CreateChunkResponse { 'chunkId' : bigint }
 export interface CreateDurableAccessGrantArguments {
-  permission: Permission;
-  principal: Principal;
-  source: AccessSource;
-  scope: AccessScope;
+  'permission' : Permission,
+  'principal' : Principal,
+  'source' : AccessSource,
+  'scope' : AccessScope,
 }
-export type CreateMode = { GetOrCreate: null } | { CreateNew: null };
+export interface CreateDurableAccessPolicyArguments {
+  'grants' : Array<DurablePolicyGrantTemplate>,
+  'trigger' : DurablePolicyTrigger,
+  'recipients' : Array<AccessRef>,
+}
+export type CreateMode = { 'GetOrCreate' : null } |
+  { 'CreateNew' : null };
 export interface CreatePendingAccessGrantArguments {
-  ref: AccessRef;
-  permission: Permission;
-  expiresAt: [] | [Time];
-  source: AccessSource;
-  scope: AccessScope;
-  accessClass: AccessClass;
+  'ref' : AccessRef,
+  'permission' : Permission,
+  'expiresAt' : [] | [Time],
+  'source' : AccessSource,
+  'scope' : AccessScope,
+  'accessClass' : AccessClass,
 }
-export interface DeleteArguments {
-  recursive: boolean;
-  entry: Entry;
-}
-export type DirectoryColor =
-  | { blue: null }
-  | { gray: null }
-  | { orange: null }
-  | { pink: null }
-  | { purple: null }
-  | { green: null }
-  | { yellow: null };
+export interface DeleteArguments { 'recursive' : boolean, 'entry' : Entry }
+export type DirectoryColor = { 'blue' : null } |
+  { 'gray' : null } |
+  { 'orange' : null } |
+  { 'pink' : null } |
+  { 'purple' : null } |
+  { 'green' : null } |
+  { 'yellow' : null };
+export type DirectoryEncryptionPolicy = { 'Encrypted' : null } |
+  { 'Auto' : null } |
+  { 'Plaintext' : null };
 export interface DirectoryMetadata {
-  color: [] | [DirectoryColor];
-  defaultEncryptionMode: EncryptionMode;
+  'color' : [] | [DirectoryColor],
+  'thumbnailEncryptionPolicy' : ThumbnailEncryptionPolicy,
+  'defaultEncryptionMode' : EncryptionMode,
+  'defaultThumbnailStorageBackend' : StorageBackend,
+  'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
+  'encryptionPolicy' : DirectoryEncryptionPolicy,
 }
+export interface DurableAccessPolicy {
+  'id' : bigint,
+  'maturedAt' : [] | [Time],
+  'status' : DurablePolicyStatus,
+  'grants' : Array<DurablePolicyGrantTemplate>,
+  'trigger' : DurablePolicyTrigger,
+  'createdAt' : Time,
+  'createdBy' : Principal,
+  'cancelledAt' : [] | [Time],
+  'proVerifiedAt' : Time,
+  'recipients' : Array<AccessRef>,
+  'releasedAt' : [] | [Time],
+  'graceStartedAt' : [] | [Time],
+  'principalGrantIds' : Array<bigint>,
+  'pendingGrantIds' : Array<bigint>,
+}
+export interface DurablePolicyGrantTemplate {
+  'permission' : Permission,
+  'scope' : AccessScope,
+}
+export interface DurablePolicyProcessResult {
+  'pendingGrants' : Array<PendingAccessGrant>,
+  'principalGrants' : Array<PrincipalAccessGrant>,
+  'policy' : DurableAccessPolicy,
+}
+export type DurablePolicyStatus = { 'cancelled' : null } |
+  { 'armed' : null } |
+  { 'released' : null } |
+  { 'matured' : null } |
+  { 'grace' : null };
+export type DurablePolicyTrigger = { 'manualRelease' : null } |
+  { 'date' : { 'releaseAt' : Time } } |
+  {
+    'inactivity' : { 'inactiveForNs' : bigint, 'gracePeriodNs' : [] | [bigint] }
+  };
 export interface EmailClaim {
-  principalGrantId: bigint;
-  principal: Principal;
-  origin: EmailClaimOrigin;
-  claimedAt: Time;
+  'principalGrantId' : bigint,
+  'principal' : Principal,
+  'origin' : EmailClaimOrigin,
+  'claimedAt' : Time,
 }
-export type EmailClaimOrigin = { storage: null } | { rabbithole: null };
+export type EmailClaimOrigin = { 'storage' : null } |
+  { 'rabbithole' : null };
 export interface EmailClaimState {
-  storage: [] | [EmailClaim];
-  rabbithole: [] | [EmailClaim];
+  'storage' : [] | [EmailClaim],
+  'rabbithole' : [] | [EmailClaim],
 }
 export type EmailCommitment = Uint8Array;
 export interface EncryptedStorageCanister {
-  activateRecoveryOwnership: ActorMethod<[Principal], OwnerEquivalentPrincipal>;
-  addRecoveryOwner: ActorMethod<
+  'activateRecoveryOwnership' : ActorMethod<
+    [Principal],
+    OwnerEquivalentPrincipal
+  >,
+  'addRecoveryOwner' : ActorMethod<
     [Principal, AddRecoveryOwnerOptions],
     OwnerEquivalentPrincipal
-  >;
-  cancelAccessRequest: ActorMethod<
+  >,
+  'cancelAccessRequest' : ActorMethod<
     [CancelAccessRequestArguments],
     AccessRequest
-  >;
-  cancelPendingAccessGrant: ActorMethod<
+  >,
+  'cancelDurableAccessPolicy' : ActorMethod<
+    [CancelDurableAccessPolicyArguments],
+    DurableAccessPolicy
+  >,
+  'cancelPendingAccessGrant' : ActorMethod<
     [CancelPendingAccessGrantArguments],
     PendingAccessGrant
-  >;
-  claimPendingAccessByBackendAttestation: ActorMethod<
+  >,
+  'claimPendingAccessByBackendAttestation' : ActorMethod<
     [ClaimPendingAccessByBackendAttestationArguments],
     Array<PrincipalAccessGrant>
-  >;
-  claimPendingAccessGrant: ActorMethod<
+  >,
+  'claimPendingAccessGrant' : ActorMethod<
     [ClaimPendingAccessGrantArguments],
     PrincipalAccessGrant
-  >;
-  clear: ActorMethod<[], undefined>;
-  clearRecoveryController: ActorMethod<[], Principal>;
-  create: ActorMethod<[CreateArguments], NodeDetails>;
-  createAccessBatch: ActorMethod<
+  >,
+  'clear' : ActorMethod<[], undefined>,
+  'clearRecoveryController' : ActorMethod<[], Principal>,
+  'commitThumbnailUpload' : ActorMethod<
+    [CommitThumbnailUploadArguments],
+    NodeDetails
+  >,
+  'create' : ActorMethod<[CreateArguments], NodeDetails>,
+  'createAccessBatch' : ActorMethod<
     [CreateAccessBatchArguments],
     CreateAccessBatchResult
-  >;
-  createBatch: ActorMethod<[CreateArguments], CreateBatchResponse>;
-  createChunk: ActorMethod<[CreateChunkArguments], CreateChunkResponse>;
-  createDurableAccessGrant: ActorMethod<
+  >,
+  'createBatch' : ActorMethod<[CreateArguments], CreateBatchResponse>,
+  'createChunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
+  'createDurableAccessGrant' : ActorMethod<
     [CreateDurableAccessGrantArguments],
     PrincipalAccessGrant
-  >;
-  createPendingAccessGrant: ActorMethod<
+  >,
+  'createDurableAccessPolicy' : ActorMethod<
+    [CreateDurableAccessPolicyArguments],
+    DurableAccessPolicy
+  >,
+  'createPendingAccessGrant' : ActorMethod<
     [CreatePendingAccessGrantArguments],
     PendingAccessGrant
-  >;
-  delete: ActorMethod<[DeleteArguments], undefined>;
-  fsTree: ActorMethod<[], Array<TreeNode>>;
-  getChunk: ActorMethod<[GetChunkArguments], ChunkContent>;
-  getEncryptedVetkey: ActorMethod<[KeyId, TransportKey], VetKey>;
+  >,
+  'delete' : ActorMethod<[DeleteArguments], undefined>,
+  'fsTree' : ActorMethod<[], Array<TreeNode>>,
+  'getChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
+  'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
   /**
    * / Get canister module_hash via canister_status.
    * / Only accessible by canister controllers.
    */
-  getModuleHash: ActorMethod<[], [] | [Uint8Array]>;
-  getMyAccessRequest: ActorMethod<[], [] | [AccessRequest]>;
-  getRecoveryStatus: ActorMethod<[], RecoveryStatus>;
-  getStorageEventsUnreadCount: ActorMethod<[], bigint>;
-  getVetkeyVerificationKey: ActorMethod<[], VetKeyVerificationKey>;
-  hasPermission: ActorMethod<[HasPermissionArguments], boolean>;
-  list: ActorMethod<[[] | [Entry]], ListResponse>;
-  listAccessGrants: ActorMethod<[ListAccessGrantsArguments], AccessGrantList>;
-  listAccessRequests: ActorMethod<[], Array<AccessRequest>>;
-  listOwnerEquivalentPrincipals: ActorMethod<
+  'getModuleHash' : ActorMethod<[], [] | [Uint8Array]>,
+  'getMyAccessRequest' : ActorMethod<[], [] | [AccessRequest]>,
+  'getOwnerActivityState' : ActorMethod<[], OwnerActivityState>,
+  'getRecoveryStatus' : ActorMethod<[], RecoveryStatus>,
+  'getStorageEventsUnreadCount' : ActorMethod<[], bigint>,
+  'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
+  'hasPermission' : ActorMethod<[HasPermissionArguments], boolean>,
+  'list' : ActorMethod<[[] | [Entry]], ListResponse>,
+  'listAccessGrants' : ActorMethod<
+    [ListAccessGrantsArguments],
+    AccessGrantList
+  >,
+  'listAccessRequests' : ActorMethod<[], Array<AccessRequest>>,
+  'listDurableAccessPolicies' : ActorMethod<[], Array<DurableAccessPolicy>>,
+  'listLatestStorageEvents' : ActorMethod<[bigint], Array<StoredStorageEvent>>,
+  'listOwnerEquivalentPrincipals' : ActorMethod<
     [],
     Array<OwnerEquivalentPrincipal>
-  >;
-  listPendingAccessGrants: ActorMethod<[], Array<PendingAccessGrant>>;
-  listStorageEvents: ActorMethod<
+  >,
+  'listPendingAccessGrants' : ActorMethod<[], Array<PendingAccessGrant>>,
+  'listStorageEvents' : ActorMethod<
     [[] | [bigint], bigint],
     Array<StoredStorageEvent>
-  >;
-  listLatestStorageEvents: ActorMethod<[bigint], Array<StoredStorageEvent>>;
-  listVersions: ActorMethod<[ListVersionsArguments], Array<FileVersionDetails>>;
-  markStorageEventsRead: ActorMethod<[bigint], undefined>;
-  markAllVisibleStorageEventsRead: ActorMethod<[], undefined>;
-  move: ActorMethod<[MoveArguments], undefined>;
-  registerRecoveryController: ActorMethod<
+  >,
+  'listVersions' : ActorMethod<
+    [ListVersionsArguments],
+    Array<FileVersionDetails>
+  >,
+  'markAllVisibleStorageEventsRead' : ActorMethod<[], undefined>,
+  'markStorageEventsRead' : ActorMethod<[bigint], undefined>,
+  'move' : ActorMethod<[MoveArguments], undefined>,
+  'prepareThumbnailUpload' : ActorMethod<
+    [PrepareThumbnailUploadArguments],
+    PrepareThumbnailUploadResult
+  >,
+  'processDurableAccessPolicies' : ActorMethod<
+    [],
+    Array<DurablePolicyProcessResult>
+  >,
+  'recordOwnerActivity' : ActorMethod<
+    [RecordOwnerActivityArguments],
+    OwnerActivityRecord
+  >,
+  'registerRecoveryController' : ActorMethod<
     [Principal],
     RegisterRecoveryControllerResult
-  >;
-  removeRecoveryOwner: ActorMethod<[Principal], undefined>;
-  rename: ActorMethod<[RenameArguments], undefined>;
-  requestAccess: ActorMethod<[CreateAccessRequestArguments], AccessRequest>;
-  resolveAccessRequest: ActorMethod<
+  >,
+  'releaseDurableAccessPolicy' : ActorMethod<
+    [ReleaseDurableAccessPolicyArguments],
+    DurablePolicyProcessResult
+  >,
+  'removeRecoveryOwner' : ActorMethod<[Principal], undefined>,
+  'rename' : ActorMethod<[RenameArguments], undefined>,
+  'requestAccess' : ActorMethod<[CreateAccessRequestArguments], AccessRequest>,
+  'resolveAccessRequest' : ActorMethod<
     [ResolveAccessRequestArguments],
     AccessRequest
-  >;
-  restoreVersion: ActorMethod<[RestoreVersionArguments], undefined>;
-  revokeAccessBatch: ActorMethod<
+  >,
+  'restoreVersion' : ActorMethod<[RestoreVersionArguments], undefined>,
+  'revokeAccessBatch' : ActorMethod<
     [RevokeAccessBatchArguments],
     RevokeAccessBatchResult
-  >;
-  setThumbnail: ActorMethod<[SetThumbnailArguments], NodeDetails>;
-  showTree: ActorMethod<[[] | [Entry]], string>;
-  takeRecoveryOwnership: ActorMethod<[], OwnerEquivalentPrincipal>;
-  update: ActorMethod<[UpdateArguments], undefined>;
+  >,
+  'rewrapThumbnail' : ActorMethod<
+    [{ 'thumbnailRef' : ThumbnailRef, 'entry' : Entry }],
+    NodeDetails
+  >,
+  'setThumbnail' : ActorMethod<[SetThumbnailArguments], NodeDetails>,
+  'showTree' : ActorMethod<[[] | [Entry]], string>,
+  'takeRecoveryOwnership' : ActorMethod<[], OwnerEquivalentPrincipal>,
+  'update' : ActorMethod<[UpdateArguments], undefined>,
+  'updateDirectoryPolicy' : ActorMethod<
+    [UpdateDirectoryPolicyArguments],
+    NodeDetails
+  >,
 }
-export type EncryptionMode = { Encrypted: null } | { Plaintext: null };
-export type Entry = [{ File: null } | { Directory: null }, string];
+export type EncryptionMode = { 'Encrypted' : null } |
+  { 'Plaintext' : null };
+export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
-  storageBackend: StorageBackend;
-  sha256: [] | [Uint8Array];
-  thumbnailKey: [] | [string];
-  contentType: string;
-  size: bigint;
-  currentVersion: bigint;
-  encryptionMode: EncryptionMode;
-  chunkCount: bigint;
-  versionCount: bigint;
+  'storageBackend' : StorageBackend,
+  'sha256' : [] | [Uint8Array],
+  'thumbnailRef' : [] | [ThumbnailRef],
+  'contentType' : string,
+  'size' : bigint,
+  'currentVersion' : bigint,
+  'encryptionMode' : EncryptionMode,
+  'chunkCount' : bigint,
+  'versionCount' : bigint,
 }
 export interface FileVersionDetails {
-  storageBackend: StorageBackend;
-  sha256: [] | [Uint8Array];
-  contentType: string;
-  createdAt: Time;
-  size: bigint;
-  index: bigint;
+  'storageBackend' : StorageBackend,
+  'sha256' : [] | [Uint8Array],
+  'contentType' : string,
+  'createdAt' : Time,
+  'size' : bigint,
+  'index' : bigint,
 }
 export interface GetChunkArguments {
-  chunkIndex: bigint;
-  entry: Entry;
-  version: [] | [bigint];
+  'chunkIndex' : bigint,
+  'entry' : Entry,
+  'version' : [] | [bigint],
 }
 export interface HasPermissionArguments {
-  permission: Permission;
-  user: Principal;
-  entry: [] | [Entry];
+  'permission' : Permission,
+  'user' : Principal,
+  'entry' : [] | [Entry],
 }
 export type KeyId = [Owner, KeyName];
-export type KeyId__1 = [Principal, Uint8Array];
+export type KeyId__2 = [Principal, Uint8Array];
 export type KeyName = Uint8Array;
 export interface ListAccessGrantsArguments {
-  mode: AccessGrantListMode;
-  scope: [] | [AccessScope];
+  'mode' : AccessGrantListMode,
+  'scope' : [] | [AccessScope],
 }
 export interface ListResponse {
-  entries: Array<NodeDetails>;
-  directoryPermission: [] | [Permission];
+  'entries' : Array<NodeDetails>,
+  'directoryPermission' : [] | [Permission],
 }
-export interface ListVersionsArguments {
-  entry: Entry;
-}
+export interface ListVersionsArguments { 'entry' : Entry }
 export interface ListedPendingAccessGrant {
-  inheritedFrom: [] | [AccessScope];
-  grant: PendingAccessGrant;
+  'inheritedFrom' : [] | [AccessScope],
+  'grant' : PendingAccessGrant,
 }
 export interface ListedPrincipalAccessGrant {
-  inheritedFrom: [] | [AccessScope];
-  grant: PrincipalAccessGrant;
+  'inheritedFrom' : [] | [AccessScope],
+  'grant' : PrincipalAccessGrant,
 }
-export interface MoveArguments {
-  entry: Entry;
-  target: [] | [Entry];
-}
+export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
-  id: bigint;
-  modifiedAt: [] | [Time];
-  metadata: { File: FileMetadata } | { Directory: DirectoryMetadata };
-  name: string;
-  createdAt: Time;
-  callerPermission: [] | [Permission];
-  sharing: [] | [SharingInfo];
-  parentId: [] | [bigint];
-  keyId: KeyId;
+  'id' : bigint,
+  'modifiedAt' : [] | [Time],
+  'metadata' : { 'File' : FileMetadata } |
+    { 'Directory' : DirectoryMetadata },
+  'name' : string,
+  'createdAt' : Time,
+  'callerPermission' : [] | [Permission],
+  'sharing' : [] | [SharingInfo],
+  'parentId' : [] | [bigint],
+  'keyId' : KeyId,
 }
 export type Owner = Principal;
+export type OwnerActivityOrigin = { 'storage' : null } |
+  { 'rabbithole' : null } |
+  { 'backend' : null };
+export interface OwnerActivityRecord {
+  'principal' : Principal,
+  'lastSeenAt' : Time,
+  'origin' : OwnerActivityOrigin,
+  'role' : OwnerActivityRole,
+}
+export type OwnerActivityRole = { 'recoveryOwner' : null } |
+  { 'accountOwner' : null };
+export interface OwnerActivityState {
+  'records' : Array<OwnerActivityRecord>,
+  'lastOwnerActivityAt' : Time,
+  'lastOwnerActivityBy' : Principal,
+}
 export interface OwnerEquivalentPrincipal {
-  principal: Principal;
-  rootPermissionBeforeRecovery: [] | [Permission];
-  kind: { recoveryOwner: null } | { accountOwner: null };
-  controllerRecoveryEnabled: boolean;
-  addedAt: Time;
-  addedBy: Principal;
-  revokedAt: [] | [Time];
+  'principal' : Principal,
+  'rootPermissionBeforeRecovery' : [] | [Permission],
+  'kind' : { 'recoveryOwner' : null } |
+    { 'accountOwner' : null },
+  'controllerRecoveryEnabled' : boolean,
+  'addedAt' : Time,
+  'addedBy' : Principal,
+  'revokedAt' : [] | [Time],
 }
 export interface PendingAccessGrant {
-  id: bigint;
-  ref: AccessRef;
-  permission: Permission;
-  expiresAt: [] | [Time];
-  emailClaimState: EmailClaimState;
-  source: AccessSource;
-  createdAt: Time;
-  createdBy: Principal;
-  claimedAt: [] | [Time];
-  claimedBy: [] | [Principal];
-  scope: AccessScope;
-  cancelledAt: [] | [Time];
-  accessClass: AccessClass;
+  'id' : bigint,
+  'ref' : AccessRef,
+  'permission' : Permission,
+  'expiresAt' : [] | [Time],
+  'emailClaimState' : EmailClaimState,
+  'source' : AccessSource,
+  'createdAt' : Time,
+  'createdBy' : Principal,
+  'claimedAt' : [] | [Time],
+  'claimedBy' : [] | [Principal],
+  'scope' : AccessScope,
+  'cancelledAt' : [] | [Time],
+  'accessClass' : AccessClass,
 }
-export type Permission =
-  | { Read: null }
-  | { ReadWrite: null }
-  | { ReadWriteManage: null };
+export type Permission = { 'Read' : null } |
+  { 'ReadWrite' : null } |
+  { 'ReadWriteManage' : null };
+export interface PrepareThumbnailUploadArguments {
+  'contentType' : string,
+  'size' : bigint,
+  'entry' : Entry,
+}
+export interface PrepareThumbnailUploadResult {
+  'storageBackend' : StorageBackend,
+  'contentType' : string,
+  'size' : bigint,
+  'encryption' : ThumbnailEncryptionRequirement,
+}
 export interface PrincipalAccessGrant {
-  id: bigint;
-  permission: Permission;
-  principal: Principal;
-  source: AccessSource;
-  createdAt: Time;
-  createdBy: Principal;
-  scope: AccessScope;
-  accessClass: AccessClass;
-  revokedAt: [] | [Time];
+  'id' : bigint,
+  'permission' : Permission,
+  'principal' : Principal,
+  'source' : AccessSource,
+  'createdAt' : Time,
+  'createdBy' : Principal,
+  'scope' : AccessScope,
+  'accessClass' : AccessClass,
+  'revokedAt' : [] | [Time],
 }
+export interface RecordOwnerActivityArguments { 'origin' : OwnerActivityOrigin }
 export interface RecoveryStatus {
-  recoveryOwner: [] | [OwnerEquivalentPrincipal];
-  recoveryController: [] | [Principal];
+  'recoveryOwner' : [] | [OwnerEquivalentPrincipal],
+  'recoveryController' : [] | [Principal],
 }
 export interface RegisterRecoveryControllerResult {
-  principal: Principal;
-  previous: [] | [Principal];
+  'principal' : Principal,
+  'previous' : [] | [Principal],
 }
-export interface RenameArguments {
-  entry: Entry;
-  newName: string;
-}
+export interface ReleaseDurableAccessPolicyArguments { 'policyId' : bigint }
+export interface RenameArguments { 'entry' : Entry, 'newName' : string }
 export interface ResolveAccessRequestArguments {
-  decision: AccessRequestDecision;
-  requestId: bigint;
+  'decision' : AccessRequestDecision,
+  'requestId' : bigint,
 }
-export interface RestoreVersionArguments {
-  entry: Entry;
-  version: bigint;
-}
+export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export interface RevokeAccessBatchArguments {
-  items: Array<RevokeAccessBatchItem>;
+  'items' : Array<RevokeAccessBatchItem>,
 }
 export interface RevokeAccessBatchItem {
-  principal: Principal;
-  scope: AccessScope;
+  'principal' : Principal,
+  'scope' : AccessScope,
 }
 export interface RevokeAccessBatchResult {
-  revoked: Array<RevokeAccessBatchItem>;
+  'revoked' : Array<RevokeAccessBatchItem>,
 }
 export interface SetThumbnailArguments {
-  thumbnailKey: [] | [string];
-  entry: Entry;
+  'thumbnailRef' : [] | [ThumbnailRef],
+  'entry' : Entry,
 }
-export interface SharingInfo {
-  sharedWith: bigint;
-}
-export type StorageAccessEvent =
-  | {
-      accessRequestResolved: {
-        status: AccessRequestStatus;
-        requestId: bigint;
-        requester: Principal;
-      };
+export interface SharingInfo { 'sharedWith' : bigint }
+export type StorageAccessEvent = {
+    'accessRequestResolved' : {
+      'status' : AccessRequestStatus,
+      'requestId' : bigint,
+      'requester' : Principal,
     }
-  | {
-      accessRequestCreated: { requestId: bigint; requester: Principal };
+  } |
+  {
+    'durablePolicyCreated' : {
+      'status' : DurablePolicyStatus,
+      'trigger' : DurablePolicyTrigger,
+      'policyId' : bigint,
     }
-  | {
-      recoveryControllerRegistered: {
-        principal: Principal;
-        previous: [] | [Principal];
-      };
+  } |
+  {
+    'accessRequestCreated' : { 'requestId' : bigint, 'requester' : Principal }
+  } |
+  {
+    'recoveryControllerRegistered' : {
+      'principal' : Principal,
+      'previous' : [] | [Principal],
     }
-  | {
-      pendingGrantCreated: {
-        ref: AccessRef;
-        source: AccessSource;
-        grantId: bigint;
-        accessClass: AccessClass;
-      };
+  } |
+  {
+    'pendingGrantCreated' : {
+      'ref' : AccessRef,
+      'source' : AccessSource,
+      'grantId' : bigint,
+      'accessClass' : AccessClass,
     }
-  | { recoveryControllerCleared: { principal: Principal } }
-  | { recoveryOwnerAdded: { principal: Principal } }
-  | {
-      pendingGrantClaimed: {
-        principal: Principal;
-        emailClaimState: [] | [EmailClaimState];
-        source: AccessSource;
-        grantId: bigint;
-        claimOrigin: [] | [EmailClaimOrigin];
-        accessClass: AccessClass;
-      };
+  } |
+  {
+    'ownerActivityRecorded' : {
+      'principal' : Principal,
+      'origin' : OwnerActivityOrigin,
+      'role' : OwnerActivityRole,
     }
-  | {
-      accessRequestCancelled: { requestId: bigint; requester: Principal };
+  } |
+  { 'durablePolicyReleased' : { 'policyId' : bigint } } |
+  { 'recoveryControllerCleared' : { 'principal' : Principal } } |
+  { 'durablePolicyMatured' : { 'policyId' : bigint } } |
+  { 'recoveryOwnerAdded' : { 'principal' : Principal } } |
+  {
+    'pendingGrantClaimed' : {
+      'principal' : Principal,
+      'emailClaimState' : [] | [EmailClaimState],
+      'source' : AccessSource,
+      'grantId' : bigint,
+      'claimOrigin' : [] | [EmailClaimOrigin],
+      'accessClass' : AccessClass,
     }
-  | {
-      principalGrantCreated: {
-        principal: Principal;
-        source: AccessSource;
-        grantId: [] | [bigint];
-        accessClass: AccessClass;
-      };
+  } |
+  { 'durablePolicyCancelled' : { 'policyId' : bigint } } |
+  {
+    'accessRequestCancelled' : { 'requestId' : bigint, 'requester' : Principal }
+  } |
+  {
+    'principalGrantCreated' : {
+      'principal' : Principal,
+      'source' : AccessSource,
+      'grantId' : [] | [bigint],
+      'accessClass' : AccessClass,
     }
-  | { pendingGrantCancelled: { ref: AccessRef; grantId: bigint } }
-  | {
-      principalGrantRevoked: {
-        principal: Principal;
-        accessClass: [] | [AccessClass];
-      };
+  } |
+  { 'pendingGrantCancelled' : { 'ref' : AccessRef, 'grantId' : bigint } } |
+  { 'durablePolicyGraceStarted' : { 'policyId' : bigint } } |
+  {
+    'principalGrantRevoked' : {
+      'principal' : Principal,
+      'accessClass' : [] | [AccessClass],
     }
-  | { recoveryOwnerRemoved: { principal: Principal } };
-export type StorageBackend = { OnChain: null } | { BlobStorage: null };
-export type StorageEvent = { access: StorageAccessEvent };
+  } |
+  { 'recoveryOwnerRemoved' : { 'principal' : Principal } };
+export type StorageBackend = { 'OnChain' : null } |
+  { 'BlobStorage' : null };
+export type StorageEvent = { 'access' : StorageAccessEvent };
 export interface StoredStorageEvent {
-  id: bigint;
-  visibleTo: Array<Principal>;
-  event: StorageEvent;
-  timestamp: Time;
-  correlationId: [] | [string];
+  'id' : bigint,
+  'visibleTo' : Array<Principal>,
+  'event' : StorageEvent,
+  'timestamp' : Time,
+  'correlationId' : [] | [string],
 }
+export type ThumbnailEncryptionPolicy = { 'FollowFile' : null } |
+  { 'Inherit' : null };
+export type ThumbnailEncryptionRef = {
+    'Encrypted' : {
+      'algorithm' : string,
+      'wrappedKey' : Uint8Array,
+      'blobIv' : Uint8Array,
+      'scopeKeyId' : KeyId,
+    }
+  } |
+  { 'Plaintext' : null };
+export type ThumbnailEncryptionRequirement = {
+    'Encrypted' : { 'scopeKeyId' : KeyId }
+  } |
+  { 'Plaintext' : null };
+export type ThumbnailRef = {
+    'OnChain' : {
+      'key' : string,
+      'sha256' : [] | [Uint8Array],
+      'contentType' : string,
+      'size' : bigint,
+      'encryption' : ThumbnailEncryptionRef,
+    }
+  } |
+  {
+    'BlobStorage' : {
+      'sha256' : [] | [Uint8Array],
+      'contentType' : string,
+      'size' : bigint,
+      'encryption' : ThumbnailEncryptionRef,
+      'blobId' : Uint8Array,
+      'rootHash' : string,
+    }
+  };
+export type ThumbnailStoragePolicy = { 'OnChain' : null } |
+  { 'BlobStorage' : null } |
+  { 'Inherit' : null };
 export type Time = bigint;
 export type TransportKey = Uint8Array;
 export interface TreeNode {
-  name: string;
-  children: [] | [Array<TreeNode>];
+  'name' : string,
+  'children' : [] | [Array<TreeNode>],
 }
-export type UpdateArguments =
-  | {
-      File: {
-        metadata: {
-          sha256: [] | [Uint8Array];
-          contentType: string;
-          chunkIds: Array<ChunkId>;
-        };
-        path: string;
-      };
+export type UpdateArguments = {
+    'File' : {
+      'metadata' : {
+        'sha256' : [] | [Uint8Array],
+        'contentType' : string,
+        'chunkIds' : Array<ChunkId>,
+      },
+      'path' : string,
     }
-  | {
-      Directory: {
-        metadata: { color: [] | [DirectoryColor] };
-        path: string;
-      };
-    };
+  } |
+  {
+    'Directory' : {
+      'metadata' : { 'color' : [] | [DirectoryColor] },
+      'path' : string,
+    }
+  };
+export interface UpdateDirectoryPolicyArguments {
+  'entry' : Entry,
+  'thumbnailEncryptionPolicy' : [] | [ThumbnailEncryptionPolicy],
+  'thumbnailStoragePolicy' : [] | [ThumbnailStoragePolicy],
+  'encryptionPolicy' : [] | [DirectoryEncryptionPolicy],
+}
 export type VetKey = Uint8Array;
 export type VetKeyVerificationKey = Uint8Array;
 export interface _SERVICE extends EncryptedStorageCanister {}

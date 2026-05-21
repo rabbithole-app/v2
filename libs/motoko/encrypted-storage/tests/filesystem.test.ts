@@ -1662,6 +1662,362 @@ describe('FileSystem', () => {
         expect('Plaintext' in file.metadata.File.encryptionMode).toBeTruthy();
       }
     });
+
+    test('should resolve auto directory encryption policy through parent changes', async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'PublicDir'],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+      const child = await actor.create({
+        entry: [DIRECTORY, 'PublicDir/Child'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      expect('Directory' in child.metadata).toBeTruthy();
+      if ('Directory' in child.metadata) {
+        expect('Auto' in child.metadata.Directory.encryptionPolicy).toBeTruthy();
+        expect('Plaintext' in child.metadata.Directory.defaultEncryptionMode).toBeTruthy();
+      }
+
+      await actor.updateDirectoryPolicy({
+        entry: [DIRECTORY, 'PublicDir'],
+        encryptionPolicy: [{ Encrypted: null }],
+        thumbnailStoragePolicy: [],
+        thumbnailEncryptionPolicy: [],
+      });
+
+      const { entries } = await actor.list([[DIRECTORY, 'PublicDir']]);
+      const childAfterUpdate = entries.find((item) => item.name === 'Child');
+      expect(childAfterUpdate).toBeDefined();
+      if (childAfterUpdate && 'Directory' in childAfterUpdate.metadata) {
+        expect('Encrypted' in childAfterUpdate.metadata.Directory.defaultEncryptionMode).toBeTruthy();
+      }
+
+      const file = await actor.create({
+        entry: [FILE, 'PublicDir/Child/file.txt'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      if ('File' in file.metadata) {
+        expect('Encrypted' in file.metadata.File.encryptionMode).toBeTruthy();
+      }
+    });
+
+    test('should update directory thumbnail policies', async () => {
+      const dir = await actor.create({
+        entry: [DIRECTORY, 'Media'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      if ('Directory' in dir.metadata) {
+        expect('Inherit' in dir.metadata.Directory.thumbnailStoragePolicy).toBeTruthy();
+        expect('OnChain' in dir.metadata.Directory.defaultThumbnailStorageBackend).toBeTruthy();
+      }
+
+      const updated = await actor.updateDirectoryPolicy({
+        entry: [DIRECTORY, 'Media'],
+        encryptionPolicy: [],
+        thumbnailStoragePolicy: [{ BlobStorage: null }],
+        thumbnailEncryptionPolicy: [{ FollowFile: null }],
+      });
+
+      if ('Directory' in updated.metadata) {
+        expect('BlobStorage' in updated.metadata.Directory.thumbnailStoragePolicy).toBeTruthy();
+        expect('BlobStorage' in updated.metadata.Directory.defaultThumbnailStorageBackend).toBeTruthy();
+        expect('FollowFile' in updated.metadata.Directory.thumbnailEncryptionPolicy).toBeTruthy();
+      }
+    });
+
+    test('should prepare and commit blob storage thumbnail metadata', async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'Media'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      await actor.updateDirectoryPolicy({
+        entry: [DIRECTORY, 'Media'],
+        encryptionPolicy: [],
+        thumbnailStoragePolicy: [{ BlobStorage: null }],
+        thumbnailEncryptionPolicy: [],
+      });
+      await actor.create({
+        entry: [FILE, 'Media/photo.jpg'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      const prepared = await actor.prepareThumbnailUpload({
+        entry: [FILE, 'Media/photo.jpg'],
+        contentType: 'image/jpeg',
+        size: 3n,
+      });
+      expect('BlobStorage' in prepared.storageBackend).toBeTruthy();
+      expect('Encrypted' in prepared.encryption).toBeTruthy();
+
+      await expect(
+        actor.commitThumbnailUpload({
+          entry: [FILE, 'Media/photo.jpg'],
+          rootHash: 'sha256:plaintext',
+          sha256: new Uint8Array([1, 2, 3]),
+          contentType: 'image/jpeg',
+          size: 3n,
+          encryption: { Plaintext: null },
+        }),
+      ).rejects.toThrow('Encrypted file thumbnails must be encrypted');
+
+      const encryption =
+        'Encrypted' in prepared.encryption
+          ? {
+              Encrypted: {
+                scopeKeyId: prepared.encryption.Encrypted.scopeKeyId,
+                wrappedKey: new Uint8Array([4, 5, 6]),
+                blobIv: new Uint8Array([7, 8, 9]),
+                algorithm: 'AES-GCM-256+vetkey-wrap-v1',
+              },
+            }
+          : { Plaintext: null };
+
+      const updated = await actor.commitThumbnailUpload({
+        entry: [FILE, 'Media/photo.jpg'],
+        rootHash: 'sha256:test',
+        sha256: new Uint8Array([1, 2, 3]),
+        contentType: 'image/jpeg',
+        size: 3n,
+        encryption,
+      });
+
+      if ('File' in updated.metadata) {
+        const thumbnailRef = updated.metadata.File.thumbnailRef[0];
+        expect(thumbnailRef).toBeDefined();
+        if (thumbnailRef && 'BlobStorage' in thumbnailRef) {
+          expect(thumbnailRef.BlobStorage.rootHash).toBe('sha256:test');
+          expect(thumbnailRef.BlobStorage.contentType).toBe('image/jpeg');
+          expect(thumbnailRef.BlobStorage.size).toBe(3n);
+          expect('Encrypted' in thumbnailRef.BlobStorage.encryption).toBeTruthy();
+        }
+      }
+    });
+
+    test('should keep plaintext thumbnail metadata when file moves to another directory', async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'Public'],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+      await actor.create({
+        entry: [DIRECTORY, 'Archive'],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+      await actor.create({
+        entry: [FILE, 'Public/photo.jpg'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      const updated = await actor.setThumbnail({
+        entry: [FILE, 'Public/photo.jpg'],
+        thumbnailRef: [
+          {
+            OnChain: {
+              key: '/thumbnail/Public/photo.jpg',
+              sha256: [new Uint8Array([1, 2, 3])],
+              contentType: 'image/jpeg',
+              size: 3n,
+              encryption: { Plaintext: null },
+            },
+          },
+        ],
+      });
+      if ('File' in updated.metadata) {
+        expect(updated.metadata.File.thumbnailRef.length).toBe(1);
+      }
+
+      await actor.move({
+        entry: [FILE, 'Public/photo.jpg'],
+        target: [[DIRECTORY, 'Archive']],
+      });
+
+      const { entries } = await actor.list([[DIRECTORY, 'Archive']]);
+      const moved = entries.find((entry) => entry.name === 'photo.jpg');
+      expect(moved).toBeDefined();
+      if (moved && 'File' in moved.metadata) {
+        expect(moved.metadata.File.thumbnailRef.length).toBe(1);
+        const thumbnailRef = moved.metadata.File.thumbnailRef[0];
+        expect(thumbnailRef && 'OnChain' in thumbnailRef).toBeTruthy();
+        if (thumbnailRef && 'OnChain' in thumbnailRef) {
+          expect('Plaintext' in thumbnailRef.OnChain.encryption).toBeTruthy();
+        }
+      }
+    });
+
+    test('should clear plaintext thumbnail metadata when file moves to directory with another thumbnail backend', async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'Public'],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+      await actor.create({
+        entry: [DIRECTORY, 'Archive'],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+      await actor.updateDirectoryPolicy({
+        entry: [DIRECTORY, 'Archive'],
+        encryptionPolicy: [],
+        thumbnailStoragePolicy: [{ BlobStorage: null }],
+        thumbnailEncryptionPolicy: [],
+      });
+      await actor.create({
+        entry: [FILE, 'Public/photo.jpg'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      await actor.setThumbnail({
+        entry: [FILE, 'Public/photo.jpg'],
+        thumbnailRef: [
+          {
+            OnChain: {
+              key: '/thumbnail/Public/photo.jpg',
+              sha256: [new Uint8Array([1, 2, 3])],
+              contentType: 'image/jpeg',
+              size: 3n,
+              encryption: { Plaintext: null },
+            },
+          },
+        ],
+      });
+
+      await actor.move({
+        entry: [FILE, 'Public/photo.jpg'],
+        target: [[DIRECTORY, 'Archive']],
+      });
+
+      const { entries } = await actor.list([[DIRECTORY, 'Archive']]);
+      const moved = entries.find((entry) => entry.name === 'photo.jpg');
+      expect(moved).toBeDefined();
+      if (moved && 'File' in moved.metadata) {
+        expect(moved.metadata.File.thumbnailRef).toEqual([]);
+      }
+    });
+
+    test('should clear encrypted thumbnail metadata when file moves to another directory', async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'Media'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      await actor.create({
+        entry: [DIRECTORY, 'Archive'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+      await actor.updateDirectoryPolicy({
+        entry: [DIRECTORY, 'Media'],
+        encryptionPolicy: [],
+        thumbnailStoragePolicy: [{ BlobStorage: null }],
+        thumbnailEncryptionPolicy: [],
+      });
+      await actor.updateDirectoryPolicy({
+        entry: [DIRECTORY, 'Archive'],
+        encryptionPolicy: [],
+        thumbnailStoragePolicy: [{ BlobStorage: null }],
+        thumbnailEncryptionPolicy: [],
+      });
+      await actor.create({
+        entry: [FILE, 'Media/photo.jpg'],
+        createMode: CREATE_NEW,
+        encryptionMode: [],
+      });
+
+      const prepared = await actor.prepareThumbnailUpload({
+        entry: [FILE, 'Media/photo.jpg'],
+        contentType: 'image/jpeg',
+        size: 3n,
+      });
+      const encryption =
+        'Encrypted' in prepared.encryption
+          ? {
+              Encrypted: {
+                scopeKeyId: prepared.encryption.Encrypted.scopeKeyId,
+                wrappedKey: new Uint8Array([4, 5, 6]),
+                blobIv: new Uint8Array([7, 8, 9]),
+                algorithm: 'AES-GCM-256+vetkey-wrap-v1',
+              },
+            }
+          : { Plaintext: null };
+
+      const updated = await actor.commitThumbnailUpload({
+        entry: [FILE, 'Media/photo.jpg'],
+        rootHash: 'sha256:test',
+        sha256: new Uint8Array([1, 2, 3]),
+        contentType: 'image/jpeg',
+        size: 3n,
+        encryption,
+      });
+      expect('File' in updated.metadata).toBeTruthy();
+      if (!('File' in updated.metadata)) return;
+      const originalThumbnailRef = updated.metadata.File.thumbnailRef[0];
+      expect(originalThumbnailRef).toBeDefined();
+      if (!originalThumbnailRef) return;
+      if ('File' in updated.metadata) {
+        expect(updated.metadata.File.thumbnailRef.length).toBe(1);
+      }
+
+      await actor.move({
+        entry: [FILE, 'Media/photo.jpg'],
+        target: [[DIRECTORY, 'Archive']],
+      });
+
+      const { entries } = await actor.list([[DIRECTORY, 'Archive']]);
+      const moved = entries.find((entry) => entry.name === 'photo.jpg');
+      expect(moved).toBeDefined();
+      if (moved && 'File' in moved.metadata) {
+        expect(moved.metadata.File.thumbnailRef).toEqual([]);
+      }
+
+      const rewrapPrepared = await actor.prepareThumbnailUpload({
+        entry: [FILE, 'Archive/photo.jpg'],
+        contentType: 'image/jpeg',
+        size: 3n,
+      });
+      expect('Encrypted' in rewrapPrepared.encryption).toBeTruthy();
+      expect(originalThumbnailRef && 'BlobStorage' in originalThumbnailRef).toBeTruthy();
+      if ('Encrypted' in rewrapPrepared.encryption && originalThumbnailRef && 'BlobStorage' in originalThumbnailRef) {
+        const rewrapped = await actor.rewrapThumbnail({
+          entry: [FILE, 'Archive/photo.jpg'],
+          thumbnailRef: {
+            BlobStorage: {
+              ...originalThumbnailRef.BlobStorage,
+              encryption: {
+                Encrypted: {
+                  scopeKeyId: rewrapPrepared.encryption.Encrypted.scopeKeyId,
+                  wrappedKey: new Uint8Array([10, 11, 12]),
+                  blobIv: new Uint8Array([7, 8, 9]),
+                  algorithm: 'AES-GCM-256+vetkey-wrap-v1',
+                },
+              },
+            },
+          },
+        });
+        if ('File' in rewrapped.metadata) {
+          const thumbnailRef = rewrapped.metadata.File.thumbnailRef[0];
+          expect(thumbnailRef && 'BlobStorage' in thumbnailRef).toBeTruthy();
+          if (thumbnailRef && 'BlobStorage' in thumbnailRef) {
+            expect(thumbnailRef.BlobStorage.encryption).toEqual({
+              Encrypted: {
+                scopeKeyId: rewrapPrepared.encryption.Encrypted.scopeKeyId,
+                wrappedKey: new Uint8Array([10, 11, 12]),
+                blobIv: new Uint8Array([7, 8, 9]),
+                algorithm: 'AES-GCM-256+vetkey-wrap-v1',
+              },
+            });
+          }
+        }
+      }
+    });
   });
 
   describe('staging area', () => {

@@ -454,6 +454,37 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
+  public shared ({ caller }) func prepareThumbnailUpload(args : T.PrepareThumbnailUploadArguments) : async T.PrepareThumbnailUploadResult {
+    switch (EncryptedStorage.prepareThumbnailUpload(storage, caller, args)) {
+      case (#ok result) result;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func commitThumbnailUpload(args : T.CommitThumbnailUploadArguments) : async T.NodeDetails {
+    switch (EncryptedStorage.commitThumbnailUpload(storage, caller, args)) {
+      case (#ok node) node;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func rewrapThumbnail(args : { entry : T.Entry; thumbnailRef : T.ThumbnailRef }) : async T.NodeDetails {
+    switch (EncryptedStorage.setThumbnail(storage, caller, {
+      entry = args.entry;
+      thumbnailRef = ?args.thumbnailRef;
+    })) {
+      case (#ok node) node;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func updateDirectoryPolicy(args : T.UpdateDirectoryPolicyArguments) : async T.NodeDetails {
+    switch (EncryptedStorage.updateDirectoryPolicy(storage, caller, args)) {
+      case (#ok node) node;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
   public query ({ caller }) func listVersions(args : T.ListVersionsArguments) : async [T.FileVersionDetails] {
     switch (EncryptedStorage.listVersions(storage, caller, args)) {
       case (#ok items) items;

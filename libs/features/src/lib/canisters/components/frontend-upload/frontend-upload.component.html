@@ -7,7 +7,7 @@
         @let showDescription = hasPermission() && !archiveFile();
         @if (showDescription) {
           <p class="text-muted-foreground text-sm font-normal">
-            Select an archive with frontend to upload to user canister
+            Select a tar archive with frontend assets to upload
           </p>
         }
       </div>
@@ -15,6 +15,16 @@
 
     <div class="flex-1 overflow-y-auto space-y-6">
       @if (hasPermission()) {
+        @if (installErrorMessage(); as message) {
+          <div class="px-4">
+            <div hlmAlert variant="destructive">
+              <ng-icon hlm hlmAlertIcon name="lucideCircleAlert" />
+              <h4 hlmAlertTitle>Frontend install failed</h4>
+              <div hlmAlertDescription>{{ message }}</div>
+            </div>
+          </div>
+        }
+
         <!-- File selection zone -->
         @if (!archiveFile()) {
           <hlm-tabs tab="file" class="w-full px-4">

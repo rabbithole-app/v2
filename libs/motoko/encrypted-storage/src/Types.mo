@@ -121,6 +121,9 @@ module {
   public type ChunkId = V1.ChunkId;
   public type ContentRef = V1.ContentRef;
   public type EncryptionMode = V1.EncryptionMode;
+  public type DirectoryEncryptionPolicy = V1.DirectoryEncryptionPolicy;
+  public type ThumbnailStoragePolicy = V1.ThumbnailStoragePolicy;
+  public type ThumbnailEncryptionPolicy = V1.ThumbnailEncryptionPolicy;
   public type FileVersion = V1.FileVersion;
   public type StagingEntry = V1.StagingEntry;
 
@@ -189,12 +192,45 @@ module {
 
   public type StorageBackend = { #OnChain; #BlobStorage };
 
+  public type ThumbnailRef = {
+    #OnChain : {
+      key : Text;
+      sha256 : ?Blob;
+      contentType : Text;
+      size : Nat;
+      encryption : ThumbnailEncryptionRef;
+    };
+    #BlobStorage : {
+      rootHash : Text;
+      blobId : Blob;
+      sha256 : ?Blob;
+      contentType : Text;
+      size : Nat;
+      encryption : ThumbnailEncryptionRef;
+    };
+  };
+
+  public type ThumbnailEncryptionRef = {
+    #Plaintext;
+    #Encrypted : {
+      scopeKeyId : KeyId;
+      wrappedKey : Blob;
+      blobIv : Blob;
+      algorithm : Text;
+    };
+  };
+
+  public type ThumbnailEncryptionRequirement = {
+    #Plaintext;
+    #Encrypted : { scopeKeyId : KeyId };
+  };
+
   public type FileMetadata = {
     sha256 : ?Blob;
     contentType : Text;
     size : Nat;
     chunkCount : Nat;
-    thumbnailKey : ?Text;
+    thumbnailRef : ?ThumbnailRef;
     encryptionMode : EncryptionMode;
     versionCount : Nat;
     currentVersion : Nat;
@@ -235,7 +271,29 @@ module {
 
   public type SetThumbnailArguments = {
     entry : Entry;
-    thumbnailKey : ?Text;
+    thumbnailRef : ?ThumbnailRef;
+  };
+
+  public type PrepareThumbnailUploadArguments = {
+    entry : Entry;
+    contentType : Text;
+    size : Nat;
+  };
+
+  public type PrepareThumbnailUploadResult = {
+    storageBackend : StorageBackend;
+    encryption : ThumbnailEncryptionRequirement;
+    contentType : Text;
+    size : Nat;
+  };
+
+  public type CommitThumbnailUploadArguments = {
+    entry : Entry;
+    rootHash : Text;
+    sha256 : Blob;
+    contentType : Text;
+    size : Nat;
+    encryption : ThumbnailEncryptionRef;
   };
 
   /* -------------------------------- Directory ------------------------------- */
@@ -243,6 +301,10 @@ module {
   public type DirectoryMetadata = {
     color : ?DirectoryColor;
     defaultEncryptionMode : EncryptionMode;
+    encryptionPolicy : DirectoryEncryptionPolicy;
+    thumbnailStoragePolicy : ThumbnailStoragePolicy;
+    defaultThumbnailStorageBackend : StorageBackend;
+    thumbnailEncryptionPolicy : ThumbnailEncryptionPolicy;
   };
 
   /* ------------------------------- FileSystem ------------------------------- */
@@ -327,6 +389,13 @@ module {
         color : ?DirectoryColor;
       };
     };
+  };
+
+  public type UpdateDirectoryPolicyArguments = {
+    entry : Entry;
+    encryptionPolicy : ?DirectoryEncryptionPolicy;
+    thumbnailStoragePolicy : ?ThumbnailStoragePolicy;
+    thumbnailEncryptionPolicy : ?ThumbnailEncryptionPolicy;
   };
 
   public type MoveArguments = {

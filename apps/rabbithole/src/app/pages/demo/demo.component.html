@@ -1,0 +1,51 @@
+    <header class="space-y-1">
+      <h1 class="text-2xl font-semibold tracking-normal">UI Components</h1>
+      <p class="text-sm text-muted-foreground">
+        Local previews for shared Rabbithole interface primitives.
+      </p>
+    </header>
+
+    <section class="rounded-lg border bg-muted/50 p-6">
+      <div class="mb-4 space-y-1">
+        <h2 class="text-base font-medium">Access scope select</h2>
+        <p class="text-sm text-muted-foreground">
+          Select root, folders or files from a nested storage tree.
+        </p>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <div class="space-y-2">
+          <div class="text-sm font-medium">Storage scope</div>
+          <rbth-tree-select
+            [tree]="scopeTree"
+            [allowRoot]="true"
+            rootLabel="Whole storage"
+            placeholder="Choose file or folder"
+            [(selected)]="selectedScope"
+          />
+          <p class="text-xs text-muted-foreground">
+            Selected: {{ scopeLabel(selectedScope()) }}
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-sm font-medium">Required scope</div>
+          <rbth-tree-select
+            [tree]="scopeTree"
+            [(selected)]="requiredScope"
+            selectable="folders"
+            placeholder="Choose file or folder"
+          />
+          <p class="text-xs text-muted-foreground">
+            Selected: {{ scopeLabel(requiredScope()) }}
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <div class="rounded-lg border bg-muted/50 p-6">
+      <rbth-timeline-steps
+        title="Deployment · rdmx6-jaaaa-aaaaa-aaadq-cai"
+        [steps]="timelineSteps()"
+      />
+    </div>

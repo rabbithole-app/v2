@@ -15,13 +15,48 @@ import { permissionCompare } "../Utils";
 module Node {
   let { phash } = Map;
 
+  public type DirectoryPolicyInit = {
+    encryptionPolicy : T.DirectoryEncryptionPolicy;
+    defaultEncryptionMode : T.EncryptionMode;
+    thumbnailStoragePolicy : T.ThumbnailStoragePolicy;
+    defaultThumbnailStorageBackend : T.StorageBackend;
+    thumbnailEncryptionPolicy : T.ThumbnailEncryptionPolicy;
+  };
+
   /// Creates a new node with optional encryption mode.
-  public func new(nodeKey : T.NodeKey, owner : Principal, tid : TID.TID, encryptionMode : ?T.EncryptionMode) : T.NodeStore {
+  public func new(nodeKey : T.NodeKey, owner : Principal, tid : TID.TID, encryptionMode : ?T.EncryptionMode, directoryPolicy : ?DirectoryPolicyInit) : T.NodeStore {
     let now = Time.now();
     let mode = Option.get(encryptionMode, #Encrypted);
     let (parentId, name, metadata) : (?Nat64, Text, T.NodeMetadataStore) = switch (nodeKey) {
       case (#File, parentId, name) (parentId, name, #File(File.new(mode, ?1)));
-      case (#Directory, parentId, name) (parentId, name, #Directory { var color = null; var defaultEncryptionMode = mode });
+      case (#Directory, parentId, name) {
+        let policy = Option.get<DirectoryPolicyInit>(
+          directoryPolicy,
+          {
+            encryptionPolicy = switch (encryptionMode) {
+              case (?#Encrypted) #Encrypted;
+              case (?#Plaintext) #Plaintext;
+              case null #Auto;
+            };
+            defaultEncryptionMode = mode;
+            thumbnailStoragePolicy = #Inherit;
+            defaultThumbnailStorageBackend = #OnChain;
+            thumbnailEncryptionPolicy = #Inherit;
+          }
+        );
+        (
+          parentId,
+          name,
+          #Directory {
+            var color = null;
+            var defaultEncryptionMode = policy.defaultEncryptionMode;
+            var encryptionPolicy = policy.encryptionPolicy;
+            var thumbnailStoragePolicy = policy.thumbnailStoragePolicy;
+            var defaultThumbnailStorageBackend = policy.defaultThumbnailStorageBackend;
+            var thumbnailEncryptionPolicy = policy.thumbnailEncryptionPolicy;
+          },
+        );
+      };
     };
 
     {
@@ -47,7 +82,7 @@ module Node {
           sha256 = switch (currentVer) { case (?v) v.sha256; case null null };
           contentType = switch (currentVer) { case (?v) v.contentType; case null "" };
           size = switch (currentVer) { case (?v) v.size; case null 0 };
-          thumbnailKey = file.thumbnailKey;
+          thumbnailRef = file.thumbnailRef;
           encryptionMode = file.encryptionMode;
           versionCount = File.versionCount(file);
           currentVersion = file.currentVersion;
@@ -61,6 +96,10 @@ module Node {
       case (#Directory metadata) #Directory {
         color = metadata.color;
         defaultEncryptionMode = metadata.defaultEncryptionMode;
+        encryptionPolicy = metadata.encryptionPolicy;
+        thumbnailStoragePolicy = metadata.thumbnailStoragePolicy;
+        defaultThumbnailStorageBackend = metadata.defaultThumbnailStorageBackend;
+        thumbnailEncryptionPolicy = metadata.thumbnailEncryptionPolicy;
       };
     };
     {
@@ -79,7 +118,14 @@ module Node {
   public func copy(self : T.NodeStore) : T.NodeStore {
     let metadata : T.NodeMetadataStore = switch (self.metadata) {
       case (#File file) #File(File.copy(file));
-      case (#Directory dir) #Directory { var color = dir.color; var defaultEncryptionMode = dir.defaultEncryptionMode };
+      case (#Directory dir) #Directory {
+        var color = dir.color;
+        var defaultEncryptionMode = dir.defaultEncryptionMode;
+        var encryptionPolicy = dir.encryptionPolicy;
+        var thumbnailStoragePolicy = dir.thumbnailStoragePolicy;
+        var defaultThumbnailStorageBackend = dir.defaultThumbnailStorageBackend;
+        var thumbnailEncryptionPolicy = dir.thumbnailEncryptionPolicy;
+      };
     };
     let newNode : T.NodeStore = {
       id = self.id;

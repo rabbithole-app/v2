@@ -19,9 +19,49 @@ export type CommonAttrs = {
 
 export type DirectoryColor = ExtractVariantKeys<DirectoryColorRaw>;
 
+export type DirectoryEncryptionPolicy = 'auto' | 'encrypted' | 'plaintext';
+
+export type ThumbnailEncryptionPolicy = 'inherit' | 'followFile';
+
+export type ThumbnailStoragePolicy = 'inherit' | 'onChain' | 'blobStorage';
+
+export type ThumbnailEncryptionRef =
+  | {
+      kind: 'Plaintext';
+    }
+  | {
+      algorithm: string;
+      blobIv: Uint8Array;
+      kind: 'Encrypted';
+      scopeKeyId: [Principal, Uint8Array];
+      wrappedKey: Uint8Array;
+    };
+
+export type FileThumbnailRef =
+  | {
+      contentType: string;
+      encryption: ThumbnailEncryptionRef;
+      key: string;
+      sha256?: string;
+      size: bigint;
+      storageBackend: 'OnChain';
+    }
+  | {
+      contentType: string;
+      encryption: ThumbnailEncryptionRef;
+      rootHash: string;
+      sha256?: string;
+      size: bigint;
+      storageBackend: 'BlobStorage';
+    };
+
 export type DirectoryNode = {
   color?: DirectoryColor;
   defaultEncryptionMode: 'encrypted' | 'plaintext';
+  defaultThumbnailStorageBackend: StorageBackendType;
+  encryptionPolicy: DirectoryEncryptionPolicy;
+  thumbnailEncryptionPolicy: ThumbnailEncryptionPolicy;
+  thumbnailStoragePolicy: ThumbnailStoragePolicy;
   type: 'directory';
 } & CommonAttrs;
 
@@ -35,7 +75,7 @@ export type FileNode = {
   sha256?: string;
   size: bigint;
   storageBackend: StorageBackendType;
-  thumbnailKey?: string;
+  thumbnailRef?: FileThumbnailRef;
   type: 'file';
   versionCount: number;
 } & CommonAttrs;

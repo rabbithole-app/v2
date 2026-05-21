@@ -9,20 +9,34 @@ import {
   input,
   signal,
 } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideEye, lucideLock, lucideUsers } from '@ng-icons/lucide';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
+import { Observable, of, switchMap } from 'rxjs';
 
-import { DownloadService, ENCRYPTED_STORAGE_CANISTER_ID, IS_PRODUCTION_TOKEN } from '@rabbithole/core';
+import {
+  BLOB_STORAGE_CONFIG_TOKEN,
+  DownloadService,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  IS_PRODUCTION_TOKEN,
+} from '@rabbithole/core';
+import { injectEncryptedStorage } from '@rabbithole/core/storage-runtime';
+import type { ThumbnailRef as StorageThumbnailRef } from '@rabbithole/declarations/encrypted-storage';
+import type { EncryptedStorage } from '@rabbithole/encrypted-storage';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { hlm } from '@spartan-ng/helm/utils';
 
 import { isDirectory, isFile, NodeItem } from '../../types';
+import { toStorageThumbnailRef } from '../../utils';
 import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
 import { FileIconComponent } from '../file-icon/file-icon.component';
+
+const BLOB_STORAGE_GATEWAY_VERSION = 'v1';
+const DEFAULT_BLOB_STORAGE_PROJECT_ID = '0000000-0000-0000-0000-00000000000';
 
 export const gridItemVariants = cva(
   'grid gap-y-2 grid-rows-[1fr_36px] items-start p-3 select-none transition-colors duration-200 ease-in-out rounded-lg cursor-pointer hover:bg-muted focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
@@ -61,6 +75,11 @@ export type DownloadProgressState = {
 };
 
 export type GridItemVariants = VariantProps<typeof gridItemVariants>;
+
+type EncryptedThumbnailRequest = {
+  storage: EncryptedStorage;
+  thumbnailRef: StorageThumbnailRef;
+};
 
 @Component({
   selector: 'rbth-feat-file-list-grid-item',
@@ -125,7 +144,6 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   }
 
   #downloadService = inject(DownloadService);
-
   protected readonly downloadProgress = computed<DownloadProgressState | null>(() => {
     const item = this.data();
     if (item.type !== 'file') return null;
@@ -150,7 +168,6 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     }
     return { status: 'downloading', percent: 0 };
   });
-
   protected readonly _isDownloading = computed(() => {
     const dl = this.downloadProgress();
     return dl !== null && dl.status !== 'failed';
@@ -181,7 +198,9 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     if (isDirectory(item)) return item.defaultEncryptionMode === 'encrypted';
     return false;
   });
+
   protected readonly isFileNode = computed(() => isFile(this.data()));
+
   protected readonly isReadOnly = computed(() =>
     this.data().callerPermission === 'Read',
   );
@@ -190,7 +209,6 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     const count = this.data().sharedWith;
     return count !== undefined && count > 0;
   });
-
   protected readonly badges = computed(() => {
     const items: { icon: string; title: string }[] = [];
     if (this.isShared()) {
@@ -205,7 +223,6 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     }
     return items;
   });
-
   protected readonly badgeTooltip = computed(() =>
     this.badges().map((b) => b.title).join(', '),
   );
@@ -214,6 +231,32 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     const item = this.data();
     return isDirectory(item) ? (item.color ?? 'blue') : 'blue';
   });
+
+  #encryptedStorage = injectEncryptedStorage();
+
+  readonly #encryptedThumbnailRequest =
+    computed<EncryptedThumbnailRequest | null>(() => {
+      const item = this.data();
+      const thumbnailRef = isFile(item) ? item.thumbnailRef : undefined;
+
+      if (!thumbnailRef || thumbnailRef.encryption.kind === 'Plaintext') {
+        return null;
+      }
+
+      return {
+        storage: this.#encryptedStorage(),
+        thumbnailRef: toStorageThumbnailRef(thumbnailRef),
+      };
+    });
+
+  protected readonly encryptedThumbnailUrl = toSignal(
+    toObservable(this.#encryptedThumbnailRequest).pipe(
+      switchMap((request) =>
+        request ? this.#loadEncryptedThumbnailUrl(request) : of(null),
+      ),
+    ),
+    { initialValue: null },
+  );
 
   protected readonly fileExtension = computed(() => {
     const item = this.data();
@@ -226,23 +269,41 @@ export class GridItemComponent implements FocusableOption, Highlightable {
 
   protected readonly hasThumbnail = computed(() => {
     const item = this.data();
-    return isFile(item) && !!item.thumbnailKey;
+    return isFile(item) && !!item.thumbnailRef;
   });
 
   protected readonly isDirectoryNode = computed(() => isDirectory(this.data()));
   protected readonly itemName = computed(() => this.data().name);
 
+  #blobStorageConfig = inject(BLOB_STORAGE_CONFIG_TOKEN, { optional: true });
   #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
 
   readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
 
   protected readonly thumbnailUrl = computed(() => {
     const item = this.data();
-    if (isFile(item) && item.thumbnailKey) {
-      const storageUrl = this.#isProduction
-        ? `https://${this.#canisterId.toText()}.icp0.io`
-        : `https://${this.#canisterId.toText()}.localhost`;
-      return `${storageUrl}${item.thumbnailKey}`;
+    if (isFile(item) && item.thumbnailRef) {
+      const encryptedThumbnailUrl = this.encryptedThumbnailUrl();
+      if (encryptedThumbnailUrl) return encryptedThumbnailUrl;
+      if (item.thumbnailRef.encryption.kind === 'Encrypted') return null;
+
+      if (item.thumbnailRef.storageBackend === 'OnChain') {
+        const storageUrl = this.#isProduction
+          ? `https://${this.#canisterId.toText()}.icp0.io`
+          : `https://${this.#canisterId.toText()}.localhost`;
+        return `${storageUrl}${item.thumbnailRef.key}`;
+      }
+
+      const gatewayUrl = this.#blobStorageConfig?.gatewayUrl.trim();
+      if (!gatewayUrl) return null;
+
+      const query = new URLSearchParams({
+        blob_hash: item.thumbnailRef.rootHash,
+        owner_id: this.#canisterId.toText(),
+        project_id: DEFAULT_BLOB_STORAGE_PROJECT_ID,
+      });
+
+      return `${gatewayUrl.replace(/\/+$/, '')}/${BLOB_STORAGE_GATEWAY_VERSION}/blob/?${query}`;
     }
     return null;
   });
@@ -263,5 +324,41 @@ export class GridItemComponent implements FocusableOption, Highlightable {
 
   setInactiveStyles(): void {
     this.highlighted.set(false);
+  }
+
+  #loadEncryptedThumbnailUrl({
+    storage,
+    thumbnailRef,
+  }: EncryptedThumbnailRequest): Observable<string | null> {
+    return new Observable((subscriber) => {
+      let disposed = false;
+      let objectUrl: string | null = null;
+
+      subscriber.next(null);
+
+      storage
+        .getThumbnailUrl(thumbnailRef)
+        .then((url) => {
+          if (disposed) {
+            URL.revokeObjectURL(url);
+            return;
+          }
+
+          objectUrl = url;
+          subscriber.next(url);
+        })
+        .catch((error) => {
+          if (!disposed) {
+            console.error('Failed to load encrypted thumbnail', error);
+            subscriber.next(null);
+            subscriber.complete();
+          }
+        });
+
+      return () => {
+        disposed = true;
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      };
+    });
   }
 }

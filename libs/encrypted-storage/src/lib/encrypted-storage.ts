@@ -1,4 +1,3 @@
-import { arrayBufferToUint8Array } from '@dfinity/utils';
 import {
   DerivedKeyMaterial,
   DerivedPublicKey,
@@ -23,10 +22,16 @@ import {
   ListedPrincipalAccessGrant,
   Permission__1,
   StorageBackend,
+  ThumbnailRef,
 } from '@rabbithole/declarations/encrypted-storage';
 
+import {
+  CAFFEINE_CHUNK_SIZE,
+  CAFFEINE_PLAINTEXT_CHUNK_SIZE,
+} from './blob-storage/constants';
 import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
 import { BlobHashTree, verifyBlobIntegrity, YHash } from './blob-storage/merkle-tree';
+import { ThumbnailClient } from './thumbnail/thumbnail-client';
 import {
   CreateStorageAccessGrant,
   CreateStorageAccessGrants,
@@ -39,9 +44,12 @@ import {
   RevokeStorageAccessGrants,
   StorageAccessGrantListMode,
   type StorageClaimedPrincipal,
+  StorageDirectoryEncryptionPolicy,
   StoragePendingAccessGrant,
   StoragePermission,
   StoragePermissionItem,
+  StorageThumbnailEncryptionPolicy,
+  StorageThumbnailStoragePolicy,
   StoreArgs,
   StorePathArgs,
   StoreReadableArgs,
@@ -53,16 +61,11 @@ import {
 } from './types';
 import { convertTreeNodes } from './utils';
 import { limit, LimitFn } from './utils/limit';
+import {
+  toOptionalVariant,
+  unwrapStorageResult,
+} from './utils/storage-result';
 import { verifyIcCertificate } from './utils/verify-ic-certificate';
-
-/** Blob storage protocol chunk size: 1 MiB */
-const CAFFEINE_CHUNK_SIZE = 1_048_576;
-/** AES-GCM overhead per chunk: 12 bytes IV + 16 bytes auth tag */
-const AES_GCM_OVERHEAD = 28;
-/** Max plaintext that fits in one blob storage chunk after AES-GCM encryption */
-const CAFFEINE_PLAINTEXT_CHUNK_SIZE = CAFFEINE_CHUNK_SIZE - AES_GCM_OVERHEAD;
-
-type StorageResult<T> = T | { err: { code?: unknown; message?: string } } | { ok: T };
 
 export class EncryptedStorage {
   readonly #actor: ActorSubclass<EncryptedStorageActorService>;
@@ -75,6 +78,7 @@ export class EncryptedStorage {
   #progress = new Store<Record<string, Progress>>({});
   #sha256: Record<string, ReturnType<typeof sha256.create>> = {};
   #storageBackend?: StorageBackend;
+  readonly #thumbnailClient: ThumbnailClient;
 
   /**
    * Create assets canister manager instance
@@ -109,6 +113,14 @@ export class EncryptedStorage {
         gatewayUrl: blobStorageGatewayUrl,
       });
     }
+
+    this.#thumbnailClient = new ThumbnailClient({
+      actor: this.#actor,
+      blobStorageClient: this.#blobStorageClient,
+      getDerivedKeyMaterial: (fileOwner, fileId) =>
+        this.#getDerivedKeyMaterialOrFetchIfNeeded(fileOwner, fileId),
+      origin: this.#origin,
+    });
   }
 
   async cancelAccessRequest(requestId: bigint) {
@@ -359,6 +371,10 @@ export class EncryptedStorage {
     return this.#storageBackend;
   }
 
+  async getThumbnailUrl(thumbnailRef: ThumbnailRef): Promise<string> {
+    return await this.#thumbnailClient.getUrl(thumbnailRef);
+  }
+
   async hasPermission({
     user,
     permission,
@@ -474,16 +490,12 @@ export class EncryptedStorage {
     return await this.#actor.revokeAccessBatch(args);
   }
 
+  async rewrapThumbnail(entry: Entry, thumbnailRef: ThumbnailRef): Promise<boolean> {
+    return await this.#thumbnailClient.rewrap(entry, thumbnailRef);
+  }
+
   async saveThumbnail(entry: Entry, blob: Blob) {
-    const buffer = await blob.arrayBuffer();
-    const content = arrayBufferToUint8Array(buffer);
-    return await this.#actor.saveThumbnail({
-      entry: toEntryRaw(entry),
-      thumbnail: {
-        content,
-        contentType: blob.type ?? 'image/jpeg',
-      },
-    });
+    return await this.#thumbnailClient.save(entry, blob);
   }
 
   async showTree(entry?: Entry) {
@@ -789,6 +801,24 @@ export class EncryptedStorage {
     } as Parameters<EncryptedStorageActorService['update']>[0])); // color is dynamic, keep cast
   }
 
+  async updateDirectoryPolicy(
+    path: string,
+    policy: {
+      encryptionPolicy?: StorageDirectoryEncryptionPolicy;
+      thumbnailEncryptionPolicy?: StorageThumbnailEncryptionPolicy;
+      thumbnailStoragePolicy?: StorageThumbnailStoragePolicy;
+    },
+  ) {
+    return unwrapStorageResult(await this.#actor.updateDirectoryPolicy({
+      entry: [{ Directory: null }, path],
+      encryptionPolicy: toOptionalVariant(policy.encryptionPolicy),
+      thumbnailStoragePolicy: toOptionalVariant(policy.thumbnailStoragePolicy),
+      thumbnailEncryptionPolicy: toOptionalVariant(
+        policy.thumbnailEncryptionPolicy,
+      ),
+    } as Parameters<EncryptedStorageActorService['updateDirectoryPolicy']>[0]));
+  }
+
   #accessGrantListMode(mode: StorageAccessGrantListMode) {
     return mode === 'effective' ? { effective: null } : { exact: null };
   }
@@ -921,7 +951,10 @@ export class EncryptedStorage {
       fileOwner,
       fileId,
     );
-    await set([fileOwner.toString()], derivedKeyMaterial.getCryptoKey());
+    await set([
+      fileOwner.toString(),
+      new TextDecoder().decode(fileId),
+    ], derivedKeyMaterial.getCryptoKey());
 
     return derivedKeyMaterial;
   }
@@ -1011,27 +1044,4 @@ export class EncryptedStorage {
   #storagePermissionFromRaw(permission: Permission__1): StoragePermission {
     return Object.keys(permission)[0] as StoragePermission;
   }
-}
-
-function storageErrorCodeLabel(code: unknown): string | null {
-  if (!code || typeof code !== 'object') return null;
-  const [label] = Object.keys(code);
-
-  return label ?? null;
-}
-
-function unwrapStorageResult<T>(result: StorageResult<T>): T {
-  if (result && typeof result === 'object' && 'err' in result) {
-    const { code, message } = result.err;
-    const label = storageErrorCodeLabel(code);
-    const fallback = message ?? 'Storage operation failed';
-
-    throw new Error(label ? `[${label}] ${fallback}` : fallback);
-  }
-
-  if (result && typeof result === 'object' && 'ok' in result) {
-    return result.ok;
-  }
-
-  return result as T;
 }

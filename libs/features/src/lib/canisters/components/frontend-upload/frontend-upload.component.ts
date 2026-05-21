@@ -9,9 +9,9 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { arrayBufferToUint8Array } from '@dfinity/utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideCircleAlert,
   lucideFileArchive,
   lucideGithub,
   lucidePackage,
@@ -19,13 +19,11 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
+import { toast } from '@spartan-ng/brain/sonner';
 import type { ClassValue } from 'clsx';
-import { unzipSync } from 'fflate';
 import { match, P } from 'ts-pattern';
 
-import {
-  FileSystemAccessService,
-} from '@rabbithole/core';
+import { FileSystemAccessService } from '@rabbithole/core';
 import {
   IAssetUploadService,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
@@ -40,6 +38,7 @@ import {
   RbthDrawerSeparatorDirective,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui/drawer';
+import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSpinnerImports } from '@spartan-ng/helm/spinner';
@@ -49,6 +48,7 @@ import { hlm } from '@spartan-ng/helm/utils';
 import { FrontendTakeOwnershipAlertComponent } from '../frontend-take-ownership/frontend-take-ownership-alert.component';
 import { FrontendTakeOwnershipButtonComponent } from '../frontend-take-ownership/frontend-take-ownership-button.component';
 import { FrontendUploadListComponent } from '../frontend-upload-list/frontend-upload-list.component';
+import { extractFrontendArchive } from './frontend-archive';
 import { FrontendUploadArchivePreviewComponent } from './frontend-upload-archive-preview.component';
 import { FrontendUploadFileSelectionComponent } from './frontend-upload-file-selection.component';
 import { FrontendUploadGithubSelectionComponent } from './frontend-upload-github-selection.component';
@@ -58,6 +58,7 @@ import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.direct
 @Component({
   selector: 'rbth-feat-canisters-frontend-upload-drawer',
   imports: [
+    ...HlmAlertImports,
     HlmButtonImports,
     HlmSpinnerImports,
     HlmTabsImports,
@@ -81,6 +82,7 @@ import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.direct
   providers: [
     UPLOAD_ASSETS_SERVICE_PROVIDERS,
     provideIcons({
+      lucideCircleAlert,
       lucideFileArchive,
       lucideGithub,
       lucidePackage,
@@ -95,7 +97,9 @@ import { FrontendUploadTriggerDirective } from './frontend-upload-trigger.direct
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FrontendUploadDrawerComponent {
-  #uploadService = inject(UPLOAD_SERVICE_TOKEN, { self: true }) as IAssetUploadService;
+  #uploadService = inject(UPLOAD_SERVICE_TOKEN, {
+    self: true,
+  }) as IAssetUploadService;
   files = computed(() => this.#uploadService.state().files);
   readonly activeItems = computed(() =>
     this.files().filter(({ status }) =>
@@ -124,6 +128,7 @@ export class FrontendUploadDrawerComponent {
   );
   readonly hasPermission = computed(() => this.#uploadService.hasPermission());
   readonly icons = { fileArchive: lucideFileArchive };
+  readonly installErrorMessage = signal<string | null>(null);
   isProcessing = computed(() => this.#uploadService.state().isProcessing);
   overallProgress = computed(() => this.#uploadService.state().overallProgress);
   readonly statusText = computed(() => {
@@ -153,9 +158,13 @@ export class FrontendUploadDrawerComponent {
 
   async fileOpen() {
     const fileHandle = await this.#fsAccessService.fileOpen({
-      mimeTypes: ['application/zip'],
-      extensions: ['.zip'],
-      description: 'Zip archive',
+      mimeTypes: [
+        'application/gzip',
+        'application/x-gzip',
+        'application/x-tar',
+      ],
+      extensions: ['.tar', '.tar.gz', '.tgz'],
+      description: 'Frontend archive',
       startIn: 'downloads',
       id: 'projects',
       excludeAcceptAllOption: true,
@@ -163,11 +172,12 @@ export class FrontendUploadDrawerComponent {
     const file = await match(fileHandle)
       .with({ handle: P.nonNullable.select() }, (handle) => handle.getFile())
       .run();
-    this.archiveFile.set(file);
+    this.onFileSelected(file);
   }
 
   onCancel() {
     this.archiveFile.set(null);
+    this.installErrorMessage.set(null);
     this.#uploadService.clear();
   }
 
@@ -184,26 +194,34 @@ export class FrontendUploadDrawerComponent {
   }
 
   onFileSelected(file: File) {
+    if (!isFrontendArchiveFile(file)) {
+      toast.error('Select a .tar, .tar.gz, or .tgz frontend archive');
+      return;
+    }
+
+    this.installErrorMessage.set(null);
     this.archiveFile.set(file);
   }
 
   async onInstall() {
     const file = this.archiveFile();
     if (file) {
-      this.#uploadService.clear();
-      const zipData = await file.arrayBuffer();
-      const files = unzipSync(arrayBufferToUint8Array(zipData), {
-        filter: ({ name, originalSize }) =>
-          !name.endsWith('/') && originalSize >= 0,
-      });
-      for (const [key, u8] of Object.entries(files)) {
-        const segments = key.split('/');
-        const filename = segments.pop();
-        if (filename) {
-          const path = segments.length > 0 ? segments.join('/') : undefined;
-          const file = new File([new Uint8Array(u8)], filename);
-          this.#uploadService.add({ file, path });
+      this.installErrorMessage.set(null);
+      try {
+        const files = await extractFrontendArchive(file);
+        this.#uploadService.clear();
+        for (const entry of files) {
+          const asset = new File([toArrayBuffer(entry.bytes)], entry.fileName);
+          await this.#uploadService.add({ file: asset, path: entry.path });
         }
+      } catch (error) {
+        console.error(error);
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Failed to read frontend archive';
+        this.installErrorMessage.set(message);
+        toast.error(message);
       }
     }
   }
@@ -211,4 +229,18 @@ export class FrontendUploadDrawerComponent {
   onOwnershipTaken() {
     this.#uploadService.reloadPermissions();
   }
+}
+
+function isFrontendArchiveFile(file: File): boolean {
+  return (
+    file.name.endsWith('.tar') ||
+    file.name.endsWith('.tar.gz') ||
+    file.name.endsWith('.tgz')
+  );
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
 }

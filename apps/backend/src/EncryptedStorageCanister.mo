@@ -331,6 +331,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
+  public shared ({ caller }) func updateDirectoryPolicy(args : T.UpdateDirectoryPolicyArguments) : async T.StorageResult<T.NodeDetails> {
+    switch (es.updateDirectoryPolicy(caller, args)) {
+      case (#ok value) { reportLowCyclesIfNeeded<system>(); #ok value };
+      case (#err message) #err(storageError(message));
+    };
+  };
+
   public shared ({ caller }) func delete(args : T.DeleteArguments) : async () {
     switch (es.delete(caller, args)) {
       case (#ok _) { reportLowCyclesIfNeeded<system>() };
@@ -851,8 +858,46 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   /*                             Thumbnails methods                             */
   /* -------------------------------------------------------------------------- */
 
-  public shared ({ caller }) func saveThumbnail(args : { entry : T.Entry; thumbnail : { content : Blob; contentType : Text } }) : async T.NodeDetails {
+  public shared ({ caller }) func prepareThumbnailUpload(args : T.PrepareThumbnailUploadArguments) : async T.PrepareThumbnailUploadResult {
     assert not Principal.isAnonymous(caller);
+    switch (es.prepareThumbnailUpload(caller, args)) {
+      case (#ok result) result;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func commitThumbnailUpload(args : T.CommitThumbnailUploadArguments) : async T.NodeDetails {
+    assert not Principal.isAnonymous(caller);
+    switch (es.commitThumbnailUpload(caller, args)) {
+      case (#ok node) node;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func rewrapThumbnail(args : { entry : T.Entry; thumbnailRef : T.ThumbnailRef }) : async T.NodeDetails {
+    assert not Principal.isAnonymous(caller);
+    switch (es.setThumbnail(caller, {
+      entry = args.entry;
+      thumbnailRef = ?args.thumbnailRef;
+    })) {
+      case (#ok node) node;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func saveThumbnail(args : { entry : T.Entry; thumbnail : { content : Blob; contentType : Text; encryption : T.ThumbnailEncryptionRef } }) : async T.NodeDetails {
+    assert not Principal.isAnonymous(caller);
+    switch (es.prepareThumbnailUpload(caller, {
+      entry = args.entry;
+      contentType = args.thumbnail.contentType;
+      size = args.thumbnail.content.size();
+    })) {
+      case (#ok prepared) switch (prepared.storageBackend) {
+        case (#OnChain) {};
+        case (#BlobStorage) throw Error.reject("Use Blob Storage thumbnail upload for this entry");
+      };
+      case (#err message) throw Error.reject(message);
+    };
     switch (es.get(caller, { entry = args.entry })) {
       case (#ok node) {
         let (#File(_)) = node.metadata else throw Error.reject("Directory does not support thumbnails");
@@ -871,7 +916,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         assetCanister.store(owner, storeArgs);
         let setThumbnailArgs : T.SetThumbnailArguments = {
           entry = args.entry;
-          thumbnailKey = ?storeArgs.key;
+          thumbnailRef = ?#OnChain({
+            key = storeArgs.key;
+            sha256 = storeArgs.sha256;
+            contentType = storeArgs.content_type;
+            size = args.thumbnail.content.size();
+            encryption = args.thumbnail.encryption;
+          });
         };
         switch (es.setThumbnail(caller, setThumbnailArgs)) {
           case (#ok node) node;

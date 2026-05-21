@@ -147,7 +147,7 @@ canisters:
     build:
       steps:
         - type: pre-built
-          url: https://github.com/dfinity/exchange-rate-canister/releases/download/2026.03.11/xrc.wasm.gz
+          url: https://github.com/dfinity/exchange-rate-canister/releases/download/2026.05.15/xrc.wasm.gz
     init_args: "(null)"
 
   - name: sol_rpc

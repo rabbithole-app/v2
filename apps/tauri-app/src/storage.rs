@@ -46,9 +46,48 @@ pub enum DirectoryColor {
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
+pub struct OnChainThumbnailRef {
+    pub key: String,
+    pub sha256: Option<Vec<u8>>,
+    pub contentType: String,
+    pub size: Nat,
+    pub encryption: ThumbnailEncryptionRef,
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
+pub struct BlobStorageThumbnailRef {
+    pub rootHash: String,
+    pub blobId: Vec<u8>,
+    pub sha256: Option<Vec<u8>>,
+    pub contentType: String,
+    pub size: Nat,
+    pub encryption: ThumbnailEncryptionRef,
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
+pub struct EncryptedThumbnailRef {
+    pub scopeKeyId: (Principal, Vec<u8>),
+    pub wrappedKey: Vec<u8>,
+    pub blobIv: Vec<u8>,
+    pub algorithm: String,
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
+pub enum ThumbnailEncryptionRef {
+    Plaintext,
+    Encrypted(EncryptedThumbnailRef),
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
+pub enum ThumbnailRef {
+    OnChain(OnChainThumbnailRef),
+    BlobStorage(BlobStorageThumbnailRef),
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
 pub struct FileMetadata {
     pub sha256: Option<Vec<u8>>,
-    pub thumbnailKey: Option<String>,
+    pub thumbnailRef: Option<ThumbnailRef>,
     pub contentType: String,
     pub size: Nat,
 }

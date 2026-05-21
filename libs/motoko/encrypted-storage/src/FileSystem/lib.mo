@@ -17,9 +17,10 @@ import T "../Types";
 import Utils "../Utils";
 import ErrorMessages "../ErrorMessages";
 import Path "../Path";
+import Thumbnail "../Thumbnail";
 import File "File";
 import Node "Node";
-import { findNodeByKeyId } "Common";
+import { findNodeById; findNodeByKeyId } "Common";
 
 module FileSystem {
   public type Store = T.FileSystemStore;
@@ -152,9 +153,154 @@ module FileSystem {
     };
   };
 
-  public func create(self : Store, owner : Principal, { entry; createMode; encryptionMode } : T.CreateArguments) : Result.Result<T.NodeStore, Text> {
+  func encryptionPolicyFromMode(mode : T.EncryptionMode) : T.DirectoryEncryptionPolicy {
+    switch (mode) {
+      case (#Encrypted) #Encrypted;
+      case (#Plaintext) #Plaintext;
+    };
+  };
+
+  func modeFromEncryptionPolicy(policy : T.DirectoryEncryptionPolicy) : ?T.EncryptionMode {
+    switch (policy) {
+      case (#Auto) null;
+      case (#Encrypted) ?#Encrypted;
+      case (#Plaintext) ?#Plaintext;
+    };
+  };
+
+  func isBlobStorage(backend : T.StorageBackend) : Bool {
+    switch (backend) {
+      case (#BlobStorage) true;
+      case (#OnChain) false;
+    };
+  };
+
+  func inheritedDirectoryEncryptionMode(self : Store, node : T.NodeStore) : T.EncryptionMode {
+    switch (node.parentId) {
+      case (?parentId) switch (findNodeById(self, parentId)) {
+        case (?parent) resolveDirectoryEncryptionMode(self, parent);
+        case null #Encrypted;
+      };
+      case null #Encrypted;
+    };
+  };
+
+  public func resolveDirectoryEncryptionMode(self : Store, node : T.NodeStore) : T.EncryptionMode {
+    switch (node.metadata) {
+      case (#Directory(dir)) switch (modeFromEncryptionPolicy(dir.encryptionPolicy)) {
+        case (?mode) mode;
+        case null inheritedDirectoryEncryptionMode(self, node);
+      };
+      case (#File(file)) file.encryptionMode;
+    };
+  };
+
+  func inheritedThumbnailStorageBackend(self : Store, storageBackendType : T.StorageBackend, node : T.NodeStore) : T.StorageBackend {
+    if (isBlobStorage(storageBackendType)) return #BlobStorage;
+    switch (node.parentId) {
+      case (?parentId) switch (findNodeById(self, parentId)) {
+        case (?parent) resolveThumbnailStorageBackend(self, storageBackendType, parent);
+        case null #OnChain;
+      };
+      case null #OnChain;
+    };
+  };
+
+  public func resolveThumbnailStorageBackend(self : Store, storageBackendType : T.StorageBackend, node : T.NodeStore) : T.StorageBackend {
+    if (isBlobStorage(storageBackendType)) return #BlobStorage;
+    switch (node.metadata) {
+      case (#Directory(dir)) switch (dir.thumbnailStoragePolicy) {
+        case (#Inherit) inheritedThumbnailStorageBackend(self, storageBackendType, node);
+        case (#OnChain) #OnChain;
+        case (#BlobStorage) #BlobStorage;
+      };
+      case (#File(_)) inheritedThumbnailStorageBackend(self, storageBackendType, node);
+    };
+  };
+
+  func inheritedThumbnailEncryptionPolicy(self : Store, node : T.NodeStore) : T.ThumbnailEncryptionPolicy {
+    switch (node.parentId) {
+      case (?parentId) switch (findNodeById(self, parentId)) {
+        case (?parent) resolveThumbnailEncryptionPolicy(self, parent);
+        case null #FollowFile;
+      };
+      case null #FollowFile;
+    };
+  };
+
+  func resolveThumbnailEncryptionPolicy(self : Store, node : T.NodeStore) : T.ThumbnailEncryptionPolicy {
+    switch (node.metadata) {
+      case (#Directory(dir)) switch (dir.thumbnailEncryptionPolicy) {
+        case (#Inherit) inheritedThumbnailEncryptionPolicy(self, node);
+        case (#FollowFile) #FollowFile;
+      };
+      case (#File(_)) inheritedThumbnailEncryptionPolicy(self, node);
+    };
+  };
+
+  func thumbnailScopeKeyId(self : Store, node : T.NodeStore) : T.KeyId {
+    switch (node.parentId) {
+      case (?parentId) switch (findNodeById(self, parentId)) {
+        case (?parent) parent.keyId;
+        case null node.keyId;
+      };
+      case null node.keyId;
+    };
+  };
+
+  public func resolveThumbnailEncryption(self : Store, node : T.NodeStore) : T.ThumbnailEncryptionRequirement {
+    switch (node.metadata) {
+      case (#File(file)) switch (file.encryptionMode) {
+        case (#Plaintext) #Plaintext;
+        case (#Encrypted) switch (resolveThumbnailEncryptionPolicy(self, node)) {
+          case (#FollowFile or #Inherit) #Encrypted({ scopeKeyId = thumbnailScopeKeyId(self, node) });
+        };
+      };
+      case (#Directory(_)) #Plaintext;
+    };
+  };
+
+  func newDirectoryPolicy(self : Store, storageBackendType : T.StorageBackend, parent : ?T.NodeStore) : Node.DirectoryPolicyInit {
+    {
+      encryptionPolicy = #Auto;
+      defaultEncryptionMode = switch (parent) {
+        case (?node) resolveDirectoryEncryptionMode(self, node);
+        case null #Encrypted;
+      };
+      thumbnailStoragePolicy = #Inherit;
+      defaultThumbnailStorageBackend = switch (parent) {
+        case (?node) resolveThumbnailStorageBackend(self, storageBackendType, node);
+        case null {
+          if (isBlobStorage(storageBackendType)) #BlobStorage else #OnChain
+        };
+      };
+      thumbnailEncryptionPolicy = #Inherit;
+    };
+  };
+
+  public func getDetails(self : Store, storageBackendType : T.StorageBackend, node : T.NodeStore) : T.NodeDetails {
+    let details = Node.getDetails(node);
+    switch (details.metadata) {
+      case (#Directory(metadata)) {
+        let directoryMetadata : T.DirectoryMetadata = {
+          color = metadata.color;
+          defaultEncryptionMode = resolveDirectoryEncryptionMode(self, node);
+          encryptionPolicy = metadata.encryptionPolicy;
+          thumbnailStoragePolicy = metadata.thumbnailStoragePolicy;
+          defaultThumbnailStorageBackend = resolveThumbnailStorageBackend(self, storageBackendType, node);
+          thumbnailEncryptionPolicy = metadata.thumbnailEncryptionPolicy;
+        };
+        {
+          details with metadata = #Directory(directoryMetadata);
+        };
+      };
+      case (#File(_)) details;
+    };
+  };
+
+  public func create(self : Store, owner : Principal, { entry; createMode; encryptionMode } : T.CreateArguments, storageBackendType : T.StorageBackend) : Result.Result<T.NodeStore, Text> {
     switch (findNodeByEntry(self, ?entry), createMode) {
-      case (null, _) #ok(createPath(self, owner, entry, encryptionMode));
+      case (null, _) #ok(createPath(self, owner, entry, encryptionMode, storageBackendType));
       case (?node, #GetOrCreate) #ok(node);
       case (?_, #CreateNew) #err(ErrorMessages.entryAlreadyExists(entry));
     };
@@ -162,7 +308,7 @@ module FileSystem {
 
   // func commitBatch(self : Store, operations : [CommitBatchOperation]) {};
 
-  func createPath(self : Store, owner : Principal, (kind, path) : T.Entry, encryptionMode : ?T.EncryptionMode) : T.NodeStore {
+  func createPath(self : Store, owner : Principal, (kind, path) : T.Entry, encryptionMode : ?T.EncryptionMode, storageBackendType : T.StorageBackend) : T.NodeStore {
     let dirnames = Path.normalize(path) |> Text.split(_, #char '/') |> Vector.fromIter<Text>(_);
     let filename : ?Text = if (kind == #File) Vector.removeLast(dirnames) else null;
 
@@ -171,7 +317,7 @@ module FileSystem {
     for (name in Vector.vals(dirnames)) {
       let node = switch (Map.get(self.nodes, hashNodes, (#Directory, parentId, name))) {
         case (?v) v;
-        case null switch (createNode(self, (#Directory, parentId, name), owner, null)) {
+        case null switch (createNode(self, (#Directory, parentId, name), owner, null, ?newDirectoryPolicy(self, storageBackendType, parent))) {
           case (#ok v or #err(#AlreadyExists v)) v;
         };
       };
@@ -183,19 +329,22 @@ module FileSystem {
     let resolvedMode : ?T.EncryptionMode = switch (encryptionMode) {
       case (?mode) ?mode;
       case null switch (parent) {
-        case (?{ metadata = #Directory(dir) }) ?dir.defaultEncryptionMode;
-        case _ null;
+        case (?node) ?resolveDirectoryEncryptionMode(self, node);
+        case _ ?#Encrypted;
       };
     };
 
     switch (parent, filename) {
-      case (_, ?name) switch (createNode(self, (#File, parentId, name), owner, resolvedMode)) {
+      case (_, ?name) switch (createNode(self, (#File, parentId, name), owner, resolvedMode, null)) {
         case (#ok v or #err(#AlreadyExists v)) v;
       };
       case (?node, null) {
         // If creating a directory with explicit encryption mode, update it
-        switch (resolvedMode, node.metadata) {
-          case (?mode, #Directory(dir)) dir.defaultEncryptionMode := mode;
+        switch (encryptionMode, node.metadata) {
+          case (?mode, #Directory(dir)) {
+            dir.encryptionPolicy := encryptionPolicyFromMode(mode);
+            dir.defaultEncryptionMode := mode;
+          };
           case _ {};
         };
         node;
@@ -210,12 +359,12 @@ module FileSystem {
     Map.remove(self.nodes, hashNodes, nodeKey);
   };
 
-  func createNode(self : Store, nodeKey : T.NodeKey, owner : Principal, encryptionMode : ?T.EncryptionMode) : Result.Result<T.NodeStore, { #AlreadyExists : T.NodeStore }> {
+  func createNode(self : Store, nodeKey : T.NodeKey, owner : Principal, encryptionMode : ?T.EncryptionMode, directoryPolicy : ?Node.DirectoryPolicyInit) : Result.Result<T.NodeStore, { #AlreadyExists : T.NodeStore }> {
     switch (Map.get(self.nodes, hashNodes, nodeKey)) {
       case (?v) #err(#AlreadyExists v);
       case null {
         let tid = StableTID.next(self.tid);
-        let node = Node.new(nodeKey, owner, tid, encryptionMode);
+        let node = Node.new(nodeKey, owner, tid, encryptionMode, directoryPolicy);
         ignore Map.put(self.nodes, hashNodes, nodeKey, node);
         #ok node;
       };
@@ -273,7 +422,7 @@ module FileSystem {
     #ok(Vector.toArray(removedNodes));
   };
 
-  public func move(self : Store, source : T.Entry, optTarget : ?T.Entry) : Result.Result<(), Text> {
+  public func move(self : Store, source : T.Entry, optTarget : ?T.Entry, storageBackendType : T.StorageBackend) : Result.Result<(), Text> {
     let ?sourceNode = findNodeByEntry(self, ?source) else return #err(ErrorMessages.sourceNotFound(source));
 
     switch (sourceNode, optTarget, findNodeByEntry(self, optTarget)) {
@@ -291,12 +440,12 @@ module FileSystem {
           };
           case _ {};
         };
-        moveNode(self, sourceNode, ?id);
+        moveNode(self, sourceNode, ?id, storageBackendType);
       };
       case (_, null, null) {
         // No-op: already at root
         if (sourceNode.parentId == null) return #ok;
-        moveNode(self, sourceNode, null);
+        moveNode(self, sourceNode, null, storageBackendType);
       };
     };
 
@@ -317,7 +466,8 @@ module FileSystem {
     false;
   };
 
-  func moveNode(self : Store, node : T.NodeStore, newParentId : ?Nat64) {
+  func moveNode(self : Store, node : T.NodeStore, newParentId : ?Nat64, storageBackendType : T.StorageBackend) {
+    let oldParentId = node.parentId;
     let (oldEntry, newEntry) = switch (node.metadata) {
       case (#Directory(_)) ((#Directory, node.parentId, node.name), (#Directory, newParentId, node.name));
       case (#File(_)) ((#File, node.parentId, node.name), (#File, newParentId, node.name));
@@ -331,7 +481,7 @@ module FileSystem {
           };
           case (#Directory _) {
             for (children in Iter.fromArray(listByParentId(self, ?node.id))) {
-              moveNode(self, children, ?v.id);
+              moveNode(self, children, ?v.id, storageBackendType);
             };
           };
         };
@@ -341,12 +491,44 @@ module FileSystem {
       };
       case null {
         node.parentId := newParentId;
-        Node.copy(node);
+        let copiedNode = Node.copy(node);
+        clearThumbnailAfterParentChange(self, copiedNode, oldParentId, newParentId, storageBackendType);
+        copiedNode;
       };
     };
     Map.set(self.nodes, hashNodes, newEntry, updatedNode);
     if (oldEntry != newEntry) {
       Map.delete(self.nodes, hashNodes, oldEntry);
+    };
+  };
+
+  func thumbnailStorageBackendForFileParent(self : Store, storageBackendType : T.StorageBackend, parentId : ?Nat64) : T.StorageBackend {
+    if (isBlobStorage(storageBackendType)) return #BlobStorage;
+    switch (parentId) {
+      case (?id) switch (findNodeById(self, id)) {
+        case (?parent) resolveThumbnailStorageBackend(self, storageBackendType, parent);
+        case null #OnChain;
+      };
+      case null #OnChain;
+    };
+  };
+
+  func shouldClearThumbnailAfterParentChange(self : Store, ref : T.ThumbnailRef, oldParentId : ?Nat64, newParentId : ?Nat64, storageBackendType : T.StorageBackend) : Bool {
+    if (oldParentId == newParentId) return false;
+    if (Thumbnail.isEncrypted(ref)) return true;
+
+    thumbnailStorageBackendForFileParent(self, storageBackendType, oldParentId) !=
+    thumbnailStorageBackendForFileParent(self, storageBackendType, newParentId);
+  };
+
+  func clearThumbnailAfterParentChange(self : Store, node : T.NodeStore, oldParentId : ?Nat64, newParentId : ?Nat64, storageBackendType : T.StorageBackend) {
+    if (oldParentId == newParentId) return;
+    switch (node.metadata) {
+      case (#File(file)) switch (file.thumbnailRef) {
+        case (?ref) if (shouldClearThumbnailAfterParentChange(self, ref, oldParentId, newParentId, storageBackendType)) file.thumbnailRef := null;
+        case _ {};
+      };
+      case (#Directory(_)) {};
     };
   };
 
@@ -496,10 +678,44 @@ module FileSystem {
     let ?node = findNodeByEntry(self, ?args.entry) else return #err(ErrorMessages.entryNotFound(args.entry));
     switch (node.metadata) {
       case (#File(file)) {
-        file.thumbnailKey := args.thumbnailKey;
+        file.thumbnailRef := args.thumbnailRef;
         #ok node;
       };
       case (#Directory(_)) #err(ErrorMessages.badArgs());
+    };
+  };
+
+  public func setDirectoryPolicy(self : Store, storageBackendType : T.StorageBackend, args : T.UpdateDirectoryPolicyArguments) : Result.Result<T.NodeStore, Text> {
+    let ?node = findNodeByEntry(self, ?args.entry) else return #err(ErrorMessages.entryNotFound(args.entry));
+    switch (node.metadata) {
+      case (#Directory(dir)) {
+        switch (args.thumbnailStoragePolicy) {
+          case (?#OnChain) {
+            if (isBlobStorage(storageBackendType)) {
+              return #err("On-chain thumbnails are not available for Blob Storage canisters.");
+            };
+          };
+          case _ {};
+        };
+
+        switch (args.encryptionPolicy) {
+          case (?policy) dir.encryptionPolicy := policy;
+          case null {};
+        };
+        switch (args.thumbnailStoragePolicy) {
+          case (?policy) dir.thumbnailStoragePolicy := policy;
+          case null {};
+        };
+        switch (args.thumbnailEncryptionPolicy) {
+          case (?policy) dir.thumbnailEncryptionPolicy := policy;
+          case null {};
+        };
+
+        dir.defaultEncryptionMode := resolveDirectoryEncryptionMode(self, node);
+        dir.defaultThumbnailStorageBackend := resolveThumbnailStorageBackend(self, storageBackendType, node);
+        #ok node;
+      };
+      case (#File(_)) #err(ErrorMessages.badArgs());
     };
   };
 };

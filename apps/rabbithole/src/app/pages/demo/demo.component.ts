@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 
 import { type ProcessStep, RbthTimelineStepsComponent } from '@rabbithole/ui';
+import { TreeNode } from '@rabbithole/ui/tree';
+import {
+  RbthTreeSelectComponent,
+  RbthTreeSelectValue,
+} from '@rabbithole/ui/tree-select';
 
 const DEMO_TIMELINE_STEPS: ProcessStep[] = [
   {
@@ -65,27 +70,93 @@ const DEMO_TIMELINE_STEPS: ProcessStep[] = [
   },
 ];
 
+const DEMO_SCOPE_TREE: TreeNode[] = [
+  {
+    name: 'Investigations',
+    kind: 'directory',
+    path: 'Investigations',
+    children: [
+      {
+        name: '2026',
+        kind: 'directory',
+        path: 'Investigations/2026',
+        children: [
+          {
+            name: 'Sources',
+            kind: 'directory',
+            path: 'Investigations/2026/Sources',
+            children: [
+              {
+                name: 'interview-notes.md',
+                kind: 'file',
+                path: 'Investigations/2026/Sources/interview-notes.md',
+              },
+              {
+                name: 'documents.zip',
+                kind: 'file',
+                path: 'Investigations/2026/Sources/documents.zip',
+              },
+            ],
+          },
+          {
+            name: 'Drafts',
+            kind: 'directory',
+            path: 'Investigations/2026/Drafts',
+            children: [
+              {
+                name: 'story-outline.md',
+                kind: 'file',
+                path: 'Investigations/2026/Drafts/story-outline.md',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'Personal',
+    kind: 'directory',
+    path: 'Personal',
+    children: [
+      {
+        name: 'Emergency packet',
+        kind: 'directory',
+        path: 'Personal/Emergency packet',
+        children: [],
+      },
+      {
+        name: 'passport.pdf',
+        kind: 'file',
+        path: 'Personal/passport.pdf',
+      },
+    ],
+  },
+  {
+    name: 'README.md',
+    kind: 'file',
+    path: 'README.md',
+  },
+];
+
 @Component({
   selector: 'app-demo-page',
-  imports: [RbthTimelineStepsComponent],
-  template: `
-    <header class="space-y-1">
-      <h1 class="text-2xl font-semibold tracking-normal">Timeline Steps</h1>
-      <p class="text-sm text-muted-foreground">
-        Deployment timeline preview for admin monitoring screens.
-      </p>
-    </header>
-
-    <div class="rounded-lg border bg-muted/50 p-6">
-      <rbth-timeline-steps
-        title="Deployment · rdmx6-jaaaa-aaaaa-aaadq-cai"
-        [steps]="timelineSteps()"
-      />
-    </div>
-  `,
+  imports: [RbthTimelineStepsComponent, RbthTreeSelectComponent],
+  templateUrl: "./demo.component.html",
   host: { class: 'flex min-w-0 w-full flex-col gap-6' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DemoComponent {
+  readonly requiredScope = signal<RbthTreeSelectValue | undefined>(undefined);
+  readonly scopeTree = DEMO_SCOPE_TREE;
+  readonly selectedScope = signal<RbthTreeSelectValue | undefined>({
+    kind: 'root',
+  });
   readonly timelineSteps = signal<ProcessStep[]>([...DEMO_TIMELINE_STEPS]);
+
+  scopeLabel(scope: RbthTreeSelectValue | undefined): string {
+    if (!scope) return 'none';
+    if (scope.kind === 'root') return 'Whole storage';
+    return `${scope.node.kind ?? 'node'}: ${scope.node.path ?? scope.node.name}`;
+  }
 }

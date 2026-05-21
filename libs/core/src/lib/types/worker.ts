@@ -62,6 +62,39 @@ export const downloadCancelSchema = downloadRequestSchema.pick('id');
 
 export const fileIdSchema = uploadFileSchema.pick('id');
 
+const bytesSchema = type('number').array();
+
+export const thumbnailEncryptionRefSchema = type({
+  kind: "'Plaintext'",
+}).or({
+  algorithm: 'string>=1',
+  blobIv: bytesSchema,
+  kind: "'Encrypted'",
+  scopeKeyId: type([principalSchema, bytesSchema]),
+  wrappedKey: bytesSchema,
+});
+
+const thumbnailRefBaseSchema = type({
+  contentType: 'string',
+  encryption: thumbnailEncryptionRefSchema,
+  'sha256?': bytesSchema,
+  size: 'string>=1',
+});
+
+export const thumbnailRefSchema = thumbnailRefBaseSchema.and(type({
+  key: 'string>=1',
+  storageBackend: "'OnChain'",
+}).or({
+  rootHash: 'string>=1',
+  storageBackend: "'BlobStorage'",
+}));
+
+export const thumbnailRewrapRequestSchema = type({
+  entry: type(["'File'", 'string>=1']),
+  storageId: principalSchema,
+  thumbnailRef: thumbnailRefSchema,
+});
+
 export const downloadProgressSchema = fileIdSchema.and(
   type({
     status: "'downloading'",
@@ -127,6 +160,7 @@ export const workerConfigSchema = type({
   }),
   'concurrentUploads?': 'number',
   'concurrentDownloads?': 'number',
+  'concurrentThumbnailRewraps?': 'number',
   'blobStorageGatewayUrl?': 'string',
   'storageBackend?': "'OnChain' | 'BlobStorage'",
   // canisters: type.Record("'encryptedStorage'", principalSchema),
@@ -148,6 +182,7 @@ export type CoreWorkerActionsIn = Prettify<
     'upload:cancel': { payload: Pick<UploadFile, 'id'> };
     'upload:remove': { payload: Pick<UploadFile, 'id'> };
     'upload:retry': { payload: Pick<UploadFile, 'id'> };
+    'thumbnail:rewrap': { payload: ThumbnailRewrapRequest };
     'worker:auth-sync': unknown;
     'worker:config': { payload: WorkerConfigIn };
     'worker:init-storage': { payload: PrincipalString };
@@ -167,7 +202,7 @@ export type CoreWorkerActionsOut = Prettify<
     'image:crop-failed': { payload: { errorMessage: string; id: string } };
     'upload:progress-asset': { payload: UploadStatus };
     'upload:progress-file': { payload: UploadStatus };
-    'upload:thumbnail': { payload: { id: string; thumbnailKey?: string } };
+    'upload:thumbnail': { payload: { id: string; thumbnailRef?: unknown } };
   } & WorkerActionsOut
 >;
 
@@ -201,6 +236,9 @@ export type ExtractPayloadByAction<T, A> = T extends {
   : never;
 
 export type PrincipalString = typeof principalSchema.infer;
+
+export type ThumbnailRewrapRequest =
+  typeof thumbnailRewrapRequestSchema.infer;
 
 export const imageCropSchema = type({
   id: uploadIdSchema,

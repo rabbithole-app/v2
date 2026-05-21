@@ -8,12 +8,16 @@ import {
   AccessRequestStatus as AccessRequestStatusRaw,
   AccessScope,
   AccessSource,
+  DirectoryEncryptionPolicy as DirectoryEncryptionPolicyRaw,
   EncryptionMode,
   Entry as EntryRaw,
   PendingAccessGrant,
   EncryptedStorageHttpPermission as PermissionRaw,
   StorageBackend,
   StoragePermission as StoragePermissionRaw,
+  ThumbnailEncryptionPolicy as ThumbnailEncryptionPolicyRaw,
+  ThumbnailRef as ThumbnailRefRaw,
+  ThumbnailStoragePolicy as ThumbnailStoragePolicyRaw,
   Time,
 } from '@rabbithole/declarations/encrypted-storage';
 
@@ -154,15 +158,10 @@ export type StorageClaimedPrincipal = {
 
 export type StorageClaimedPrincipalOrigin = 'rabbithole' | 'storage';
 
-export type StoragePendingAccessGrant = PendingAccessGrant;
+export type StorageDirectoryEncryptionPolicy =
+  ExtractVariantKeys<DirectoryEncryptionPolicyRaw>;
 
-/**
- * Upload progress in bytes
- */
-// export interface Progress {
-//   current: number;
-//   total: number;
-// }
+export type StoragePendingAccessGrant = PendingAccessGrant;
 
 export type StoragePermission = ExtractVariantKeys<StoragePermissionRaw>;
 
@@ -179,6 +178,22 @@ export type StoragePermissionItem = {
   targetKind?: 'email' | 'emailCommitment' | 'principal';
   user: string;
 };
+
+export type StorageThumbnailEncryptionPolicy =
+  ExtractVariantKeys<ThumbnailEncryptionPolicyRaw>;
+
+/**
+ * Upload progress in bytes
+ */
+// export interface Progress {
+//   current: number;
+//   total: number;
+// }
+
+export type StorageThumbnailRef = ThumbnailRefRaw;
+
+export type StorageThumbnailStoragePolicy =
+  ExtractVariantKeys<ThumbnailStoragePolicyRaw>;
 
 /**
  * Arguments to store an asset in asset manager
@@ -263,7 +278,8 @@ export type TreeNode = {
   path?: string;
 };
 
-type ExtractVariantKeys<T> = T extends Record<infer K, unknown> ? K : never;
+type ExtractVariantKeys<T> =
+  T extends Record<infer K, unknown> ? Extract<K, string> : never;
 
 export function toEncryptionMode(mode?: 'Encrypted' | 'Plaintext'): [] | [EncryptionMode] {
   return mode ? [{ [mode]: null } as EncryptionMode] : [];

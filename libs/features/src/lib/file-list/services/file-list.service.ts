@@ -14,13 +14,27 @@ import {
     injectCoreWorker,
 } from '@rabbithole/core';
 import {
-    ENCRYPTED_STORAGE_CANISTER_ID,
-    injectEncryptedStorage,
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  injectEncryptedStorage,
+  type StorageBackendType,
 } from '@rabbithole/core/storage-runtime';
-import { EncryptedStorage, Entry, StoragePermission } from '@rabbithole/encrypted-storage';
+import type {
+  EncryptedStorage,
+  Entry,
+  StorageDirectoryEncryptionPolicy,
+  StoragePermission,
+  StorageThumbnailEncryptionPolicy,
+  StorageThumbnailStoragePolicy,
+} from '@rabbithole/encrypted-storage';
 
-import { NodeItem } from '../types';
-import { convertToNodeItem } from '../utils';
+import {
+  DirectoryEncryptionPolicy,
+  isFile,
+  NodeItem,
+  ThumbnailEncryptionPolicy,
+  ThumbnailStoragePolicy,
+} from '../types';
+import { convertToNodeItem, toWorkerThumbnailRef } from '../utils';
 
 type State = {
   deleting: { ids: bigint[]; toastId: number | null };
@@ -59,6 +73,32 @@ function handleDeleteQueuerState(
     );
 }
 
+const encryptionPolicyToStorage = {
+  auto: 'Auto',
+  encrypted: 'Encrypted',
+  plaintext: 'Plaintext',
+} as const satisfies Record<
+  DirectoryEncryptionPolicy,
+  StorageDirectoryEncryptionPolicy
+>;
+
+const thumbnailEncryptionPolicyToStorage = {
+  inherit: 'Inherit',
+  followFile: 'FollowFile',
+} as const satisfies Record<
+  ThumbnailEncryptionPolicy,
+  StorageThumbnailEncryptionPolicy
+>;
+
+const thumbnailStoragePolicyToStorage = {
+  inherit: 'Inherit',
+  onChain: 'OnChain',
+  blobStorage: 'BlobStorage',
+} as const satisfies Record<
+  ThumbnailStoragePolicy,
+  StorageThumbnailStoragePolicy
+>;
+
 @Injectable()
 export class FileListService {
   #state = signal<State>({
@@ -79,6 +119,17 @@ export class FileListService {
     ),
   );
   encryptedStorage = injectEncryptedStorage();
+  storageBackendType = resource<
+    StorageBackendType | null,
+    { encryptedStorage: EncryptedStorage }
+  >({
+    params: () => ({ encryptedStorage: this.encryptedStorage() }),
+    loader: async ({ params }) =>
+      Object.keys(
+        await params.encryptedStorage.getStorageBackend(),
+      )[0] as StorageBackendType,
+    defaultValue: null,
+  });
   #files = new Subject<FileSystemFileItem[]>();
   files$ = this.#files.asObservable().pipe(mergeAll());
   #parentPath = computed(() => this.#state().parentPath);
@@ -256,6 +307,7 @@ export class FileListService {
     const toastId = toast.loading(`Moving ${items.length} items...`);
     let successCount = 0;
     let errorCount = 0;
+    let thumbnailRewrapCount = 0;
     for (const item of items) {
       const entry: Entry = [
         item.type === 'file' ? 'File' : 'Directory',
@@ -264,12 +316,31 @@ export class FileListService {
       try {
         await this.encryptedStorage().move(entry, targetDir);
         successCount++;
+        if (isFile(item) && item.thumbnailRef) {
+          const targetPath = targetDir
+            ? `${targetDir[1]}/${item.name}`
+            : item.name;
+          this.#coreWorkerService.postMessage({
+            action: 'thumbnail:rewrap',
+            payload: {
+              storageId: this.#canisterId.toText(),
+              entry: ['File', targetPath],
+              thumbnailRef: toWorkerThumbnailRef(item.thumbnailRef),
+            },
+          });
+          thumbnailRewrapCount++;
+        }
       } catch {
         errorCount++;
       }
     }
     if (errorCount === 0) {
-      toast.success(`${successCount} items moved`, { id: toastId });
+      toast.success(`${successCount} items moved`, {
+        id: toastId,
+        description: thumbnailRewrapCount
+          ? `${thumbnailRewrapCount} thumbnail rewrap(s) queued.`
+          : undefined,
+      });
     } else {
       toast.warning(`Moved ${successCount}, failed ${errorCount}`, {
         id: toastId,
@@ -345,6 +416,29 @@ export class FileListService {
       ? `${item.parentPath}/${item.name}`
       : item.name;
     await this.encryptedStorage().updateDirectoryColor(path, color);
+    this.reload();
+  }
+
+  async updateDirectoryPolicy(
+    itemId: bigint,
+    policy: {
+      encryptionPolicy: DirectoryEncryptionPolicy;
+      thumbnailEncryptionPolicy: ThumbnailEncryptionPolicy;
+      thumbnailStoragePolicy: ThumbnailStoragePolicy;
+    },
+  ) {
+    const item = this.items.value().find((i) => i.id === itemId);
+    if (!item || item.type !== 'directory') return;
+    const path = item.parentPath
+      ? `${item.parentPath}/${item.name}`
+      : item.name;
+    await this.encryptedStorage().updateDirectoryPolicy(path, {
+      encryptionPolicy: encryptionPolicyToStorage[policy.encryptionPolicy],
+      thumbnailEncryptionPolicy:
+        thumbnailEncryptionPolicyToStorage[policy.thumbnailEncryptionPolicy],
+      thumbnailStoragePolicy:
+        thumbnailStoragePolicyToStorage[policy.thumbnailStoragePolicy],
+    });
     this.reload();
   }
 }

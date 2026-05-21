@@ -457,6 +457,15 @@ module {
     public func setThumbnail(caller : T.Caller, args : T.SetThumbnailArguments) : Result.Result<T.NodeDetails, Text> =
       Lib.setThumbnail(store, caller, args);
 
+    public func prepareThumbnailUpload(caller : T.Caller, args : T.PrepareThumbnailUploadArguments) : Result.Result<T.PrepareThumbnailUploadResult, Text> =
+      Lib.prepareThumbnailUpload(store, caller, args);
+
+    public func commitThumbnailUpload(caller : T.Caller, args : T.CommitThumbnailUploadArguments) : Result.Result<T.NodeDetails, Text> =
+      Lib.commitThumbnailUpload(store, caller, args);
+
+    public func updateDirectoryPolicy(caller : T.Caller, args : T.UpdateDirectoryPolicyArguments) : Result.Result<T.NodeDetails, Text> =
+      Lib.updateDirectoryPolicy(store, caller, args);
+
     // --- Caffeine Blob Storage ---
 
     public func commitCaffeineUpload(caller : Principal, args : T.CommitCaffeineUploadArgs) : Result.Result<(), Text> =

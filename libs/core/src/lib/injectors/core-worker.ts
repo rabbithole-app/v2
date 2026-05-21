@@ -54,6 +54,7 @@ export const [injectCoreWorker, provideCoreWorker] = createInjectionToken(
           httpAgentOptions,
           concurrentUploads: 3,
           concurrentDownloads: 2,
+          concurrentThumbnailRewraps: 2,
           ...(blobStorageConfig ? { blobStorageGatewayUrl: blobStorageConfig.gatewayUrl } : {}),
           ...(storageBackend ? { storageBackend } : {}),
         };

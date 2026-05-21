@@ -22,9 +22,9 @@
       }
     </span>
   </p>
-  <!-- @if (file.status === 'error' && file.error) {
-      <p class="text-destructive text-xs">{{ file.error }}</p>
-    } -->
+  @if (d.status === uploadState.FAILED && d.errorMessage) {
+    <p class="text-destructive mt-1 text-xs">{{ d.errorMessage }}</p>
+  }
 </div>
 
 <ng-template #statusIcon>
@@ -51,4 +51,3 @@
     }
   }
 </ng-template>
-

@@ -36,12 +36,12 @@ export interface BlobStorageGatewayClientConfig {
   bucketName?: string;
   canisterId: string;
   gatewayUrl: string;
+  /** Number of retries after the first failed gateway request. Defaults to 3. */
+  maxRetries?: number;
   /** Caffeine project ID. Defaults to zeroed UUID for standalone usage. */
   projectId?: string;
   /** Per-request gateway fetch timeout. Defaults to 10 seconds. */
   requestTimeoutMs?: number;
-  /** Number of retries after the first failed gateway request. Defaults to 3. */
-  maxRetries?: number;
 }
 
 export class BlobStorageGatewayClient {
@@ -49,9 +49,9 @@ export class BlobStorageGatewayClient {
   readonly #bucketName: string;
   readonly #canisterId: string;
   readonly #gatewayUrl: string;
+  readonly #maxRetries: number;
   readonly #projectId: string;
   readonly #requestTimeoutMs: number;
-  readonly #maxRetries: number;
 
   constructor(config: BlobStorageGatewayClientConfig) {
     this.#agent = config.agent;
@@ -209,6 +209,33 @@ export class BlobStorageGatewayClient {
 // Retry logic (from @caffeineai/object-storage reference)
 // -------------------------------------------------------------------
 
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      const timeoutError = new Error(
+        `Blob Storage gateway request timed out after ${timeoutMs} ms`,
+      );
+      (timeoutError as { cause?: unknown } & Error).cause = error;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function isRetriableError(error: unknown): boolean {
   const status = (error as { response?: { status?: number } })?.response?.status;
   if (status !== undefined) {
@@ -257,31 +284,4 @@ async function withRetry<T>(
   }
 
   throw lastError ?? new Error('Unknown error during retry');
-}
-
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(url, {
-      ...init,
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (controller.signal.aborted) {
-      const timeoutError = new Error(
-        `Blob Storage gateway request timed out after ${timeoutMs} ms`,
-      );
-      (timeoutError as Error & { cause?: unknown }).cause = error;
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }

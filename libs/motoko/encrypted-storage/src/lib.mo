@@ -32,6 +32,7 @@ import File "FileSystem/File";
 import Node "FileSystem/Node";
 import Permissions "FileSystem/Permissions";
 import Common "FileSystem/Common";
+import Thumbnail "Thumbnail";
 import Const "Const";
 import Http "Http";
 
@@ -1476,7 +1477,7 @@ module EncryptedFileStorage {
     switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
       case (#ok _) {
         let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
-        #ok(Node.getDetails(node));
+        #ok(FileSystem.getDetails(self.fs, self.storageBackendType, node));
       };
       case (#err message) #err message;
     };
@@ -1592,7 +1593,7 @@ module EncryptedFileStorage {
       // File in staging with CreateNew → error (upload already in progress)
       case (true, _, #CreateNew, #File) #err(ErrorMessages.entryAlreadyExists(entry));
       // Normal flow: delegate to FileSystem
-      case _ FileSystem.create(self.fs, caller, args);
+      case _ FileSystem.create(self.fs, caller, args, self.storageBackendType);
     };
 
     switch (result) {
@@ -1608,7 +1609,7 @@ module EncryptedFileStorage {
             createdAt = Time.now();
           });
         };
-        #ok(Node.getDetails(node));
+        #ok(FileSystem.getDetails(self.fs, self.storageBackendType, node));
       };
       case (#err msg) #err msg;
     };
@@ -2116,7 +2117,7 @@ module EncryptedFileStorage {
       case (_, #err message) return #err("Target error: " # message);
     };
 
-    FileSystem.move(self.fs, args.entry, args.target);
+    FileSystem.move(self.fs, args.entry, args.target, self.storageBackendType);
   };
 
   /// Renames an entry (file or directory) without moving it
@@ -2216,7 +2217,7 @@ module EncryptedFileStorage {
       };
 
       let sortedRoots = Array.sort(Vector.toArray(reachableRoots), func(a, b) = Text.compare(a.name, b.name));
-      let details = Array.map(sortedRoots, Node.getDetails);
+      let details = Array.map(sortedRoots, func(node : T.NodeStore) : T.NodeDetails = FileSystem.getDetails(self.fs, self.storageBackendType, node));
       let entries = Array.map<T.NodeDetails, T.NodeDetails>(
         details,
         func(node) = { node with callerPermission = getCallerPermission(self.fs, caller, node) },
@@ -2236,7 +2237,7 @@ module EncryptedFileStorage {
     };
     let { phash } = Map;
     let rawNodes = FileSystem.listByParentId(self.fs, parentId);
-    let allItems = Array.map(rawNodes, Node.getDetails);
+    let allItems = Array.map(rawNodes, func(node : T.NodeStore) : T.NodeDetails = FileSystem.getDetails(self.fs, self.storageBackendType, node));
     // Filter out staged (incomplete upload) files
     let items = Array.filter(allItems, func(node : T.NodeDetails) : Bool = not isStaged(self, node));
 
@@ -2429,12 +2430,86 @@ module EncryptedFileStorage {
     };
   };
 
+  public func updateDirectoryPolicy(self : T.StableStore, caller : T.Caller, args : T.UpdateDirectoryPolicyArguments) : Result.Result<T.NodeDetails, Text> {
+    switch (Permissions.getMaxPermission(self.fs, caller, #entry(args.entry), null)) {
+      case (?permission) if (not Order.isLess(Utils.permissionCompare(permission, #ReadWriteManage))) {};
+      case _ return #err("permission denied: " # Principal.toText(caller) # " does not have #ReadWriteManage access.");
+    };
+
+    FileSystem.setDirectoryPolicy(self.fs, self.storageBackendType, args)
+    |> Result.mapOk(_, func(node : T.NodeStore) : T.NodeDetails = FileSystem.getDetails(self.fs, self.storageBackendType, node));
+  };
+
   public func setThumbnail(self : T.StableStore, caller : T.Caller, args : T.SetThumbnailArguments) : Result.Result<T.NodeDetails, Text> {
     switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
       case (#err message) return #err message;
       case (#ok _) {};
     };
 
-    FileSystem.setThumbnail(self.fs, args) |> Result.mapOk(_, Node.getDetails);
+    let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+    switch (args.thumbnailRef) {
+      case (?thumbnailRef) {
+        switch (Thumbnail.validateStorageBackend(FileSystem.resolveThumbnailStorageBackend(self.fs, self.storageBackendType, node), thumbnailRef)) {
+          case (#ok) {};
+          case (#err(message)) return #err(message);
+        };
+        switch (Thumbnail.validateEncryption(FileSystem.resolveThumbnailEncryption(self.fs, node), Thumbnail.encryption(thumbnailRef))) {
+          case (#ok) {};
+          case (#err(message)) return #err(message);
+        };
+      };
+      case null {};
+    };
+
+    FileSystem.setThumbnail(self.fs, args) |> Result.mapOk(_, func(node : T.NodeStore) : T.NodeDetails = FileSystem.getDetails(self.fs, self.storageBackendType, node));
+  };
+
+  public func prepareThumbnailUpload(self : T.StableStore, caller : T.Caller, args : T.PrepareThumbnailUploadArguments) : Result.Result<T.PrepareThumbnailUploadResult, Text> {
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+      case (#err message) return #err message;
+      case (#ok _) {};
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+    let #File(_) = node.metadata else return #err("Directory does not support thumbnails");
+
+    #ok({
+      storageBackend = FileSystem.resolveThumbnailStorageBackend(self.fs, self.storageBackendType, node);
+      encryption = FileSystem.resolveThumbnailEncryption(self.fs, node);
+      contentType = args.contentType;
+      size = args.size;
+    });
+  };
+
+  public func commitThumbnailUpload(self : T.StableStore, caller : T.Caller, args : T.CommitThumbnailUploadArguments) : Result.Result<T.NodeDetails, Text> {
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+      case (#err message) return #err message;
+      case (#ok _) {};
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+    let #File(_) = node.metadata else return #err("Directory does not support thumbnails");
+
+    switch (FileSystem.resolveThumbnailStorageBackend(self.fs, self.storageBackendType, node)) {
+      case (#BlobStorage) {};
+      case (#OnChain) return #err("Blob Storage thumbnails are not enabled for this entry.");
+    };
+
+    switch (Thumbnail.validateEncryption(FileSystem.resolveThumbnailEncryption(self.fs, node), args.encryption)) {
+      case (#ok) {};
+      case (#err(message)) return #err(message);
+    };
+
+    let thumbnailRef : T.ThumbnailRef = #BlobStorage({
+      rootHash = args.rootHash;
+      blobId = Text.encodeUtf8(args.rootHash);
+      sha256 = ?args.sha256;
+      contentType = args.contentType;
+      size = args.size;
+      encryption = args.encryption;
+    });
+
+    FileSystem.setThumbnail(self.fs, { entry = args.entry; thumbnailRef = ?thumbnailRef })
+    |> Result.mapOk(_, func(node : T.NodeStore) : T.NodeDetails = FileSystem.getDetails(self.fs, self.storageBackendType, node));
   };
 };

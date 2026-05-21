@@ -36,6 +36,51 @@ module {
     #Plaintext;
   };
 
+  public type DirectoryEncryptionPolicy = {
+    #Auto;
+    #Encrypted;
+    #Plaintext;
+  };
+
+  public type ThumbnailStoragePolicy = {
+    #Inherit;
+    #OnChain;
+    #BlobStorage;
+  };
+
+  public type ThumbnailEncryptionPolicy = {
+    #Inherit;
+    #FollowFile;
+  };
+
+  public type ThumbnailEncryptionRef = {
+    #Plaintext;
+    #Encrypted : {
+      scopeKeyId : VetKeys.KeyManager.KeyId;
+      wrappedKey : Blob;
+      blobIv : Blob;
+      algorithm : Text;
+    };
+  };
+
+  public type ThumbnailRef = {
+    #OnChain : {
+      key : Text;
+      sha256 : ?Blob;
+      contentType : Text;
+      size : Nat;
+      encryption : ThumbnailEncryptionRef;
+    };
+    #BlobStorage : {
+      rootHash : Text;
+      blobId : Blob;
+      sha256 : ?Blob;
+      contentType : Text;
+      size : Nat;
+      encryption : ThumbnailEncryptionRef;
+    };
+  };
+
   public type FileVersion = {
     /// For #OnChain: each chunk is a separate (address, size) pointer in MemoryRegion.
     /// For #BlobStorage: single entry with Caffeine blob hash.
@@ -93,13 +138,17 @@ module {
     var currentVersion : Nat;
     var maxVersions : ?Nat;
     var locked : Bool;
-    var thumbnailKey : ?Text;
+    var thumbnailRef : ?ThumbnailRef;
     var encryptionMode : EncryptionMode;
   };
 
   public type DirectoryMetadataStore = {
     var color : ?DirectoryColor;
     var defaultEncryptionMode : EncryptionMode;
+    var encryptionPolicy : DirectoryEncryptionPolicy;
+    var thumbnailStoragePolicy : ThumbnailStoragePolicy;
+    var defaultThumbnailStorageBackend : StorageBackend;
+    var thumbnailEncryptionPolicy : ThumbnailEncryptionPolicy;
   };
 
   public type NodeMetadataStore = {

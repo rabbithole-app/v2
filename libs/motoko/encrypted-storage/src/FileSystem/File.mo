@@ -18,7 +18,7 @@ module File {
     var currentVersion = 0;
     var maxVersions = maxVersions;
     var locked = true;
-    var thumbnailKey = null;
+    var thumbnailRef = null;
     var encryptionMode = encryptionMode;
   };
 
@@ -185,7 +185,7 @@ module File {
     var currentVersion = self.currentVersion;
     var maxVersions = self.maxVersions;
     var locked = self.locked;
-    var thumbnailKey = self.thumbnailKey;
+    var thumbnailRef = self.thumbnailRef;
     var encryptionMode = self.encryptionMode;
   };
 

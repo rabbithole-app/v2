@@ -5,7 +5,7 @@
       <div rbthDrawerTitle>
         <h2>Install WASM to canister</h2>
         <p class="text-muted-foreground text-sm font-normal">
-          Select a WASM file to install to user canister
+          Select a WASM module to install to user canister
         </p>
       </div>
     </rbth-drawer-header>
@@ -48,9 +48,9 @@
               <div hlmEmptyMedia variant="icon">
                 <ng-icon name="lucideBinary" />
               </div>
-              <div hlmEmptyTitle>Select WASM file</div>
+              <div hlmEmptyTitle>Select WASM module</div>
               <div hlmEmptyDescription>
-                Select a WASM file to install to user canister
+                Select a .wasm or .wasm.gz file to install
               </div>
             </div>
             <div hlmEmptyContent>
@@ -232,13 +232,14 @@
                   @if (wasmMemoryPersistenceEnabled()) {
                     <div class="ml-6">
                       <hlm-select
+                        coreTransparentSelectBackdrop
                         [value]="wasmMemoryPersistence()"
                         (valueChange)="onWasmMemoryPersistenceChange($event)"
                       >
                         <hlm-select-trigger class="w-48">
                           <hlm-select-value />
                         </hlm-select-trigger>
-                        <hlm-select-content class="w-64">
+                        <hlm-select-content *hlmSelectPortal class="w-64">
                           <hlm-select-item
                             value="keep"
                             class="flex flex-col items-start gap-0 py-2"

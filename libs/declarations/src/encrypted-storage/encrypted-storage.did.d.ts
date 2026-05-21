@@ -44,7 +44,7 @@ export type AccessRequestStatus = { 'cancelled' : null } |
   { 'rejected' : null };
 export type AccessScope = { 'root' : null } |
   { 'entry' : Entry } |
-  { 'keyId' : KeyId__1 };
+  { 'keyId' : KeyId__2 };
 export type AccessSource = { 'durablePolicy' : bigint } |
   { 'accessRequest' : bigint } |
   { 'directGrant' : null } |
@@ -104,6 +104,14 @@ export interface CommitCaffeineUploadArgs {
 export interface CommitProposedBatchArguments {
   'batch_id' : BatchId,
   'evidence' : Uint8Array,
+}
+export interface CommitThumbnailUploadArguments {
+  'sha256' : Uint8Array,
+  'contentType' : string,
+  'size' : bigint,
+  'encryption' : ThumbnailEncryptionRef,
+  'entry' : Entry,
+  'rootHash' : string,
 }
 export interface ComputeEvidenceArguments {
   'batch_id' : BatchId,
@@ -202,9 +210,16 @@ export type DirectoryColor = { 'blue' : null } |
   { 'purple' : null } |
   { 'green' : null } |
   { 'yellow' : null };
+export type DirectoryEncryptionPolicy = { 'Encrypted' : null } |
+  { 'Auto' : null } |
+  { 'Plaintext' : null };
 export interface DirectoryMetadata {
   'color' : [] | [DirectoryColor],
+  'thumbnailEncryptionPolicy' : ThumbnailEncryptionPolicy,
   'defaultEncryptionMode' : EncryptionMode,
+  'defaultThumbnailStorageBackend' : StorageBackend,
+  'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
+  'encryptionPolicy' : DirectoryEncryptionPolicy,
 }
 export interface DurableAccessPolicy {
   'id' : bigint,
@@ -316,7 +331,11 @@ export interface EncryptedStorageCanister {
   'clearStorage' : ActorMethod<[], undefined>,
   'commitCaffeineUpload' : ActorMethod<
     [CommitCaffeineUploadArgs],
-    StorageResult
+    StorageResult_1
+  >,
+  'commitThumbnailUpload' : ActorMethod<
+    [CommitThumbnailUploadArguments],
+    NodeDetails
   >,
   'commit_batch' : ActorMethod<[CommitBatchArguments], undefined>,
   'commit_proposed_batch' : ActorMethod<
@@ -328,7 +347,7 @@ export interface EncryptedStorageCanister {
     [] | [Uint8Array]
   >,
   'configure' : ActorMethod<[ConfigureArguments], undefined>,
-  'create' : ActorMethod<[CreateArguments], StorageResult_3>,
+  'create' : ActorMethod<[CreateArguments], StorageResult>,
   'createAccessBatch' : ActorMethod<
     [CreateAccessBatchArguments],
     CreateAccessBatchResult
@@ -345,10 +364,10 @@ export interface EncryptedStorageCanister {
     [CreatePendingAccessGrantArguments],
     PendingAccessGrant
   >,
-  'createStorageBatch' : ActorMethod<[CreateBatchArguments], StorageResult_2>,
+  'createStorageBatch' : ActorMethod<[CreateBatchArguments], StorageResult_3>,
   'createStorageChunk' : ActorMethod<
     [CreateChunkArguments__1],
-    StorageResult_1
+    StorageResult_2
   >,
   'create_asset' : ActorMethod<[CreateAssetArguments], undefined>,
   'create_batch' : ActorMethod<[{}], CreateBatchResponse>,
@@ -413,6 +432,10 @@ export interface EncryptedStorageCanister {
   'markAllVisibleStorageEventsRead' : ActorMethod<[], undefined>,
   'markStorageEventsRead' : ActorMethod<[bigint], undefined>,
   'move' : ActorMethod<[MoveArguments], undefined>,
+  'prepareThumbnailUpload' : ActorMethod<
+    [PrepareThumbnailUploadArguments],
+    PrepareThumbnailUploadResult
+  >,
   'processDurableAccessPolicies' : ActorMethod<
     [],
     Array<DurablePolicyProcessResult>
@@ -444,10 +467,18 @@ export interface EncryptedStorageCanister {
     RevokeAccessBatchResult
   >,
   'revoke_permission' : ActorMethod<[RevokePermission], undefined>,
+  'rewrapThumbnail' : ActorMethod<
+    [{ 'thumbnailRef' : ThumbnailRef, 'entry' : Entry }],
+    NodeDetails
+  >,
   'saveThumbnail' : ActorMethod<
     [
       {
-        'thumbnail' : { 'content' : Uint8Array, 'contentType' : string },
+        'thumbnail' : {
+          'content' : Uint8Array,
+          'contentType' : string,
+          'encryption' : ThumbnailEncryptionRef,
+        },
         'entry' : Entry,
       },
     ],
@@ -467,7 +498,11 @@ export interface EncryptedStorageCanister {
   'takeRecoveryOwnership' : ActorMethod<[], OwnerEquivalentPrincipal>,
   'take_ownership' : ActorMethod<[], undefined>,
   'unset_asset_content' : ActorMethod<[UnsetAssetContentArguments], undefined>,
-  'update' : ActorMethod<[UpdateArguments], StorageResult>,
+  'update' : ActorMethod<[UpdateArguments], StorageResult_1>,
+  'updateDirectoryPolicy' : ActorMethod<
+    [UpdateDirectoryPolicyArguments],
+    StorageResult
+  >,
   'validate_commit_proposed_batch' : ActorMethod<
     [CommitProposedBatchArguments],
     Result
@@ -483,7 +518,7 @@ export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
   'storageBackend' : StorageBackend,
   'sha256' : [] | [Uint8Array],
-  'thumbnailKey' : [] | [string],
+  'thumbnailRef' : [] | [ThumbnailRef],
   'contentType' : string,
   'size' : bigint,
   'currentVersion' : bigint,
@@ -532,7 +567,7 @@ export type IdentityAttributesSyncResult = { 'ok' : null } |
   { 'err' : IdentityAttributesSyncError };
 export type Key = string;
 export type KeyId = [Owner, KeyName];
-export type KeyId__1 = [Principal, Uint8Array];
+export type KeyId__2 = [Principal, Uint8Array];
 export type KeyName = Uint8Array;
 export interface ListAccessGrantsArguments {
   'mode' : AccessGrantListMode,
@@ -617,6 +652,17 @@ export type Plan = { 'Pro' : null } |
   { 'Free' : null } |
   { 'License' : null } |
   { 'Trial' : null };
+export interface PrepareThumbnailUploadArguments {
+  'contentType' : string,
+  'size' : bigint,
+  'entry' : Entry,
+}
+export interface PrepareThumbnailUploadResult {
+  'storageBackend' : StorageBackend,
+  'contentType' : string,
+  'size' : bigint,
+  'encryption' : ThumbnailEncryptionRequirement,
+}
 export interface PrincipalAccessGrant {
   'id' : bigint,
   'permission' : Permission__1,
@@ -783,13 +829,13 @@ export type StorageErrorCode = { 'Internal' : null } |
   { 'QuotaExceeded' : null } |
   { 'Conflict' : null };
 export type StorageEvent = { 'access' : StorageAccessEvent };
-export type StorageResult = { 'ok' : null } |
+export type StorageResult = { 'ok' : NodeDetails } |
   { 'err' : StorageError };
-export type StorageResult_1 = { 'ok' : CreateChunkResponse__1 } |
+export type StorageResult_1 = { 'ok' : null } |
   { 'err' : StorageError };
-export type StorageResult_2 = { 'ok' : CreateBatchResponse__1 } |
+export type StorageResult_2 = { 'ok' : CreateChunkResponse__1 } |
   { 'err' : StorageError };
-export type StorageResult_3 = { 'ok' : NodeDetails } |
+export type StorageResult_3 = { 'ok' : CreateBatchResponse__1 } |
   { 'err' : StorageError };
 export interface StorageStatus {
   'cycleBalance' : bigint,
@@ -829,6 +875,43 @@ export type SubscriptionStatus = { 'trial' : { 'remainingBytes' : bigint } } |
   { 'free' : null } |
   { 'unknownCanister' : null } |
   { 'invalidWasm' : null };
+export type ThumbnailEncryptionPolicy = { 'FollowFile' : null } |
+  { 'Inherit' : null };
+export type ThumbnailEncryptionRef = {
+    'Encrypted' : {
+      'algorithm' : string,
+      'wrappedKey' : Uint8Array,
+      'blobIv' : Uint8Array,
+      'scopeKeyId' : KeyId,
+    }
+  } |
+  { 'Plaintext' : null };
+export type ThumbnailEncryptionRequirement = {
+    'Encrypted' : { 'scopeKeyId' : KeyId }
+  } |
+  { 'Plaintext' : null };
+export type ThumbnailRef = {
+    'OnChain' : {
+      'key' : string,
+      'sha256' : [] | [Uint8Array],
+      'contentType' : string,
+      'size' : bigint,
+      'encryption' : ThumbnailEncryptionRef,
+    }
+  } |
+  {
+    'BlobStorage' : {
+      'sha256' : [] | [Uint8Array],
+      'contentType' : string,
+      'size' : bigint,
+      'encryption' : ThumbnailEncryptionRef,
+      'blobId' : Uint8Array,
+      'rootHash' : string,
+    }
+  };
+export type ThumbnailStoragePolicy = { 'OnChain' : null } |
+  { 'BlobStorage' : null } |
+  { 'Inherit' : null };
 export type Time = bigint;
 export type TransportKey = Uint8Array;
 export interface TreeNode {
@@ -855,6 +938,12 @@ export type UpdateArguments = {
       'path' : string,
     }
   };
+export interface UpdateDirectoryPolicyArguments {
+  'entry' : Entry,
+  'thumbnailEncryptionPolicy' : [] | [ThumbnailEncryptionPolicy],
+  'thumbnailStoragePolicy' : [] | [ThumbnailStoragePolicy],
+  'encryptionPolicy' : [] | [DirectoryEncryptionPolicy],
+}
 export type VetKey = Uint8Array;
 export type VetKeyVerificationKey = Uint8Array;
 export interface _ImmutableObjectStorageCreateCertificateResult {

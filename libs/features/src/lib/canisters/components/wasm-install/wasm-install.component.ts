@@ -10,7 +10,11 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { hexStringToUint8Array, toNullable, uint8ArrayToHexString } from '@dfinity/utils';
+import {
+  hexStringToUint8Array,
+  toNullable,
+  uint8ArrayToHexString,
+} from '@dfinity/utils';
 import type { IcManagementDid } from '@icp-sdk/canisters/ic-management';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -22,16 +26,14 @@ import {
 } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
-import type { ClassValue } from 'clsx';
 import { toast } from '@spartan-ng/brain/sonner';
+import type { ClassValue } from 'clsx';
 import { match, P } from 'ts-pattern';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import {
-  FileSystemAccessService,
-  FormatBytesPipe,
-} from '@rabbithole/core';
+import { FileSystemAccessService, FormatBytesPipe } from '@rabbithole/core';
 import { encodeStorageInitArgs } from '@rabbithole/core/storage-runtime';
+import { CoreTransparentSelectBackdropDirective } from '@rabbithole/core/ui';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -77,6 +79,7 @@ import { WasmInstallTriggerDirective } from './wasm-install-trigger.directive';
     RbthDrawerHeaderComponent,
     RbthDrawerSeparatorDirective,
     RbthDrawerTitleDirective,
+    CoreTransparentSelectBackdropDirective,
     NgIcon,
     HlmIcon,
     DecimalPipe,
@@ -173,9 +176,9 @@ export class WasmInstallComponent {
 
   async fileOpen() {
     const fileHandle = await this.#fileSystemAccessService.fileOpen({
-      mimeTypes: ['application/wasm'],
-      extensions: ['.wasm'],
-      description: 'WASM file',
+      mimeTypes: ['application/gzip', 'application/wasm', 'application/x-gzip'],
+      extensions: ['.wasm', '.wasm.gz'],
+      description: 'WASM module',
       startIn: 'downloads',
       id: 'wasm-files',
       excludeAcceptAllOption: true,
@@ -190,8 +193,10 @@ export class WasmInstallComponent {
     event.preventDefault();
     event.stopPropagation();
     const file = event.dataTransfer?.files[0];
-    if (file && file.name.endsWith('.wasm')) {
+    if (file && isWasmModuleFile(file)) {
       this.onFileSelected(file);
+    } else if (file) {
+      toast.error('Select a .wasm or .wasm.gz file');
     }
   }
 
@@ -202,8 +207,10 @@ export class WasmInstallComponent {
   onFileInputChange(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (file && file.name.endsWith('.wasm')) {
+    if (file && isWasmModuleFile(file)) {
       this.onFileSelected(file);
+    } else if (file) {
+      toast.error('Select a .wasm or .wasm.gz file');
     }
   }
 
@@ -260,9 +267,22 @@ export class WasmInstallComponent {
 
         await this.#wasmInstallService.install(file, mode, initArg);
         this.selectedFile.set(null);
-        toast.success('WASM installed successfully');
-      } catch {
-        // Error is handled by state
+        if (this.installMode() === 'reinstall') {
+          toast.success('WASM reinstalled successfully', {
+            description: 'Reinstall clears canister state. Upload frontend assets before opening the canister.',
+          });
+        } else {
+          toast.success('WASM installed successfully');
+        }
+      } catch (error) {
+        const state = this.installState();
+        const message =
+          state.status === 'failed'
+            ? state.errorMessage
+            : error instanceof Error
+              ? error.message
+              : 'WASM installation failed';
+        toast.error(message);
       }
     }
   }
@@ -285,4 +305,8 @@ export class WasmInstallComponent {
     const hex = uint8ArrayToHexString(initArgBytes);
     this.initArgHex.set(hex);
   }
+}
+
+function isWasmModuleFile(file: File): boolean {
+  return file.name.endsWith('.wasm') || file.name.endsWith('.wasm.gz');
 }

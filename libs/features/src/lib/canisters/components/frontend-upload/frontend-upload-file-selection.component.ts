@@ -23,9 +23,9 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
         <div hlmEmptyMedia variant="icon">
           <ng-icon [svg]="fileArchiveIcon" />
         </div>
-        <div hlmEmptyTitle>Select zip archive</div>
+        <div hlmEmptyTitle>Select tar archive</div>
         <div hlmEmptyDescription>
-          Select a frontend archive to upload to user canister
+          Select a .tar, .tar.gz, or .tgz archive to upload
         </div>
       </div>
       <div hlmEmptyContent>
