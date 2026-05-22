@@ -661,6 +661,22 @@ mixin (
 
   transient let autoTopUpInFlight = Set.empty<Principal>(); // canisters currently being topped up
 
+  func getAutoTopUpSettings(storageOwner : Principal) : Result.Result<Settings.UserSettings, Text> {
+    let settings = deps.getUserSettings(storageOwner);
+    if (not settings.autoTopUp) return #err("Auto top-up is disabled");
+    if (settings.topUpAmountCycles == 0) return #err("Auto top-up amount is not configured");
+
+    switch (subscriptions.get(storageOwner)) {
+      case (?sub) {
+        switch (sub.status, sub.plan) {
+          case (#Active, #Pro) #ok(settings);
+          case _ #err("Auto top-up requires an active Pro subscription");
+        };
+      };
+      case null #err("Auto top-up requires an active Pro subscription");
+    };
+  };
+
   /// Checks user settings and auto-tops up if enabled.
   /// Uses in-flight lock to prevent duplicate top-ups from concurrent callbacks.
   func runAutoTopUp<system>(
@@ -671,29 +687,14 @@ mixin (
     // Opportunistic self-topup keeps the backend itself solvent.
     maybeTopUpSelf<system>();
 
-    let settings = deps.getUserSettings(storageOwner);
-    if (not settings.autoTopUp) return #err("Auto top-up is disabled");
+    let settings = switch (getAutoTopUpSettings(storageOwner)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(message);
+    };
 
     // In-flight lock: skip if top-up already in progress for this canister
     if (Set.contains(autoTopUpInFlight, Principal.compare, canisterId)) return #err("Auto top-up is already in progress");
     Set.add(autoTopUpInFlight, Principal.compare, canisterId);
-
-    // Pre-checks (before async work)
-    let eligible = switch (subscriptions.get(storageOwner)) {
-      case (?sub) {
-        switch (sub.plan) {
-          case (#Pro) true;
-          case _ false;
-        };
-      };
-      case null false;
-    };
-
-    if (not eligible or settings.topUpAmountCycles == 0) {
-      Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-      if (not eligible) return #err("Auto top-up requires an active Pro subscription");
-      return #err("Auto top-up amount is not configured");
-    };
 
     // Track charge for refund in catch block
     var pendingCharge : ?{ tokenId : TreasuryTypes.TokenId; amount : Nat } = null;
@@ -811,7 +812,11 @@ mixin (
     currentBalance : Nat,
     requiredBalance : Nat,
   ) : async Result.Result<{ cyclesAdded : Nat }, Text> {
-    let settings = deps.getUserSettings(storageOwner);
+    let settings = switch (getAutoTopUpSettings(storageOwner)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(message);
+    };
+
     if (currentBalance + settings.topUpAmountCycles < requiredBalance) {
       return #err(
         "Auto top-up amount is too low for this upload. Required balance: " #

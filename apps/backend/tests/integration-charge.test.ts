@@ -1422,6 +1422,77 @@ describe('Integration: topUpFromBalance full flow', () => {
     expect(completedAfter).toBe(completedBefore);
   });
 
+  test('auto-topup: does not top up expired Pro users', async () => {
+    actor.setIdentity(storageUser);
+    await actor.updateSettings({
+      spendingPriority: [{ ckUSDC: null }],
+      autoRenew: false, autoTopUp: true, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    actor.setIdentity(manager.ownerIdentity);
+    const picTimeMs = await manager.pic.getTime();
+    const now = BigInt(picTimeMs) * 1_000_000n;
+    await actor.activateSubscription(
+      storageUser.getPrincipal(),
+      { Pro: null },
+      [now - 1_000_000_000n],
+    );
+
+    await manager.mintToUserSubaccount(
+      CKUSDC_CANISTER_ID,
+      storageUser.getPrincipal(),
+      50_000_000n,
+    );
+
+    actor.setIdentity(storageUser);
+    const notifsBefore = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
+    const completedBefore = notifsBefore.data.filter((notification) =>
+      hasNotificationEvent(notification, 'autoTopUpCompleted'),
+    ).length;
+    const cyclesBefore = await manager.getCyclesBalance(storageCanisterId);
+
+    await manager.pic.updateCall({
+      canisterId: backendCanisterId,
+      sender: storageCanisterId,
+      method: 'onStorageLowCycles',
+      arg: IDL.encode(
+        [IDL.Nat, IDL.Nat, IDL.Variant({ warning: IDL.Null, critical: IDL.Null })],
+        [100_000_000_000n, 5n, { warning: null }],
+      ),
+    });
+    await manager.pic.tick(10);
+
+    const cyclesAfter = await manager.getCyclesBalance(storageCanisterId);
+    expect(cyclesAfter).toBe(cyclesBefore);
+
+    const notifsAfter = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
+    const completedAfter = notifsAfter.data.filter((notification) =>
+      hasNotificationEvent(notification, 'autoTopUpCompleted'),
+    ).length;
+    expect(completedAfter).toBe(completedBefore);
+
+    const EnsureUploadCyclesResult = IDL.Variant({
+      ok: IDL.Record({
+        cyclesAdded: IDL.Opt(IDL.Nat),
+        requiredBalance: IDL.Nat,
+      }),
+      err: IDL.Text,
+    });
+    const response = await manager.pic.updateCall({
+      canisterId: backendCanisterId,
+      sender: storageCanisterId,
+      method: 'ensureStorageCyclesForUpload',
+      arg: IDL.encode([IDL.Nat, IDL.Nat], [100_000_000_000n, 1_073_741_824n]),
+    });
+    const [result] = IDL.decode([EnsureUploadCyclesResult], response) as [
+      { ok: { cyclesAdded: [] | [bigint]; requiredBalance: bigint } } | { err: string },
+    ];
+    expect(result).toHaveProperty('err');
+    if ('err' in result) {
+      expect(result.err).toContain('active Pro subscription');
+    }
+  });
+
   test('auto-topup: OnChain createStorageBatch preflights low cycles before chunks', async () => {
     const uploadUser = createIdentity('onchain-preflight-user');
     actor.setIdentity(uploadUser);
