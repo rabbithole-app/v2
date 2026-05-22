@@ -103,6 +103,7 @@ module {
     #NotFound;
     #Conflict;
     #QuotaExceeded;
+    #InsufficientCycles;
     #Validation;
     #Internal;
   };

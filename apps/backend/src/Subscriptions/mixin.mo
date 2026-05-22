@@ -13,6 +13,7 @@ mixin(
     isKnownWasm : (Blob) -> Bool;
     hasUsedTrial : (Principal) -> Bool;
     markTrialUsed : (Principal) -> ();
+    onSubscriptionChanged : (Principal) -> async ();
     userExists : (Principal) -> Bool;
   },
 ) {
@@ -97,8 +98,10 @@ mixin(
     expiresAt : ?Int,
   ) : async () {
     admin.assertAdmin(caller);
-    let #err(e) = subscriptions.activateSubscription(userId, plan, expiresAt) else return;
-    throw Error.reject(debug_show e);
+    switch (subscriptions.activateSubscription(userId, plan, expiresAt)) {
+      case (#ok) await deps.onSubscriptionChanged(userId);
+      case (#err(e)) throw Error.reject(debug_show e);
+    };
   };
 
   public query ({ caller }) func listSubscriptions(
@@ -130,8 +133,10 @@ mixin(
     expiresAt : ?Int,
   ) : async () {
     admin.assertAdmin(caller);
-    let #err(e) = subscriptions.renewSubscription(userId, plan, expiresAt) else return;
-    throw Error.reject(e);
+    switch (subscriptions.renewSubscription(userId, plan, expiresAt)) {
+      case (#ok(_)) await deps.onSubscriptionChanged(userId);
+      case (#err(e)) throw Error.reject(e);
+    };
   };
 
   /// Admin: query subscriptions expiring within N hours

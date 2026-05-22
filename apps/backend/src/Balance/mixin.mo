@@ -69,6 +69,7 @@ mixin (
     selfCanisterId : Principal;
     backendCyclesThreshold : Nat;
     backendCyclesTarget : Nat;
+    onSubscriptionChanged : (Principal) -> async ();
   },
 ) {
   func emitBalanceNotification(recipient : Principal, event : Notifications.NotificationPayload) {
@@ -469,6 +470,7 @@ mixin (
               case (#Created or #Reactivated) emitBalanceNotification(userId, #subscriptionActivated({ plan }));
               case (#Renewed) emitBalanceNotification(userId, #subscriptionRenewed({ plan; expiresAt = ?result.expiresAt }));
             };
+            await deps.onSubscriptionChanged(userId);
             #ok();
           };
           case (#err(e)) {
@@ -514,6 +516,7 @@ mixin (
                 case (#Renewed) emitBalanceNotification(userId, #subscriptionRenewed({ plan; expiresAt = ?grantResult.expiresAt }));
                 case (#Created or #Reactivated) emitBalanceNotification(userId, #subscriptionActivated({ plan }));
               };
+              await deps.onSubscriptionChanged(userId);
             };
             case (#err(msg)) {
               // Charge succeeded but grant failed — refund the user
@@ -658,30 +661,28 @@ mixin (
 
   transient let autoTopUpInFlight = Set.empty<Principal>(); // canisters currently being topped up
 
-  /// Called from onStorageLowCycles. Checks user settings and auto-tops up if enabled.
+  /// Checks user settings and auto-tops up if enabled.
   /// Uses in-flight lock to prevent duplicate top-ups from concurrent callbacks.
-  func processAutoTopUp<system>(
+  func runAutoTopUp<system>(
     storageOwner : Principal,
     canisterId : Principal,
-    currentBalance : Nat,
-    severity : { #warning; #critical },
-  ) : async () {
+  ) : async Result.Result<{ cyclesAdded : Nat }, Text> {
     // Heavy path — multiple HTTPS outcalls (rate) + CMC + ledger transfers.
     // Opportunistic self-topup keeps the backend itself solvent.
     maybeTopUpSelf<system>();
 
     let settings = deps.getUserSettings(storageOwner);
-    if (not settings.autoTopUp) return;
+    if (not settings.autoTopUp) return #err("Auto top-up is disabled");
 
     // In-flight lock: skip if top-up already in progress for this canister
-    if (Set.contains(autoTopUpInFlight, Principal.compare, canisterId)) return;
+    if (Set.contains(autoTopUpInFlight, Principal.compare, canisterId)) return #err("Auto top-up is already in progress");
     Set.add(autoTopUpInFlight, Principal.compare, canisterId);
 
     // Pre-checks (before async work)
     let eligible = switch (subscriptions.get(storageOwner)) {
       case (?sub) {
         switch (sub.plan) {
-          case (#Pro or #Trial) true;
+          case (#Pro) true;
           case _ false;
         };
       };
@@ -690,7 +691,8 @@ mixin (
 
     if (not eligible or settings.topUpAmountCycles == 0) {
       Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-      return;
+      if (not eligible) return #err("Auto top-up requires an active Pro subscription");
+      return #err("Auto top-up amount is not configured");
     };
 
     // Track charge for refund in catch block
@@ -701,7 +703,7 @@ mixin (
       let ?icpUsdRate = await rates.getXrcRate("ICP", "USD") else {
         emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Failed to fetch ICP/USD rate" }));
         Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-        return;
+        return #err("Failed to fetch ICP/USD rate");
       };
 
       let chargeResult = await* simpleChargeForTopUp(storageOwner, settings.topUpAmountCycles, xdrPermyriadPerIcp, icpUsdRate);
@@ -710,7 +712,7 @@ mixin (
         case (#err(_)) {
           emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Insufficient balance" }));
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-          return;
+          return #err("Insufficient balance");
         };
       };
       pendingCharge := ?{ tokenId = charged.tokenId; amount = charged.amount };
@@ -726,7 +728,7 @@ mixin (
           emitBalanceAdminNotification(#treasuryIcpLow({ currentBalance; required = cmcDebit; reserve = TREASURY_ICP_RESERVE }));
           emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Service temporarily unavailable" }));
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-          return;
+          return #err("Service temporarily unavailable");
         };
         case null {};
       };
@@ -738,7 +740,7 @@ mixin (
           await* safeRefund(storageOwner, charged.tokenId, charged.amount, "autoTopUp ICP transfer failure");
           emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "ICP transfer failed: " # msg }));
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-          return;
+          return #err("ICP transfer failed: " # msg);
         };
       };
 
@@ -747,6 +749,8 @@ mixin (
         case (#ok(_)) {
           pendingCharge := null; // success, no refund needed
           emitBalanceNotification(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
+          Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+          return #ok({ cyclesAdded = charged.actualCycles });
         };
         case (#err(err)) {
           pendingCharge := null; // cmcHandleNotifyError takes over (may refund, or enqueue pending op)
@@ -757,6 +761,8 @@ mixin (
             err,
           );
           emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
+          Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+          return #err("CMC notify failed: " # debug_show err);
         };
       };
     } catch (e) {
@@ -778,9 +784,45 @@ mixin (
       };
       Debug.print("processAutoTopUp error: " # Error.message(e));
       emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Internal error" }));
+      Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+      return #err("Internal error");
     };
 
     Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+    #err("Internal error");
+  };
+
+  /// Called from onStorageLowCycles. Low-cycle callbacks are notifications;
+  /// storage operation preflight uses the result-returning helper below.
+  func processAutoTopUp<system>(
+    storageOwner : Principal,
+    canisterId : Principal,
+    currentBalance : Nat,
+    severity : { #warning; #critical },
+  ) : async () {
+    ignore currentBalance;
+    ignore severity;
+    ignore await runAutoTopUp<system>(storageOwner, canisterId);
+  };
+
+  func ensureAutoTopUpForStorageOperation<system>(
+    storageOwner : Principal,
+    canisterId : Principal,
+    currentBalance : Nat,
+    requiredBalance : Nat,
+  ) : async Result.Result<{ cyclesAdded : Nat }, Text> {
+    let settings = deps.getUserSettings(storageOwner);
+    if (currentBalance + settings.topUpAmountCycles < requiredBalance) {
+      return #err(
+        "Auto top-up amount is too low for this upload. Required balance: " #
+        Nat.toText(requiredBalance) #
+        " cycles, current balance: " #
+        Nat.toText(currentBalance) #
+        " cycles"
+      );
+    };
+
+    await runAutoTopUp<system>(storageOwner, canisterId);
   };
 
   // ---- Backend self-topup (from treasury ICP) ----

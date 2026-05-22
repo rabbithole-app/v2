@@ -628,7 +628,7 @@ export interface Rabbithole {
    * / Controller who wants Trial calls `activateTrial()` separately
    * / (per-account, not per-storage; only once per account).
    */
-  'addStorage' : ActorMethod<[Principal, Uint8Array], Result_6>,
+  'addStorage' : ActorMethod<[Principal, Uint8Array], Result_7>,
   'adminGetUserWalletMeta' : ActorMethod<
     [Principal],
     {
@@ -650,12 +650,13 @@ export interface Rabbithole {
   'commitAvatarUpload' : ActorMethod<[string], AvatarRef>,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_5>,
+  'deleteStorage' : ActorMethod<[bigint], Result_6>,
   'dismissPendingCmcOp' : ActorMethod<
     [bigint],
     { 'ok' : null } |
       { 'notFound' : null }
   >,
+  'ensureStorageCyclesForUpload' : ActorMethod<[bigint, bigint], Result_5>,
   'ensureUser' : ActorMethod<[[] | [string]], undefined>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
@@ -914,9 +915,13 @@ export type Result_3 = { 'ok' : null } |
   { 'err' : PurchaseError };
 export type Result_4 = { 'ok' : bigint } |
   { 'err' : PurchaseError };
-export type Result_5 = { 'ok' : null } |
+export type Result_5 = {
+    'ok' : { 'cyclesAdded' : [] | [bigint], 'requiredBalance' : bigint }
+  } |
+  { 'err' : string };
+export type Result_6 = { 'ok' : null } |
   { 'err' : DeleteStorageError };
-export type Result_6 = { 'ok' : bigint } |
+export type Result_7 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
 export type Role = { 'admin' : null } |
   { 'moderator' : null } |

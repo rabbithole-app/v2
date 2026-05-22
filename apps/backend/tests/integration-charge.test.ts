@@ -4,7 +4,7 @@
  * Tests chargeForService with ICP (CMC rate), ETH/SOL (XRC rate), and topUpFromBalance.
  */
 import { Actor, createIdentity } from '@dfinity/pic';
-import { principalToSubAccount } from '@dfinity/utils';
+import { principalToSubAccount, toNullable } from '@dfinity/utils';
 import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { resolve } from 'node:path';
@@ -12,6 +12,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import {
   encryptedStorageIdlFactory,
+  type EncryptedStorageActorService,
+  type EncryptionMode,
   initBackend,
   initEncryptedStorage,
   type NotificationsPage,
@@ -72,6 +74,9 @@ const WASM_PATH = resolve(
 // BaseManager uses createIdentity("superSecretAlicePassword") by default
 const userIdentity = createIdentity('integ-user');
 const l1Identity = createIdentity('integ-l1');
+const FILE = { File: null } as const;
+const CREATE_NEW = { CreateNew: null } as const;
+const ENCRYPTED: EncryptionMode = { Encrypted: null } as const;
 
 // ---- Helpers ----
 
@@ -1364,6 +1369,119 @@ describe('Integration: topUpFromBalance full flow', () => {
     const notifs = await actor.listNotifications({ afterId: [], limit: 20n, unreadOnly: false });
     const topUpNotif = findNotification(notifs.data, 'autoTopUpCompleted');
     expect(topUpNotif).toBeDefined();
+  });
+
+  test('auto-topup: does not top up Trial users', async () => {
+    actor.setIdentity(storageUser);
+    await actor.updateSettings({
+      spendingPriority: [{ ckUSDC: null }],
+      autoRenew: false, autoTopUp: true, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    actor.setIdentity(manager.ownerIdentity);
+    const picTimeMs = await manager.pic.getTime();
+    const now = BigInt(picTimeMs) * 1_000_000n;
+    const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
+    await actor.activateSubscription(
+      storageUser.getPrincipal(),
+      { Trial: null },
+      [now + fourteenDays],
+    );
+
+    await manager.mintToUserSubaccount(
+      CKUSDC_CANISTER_ID,
+      storageUser.getPrincipal(),
+      50_000_000n,
+    );
+
+    actor.setIdentity(storageUser);
+    const notifsBefore = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
+    const completedBefore = notifsBefore.data.filter((notification) =>
+      hasNotificationEvent(notification, 'autoTopUpCompleted'),
+    ).length;
+    const cyclesBefore = await manager.getCyclesBalance(storageCanisterId);
+
+    await manager.pic.updateCall({
+      canisterId: backendCanisterId,
+      sender: storageCanisterId,
+      method: 'onStorageLowCycles',
+      arg: IDL.encode(
+        [IDL.Nat, IDL.Nat, IDL.Variant({ warning: IDL.Null, critical: IDL.Null })],
+        [100_000_000_000n, 5n, { warning: null }],
+      ),
+    });
+    await manager.pic.tick(10);
+
+    const cyclesAfter = await manager.getCyclesBalance(storageCanisterId);
+    expect(cyclesAfter).toBe(cyclesBefore);
+
+    const notifsAfter = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
+    const completedAfter = notifsAfter.data.filter((notification) =>
+      hasNotificationEvent(notification, 'autoTopUpCompleted'),
+    ).length;
+    expect(completedAfter).toBe(completedBefore);
+  });
+
+  test('auto-topup: OnChain createStorageBatch preflights low cycles before chunks', async () => {
+    const uploadUser = createIdentity('onchain-preflight-user');
+    actor.setIdentity(uploadUser);
+    await actor.ensureUser([]);
+    await actor.updateSettings({
+      spendingPriority: [{ ckUSDC: null }],
+      autoRenew: false, autoTopUp: true, topUpAmountCycles: ONE_TRILLION_CYCLES,
+    });
+
+    actor.setIdentity(manager.ownerIdentity);
+    const picTimeMs = await manager.pic.getTime();
+    const now = BigInt(picTimeMs) * 1_000_000n;
+    await actor.activateSubscription(
+      uploadUser.getPrincipal(),
+      { Pro: null },
+      [now + 30n * 24n * 3_600_000_000_000n],
+    );
+
+    await manager.mintToUserSubaccount(
+      CKUSDC_CANISTER_ID,
+      uploadUser.getPrincipal(),
+      50_000_000n,
+    );
+
+    const uploadStorageInitArg = encodeStorageInitArg(uploadUser.getPrincipal());
+    const uploadStorage = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: ENCRYPTED_STORAGE_WASM_PATH,
+      sender: uploadUser.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
+      arg: uploadStorageInitArg,
+      cycles: 750_000_000_000n,
+    });
+    await manager.pic.tick();
+
+    actor.setIdentity(uploadUser);
+    const addResult = await actor.addStorage(uploadStorage.canisterId, uploadStorageInitArg);
+    expect(addResult).toHaveProperty('ok');
+
+    const uploadStorageActor = uploadStorage.actor;
+    uploadStorageActor.setIdentity(uploadUser);
+    const createResult = await uploadStorageActor.create({
+      entry: [FILE, 'preflight.bin'],
+      createMode: CREATE_NEW,
+      encryptionMode: toNullable(ENCRYPTED),
+    });
+    expect(createResult).toHaveProperty('ok');
+
+    const cyclesBefore = await manager.getCyclesBalance(uploadStorage.canisterId);
+    expect(cyclesBefore).toBeLessThan(ONE_TRILLION_CYCLES);
+
+    const batchResult = await uploadStorageActor.createStorageBatch({
+      entry: [FILE, 'preflight.bin'],
+      totalSize: 1_073_741_824n,
+    });
+    expect(batchResult).toHaveProperty('ok');
+    await manager.pic.tick(20);
+
+    const cyclesAfter = await manager.getCyclesBalance(uploadStorage.canisterId);
+    expect(cyclesAfter).toBeGreaterThan(cyclesBefore);
   });
 
   test('auto-topup: no topup when autoTopUp disabled', async () => {

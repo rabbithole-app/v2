@@ -1,7 +1,6 @@
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Cycles "mo:core/Cycles";
-import Debug "mo:core/Debug";
 import Error "mo:core/Error";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
@@ -105,11 +104,15 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   transient let es = EncryptedStorageClass.Storage(storage, ?{
     canUploadEncrypted = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canUploadEncrypted(storage, bytes);
     canUseEncryption = func() : Result.Result<(), Text> = SubscriptionGate.canUseEncryption(storage);
+    refreshSubscription = func() : async* Result.Result<T.SubscriptionStatus, Text> {
+      await* SubscriptionGate.ensureSubscription(storage, true);
+    };
     onAccessChanged = ?enqueueStorageAccessChanged;
   });
 
   func classifyStorageError(message : Text) : T.StorageErrorCode {
     if (Text.startsWith(message, #text "permission denied:")) return #PermissionDenied;
+    if (Text.startsWith(message, #text "Insufficient storage canister cycles:")) return #InsufficientCycles;
     if (Text.contains(message, #text "not found")) return #NotFound;
     if (Text.contains(message, #text "already exists")) return #Conflict;
     if (Text.contains(message, #text "Maximum number")) return #QuotaExceeded;
@@ -125,13 +128,6 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     {
       code = classifyStorageError(message);
       message;
-    };
-  };
-
-  func storageResult<R>(result : Result.Result<R, Text>) : T.StorageResult<R> {
-    switch (result) {
-      case (#ok value) #ok value;
-      case (#err message) #err(storageError(message));
     };
   };
 
@@ -171,6 +167,30 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         );
       };
       case null {};
+    };
+  };
+
+  func ensureOnChainUploadCycles<system>(totalSize : Nat) : async* Result.Result<(), Text> {
+    switch (es.getStorageBackendType()) {
+      case (#BlobStorage) return #ok;
+      case (#OnChain) {};
+    };
+
+    let ?bid = storage.backendId else {
+      return #err("Insufficient storage canister cycles: backendId not set");
+    };
+
+    let backend : actor {
+      ensureStorageCyclesForUpload : (Nat, Nat) -> async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text>;
+    } = actor (Principal.toText(bid));
+
+    try {
+      switch (await backend.ensureStorageCyclesForUpload(Cycles.balance(), totalSize)) {
+        case (#ok _) #ok;
+        case (#err(message)) #err("Insufficient storage canister cycles: " # message);
+      };
+    } catch (e) {
+      #err("Insufficient storage canister cycles: auto top-up failed: " # Error.message(e));
     };
   };
 
@@ -346,11 +366,28 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   public shared ({ caller }) func createStorageBatch(args : T.CreateBatchArguments) : async T.StorageResult<T.CreateBatchResponse> {
-    storageResult(es.createBatch(caller, args));
+    switch (await* es.createBatch(caller, args)) {
+      case (#err message) #err(storageError(message));
+      case (#ok response) {
+        switch (await* ensureOnChainUploadCycles<system>(args.totalSize)) {
+          case (#err message) {
+            ignore es.rollbackBatch(caller, response.batchId);
+            #err(storageError(message));
+          };
+          case (#ok) #ok response;
+        };
+      };
+    };
   };
 
   public shared ({ caller }) func createStorageChunk(args : T.CreateChunkArguments) : async T.StorageResult<T.CreateChunkResponse> {
-    storageResult(es.createChunk(caller, args));
+    switch (es.createChunk(caller, args)) {
+      case (#ok response) {
+        reportLowCyclesIfNeeded<system>();
+        #ok response;
+      };
+      case (#err message) #err(storageError(message));
+    };
   };
 
   public shared ({ caller }) func move(args : T.MoveArguments) : async () {
@@ -707,7 +744,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
     switch (args.decision) {
       case (#approved(_)) {
-        switch (await* SubscriptionGate.ensureSubscription(storage)) {
+        switch (await* SubscriptionGate.ensureSubscription(storage, false)) {
           case (#ok(_)) {};
           case (#err(message)) throw Error.reject(message);
         };
@@ -779,7 +816,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func getEncryptedVetkey(keyId : T.KeyId, transportKey : T.TransportKey) : async T.VetKey {
     // Subscription gate: refresh cache if stale, then check decrypt permission
-    switch (await* SubscriptionGate.ensureSubscription(storage)) {
+    switch (await* SubscriptionGate.ensureSubscription(storage, false)) {
       case (#err(message)) throw Error.reject(message);
       case (#ok _) {};
     };
@@ -836,7 +873,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   include MixinObjectStorage();
 
   public shared ({ caller }) func commitCaffeineUpload(args : T.CommitCaffeineUploadArgs) : async T.StorageResult<()> {
-    switch (es.commitCaffeineUpload(caller, args)) {
+    switch (await* es.commitCaffeineUpload(caller, args)) {
       case (#ok _) { reportLowCyclesIfNeeded<system>(); #ok };
       case (#err message) #err(storageError(message));
     };
@@ -935,10 +972,18 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func refreshSubscription() : async () {
     assert Principal.equal(caller, owner) or Principal.equal(caller, canisterId) or Principal.isController(caller);
-    switch (await* SubscriptionGate.ensureSubscription(storage)) {
+    switch (await* SubscriptionGate.ensureSubscription(storage, true)) {
       case (#err(message)) throw Error.reject(message);
       case (#ok _) {};
     };
+  };
+
+  public shared ({ caller }) func invalidateSubscriptionCache() : async () {
+    let ?backendId = storage.backendId else throw Error.reject("backendId not set");
+    if (not Principal.equal(caller, backendId)) {
+      throw Error.reject("backend caller required");
+    };
+    storage.subscriptionCache := null;
   };
 
   public query func getCycleBalance() : async Nat {

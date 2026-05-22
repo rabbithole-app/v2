@@ -406,6 +406,7 @@ export interface EncryptedStorageCanister {
     [RawUpdateHttpRequest],
     RawUpdateHttpResponse
   >,
+  'invalidateSubscriptionCache' : ActorMethod<[], undefined>,
   'list' : ActorMethod<[{}], Array<AssetDetails>>,
   'listAccessGrants' : ActorMethod<
     [ListAccessGrantsArguments],
@@ -825,6 +826,7 @@ export interface StorageError { 'code' : StorageErrorCode, 'message' : string }
 export type StorageErrorCode = { 'Internal' : null } |
   { 'NotFound' : null } |
   { 'PermissionDenied' : null } |
+  { 'InsufficientCycles' : null } |
   { 'Validation' : null } |
   { 'QuotaExceeded' : null } |
   { 'Conflict' : null };

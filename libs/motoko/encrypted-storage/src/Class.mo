@@ -9,6 +9,7 @@ module {
   public type Gates = {
     canUploadEncrypted : Nat -> Result.Result<(), Text>;
     canUseEncryption : () -> Result.Result<(), Text>;
+    refreshSubscription : () -> async* Result.Result<T.SubscriptionStatus, Text>;
     onAccessChanged : ?(T.StoredStorageEvent -> ());
   };
 
@@ -19,6 +20,10 @@ module {
     };
     let shareGate : ?(() -> Result.Result<(), Text>) = switch (gates) {
       case (?g) ?g.canUseEncryption;
+      case null null;
+    };
+    let subscriptionRefreshGate : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>) = switch (gates) {
+      case (?g) ?g.refreshSubscription;
       case null null;
     };
     let accessHook : ?(T.StoredStorageEvent -> ()) = switch (gates) {
@@ -390,7 +395,7 @@ module {
       Lib.create(store, caller, args);
 
     public func update(caller : Principal, args : T.UpdateArguments) : async* Result.Result<(), Text> {
-      await* Lib.update(store, caller, args, uploadGate);
+      await* Lib.update(store, caller, args, uploadGate, subscriptionRefreshGate);
     };
 
     public func delete(caller : Principal, args : T.DeleteArguments) : Result.Result<(), Text> =
@@ -407,8 +412,12 @@ module {
 
     // --- Batch Upload ---
 
-    public func createBatch(caller : Principal, args : T.CreateBatchArguments) : Result.Result<T.CreateBatchResponse, Text> =
-      Lib.createBatch(store, caller, args, uploadGate);
+    public func createBatch(caller : Principal, args : T.CreateBatchArguments) : async* Result.Result<T.CreateBatchResponse, Text> {
+      await* Lib.createBatch(store, caller, args, uploadGate, subscriptionRefreshGate);
+    };
+
+    public func rollbackBatch(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> =
+      Lib.rollbackBatch(store, caller, batchId);
 
     public func createChunk(caller : Principal, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> =
       Lib.createChunk(store, caller, args, uploadGate);
@@ -468,8 +477,9 @@ module {
 
     // --- Caffeine Blob Storage ---
 
-    public func commitCaffeineUpload(caller : Principal, args : T.CommitCaffeineUploadArgs) : Result.Result<(), Text> =
-      Lib.commitCaffeineUpload(store, caller, args);
+    public func commitCaffeineUpload(caller : Principal, args : T.CommitCaffeineUploadArgs) : async* Result.Result<(), Text> {
+      await* Lib.commitCaffeineUpload(store, caller, args, uploadGate, subscriptionRefreshGate);
+    };
 
     public func getStorageBackendType() : T.StorageBackend =
       store.storageBackendType;

@@ -194,6 +194,7 @@ export const idlFactory = ({ IDL }) => {
     'Internal' : IDL.Null,
     'NotFound' : IDL.Null,
     'PermissionDenied' : IDL.Null,
+    'InsufficientCycles' : IDL.Null,
     'Validation' : IDL.Null,
     'QuotaExceeded' : IDL.Null,
     'Conflict' : IDL.Null,
@@ -979,6 +980,7 @@ export const idlFactory = ({ IDL }) => {
         [RawUpdateHttpResponse],
         [],
       ),
+    'invalidateSubscriptionCache' : IDL.Func([], [], []),
     'list' : IDL.Func([IDL.Record({})], [IDL.Vec(AssetDetails)], ['query']),
     'listAccessGrants' : IDL.Func(
         [ListAccessGrantsArguments],

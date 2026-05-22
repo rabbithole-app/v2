@@ -19,18 +19,20 @@ module SubscriptionGate {
 
   /* ----------------------------- Subscription ------------------------------ */
 
-  /// Async subscription check — refreshes cache if stale.
+  /// Async subscription check — refreshes cache if stale unless forced.
   /// Call from actor-level methods via `await*`.
-  public func ensureSubscription(self : T.StableStore) : async* Result.Result<T.SubscriptionStatus, Text> {
+  public func ensureSubscription(self : T.StableStore, forceRefresh : Bool) : async* Result.Result<T.SubscriptionStatus, Text> {
     // 1. Check cache freshness
-    switch (self.subscriptionCache) {
-      case (?cache) {
-        let age : Int = Time.now() - cache.checkedAt;
-        if (age >= 0 and age < Const.SUBSCRIPTION_CACHE_TTL) {
-          return #ok(cache.status);
+    if (not forceRefresh) {
+      switch (self.subscriptionCache) {
+        case (?cache) {
+          let age : Int = Time.now() - cache.checkedAt;
+          if (age >= 0 and age < Const.SUBSCRIPTION_CACHE_TTL) {
+            return #ok(cache.status);
+          };
         };
+        case null {};
       };
-      case null {};
     };
 
     // 2. Require backendId

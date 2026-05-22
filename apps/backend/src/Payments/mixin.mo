@@ -29,6 +29,7 @@ mixin(
     getAmbassadorChain : (Principal) -> Users.AmbassadorChain;
     activateSubscription : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>;
     grantPaidPeriod : (Principal, Subscriptions.Plan, Time.Time) -> Result.Result<Subscriptions.PaidPeriodResult, Text>;
+    onSubscriptionChanged : (Principal) -> async ();
     distributePayment : (TreasuryTypes.DistributePaymentArgs) -> async* TreasuryTypes.DistributePaymentResult;
     storageVetKeyEnv : <system>(Payments.StorageVetKeyLevel) -> ?[{ name : Text; value : Text }];
     createStorageForUser : <system>(Principal, Blob, ?[{ name : Text; value : Text }]) -> Result.Result<(), Text>;
@@ -147,7 +148,8 @@ mixin(
           });
           // Activate Trial if user has no active subscription
           switch (deps.activateSubscription(userId, #Trial, null)) {
-            case (#ok() or #err(#AlreadyActive)) {};
+            case (#ok()) await deps.onSubscriptionChanged(userId);
+            case (#err(#AlreadyActive)) {};
             case _ {};
           };
           emitPaymentNotification(userId, #paymentReceived({ purpose = "license"; amount = payment.amount; tokenId = tokenIdText }));
@@ -181,6 +183,7 @@ mixin(
                 case (#Created or #Reactivated) emitPaymentNotification(userId, #subscriptionActivated({ plan = #Pro }));
                 case (#Renewed) emitPaymentNotification(userId, #subscriptionRenewed({ plan = #Pro; expiresAt = ?result.expiresAt }));
               };
+              await deps.onSubscriptionChanged(userId);
             };
             case (#err(e)) {
               Debug.print("Payment " # payment.id # ": grantPaidPeriod failed, manual intervention required: " # e);

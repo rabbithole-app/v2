@@ -74,7 +74,7 @@ export const idlFactory = ({ IDL }) => {
     'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InvalidWasm' : IDL.Text,
   });
-  const Result_6 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const Result_7 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
   const UserSettings = IDL.Record({
     'spendingPriority' : IDL.Vec(TokenId),
     'topUpAmountCycles' : IDL.Nat,
@@ -184,7 +184,14 @@ export const idlFactory = ({ IDL }) => {
     'NotFound' : IDL.Null,
     'NotOwner' : IDL.Null,
   });
-  const Result_5 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_5 = IDL.Variant({
+    'ok' : IDL.Record({
+      'cyclesAdded' : IDL.Opt(IDL.Nat),
+      'requiredBalance' : IDL.Nat,
+    }),
+    'err' : IDL.Text,
+  });
   const AmbassadorChain = IDL.Record({
     'l1' : IDL.Opt(IDL.Principal),
     'l2' : IDL.Opt(IDL.Principal),
@@ -1070,7 +1077,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'activateTrial' : IDL.Func([], [], []),
-    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_6], []),
+    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_7], []),
     'adminGetUserWalletMeta' : IDL.Func(
         [IDL.Principal],
         [
@@ -1107,10 +1114,15 @@ export const idlFactory = ({ IDL }) => {
     'commitAvatarUpload' : IDL.Func([IDL.Text], [AvatarRef], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Vec(IDL.Nat8)], []),
     'deleteProfile' : IDL.Func([], [], []),
-    'deleteStorage' : IDL.Func([IDL.Nat], [Result_5], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result_6], []),
     'dismissPendingCmcOp' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'ok' : IDL.Null, 'notFound' : IDL.Null })],
+        [],
+      ),
+    'ensureStorageCyclesForUpload' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [Result_5],
         [],
       ),
     'ensureUser' : IDL.Func([IDL.Opt(IDL.Text)], [], []),

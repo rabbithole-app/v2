@@ -1979,8 +1979,64 @@ describe("Feature Gating", () => {
       ).rejects.toThrow(/exceeds/i);
     });
 
+    test("encrypted createBatch picks up Pro immediately after trial limit failure", async () => {
+      await createStorageNode({
+        entry: [FILE, "trial-to-pro-huge.dat"],
+        createMode: CREATE_NEW,
+        encryptionMode: toNullable(ENCRYPTED),
+      });
+
+      await expect(
+        createStorageBatch({
+          entry: [FILE, "trial-to-pro-huge.dat"],
+          totalSize: 150_000_000n,
+        }),
+      ).rejects.toThrow(/exceeds/i);
+
+      backendActor.setIdentity(manager.ownerIdentity);
+      const registeredStorages = await backendActor.listStorages();
+      expect(
+        registeredStorages.some(
+          (item) => item.canisterId[0]?.toText() === storage.canisterId.toText(),
+        ),
+      ).toBe(true);
+      const picTimeMs = await manager.pic.getTime();
+      const now = BigInt(picTimeMs) * 1_000_000n;
+      const thirtyDays = 30n * 24n * 60n * 60n * 1_000_000_000n;
+      await backendActor.activateSubscription(
+        manager.ownerIdentity.getPrincipal(),
+        { Pro: null },
+        [now + thirtyDays],
+      );
+      await manager.pic.tick();
+      const backendSubscription = await backendActor.getSubscription();
+      expect(backendSubscription[0]?.plan).toEqual({ Pro: null });
+
+      const statusAfterActivation = await storageActor.getStatus();
+      expect(statusAfterActivation.subscriptionStatus).toHaveLength(0);
+
+      const batch = await createStorageBatch({
+        entry: [FILE, "trial-to-pro-huge.dat"],
+        totalSize: 150_000_000n,
+      });
+      expect(batch.batchId).toBeDefined();
+    });
+
     test("encrypted createBatch works within trial limit", async () => {
-      // Trial still active from previous test
+      backendActor.setIdentity(manager.ownerIdentity);
+      const picTimeMs = await manager.pic.getTime();
+      const now = BigInt(picTimeMs) * 1_000_000n;
+      const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
+      await backendActor.activateSubscription(
+        manager.ownerIdentity.getPrincipal(),
+        { Trial: null },
+        [now + fourteenDays],
+      );
+      storageActor.setIdentity(manager.ownerIdentity);
+      await storageActor.refreshSubscription();
+      const status = await storageActor.getStatus();
+      expect(status.subscriptionStatus[0]).toHaveProperty("trial");
+
       await createStorageNode({
         entry: [FILE, "small-secret.dat"],
         createMode: CREATE_NEW,

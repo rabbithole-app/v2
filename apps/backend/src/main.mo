@@ -144,6 +144,24 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
   let sharedAccess = SharedAccess.new();
 
+  func notifyStorageSubscriptionChanged(storageCanisterId : Principal) : async () {
+    let storageActor : actor {
+      invalidateSubscriptionCache : () -> async ();
+    } = actor (Principal.toText(storageCanisterId));
+    try {
+      await storageActor.invalidateSubscriptionCache();
+    } catch (_) {};
+  };
+
+  func notifyUserStoragesSubscriptionChanged(userId : Principal) : async () {
+    for (record in creations.listByOwner(userId).vals()) {
+      switch (record.canisterId) {
+        case (?storageCanisterId) await notifyStorageSubscriptionChanged(storageCanisterId);
+        case null {};
+      };
+    };
+  };
+
   public type SharedStorageAccessView = {
     access : SharedAccess.SharedStorageAccess;
     storageStatus : ?StorageDeployerOrchestrator.CreationStatus;
@@ -197,6 +215,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       isKnownWasm;
       hasUsedTrial;
       markTrialUsed;
+      onSubscriptionChanged = notifyUserStoragesSubscriptionChanged;
       userExists;
     },
   );
@@ -372,6 +391,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       getAmbassadorChain;
       activateSubscription = activateSubscriptionInternal;
       grantPaidPeriod = grantPaidPeriodInternal;
+      onSubscriptionChanged = notifyUserStoragesSubscriptionChanged;
       distributePayment = treasuryDistributePayment;
       storageVetKeyEnv;
       createStorageForUser = createStorageForUserInternal;
@@ -404,6 +424,18 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // can retune via upgrade without migration.
   transient let BACKEND_CYCLES_THRESHOLD : Nat = 2_000_000_000_000; // 2 TC
   transient let BACKEND_CYCLES_TARGET    : Nat = 5_000_000_000_000; // 5 TC
+
+  // OnChain uploads write into stable memory and can trap at the system
+  // boundary before the app can convert the failure to a typed error. Keep a
+  // conservative operation reserve and scale it with declared upload size.
+  transient let STORAGE_ONCHAIN_UPLOAD_BASE_MIN_CYCLES : Nat = 1_000_000_000_000; // 1 TC
+  transient let STORAGE_ONCHAIN_UPLOAD_CYCLES_PER_GIB : Nat = 250_000_000_000; // 0.25 TC
+  transient let GIB_BYTES : Nat = 1_024 * 1_024 * 1_024;
+
+  func requiredStorageCyclesForOnChainUpload(totalSize : Nat) : Nat {
+    let roundedGiB = if (totalSize == 0) 0 else (totalSize + GIB_BYTES - 1) / GIB_BYTES;
+    STORAGE_ONCHAIN_UPLOAD_BASE_MIN_CYCLES + (roundedGiB * STORAGE_ONCHAIN_UPLOAD_CYCLES_PER_GIB);
+  };
 
   func getIcpXdrRate() : async Nat {
     let cmc = actor (CMC_CANISTER_ID) : CMCTypes.Self;
@@ -765,6 +797,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       selfCanisterId = canisterId;
       backendCyclesThreshold = BACKEND_CYCLES_THRESHOLD;
       backendCyclesTarget = BACKEND_CYCLES_TARGET;
+      onSubscriptionChanged = notifyUserStoragesSubscriptionChanged;
     },
   );
 
@@ -812,6 +845,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     let expiredUsers = expireOverdueSubscriptions();
     for (userId in expiredUsers.vals()) {
       emitBackendNotification(userId, #subscriptionExpired);
+      await notifyUserStoragesSubscriptionChanged(userId);
     };
     syncLatestWasmHash();
     processAutoRenewals<system>();
@@ -927,7 +961,10 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
     // Activate Trial if not already subscribed.
     appendCreationEvent(creationId, #ProcessingPayment(#Activating));
-    ignore activateSubscriptionInternal(caller, #Trial, null);
+    switch (activateSubscriptionInternal(caller, #Trial, null)) {
+      case (#ok) await notifyUserStoragesSubscriptionChanged(caller);
+      case (#err(_)) {};
+    };
 
     // Hand off to the deploy queue. startStorageCreation will flip the record
     // to #Pending (distinct tag — new timeline event).
@@ -1187,6 +1224,25 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     emitBackendNotification(storageOwner, #lowCycles({ canisterId = caller; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
     // Trigger auto top-up if user has it enabled
     await processAutoTopUp(storageOwner, caller, balance, severity);
+  };
+
+  public shared ({ caller }) func ensureStorageCyclesForUpload(
+    currentBalance : Nat,
+    totalSize : Nat,
+  ) : async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text> {
+    let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(creations, caller) else {
+      return #err("Unknown storage canister");
+    };
+
+    let requiredBalance = requiredStorageCyclesForOnChainUpload(totalSize);
+    if (currentBalance >= requiredBalance) {
+      return #ok({ cyclesAdded = null; requiredBalance });
+    };
+
+    switch (await ensureAutoTopUpForStorageOperation<system>(storageOwner, caller, currentBalance, requiredBalance)) {
+      case (#ok(info)) #ok({ cyclesAdded = ?info.cyclesAdded; requiredBalance });
+      case (#err(message)) #err(message);
+    };
   };
 
   public shared ({ caller }) func onStorageAccessChanged(envelope : BackendEvents.StorageAccessChanged) : async () {
