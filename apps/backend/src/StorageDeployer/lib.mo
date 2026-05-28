@@ -1861,8 +1861,13 @@ module StorageDeployerOrchestrator {
   // the whole orchestrator to be transient and lose creation-record
   // persistence across upgrades.
 
-  public func addLicense(licenses : Licenses.Licenses, owner : Principal, receipt : Types.PaymentReceipt) : Result.Result<(), { #DuplicatePayment }> {
-    switch (licenses.add(owner, receipt)) {
+  public func addLicense(
+    licenses : Licenses.Licenses,
+    owner : Principal,
+    receipt : Types.PaymentReceipt,
+    storageEntitlement : Types.StorageLicenseEntitlement,
+  ) : Result.Result<(), { #DuplicatePayment }> {
+    switch (licenses.add(owner, receipt, storageEntitlement)) {
       case (#ok) #ok;
       case (#err e) #err(e);
     };
@@ -1870,6 +1875,10 @@ module StorageDeployerOrchestrator {
 
   public func findLicenseByPaymentId(licenses : Licenses.Licenses, owner : Principal, paymentId : Text) : ?Types.License {
     licenses.findByPaymentId(owner, paymentId);
+  };
+
+  public func findLicenseByCanister(licenses : Licenses.Licenses, canisterId : Principal) : ?Types.License {
+    licenses.findByCanister(canisterId);
   };
 
   public func markLicenseRefunded(

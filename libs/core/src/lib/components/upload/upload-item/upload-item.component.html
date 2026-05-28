@@ -14,6 +14,9 @@
           @case (uploadState.IN_PROGRESS) {
             {{ d.current | formatRangeBytes: d.total }}
           }
+          @case (uploadState.WAITING_FOR_FUNDING) {
+            {{ d.current | formatRangeBytes: d.total }}
+          }
           @default {
             {{ d.file.size | formatBytes }}
           }
@@ -115,6 +118,9 @@
       @case (uploadState.FINALIZING) {
         Finalizing...
       }
+      @case (uploadState.WAITING_FOR_FUNDING) {
+        Waiting for cycles...
+      }
       @default {
         Uploading...
       }
@@ -135,6 +141,9 @@
       <ng-container [ngTemplateOutlet]="cancelButton" />
     }
     @case (uploadState.IN_PROGRESS) {
+      <ng-container [ngTemplateOutlet]="cancelButton" />
+    }
+    @case (uploadState.WAITING_FOR_FUNDING) {
       <ng-container [ngTemplateOutlet]="cancelButton" />
     }
     @case (uploadState.NOT_STARTED) {

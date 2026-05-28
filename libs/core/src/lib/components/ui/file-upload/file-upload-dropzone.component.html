@@ -43,6 +43,7 @@
       class="flex flex-wrap justify-center gap-2"
       (click)="$event.stopPropagation()"
       (keydown)="$event.stopPropagation()"
+      tabindex="-1"
     >
       <button hlmBtn (click)="openFileDialog()">
         <ng-icon hlm size="sm" name="lucideFileUp" />

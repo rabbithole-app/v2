@@ -105,7 +105,8 @@ export class CoreUploadItemComponent {
   progress = computed(() => {
     const data = this.data();
 
-    return data.status === UploadState.IN_PROGRESS
+    return data.status === UploadState.IN_PROGRESS ||
+      data.status === UploadState.WAITING_FOR_FUNDING
       ? Math.round((data.current / data.total) * 100)
       : data.status === UploadState.FINALIZING
         ? 100
@@ -120,6 +121,7 @@ export class CoreUploadItemComponent {
       UploadState.INITIALIZING,
       UploadState.NOT_STARTED,
       UploadState.REQUESTING_VETKD,
+      UploadState.WAITING_FOR_FUNDING,
     ].includes(this.data().status),
   );
   readonly uploadState = UploadState;

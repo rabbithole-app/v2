@@ -55,7 +55,6 @@ export const adminUserDetailResolver: ResolveFn<
         id: [[principal]],
         inviter: [],
         role: [],
-        trialUsed: [],
         verifiedEmail: [],
         identityProvider: [],
         search: [],

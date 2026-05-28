@@ -8,7 +8,6 @@ import Option "mo:core/Option";
 import Result "mo:core/Result";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
-import Iter "mo:core/Iter";
 import Int "mo:core/Int";
 import Nat8 "mo:core/Nat8";
 import Time "mo:core/Time";
@@ -35,10 +34,16 @@ import Common "FileSystem/Common";
 import Thumbnail "Thumbnail";
 import Const "Const";
 import Http "Http";
+import Certification "Certification";
+import FileAccounting "FileAccounting";
+import UploadSession "UploadSession";
+import UploadStaging "UploadSession/Staging";
 
 module EncryptedFileStorage {
   public type StableStore = T.StableStore;
   public type VersionedStableStore = T.VersionedStableStore;
+  public type ActiveUploadSession = Upload.ActiveSession;
+  public type UploadCommitMeasurement = UploadSession.CommitMeasurement;
   /// Creates a new versioned stable store. Called once during initial canister deployment.
   /// On subsequent upgrades, the existing stable variable is preserved and migrated
   /// via `upgradeStableStore`.
@@ -79,7 +84,6 @@ module EncryptedFileStorage {
       var backendId = backendId;
       var subscriptionCache = null;
       var encryptedBytesUsed = 0;
-      var unreportedTrialBytes = 0;
       var cachedModuleHash = null;
       var lastCycleAlertAt = 0;
       var lastCycleAlertLevel = null;
@@ -1503,48 +1507,6 @@ module EncryptedFileStorage {
     };
   };
 
-  func endpoint(keyId : T.KeyId, hash : Blob) : CertifiedAssets.Endpoint {
-    let ?tid = Text.decodeUtf8(keyId.1) else Runtime.unreachable();
-    let key = "/" # Text.join(Iter.fromArray(["encrypted", Principal.toText(keyId.0), tid]), "/");
-    CertifiedAssets.Endpoint(key, null)
-    // request certification is not supported in this context
-    .no_request_certification()
-    // the content's hash is inserted directly instead of computing it from the content
-    .hash(hash).status(200);
-  };
-
-  func blobInfoEndpoint(keyId : T.KeyId, bodyHash : Blob) : CertifiedAssets.Endpoint {
-    let ?tid = Text.decodeUtf8(keyId.1) else Runtime.unreachable();
-    let key = "/" # Text.join(Iter.fromArray(["blob-info", Principal.toText(keyId.0), tid]), "/");
-    CertifiedAssets.Endpoint(key, null)
-    .no_request_certification()
-    .response_header("content-type", "application/json")
-    .hash(bodyHash)
-    .status(200);
-  };
-
-  func decertifyBlobInfo(self : T.StableStore, keyId : T.KeyId, version : T.FileVersion) {
-    switch (version.chunks[0]) {
-      case (#BlobStorage { blobId; size }) {
-        let ?hash = Text.decodeUtf8(blobId) else return;
-        let (_, jsonHash) = Utils.blobInfoJson(hash, version.contentType, size);
-        CertifiedAssets.remove(self.certs, blobInfoEndpoint(keyId, jsonHash));
-      };
-      case _ {};
-    };
-  };
-
-  func certifyBlobInfo(self : T.StableStore, keyId : T.KeyId, version : T.FileVersion) {
-    switch (version.chunks[0]) {
-      case (#BlobStorage { blobId; size }) {
-        let ?hash = Text.decodeUtf8(blobId) else return;
-        let (_, jsonHash) = Utils.blobInfoJson(hash, version.contentType, size);
-        CertifiedAssets.certify(self.certs, blobInfoEndpoint(keyId, jsonHash));
-      };
-      case _ {};
-    };
-  };
-
   /// Sets the streaming callback for the assets library.
   public func setStreamingCallback(self : T.StableStore, callback : T.StreamingCallback) {
     self.streamingCallback := ?callback;
@@ -1576,7 +1538,7 @@ module EncryptedFileStorage {
     let (kind, _) = entry;
 
     // Check if file is currently in staging (incomplete upload)
-    let nodeKey = entryToNodeKey(self.fs, entry);
+    let nodeKey = UploadStaging.entryToNodeKey(self.fs, { entry });
     let existingNode = FileSystem.get(self.fs, #entry(entry));
     let hasExistingNode = switch (existingNode) {
       case (?_) true;
@@ -1615,71 +1577,6 @@ module EncryptedFileStorage {
     };
   };
 
-  /// Converts an entry path to a `NodeKey` by resolving parent directories.
-  /// Returns `null` if parent directories don't exist or if the entry is a directory
-  /// (staging only applies to files).
-  func entryToNodeKey(fs : T.FileSystemStore, (kind, path) : T.Entry) : ?T.NodeKey {
-    let dirnames = Text.split(path, #char '/') |> Vector.fromIter<Text>(_);
-
-    // Remove empty segments
-    let cleaned = Vector.new<Text>();
-    for (seg in Vector.vals(dirnames)) {
-      if (seg != "") Vector.add(cleaned, seg);
-    };
-
-    let filename : ?Text = if (kind == #File) Vector.removeLast(cleaned) else null;
-
-    var parentId : ?Nat64 = null;
-    for (name in Vector.vals(cleaned)) {
-      let ?{ id } = Map.get(fs.nodes, Utils.hashNodes, (#Directory, parentId, name)) else return null;
-      parentId := ?id;
-    };
-
-    switch (filename) {
-      case (?fname) ?(#File, parentId, fname);
-      case null {
-        // Staging doesn't apply to directories, so we don't need to resolve directory keys
-        null;
-      };
-    };
-  };
-
-  /// Checks if a node is in staging (incomplete upload).
-  func isStaged(self : T.StableStore, node : T.NodeDetails) : Bool {
-    let nodeKey : T.NodeKey = switch (node.metadata) {
-      case (#File(_)) (#File, node.parentId, node.name);
-      case (#Directory(_)) return false;
-    };
-    Map.has(self.staging, Utils.hashNodes, nodeKey);
-  };
-
-  /// Removes staging entries whose associated batch has expired/been removed,
-  /// or entries without a batchId that have exceeded the expiry duration.
-  /// Also removes the corresponding file nodes from the main FS.
-  func cleanupExpiredStaging(self : T.StableStore) {
-    let now = Time.now();
-    let keysToRemove = Vector.new<T.NodeKey>();
-
-    for ((nodeKey, staging) in Map.entries(self.staging)) {
-      let shouldRemove = switch (staging.batchId) {
-        // Batch was assigned — check if it still exists
-        case (?batchId) switch (Upload.getBatch(self.upload, batchId)) {
-          case null true;
-          case _ false;
-        };
-        // No batch assigned — check timeout
-        case null (now - staging.createdAt) > Const.BATCH_EXPIRY_DURATION;
-      };
-      if (shouldRemove) Vector.add(keysToRemove, nodeKey);
-    };
-
-    for (key in Vector.vals(keysToRemove)) {
-      ignore Map.remove(self.staging, Utils.hashNodes, key);
-      // Remove the placeholder file node from FS
-      ignore FileSystem.removeNodeByKey(self.fs, key);
-    };
-  };
-
   public func listVersions(self : T.StableStore, caller : Principal, args : T.ListVersionsArguments) : Result.Result<[T.FileVersionDetails], Text> {
     switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
       case (#ok _) {};
@@ -1701,9 +1598,15 @@ module EncryptedFileStorage {
     // Decertify old current version
     switch (File.getCurrentVersion(file)) {
       case (?prevVer) {
-        decertifyBlobInfo(self, node.keyId, prevVer);
+        Certification.decertifyBlobInfo(self, {
+          keyId = node.keyId;
+          version = prevVer;
+        });
         switch (prevVer.sha256) {
-          case (?sha) CertifiedAssets.remove(self.certs, endpoint(node.keyId, sha));
+          case (?sha) Certification.removeContentHash(self, {
+            keyId = node.keyId;
+            hash = sha;
+          });
           case null {};
         };
       };
@@ -1719,9 +1622,15 @@ module EncryptedFileStorage {
     // Certify new current version
     switch (File.getCurrentVersion(file)) {
       case (?newVer) {
-        certifyBlobInfo(self, node.keyId, newVer);
+        Certification.certifyBlobInfo(self, {
+          keyId = node.keyId;
+          version = newVer;
+        });
         switch (newVer.sha256) {
-          case (?sha) CertifiedAssets.certify(self.certs, endpoint(node.keyId, sha));
+          case (?sha) Certification.certifyContentHash(self, {
+            keyId = node.keyId;
+            hash = sha;
+          });
           case null {};
         };
       };
@@ -1741,18 +1650,27 @@ module EncryptedFileStorage {
     onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<(), Text> {
-    switch (onSubscriptionRefresh) {
-      case (?refresh) switch (await* refresh()) {
-        case (#err msg) return #err msg;
-        case (#ok _) {};
-      };
-      case null {};
+    switch (await* refreshSubscriptionStatus(onSubscriptionRefresh)) {
+      case (#err msg) return #err msg;
+      case (#ok) {};
     };
 
     switch (onEncryptedUpload) {
       case (?check) switch (check(additionalBytes)) {
         case (#err msg) #err msg;
         case (#ok) #ok;
+      };
+      case null #ok;
+    };
+  };
+
+  func refreshSubscriptionStatus(
+    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
+  ) : async* Result.Result<(), Text> {
+    switch (onSubscriptionRefresh) {
+      case (?refresh) switch (await* refresh()) {
+        case (#err msg) #err msg;
+        case (#ok _) #ok;
       };
       case null #ok;
     };
@@ -1777,47 +1695,87 @@ module EncryptedFileStorage {
     let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
 
     // Check if node is in staging (incomplete upload)
-    let nodeKey = entryToNodeKey(self.fs, entry);
+    let nodeKey = UploadStaging.entryToNodeKey(self.fs, { entry });
 
     switch (node, args) {
       case ({ keyId; metadata = #File(file) }, #File { metadata = { sha256; chunkIds; contentType } }) {
-        var totalLength = 0;
-        var errorMessage : ?Text = null;
+        var committedBatchId : ?T.BatchId = null;
 
-        let chunkPointers = Array.map<Nat, T.SizedPointer>(
-          chunkIds,
-          func(chunkId : Nat) : T.SizedPointer {
-            let chunkPointer = switch (Upload.getChunkPointer(self.upload, chunkId)) {
-              case (?pointer) pointer;
-              case (null) {
-                errorMessage := ?("Chunk with id " # debug_show chunkId # " not found.");
-                (0, 0);
+        for (chunkId in chunkIds.vals()) {
+          let ?chunk = Upload.getChunk(self.upload, chunkId) else return #err("Chunk with id " # Nat.toText(chunkId) # " not found.");
+          switch (committedBatchId) {
+            case (?batchId) {
+              if (batchId != chunk.batchId) {
+                return #err("Invalid upload: chunks must belong to the same batch.");
               };
             };
+            case null committedBatchId := ?chunk.batchId;
+          };
+        };
 
-            totalLength += chunkPointer.1;
+        let batchId = switch (committedBatchId) {
+          case (?value) ?value;
+          case null null;
+        };
 
-            chunkPointer;
-          },
-        );
-
-        switch (errorMessage) {
-          case (?message) return #err message;
+        switch (batchId) {
+          case (?id) {
+            let ?batch = Upload.getBatch(self.upload, id) else return #err(ErrorMessages.batchNotFound(id));
+            if (not Principal.equal(batch.owner, caller)) {
+              return #err("Batch " # Nat.toText(id) # " does not belong to caller");
+            };
+            if (batch.totalBytes != batch.declaredTotalBytes) {
+              return #err(
+                "Invalid upload: batch " #
+                Nat.toText(id) #
+                " has " #
+                Nat.toText(batch.totalBytes) #
+                " bytes uploaded but declared " #
+                Nat.toText(batch.declaredTotalBytes) #
+                " bytes."
+              );
+            };
+          };
           case null {};
         };
 
-        // Trial limit verification with actual totalLength
+        let chunkPointers = switch (batchId) {
+          case (?id) switch (Upload.getPointersForChunkIds(self.upload, id, chunkIds)) {
+            case (#ok(value)) value;
+            case (#err(message)) return #err message;
+          };
+          case null [];
+        };
+
+        var totalLength = 0;
+        for ((_, size) in chunkPointers.vals()) {
+          totalLength += size;
+        };
+
+        // Size was reserved at createBatch; refresh entitlement status before commit.
         if (file.encryptionMode == #Encrypted) {
-          switch (await* checkEncryptedUpload(totalLength, onEncryptedUpload, onSubscriptionRefresh)) {
+          switch (await* refreshSubscriptionStatus(onSubscriptionRefresh)) {
             case (#err msg) return #err msg;
             case (#ok) {};
           };
         };
 
-        let hash = switch (await* asyncHashChunksViaPointers(self, chunkPointers)) {
-          case (#ok(hash)) hash;
-          case (#err(msg)) return #err("Failed to hash chunks: " # msg); // dead section?
+        let hashResult = switch (batchId) {
+          case (?id) switch (Upload.getBatchHash(self.upload, id)) {
+            case (#ok(value)) value;
+            case (#err(msg)) return #err("Failed to finalize upload hash: " # msg);
+          };
+          case null {
+            let sha256 = Sha256.Digest(#sha256);
+            {
+              hash = sha256.sum();
+              bytes = 0;
+              chunkCount = 0;
+              hashInstructions = 0;
+            };
+          };
         };
+        let hash = hashResult.hash;
 
         switch (sha256) {
           case (?providedHash) {
@@ -1828,26 +1786,35 @@ module EncryptedFileStorage {
           case null {};
         };
 
-        // Materialize chunks before addVersion (avoid lazy iterator + dealloc issue)
-        let chunks = Array.map<T.SizedPointer, Blob>(
-          chunkPointers,
-          func(address : Nat, size : Nat) : Blob = MemoryRegion.loadBlob(self.upload.region, address, size),
-        );
-
         // Decertify stale blob-info from previous version (if BlobStorage)
         switch (File.getCurrentVersion(file)) {
-          case (?prevVer) decertifyBlobInfo(self, keyId, prevVer);
+          case (?prevVer) Certification.decertifyBlobInfo(self, {
+            keyId;
+            version = prevVer;
+          });
           case null {};
         };
 
-        File.addVersion(self.fs, file, chunks.vals(), totalLength, hash, contentType);
-        CertifiedAssets.certify(self.certs, endpoint(keyId, hash));
+        let contentRefs = Array.map<T.SizedPointer, T.ContentRef>(
+          chunkPointers,
+          func(address : Nat, size : Nat) : T.ContentRef = #OnChain(address, size),
+        );
 
-        // Track encrypted bytes for trial limit (cumulative — not decreased on delete)
-        if (file.encryptionMode == #Encrypted) {
-          self.encryptedBytesUsed += totalLength;
-          self.unreportedTrialBytes += totalLength;
+        let encryptedBytesBefore = FileAccounting.encryptedFileStoredBytes(file);
+        File.addVersionRefs(self.fs, file, contentRefs, totalLength, hash, contentType);
+        Certification.certifyContentHash(self, {
+          keyId;
+          hash;
+        });
+        switch (batchId) {
+          case (?batchId) ignore Upload.forgetBatch(self.upload, batchId);
+          case null {};
         };
+
+        FileAccounting.applyEncryptedFileStoredBytesDelta(self, {
+          file;
+          beforeBytes = encryptedBytesBefore;
+        });
 
         // Remove staging marker — file upload is now complete
         switch (nodeKey) {
@@ -1862,56 +1829,6 @@ module EncryptedFileStorage {
         #ok;
       };
       case _ Runtime.unreachable();
-    };
-  };
-
-  ///LINK - https://github.com/NatLabs/ic-assets/blob/53515e5c1372846c918911aa665f8df0cbdde2e1/src/BaseAssets/AssetUtils.mo#L558-L603
-  func asyncHashChunksViaPointers(self : T.StableStore, chunkPointers : [(Nat, Nat)]) : async* Result.Result<Blob, Text> {
-    // need to make multiple async calls to hash the content
-    // to bypass the 40B instruction limit
-
-    // From the Sha256 benchmarks we know that hashing 1MB of data uses about 320M instructions
-    // So we can safely hash about 60MB of data before we hit the 40B instruction limit
-    // Assuming each chunk is less than 2MB (the suggested transfer limit for the IC), we can hash
-    // 60 in a single call
-
-    let pointers = Vector.new<T.SizedPointer>();
-    let hashSections = Vector.new<[T.SizedPointer]>();
-
-    var accumulatedSize = 0;
-    var i = 0;
-
-    for (chunkPointer in chunkPointers.vals()) {
-      Vector.add(pointers, chunkPointer);
-      accumulatedSize += chunkPointer.1;
-      i += 1;
-
-      if (accumulatedSize > Const.MAX_HASHING_BYTES_PER_CALL) {
-        accumulatedSize := chunkPointer.1;
-        Vector.add(hashSections, Vector.toArray(pointers));
-        Vector.clear(pointers);
-      };
-
-      if (i == chunkPointers.size()) {
-        Vector.add(hashSections, Vector.toArray(pointers));
-        Vector.clear(pointers);
-      };
-    };
-
-    let sha256 = Sha256.Digest(#sha256);
-
-    for (hashSection in Vector.vals(hashSections)) {
-      await hashChunksSection(self, sha256, hashSection);
-    };
-
-    #ok(sha256.sum());
-  };
-
-  func hashChunksSection(self : T.StableStore, sha256 : Sha256.Digest, chunkPointers : [(Nat, Nat)]) : async () {
-    for ((address, size) in chunkPointers.vals()) {
-      let chunk = MemoryRegion.loadBlob(self.upload.region, address, size);
-
-      sha256.writeBlob(chunk);
     };
   };
 
@@ -1945,20 +1862,64 @@ module EncryptedFileStorage {
               switch (File.getCurrentVersion(file)) {
                 case (?version) {
                   switch (version.sha256) {
-                    case (?sha) CertifiedAssets.remove(self.certs, endpoint(node.keyId, sha));
+                    case (?sha) Certification.removeContentHash(self, {
+                      keyId = node.keyId;
+                      hash = sha;
+                    });
                     case null {};
                   };
-                  decertifyBlobInfo(self, node.keyId, version);
+                  Certification.decertifyBlobInfo(self, {
+                    keyId = node.keyId;
+                    version;
+                  });
                 };
                 case null {};
               };
+              let encryptedBytesBefore = FileAccounting.encryptedFileStoredBytes(file);
               File.deallocateAll(self.fs, file);
+              FileAccounting.applyEncryptedFileStoredBytesDelta(self, {
+                file;
+                beforeBytes = encryptedBytesBefore;
+              });
             };
             case _ {};
           };
         };
       };
       case (#err(message)) return #err message;
+    };
+
+    #ok;
+  };
+
+  /// Preflights a Caffeine upload before the frontend encrypts and uploads
+  /// chunks to the gateway. Commit still enforces the same gate.
+  public func preflightCaffeineUpload(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.PreflightCaffeineUploadArgs,
+    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
+  ) : async* Result.Result<(), Text> {
+    switch (self.storageBackendType) {
+      case (#BlobStorage) {};
+      case (#OnChain) return #err("Blob Storage is not enabled for this storage");
+    };
+
+    let entry = (#File, args.entry.1);
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
+    let #File(file) = node.metadata else return #err("Expected file, got directory");
+
+    if (file.encryptionMode == #Encrypted) {
+      switch (await* checkEncryptedUpload(args.size, onEncryptedUpload, onSubscriptionRefresh)) {
+        case (#err msg) return #err msg;
+        case (#ok) {};
+      };
     };
 
     #ok;
@@ -1991,24 +1952,34 @@ module EncryptedFileStorage {
 
     // Decertify stale blob-info from previous version (if BlobStorage)
     switch (File.getCurrentVersion(file)) {
-      case (?prevVer) decertifyBlobInfo(self, node.keyId, prevVer);
+      case (?prevVer) Certification.decertifyBlobInfo(self, {
+        keyId = node.keyId;
+        version = prevVer;
+      });
       case null {};
     };
 
+    let encryptedBytesBefore = FileAccounting.encryptedFileStoredBytes(file);
     File.addVersionBlobStorage(self.fs, file, Text.encodeUtf8(args.rootHash), args.size, args.sha256, args.contentType);
-    CertifiedAssets.certify(self.certs, endpoint(node.keyId, args.sha256));
+    Certification.certifyContentHash(self, {
+      keyId = node.keyId;
+      hash = args.sha256;
+    });
 
     // Certify blob-info for new BlobStorage version
     let (_, blobInfoHash) = Utils.blobInfoJson(args.rootHash, args.contentType, args.size);
-    CertifiedAssets.certify(self.certs, blobInfoEndpoint(node.keyId, blobInfoHash));
+    CertifiedAssets.certify(self.certs, Certification.blobInfoEndpoint({
+      keyId = node.keyId;
+      bodyHash = blobInfoHash;
+    }));
 
-    if (file.encryptionMode == #Encrypted) {
-      self.encryptedBytesUsed += args.size;
-      self.unreportedTrialBytes += args.size;
-    };
+    FileAccounting.applyEncryptedFileStoredBytesDelta(self, {
+      file;
+      beforeBytes = encryptedBytesBefore;
+    });
 
     // Remove staging marker
-    let nodeKey = entryToNodeKey(self.fs, entry);
+    let nodeKey = UploadStaging.entryToNodeKey(self.fs, { entry });
     switch (nodeKey) {
       case (?nk) ignore Map.remove(self.staging, Utils.hashNodes, nk);
       case null {};
@@ -2045,8 +2016,8 @@ module EncryptedFileStorage {
       case (#err message) return #err message;
     };
 
-    // Trial limit pre-check for encrypted files (before uploading chunks)
-    let nodeKey = entryToNodeKey(self.fs, args.entry);
+    // Included storage pre-check for encrypted files (before uploading chunks)
+    let nodeKey = UploadStaging.entryToNodeKey(self.fs, { entry = args.entry });
     let isEncrypted = switch (nodeKey) {
       case (?nk) switch (Map.get(self.staging, Utils.hashNodes, nk)) {
         case (?{ node = { metadata = #File(fileMeta) } }) fileMeta.encryptionMode == #Encrypted;
@@ -2062,42 +2033,111 @@ module EncryptedFileStorage {
       };
     };
 
-    // Cleanup expired staging entries
-    cleanupExpiredStaging(self);
+    let shape = switch (UploadSession.validateUploadShape({
+      totalSize = args.totalSize;
+      expectedChunkCount = args.expectedChunkCount;
+      declaredUploadBytes = args.declaredUploadBytes;
+      isEncrypted;
+    })) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(message);
+    };
 
-    let result = Upload.createBatch(self.upload, caller);
+    // Cleanup expired staging entries
+    UploadStaging.cleanupExpired(self);
+
+    let result = Upload.createBatch(self.upload, caller, shape.declaredUploadBytes, shape.chunkCount);
 
     // Bind staging entry to the newly created batch
     switch (result) {
-      case (#ok { batchId }) {
-        let nodeKey = entryToNodeKey(self.fs, args.entry);
-        switch (nodeKey) {
-          case (?nk) switch (Map.get(self.staging, Utils.hashNodes, nk)) {
-            case (?staging) staging.batchId := ?batchId;
-            case null {};
-          };
-          case null {};
-        };
-      };
+      case (#ok { batchId }) UploadStaging.bindBatch(self, {
+        entry = args.entry;
+        batchId;
+      });
       case _ {};
     };
 
     result;
   };
 
-  public func rollbackBatch(self : T.StableStore, caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> {
-    let ?batch = Upload.getBatch(self.upload, batchId) else return #ok;
-    if (not Principal.equal(batch.owner, caller)) {
-      return #err("Batch " # debug_show batchId # " does not belong to caller");
-    };
+  public func activeUploadReservationBytes(self : T.StableStore) : Nat {
+    Upload.activeDeclaredBytes(self.upload);
+  };
 
-    ignore Upload.removeBatch(self.upload, batchId);
-    for ((_, staging) in Map.entries(self.staging)) {
-      if (staging.batchId == ?batchId) {
-        staging.batchId := null;
+  public func activeUploadStagingBytes(self : T.StableStore) : Nat {
+    Upload.activeUploadedBytes(self.upload);
+  };
+
+  public func activeUploadStagingChunkCount(self : T.StableStore) : Nat {
+    Upload.activeUploadedChunkCount(self.upload);
+  };
+
+  public func activeUploadSessions(self : T.StableStore) : [ActiveUploadSession] {
+    Upload.activeSessions(self.upload);
+  };
+
+  public func activeEncryptedUploadSessionCount(self : T.StableStore) : Nat {
+    UploadSession.activeEncryptedCount(self);
+  };
+
+  public func memoryInfo(self : T.StableStore) : T.MemoryInfo {
+    MemoryRegion.memoryInfo(self.region);
+  };
+
+  public func beginUploadSession(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.BeginUploadSessionArguments,
+    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
+  ) : async* Result.Result<T.BeginUploadSessionResponse, Text> {
+    await* UploadSession.begin(self, caller, {
+      request = args;
+      hooks = {
+        onEncryptedUpload = onEncryptedUpload;
+        onSubscriptionRefresh = onSubscriptionRefresh;
+        createTarget = func(createArgs : T.CreateArguments) : Result.Result<T.NodeDetails, Text> {
+          create(self, caller, createArgs);
+        };
       };
-    };
-    #ok;
+    });
+  };
+
+  public func getUploadSession(self : T.StableStore, caller : Principal, batchId : T.BatchId) : Result.Result<T.UploadSessionStatus, Text> {
+    UploadSession.get(self, caller, { batchId });
+  };
+
+  public func appendUploadChunk(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.CreateChunkArguments,
+    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+  ) : Result.Result<T.CreateChunkResponse, Text> {
+    createChunk(self, caller, args, onEncryptedUpload);
+  };
+
+  public func finishUploadSession(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.FinishUploadSessionArguments,
+    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
+  ) : async* Result.Result<UploadCommitMeasurement, Text> {
+    await* UploadSession.finish(self, caller, {
+      request = args;
+      gates = {
+        onEncryptedUpload = onEncryptedUpload;
+        onSubscriptionRefresh = onSubscriptionRefresh;
+      };
+    });
+  };
+
+  public func abortUploadSession(self : T.StableStore, caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> {
+    UploadSession.abort(self, caller, { batchId });
+  };
+
+  public func rollbackBatch(self : T.StableStore, caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> {
+    UploadSession.rollback(self, caller, { batchId });
   };
 
   /// Creates a chunk
@@ -2112,32 +2152,10 @@ module EncryptedFileStorage {
   /// // after uploading all the chunks of the file, you can call the `update` method and attach the chunks to the already created file.
   /// ```
   public func createChunk(self : T.StableStore, caller : Principal, args : T.Chunk, onEncryptedUpload : ?(Nat -> Result.Result<(), Text>)) : Result.Result<T.CreateChunkResponse, Text> {
-    // Gate check before writing chunk to memory region
-    if (isEncryptedBatch(self, args.batchId)) {
-      let batchBytes = switch (Upload.getBatch(self.upload, args.batchId)) {
-        case (?batch) batch.totalBytes;
-        case null 0;
-      };
-      switch (onEncryptedUpload) {
-        case (?check) switch (check(batchBytes + args.content.size())) {
-          case (#err msg) return #err msg;
-          case (#ok) {};
-        };
-        case null {};
-      };
-    };
+    let _ = onEncryptedUpload;
+    // Storage quota is reserved at createBatch/beginUploadSession. Per-chunk
+    // checks only enforce the declared batch size inside Upload.createChunk.
     Upload.createChunk(self.upload, caller, args);
-  };
-
-  /// Reverse lookup: find if a batch belongs to an encrypted file via staging entries.
-  func isEncryptedBatch(self : T.StableStore, batchId : T.BatchId) : Bool {
-    for ((_, staging) in Map.entries(self.staging)) {
-      if (staging.batchId == ?batchId) {
-        let #File(fileMeta) = staging.node.metadata else return false;
-        return fileMeta.encryptionMode == #Encrypted;
-      };
-    };
-    false;
   };
 
   /// Move directories and files from one location to another. The method also recursively merges folders and files, replacing existing files and combining access rights.
@@ -2295,7 +2313,7 @@ module EncryptedFileStorage {
     let rawNodes = FileSystem.listByParentId(self.fs, parentId);
     let allItems = Array.map(rawNodes, func(node : T.NodeStore) : T.NodeDetails = FileSystem.getDetails(self.fs, self.storageBackendType, node));
     // Filter out staged (incomplete upload) files
-    let items = Array.filter(allItems, func(node : T.NodeDetails) : Bool = not isStaged(self, node));
+    let items = Array.filter(allItems, func(node : T.NodeDetails) : Bool = not UploadStaging.isStaged(self, { node }));
 
     if (not canRead) {
       // Check if caller can read the node directly OR has access to any descendant

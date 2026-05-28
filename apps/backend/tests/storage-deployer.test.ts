@@ -1,6 +1,7 @@
 import type { CanisterFixture } from "@dfinity/pic";
 import { createIdentity } from "@dfinity/pic";
 import { fromNullable, principalToSubAccount, uint8ArrayToHexString } from "@dfinity/utils";
+import { IDL } from "@icp-sdk/core/candid";
 import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
@@ -46,6 +47,26 @@ async function createFailedStorageWithLicense(
 import { BackendManager } from "./setup/backend-manager";
 import { E8S_PER_ICP, ICP_LEDGER_CANISTER_ID, ICP_TRANSACTION_FEE, ONE_TRILLION_CYCLES } from "./setup/constants";
 import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
+
+const CheckSubscriptionResultIDL = IDL.Variant({
+  active: IDL.Record({ plan: IDL.Variant({ Free: IDL.Null, Pro: IDL.Null }) }),
+  licensed: IDL.Record({
+    includedBytes: IDL.Nat,
+    maxFileBytes: IDL.Nat,
+  }),
+  expired: IDL.Null,
+  free: IDL.Null,
+  invalidWasm: IDL.Null,
+  unknownCanister: IDL.Null,
+});
+
+type CheckSubscriptionResult =
+  | { active: { plan: { Free: null } | { Pro: null } } }
+  | { expired: null }
+  | { free: null }
+  | { invalidWasm: null }
+  | { licensed: { includedBytes: bigint; maxFileBytes: bigint } }
+  | { unknownCanister: null };
 
 async function drainTreasuryIcpBelowCmcFunding(
   manager: BackendManager,
@@ -226,6 +247,32 @@ function listCreationsByIdOpts(creationId: bigint): ListCreationsOptions {
     pagination: { limit: 1n, offset: 0n },
     count: false,
   };
+}
+
+async function pollCreationStatusById(
+  manager: BackendManager,
+  backendFixture: CanisterFixture<RabbitholeActorService>,
+  creationId: bigint,
+  maxAttempts = 120,
+): Promise<CreationStatus | null> {
+  let latestStatus: CreationStatus | null = null;
+
+  for (let attempts = 0; attempts < maxAttempts; attempts++) {
+    await manager.pic.advanceTime(100);
+    await manager.pic.tick(5);
+
+    const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    if (data.length === 0) continue;
+
+    latestStatus = data[0]!.status;
+    if (attempts % 10 === 0 || "Completed" in latestStatus || "Failed" in latestStatus) {
+      console.log(`  Status: ${formatCreationStatus(latestStatus)}`);
+    }
+
+    if ("Completed" in latestStatus || "Failed" in latestStatus) break;
+  }
+
+  return latestStatus;
 }
 
 /**
@@ -496,6 +543,105 @@ describe("StorageDeployer", () => {
 
     expect(storage.status).toHaveProperty("Completed");
     expect(storage.canisterId.length).toBe(1);
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("purchaseLicenseAndCreateStorage preserves active Pro subscription", { timeout: 180000 }, async () => {
+    const identity = createIdentity("pro-license-no-downgrade");
+
+    await waitForReleasesReady(manager, backendFixture);
+    await fundUserForStorage(manager, backendFixture, identity);
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+    await backendFixture.actor.activateSubscription(
+      identity.getPrincipal(),
+      { Pro: null },
+      [],
+    );
+
+    backendFixture.actor.setIdentity(identity);
+    const before = await backendFixture.actor.getSubscription();
+    expect(before[0]?.plan).toEqual({ Pro: null });
+
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
+    expect(result).toHaveProperty("ok");
+    if (!("ok" in result)) throw new Error("Expected storage purchase to start");
+
+    const finalStatus = await pollCreationStatusById(manager, backendFixture, result.ok, 60);
+    expect(finalStatus).toHaveProperty("Completed");
+
+    const after = await backendFixture.actor.getSubscription();
+    expect(after).toHaveLength(1);
+    expect(after[0]!.plan).toEqual({ Pro: null });
+    expect(after[0]!.status).toEqual({ Active: null });
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  });
+
+  test("expired Pro falls back to storage license entitlement", { timeout: 240000 }, async () => {
+    const identity = createIdentity("expired-pro-license-fallback");
+
+    await waitForReleasesReady(manager, backendFixture);
+    await fundUserForStorage(manager, backendFixture, identity);
+
+    backendFixture.actor.setIdentity(identity);
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
+    expect(result).toHaveProperty("ok");
+    if (!("ok" in result)) throw new Error("Expected storage purchase to start");
+
+    const finalStatus = await pollCreationStatusById(manager, backendFixture, result.ok, 80);
+    expect(finalStatus).toHaveProperty("Completed");
+    if (!finalStatus || !("Completed" in finalStatus)) {
+      throw new Error("Expected completed storage creation");
+    }
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+    const nowNs = BigInt(await manager.pic.getTime()) * 1_000_000n;
+    await backendFixture.actor.activateSubscription(
+      identity.getPrincipal(),
+      { Pro: null },
+      [nowNs - 1_000_000_000n],
+    );
+
+    const [knownHash] = await backendFixture.actor.listKnownWasmHashes();
+    if (!knownHash) throw new Error("Expected at least one known storage WASM hash");
+
+    const response = await manager.pic.updateCall({
+      canisterId: backendFixture.canisterId,
+      sender: finalStatus.Completed.canisterId,
+      method: "checkSubscription",
+      arg: IDL.encode([IDL.Vec(IDL.Nat8)], [knownHash.hash]),
+    });
+    const [decoded] = IDL.decode([CheckSubscriptionResultIDL], response) as [
+      CheckSubscriptionResult,
+    ];
+
+    expect(decoded).toHaveProperty("licensed");
+    if (!("licensed" in decoded)) throw new Error("Expected licensed fallback");
+    expect(decoded.licensed.includedBytes).toBeGreaterThan(0n);
+    expect(decoded.licensed.maxFileBytes).toBeGreaterThan(0n);
+
+    const storageActor = manager.pic.createActor<EncryptedStorageActorService>(
+      encryptedStorageIdlFactory,
+      finalStatus.Completed.canisterId,
+    );
+    storageActor.setIdentity(identity);
+    await storageActor.refreshSubscription();
+    await expect(
+      storageActor.createAccessBatch({
+        items: [
+          {
+            ref: { principal: createIdentity("expired-pro-share-recipient").getPrincipal() },
+            accessClass: { ordinary: null },
+            scope: { root: null },
+            permission: { Read: null },
+            source: { directGrant: null },
+            expiresAt: [],
+          },
+        ],
+      }),
+    ).rejects.toThrow(/active pro/i);
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
@@ -1275,8 +1421,7 @@ describe("StorageDeployer", () => {
   test("creation timeline emits all ProcessingPayment sub-phases in order", async () => {
     // Piggy-back on the fully-deployed storage from the E2E test — it's the
     // only record that goes through the entire payment pipeline. Failed
-    // creations stop mid-sequence, so they can't verify the tail (Activating,
-    // Queueing).
+    // creations stop mid-sequence, so they can't verify the tail (Queueing).
     const e2eTestIdentity = createIdentity("e2eStorageTestUser");
     backendFixture.actor.setIdentity(e2eTestIdentity);
     const storages = await backendFixture.actor.listStorages();
@@ -1305,7 +1450,6 @@ describe("StorageDeployer", () => {
       "ProcessingPayment.CheckingBalances",
       "ProcessingPayment.Charging",
       "ProcessingPayment.RecordingLicense",
-      "ProcessingPayment.Activating",
       "ProcessingPayment.Queueing",
     ];
     for (const phase of expectedPhases) expect(fullTags).toContain(phase);

@@ -43,6 +43,7 @@ import SettingsMixin "Settings/mixin";
 import SharedAccess "SharedAccess/lib";
 import StorageAccessBackendConsumer "StorageAccessBridge/BackendConsumer";
 import TreasuryMixin "Treasury/mixin";
+import Subscriptions "Subscriptions/lib";
 import SubscriptionsMixin "Subscriptions/mixin";
 import PaymentsMixin "Payments/mixin";
 import Balance "Balance/lib";
@@ -207,16 +208,22 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
+  func storageLicenseLimits<system>() : Subscriptions.LicenseStorageLimits {
+    {
+      includedBytes = Utils.envNat<system>("STORAGE_LICENSE_INCLUDED_BYTES", 5_368_709_120);
+      maxFileBytes = Utils.envNat<system>("STORAGE_LICENSE_MAX_FILE_BYTES", 2_147_483_648);
+    };
+  };
+  transient let currentStorageLicenseLimits = storageLicenseLimits<system>();
+
   include SubscriptionsMixin(
     db,
     { assertAdmin },
     {
       findOwnerByCanister = func(cId : Principal) : ?Principal = StorageDeployerOrchestrator.findOwnerByCanister(creations, cId);
+      findStorageLicense = func(cId : Principal) : ?StorageDeployerOrchestrator.License = StorageDeployerOrchestrator.findLicenseByCanister(licenses, cId);
       isKnownWasm;
-      hasUsedTrial;
-      markTrialUsed;
       onSubscriptionChanged = notifyUserStoragesSubscriptionChanged;
-      userExists;
     },
   );
   let STORAGE_INITIAL_CYCLES : Nat = 1_500_000_000_000;
@@ -352,6 +359,16 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     onCreationChanged = ?emitCreationChanged;
   };
 
+  transient var includedFundingSettlementHook : (Nat, CmcRecovery.IncludedFundingSettlement) -> () = func(_, _) {};
+
+  func registerIncludedFundingSettlementHook(hook : (Nat, CmcRecovery.IncludedFundingSettlement) -> ()) {
+    includedFundingSettlementHook := hook;
+  };
+
+  func settleIncludedFundingReservation(blockIndex : Nat, settlement : CmcRecovery.IncludedFundingSettlement) {
+    includedFundingSettlementHook(blockIndex, settlement);
+  };
+
   // --- Internal: storage environment for license purchase ---
   func storageVetKeyEnv<system>(level : Payments.StorageVetKeyLevel) : ?[{ name : Text; value : Text }] {
     let keyName = switch (level) {
@@ -389,7 +406,6 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     {
       events = backendEvents;
       getAmbassadorChain;
-      activateSubscription = activateSubscriptionInternal;
       grantPaidPeriod = grantPaidPeriodInternal;
       onSubscriptionChanged = notifyUserStoragesSubscriptionChanged;
       distributePayment = treasuryDistributePayment;
@@ -402,7 +418,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
           paymentId = receipt.paymentId;
           paidAt = receipt.paidAt;
           status = #completed;
-        });
+        }, currentStorageLicenseLimits);
       };
     },
   );
@@ -425,16 +441,13 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   transient let BACKEND_CYCLES_THRESHOLD : Nat = 2_000_000_000_000; // 2 TC
   transient let BACKEND_CYCLES_TARGET    : Nat = 5_000_000_000_000; // 5 TC
 
-  // OnChain uploads write into stable memory and can trap at the system
-  // boundary before the app can convert the failure to a typed error. Keep a
-  // conservative operation reserve and scale it with declared upload size.
-  transient let STORAGE_ONCHAIN_UPLOAD_BASE_MIN_CYCLES : Nat = 1_000_000_000_000; // 1 TC
-  transient let STORAGE_ONCHAIN_UPLOAD_CYCLES_PER_GIB : Nat = 250_000_000_000; // 0.25 TC
-  transient let GIB_BYTES : Nat = 1_024 * 1_024 * 1_024;
-
-  func requiredStorageCyclesForOnChainUpload(totalSize : Nat) : Nat {
-    let roundedGiB = if (totalSize == 0) 0 else (totalSize + GIB_BYTES - 1) / GIB_BYTES;
-    STORAGE_ONCHAIN_UPLOAD_BASE_MIN_CYCLES + (roundedGiB * STORAGE_ONCHAIN_UPLOAD_CYCLES_PER_GIB);
+  type EnsureStorageCyclesForUploadRequest = {
+    currentBalance : Nat;
+    requiredBalance : Nat;
+    postWriteFreezingReserve : Nat;
+    projectedCapacityBytes : Nat;
+    remainingUploadBytes : Nat;
+    activeUploadedBytes : Nat;
   };
 
   func getIcpXdrRate() : async Nat {
@@ -446,25 +459,20 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   func getXrcRate(base : Text, quote : Text) : async ?(Nat64, Nat32) {
     let xrc = actor (XRC_CANISTER_ID) : XRCTypes.Self;
     try {
-      Debug.print("[xrc] " # base # "/" # quote # " attach=" # Nat.toText(XRC_CYCLES_COST) # " balanceBefore=" # Nat.toText(Cycles.balance()));
       let result = await (with cycles = XRC_CYCLES_COST) xrc.get_exchange_rate({
         base_asset = { symbol = base; class_ = #Cryptocurrency };
         quote_asset = { symbol = quote; class_ = #FiatCurrency };
         timestamp = null;
       });
-      Debug.print("[xrc] " # base # "/" # quote # " balanceAfter=" # Nat.toText(Cycles.balance()) # " refunded=" # Nat.toText(Cycles.refunded()));
       switch (result) {
         case (#Ok(rate)) {
-          Debug.print("[xrc] " # base # "/" # quote # " ok rate=" # Nat64.toText(rate.rate) # " decimals=" # debug_show rate.metadata.decimals);
           ?(rate.rate, rate.metadata.decimals);
         };
-        case (#Err(e)) {
-          Debug.print("[xrc] " # base # "/" # quote # " err=" # debug_show e);
+        case (#Err(_)) {
           null;
         };
       };
-    } catch (e) {
-      Debug.print("[xrc] " # base # "/" # quote # " TRAP: " # Error.message(e));
+    } catch (_) {
       null;
     };
   };
@@ -509,8 +517,10 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   /// Transfer ICP from the treasury subaccount to CMC for a target
   /// canister. Caller must ensure sufficient balance via
-  /// `guardTreasuryIcpReserve`. CMC `#Refunded` returns ICP to the
-  /// same subaccount, keeping the round-trip inside treasury.
+  /// `guardTreasuryIcpReserve`, including the ledger fee. `icpE8s`
+  /// is the amount CMC should receive; the ledger fee is charged
+  /// separately by `ledger.transfer`. CMC `#Refunded` returns ICP to
+  /// the same subaccount, keeping the round-trip inside treasury.
   func transferIcpToCmc(icpE8s : Nat, targetCanisterId : Principal) : async Result.Result<Nat, Text> {
     await transferIcpToCmcInner(icpE8s, targetCanisterId, ?TreasuryConst.treasurySubaccount());
   };
@@ -742,6 +752,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       refundFailedCreationInternal;
       events = backendEvents;
       selfCanisterId = canisterId;
+      settleIncludedFundingReservation;
     },
   );
 
@@ -763,7 +774,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
           };
           case null null;
         };
-        await* handleCmcNotifyError(#storageCreation({ creationId }), blockIndex, refund, err);
+        ignore await* handleCmcNotifyError(#storageCreation({ creationId }), blockIndex, refund, err);
       }
     );
   };
@@ -798,6 +809,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       backendCyclesThreshold = BACKEND_CYCLES_THRESHOLD;
       backendCyclesTarget = BACKEND_CYCLES_TARGET;
       onSubscriptionChanged = notifyUserStoragesSubscriptionChanged;
+      registerIncludedFundingSettlement = registerIncludedFundingSettlementHook;
     },
   );
 
@@ -858,7 +870,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// The initial record is created with `#ProcessingPayment(#Starting)`. A
   /// detached Timer picks up the flow on the next tick and transitions the
   /// record through all payment phases (`FetchingRates`, `Charging`,
-  /// `RecordingLicense`, `Activating`, `Queueing`) before handing off to the
+  /// `RecordingLicense`, `Queueing`) before handing off to the
   /// unified deploy queue.
   public shared ({ caller }) func purchaseLicenseAndCreateStorage(
     storageBackendType : Payments.StorageBackendType,
@@ -953,18 +965,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       paidAt = Time.now();
       status = #completed;
     };
-    switch (StorageDeployerOrchestrator.addLicense(licenses, caller, receipt)) {
+    switch (StorageDeployerOrchestrator.addLicense(licenses, caller, receipt, currentStorageLicenseLimits)) {
       case (#ok()) {};
       case (#err(#DuplicatePayment)) {}; // Idempotent
     };
     StorageDeployerOrchestrator.setLicensePaymentId(creations, creationId, charged.paymentId);
-
-    // Activate Trial if not already subscribed.
-    appendCreationEvent(creationId, #ProcessingPayment(#Activating));
-    switch (activateSubscriptionInternal(caller, #Trial, null)) {
-      case (#ok) await notifyUserStoragesSubscriptionChanged(caller);
-      case (#err(_)) {};
-    };
 
     // Hand off to the deploy queue. startStorageCreation will flip the record
     // to #Pending (distinct tag — new timeline event).
@@ -1113,10 +1118,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ///     That's self-sabotage (controller loses Pro features), not a
   ///     risk for us — so we don't verify.
   ///
-  /// Trial — NOT auto-activated. Trial is part of the License offer
-  /// (strategy §3), not a freebie for any account registration.
-  /// Controller who wants Trial calls `activateTrial()` separately
-  /// (per-account, not per-storage; only once per account).
+  /// Storage license entitlement is attached only through the paid creation
+  /// flow. Imported canisters do not receive included encrypted storage quota.
   public shared ({ caller }) func addStorage(
     canisterId : Principal,
     initArg : Blob,
@@ -1222,24 +1225,30 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ) : async () {
     let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(creations, caller) else return;
     emitBackendNotification(storageOwner, #lowCycles({ canisterId = caller; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
+    backendEvents.emit(#cyclesAlert({
+      target = #storage({ accountOwner = storageOwner; canisterId = caller });
+      remaining = balance;
+      threshold = null;
+      estimatedDaysLeft = ?daysLeft;
+      severity;
+    }));
     // Trigger auto top-up if user has it enabled
     await processAutoTopUp(storageOwner, caller, balance, severity);
   };
 
   public shared ({ caller }) func ensureStorageCyclesForUpload(
-    currentBalance : Nat,
-    totalSize : Nat,
+    request : EnsureStorageCyclesForUploadRequest,
   ) : async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text> {
     let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(creations, caller) else {
       return #err("Unknown storage canister");
     };
 
-    let requiredBalance = requiredStorageCyclesForOnChainUpload(totalSize);
-    if (currentBalance >= requiredBalance) {
+    let requiredBalance = request.requiredBalance;
+    if (request.currentBalance >= requiredBalance) {
       return #ok({ cyclesAdded = null; requiredBalance });
     };
 
-    switch (await ensureAutoTopUpForStorageOperation<system>(storageOwner, caller, currentBalance, requiredBalance)) {
+    switch (await ensureAutoTopUpForStorageOperation<system>(storageOwner, caller, request.currentBalance, requiredBalance)) {
       case (#ok(info)) #ok({ cyclesAdded = ?info.cyclesAdded; requiredBalance });
       case (#err(message)) #err(message);
     };

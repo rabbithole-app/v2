@@ -8,6 +8,7 @@ export * from './notification.service';
 export * from './profile.service';
 export * from './registration.service';
 export * from './settings.service';
+export * from './storage-funding.service';
 export * from './subscription.service';
 export * from './upload-base.service';
 export * from './upload-registry.service';

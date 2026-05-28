@@ -10,6 +10,8 @@ import { IDL } from '@icp-sdk/core/candid';
 
 export const idlFactory = ({ IDL }) => {
   const TreeNode = IDL.Rec();
+  const BatchId = IDL.Nat;
+  const DeleteBatchArguments = IDL.Record({ 'batchId' : BatchId });
   const Permission = IDL.Variant({
     'Read' : IDL.Null,
     'ReadWrite' : IDL.Null,
@@ -30,6 +32,126 @@ export const idlFactory = ({ IDL }) => {
   });
   const AddRecoveryOwnerOptions = IDL.Record({
     'controllerRecovery' : IDL.Bool,
+  });
+  const CreateChunkArguments = IDL.Record({
+    'content' : IDL.Vec(IDL.Nat8),
+    'chunkIndex' : IDL.Opt(IDL.Nat),
+    'batchId' : BatchId,
+  });
+  const CreateChunkResponse = IDL.Record({ 'chunkId' : IDL.Nat });
+  const CreateMode = IDL.Variant({
+    'GetOrCreate' : IDL.Null,
+    'CreateNew' : IDL.Null,
+  });
+  const Entry = IDL.Tuple(
+    IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
+    IDL.Text,
+  );
+  const EncryptionMode = IDL.Variant({
+    'Encrypted' : IDL.Null,
+    'Plaintext' : IDL.Null,
+  });
+  const BeginUploadSessionArguments = IDL.Record({
+    'declaredUploadBytes' : IDL.Opt(IDL.Nat),
+    'createMode' : CreateMode,
+    'totalSize' : IDL.Nat,
+    'expectedChunkCount' : IDL.Opt(IDL.Nat),
+    'entry' : Entry,
+    'encryptionMode' : IDL.Opt(EncryptionMode),
+  });
+  const StorageBackend = IDL.Variant({
+    'OnChain' : IDL.Null,
+    'BlobStorage' : IDL.Null,
+  });
+  const Owner = IDL.Principal;
+  const KeyName = IDL.Vec(IDL.Nat8);
+  const KeyId = IDL.Tuple(Owner, KeyName);
+  const ThumbnailEncryptionRef = IDL.Variant({
+    'Encrypted' : IDL.Record({
+      'algorithm' : IDL.Text,
+      'wrappedKey' : IDL.Vec(IDL.Nat8),
+      'blobIv' : IDL.Vec(IDL.Nat8),
+      'scopeKeyId' : KeyId,
+    }),
+    'Plaintext' : IDL.Null,
+  });
+  const ThumbnailRef = IDL.Variant({
+    'OnChain' : IDL.Record({
+      'key' : IDL.Text,
+      'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+      'contentType' : IDL.Text,
+      'size' : IDL.Nat,
+      'encryption' : ThumbnailEncryptionRef,
+    }),
+    'BlobStorage' : IDL.Record({
+      'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+      'contentType' : IDL.Text,
+      'size' : IDL.Nat,
+      'encryption' : ThumbnailEncryptionRef,
+      'blobId' : IDL.Vec(IDL.Nat8),
+      'rootHash' : IDL.Text,
+    }),
+  });
+  const FileMetadata = IDL.Record({
+    'storageBackend' : StorageBackend,
+    'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'thumbnailRef' : IDL.Opt(ThumbnailRef),
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+    'currentVersion' : IDL.Nat,
+    'encryptionMode' : EncryptionMode,
+    'chunkCount' : IDL.Nat,
+    'versionCount' : IDL.Nat,
+  });
+  const DirectoryColor = IDL.Variant({
+    'blue' : IDL.Null,
+    'gray' : IDL.Null,
+    'orange' : IDL.Null,
+    'pink' : IDL.Null,
+    'purple' : IDL.Null,
+    'green' : IDL.Null,
+    'yellow' : IDL.Null,
+  });
+  const ThumbnailEncryptionPolicy = IDL.Variant({
+    'FollowFile' : IDL.Null,
+    'Inherit' : IDL.Null,
+  });
+  const ThumbnailStoragePolicy = IDL.Variant({
+    'OnChain' : IDL.Null,
+    'BlobStorage' : IDL.Null,
+    'Inherit' : IDL.Null,
+  });
+  const DirectoryEncryptionPolicy = IDL.Variant({
+    'Encrypted' : IDL.Null,
+    'Auto' : IDL.Null,
+    'Plaintext' : IDL.Null,
+  });
+  const DirectoryMetadata = IDL.Record({
+    'color' : IDL.Opt(DirectoryColor),
+    'thumbnailEncryptionPolicy' : ThumbnailEncryptionPolicy,
+    'defaultEncryptionMode' : EncryptionMode,
+    'defaultThumbnailStorageBackend' : StorageBackend,
+    'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
+    'encryptionPolicy' : DirectoryEncryptionPolicy,
+  });
+  const SharingInfo = IDL.Record({ 'sharedWith' : IDL.Nat });
+  const NodeDetails = IDL.Record({
+    'id' : IDL.Nat64,
+    'modifiedAt' : IDL.Opt(Time),
+    'metadata' : IDL.Variant({
+      'File' : FileMetadata,
+      'Directory' : DirectoryMetadata,
+    }),
+    'name' : IDL.Text,
+    'createdAt' : Time,
+    'callerPermission' : IDL.Opt(Permission),
+    'sharing' : IDL.Opt(SharingInfo),
+    'parentId' : IDL.Opt(IDL.Nat64),
+    'keyId' : KeyId,
+  });
+  const BeginUploadSessionResponse = IDL.Record({
+    'node' : NodeDetails,
+    'batchId' : BatchId,
   });
   const CancelAccessRequestArguments = IDL.Record({ 'requestId' : IDL.Nat });
   const AccessRequestStatus = IDL.Variant({
@@ -59,10 +181,6 @@ export const idlFactory = ({ IDL }) => {
     'matured' : IDL.Null,
     'grace' : IDL.Null,
   });
-  const Entry = IDL.Tuple(
-    IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
-    IDL.Text,
-  );
   const KeyId__2 = IDL.Tuple(IDL.Principal, IDL.Vec(IDL.Nat8));
   const AccessScope = IDL.Variant({
     'root' : IDL.Null,
@@ -163,18 +281,6 @@ export const idlFactory = ({ IDL }) => {
     'revokedAt' : IDL.Opt(Time),
   });
   const ClaimPendingAccessGrantArguments = IDL.Record({ 'grantId' : IDL.Nat });
-  const Owner = IDL.Principal;
-  const KeyName = IDL.Vec(IDL.Nat8);
-  const KeyId = IDL.Tuple(Owner, KeyName);
-  const ThumbnailEncryptionRef = IDL.Variant({
-    'Encrypted' : IDL.Record({
-      'algorithm' : IDL.Text,
-      'wrappedKey' : IDL.Vec(IDL.Nat8),
-      'blobIv' : IDL.Vec(IDL.Nat8),
-      'scopeKeyId' : KeyId,
-    }),
-    'Plaintext' : IDL.Null,
-  });
   const CommitThumbnailUploadArguments = IDL.Record({
     'sha256' : IDL.Vec(IDL.Nat8),
     'contentType' : IDL.Text,
@@ -182,92 +288,6 @@ export const idlFactory = ({ IDL }) => {
     'encryption' : ThumbnailEncryptionRef,
     'entry' : Entry,
     'rootHash' : IDL.Text,
-  });
-  const StorageBackend = IDL.Variant({
-    'OnChain' : IDL.Null,
-    'BlobStorage' : IDL.Null,
-  });
-  const ThumbnailRef = IDL.Variant({
-    'OnChain' : IDL.Record({
-      'key' : IDL.Text,
-      'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-      'contentType' : IDL.Text,
-      'size' : IDL.Nat,
-      'encryption' : ThumbnailEncryptionRef,
-    }),
-    'BlobStorage' : IDL.Record({
-      'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-      'contentType' : IDL.Text,
-      'size' : IDL.Nat,
-      'encryption' : ThumbnailEncryptionRef,
-      'blobId' : IDL.Vec(IDL.Nat8),
-      'rootHash' : IDL.Text,
-    }),
-  });
-  const EncryptionMode = IDL.Variant({
-    'Encrypted' : IDL.Null,
-    'Plaintext' : IDL.Null,
-  });
-  const FileMetadata = IDL.Record({
-    'storageBackend' : StorageBackend,
-    'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'thumbnailRef' : IDL.Opt(ThumbnailRef),
-    'contentType' : IDL.Text,
-    'size' : IDL.Nat,
-    'currentVersion' : IDL.Nat,
-    'encryptionMode' : EncryptionMode,
-    'chunkCount' : IDL.Nat,
-    'versionCount' : IDL.Nat,
-  });
-  const DirectoryColor = IDL.Variant({
-    'blue' : IDL.Null,
-    'gray' : IDL.Null,
-    'orange' : IDL.Null,
-    'pink' : IDL.Null,
-    'purple' : IDL.Null,
-    'green' : IDL.Null,
-    'yellow' : IDL.Null,
-  });
-  const ThumbnailEncryptionPolicy = IDL.Variant({
-    'FollowFile' : IDL.Null,
-    'Inherit' : IDL.Null,
-  });
-  const ThumbnailStoragePolicy = IDL.Variant({
-    'OnChain' : IDL.Null,
-    'BlobStorage' : IDL.Null,
-    'Inherit' : IDL.Null,
-  });
-  const DirectoryEncryptionPolicy = IDL.Variant({
-    'Encrypted' : IDL.Null,
-    'Auto' : IDL.Null,
-    'Plaintext' : IDL.Null,
-  });
-  const DirectoryMetadata = IDL.Record({
-    'color' : IDL.Opt(DirectoryColor),
-    'thumbnailEncryptionPolicy' : ThumbnailEncryptionPolicy,
-    'defaultEncryptionMode' : EncryptionMode,
-    'defaultThumbnailStorageBackend' : StorageBackend,
-    'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
-    'encryptionPolicy' : DirectoryEncryptionPolicy,
-  });
-  const SharingInfo = IDL.Record({ 'sharedWith' : IDL.Nat });
-  const NodeDetails = IDL.Record({
-    'id' : IDL.Nat64,
-    'modifiedAt' : IDL.Opt(Time),
-    'metadata' : IDL.Variant({
-      'File' : FileMetadata,
-      'Directory' : DirectoryMetadata,
-    }),
-    'name' : IDL.Text,
-    'createdAt' : Time,
-    'callerPermission' : IDL.Opt(Permission),
-    'sharing' : IDL.Opt(SharingInfo),
-    'parentId' : IDL.Opt(IDL.Nat64),
-    'keyId' : KeyId,
-  });
-  const CreateMode = IDL.Variant({
-    'GetOrCreate' : IDL.Null,
-    'CreateNew' : IDL.Null,
   });
   const CreateArguments = IDL.Record({
     'createMode' : CreateMode,
@@ -291,13 +311,13 @@ export const idlFactory = ({ IDL }) => {
     'principalGrants' : IDL.Vec(PrincipalAccessGrant),
     'cancelledPendingGrants' : IDL.Vec(PendingAccessGrant),
   });
-  const BatchId = IDL.Nat;
-  const CreateBatchResponse = IDL.Record({ 'batchId' : BatchId });
-  const CreateChunkArguments = IDL.Record({
-    'content' : IDL.Vec(IDL.Nat8),
-    'batchId' : BatchId,
+  const CreateBatchArguments = IDL.Record({
+    'declaredUploadBytes' : IDL.Opt(IDL.Nat),
+    'totalSize' : IDL.Nat,
+    'expectedChunkCount' : IDL.Opt(IDL.Nat),
+    'entry' : Entry,
   });
-  const CreateChunkResponse = IDL.Record({ 'chunkId' : IDL.Nat });
+  const CreateBatchResponse = IDL.Record({ 'batchId' : BatchId });
   const CreateDurableAccessGrantArguments = IDL.Record({
     'permission' : Permission,
     'principal' : IDL.Principal,
@@ -320,6 +340,11 @@ export const idlFactory = ({ IDL }) => {
   const DeleteArguments = IDL.Record({
     'recursive' : IDL.Bool,
     'entry' : Entry,
+  });
+  const FinishUploadSessionArguments = IDL.Record({
+    'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'contentType' : IDL.Text,
+    'batchId' : BatchId,
   });
   TreeNode.fill(
     IDL.Record({ 'name' : IDL.Text, 'children' : IDL.Opt(IDL.Vec(TreeNode)) })
@@ -559,6 +584,7 @@ export const idlFactory = ({ IDL }) => {
     'encryptionPolicy' : IDL.Opt(DirectoryEncryptionPolicy),
   });
   const EncryptedStorageCanister = IDL.Service({
+    'abortUploadSession' : IDL.Func([DeleteBatchArguments], [], []),
     'activateRecoveryOwnership' : IDL.Func(
         [IDL.Principal],
         [OwnerEquivalentPrincipal],
@@ -567,6 +593,16 @@ export const idlFactory = ({ IDL }) => {
     'addRecoveryOwner' : IDL.Func(
         [IDL.Principal, AddRecoveryOwnerOptions],
         [OwnerEquivalentPrincipal],
+        [],
+      ),
+    'appendUploadChunk' : IDL.Func(
+        [CreateChunkArguments],
+        [CreateChunkResponse],
+        [],
+      ),
+    'beginUploadSession' : IDL.Func(
+        [BeginUploadSessionArguments],
+        [BeginUploadSessionResponse],
         [],
       ),
     'cancelAccessRequest' : IDL.Func(
@@ -607,7 +643,7 @@ export const idlFactory = ({ IDL }) => {
         [CreateAccessBatchResult],
         [],
       ),
-    'createBatch' : IDL.Func([CreateArguments], [CreateBatchResponse], []),
+    'createBatch' : IDL.Func([CreateBatchArguments], [CreateBatchResponse], []),
     'createChunk' : IDL.Func([CreateChunkArguments], [CreateChunkResponse], []),
     'createDurableAccessGrant' : IDL.Func(
         [CreateDurableAccessGrantArguments],
@@ -625,10 +661,10 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'delete' : IDL.Func([DeleteArguments], [], []),
+    'finishUploadSession' : IDL.Func([FinishUploadSessionArguments], [], []),
     'fsTree' : IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     'getChunk' : IDL.Func([GetChunkArguments], [ChunkContent], ['query']),
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
-    'getModuleHash' : IDL.Func([], [IDL.Opt(IDL.Vec(IDL.Nat8))], []),
     'getMyAccessRequest' : IDL.Func([], [IDL.Opt(AccessRequest)], ['query']),
     'getOwnerActivityState' : IDL.Func([], [OwnerActivityState], ['query']),
     'getRecoveryStatus' : IDL.Func([], [RecoveryStatus], ['query']),

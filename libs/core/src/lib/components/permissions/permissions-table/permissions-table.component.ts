@@ -239,7 +239,8 @@ export class PermissionsTableComponent {
     pageIndex: 0,
   });
   private readonly _sorting = signal<SortingState>([]);
-  protected readonly _table = createAngularTable<StoragePermissionItem>(() => ({
+  protected readonly _table: ReturnType<typeof createAngularTable<StoragePermissionItem>> =
+    createAngularTable<StoragePermissionItem>(() => ({
     // data: this.#permissionsService.listPermitted.value(),
     data: this.data(),
     columns: this._columns(),

@@ -16,7 +16,7 @@ import {
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 export interface UpgradePromptContext {
-  feature: 'encrypt' | 'share' | 'trial-expired' | 'trial-limit';
+  feature: 'encrypt' | 'share' | 'storage-limit' | 'file-size-limit';
 }
 
 const FEATURE_CONFIG = {
@@ -28,13 +28,13 @@ const FEATURE_CONFIG = {
     title: 'Sharing requires Pro',
     description: 'File sharing is a Pro feature. Upgrade to share encrypted files with trusted people using granular permissions.',
   },
-  'trial-limit': {
-    title: 'Trial encryption limit reached',
-    description: "You've used 100 MB of trial encryption. Upgrade to Pro for unlimited E2E encryption.",
+  'storage-limit': {
+    title: 'Included storage limit reached',
+    description: 'Your included encrypted storage is full. Upgrade to Pro for managed funding and higher limits.',
   },
-  'trial-expired': {
-    title: 'Your trial has ended',
-    description: 'Your 14-day Pro trial is over. Your encrypted files are safe — upgrade to continue encrypting and sharing.',
+  'file-size-limit': {
+    title: 'File too large for included storage',
+    description: 'This file is larger than the included storage file limit. Upgrade to Pro for larger files and managed storage funding.',
   },
 } as const;
 

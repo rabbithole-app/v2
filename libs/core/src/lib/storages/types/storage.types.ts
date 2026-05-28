@@ -31,11 +31,10 @@ export interface FrontendInstallDiagnostics {
 
 /**
  * Sub-phases of `ProcessingPayment`. Backend advances the record through
- * these while running charge → addLicense → activateTrial → queueing deploy.
+ * these while running charge → addLicense → queueing deploy.
  */
 export type PaymentPhase =
   | { amount: bigint; tokenId: TokenId; type: 'Charging' }
-  | { type: 'Activating' }
   | { type: 'CheckingBalances' }
   | { type: 'FetchingRates' }
   | { type: 'Queueing' }

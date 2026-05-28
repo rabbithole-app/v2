@@ -149,11 +149,6 @@ export class AvatarCropDialogComponent {
       });
   }
 
-  #errorMessage(error: unknown): string {
-    if (error instanceof Error && error.message) return error.message;
-    return 'Unknown error';
-  }
-
   /**
    * Converts cropper position coordinates from display size to original image size.
    *
@@ -234,5 +229,10 @@ export class AvatarCropDialogComponent {
         return { buffer: payload.bytes, contentType: payload.imageType };
       }),
     );
+  }
+
+  #errorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    return 'Unknown error';
   }
 }

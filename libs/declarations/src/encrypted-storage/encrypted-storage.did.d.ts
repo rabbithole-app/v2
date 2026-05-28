@@ -50,6 +50,15 @@ export type AccessSource = { 'durablePolicy' : bigint } |
   { 'directGrant' : null } |
   { 'ordinaryInvite' : bigint } |
   { 'recoverySetup' : null };
+export interface ActiveUploadProjection {
+  'uploadedChunkCount' : bigint,
+  'reservationBytes' : bigint,
+  'uploadedBytes' : bigint,
+  'remainingBytes' : bigint,
+  'sessionCount' : bigint,
+  'remainingChunkCount' : bigint,
+  'encryptedSessionCount' : bigint,
+}
 export interface AddRecoveryOwnerOptions { 'controllerRecovery' : boolean }
 export interface AssetDetails {
   'key' : Key,
@@ -71,6 +80,18 @@ export type BatchOperationKind = {
   { 'DeleteAsset' : DeleteAssetArguments } |
   { 'SetAssetContent' : SetAssetContentArguments } |
   { 'Clear' : ClearArguments };
+export interface BeginUploadSessionArguments {
+  'declaredUploadBytes' : [] | [bigint],
+  'createMode' : CreateMode,
+  'totalSize' : bigint,
+  'expectedChunkCount' : [] | [bigint],
+  'entry' : Entry,
+  'encryptionMode' : [] | [EncryptionMode],
+}
+export interface BeginUploadSessionResponse {
+  'node' : NodeDetails,
+  'batchId' : BatchId,
+}
 export interface CallbackStreamingStrategy {
   'token' : StreamingToken,
   'callback' : [Principal, string],
@@ -78,6 +99,25 @@ export interface CallbackStreamingStrategy {
 export interface CancelAccessRequestArguments { 'requestId' : bigint }
 export interface CancelDurableAccessPolicyArguments { 'policyId' : bigint }
 export interface CancelPendingAccessGrantArguments { 'grantId' : bigint }
+export interface CanisterCyclesCardMetrics {
+  'memory' : UploadMemoryProjection,
+  'safety' : CycleSafetyEnvelope,
+  'runtimeMemory' : RuntimeMemoryMetrics,
+  'balance' : bigint,
+  'cost' : UploadCycleCostEstimate,
+  'freezingThresholdSeconds' : bigint,
+  'lastCommit' : [] | [LastUploadCommitMetrics],
+  'activity' : ActiveUploadProjection,
+  'funding' : CanisterCyclesFundingState,
+}
+export interface CanisterCyclesFundingState {
+  'requestedTargetBalance' : bigint,
+  'requestedBytes' : bigint,
+  'lastRequestedAt' : [] | [Time],
+  'lastCompletedAt' : [] | [Time],
+  'lastError' : [] | [string],
+  'inFlight' : boolean,
+}
 export interface CertifiedTree {
   'certificate' : Uint8Array,
   'tree' : Uint8Array,
@@ -161,15 +201,14 @@ export interface CreateAssetArguments {
   'max_age' : [] | [bigint],
   'enable_aliasing' : [] | [boolean],
 }
-export interface CreateBatchArguments { 'totalSize' : bigint, 'entry' : Entry }
 export interface CreateBatchResponse { 'batch_id' : BatchId }
-export interface CreateBatchResponse__1 { 'batchId' : BatchId }
 export interface CreateChunkArguments {
   'content' : Uint8Array,
   'batch_id' : BatchId,
 }
 export interface CreateChunkArguments__1 {
   'content' : Uint8Array,
+  'chunkIndex' : [] | [bigint],
   'batchId' : BatchId,
 }
 export interface CreateChunkResponse { 'chunk_id' : bigint }
@@ -199,6 +238,13 @@ export interface CreatePendingAccessGrantArguments {
   'source' : AccessSource,
   'scope' : AccessScope,
   'accessClass' : AccessClass,
+}
+export interface CycleSafetyEnvelope {
+  'minimumSafeBalance' : bigint,
+  'targetBalance' : bigint,
+  'operationFloorBalance' : bigint,
+  'postWriteFreezingReserve' : bigint,
+  'currentFreezingReserve' : bigint,
 }
 export interface DeleteArguments { 'recursive' : boolean, 'entry' : Entry }
 export interface DeleteAssetArguments { 'key' : Key }
@@ -295,6 +341,10 @@ export interface EncryptedStorageCanister {
     _ImmutableObjectStorageRefillResult
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
+  'abortUploadSession' : ActorMethod<
+    [{ 'batchId' : BatchId }],
+    StorageResult_1
+  >,
   'activateRecoveryOwnership' : ActorMethod<
     [Principal],
     OwnerEquivalentPrincipal
@@ -304,7 +354,12 @@ export interface EncryptedStorageCanister {
     OwnerEquivalentPrincipal
   >,
   'api_version' : ActorMethod<[], number>,
+  'appendUploadChunk' : ActorMethod<[CreateChunkArguments__1], StorageResult_6>,
   'attributeNonceBegin' : ActorMethod<[], Uint8Array>,
+  'beginUploadSession' : ActorMethod<
+    [BeginUploadSessionArguments],
+    StorageResult_5
+  >,
   'cancelAccessRequest' : ActorMethod<
     [CancelAccessRequestArguments],
     AccessRequest
@@ -364,11 +419,6 @@ export interface EncryptedStorageCanister {
     [CreatePendingAccessGrantArguments],
     PendingAccessGrant
   >,
-  'createStorageBatch' : ActorMethod<[CreateBatchArguments], StorageResult_3>,
-  'createStorageChunk' : ActorMethod<
-    [CreateChunkArguments__1],
-    StorageResult_2
-  >,
   'create_asset' : ActorMethod<[CreateAssetArguments], undefined>,
   'create_batch' : ActorMethod<[{}], CreateBatchResponse>,
   'create_chunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
@@ -376,22 +426,24 @@ export interface EncryptedStorageCanister {
   'delete' : ActorMethod<[DeleteArguments], undefined>,
   'delete_asset' : ActorMethod<[DeleteAssetArguments], undefined>,
   'delete_batch' : ActorMethod<[DeleteBatchArguments], undefined>,
+  'finishUploadSession' : ActorMethod<
+    [FinishUploadSessionArguments],
+    StorageResult_1
+  >,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'get' : ActorMethod<[GetArgs], EncodedAsset>,
+  'getCanisterCyclesCardMetrics' : ActorMethod<[], StorageResult_3>,
   'getCycleBalance' : ActorMethod<[], bigint>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
-  /**
-   * / Get canister module_hash via canister_status.
-   * / Only accessible by canister controllers.
-   */
-  'getModuleHash' : ActorMethod<[], [] | [Uint8Array]>,
   'getMyAccessRequest' : ActorMethod<[], [] | [AccessRequest]>,
   'getOwnerActivityState' : ActorMethod<[], OwnerActivityState>,
   'getRecoveryStatus' : ActorMethod<[], RecoveryStatus>,
   'getStatus' : ActorMethod<[], StorageStatus>,
   'getStorageBackendType' : ActorMethod<[], StorageBackend>,
+  'getStorageCardMetrics' : ActorMethod<[], StorageResult_2>,
   'getStorageChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getStorageEventsUnreadCount' : ActorMethod<[], bigint>,
+  'getUploadSession' : ActorMethod<[{ 'batchId' : BatchId }], StorageResult_4>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'get_chunk' : ActorMethod<[GetChunkArgs], ChunkContent>,
   'get_configuration' : ActorMethod<[], ConfigurationResponse>,
@@ -433,6 +485,10 @@ export interface EncryptedStorageCanister {
   'markAllVisibleStorageEventsRead' : ActorMethod<[], undefined>,
   'markStorageEventsRead' : ActorMethod<[bigint], undefined>,
   'move' : ActorMethod<[MoveArguments], undefined>,
+  'preflightCaffeineUpload' : ActorMethod<
+    [PreflightCaffeineUploadArgs],
+    StorageResult_1
+  >,
   'prepareThumbnailUpload' : ActorMethod<
     [PrepareThumbnailUploadArguments],
     PrepareThumbnailUploadResult
@@ -446,6 +502,8 @@ export interface EncryptedStorageCanister {
     [RecordOwnerActivityArguments],
     OwnerActivityRecord
   >,
+  'refreshCanisterCyclesCardMetrics' : ActorMethod<[], StorageResult_3>,
+  'refreshStorageCardMetrics' : ActorMethod<[], StorageResult_2>,
   'refreshSubscription' : ActorMethod<[], undefined>,
   'registerRecoveryController' : ActorMethod<
     [Principal],
@@ -535,6 +593,11 @@ export interface FileVersionDetails {
   'size' : bigint,
   'index' : bigint,
 }
+export interface FinishUploadSessionArguments {
+  'sha256' : [] | [Uint8Array],
+  'contentType' : string,
+  'batchId' : BatchId,
+}
 export interface GetArgs { 'key' : Key, 'accept_encodings' : Array<string> }
 export interface GetChunkArgs {
   'key' : Key,
@@ -570,6 +633,12 @@ export type Key = string;
 export type KeyId = [Owner, KeyName];
 export type KeyId__2 = [Principal, Uint8Array];
 export type KeyName = Uint8Array;
+export interface LastUploadCommitMetrics {
+  'hashRoundCount' : bigint,
+  'chunkCount' : bigint,
+  'bytes' : bigint,
+  'hashInstructionCycles' : bigint,
+}
 export interface ListAccessGrantsArguments {
   'mode' : AccessGrantListMode,
   'scope' : [] | [AccessScope],
@@ -587,6 +656,13 @@ export interface ListedPendingAccessGrant {
 export interface ListedPrincipalAccessGrant {
   'inheritedFrom' : [] | [AccessScope],
   'grant' : PrincipalAccessGrant,
+}
+export interface MemoryInfo {
+  'allocated' : bigint,
+  'size' : bigint,
+  'deallocated' : bigint,
+  'pages' : bigint,
+  'capacity' : bigint,
 }
 export interface MoveArguments { 'entry' : Entry, 'target' : [] | [Entry] }
 export interface NodeDetails {
@@ -651,8 +727,11 @@ export type Permission__1 = { 'Read' : null } |
   { 'ReadWriteManage' : null };
 export type Plan = { 'Pro' : null } |
   { 'Free' : null } |
-  { 'License' : null } |
-  { 'Trial' : null };
+  { 'License' : null };
+export interface PreflightCaffeineUploadArgs {
+  'size' : bigint,
+  'entry' : Entry,
+}
 export interface PrepareThumbnailUploadArguments {
   'contentType' : string,
   'size' : bigint,
@@ -732,6 +811,11 @@ export interface RevokeAccessBatchResult {
 export interface RevokePermission {
   'permission' : Permission,
   'of_principal' : Principal,
+}
+export interface RuntimeMemoryMetrics {
+  'runtimeStableMemoryBytes' : [] | [bigint],
+  'runtimeMemoryBytes' : [] | [bigint],
+  'memoryInfo' : MemoryInfo,
 }
 export interface SetAssetContentArguments {
   'key' : Key,
@@ -822,8 +906,18 @@ export type StorageAccessEvent = {
   { 'recoveryOwnerRemoved' : { 'principal' : Principal } };
 export type StorageBackend = { 'OnChain' : null } |
   { 'BlobStorage' : null };
+export interface StorageCardMetrics {
+  'runtimeStableMemoryBytes' : [] | [bigint],
+  'runtimeMemoryBytes' : [] | [bigint],
+  'encryptedBytesUsed' : bigint,
+  'subscriptionStatus' : [] | [SubscriptionStatus],
+  'backendId' : [] | [Principal],
+  'storageBackendType' : StorageBackend,
+  'memoryInfo' : MemoryInfo,
+}
 export interface StorageError { 'code' : StorageErrorCode, 'message' : string }
 export type StorageErrorCode = { 'Internal' : null } |
+  { 'FundingPending' : null } |
   { 'NotFound' : null } |
   { 'PermissionDenied' : null } |
   { 'InsufficientCycles' : null } |
@@ -835,9 +929,15 @@ export type StorageResult = { 'ok' : NodeDetails } |
   { 'err' : StorageError };
 export type StorageResult_1 = { 'ok' : null } |
   { 'err' : StorageError };
-export type StorageResult_2 = { 'ok' : CreateChunkResponse__1 } |
+export type StorageResult_2 = { 'ok' : StorageCardMetrics } |
   { 'err' : StorageError };
-export type StorageResult_3 = { 'ok' : CreateBatchResponse__1 } |
+export type StorageResult_3 = { 'ok' : CanisterCyclesCardMetrics } |
+  { 'err' : StorageError };
+export type StorageResult_4 = { 'ok' : UploadSessionStatus } |
+  { 'err' : StorageError };
+export type StorageResult_5 = { 'ok' : BeginUploadSessionResponse } |
+  { 'err' : StorageError };
+export type StorageResult_6 = { 'ok' : CreateChunkResponse__1 } |
   { 'err' : StorageError };
 export interface StorageStatus {
   'cycleBalance' : bigint,
@@ -871,9 +971,9 @@ export interface StreamingCallbackResponse {
 }
 export type StreamingStrategy = { 'Callback' : CallbackStreamingStrategy };
 export type StreamingToken = Uint8Array;
-export type SubscriptionStatus = { 'trial' : { 'remainingBytes' : bigint } } |
-  { 'active' : { 'plan' : Plan } } |
+export type SubscriptionStatus = { 'active' : { 'plan' : Plan } } |
   { 'expired' : null } |
+  { 'licensed' : { 'includedBytes' : bigint, 'maxFileBytes' : bigint } } |
   { 'free' : null } |
   { 'unknownCanister' : null } |
   { 'invalidWasm' : null };
@@ -945,6 +1045,27 @@ export interface UpdateDirectoryPolicyArguments {
   'thumbnailEncryptionPolicy' : [] | [ThumbnailEncryptionPolicy],
   'thumbnailStoragePolicy' : [] | [ThumbnailStoragePolicy],
   'encryptionPolicy' : [] | [DirectoryEncryptionPolicy],
+}
+export interface UploadCycleCostEstimate {
+  'vetKeyDerivation' : bigint,
+  'remainingWrite' : bigint,
+  'operation' : bigint,
+  'commit' : bigint,
+  'remainingHashInstructions' : bigint,
+  'commitMetadata' : bigint,
+}
+export interface UploadMemoryProjection {
+  'projectedAllocatedBytes' : bigint,
+  'projectedCapacityDeltaBytes' : bigint,
+  'projectedCapacityBytes' : bigint,
+}
+export interface UploadSessionStatus {
+  'declaredUploadBytes' : bigint,
+  'expiresAt' : Time,
+  'owner' : Principal,
+  'uploadedBytes' : bigint,
+  'chunkIds' : Array<ChunkId>,
+  'batchId' : BatchId,
 }
 export type VetKey = Uint8Array;
 export type VetKeyVerificationKey = Uint8Array;

@@ -30,6 +30,7 @@ import {
   UPLOAD_SERVICE_TOKEN,
   UploadState,
 } from '@rabbithole/core/storage-runtime';
+import { uint8ArrayToArrayBuffer } from '@rabbithole/encrypted-storage';
 import {
   RbthDrawerComponent,
   RbthDrawerContentComponent,
@@ -211,7 +212,10 @@ export class FrontendUploadDrawerComponent {
         const files = await extractFrontendArchive(file);
         this.#uploadService.clear();
         for (const entry of files) {
-          const asset = new File([toArrayBuffer(entry.bytes)], entry.fileName);
+          const asset = new File(
+            [uint8ArrayToArrayBuffer(entry.bytes)],
+            entry.fileName,
+          );
           await this.#uploadService.add({ file: asset, path: entry.path });
         }
       } catch (error) {
@@ -237,10 +241,4 @@ function isFrontendArchiveFile(file: File): boolean {
     file.name.endsWith('.tar.gz') ||
     file.name.endsWith('.tgz')
   );
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buffer).set(bytes);
-  return buffer;
 }

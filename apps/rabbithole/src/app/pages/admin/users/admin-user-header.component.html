@@ -48,9 +48,6 @@
       <span hlmBadge variant="outline">
         {{ _identityProvider(user) }}
       </span>
-      <span hlmBadge [variant]="user.trialUsed ? 'secondary' : 'outline'">
-        trial {{ user.trialUsed ? 'used' : 'unused' }}
-      </span>
       <span
         hlmBadge
         [variant]="user.identity.verifiedEmail[0] ? 'default' : 'outline'"

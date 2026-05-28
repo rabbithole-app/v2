@@ -5,7 +5,7 @@ version = "0.1.0"
 [dependencies]
 map = "9.0.1"
 liminal = "3.1.0"
-core = "2.4.0"
+core = "2.5.0"
 ic = "3.2.0"
 # Direct imports not auto-resolved from liminal transitive deps
 jwt = "2.1.1"
@@ -15,5 +15,5 @@ base-x-encoder = "2.1.0"
 candid = "2.4.2"
 
 [toolchain]
-moc = "1.4.1"
-wasmtime = "43.0.0"
+moc = "1.8.2"
+wasmtime = "45.0.0"

@@ -89,18 +89,6 @@
             </span>
           </div>
           <div>
-            <div class="text-sm text-muted-foreground">Auto renew</div>
-            <div class="font-medium">
-              {{ subscription.autoRenew ? 'yes' : 'no' }}
-            </div>
-          </div>
-          <div>
-            <div class="text-sm text-muted-foreground">Trial used bytes</div>
-            <div class="font-medium">
-              {{ _formatBytes(subscription.trialUsedBytes) }}
-            </div>
-          </div>
-          <div>
             <div class="text-sm text-muted-foreground">Activated</div>
             <div class="font-medium">
               {{ _date(subscription.activatedAt) | date: 'medium' }}

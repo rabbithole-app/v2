@@ -23,6 +23,7 @@ export type {
   CmcOpKind,
   CmcOpRetryResult,
   CmcOpSource,
+  RefundReceipt,
   PendingRefund,
   PendingCmcOp,
   WithdrawArgs,
@@ -39,6 +40,7 @@ export type {
   Progress,
   StatsView,
   StorageBackendType,
+  StorageFundingStatus,
   StorageVetKeyLevel,
   // Releases types
   ReleasesFullStatus,

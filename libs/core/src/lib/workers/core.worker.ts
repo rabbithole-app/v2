@@ -34,11 +34,13 @@ import {
 } from 'rxjs/operators';
 import { match, P } from 'ts-pattern';
 
+import type { ThumbnailEncryptionRef } from '@rabbithole/declarations/encrypted-storage';
 import {
     AssetManager,
     EncryptedStorage,
     Entry,
     StorageThumbnailRef,
+    uint8ArrayToArrayBuffer,
 } from '@rabbithole/encrypted-storage';
 
 import {
@@ -86,6 +88,14 @@ const postMessage = (message: CoreWorkerMessageOut, transfer?: Transferable[]) =
 const ANONYMOUS_PRINCIPAL_ID = Principal.anonymous().toText();
 const WORKER_IDENTITY_UNAVAILABLE_MESSAGE =
   'Your signed-in session is not available to uploads. Sign out and sign in again, then retry.';
+const MAX_THUMBNAIL_SOURCE_BYTES = 64 * 1024 * 1024;
+const DEFAULT_CONCURRENT_UPLOADS = 3;
+
+type EncryptedStorageWorkerInstance = {
+  assetManager: AssetManager;
+  encryptedStorage: EncryptedStorage;
+  principalId: string;
+};
 
 // Initialize WASM module - required for worker context
 let wasmInitialized = false;
@@ -169,6 +179,15 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
       }
       break;
     }
+    case 'thumbnail:rewrap': {
+      const request = thumbnailRewrapRequestSchema(data.payload);
+      if (request instanceof type.errors) {
+        console.error(request.summary);
+      } else {
+        rewrapThumbnails.next(request);
+      }
+      break;
+    }
     case 'upload:add-asset': {
       const asset = uploadAssetSchema(data.payload);
       if (asset instanceof type.errors) {
@@ -198,6 +217,15 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
             errorMessage: file.summary,
           },
         });
+      } else if (!(file.file instanceof File)) {
+        postMessage({
+          action: 'upload:progress-file',
+          payload: {
+            id: data.payload.id,
+            status: UploadState.FAILED,
+            errorMessage: 'file must be an instance of File',
+          },
+        });
       } else if (
         file.offscreenCanvas !== undefined &&
         !(file.offscreenCanvas instanceof OffscreenCanvas)
@@ -215,6 +243,7 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
       } else {
         uploadFiles.next({
           ...file,
+          file: file.file as File,
           offscreenCanvas: file.offscreenCanvas as OffscreenCanvas,
         });
       }
@@ -229,15 +258,6 @@ addEventListener('message', ({ data }: MessageEvent<CoreWorkerMessageIn>) => {
         cancelUpload.next(payload.id);
       } else {
         retryUpload.next(payload.id);
-      }
-      break;
-    }
-    case 'thumbnail:rewrap': {
-      const request = thumbnailRewrapRequestSchema(data.payload);
-      if (request instanceof type.errors) {
-        console.error(request.summary);
-      } else {
-        rewrapThumbnails.next(request);
       }
       break;
     }
@@ -322,7 +342,7 @@ const encryptedStorageInstances$ = encryptedStorage.asObservable().pipe(
     });
     acc.set(canisterId, { encryptedStorage, assetManager, principalId });
     return acc;
-  }, new Map<PrincipalString, { assetManager: AssetManager; encryptedStorage: EncryptedStorage; principalId: string }>()),
+  }, new Map<PrincipalString, EncryptedStorageWorkerInstance>()),
   shareReplay(1),
 );
 
@@ -335,12 +355,10 @@ const archiveDownloads = new Subject<ArchiveDownloadRequest>();
 const cancelDownload = new Subject<string>();
 const imageCrop = new Subject<ImageCropPayload>();
 const rewrapThumbnails = new Subject<ThumbnailRewrapRequest>();
+const uploadTargetLocks = new Map<string, Promise<void>>();
 
 function getEncryptedStorageInstance(
-  instancesMap: Map<
-    PrincipalString,
-    { assetManager: AssetManager; encryptedStorage: EncryptedStorage; principalId: string }
-  >,
+  instancesMap: Map<PrincipalString, EncryptedStorageWorkerInstance>,
   storageId: PrincipalString,
 ) {
   const instance = instancesMap.get(storageId);
@@ -352,19 +370,58 @@ function getEncryptedStorageInstance(
   return instance;
 }
 
-workerConfig.pipe(
-  take(1),
-  switchMap((wc) =>
-    uploadAssets.asObservable().pipe(
-      repeatItemWhen((item) =>
-        retryUpload.asObservable().pipe(filter((id) => item.id === id)),
-      ),
-      withLatestFrom(encryptedStorageInstances$),
-      mergeMap(([{ id, storageId, bytes, config }, instancesMap]) => {
-        const { assetManager, principalId } = getEncryptedStorageInstance(
-          instancesMap,
-          storageId,
-        );
+function uploadTargetKey(item: UploadFile): string {
+  const path = item.config.path?.replace(/^\/+|\/+$/g, '') ?? '';
+  return [item.storageId, path, item.config.fileName].join('/');
+}
+
+function waitForEncryptedStorageInstance(
+  storageId: PrincipalString,
+): Observable<EncryptedStorageWorkerInstance> {
+  return encryptedStorageInstances$.pipe(
+    map((instancesMap) => instancesMap.get(storageId)),
+    filter(
+      (instance): instance is EncryptedStorageWorkerInstance =>
+        instance !== undefined,
+    ),
+    take(1),
+  );
+}
+
+async function withUploadTargetLock<T>(
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = uploadTargetLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const next = previous.catch(() => undefined).then(() => current);
+  uploadTargetLocks.set(key, next);
+
+  await previous.catch(() => undefined);
+  try {
+    return await task();
+  } finally {
+    release();
+    if (uploadTargetLocks.get(key) === next) {
+      uploadTargetLocks.delete(key);
+    }
+  }
+}
+
+uploadAssets.asObservable().pipe(
+  repeatItemWhen((item) =>
+    retryUpload.asObservable().pipe(filter((id) => item.id === id)),
+  ),
+  mergeMap((item) =>
+    waitForEncryptedStorageInstance(item.storageId).pipe(
+      map((instance) => ({ item, instance })),
+    ),
+  ),
+  mergeMap(({ item: { id, bytes, config }, instance }) => {
+        const { assetManager, principalId } = instance;
         if (principalId === ANONYMOUS_PRINCIPAL_ID) {
           return of<UploadStatus>({
             id,
@@ -416,27 +473,24 @@ workerConfig.pipe(
             uploadSub.unsubscribe();
           };
         });
-      }, wc.concurrentUploads),
-    ),
-  ),
+      }, DEFAULT_CONCURRENT_UPLOADS),
 ).subscribe((payload) => {
   postMessage({ action: 'upload:progress-asset', payload });
 });
 
-workerConfig.pipe(
-  take(1),
-  switchMap((wc) =>
-    uploadFiles.asObservable().pipe(
-      repeatItemWhen((item) =>
-        retryUpload.asObservable().pipe(filter((id) => item.id === id)),
-      ),
-      withLatestFrom(encryptedStorageInstances$),
-      mergeMap(
-        ([{ id, storageId, bytes, config, offscreenCanvas }, instancesMap]) => {
-          const { encryptedStorage, principalId } = getEncryptedStorageInstance(
-            instancesMap,
-            storageId,
-          );
+uploadFiles.asObservable().pipe(
+  repeatItemWhen((item) =>
+    retryUpload.asObservable().pipe(filter((id) => item.id === id)),
+  ),
+  mergeMap((item) =>
+    waitForEncryptedStorageInstance(item.storageId).pipe(
+      map((instance) => ({ item, instance })),
+    ),
+  ),
+  mergeMap(
+        ({ item, instance }) => {
+          const { id, file, config, offscreenCanvas } = item;
+          const { encryptedStorage, principalId } = instance;
           if (principalId === ANONYMOUS_PRINCIPAL_ID) {
             return of<UploadStatus>({
               id,
@@ -458,18 +512,20 @@ workerConfig.pipe(
             let thumbnailSub: Subscription | undefined;
             if (
               isPhotonSupportedMimeType(config.contentType) &&
-              offscreenCanvas
+              offscreenCanvas &&
+              file.size <= MAX_THUMBNAIL_SOURCE_BYTES
             ) {
               const entry: Entry = [
                 'File',
                 [config.path ?? '', config.fileName].join('/'),
               ];
-              const imageThumbnailArgs = {
-                bytes,
-                imageType: config.contentType as string,
-                offscreenCanvas,
-              };
-              thumbnailSub = from(processImageThumbnail(imageThumbnailArgs))
+              thumbnailSub = from(
+                file.arrayBuffer().then((bytes) => processImageThumbnail({
+                  bytes,
+                  imageType: config.contentType as string,
+                  offscreenCanvas,
+                })),
+              )
                 .pipe(
                   audit(() => created.asObservable().pipe(filter((v) => v))),
                   switchMap((blob) =>
@@ -496,27 +552,30 @@ workerConfig.pipe(
             }
 
             const uploadSub = from(
-              encryptedStorage.store([
-                bytes,
-                {
-                  ...config,
-                  signal: controller.signal,
-                  onProgress: (progress) => {
-                    if (
-                      [
-                        UploadState.IN_PROGRESS,
-                        UploadState.REQUESTING_VETKD,
-                      ].includes(progress.status)
-                    ) {
-                      created.next(true);
-                    }
-                    subscriber.next({
-                      id,
-                      ...progress,
-                    });
+              withUploadTargetLock(uploadTargetKey(item), () =>
+                encryptedStorage.store([
+                  file,
+                  {
+                    ...config,
+                    signal: controller.signal,
+                    onProgress: (progress) => {
+                      if (
+                        [
+                          UploadState.IN_PROGRESS,
+                          UploadState.REQUESTING_VETKD,
+                          UploadState.WAITING_FOR_FUNDING,
+                        ].includes(progress.status)
+                      ) {
+                        created.next(true);
+                      }
+                      subscriber.next({
+                        id,
+                        ...progress,
+                      });
+                    },
                   },
-                },
-              ]),
+                ]),
+              ),
             )
               .pipe(
                 map(() => <UploadStatus>{ id, status: UploadState.COMPLETED }),
@@ -541,10 +600,8 @@ workerConfig.pipe(
             };
           });
         },
-        wc.concurrentUploads,
+        DEFAULT_CONCURRENT_UPLOADS,
       ),
-    ),
-  ),
 ).subscribe((payload) => {
   postMessage({ action: 'upload:progress-file', payload });
 });
@@ -553,8 +610,18 @@ function optionalBytes(value?: number[]): [] | [Uint8Array] {
   return value ? [new Uint8Array(value)] : [];
 }
 
+async function processThumbnailRewrap(
+  encryptedStorage: EncryptedStorage,
+  request: ThumbnailRewrapRequest,
+) {
+  await encryptedStorage.rewrapThumbnail(
+    request.entry,
+    toStorageThumbnailRef(request.thumbnailRef),
+  );
+}
+
 function toStorageThumbnailRef(ref: ThumbnailRewrapRequest['thumbnailRef']): StorageThumbnailRef {
-  const encryption =
+  const encryption: ThumbnailEncryptionRef =
     ref.encryption.kind === 'Plaintext'
       ? { Plaintext: null }
       : {
@@ -591,16 +658,6 @@ function toStorageThumbnailRef(ref: ThumbnailRewrapRequest['thumbnailRef']): Sto
       encryption,
     },
   };
-}
-
-async function processThumbnailRewrap(
-  encryptedStorage: EncryptedStorage,
-  request: ThumbnailRewrapRequest,
-) {
-  await encryptedStorage.rewrapThumbnail(
-    request.entry,
-    toStorageThumbnailRef(request.thumbnailRef),
-  );
 }
 
 workerConfig.pipe(
@@ -670,7 +727,7 @@ async function processDownload(
         action: 'download:chunk',
         payload: {
           id: request.id,
-          chunk: chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength),
+          chunk: uint8ArrayToArrayBuffer(chunk),
           chunkIndex,
           totalChunks: request.totalChunks,
           fileName: request.fileName,
@@ -747,7 +804,7 @@ async function processArchiveDownload(
         });
         return;
       }
-      const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      const buf = uint8ArrayToArrayBuffer(data);
       subscriber.next({
         action: 'download:archive-chunk',
         payload: { id: request.id, chunk: buf },

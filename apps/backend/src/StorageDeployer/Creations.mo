@@ -52,7 +52,6 @@ module {
       ("amount", #Nat),
     ])),
     ("RecordingLicense", #Null),
-    ("Activating", #Null),
     ("Queueing", #Null),
   ]);
 

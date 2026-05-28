@@ -28,26 +28,6 @@ describe("Subscriptions", () => {
     expect(sub).toHaveLength(0);
   });
 
-  test("activateTrial creates trial subscription", async () => {
-    actor.setIdentity(userAlice);
-    await actor.ensureUser([]);
-    await actor.activateTrial();
-
-    const sub = await actor.getSubscription();
-    expect(sub).toHaveLength(1);
-    const [subData] = sub;
-    expect(subData!.plan).toEqual({ Trial: null });
-    expect(subData!.status).toEqual({ Active: null });
-    expect(subData!.expiresAt).toHaveLength(1);
-  });
-
-  test("cannot activate trial twice", async () => {
-    actor.setIdentity(userAlice);
-    await actor.ensureUser([]);
-    await actor.activateTrial();
-    await expect(actor.activateTrial()).rejects.toThrow();
-  });
-
   test("admin can activate subscription", async () => {
     actor.setIdentity(ownerIdentity);
     await actor.activateSubscription(
@@ -139,27 +119,6 @@ describe("Subscriptions", () => {
     expect(result).toEqual({ unknownCanister: null });
   });
 
-  test("reportTrialBytes silently ignores calls from unknown principals", async () => {
-    actor.setIdentity(userAlice);
-    // Should not throw — noop for unregistered callers
-    await actor.reportTrialBytes(1000n);
-
-    // Verify no subscription was created or modified
-    actor.setIdentity(ownerIdentity);
-    const subs = await actor.listSubscriptions({
-      filter: {
-        userId: [[userAlice.getPrincipal()]],
-        plan: [],
-        status: [],
-        expiresAt: [],
-      },
-      sort: [],
-      pagination: { offset: 0n, limit: 1n },
-      count: true,
-    });
-    expect(subs.total).toEqual([0n]);
-  });
-
   test("onStorageLowCycles ignores calls from unregistered principal", async () => {
     actor.setIdentity(userAlice);
     // Should not throw — silently returns for unregistered callers
@@ -170,19 +129,24 @@ describe("Subscriptions", () => {
     expect(page.data).toHaveLength(0);
   });
 
-  test("trial shows as expired after 14 days", async () => {
+  test("Pro shows as expired after expiry", async () => {
     const startTime = new Date("2026-06-01T00:00:00Z");
     await pic.setCertifiedTime(startTime);
 
+    actor.setIdentity(ownerIdentity);
+    const nowNs = BigInt(startTime.getTime()) * 1_000_000n;
+    await actor.activateSubscription(
+      userAlice.getPrincipal(),
+      { Pro: null },
+      [nowNs + 86_400_000_000_000n],
+    );
+
     actor.setIdentity(userAlice);
-    await actor.ensureUser([]);
-    await actor.activateTrial();
     expect((await actor.getSubscription())[0]!.status).toEqual({
       Active: null,
     });
 
-    // Jump past 14-day trial
-    await pic.setCertifiedTime(new Date("2026-06-16T00:00:00Z"));
+    await pic.setCertifiedTime(new Date("2026-06-03T00:00:00Z"));
 
     const after = await actor.getSubscription();
     expect(after[0]!.status).toEqual({ Expired: null });
@@ -351,7 +315,7 @@ describe("Subscriptions", () => {
       ).rejects.toThrow();
     });
 
-    test("can change plan during renewal", async () => {
+    test("can extend Pro during renewal", async () => {
       const startTime = new Date("2026-06-01T00:00:00Z");
       await pic.setCertifiedTime(startTime);
 
@@ -359,10 +323,9 @@ describe("Subscriptions", () => {
       const nowNs = BigInt(startTime.getTime()) * 1_000_000n;
       const oneHourNs = 3_600_000_000_000n;
 
-      // Start as Trial (via admin)
       await actor.activateSubscription(
         userAlice.getPrincipal(),
-        { Trial: null },
+        { Pro: null },
         [nowNs + oneHourNs],
       );
 

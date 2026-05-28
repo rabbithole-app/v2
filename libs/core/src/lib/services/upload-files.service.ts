@@ -56,7 +56,8 @@ export class UploadFilesService implements IUploadService {
   }) {
     const id = crypto.randomUUID();
     // Add file to registry with initial parameters
-    this.#registry.addUpload(this.#canisterIdText(), {
+    const storageId = this.#canisterIdText();
+    this.#registry.addUpload(storageId, {
       ...item,
       id,
       status: UploadState.NOT_STARTED,
@@ -70,14 +71,9 @@ export class UploadFilesService implements IUploadService {
         user: principalId,
         permission: 'ReadWrite',
       });
-      console.info('[upload:preflight]', {
-        storageId: this.#canisterIdText(),
-        principalId,
-        hasWritePermission,
-      });
     } catch (error) {
       console.error('[upload:preflight] permission query failed', {
-        storageId: this.#canisterIdText(),
+        storageId,
         principalId,
         error,
       });
@@ -92,11 +88,10 @@ export class UploadFilesService implements IUploadService {
       return;
     }
 
-    const arrayBuffer = await item.file.arrayBuffer();
     const payload: UploadFile = {
       id,
-      storageId: this.#canisterIdText(),
-      bytes: arrayBuffer,
+      storageId,
+      file: item.file,
       config: {
         fileName: item.file.name,
         contentType: item.file.type,
@@ -117,17 +112,15 @@ export class UploadFilesService implements IUploadService {
       payload.config.path = item.path;
     }
 
-    // If we have an offscreenCanvas, add it to the transfer list
-    const transferList: Transferable[] = [payload.bytes];
+    // Send message to coreWorker. File is structured-cloned so upload can stream slices in the worker.
     if (payload.offscreenCanvas) {
-      transferList.push(payload.offscreenCanvas as Transferable);
+      this.#coreWorkerService.postMessage(
+        { action: 'upload:add-file', payload },
+        { transfer: [payload.offscreenCanvas as Transferable] },
+      );
+    } else {
+      this.#coreWorkerService.postMessage({ action: 'upload:add-file', payload });
     }
-
-    // Send message to coreWorker
-    this.#coreWorkerService.postMessage(
-      { action: 'upload:add-file', payload },
-      { transfer: transferList },
-    );
   }
 
   cancel(id: UploadId) {

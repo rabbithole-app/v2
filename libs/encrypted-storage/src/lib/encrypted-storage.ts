@@ -10,7 +10,7 @@ import { sha256 } from '@noble/hashes/sha2';
 import { Derived, Store } from '@tanstack/store';
 import { get, set } from 'idb-keyval';
 import mime from 'mime/lite';
-import { isMatching, match, P } from 'ts-pattern';
+import { isMatching, P } from 'ts-pattern';
 
 import {
   CreateAccessBatchArguments,
@@ -25,12 +25,18 @@ import {
   ThumbnailRef,
 } from '@rabbithole/declarations/encrypted-storage';
 
+import { createBlobUploadSpool } from './blob-storage/blob-upload-spool';
 import {
+  AES_GCM_OVERHEAD,
   CAFFEINE_CHUNK_SIZE,
   CAFFEINE_PLAINTEXT_CHUNK_SIZE,
 } from './blob-storage/constants';
 import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
 import { BlobHashTree, verifyBlobIntegrity, YHash } from './blob-storage/merkle-tree';
+import { isReadable, Readable } from './readable/readable';
+import { ReadableBlob } from './readable/readableBlob';
+import { ReadableBytes } from './readable/readableBytes';
+import { ReadableFile } from './readable/readableFile';
 import { ThumbnailClient } from './thumbnail/thumbnail-client';
 import {
   CreateStorageAccessGrant,
@@ -51,8 +57,8 @@ import {
   StorageThumbnailEncryptionPolicy,
   StorageThumbnailStoragePolicy,
   StoreArgs,
+  StoreConfig,
   StorePathArgs,
-  StoreReadableArgs,
   toEncryptionMode,
   toEntryRaw,
   toOptionalEntryRaw,
@@ -67,10 +73,22 @@ import {
 } from './utils/storage-result';
 import { verifyIcCertificate } from './utils/verify-ic-certificate';
 
+const ONCHAIN_FUNDING_RETRY_DELAY_MS = 2_000;
+const ONCHAIN_FUNDING_MAX_RETRIES = 90;
+const ONCHAIN_CHUNK_UPLOAD_WINDOW = 16;
+
+type UploadFundingRetryCallback = (info: {
+  attempt: number;
+  error: unknown;
+  retryAt: number;
+}) => void;
+
 export class EncryptedStorage {
   readonly #actor: ActorSubclass<EncryptedStorageActorService>;
   readonly #blobStorageClient?: BlobStorageGatewayClient;
   readonly #canisterId?: Principal;
+  readonly #concurrency: number;
+  #derivedKeyMaterialRequests = new Map<string, Promise<DerivedKeyMaterial>>();
   readonly #domainSeparator = 'file_storage_dapp';
   readonly #limit: LimitFn;
   readonly #maxChunkSize: number;
@@ -79,6 +97,7 @@ export class EncryptedStorage {
   #sha256: Record<string, ReturnType<typeof sha256.create>> = {};
   #storageBackend?: StorageBackend;
   readonly #thumbnailClient: ThumbnailClient;
+  #vetkeyVerificationKey?: Promise<Uint8Array>;
 
   /**
    * Create assets canister manager instance
@@ -102,7 +121,9 @@ export class EncryptedStorage {
       : storageBackend;
     this.#origin = origin;
     this.#maxChunkSize = maxChunkSize ?? 1_900_000;
-    this.#limit = limit(concurrency ?? 16);
+    const defaultConcurrency = 16;
+    this.#concurrency = concurrency ?? defaultConcurrency;
+    this.#limit = limit(this.#concurrency);
 
     if (blobStorageGatewayUrl && actorConfig.canisterId) {
       this.#blobStorageClient = new BlobStorageGatewayClient({
@@ -339,7 +360,7 @@ export class EncryptedStorage {
       tsk.publicKeyBytes(),
     );
     const encryptedKeyBytes = Uint8Array.from(encryptedVetkey);
-    const verificationKey = await this.#actor.getVetkeyVerificationKey();
+    const verificationKey = await this.#getVetkeyVerificationKey();
     const input = new Uint8Array([
       keyOwner.toUint8Array().length,
       ...keyOwner.toUint8Array(),
@@ -347,7 +368,7 @@ export class EncryptedStorage {
     ]);
     const encryptedVetKey = EncryptedVetKey.deserialize(encryptedKeyBytes);
     const derivedPublicKey = DerivedPublicKey.deserialize(
-      Uint8Array.from(verificationKey),
+      verificationKey,
     );
     const vetkey = encryptedVetKey.decryptAndVerify(
       tsk,
@@ -515,65 +536,11 @@ export class EncryptedStorage {
    * @see {@link StoreBytesArgs}
    * @see {@link StoreFileArgs}
    */
-  async store(args: Exclude<StoreArgs, StorePathArgs | StoreReadableArgs>) {
-    const { bytes, config } = await match(args)
-      .with(
-        [P.instanceOf(Uint8Array).select('bytes'), P.select('config')],
-        ({ bytes, config: { contentType, ...config } }) => ({
-          bytes,
-          config: {
-            ...config,
-            contentType: contentType ?? this.#contentType(config.fileName),
-          },
-        }),
-      )
-      .with(
-        [
-          P.instanceOf(ArrayBuffer).or(P.array(P.number)).select('bytes'),
-          P.select('config'),
-        ],
-        ({ bytes, config: { contentType, ...config } }) => ({
-          bytes: new Uint8Array(bytes),
-          config: {
-            ...config,
-            contentType: contentType ?? this.#contentType(config.fileName),
-          },
-        }),
-      )
-      .with(
-        [P.instanceOf(File).select('file'), P.select('config')],
-        async ({ file, config }) => {
-          const bytes = new Uint8Array(await file.arrayBuffer());
-          return {
-            bytes,
-            config: {
-              ...(config ?? {}),
-              contentType: config?.contentType ?? file.type,
-              fileName: config?.fileName ?? file.name,
-            },
-          };
-        },
-      )
-      .with(
-        [
-          P.instanceOf(Blob).select('blob'),
-          P.nonNullable.and({ fileName: P.string }).select('config'),
-        ],
-        async ({ blob, config: { contentType, ...config } }) => {
-          const bytes = new Uint8Array(await blob.arrayBuffer());
-          const _contentType =
-            contentType ?? (blob.type || this.#contentType(config.fileName));
-          return { bytes, config: { ...config, contentType: _contentType } };
-        },
-      )
-      .run();
+  async store(args: Exclude<StoreArgs, StorePathArgs>) {
+    const { readable, config } = this.#toReadableStoreArgs(args);
+    const sourceSize = readable.length;
     const key = [config.path ?? '', config.fileName].join('/');
     const entry: EntryRaw = [{ File: null }, key];
-
-    // Check abort signal before starting upload
-    if (config.signal?.aborted) {
-      throw new Error('Upload aborted');
-    }
 
     const store = new Derived({
       fn: () => this.#progress.state[key],
@@ -592,201 +559,300 @@ export class EncryptedStorage {
       [key]: { status: UploadState.INITIALIZING },
     }));
 
-    // create file
-    const details = await this.#limit(
-      async () =>
-        unwrapStorageResult(await this.#actor.create({
-          entry,
-          createMode: { GetOrCreate: null },
-          encryptionMode: toEncryptionMode(config.encryptionMode),
-        })),
-      config.signal,
-    );
-
-    // Determine if file is encrypted from the response
-    const isEncrypted =
-      'File' in details.metadata &&
-      'Encrypted' in details.metadata.File.encryptionMode;
-
-    let derivedKeyMaterial: Awaited<ReturnType<typeof this.getDerivedKeyMaterial>> | undefined;
-    if (isEncrypted) {
-      this.#progress.setState((state) => ({
-        ...state,
-        [key]: { status: UploadState.REQUESTING_VETKD },
-      }));
-
-      derivedKeyMaterial =
-        await this.#getDerivedKeyMaterialOrFetchIfNeeded(
-          details.keyId[0],
-          Uint8Array.from(details.keyId[1]),
-        );
-    }
-
-    const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
-    const backend = await this.getStorageBackend();
-
-    // ── BlobStorage upload flow ──
-    // Chunks go directly to the blob storage gateway, not through the canister.
-    if ('BlobStorage' in backend && this.#blobStorageClient) {
-      const chunkSize = isEncrypted ? CAFFEINE_PLAINTEXT_CHUNK_SIZE : CAFFEINE_CHUNK_SIZE;
-      const chunkCount = Math.max(1, Math.ceil(bytes.byteLength / chunkSize));
-
-      // Step 1: Encrypt chunks + compute content hash
-      const encryptedChunks: Uint8Array[] = [];
-      const contentHash = sha256.create();
-      for (let i = 0; i < chunkCount; i++) {
-        if (config.signal?.aborted) throw new Error('Upload aborted');
-        const plain = bytes.slice(i * chunkSize, Math.min((i + 1) * chunkSize, bytes.byteLength));
-        const encrypted = isEncrypted && derivedKeyMaterial
-          ? await derivedKeyMaterial.encryptMessage(plain, domainSeparator)
-          : plain;
-        contentHash.update(encrypted);
-        encryptedChunks.push(encrypted);
+    let readableOpened = false;
+    try {
+      if (config.signal?.aborted) {
+        throw new Error('Upload aborted');
       }
 
-      // Step 2: Build Merkle tree
-      const chunkHashes = await Promise.all(
-        encryptedChunks.map((chunk) => YHash.fromChunk(chunk)),
-      );
-      const totalEncryptedSize = encryptedChunks.reduce((sum, c) => sum + c.length, 0);
-      const blobTree = await BlobHashTree.build(chunkHashes, {
-        'Content-Type': config.contentType,
-        'Content-Length': totalEncryptedSize.toString(),
-      });
-      const rootHash = blobTree.tree.hash.toShaString();
+      await readable.open();
+      readableOpened = true;
 
-      // Step 3: Get IC certificate from canister
-      this.#progress.setState((state) => ({
-        ...state,
-        [key]: { status: UploadState.FINALIZING },
-      }));
-      const certificate = await this.#blobStorageClient.createCertificate(rootHash);
+      const backend = await this.getStorageBackend();
+      const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
 
-      // Step 4: Upload blob tree to gateway
-      await this.#blobStorageClient.uploadBlobTree({
-        blobTree,
-        certificate,
-        totalSize: totalEncryptedSize,
-      });
+      let derivedKeyMaterial: Awaited<ReturnType<typeof this.getDerivedKeyMaterial>> | undefined;
 
-      // Step 5: Upload chunks to gateway in parallel
-      this.#progress.setState((state) => ({
-        ...state,
-        [key]: { status: UploadState.IN_PROGRESS, current: 0, total: bytes.byteLength },
-      }));
-      await this.#blobStorageClient.uploadChunks(
-        encryptedChunks,
-        chunkHashes,
-        rootHash,
-        (completedChunks, totalChunks) => {
-          const current = Math.round((completedChunks / totalChunks) * bytes.byteLength);
-          this.#progress.setState((state) => ({
-            ...state,
-            [key]: { status: UploadState.IN_PROGRESS, current, total: bytes.byteLength },
-          }));
-        },
-      );
-
-      // Step 6: Commit metadata on-chain
-      this.#progress.setState((state) => ({
-        ...state,
-        [key]: { status: UploadState.FINALIZING },
-      }));
-      unwrapStorageResult(await this.#actor.commitCaffeineUpload({
-        entry,
-        sha256: new Uint8Array(contentHash.digest()),
-        rootHash,
-        contentType: config.contentType,
-        size: BigInt(totalEncryptedSize),
-      }));
-
-      unmount();
-      return;
-    }
-
-    // ── Inline (on-chain) upload flow ──
-
-    // create batch
-    const { batchId } = await this.#limit(
-      async () => unwrapStorageResult(await this.#actor.createStorageBatch({ entry, totalSize: BigInt(bytes.byteLength) })),
-      config.signal,
-    );
-
-    // Per-chunk encryption: split plaintext first, encrypt each chunk independently.
-    const chunkCount = Math.max(1, Math.ceil(bytes.byteLength / this.#maxChunkSize));
-
-    // Step 1: Encrypt and hash sequentially (bounded CPU, deterministic SHA).
-    const encryptedChunks: Uint8Array[] = [];
-    for (let i = 0; i < chunkCount; i++) {
-      if (config.signal?.aborted) throw new Error('Upload aborted');
-
-      const plainChunk = bytes.slice(
-        i * this.#maxChunkSize,
-        Math.min((i + 1) * this.#maxChunkSize, bytes.byteLength),
-      );
-
-      const content = isEncrypted && derivedKeyMaterial
-        ? await derivedKeyMaterial.encryptMessage(plainChunk, domainSeparator)
-        : plainChunk;
-
-      this.#sha256[key].update(content);
-      encryptedChunks.push(content);
-    }
-
-    // Step 2: Upload chunks in parallel (concurrency limited by this.#limit).
-    this.#progress.setState((state) => ({
-      ...state,
-      [key]: {
-        status: UploadState.IN_PROGRESS,
-        current: 0,
-        total: bytes.byteLength,
-      },
-    }));
-    const chunkIds: bigint[] = await Promise.all(
-      encryptedChunks.map(async (content, index) => {
-        const { chunkId } = await this.#limit(
-          async () => unwrapStorageResult(await this.#actor.createStorageChunk({ content, batchId })),
+      // ── BlobStorage upload flow ──
+      // Chunks go directly to the blob storage gateway, not through the canister.
+      if ('BlobStorage' in backend && this.#blobStorageClient) {
+        const details = await this.#limit(
+          async () =>
+            unwrapStorageResult(await this.#actor.create({
+              entry,
+              createMode: { GetOrCreate: null },
+              encryptionMode: toEncryptionMode(config.encryptionMode),
+            })),
           config.signal,
         );
-        const plainChunkSize = Math.min(
-          this.#maxChunkSize,
-          bytes.byteLength - index * this.#maxChunkSize,
+        const isEncrypted =
+          'File' in details.metadata &&
+          'Encrypted' in details.metadata.File.encryptionMode;
+        const chunkSize = isEncrypted ? CAFFEINE_PLAINTEXT_CHUNK_SIZE : CAFFEINE_CHUNK_SIZE;
+        const chunkCount = Math.max(1, Math.ceil(sourceSize / chunkSize));
+        const declaredUploadBytes = isEncrypted
+          ? BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD)
+          : BigInt(sourceSize);
+
+        unwrapStorageResult(await this.#actor.preflightCaffeineUpload({
+          entry,
+          size: declaredUploadBytes,
+        }));
+
+        if (isEncrypted) {
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: { status: UploadState.REQUESTING_VETKD },
+          }));
+
+          derivedKeyMaterial =
+            await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+              details.keyId[0],
+              Uint8Array.from(details.keyId[1]),
+            );
+        }
+
+        const spool = createBlobUploadSpool(chunkCount);
+        try {
+          const chunkHashes: YHash[] = [];
+          const contentHash = sha256.create();
+          let totalEncryptedSize = 0;
+
+          // Step 1: encrypt chunks, hash them, and spool ciphertext outside RAM.
+          for (let i = 0; i < chunkCount; i++) {
+            if (config.signal?.aborted) throw new Error('Upload aborted');
+            const plain = await readable.slice(
+              i * chunkSize,
+              Math.min((i + 1) * chunkSize, sourceSize),
+            );
+            const encrypted = isEncrypted && derivedKeyMaterial
+              ? await derivedKeyMaterial.encryptMessage(plain, domainSeparator)
+              : plain;
+            contentHash.update(encrypted);
+            totalEncryptedSize += encrypted.byteLength;
+            chunkHashes.push(await YHash.fromChunk(encrypted));
+            await spool.writeChunk(i, encrypted);
+          }
+
+          // Step 2: Build Merkle tree
+          const blobTree = await BlobHashTree.build(chunkHashes, {
+            'Content-Type': config.contentType,
+            'Content-Length': totalEncryptedSize.toString(),
+          });
+          const rootHash = blobTree.tree.hash.toShaString();
+
+          // Step 3: Get IC certificate from canister
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: { status: UploadState.FINALIZING },
+          }));
+          const certificate = await this.#blobStorageClient.createCertificate(rootHash);
+
+          // Step 4: Upload blob tree to gateway
+          await this.#blobStorageClient.uploadBlobTree({
+            blobTree,
+            certificate,
+            totalSize: totalEncryptedSize,
+          });
+
+          // Step 5: Upload chunks to gateway in parallel from the spool.
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: { status: UploadState.IN_PROGRESS, current: 0, total: sourceSize },
+          }));
+          await this.#blobStorageClient.uploadChunkSource(
+            spool,
+            chunkHashes,
+            rootHash,
+            (completedChunks, totalChunks) => {
+              const current = Math.round((completedChunks / totalChunks) * sourceSize);
+              this.#progress.setState((state) => ({
+                ...state,
+                [key]: { status: UploadState.IN_PROGRESS, current, total: sourceSize },
+              }));
+            },
+          );
+
+          // Step 6: Commit metadata on-chain
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: { status: UploadState.FINALIZING },
+          }));
+          unwrapStorageResult(await this.#actor.commitCaffeineUpload({
+            entry,
+            sha256: new Uint8Array(contentHash.digest()),
+            rootHash,
+            contentType: config.contentType,
+            size: BigInt(totalEncryptedSize),
+          }));
+
+          return;
+        } finally {
+          await spool.clear();
+        }
+      }
+
+      // ── Inline (on-chain) upload flow ──
+      const chunkCount = Math.max(1, Math.ceil(sourceSize / this.#maxChunkSize));
+      const uploadController = new AbortController();
+      const abortUpload = () => uploadController.abort(config.signal?.reason);
+      if (config.signal?.aborted) {
+        abortUpload();
+      } else {
+        config.signal?.addEventListener('abort', abortUpload, { once: true });
+      }
+      const currentUploadBytes = () => {
+        const progress = this.#progress.state[key];
+        return progress?.status === UploadState.IN_PROGRESS ||
+          progress?.status === UploadState.WAITING_FOR_FUNDING
+          ? progress.current
+          : 0;
+      };
+      const setUploadFundingPending =
+        (current: () => number): UploadFundingRetryCallback =>
+        ({ error, retryAt }) => {
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: {
+              status: UploadState.WAITING_FOR_FUNDING,
+              current: Math.min(current(), sourceSize),
+              total: sourceSize,
+              message: errorMessage(error),
+              retryAt,
+            },
+          }));
+        };
+
+      let batchId: bigint | undefined;
+      try {
+        const batch = await this.#withUploadFundingRetry(
+          () => this.#limit(
+            async () => unwrapStorageResult(await this.#actor.beginUploadSession({
+              entry,
+              totalSize: BigInt(sourceSize),
+              declaredUploadBytes: [],
+              expectedChunkCount: [BigInt(chunkCount)],
+              createMode: { GetOrCreate: null },
+              encryptionMode: toEncryptionMode(config.encryptionMode),
+            })),
+            uploadController.signal,
+          ),
+          uploadController.signal,
+          setUploadFundingPending(() => 0),
         );
+        batchId = batch.batchId;
+        const details = batch.node;
+        const isEncrypted =
+          'File' in details.metadata &&
+          'Encrypted' in details.metadata.File.encryptionMode;
+
+        if (isEncrypted) {
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: { status: UploadState.REQUESTING_VETKD },
+          }));
+
+          derivedKeyMaterial =
+            await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+              details.keyId[0],
+              Uint8Array.from(details.keyId[1]),
+            );
+        }
+
+        // Step 2: Upload chunks in bounded windows. The canister accepts
+        // out-of-order chunks and hashes only the contiguous prefix.
         this.#progress.setState((state) => ({
           ...state,
           [key]: {
             status: UploadState.IN_PROGRESS,
-            current: (state[key].status === UploadState.IN_PROGRESS
-              ? state[key].current
-              : 0) + plainChunkSize,
-            total: bytes.byteLength,
+            current: 0,
+            total: sourceSize,
+          },
+        }));
+        const uploadWindow = Math.max(1, Math.min(ONCHAIN_CHUNK_UPLOAD_WINDOW, this.#concurrency));
+        for (let windowStart = 0; windowStart < chunkCount; windowStart += uploadWindow) {
+          const uploadTasks: Array<Promise<void>> = [];
+          const windowEnd = Math.min(windowStart + uploadWindow, chunkCount);
+
+          for (let index = windowStart; index < windowEnd; index++) {
+            if (uploadController.signal.aborted) throw new Error('Upload aborted');
+
+            const plainChunk = await readable.slice(
+              index * this.#maxChunkSize,
+              Math.min((index + 1) * this.#maxChunkSize, sourceSize),
+            );
+            const content = isEncrypted && derivedKeyMaterial
+              ? await derivedKeyMaterial.encryptMessage(plainChunk, domainSeparator)
+              : plainChunk;
+
+            this.#sha256[key].update(content);
+            uploadTasks.push(
+              this.#withUploadFundingRetry(
+                () => this.#limit(
+                  async () => unwrapStorageResult(await this.#actor.appendUploadChunk({
+                    content,
+                    batchId: batch.batchId,
+                    chunkIndex: [BigInt(index)],
+                  })),
+                  uploadController.signal,
+                ),
+                uploadController.signal,
+                setUploadFundingPending(currentUploadBytes),
+              ).then(() => {
+                this.#progress.setState((state) => ({
+                  ...state,
+                  [key]: {
+                    status: UploadState.IN_PROGRESS,
+                    current: (state[key].status === UploadState.IN_PROGRESS ||
+                      state[key].status === UploadState.WAITING_FOR_FUNDING
+                      ? state[key].current
+                      : 0) + plainChunk.byteLength,
+                    total: sourceSize,
+                  },
+                }));
+              }),
+            );
+          }
+
+          await Promise.all(uploadTasks);
+        }
+
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: {
+            status: UploadState.FINALIZING,
           },
         }));
 
-        return chunkId;
-      }),
-    );
-
-    this.#progress.setState((state) => ({
-      ...state,
-      [key]: {
-        status: UploadState.FINALIZING,
-      },
-    }));
-
-    // update content
-    unwrapStorageResult(await this.#actor.update({
-      File: {
-        metadata: {
-          sha256: [new Uint8Array(this.#sha256[key].digest())],
-          chunkIds,
-          contentType: config.contentType,
-        },
-        path: key,
-      },
-    }));
-
-    unmount();
+        const contentDigest = new Uint8Array(this.#sha256[key].digest());
+        await this.#withUploadFundingRetry(
+          async () => unwrapStorageResult(await this.#actor.finishUploadSession({
+            batchId: batch.batchId,
+            sha256: [contentDigest],
+            contentType: config.contentType,
+          })),
+          uploadController.signal,
+          setUploadFundingPending(() => sourceSize),
+        );
+      } catch (error) {
+        uploadController.abort();
+        if (batchId !== undefined && !shouldPreserveUploadSession(error)) {
+          try {
+            unwrapStorageResult(await this.#actor.abortUploadSession({ batchId }));
+          } catch {
+            // Best-effort cleanup; preserve the original upload failure.
+          }
+        }
+        throw error;
+      } finally {
+        config.signal?.removeEventListener('abort', abortUpload);
+      }
+    } finally {
+      if (readableOpened) {
+        await readable.close();
+      }
+      unmount();
+    }
   }
 
   async updateDirectoryColor(
@@ -939,24 +1005,33 @@ export class EncryptedStorage {
     fileOwner: Principal,
     fileId: Uint8Array,
   ): Promise<DerivedKeyMaterial> {
-    const cachedRawDerivedKeyMaterial: CryptoKey | undefined = await get([
-      fileOwner.toString(),
-      new TextDecoder().decode(fileId),
-    ]);
+    const cacheKey = [fileOwner.toString(), new TextDecoder().decode(fileId)];
+    const cachedRawDerivedKeyMaterial: CryptoKey | undefined = await get(cacheKey);
     if (cachedRawDerivedKeyMaterial) {
       return DerivedKeyMaterial.fromCryptoKey(cachedRawDerivedKeyMaterial);
     }
 
-    const derivedKeyMaterial = await this.getDerivedKeyMaterial(
-      fileOwner,
-      fileId,
-    );
-    await set([
-      fileOwner.toString(),
-      new TextDecoder().decode(fileId),
-    ], derivedKeyMaterial.getCryptoKey());
+    const requestKey = cacheKey.join('/');
+    const existingRequest = this.#derivedKeyMaterialRequests.get(requestKey);
+    if (existingRequest) return existingRequest;
 
-    return derivedKeyMaterial;
+    const request = this.getDerivedKeyMaterial(fileOwner, fileId)
+      .then(async (derivedKeyMaterial) => {
+        await set(cacheKey, derivedKeyMaterial.getCryptoKey());
+        return derivedKeyMaterial;
+      })
+      .finally(() => this.#derivedKeyMaterialRequests.delete(requestKey));
+
+    this.#derivedKeyMaterialRequests.set(requestKey, request);
+    return request;
+  }
+
+  #getVetkeyVerificationKey(): Promise<Uint8Array> {
+    this.#vetkeyVerificationKey ??= this.#actor
+      .getVetkeyVerificationKey()
+      .then((key) => Uint8Array.from(key));
+
+    return this.#vetkeyVerificationKey;
   }
 
   #isSubscriptionStatusUnknownError(err: unknown): boolean {
@@ -1044,4 +1119,129 @@ export class EncryptedStorage {
   #storagePermissionFromRaw(permission: Permission__1): StoragePermission {
     return Object.keys(permission)[0] as StoragePermission;
   }
+
+  #toReadableStoreArgs(args: Exclude<StoreArgs, StorePathArgs>): {
+    config: Required<Pick<StoreConfig, 'contentType' | 'fileName'>> & StoreConfig;
+    readable: Readable;
+  } {
+    const [input, providedConfig] = args;
+    const config = providedConfig ?? {};
+    let readable: Readable;
+
+    if (typeof File === 'function' && input instanceof File) {
+      readable = new ReadableFile(input);
+    } else if (
+      typeof Blob === 'function' &&
+      input instanceof Blob &&
+      config.fileName
+    ) {
+      readable = new ReadableBlob(config.fileName, input);
+    } else if (
+      (Array.isArray(input) || input instanceof Uint8Array || input instanceof ArrayBuffer) &&
+      config.fileName
+    ) {
+      readable = new ReadableBytes(config.fileName, input);
+    } else if (isReadable(input)) {
+      readable = input;
+    } else {
+      throw new Error('Invalid arguments, readable could not be created');
+    }
+
+    const fileName = config.fileName ?? readable.fileName;
+    const contentType = config.contentType || readable.contentType || this.#contentType(fileName);
+
+    return {
+      readable,
+      config: {
+        ...config,
+        contentType,
+        fileName,
+      },
+    };
+  }
+
+  async #withUploadFundingRetry<T>(
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+    onFundingRetry?: UploadFundingRetryCallback,
+  ): Promise<T> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= ONCHAIN_FUNDING_MAX_RETRIES; attempt++) {
+      if (signal?.aborted) throw new Error('Upload aborted');
+
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        if (!isUploadFundingRetryable(error) || attempt === ONCHAIN_FUNDING_MAX_RETRIES) {
+          throw error;
+        }
+        onFundingRetry?.({
+          attempt: attempt + 1,
+          error,
+          retryAt: Date.now() + ONCHAIN_FUNDING_RETRY_DELAY_MS,
+        });
+        await abortableDelay(ONCHAIN_FUNDING_RETRY_DELAY_MS, signal);
+      }
+    }
+
+    throw lastError;
+  }
+}
+
+async function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) throw new Error('Upload aborted');
+
+  await new Promise<void>((resolve, reject) => {
+    const timeoutRef: { current?: ReturnType<typeof setTimeout> } = {};
+    const abortHandler = () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      signal?.removeEventListener('abort', abortHandler);
+      reject(new Error('Upload aborted'));
+    };
+    const done = () => {
+      signal?.removeEventListener('abort', abortHandler);
+      resolve();
+    };
+
+    timeoutRef.current = setTimeout(done, ms);
+    signal?.addEventListener('abort', abortHandler, { once: true });
+  });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isTerminalFundingError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('auto top-up is disabled') ||
+    normalized.includes('active pro subscription') ||
+    normalized.includes('insufficient balance') ||
+    normalized.includes('treasury icp reserve low') ||
+    normalized.includes('service temporarily unavailable');
+}
+
+function isUploadFundingRetryable(error: unknown): boolean {
+  const message = errorMessage(error);
+  const normalized = message.toLowerCase();
+  if (isTerminalFundingError(message)) return false;
+
+  return normalized.includes('[fundingpending]') ||
+    normalized.includes('upload funding is pending') ||
+    normalized.includes('storage funding is already in progress') ||
+    normalized.includes('auto top-up is already in progress') ||
+    normalized.includes('out of cycles') ||
+    normalized.includes('could not perform remote call');
+}
+
+function shouldPreserveUploadSession(error: unknown): boolean {
+  const message = errorMessage(error);
+  const normalized = message.toLowerCase();
+  if (isTerminalFundingError(message)) return false;
+
+  return isUploadFundingRetryable(error) ||
+    normalized.includes('[insufficientcycles]') ||
+    normalized.includes('insufficient storage canister cycles');
 }

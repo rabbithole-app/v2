@@ -7,9 +7,8 @@ import StorageTypes "mo:encrypted-storage/Types";
 
 module {
   public type NotificationPayload = {
-    #subscriptionActivated : { plan : { #Free; #Trial; #Pro } };
+    #subscriptionActivated : { plan : { #Free; #Pro } };
     #subscriptionExpired;
-    #trialStarted : { limitBytes : Nat };
     #lowCycles : {
       canisterId : Principal;
       remaining : Nat;
@@ -19,7 +18,7 @@ module {
     #updateAvailable : { canisterId : Principal; releaseTag : Text };
     #paymentReceived : { purpose : Text; amount : Nat; tokenId : Text };
     #depositReceived : { amount : Nat; tokenId : Text };
-    #subscriptionRenewed : { plan : { #Free; #Trial; #Pro }; expiresAt : ?Int };
+    #subscriptionRenewed : { plan : { #Free; #Pro }; expiresAt : ?Int };
     #balanceLow : { requiredAmount : Nat };
     #autoRenewFailed : { reason : Text };
     #topUpCompleted : { canisterId : Principal; cyclesAmount : Nat };

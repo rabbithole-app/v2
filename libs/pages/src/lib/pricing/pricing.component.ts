@@ -56,7 +56,6 @@ export class PricingComponent {
   isAuthenticated = this.#authService.isAuthenticated;
   isExpired = this.#subscriptionService.isExpired;
   isPro = this.#subscriptionService.isPro;
-  isTrial = this.#subscriptionService.isTrial;
 
   licenseCta = computed(() => {
     if (!this.isAuthenticated()) return 'Create Storage';
@@ -67,7 +66,7 @@ export class PricingComponent {
   proCta = computed(() => {
     if (this.isPro()) return 'Current Plan';
     if (this.isExpired()) return 'Resubscribe';
-    if (this.isTrial() || this.hasSubscription()) return 'Upgrade to Pro';
+    if (this.hasSubscription()) return 'Upgrade to Pro';
     return 'Subscribe to Pro';
   });
 

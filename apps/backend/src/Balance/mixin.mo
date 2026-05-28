@@ -3,12 +3,14 @@ import Debug "mo:core/Debug";
 import Error "mo:core/Error";
 import Iter "mo:core/Iter";
 import Set "mo:core/Set";
+import Map "mo:core/Map";
 import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import Nat32 "mo:core/Nat32";
 import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
+import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 
@@ -39,7 +41,7 @@ mixin (
     chargeAndDistribute : (TreasuryTypes.ChargeAndDistributeArgs) -> async* TreasuryTypes.ChargeAndDistributeResult;
     getBalance : (Principal, TreasuryTypes.TokenId) -> async* Nat;
     simpleTransfer : (Principal, TreasuryTypes.TokenId, Nat) -> async* Result.Result<Nat, Text>;
-    simpleRefund : (Principal, TreasuryTypes.TokenId, Nat) -> async* Result.Result<(), Text>;
+    simpleRefund : (Principal, TreasuryTypes.TokenId, Nat) -> async* Result.Result<TreasuryTypes.RefundReceipt, Text>;
     /// Treasury ICP balance — used for reserve guards before CMC top-ups.
     getIcpBalance : () -> async* Nat;
   },
@@ -64,12 +66,13 @@ mixin (
     /// Single entry point for all CMC `NotifyError` handling (classify +
     /// refund OR enqueue pending op + admin notify). Wired from CmcRecovery
     /// mixin's internal `handleCmcNotifyError`.
-    cmcHandleNotifyError : (CmcRecovery.CmcOpSource, Nat, ?CmcRecovery.RefundContext, CMCTypes.NotifyError) -> async* ();
+    cmcHandleNotifyError : (CmcRecovery.CmcOpSource, Nat, ?CmcRecovery.RefundContext, CMCTypes.NotifyError) -> async* CmcRecovery.CmcNotifyOutcome;
     // Self-topup parameters — cycles.balance watermarks for the backend itself
     selfCanisterId : Principal;
     backendCyclesThreshold : Nat;
     backendCyclesTarget : Nat;
     onSubscriptionChanged : (Principal) -> async ();
+    registerIncludedFundingSettlement : ((Nat, CmcRecovery.IncludedFundingSettlement) -> ()) -> ();
   },
 ) {
   func emitBalanceNotification(recipient : Principal, event : Notifications.NotificationPayload) {
@@ -78,6 +81,60 @@ mixin (
 
   func emitBalanceAdminNotification(event : Notifications.NotificationPayload) {
     deps.events.emit(#adminNotificationRequested({ payload = event; correlationId = null }));
+  };
+
+  func emitStorageFundingChanged(
+    storageOwner : Principal,
+    canisterId : Principal,
+    status : BackendEvents.StorageFundingStatus,
+    currentBalance : ?Nat,
+    requiredBalance : ?Nat,
+  ) {
+    deps.events.emit(#storageFundingChanged({
+      accountOwner = storageOwner;
+      canisterId;
+      status;
+      currentBalance;
+      requiredBalance;
+      correlationId = null;
+    }));
+  };
+
+  func emitStorageOperationalStateChanged(
+    storageOwner : Principal,
+    canisterId : Principal,
+    slices : [BackendEvents.StorageOperationalSlice],
+    severity : ?BackendEvents.StorageOperationalSeverity,
+  ) {
+    deps.events.emit(#storageOperationalStateChanged({
+      accountOwner = storageOwner;
+      canisterId;
+      slices;
+      severity;
+      correlationId = null;
+    }));
+  };
+
+  func cmcPendingInfo(outcome : CmcRecovery.CmcNotifyOutcome) : ?{ id : Nat; reason : Text } {
+    switch (outcome) {
+      case (#pending({ id; reason })) ?{ id; reason };
+      case (#refundPending({ id; reason })) ?{ id; reason };
+      case (#refunded(_)) null;
+    };
+  };
+
+  func cmcPendingReason(outcome : CmcRecovery.CmcNotifyOutcome) : ?Text {
+    switch (cmcPendingInfo(outcome)) {
+      case (?info) ?("CMC funding operation #" # Nat.toText(info.id) # " is pending recovery: " # info.reason);
+      case null null;
+    };
+  };
+
+  func cmcRefundedReason(outcome : CmcRecovery.CmcNotifyOutcome) : ?Text {
+    switch (outcome) {
+      case (#refunded({ reason; receipt = _ })) ?reason;
+      case _ null;
+    };
   };
 
   // ---- Rate fetching ----
@@ -170,28 +227,20 @@ mixin (
     // checks + ambassador distribution). Fire-and-forget.
     maybeTopUpSelf<system>();
 
-    let logPrefix = "[charge " # paymentId # "] ";
-    Debug.print(logPrefix # "start user=" # Principal.toText(userId) # " usdCents=" # Nat.toText(usdAmountCents) # " purpose=" # purpose);
-
     let settings = deps.getUserSettings(userId);
-    Debug.print(logPrefix # "spendingPriority=" # debug_show settings.spendingPriority);
 
     onPhase(#fetchingRates);
     let rates = await* fetchRates(settings.spendingPriority);
-    Debug.print(logPrefix # "rates icp=" # debug_show rates.icpUsdRate # " eth=" # debug_show rates.ethRate # " sol=" # debug_show rates.solRate);
 
     onPhase(#checkingBalances);
     label priorities for (tokenId in settings.spendingPriority.vals()) {
       let ?tokenAmount = usdCentsToToken(usdAmountCents, tokenId, rates) else {
-        Debug.print(logPrefix # "skip " # debug_show tokenId # ": no rate (usdCentsToToken=null)");
         continue priorities;
       };
 
-      let userBalance = try { await* treasury.getBalance(userId, tokenId) } catch (e) {
-        Debug.print(logPrefix # "getBalance trap for " # debug_show tokenId # ": " # Error.message(e));
+      let userBalance = try { await* treasury.getBalance(userId, tokenId) } catch (_) {
         0;
       };
-      Debug.print(logPrefix # debug_show tokenId # " balance=" # Nat.toText(userBalance) # " required=" # Nat.toText(tokenAmount));
 
       if (userBalance >= tokenAmount) {
         onPhase(#charging({ tokenId; amount = tokenAmount }));
@@ -200,7 +249,6 @@ mixin (
         // picked an IC token (EVM/SOL keep charge-time distribution).
         let deferred = deferAmbassadorPayout and Balance.isIcToken(tokenId);
         let (l1, l2) = if (deferred) (null, null) else (chain.l1, chain.l2);
-        Debug.print(logPrefix # "attempting chargeAndDistribute with " # debug_show tokenId # " amount=" # Nat.toText(tokenAmount) # " deferred=" # debug_show deferred);
         let result = await* treasury.chargeAndDistribute({
           paymentId;
           userId;
@@ -212,27 +260,37 @@ mixin (
         });
         switch (result) {
           case (#ok(_)) {
-            Debug.print(logPrefix # "SUCCESS charged " # debug_show tokenId # " amount=" # Nat.toText(tokenAmount));
             return #ok({ tokenId; amount = tokenAmount });
           };
-          case (#err(#PartiallyCompleted(record))) {
-            Debug.print(logPrefix # "partial distribution tokenId=" # debug_show tokenId # " — check distributionLog");
+          case (#err(#PartiallyCompleted(_))) {
             return #ok({ tokenId; amount = tokenAmount });
           };
-          case (#err(e)) {
-            Debug.print(logPrefix # "chargeAndDistribute err for " # debug_show tokenId # ": " # debug_show e);
-          };
+          case (#err(_)) {};
         };
-      } else {
-        Debug.print(logPrefix # "insufficient " # debug_show tokenId # ": have " # Nat.toText(userBalance) # " < need " # Nat.toText(tokenAmount));
       };
     };
 
-    Debug.print(logPrefix # "INSUFFICIENT_FUNDS — no token in priority had enough balance");
     #insufficientFunds({ required = usdAmountCents });
   };
 
   // ---- Simple charge for top-up (no ambassador split) ----
+
+  func tokenIdText(tokenId : TreasuryTypes.TokenId) : Text {
+    switch (tokenId) {
+      case (#ICP) "ICP";
+      case (#ckUSDC) "ckUSDC";
+      case (#ckUSDT) "ckUSDT";
+      case (#ckETH) "ckETH";
+      case (#BaseETH) "BaseETH";
+      case (#BaseUSDC) "BaseUSDC";
+      case (#BaseUSDT) "BaseUSDT";
+      case (#SOL) "SOL";
+      case (#SolUSDC) "SolUSDC";
+      case (#SolUSDT) "SolUSDT";
+    };
+  };
+
+  let PAID_AUTO_TOP_UP_BALANCE_HINT : Text = "Add funds to a supported wallet balance, adjust spending priority, or top up this storage manually.";
 
   /// Charge user for top-up. 100% to admin, no ambassador distribution.
   /// Supports partial fill: if user can't afford targetCycles, charges for maxCycles they can afford.
@@ -246,6 +304,8 @@ mixin (
     let settings = deps.getUserSettings(userId);
     let fetchedRates = await* fetchRates(settings.spendingPriority);
     let targetUsdCents = Balance.cyclesToUsdCents(targetCycles, xdrPermyriadPerIcp, icpUsdRate);
+    var hasPositiveBalance = false;
+    var lastTransferFailure : ?Text = null;
 
     label priorities for (tokenId in settings.spendingPriority.vals()) {
       let ?fullTokenAmount = usdCentsToToken(targetUsdCents, tokenId, fetchedRates) else continue priorities;
@@ -254,10 +314,11 @@ mixin (
         0;
       };
       if (userBalance == 0) continue priorities;
+      hasPositiveBalance := true;
 
       // Determine actual charge: full or partial
       // Note: treasurySimpleTransfer deducts fee, so effective amount = chargeAmount - fee
-      let fee = Balance.getIcTokenFee(tokenId);
+      let fee = if (Balance.isIcToken(tokenId)) Balance.getIcTokenFee(tokenId) else 0;
       let (chargeAmount, actualCycles) = if (userBalance >= fullTokenAmount) {
         (fullTokenAmount, targetCycles);
       } else {
@@ -300,19 +361,46 @@ mixin (
         (userBalance, partialCycles);
       };
 
-      // Execute simple transfer (user → admin, no split)
-      let result = await* treasury.simpleTransfer(userId, tokenId, chargeAmount);
+      // Execute charge without ambassador split. IC tokens can use a cheap
+      // single-ledger transfer; EVM/SOL use the threshold-signed charge path.
+      let result = if (Balance.isIcToken(tokenId)) {
+        await* treasury.simpleTransfer(userId, tokenId, chargeAmount);
+      } else {
+        let paymentId = generatePaymentId("storage_topup", userId);
+        switch (await* treasury.chargeAndDistribute({
+          paymentId;
+          userId;
+          tokenId;
+          totalAmount = chargeAmount;
+          ambassadorL1 = null;
+          ambassadorL2 = null;
+          metadata = ?"storage_auto_top_up";
+        })) {
+          case (#ok(_)) #ok(0);
+          case (#err(#PartiallyCompleted(record))) #err("Charge partially completed for " # tokenIdText(tokenId) # ": " # debug_show record);
+          case (#err(err)) #err("Charge failed for " # tokenIdText(tokenId) # ": " # debug_show err);
+        };
+      };
       switch (result) {
         case (#ok(_)) return #ok({
           tokenId;
           amount = chargeAmount;
           actualCycles;
         });
-        case (#err(_)) {}; // Try next token
+        case (#err(msg)) {
+          lastTransferFailure := ?("Storage auto top-up charge failed for " # tokenIdText(tokenId) # ": " # msg);
+        }; // Try next token
       };
     };
 
-    #err("Insufficient balance for top-up");
+    switch (lastTransferFailure) {
+      case (?message) return #err(message);
+      case null {};
+    };
+    if (hasPositiveBalance) {
+      return #err("Insufficient usable wallet balance for storage auto top-up. " # PAID_AUTO_TOP_UP_BALANCE_HINT);
+    };
+    #err("No usable wallet balance for storage auto top-up. " # PAID_AUTO_TOP_UP_BALANCE_HINT);
   };
 
   // ---- Pending refunds (persistent across upgrades) ----
@@ -336,6 +424,8 @@ mixin (
   /// TODO: replace static constant with dynamic sum of actual pending
   /// refund/payout obligations via ZenDB queries.
   transient let TREASURY_ICP_RESERVE : Nat = 10 * 100_000_000; // 10 ICP
+  transient let STORAGE_FUNDING_FAILURE_NOTIFICATION_COOLDOWN : Time.Time = 60_000_000_000; // 60 seconds
+  transient let storageFundingFailureNotificationAt = Map.empty<Principal, Time.Time>();
 
   /// Check that debiting `required` e8s from treasury ICP won't put the
   /// balance below `TREASURY_ICP_RESERVE`. Returns `?currentBalance` if
@@ -350,9 +440,61 @@ mixin (
     };
   };
 
+  func leftPadE8s(value : Nat) : Text {
+    var text = Nat.toText(value);
+    while (Text.size(text) < 8) {
+      text := "0" # text;
+    };
+    text;
+  };
+
+  func formatIcpE8s(e8s : Nat) : Text {
+    let whole = e8s / Balance.E8S_PER_ICP;
+    let fraction = e8s % Balance.E8S_PER_ICP;
+    if (fraction == 0) {
+      return Nat.toText(whole) # " ICP";
+    };
+
+    let trimmedFraction = Text.trimEnd(leftPadE8s(fraction), #char '0');
+    Nat.toText(whole) # "." # trimmedFraction # " ICP";
+  };
+
+  func treasuryIcpReserveLowReason(currentBalance : Nat, required : Nat) : Text {
+    "Treasury ICP reserve low: balance " #
+    formatIcpE8s(currentBalance) #
+    ", required debit " #
+    formatIcpE8s(required) #
+    ", reserve " #
+    formatIcpE8s(TREASURY_ICP_RESERVE);
+  };
+
+  func shouldEmitStorageFundingFailureNotification(canisterId : Principal) : Bool {
+    let now : Time.Time = Time.now();
+    switch (Map.get(storageFundingFailureNotificationAt, Principal.compare, canisterId)) {
+      case (?lastNotifiedAt) {
+        let elapsed = if (now > lastNotifiedAt) now - lastNotifiedAt else 0;
+        if (elapsed < STORAGE_FUNDING_FAILURE_NOTIFICATION_COOLDOWN) {
+          return false;
+        };
+      };
+      case null {};
+    };
+    Map.add(storageFundingFailureNotificationAt, Principal.compare, canisterId, now);
+    true;
+  };
+
+  func emitStorageTreasuryIcpLowIfNeeded(storageOwner : Principal, canisterId : Principal, currentBalance : Nat, required : Nat) : Text {
+    let reason = treasuryIcpReserveLowReason(currentBalance, required);
+    if (shouldEmitStorageFundingFailureNotification(canisterId)) {
+      emitBalanceAdminNotification(#treasuryIcpLow({ currentBalance; required; reserve = TREASURY_ICP_RESERVE }));
+      emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason }));
+    };
+    reason;
+  };
+
   func safeRefund(userId : Principal, tokenId : TreasuryTypes.TokenId, amount : Nat, reason : Text) : async* () {
     switch (await* treasury.simpleRefund(userId, tokenId, amount)) {
-      case (#ok()) {};
+      case (#ok(_receipt)) {};
       case (#err(msg)) {
         Debug.print("Refund failed, enqueuing: user=" # Principal.toText(userId) # " amount=" # Nat.toText(amount) # " err=" # msg);
         if (Vector.size(pendingRefunds) >= MAX_PENDING_REFUNDS) {
@@ -387,7 +529,7 @@ mixin (
 
     for (refund in Vector.vals(pendingRefunds)) {
       switch (await* treasury.simpleRefund(refund.userId, refund.tokenId, refund.amount)) {
-        case (#ok()) { processed += 1 };
+        case (#ok(_receipt)) { processed += 1 };
         case (#err(_)) { Vector.add(remaining, refund) };
       };
     };
@@ -454,7 +596,7 @@ mixin (
     // Validate plan — only paid plans allowed
     let amountCents = switch (plan) {
       case (#Pro) PRO_MONTHLY_PRICE_CENTS;
-      case (#Free or #Trial) return #err(#InvalidPlan("Cannot purchase Free or Trial plans"));
+      case (#Free) return #err(#InvalidPlan("Cannot purchase Free plans"));
     };
 
     // Charge from balance (with ambassador distribution — subscription is
@@ -626,7 +768,7 @@ mixin (
       };
       case null {};
     };
-    let transferResult = await deps.transferIcpToCmc(cmcDebit, canisterId);
+    let transferResult = await deps.transferIcpToCmc(icpE8sNeeded, canisterId);
     let blockIndex = switch (transferResult) {
       case (#ok(idx)) idx;
       case (#err(msg)) {
@@ -645,14 +787,24 @@ mixin (
         #ok({ cyclesAdded = charged.actualCycles });
       };
       case (#err(err)) {
-        await* deps.cmcHandleNotifyError(
+        let outcome = await* deps.cmcHandleNotifyError(
           #userTopUp({ canisterId }),
           blockIndex,
           ?{ payer = caller; tokenId = charged.tokenId; amount = charged.amount },
           err,
         );
-        emitBalanceNotification(caller, #topUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
-        #err("CMC top-up notification failed: " # debug_show err);
+        switch (cmcPendingReason(outcome)) {
+          case (?reason) {
+            return #err(reason);
+          };
+          case null {};
+        };
+        let reason = switch (cmcRefundedReason(outcome)) {
+          case (?message) "CMC refunded top-up: " # message;
+          case null "CMC top-up notification failed: " # debug_show err;
+        };
+        emitBalanceNotification(caller, #topUpFailed({ canisterId; reason }));
+        #err(reason);
       };
     };
   };
@@ -660,6 +812,94 @@ mixin (
   // ---- Auto top-up (triggered by storage canister) ----
 
   transient let autoTopUpInFlight = Set.empty<Principal>(); // canisters currently being topped up
+  transient let proIncludedFundingInFlight = Set.empty<Principal>(); // users currently consuming included storage funding
+
+  type StorageFundingAttempt = {
+    requestedAt : Time.Time;
+    message : ?Text;
+  };
+
+  type ProIncludedStorageFundingPeriod = (Time.Time, Time.Time);
+
+  type ProIncludedStorageFundingBudget = {
+    period : ProIncludedStorageFundingPeriod;
+    var usedCycles : Nat;
+  };
+
+  type ProIncludedStorageFundingReservation = {
+    storageOwner : Principal;
+    period : ProIncludedStorageFundingPeriod;
+    cycles : Nat;
+  };
+
+  public type StorageFundingStatus = {
+    managedFundingEligible : Bool;
+    includedCyclesLimit : Nat;
+    includedCyclesUsed : Nat;
+    includedCyclesRemaining : Nat;
+    periodStart : ?Time.Time;
+    periodEnd : ?Time.Time;
+    paidAutoTopUpEnabled : Bool;
+    paidTopUpAmountCycles : Nat;
+    spendingPriority : [TreasuryTypes.TokenId];
+  };
+
+  let proIncludedStorageFunding = Map.empty<Principal, ProIncludedStorageFundingBudget>();
+  let proIncludedStorageFundingReservations = Map.empty<Nat, ProIncludedStorageFundingReservation>();
+
+  let PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD : Nat = 2_000_000_000_000; // 2 TC included managed funding per period
+  let PRO_INCLUDED_STORAGE_TOP_UP_CYCLES : Nat = 1_000_000_000_000; // 1 TC per included managed funding top-up
+  let STORAGE_FUNDING_REQUEST_COOLDOWN : Time.Time = 60_000_000_000; // 60 seconds per storage canister
+  let STORAGE_FUNDING_IN_PROGRESS_ERROR : Text = "Storage funding is already in progress";
+  let PRO_INCLUDED_STORAGE_FUNDING_EXHAUSTED_ERROR : Text = "Pro included storage funding is exhausted for the current period";
+
+  transient let storageFundingAttempts = Map.empty<Principal, StorageFundingAttempt>();
+
+  func clearStorageFundingLocks(storageOwner : Principal, canisterId : Principal) {
+    Set.remove(proIncludedFundingInFlight, Principal.compare, storageOwner);
+    Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+  };
+
+  func recentStorageFundingAttemptError(canisterId : Principal) : ?Text {
+    let now : Time.Time = Time.now();
+    switch (Map.get(storageFundingAttempts, Principal.compare, canisterId)) {
+      case (?attempt) {
+        let elapsed = if (now > attempt.requestedAt) now - attempt.requestedAt else 0;
+        if (elapsed < STORAGE_FUNDING_REQUEST_COOLDOWN) {
+          switch (attempt.message) {
+            case (?message) ?message;
+            case null ?STORAGE_FUNDING_IN_PROGRESS_ERROR;
+          };
+        } else {
+          null;
+        };
+      };
+      case null null;
+    };
+  };
+
+  func beginStorageFundingAttempt(canisterId : Principal) : ?Text {
+    switch (recentStorageFundingAttemptError(canisterId)) {
+      case (?message) return ?message;
+      case null {};
+    };
+    Map.add(storageFundingAttempts, Principal.compare, canisterId, {
+      requestedAt = Time.now();
+      message = null;
+    });
+    null;
+  };
+
+  func finishStorageFundingAttempt(canisterId : Principal, message : ?Text) {
+    Map.add(storageFundingAttempts, Principal.compare, canisterId, {
+      requestedAt = Time.now();
+      message;
+    });
+  };
+
+  func shouldFallbackToPaidAutoTopUp(includedFundingError : Text) : Bool {
+    includedFundingError == PRO_INCLUDED_STORAGE_FUNDING_EXHAUSTED_ERROR;
+  };
 
   func getAutoTopUpSettings(storageOwner : Principal) : Result.Result<Settings.UserSettings, Text> {
     let settings = deps.getUserSettings(storageOwner);
@@ -677,11 +917,294 @@ mixin (
     };
   };
 
+  func activeProSubscription(storageOwner : Principal) : Result.Result<Subscriptions.Subscription, Text> {
+    switch (subscriptions.get(storageOwner)) {
+      case (?sub) {
+        switch (sub.status, sub.plan) {
+          case (#Active, #Pro) #ok(sub);
+          case _ #err("Managed storage funding requires an active Pro subscription");
+        };
+      };
+      case null #err("Managed storage funding requires an active Pro subscription");
+    };
+  };
+
+  func proFundingPeriod(sub : Subscriptions.Subscription) : ProIncludedStorageFundingPeriod {
+    let now = Time.now();
+    let elapsed = if (now > sub.activatedAt) now - sub.activatedAt else 0;
+    let periodsElapsed = elapsed / Subscriptions.THIRTY_DAYS_NS;
+    let periodStart = sub.activatedAt + (periodsElapsed * Subscriptions.THIRTY_DAYS_NS);
+    let defaultPeriodEnd = periodStart + Subscriptions.THIRTY_DAYS_NS;
+    let periodEnd = switch (sub.expiresAt) {
+      case (?expiresAt) {
+        if (expiresAt < defaultPeriodEnd) expiresAt else defaultPeriodEnd;
+      };
+      case null defaultPeriodEnd;
+    };
+    (periodStart, periodEnd);
+  };
+
+  func sameProIncludedFundingPeriod(a : ProIncludedStorageFundingPeriod, b : ProIncludedStorageFundingPeriod) : Bool {
+    a.0 == b.0 and a.1 == b.1;
+  };
+
+  func proIncludedBudgetFor(storageOwner : Principal, sub : Subscriptions.Subscription) : ProIncludedStorageFundingBudget {
+    let period = proFundingPeriod(sub);
+    switch (Map.get(proIncludedStorageFunding, Principal.compare, storageOwner)) {
+      case (?budget) {
+        if (sameProIncludedFundingPeriod(budget.period, period)) {
+          return budget;
+        };
+      };
+      case null {};
+    };
+    let budget : ProIncludedStorageFundingBudget = {
+      period;
+      var usedCycles = 0;
+    };
+    Map.add(proIncludedStorageFunding, Principal.compare, storageOwner, budget);
+    budget;
+  };
+
+  func proIncludedBudgetUsedFor(storageOwner : Principal, period : ProIncludedStorageFundingPeriod) : Nat {
+    switch (Map.get(proIncludedStorageFunding, Principal.compare, storageOwner)) {
+      case (?budget) {
+        if (sameProIncludedFundingPeriod(budget.period, period)) {
+          budget.usedCycles;
+        } else {
+          0;
+        };
+      };
+      case null 0;
+    };
+  };
+
+  func releaseProIncludedBudget(budget : ProIncludedStorageFundingBudget, cycles : Nat) {
+    if (cycles >= budget.usedCycles) {
+      budget.usedCycles := 0;
+    } else {
+      budget.usedCycles -= cycles;
+    };
+  };
+
+  func reserveProIncludedFunding(
+    blockIndex : Nat,
+    storageOwner : Principal,
+    budget : ProIncludedStorageFundingBudget,
+    cycles : Nat,
+  ) {
+    budget.usedCycles += cycles;
+    Map.add(proIncludedStorageFundingReservations, Nat.compare, blockIndex, {
+      storageOwner;
+      period = budget.period;
+      cycles;
+    });
+  };
+
+  func settleProIncludedFundingReservation(blockIndex : Nat, settlement : CmcRecovery.IncludedFundingSettlement) {
+    switch (Map.get(proIncludedStorageFundingReservations, Nat.compare, blockIndex)) {
+      case null {};
+      case (?reservation) {
+        Map.remove(proIncludedStorageFundingReservations, Nat.compare, blockIndex);
+        switch (settlement) {
+          case (#completed) {};
+          case (#refunded) {
+            switch (Map.get(proIncludedStorageFunding, Principal.compare, reservation.storageOwner)) {
+              case (?budget) {
+                if (sameProIncludedFundingPeriod(budget.period, reservation.period)) {
+                  releaseProIncludedBudget(budget, reservation.cycles);
+                };
+              };
+              case null {};
+            };
+          };
+        };
+      };
+    };
+  };
+
+  deps.registerIncludedFundingSettlement(settleProIncludedFundingReservation);
+
+  func storageFundingStatusFor(storageOwner : Principal) : StorageFundingStatus {
+    let settings = deps.getUserSettings(storageOwner);
+    let paidAutoTopUpEnabled = settings.autoTopUp and settings.topUpAmountCycles > 0;
+
+    switch (subscriptions.get(storageOwner)) {
+      case (?sub) {
+        switch (sub.status, sub.plan) {
+          case (#Active, #Pro) {
+            let period = proFundingPeriod(sub);
+            let usedCycles = proIncludedBudgetUsedFor(storageOwner, period);
+            let remainingCycles = if (usedCycles >= PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD) {
+              0;
+            } else {
+              PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD - usedCycles;
+            };
+            {
+              managedFundingEligible = true;
+              includedCyclesLimit = PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD;
+              includedCyclesUsed = usedCycles;
+              includedCyclesRemaining = remainingCycles;
+              periodStart = ?period.0;
+              periodEnd = ?period.1;
+              paidAutoTopUpEnabled;
+              paidTopUpAmountCycles = settings.topUpAmountCycles;
+              spendingPriority = settings.spendingPriority;
+            };
+          };
+          case _ {
+            {
+              managedFundingEligible = false;
+              includedCyclesLimit = PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD;
+              includedCyclesUsed = 0;
+              includedCyclesRemaining = 0;
+              periodStart = null;
+              periodEnd = null;
+              paidAutoTopUpEnabled;
+              paidTopUpAmountCycles = settings.topUpAmountCycles;
+              spendingPriority = settings.spendingPriority;
+            };
+          };
+        };
+      };
+      case null {
+        {
+          managedFundingEligible = false;
+          includedCyclesLimit = PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD;
+          includedCyclesUsed = 0;
+          includedCyclesRemaining = 0;
+          periodStart = null;
+          periodEnd = null;
+          paidAutoTopUpEnabled;
+          paidTopUpAmountCycles = settings.topUpAmountCycles;
+          spendingPriority = settings.spendingPriority;
+        };
+      };
+    };
+  };
+
+  public query ({ caller }) func getStorageFundingStatus() : async StorageFundingStatus {
+    assert not Principal.isAnonymous(caller);
+    storageFundingStatusFor(caller);
+  };
+
+  func runProIncludedStorageFunding<system>(
+    storageOwner : Principal,
+    canisterId : Principal,
+    requestedCycles : ?Nat,
+  ) : async Result.Result<{ cyclesAdded : Nat }, Text> {
+    maybeTopUpSelf<system>();
+
+    let sub = switch (activeProSubscription(storageOwner)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(message);
+    };
+    let budget = proIncludedBudgetFor(storageOwner, sub);
+    if (budget.usedCycles >= PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD) {
+      return #err(PRO_INCLUDED_STORAGE_FUNDING_EXHAUSTED_ERROR);
+    };
+
+    let requiredCycles = switch (requestedCycles) {
+      case (?cycles) cycles;
+      case null PRO_INCLUDED_STORAGE_TOP_UP_CYCLES;
+    };
+    if (requiredCycles == 0) return #ok({ cyclesAdded = 0 });
+
+    let remainingBudget = Nat.sub(PRO_INCLUDED_STORAGE_CYCLES_PER_PERIOD, budget.usedCycles);
+    let cyclesToBuy = Nat.min(remainingBudget, PRO_INCLUDED_STORAGE_TOP_UP_CYCLES);
+    if (cyclesToBuy == 0) return #err(PRO_INCLUDED_STORAGE_FUNDING_EXHAUSTED_ERROR);
+
+    if (Set.contains(autoTopUpInFlight, Principal.compare, canisterId)) return #err(STORAGE_FUNDING_IN_PROGRESS_ERROR);
+    if (Set.contains(proIncludedFundingInFlight, Principal.compare, storageOwner)) return #err(STORAGE_FUNDING_IN_PROGRESS_ERROR);
+    switch (beginStorageFundingAttempt(canisterId)) {
+      case (?message) return #err(message);
+      case null {};
+    };
+    Set.add(autoTopUpInFlight, Principal.compare, canisterId);
+    Set.add(proIncludedFundingInFlight, Principal.compare, storageOwner);
+    emitStorageFundingChanged(storageOwner, canisterId, #inFlight, null, null);
+    emitStorageOperationalStateChanged(storageOwner, canisterId, [#funding], ?#info);
+
+    try {
+      let xdrPermyriadPerIcp = await rates.getIcpXdrRate();
+      let icpE8sNeeded = Balance.cyclesToIcpE8s(cyclesToBuy, xdrPermyriadPerIcp);
+      let cmcDebit = icpE8sNeeded + Balance.LEDGER_FEE;
+      switch (await* guardTreasuryIcpReserve(cmcDebit)) {
+        case (?currentBalance) {
+          let reason = emitStorageTreasuryIcpLowIfNeeded(storageOwner, canisterId, currentBalance, cmcDebit);
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
+          clearStorageFundingLocks(storageOwner, canisterId);
+          return #err(reason);
+        };
+        case null {};
+      };
+
+      let transferResult = await deps.transferIcpToCmc(icpE8sNeeded, canisterId);
+      let blockIndex = switch (transferResult) {
+        case (#ok(idx)) idx;
+        case (#err(msg)) {
+          let reason = "ICP transfer failed: " # msg;
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "ICP transfer failed: " # msg }));
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
+          clearStorageFundingLocks(storageOwner, canisterId);
+          return #err(reason);
+        };
+      };
+      reserveProIncludedFunding(blockIndex, storageOwner, budget, cyclesToBuy);
+
+      let topUpResult = await deps.notifyTopUp(Nat64.fromNat(blockIndex), canisterId);
+      switch (topUpResult) {
+        case (#ok(_)) {
+          settleProIncludedFundingReservation(blockIndex, #completed);
+          emitBalanceNotification(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = cyclesToBuy }));
+          emitStorageFundingChanged(storageOwner, canisterId, #completed({ cyclesAdded = cyclesToBuy }), null, null);
+          emitStorageOperationalStateChanged(storageOwner, canisterId, [#cycles, #funding], ?#info);
+          finishStorageFundingAttempt(canisterId, null);
+          clearStorageFundingLocks(storageOwner, canisterId);
+          return #ok({ cyclesAdded = cyclesToBuy });
+        };
+        case (#err(err)) {
+          let outcome = await* deps.cmcHandleNotifyError(#autoTopUp({ canisterId }), blockIndex, null, err);
+          switch (cmcPendingInfo(outcome)) {
+            case (?info) emitStorageFundingChanged(storageOwner, canisterId, #pendingCmc({ recoveryId = info.id; reason = info.reason }), null, null);
+            case null {};
+          };
+          switch (cmcPendingReason(outcome)) {
+            case (?reason) {
+              finishStorageFundingAttempt(canisterId, ?reason);
+              clearStorageFundingLocks(storageOwner, canisterId);
+              return #err(reason);
+          };
+          case null {};
+        };
+          let reason = switch (cmcRefundedReason(outcome)) {
+            case (?message) "CMC refunded included storage funding: " # message;
+            case null "CMC notify failed: " # debug_show err;
+          };
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason }));
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
+          clearStorageFundingLocks(storageOwner, canisterId);
+          return #err(reason);
+        };
+      };
+    } catch (_) {
+      emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Internal error" }));
+      emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason = "Internal error" }), null, null);
+      finishStorageFundingAttempt(canisterId, ?"Internal error");
+      clearStorageFundingLocks(storageOwner, canisterId);
+      return #err("Internal error");
+    };
+  };
+
   /// Checks user settings and auto-tops up if enabled.
   /// Uses in-flight lock to prevent duplicate top-ups from concurrent callbacks.
   func runAutoTopUp<system>(
     storageOwner : Principal,
     canisterId : Principal,
+    requestedCycles : ?Nat,
   ) : async Result.Result<{ cyclesAdded : Nat }, Text> {
     // Heavy path — multiple HTTPS outcalls (rate) + CMC + ledger transfers.
     // Opportunistic self-topup keeps the backend itself solvent.
@@ -691,10 +1214,22 @@ mixin (
       case (#ok(value)) value;
       case (#err(message)) return #err(message);
     };
+    let cyclesToBuy = switch (requestedCycles) {
+      case (?cycles) {
+        if (cycles > settings.topUpAmountCycles) cycles else settings.topUpAmountCycles;
+      };
+      case _ settings.topUpAmountCycles;
+    };
 
     // In-flight lock: skip if top-up already in progress for this canister
     if (Set.contains(autoTopUpInFlight, Principal.compare, canisterId)) return #err("Auto top-up is already in progress");
+    switch (beginStorageFundingAttempt(canisterId)) {
+      case (?message) return #err(message);
+      case null {};
+    };
     Set.add(autoTopUpInFlight, Principal.compare, canisterId);
+    emitStorageFundingChanged(storageOwner, canisterId, #inFlight, null, null);
+    emitStorageOperationalStateChanged(storageOwner, canisterId, [#funding], ?#info);
 
     // Track charge for refund in catch block
     var pendingCharge : ?{ tokenId : TreasuryTypes.TokenId; amount : Nat } = null;
@@ -702,18 +1237,23 @@ mixin (
     try {
       let xdrPermyriadPerIcp = await rates.getIcpXdrRate();
       let ?icpUsdRate = await rates.getXrcRate("ICP", "USD") else {
-        emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Failed to fetch ICP/USD rate" }));
+        let reason = "Failed to fetch ICP/USD rate";
+        emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason }));
+        emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+        finishStorageFundingAttempt(canisterId, ?reason);
         Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-        return #err("Failed to fetch ICP/USD rate");
+        return #err(reason);
       };
 
-      let chargeResult = await* simpleChargeForTopUp(storageOwner, settings.topUpAmountCycles, xdrPermyriadPerIcp, icpUsdRate);
+      let chargeResult = await* simpleChargeForTopUp(storageOwner, cyclesToBuy, xdrPermyriadPerIcp, icpUsdRate);
       let charged = switch (chargeResult) {
         case (#ok(info)) info;
-        case (#err(_)) {
-          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Insufficient balance" }));
+        case (#err(message)) {
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = message }));
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason = message }), null, null);
+          finishStorageFundingAttempt(canisterId, ?message);
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-          return #err("Insufficient balance");
+          return #err(message);
         };
       };
       pendingCharge := ?{ tokenId = charged.tokenId; amount = charged.amount };
@@ -726,22 +1266,26 @@ mixin (
         case (?currentBalance) {
           pendingCharge := null;
           await* safeRefund(storageOwner, charged.tokenId, charged.amount, "autoTopUp: treasury ICP reserve low");
-          emitBalanceAdminNotification(#treasuryIcpLow({ currentBalance; required = cmcDebit; reserve = TREASURY_ICP_RESERVE }));
-          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Service temporarily unavailable" }));
+          let reason = emitStorageTreasuryIcpLowIfNeeded(storageOwner, canisterId, currentBalance, cmcDebit);
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-          return #err("Service temporarily unavailable");
+          return #err(reason);
         };
         case null {};
       };
-      let transferResult = await deps.transferIcpToCmc(cmcDebit, canisterId);
+      let transferResult = await deps.transferIcpToCmc(icpE8sNeeded, canisterId);
       let blockIndex = switch (transferResult) {
         case (#ok(idx)) idx;
         case (#err(msg)) {
           pendingCharge := null; // refund handled below
           await* safeRefund(storageOwner, charged.tokenId, charged.amount, "autoTopUp ICP transfer failure");
+          let reason = "ICP transfer failed: " # msg;
           emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "ICP transfer failed: " # msg }));
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-          return #err("ICP transfer failed: " # msg);
+          return #err(reason);
         };
       };
 
@@ -750,20 +1294,41 @@ mixin (
         case (#ok(_)) {
           pendingCharge := null; // success, no refund needed
           emitBalanceNotification(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
+          emitStorageFundingChanged(storageOwner, canisterId, #completed({ cyclesAdded = charged.actualCycles }), null, null);
+          emitStorageOperationalStateChanged(storageOwner, canisterId, [#cycles, #funding], ?#info);
+          finishStorageFundingAttempt(canisterId, null);
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
           return #ok({ cyclesAdded = charged.actualCycles });
         };
         case (#err(err)) {
           pendingCharge := null; // cmcHandleNotifyError takes over (may refund, or enqueue pending op)
-          await* deps.cmcHandleNotifyError(
+          let outcome = await* deps.cmcHandleNotifyError(
             #autoTopUp({ canisterId }),
             blockIndex,
             ?{ payer = storageOwner; tokenId = charged.tokenId; amount = charged.amount },
             err,
           );
-          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "CMC notify failed: " # debug_show err }));
+          switch (cmcPendingInfo(outcome)) {
+            case (?info) emitStorageFundingChanged(storageOwner, canisterId, #pendingCmc({ recoveryId = info.id; reason = info.reason }), null, null);
+            case null {};
+          };
+          switch (cmcPendingReason(outcome)) {
+            case (?reason) {
+              finishStorageFundingAttempt(canisterId, ?reason);
+              Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+              return #err(reason);
+            };
+            case null {};
+          };
+          let reason = switch (cmcRefundedReason(outcome)) {
+            case (?message) "CMC refunded auto top-up: " # message;
+            case null "CMC notify failed: " # debug_show err;
+          };
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason }));
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
           Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
-          return #err("CMC notify failed: " # debug_show err);
+          return #err(reason);
         };
       };
     } catch (e) {
@@ -785,6 +1350,8 @@ mixin (
       };
       Debug.print("processAutoTopUp error: " # Error.message(e));
       emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason = "Internal error" }));
+      emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason = "Internal error" }), null, null);
+      finishStorageFundingAttempt(canisterId, ?"Internal error");
       Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
       return #err("Internal error");
     };
@@ -802,8 +1369,19 @@ mixin (
     severity : { #warning; #critical },
   ) : async () {
     ignore currentBalance;
-    ignore severity;
-    ignore await runAutoTopUp<system>(storageOwner, canisterId);
+    let operationalSeverity : BackendEvents.StorageOperationalSeverity = switch (severity) {
+      case (#warning) #warning;
+      case (#critical) #critical;
+    };
+    emitStorageOperationalStateChanged(storageOwner, canisterId, [#cycles], ?operationalSeverity);
+    switch (await runProIncludedStorageFunding<system>(storageOwner, canisterId, null)) {
+      case (#ok _) {};
+      case (#err(message)) {
+        if (message == STORAGE_FUNDING_IN_PROGRESS_ERROR) return;
+        if (not shouldFallbackToPaidAutoTopUp(message)) return;
+        ignore await runAutoTopUp<system>(storageOwner, canisterId, null);
+      };
+    };
   };
 
   func ensureAutoTopUpForStorageOperation<system>(
@@ -812,22 +1390,30 @@ mixin (
     currentBalance : Nat,
     requiredBalance : Nat,
   ) : async Result.Result<{ cyclesAdded : Nat }, Text> {
-    let settings = switch (getAutoTopUpSettings(storageOwner)) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
+    let requestedCycles = if (requiredBalance > currentBalance) {
+      ?Nat.sub(requiredBalance, currentBalance);
+    } else {
+      null;
     };
-
-    if (currentBalance + settings.topUpAmountCycles < requiredBalance) {
-      return #err(
-        "Auto top-up amount is too low for this upload. Required balance: " #
-        Nat.toText(requiredBalance) #
-        " cycles, current balance: " #
-        Nat.toText(currentBalance) #
-        " cycles"
-      );
+    emitStorageFundingChanged(storageOwner, canisterId, #requested, ?currentBalance, ?requiredBalance);
+    emitStorageOperationalStateChanged(storageOwner, canisterId, [#cycles, #funding], ?#warning);
+    switch (await runProIncludedStorageFunding<system>(storageOwner, canisterId, requestedCycles)) {
+      case (#ok(info)) #ok(info);
+      case (#err(includedFundingError)) {
+        if (includedFundingError == STORAGE_FUNDING_IN_PROGRESS_ERROR) {
+          return #err(includedFundingError);
+        };
+        if (not shouldFallbackToPaidAutoTopUp(includedFundingError)) {
+          return #err(includedFundingError);
+        };
+        let settings = deps.getUserSettings(storageOwner);
+        if (settings.autoTopUp and settings.topUpAmountCycles > 0) {
+          await runAutoTopUp<system>(storageOwner, canisterId, requestedCycles);
+        } else {
+          #err(includedFundingError);
+        };
+      };
     };
-
-    await runAutoTopUp<system>(storageOwner, canisterId);
   };
 
   // ---- Backend self-topup (from treasury ICP) ----
@@ -911,7 +1497,7 @@ mixin (
     let icpE8sNeeded = Balance.cyclesToIcpE8s(needed, xdrPermyriadPerIcp);
     if (icpE8sNeeded == 0) return;
 
-    // Include ledger fee — actual transferred amount is what CMC will accept.
+    // Guard includes ledger fee; actual transferred amount is what CMC accepts.
     // Unified pool — treasury subaccount is source for all CMC top-ups
     // (user, auto, and backend self-topup).
     //
@@ -920,7 +1506,7 @@ mixin (
     // the whole system freezes (including refunds). Accepting risk of
     // draining the refund reserve in this specific flow.
     let transferResult = await deps.transferIcpToCmc(
-      icpE8sNeeded + Balance.LEDGER_FEE,
+      icpE8sNeeded,
       deps.selfCanisterId,
     );
     let blockIndex = switch (transferResult) {
@@ -944,7 +1530,7 @@ mixin (
       case (#err err) {
         // `null` refund: treasury auto-receives ICP on CMC `#Refunded`.
         Debug.print("[selfTopUp] CMC notify failed block=" # Nat.toText(blockIndex) # ": " # debug_show err);
-        await* deps.cmcHandleNotifyError(#selfTopUp, blockIndex, null, err);
+        ignore await* deps.cmcHandleNotifyError(#selfTopUp, blockIndex, null, err);
       };
     };
   };

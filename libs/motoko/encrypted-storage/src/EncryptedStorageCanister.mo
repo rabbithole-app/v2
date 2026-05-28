@@ -61,7 +61,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   };
 
   public shared ({ caller }) func update(args : T.UpdateArguments) : async () {
-    switch (await* EncryptedStorage.update(storage, caller, args, null)) {
+    switch (await* EncryptedStorage.update(storage, caller, args, null, null)) {
       case (#ok _) {};
       case (#err(message)) throw Error.reject(message);
     };
@@ -74,8 +74,8 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func createBatch(args : T.CreateArguments) : async T.CreateBatchResponse {
-    switch (EncryptedStorage.createBatch(storage, caller, { entry = args.entry; totalSize = 0 }, null)) {
+  public shared ({ caller }) func createBatch(args : T.CreateBatchArguments) : async T.CreateBatchResponse {
+    switch (await* EncryptedStorage.createBatch(storage, caller, args, null, null)) {
       case (#ok batch) batch;
       case (#err(message)) throw Error.reject(message);
     };
@@ -84,6 +84,34 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   public shared ({ caller }) func createChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
     switch (EncryptedStorage.createChunk(storage, caller, args, null)) {
       case (#ok chunk) chunk;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func beginUploadSession(args : T.BeginUploadSessionArguments) : async T.BeginUploadSessionResponse {
+    switch (await* EncryptedStorage.beginUploadSession(storage, caller, args, null, null)) {
+      case (#ok session) session;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func appendUploadChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
+    switch (EncryptedStorage.appendUploadChunk(storage, caller, args, null)) {
+      case (#ok chunk) chunk;
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func finishUploadSession(args : T.FinishUploadSessionArguments) : async () {
+    switch (await* EncryptedStorage.finishUploadSession(storage, caller, args, null, null)) {
+      case (#ok _) {};
+      case (#err(message)) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func abortUploadSession(args : T.DeleteBatchArguments) : async () {
+    switch (EncryptedStorage.abortUploadSession(storage, caller, args.batchId)) {
+      case (#ok) {};
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -499,10 +527,4 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  /// Get canister module_hash via canister_status.
-  /// Only accessible by canister controllers.
-  public shared func getModuleHash() : async ?Blob {
-    let status = await IC.ic.canister_status({ canister_id = canisterId });
-    status.module_hash;
-  };
 };

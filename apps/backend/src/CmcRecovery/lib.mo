@@ -44,11 +44,22 @@ module {
   /// without parsing Text.
   public type CmcOpRetryResult = {
     #resolved;
-    #refunded;
+    #refunded : { receipt : ?TreasuryTypes.RefundReceipt };
     #stillAmbiguous : { attempts : Nat };
     #scheduled : { canisterId : Principal };
     #notFound;
     #blockedByRefund;
+  };
+
+  public type CmcNotifyOutcome = {
+    #refunded : { reason : Text; receipt : ?TreasuryTypes.RefundReceipt };
+    #pending : { id : Nat; reason : Text };
+    #refundPending : { id : Nat; reason : Text };
+  };
+
+  public type IncludedFundingSettlement = {
+    #completed;
+    #refunded;
   };
 
   /// Classifier output for a CMC `NotifyError`. Pure — side effects happen
@@ -250,14 +261,14 @@ module {
 
   /// Pure classifier for CMC NotifyError.
   /// - `#Refunded` → terminal safe refund (CMC returned ICP to origin)
-  /// - `#InvalidTransaction` → terminal safe refund (malformed transfer)
-  /// - `#Processing` / `#TransactionTooOld` / `#Other` → ambiguous, enqueue
+  /// - `#Processing` / `#TransactionTooOld` / `#InvalidTransaction` / `#Other`
+  ///   → needs recovery/manual reconciliation, enqueue
   public func classifyNotifyError(err : CMCTypes.NotifyError) : NotifyErrorAction {
     switch (err) {
       case (#Refunded({ reason; block_index = _ })) #refund("CMC #Refunded: " # reason);
-      case (#InvalidTransaction(msg)) #refund("CMC #InvalidTransaction: " # msg);
       case (#Processing) #persist("CMC #Processing — retry once state is final");
-      case (#TransactionTooOld(_)) #persist("CMC #TransactionTooOld — verify canister cycles before retry");
+      case (#TransactionTooOld(_)) #persist("CMC #TransactionTooOld — manual reconciliation required");
+      case (#InvalidTransaction(msg)) #persist("CMC #InvalidTransaction — manual reconciliation required: " # msg);
       case (#Other({ error_message; error_code })) {
         #persist("CMC #Other(" # debug_show error_code # "): " # error_message);
       };

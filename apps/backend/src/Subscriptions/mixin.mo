@@ -10,14 +10,12 @@ mixin(
   admin : { assertAdmin : (Principal) -> () },
   deps : {
     findOwnerByCanister : (Principal) -> ?Principal;
+    findStorageLicense : (Principal) -> ?{ storageEntitlement : Subscriptions.LicenseStorageLimits };
     isKnownWasm : (Blob) -> Bool;
-    hasUsedTrial : (Principal) -> Bool;
-    markTrialUsed : (Principal) -> ();
     onSubscriptionChanged : (Principal) -> async ();
-    userExists : (Principal) -> Bool;
   },
 ) {
-  transient let subscriptions = Subscriptions.Subscriptions(db, deps.hasUsedTrial, deps.markTrialUsed, deps.userExists);
+  transient let subscriptions = Subscriptions.Subscriptions(db);
 
   /// Expire overdue subscriptions. Available to other mixins in the actor.
   func expireOverdueSubscriptions() : [Principal] {
@@ -45,18 +43,21 @@ mixin(
 
     if (not deps.isKnownWasm(wasmHash)) return #invalidWasm;
 
+    func licensedOr(defaultStatus : Subscriptions.SubscriptionCheckResult) : Subscriptions.SubscriptionCheckResult {
+      switch (deps.findStorageLicense(caller)) {
+        case (?license) #licensed(license.storageEntitlement);
+        case null defaultStatus;
+      };
+    };
+
     switch (subscriptions.getSubscription(owner)) {
-      case null #free;
+      case null licensedOr(#free);
       case (?sub) {
         switch (sub.status) {
-          case (#Expired or #Cancelled) #expired;
+          case (#Expired or #Cancelled) licensedOr(#expired);
           case (#Active) {
             switch (sub.plan) {
-              case (#Trial) #trial({
-                remainingBytes = if (sub.trialUsedBytes >= Subscriptions.TRIAL_LIMIT_BYTES) 0
-                  else Subscriptions.TRIAL_LIMIT_BYTES - sub.trialUsedBytes;
-              });
-              case (#Free) #free;
+              case (#Free) licensedOr(#free);
               case _ #active({ plan = sub.plan });
             };
           };
@@ -85,12 +86,6 @@ mixin(
     subscriptions.getSubscription(caller);
   };
 
-  public shared ({ caller }) func activateTrial() : async () {
-    assert not Principal.isAnonymous(caller);
-    let #err(e) = subscriptions.activateTrial(caller) else return;
-    throw Error.reject(debug_show e);
-  };
-
   // Admin-only methods
   public shared ({ caller }) func activateSubscription(
     userId : Principal,
@@ -109,12 +104,6 @@ mixin(
   ) : async Subscriptions.GetSubscriptionsResponse {
     admin.assertAdmin(caller);
     subscriptions.list(options);
-  };
-
-  /// Called by storage canister to report trial bytes usage
-  public shared ({ caller }) func reportTrialBytes(bytes : Nat) : async () {
-    let ?reportOwner = deps.findOwnerByCanister(caller) else return;
-    subscriptions.recordTrialBytes(reportOwner, bytes);
   };
 
   // --- Admin endpoints (for testing + manual admin ops) ---

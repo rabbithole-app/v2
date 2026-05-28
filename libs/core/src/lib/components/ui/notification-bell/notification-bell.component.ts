@@ -37,8 +37,8 @@ import {
   RbthDrawerHeaderComponent,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui/drawer';
-import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmAvatarBadge } from '@spartan-ng/helm/avatar';
+import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -46,6 +46,8 @@ import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
 
 import { AggregatedNotification, NotificationService } from '../../../services';
+import { formatTCycles } from '../../../utils/cycles';
+import { formatICP } from '../../../utils/format-icp';
 
 type NotificationFilter = 'all' | 'backend' | 'storage' | 'unread';
 
@@ -204,19 +206,23 @@ export class NotificationBellComponent {
     if ('lowCycles' in event)
       return `${event.lowCycles.canisterId.toText()} has ~${event.lowCycles.estimatedDaysLeft} days left`;
     if ('topUpCompleted' in event)
-      return `${event.topUpCompleted.canisterId.toText()} received cycles`;
+      return `${event.topUpCompleted.canisterId.toText()} received ${this.#formatCycles(
+        event.topUpCompleted.cyclesAmount,
+      )}`;
     if ('topUpFailed' in event) return event.topUpFailed.reason;
     if ('autoTopUpCompleted' in event)
-      return `${event.autoTopUpCompleted.canisterId.toText()} received cycles`;
+      return `${event.autoTopUpCompleted.canisterId.toText()} received ${this.#formatCycles(
+        event.autoTopUpCompleted.cyclesAmount,
+      )}`;
     if ('autoTopUpFailed' in event) return event.autoTopUpFailed.reason;
     if ('updateAvailable' in event)
       return `${event.updateAvailable.canisterId.toText()} can update to ${event.updateAvailable.releaseTag}`;
-    if ('trialStarted' in event)
-      return `${Number(event.trialStarted.limitBytes) / 1_000_000} MB limit`;
     if ('balanceLow' in event)
       return `Required amount: ${event.balanceLow.requiredAmount}`;
     if ('backendLowCycles' in event)
-      return `Backend cycles ${event.backendLowCycles.current} / threshold ${event.backendLowCycles.threshold}`;
+      return `Backend cycles ${this.#formatCycles(
+        event.backendLowCycles.current,
+      )} / threshold ${this.#formatCycles(event.backendLowCycles.threshold)}`;
     if ('creationRefunded' in event)
       return `Refunded ${event.creationRefunded.amount} ${event.creationRefunded.tokenId}`;
     if ('backendSelfTopUpFailed' in event)
@@ -226,7 +232,11 @@ export class NotificationBellComponent {
     if ('cmcNotifyStuck' in event)
       return `CMC notify #${event.cmcNotifyStuck.id.toString()} failed: ${event.cmcNotifyStuck.reason}`;
     if ('treasuryIcpLow' in event)
-      return `Balance ${event.treasuryIcpLow.currentBalance} / required ${event.treasuryIcpLow.required}`;
+      return `Balance ${this.#formatIcpE8s(
+        event.treasuryIcpLow.currentBalance,
+      )} / required ${this.#formatIcpE8s(
+        event.treasuryIcpLow.required,
+      )} + reserve ${this.#formatIcpE8s(event.treasuryIcpLow.reserve)}`;
     if ('storageAccessRequestCreated' in event)
       return `${event.storageAccessRequestCreated.requester.toText()} requested access`;
     if ('storageAccessRequestResolved' in event)
@@ -261,7 +271,6 @@ export class NotificationBellComponent {
     if ('topUpFailed' in event) return 'lucideXCircle';
     if ('autoTopUpCompleted' in event) return 'lucideCheckCircle';
     if ('autoTopUpFailed' in event) return 'lucideXCircle';
-    if ('trialStarted' in event) return 'lucideSparkles';
     if ('updateAvailable' in event) return 'lucideDownload';
     if ('balanceLow' in event) return 'lucideWallet';
     if ('backendLowCycles' in event) return 'lucideBatteryLow';
@@ -332,7 +341,6 @@ export class NotificationBellComponent {
     if ('topUpFailed' in event) return 'Top-up failed';
     if ('autoTopUpCompleted' in event) return 'Auto top-up completed';
     if ('autoTopUpFailed' in event) return 'Auto top-up failed';
-    if ('trialStarted' in event) return 'Trial started';
     if ('updateAvailable' in event) return 'Update available';
     if ('balanceLow' in event) return 'Balance running low';
     if ('backendLowCycles' in event) return 'Backend cycles low';
@@ -354,6 +362,14 @@ export class NotificationBellComponent {
     if ('storageRecoveryOwnerAdded' in event) return 'Recovery owner added';
     if ('storageRecoveryOwnerRemoved' in event) return 'Recovery owner removed';
     return 'Notification';
+  }
+
+  #formatCycles(cycles: bigint): string {
+    return `${formatTCycles(cycles)} TCycles`;
+  }
+
+  #formatIcpE8s(e8s: bigint): string {
+    return `${formatICP(e8s)} ICP`;
   }
 
   #hasKey(value: unknown, key: string): boolean {

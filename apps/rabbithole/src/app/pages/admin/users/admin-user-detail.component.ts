@@ -235,7 +235,6 @@ export class AdminUserDetailComponent implements WalletBalanceContext {
 
   protected _planLabel(plan: Plan): string {
     if ('Pro' in plan) return 'Pro';
-    if ('Trial' in plan) return 'Trial';
     return 'Free';
   }
 

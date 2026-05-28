@@ -28,6 +28,7 @@ import {
   lucideExternalLink,
   lucideRefreshCw,
 } from '@ng-icons/lucide';
+import { toast } from '@spartan-ng/brain/sonner';
 import {
   ColumnDef,
   ColumnSizingState,
@@ -37,7 +38,6 @@ import {
   Updater,
 } from '@tanstack/angular-table';
 import { endOfDay, startOfDay } from 'date-fns';
-import { toast } from '@spartan-ng/brain/sonner';
 
 import {
   AvatarService,
@@ -66,7 +66,6 @@ import {
   RbthFilterValueDirective,
   RbthTransparentSelectBackdropDirective,
 } from '@rabbithole/ui/data-table-filter';
-import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCheckbox } from '@spartan-ng/helm/checkbox';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
@@ -97,7 +96,6 @@ type ColumnId =
   | 'profileUsername'
   | 'referralAppliedAt'
   | 'role'
-  | 'trialUsed'
   | 'updatedAt'
   | 'user'
   | 'verifiedEmail';
@@ -114,7 +112,6 @@ const EMPTY_PAGE: AdminUsersPage = {
   imports: [
     CopyToClipboardComponent,
     DatePipe,
-    HlmBadge,
     NgIcon,
     HlmCheckbox,
     HlmIcon,
@@ -175,7 +172,6 @@ export class AdminUsersComponent {
     { id: 'email', label: 'Email' },
     { id: 'identityProvider', label: 'Auth provider' },
     { id: 'inviter', label: 'Inviter' },
-    { id: 'trialUsed', label: 'Trial' },
     { id: 'createdAt', label: 'Created' },
     { id: 'lastLoginAt', label: 'Last login' },
     { id: 'principal', label: 'Principal ID' },
@@ -203,7 +199,6 @@ export class AdminUsersComponent {
       header: 'Access',
       columns: [
         { id: 'role', header: 'Role', minSize: 120, size: 140 },
-        { id: 'trialUsed', header: 'Trial', minSize: 80, size: 96 },
         { id: 'inviter', header: 'Inviter', minSize: 360, size: 520 },
       ],
     },
@@ -250,13 +245,6 @@ export class AdminUsersComponent {
         { label: 'Moderator', value: 'moderator' },
         { label: 'User', value: 'user' },
       ],
-    }),
-    rbthFilterColumn.boolean<AdminUserListItem>({
-      falseLabel: 'Unused',
-      id: 'trialUsed',
-      label: 'Trial',
-      operators: ['is'],
-      trueLabel: 'Used',
     }),
     rbthFilterColumn.boolean<AdminUserListItem>({
       falseLabel: 'Unverified',
@@ -350,7 +338,6 @@ export class AdminUsersComponent {
       referralAppliedAt: [],
       role: this._roleOption(),
       verifiedEmail: this._booleanOption('verifiedEmail'),
-      trialUsed: this._booleanOption('trialUsed'),
       identityProvider: this._identityProviderOption(),
       search: [],
       updatedAt: this._dateFilter('updatedAt'),

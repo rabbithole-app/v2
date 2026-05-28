@@ -309,14 +309,6 @@
                       </rbth-copy-to-clipboard>
                     }
                   }
-                  @case ('trialUsed') {
-                    <span
-                      hlmBadge
-                      [variant]="user.trialUsed ? 'secondary' : 'outline'"
-                    >
-                      {{ user.trialUsed ? 'Used' : 'Unused' }}
-                    </span>
-                  }
                   @case ('profileUsername') {
                     <span class="text-sm">
                       {{ user.profile[0]?.username ?? '' }}

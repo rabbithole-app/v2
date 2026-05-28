@@ -33,6 +33,7 @@ const calculateOverallProgress = (files: FileUploadWithStatus[]) => {
           total += value.file.size;
           break;
         case UploadState.IN_PROGRESS:
+        case UploadState.WAITING_FOR_FUNDING:
           current += value.current;
           total += value.total;
           break;

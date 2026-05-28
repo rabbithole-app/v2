@@ -19,6 +19,7 @@ module {
   /* -------------- Re-exports from current stable types --------------------- */
 
   public type StableStore = V1.StableStore;
+  public type MemoryInfo = MemoryRegion.MemoryInfo;
 
   /* -------------- Re-exports from Access ---------------------------------- */
 
@@ -103,6 +104,7 @@ module {
     #NotFound;
     #Conflict;
     #QuotaExceeded;
+    #FundingPending;
     #InsufficientCycles;
     #Validation;
     #Internal;
@@ -357,6 +359,11 @@ module {
     size : Nat;
   };
 
+  public type PreflightCaffeineUploadArgs = {
+    entry : Entry;
+    size : Nat;
+  };
+
 
   public type Entry = ({ #File; #Directory }, Text);
 
@@ -442,10 +449,41 @@ module {
   public type CreateBatchArguments = {
     entry : Entry;
     totalSize : Nat;
+    declaredUploadBytes : ?Nat;
+    expectedChunkCount : ?Nat;
   };
 
   public type CreateBatchResponse = {
     batchId : BatchId;
+  };
+
+  public type BeginUploadSessionArguments = {
+    entry : Entry;
+    totalSize : Nat;
+    declaredUploadBytes : ?Nat;
+    expectedChunkCount : ?Nat;
+    createMode : CreateMode;
+    encryptionMode : ?EncryptionMode;
+  };
+
+  public type BeginUploadSessionResponse = {
+    batchId : BatchId;
+    node : NodeDetails;
+  };
+
+  public type UploadSessionStatus = {
+    batchId : BatchId;
+    owner : Principal;
+    declaredUploadBytes : Nat;
+    uploadedBytes : Nat;
+    expiresAt : Time.Time;
+    chunkIds : [ChunkId];
+  };
+
+  public type FinishUploadSessionArguments = {
+    batchId : BatchId;
+    sha256 : ?Blob;
+    contentType : Text;
   };
 
   public type CreateChunkArguments = Chunk;
@@ -465,6 +503,7 @@ module {
 
   public type Chunk = ChunkContent and {
     batchId : BatchId;
+    chunkIndex : ?Nat;
   };
 
   public type CreateChunkResponse = {

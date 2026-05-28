@@ -175,6 +175,11 @@ module {
     status : PaymentStatus;
   };
 
+  public type StorageLicenseEntitlement = {
+    includedBytes : Nat;
+    maxFileBytes : Nat;
+  };
+
   /// License — one per storage canister, lives independently of StorageCreationRecord.
   /// `owner` is stored as a field (used to be the implicit Map key). `statusTag`
   /// shadows `receipt.status` variant for ZenDB index queries — kept in sync on
@@ -183,6 +188,7 @@ module {
     owner : Principal;
     canisterId : ?Principal;  // null = unbound, ?id = bound to canister
     receipt : PaymentReceipt;
+    storageEntitlement : StorageLicenseEntitlement;
     statusTag : Text;         // "completed" | "refunded"
     createdAt : Time.Time;
   };
@@ -279,7 +285,6 @@ module {
     #CheckingBalances;    // iterating spending-priority tokens (HTTPS outcalls)
     #Charging : { tokenId : TreasuryTypes.TokenId; amount : Nat };
     #RecordingLicense;
-    #Activating;
     #Queueing;
   };
 
@@ -424,7 +429,6 @@ module {
         case (#CheckingBalances) "ProcessingPayment.CheckingBalances";
         case (#Charging _) "ProcessingPayment.Charging";
         case (#RecordingLicense) "ProcessingPayment.RecordingLicense";
-        case (#Activating) "ProcessingPayment.Activating";
         case (#Queueing) "ProcessingPayment.Queueing";
       };
       case (#Pending) "Pending";

@@ -43,10 +43,13 @@ describe('Auto-renew & Auto-topup settings', () => {
   test('subscription + autoRenew settings are independent', async () => {
     actor.setIdentity(userAlice);
     await actor.ensureUser([]);
-    await actor.activateTrial();
 
+    actor.setIdentity(ownerIdentity);
+    await actor.activateSubscription(userAlice.getPrincipal(), { Pro: null }, []);
+
+    actor.setIdentity(userAlice);
     const sub = await actor.getSubscription();
-    expect(sub[0]?.plan).toEqual({ Trial: null });
+    expect(sub[0]?.plan).toEqual({ Pro: null });
 
     const settings = await actor.getSettings();
     expect(settings.autoRenew).toBe(false);
@@ -60,7 +63,7 @@ describe('Auto-renew & Auto-topup settings', () => {
 
     // Subscription unchanged
     const sub2 = await actor.getSubscription();
-    expect(sub2[0]?.plan).toEqual({ Trial: null });
+    expect(sub2[0]?.plan).toEqual({ Pro: null });
 
     // Settings updated
     const settings2 = await actor.getSettings();
@@ -147,9 +150,9 @@ describe('Auto-renew & Auto-topup settings', () => {
     expect(renewNotif).toBeUndefined();
   });
 
-  // ---- Only Pro has auto-renew ----
+  // ---- Only paid Pro subscriptions have auto-renew ----
 
-  test('triggerAutoRenewals skips Trial plan', async () => {
+  test('triggerAutoRenewals skips users without Pro subscription', async () => {
     actor.setIdentity(userAlice);
     await actor.ensureUser([]);
     await actor.updateSettings({
@@ -159,14 +162,11 @@ describe('Auto-renew & Auto-topup settings', () => {
       topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
-    // Activate Trial (not Pro)
-    await actor.activateTrial();
-
     actor.setIdentity(ownerIdentity);
     await actor.triggerAutoRenewals();
     await pic.tick(5);
 
-    // No renewal notification (Trial not eligible for auto-renew)
+    // No renewal notification (no paid Pro subscription to renew)
     actor.setIdentity(userAlice);
     const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const renewNotif = notifs.data.find((n: any) =>

@@ -11,6 +11,7 @@ vi.mock('./utils/verify-ic-certificate', () => ({
     response.body instanceof Uint8Array ? response.body : new Uint8Array(response.body)),
 }));
 
+import { CAFFEINE_CHUNK_SIZE } from './blob-storage/constants';
 import { BlobHashTree, YHash } from './blob-storage/merkle-tree';
 import { MockBlobGateway } from './blob-storage/mock-gateway';
 import { EncryptedStorage } from './encrypted-storage';
@@ -28,6 +29,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
     create: ReturnType<typeof vi.fn>;
     getStorageBackendType: ReturnType<typeof vi.fn>;
     http_request: ReturnType<typeof vi.fn>;
+    preflightCaffeineUpload: ReturnType<typeof vi.fn>;
   };
   let agentMock: {
     call: ReturnType<typeof vi.fn>;
@@ -49,6 +51,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
         },
       })),
       getStorageBackendType: vi.fn(async () => ({ BlobStorage: null })),
+      preflightCaffeineUpload: vi.fn(async () => undefined),
       commitCaffeineUpload: vi.fn(async () => undefined),
       http_request: vi.fn(async () => {
         const commit = actorMock.commitCaffeineUpload.mock.calls.at(-1)?.[0];
@@ -109,6 +112,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
     }]);
 
     expect(actorMock.create).toHaveBeenCalledOnce();
+    expect(actorMock.preflightCaffeineUpload).toHaveBeenCalledOnce();
     expect(agentMock.call).toHaveBeenCalledOnce();
     expect(actorMock.commitCaffeineUpload).toHaveBeenCalledOnce();
 
@@ -128,6 +132,62 @@ describe('EncryptedStorage BlobStorage integration', () => {
     });
 
     expect(commitArgs.rootHash).toBe(expectedTree.tree.hash.toShaString());
+    expect(Number(commitArgs.size)).toBe(bytes.byteLength);
+  });
+
+  it('stops BlobStorage upload before gateway work when preflight rejects', async () => {
+    actorMock.preflightCaffeineUpload.mockResolvedValueOnce({
+      err: { message: 'File exceeds storage license quota' },
+    });
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+
+    await expect(storage.store([
+      new TextEncoder().encode('too large'),
+      { fileName: 'too-large.txt', encryptionMode: 'Plaintext' },
+    ])).rejects.toThrow('File exceeds storage license quota');
+
+    expect(actorMock.create).toHaveBeenCalledOnce();
+    expect(actorMock.preflightCaffeineUpload).toHaveBeenCalledOnce();
+    expect(agentMock.call).not.toHaveBeenCalled();
+    expect(actorMock.commitCaffeineUpload).not.toHaveBeenCalled();
+  });
+
+  it('uploads multi-chunk plaintext blobs through a bounded readable source', async () => {
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const bytes = new Uint8Array(CAFFEINE_CHUNK_SIZE + 17);
+    bytes.fill(7, 0, CAFFEINE_CHUNK_SIZE);
+    bytes.fill(11, CAFFEINE_CHUNK_SIZE);
+
+    const readable = {
+      close: vi.fn(async () => undefined),
+      contentType: 'application/octet-stream',
+      fileName: 'large.bin',
+      length: bytes.byteLength,
+      open: vi.fn(async () => undefined),
+      slice: vi.fn(async (start: number, end: number) => bytes.slice(start, end)),
+    };
+
+    await storage.store([readable, {
+      encryptionMode: 'Plaintext',
+    }]);
+
+    const commitArgs = actorMock.commitCaffeineUpload.mock.calls[0][0];
+    const record = gateway.getRecord(commitArgs.rootHash);
+
+    expect(readable.open).toHaveBeenCalledOnce();
+    expect(readable.close).toHaveBeenCalledOnce();
+    expect(readable.slice).toHaveBeenCalledTimes(2);
+    expect(record?.uploadedChunks.size).toBe(2);
     expect(Number(commitArgs.size)).toBe(bytes.byteLength);
   });
 

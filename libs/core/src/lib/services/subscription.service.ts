@@ -12,8 +12,6 @@ import { injectMainActor } from '../injectors/main-actor';
 import { BACKEND_FEATURES_ENABLED_TOKEN } from '../tokens/backend-features';
 import { parseCanisterRejectError } from '../utils/parse-canister-reject-error';
 
-const TRIAL_LIMIT_BYTES = 100_000_000; // 100 MB
-
 @Injectable({ providedIn: 'root' })
 export class SubscriptionService {
   #actor = injectMainActor();
@@ -41,78 +39,39 @@ export class SubscriptionService {
     return this.#subscriptionResource.value();
   });
 
-  autoRenew = computed(() => this.subscription()?.autoRenew ?? false);
-
   expiresAt = computed(() => {
     const sub = this.subscription();
     if (!sub?.expiresAt?.[0]) return null;
     return Number(sub.expiresAt[0]) / 1_000_000; // ns → ms
   });
 
+  plan = computed(() => this.subscription()?.plan ?? null);
+  hasProPlan = computed(() => {
+    const p = this.plan();
+    return p !== null && 'Pro' in p;
+  });
+
   status = computed(() => this.subscription()?.status ?? null);
+
   isActive = computed(() => {
     const s = this.status();
     return s !== null && 'Active' in s;
   });
 
+  isActivePro = computed(() => this.hasProPlan() && this.isActive());
+
   isExpired = computed(() => {
     const s = this.status();
     return s !== null && 'Expired' in s;
   });
+  isExpiredPro = computed(() => this.hasProPlan() && this.isExpired());
 
-  plan = computed(() => this.subscription()?.plan ?? null);
-
-  isLicense = computed(() => {
-    const p = this.plan();
-    return p !== null && 'License' in p;
-  });
-
-  isPro = computed(() => {
-    const p = this.plan();
-    return p !== null && 'Pro' in p;
-  });
-
-  isTrial = computed(() => {
-    const p = this.plan();
-    return p !== null && 'Trial' in p;
-  });
+  isPro = this.isActivePro;
 
   ready$ = toObservable(this.#subscriptionResource.value).pipe(
     map((v) => v !== undefined),
     catchError(() => of(true)),
   );
-
-  trialDaysLeft = computed(() => {
-    const expires = this.expiresAt();
-    if (!expires || !this.isTrial()) return null;
-    const diff = expires - Date.now();
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-  });
-
-  trialUsedBytes = computed(() =>
-    Number(this.subscription()?.trialUsedBytes ?? 0n),
-  );
-
-  trialProgress = computed(() => this.trialUsedBytes() / TRIAL_LIMIT_BYTES);
-
-  trialRemainingBytes = computed(
-    () => TRIAL_LIMIT_BYTES - this.trialUsedBytes(),
-  );
-
-  async activateTrial(): Promise<void> {
-    const id = toast.loading('Activating trial...');
-    const actor = this.#actor();
-
-    try {
-      await actor.activateTrial();
-      toast.success('Pro trial activated! 14 days + 100 MB encryption', { id });
-      this.#subscriptionResource.reload();
-    } catch (error) {
-      const errorMessage = parseCanisterRejectError(error) ?? 'An error has occurred';
-      toast.error(`Failed to activate trial: ${errorMessage}`, { id });
-      throw error;
-    }
-  }
 
   async purchaseSubscription(plan: Plan): Promise<boolean> {
     const id = toast.loading('Processing subscription...');

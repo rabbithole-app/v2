@@ -20,6 +20,7 @@ import {
 import { map } from "rxjs/operators";
 
 import { NavigationComponent, NavItem } from "@rabbithole/core";
+import { StorageCapacityMetricComponent } from "@rabbithole/core/storage-capacity-metric";
 import {
   type AccessRequestsCapability,
   AccessRequestsCapabilityService,
@@ -42,8 +43,14 @@ const EMPTY_ACCESS_REQUESTS_CAPABILITY: AccessRequestsCapability = {
   template: `<div hlmSidebarGroupLabel>Navigation</div>
     <div hlmSidebarGroupContent>
       <core-navigation [data]="data()" [exact]="'/dashboard/' + canisterId()" />
+      <core-storage-capacity-metric [canisterId]="canisterId()" />
     </div> `,
-  imports: [NavigationComponent, HlmSidebarGroupLabel, HlmSidebarGroupContent],
+  imports: [
+    NavigationComponent,
+    HlmSidebarGroupLabel,
+    HlmSidebarGroupContent,
+    StorageCapacityMetricComponent,
+  ],
   providers: [
     provideIcons({
       lucideDatabase,
@@ -58,7 +65,7 @@ export class StorageNavigationComponent {
   #route = inject(ActivatedRoute);
   canisterId = toSignal(
     this.#route.paramMap.pipe(map((params) => params.get("id"))),
-    { initialValue: null },
+    { initialValue: this.#route.snapshot.paramMap.get("id") },
   );
   readonly #injector = inject(Injector);
   // eslint-disable-next-line perfectionist/sort-classes -- parent injector must exist before the resource loader runs.

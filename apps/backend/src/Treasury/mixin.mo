@@ -51,7 +51,7 @@ mixin(
     await* Treasury.simpleTransfer(treasury, userId, tokenId, amount);
   };
 
-  func treasurySimpleRefund(userId : Principal, tokenId : TreasuryTypes.TokenId, amount : Nat) : async* Result.Result<(), Text> {
+  func treasurySimpleRefund(userId : Principal, tokenId : TreasuryTypes.TokenId, amount : Nat) : async* Result.Result<TreasuryTypes.RefundReceipt, Text> {
     await* Treasury.simpleRefund(treasury, userId, tokenId, amount);
   };
 
@@ -118,7 +118,12 @@ mixin(
 
   public shared ({ caller }) func getTreasuryBalances() : async [TreasuryTypes.BalanceEntry] {
     admin.assertAdmin(caller);
-    await* Treasury.getTreasuryBalances(treasury);
+    try {
+      await* Treasury.getTreasuryBalances(treasury);
+    } catch (_) {
+      let icpBalance = await* Treasury.getTreasuryIcpBalance(treasury);
+      [{ tokenId = #ICP; balance = icpBalance }];
+    };
   };
 
   public shared ({ caller }) func getTreasuryWalletAddresses() : async {

@@ -10,7 +10,6 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideAlertTriangle,
   lucideArrowRight,
-  lucideClock,
   lucideStar,
 } from '@ng-icons/lucide';
 
@@ -38,7 +37,6 @@ import {
     provideIcons({
       lucideAlertTriangle,
       lucideArrowRight,
-      lucideClock,
       lucideStar,
     }),
   ],
@@ -81,13 +79,11 @@ export class SidebarSubscriptionFooterComponent {
   #subscriptionService = inject(SubscriptionService);
   icon = computed(() => {
     if (this.#subscriptionService.isPro()) return 'lucideStar';
-    if (this.#subscriptionService.isTrial()) return 'lucideClock';
     if (this.#subscriptionService.isExpired()) return 'lucideAlertTriangle';
     return 'lucideArrowRight';
   });
   iconClass = computed(() => {
     if (this.#subscriptionService.isPro()) return 'text-green-600';
-    if (this.#subscriptionService.isTrial()) return 'text-amber-600';
     if (this.#subscriptionService.isExpired()) return 'text-red-600';
     return 'text-muted-foreground';
   });
@@ -98,10 +94,6 @@ export class SidebarSubscriptionFooterComponent {
     const usdStr = total > 0 ? ` · $${total.toFixed(2)}` : '';
 
     if (this.#subscriptionService.isPro()) return `Pro${usdStr}`;
-    if (this.#subscriptionService.isTrial()) {
-      const days = this.#subscriptionService.trialDaysLeft();
-      return `Trial · ${days}d left`;
-    }
     if (this.#subscriptionService.isExpired()) return 'Expired';
     return 'Get Started';
   });

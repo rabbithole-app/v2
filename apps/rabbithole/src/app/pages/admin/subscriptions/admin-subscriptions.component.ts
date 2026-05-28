@@ -20,12 +20,14 @@ import {
   lucideRefreshCw,
   lucideRotateCcw,
   lucideTimerReset,
+  lucideUserPlus,
 } from '@ng-icons/lucide';
 import {
   BrnAlertDialogContent,
   BrnAlertDialogTrigger,
 } from '@spartan-ng/brain/alert-dialog';
 import type { BrnDialogState } from '@spartan-ng/brain/dialog';
+import { toast } from '@spartan-ng/brain/sonner';
 import {
   ColumnDef,
   ColumnSizingState,
@@ -35,7 +37,6 @@ import {
   Updater,
 } from '@tanstack/angular-table';
 import { endOfDay, startOfDay } from 'date-fns';
-import { toast } from '@spartan-ng/brain/sonner';
 
 import {
   formatBytes,
@@ -75,12 +76,10 @@ import { HlmTableImports } from '@spartan-ng/helm/table';
 type ColumnId =
   | 'actions'
   | 'activatedAt'
-  | 'autoRenew'
   | 'createdAt'
   | 'expiresAt'
   | 'plan'
   | 'status'
-  | 'trialUsedBytes'
   | 'updatedAt'
   | 'user';
 type DateField = 'activatedAt' | 'createdAt' | 'expiresAt' | 'updatedAt';
@@ -128,6 +127,7 @@ const EMPTY_PAGE: GetSubscriptionsResponse = {
       lucideRefreshCw,
       lucideRotateCcw,
       lucideTimerReset,
+      lucideUserPlus,
     }),
   ],
   templateUrl: './admin-subscriptions.component.html',
@@ -147,8 +147,6 @@ export class AdminSubscriptionsComponent {
     { id: 'plan', label: 'Plan' },
     { id: 'status', label: 'Status' },
     { id: 'expiresAt', label: 'Expires' },
-    { id: 'autoRenew', label: 'Auto renew' },
-    { id: 'trialUsedBytes', label: 'Trial used' },
     { id: 'activatedAt', label: 'Activated' },
     { id: 'updatedAt', label: 'Updated' },
     { id: 'createdAt', label: 'Created' },
@@ -159,8 +157,6 @@ export class AdminSubscriptionsComponent {
     { id: 'plan', header: 'Plan', minSize: 96, size: 120 },
     { id: 'status', header: 'Status', minSize: 110, size: 130 },
     { id: 'expiresAt', header: 'Expires', minSize: 180, size: 220 },
-    { id: 'autoRenew', header: 'Auto renew', minSize: 110, size: 120 },
-    { id: 'trialUsedBytes', header: 'Trial used', minSize: 120, size: 140 },
     { id: 'activatedAt', header: 'Activated', minSize: 180, size: 210 },
     { id: 'updatedAt', header: 'Updated', minSize: 180, size: 210 },
     { id: 'createdAt', header: 'Created', minSize: 180, size: 210 },
@@ -169,9 +165,10 @@ export class AdminSubscriptionsComponent {
   protected readonly _columnSizing = signal<ColumnSizingState>({});
   protected readonly _dialogDays = signal('30');
   protected readonly _dialogMode = signal<SubscriptionDialogMode>('renew');
-  protected readonly _dialogPlan = signal<'Pro' | 'Trial'>('Pro');
+  protected readonly _dialogPlan = signal<'Pro'>('Pro');
   protected readonly _dialogState = signal<BrnDialogState>('closed');
   protected readonly _dialogSubscription = signal<Subscription | null>(null);
+  protected readonly _dialogTargets = signal<UserTarget[]>([]);
   protected readonly _filterColumns = [
     rbthFilterColumn.custom<Subscription>({
       id: 'user',
@@ -184,7 +181,6 @@ export class AdminSubscriptionsComponent {
       operators: ['include', 'includeAnyOf'],
       options: [
         { label: 'Free', value: 'Free' },
-        { label: 'Trial', value: 'Trial' },
         { label: 'Pro', value: 'Pro' },
       ],
     }),
@@ -304,15 +300,25 @@ export class AdminSubscriptionsComponent {
     );
   }
 
+  protected _openManualActivationDialog(): void {
+    this._dialogSubscription.set(null);
+    this._dialogTargets.set([]);
+    this._dialogMode.set('activate');
+    this._dialogPlan.set('Pro');
+    this._dialogDays.set('30');
+    this._dialogState.set('open');
+  }
+
   protected _openSubscriptionDialog(
     subscription: Subscription,
     mode: SubscriptionDialogMode,
-    planName: 'Pro' | 'Trial',
+    planName: 'Pro',
   ): void {
     this._dialogSubscription.set(subscription);
+    this._dialogTargets.set([]);
     this._dialogMode.set(mode);
     this._dialogPlan.set(planName);
-    this._dialogDays.set(planName === 'Trial' ? '14' : '30');
+    this._dialogDays.set('30');
     this._dialogState.set('open');
   }
 
@@ -320,9 +326,8 @@ export class AdminSubscriptionsComponent {
     return value[0] ? this._date(value[0]) : null;
   }
 
-  protected _planLabel(plan: Plan): 'Free' | 'Pro' | 'Trial' {
+  protected _planLabel(plan: Plan): 'Free' | 'Pro' {
     if ('Pro' in plan) return 'Pro';
-    if ('Trial' in plan) return 'Trial';
     return 'Free';
   }
 
@@ -336,6 +341,12 @@ export class AdminSubscriptionsComponent {
 
   protected _setColumnSizing(updater: Updater<ColumnSizingState>): void {
     this._columnSizing.update((state) => functionalUpdate(updater, state));
+  }
+
+  protected _setDialogTargets(targets: UserTarget[]): void {
+    this._dialogTargets.set(
+      targets.filter((target) => target.kind !== 'email').slice(-1),
+    );
   }
 
   protected _setFilters(filters: RbthFiltersState): void {
@@ -370,7 +381,11 @@ export class AdminSubscriptionsComponent {
 
   protected async _submitSubscriptionDialog(): Promise<void> {
     const subscription = this._dialogSubscription();
-    if (!subscription) return;
+    const targetUserId = subscription?.userId ?? this._dialogTargetUserId();
+    if (!targetUserId) {
+      toast.error('Choose one user or principal');
+      return;
+    }
 
     const days = Number(this._dialogDays());
     if (!Number.isInteger(days) || days <= 0) {
@@ -381,17 +396,17 @@ export class AdminSubscriptionsComponent {
     const mode = this._dialogMode();
     const planName = this._dialogPlan();
     await this._runSubscriptionAction(
-      subscription,
+      targetUserId,
       `${mode}-${planName}`,
       () =>
         mode === 'activate'
           ? this.#actor().activateSubscription(
-              subscription.userId,
+              targetUserId,
               this._planFromName(planName),
               [this._expiresAtFromDays(days)],
             )
           : this.#actor().renewSubscription(
-              subscription.userId,
+              targetUserId,
               this._planFromName(planName),
               [this._expiresAtFromDays(days)],
             ),
@@ -508,6 +523,17 @@ export class AdminSubscriptionsComponent {
     );
   }
 
+  private _dialogTargetUserId(): Principal | null {
+    const target = this._dialogTargets()[0];
+    if (!target || target.kind === 'email') return null;
+
+    try {
+      return Principal.fromText(target.principalId);
+    } catch {
+      return null;
+    }
+  }
+
   private _endOfDayNanos(date: Date): bigint {
     return BigInt(endOfDay(date).getTime()) * 1_000_000n;
   }
@@ -552,7 +578,6 @@ export class AdminSubscriptionsComponent {
 
   private _planFromName(plan: string): Plan {
     if (plan === 'Pro') return { Pro: null };
-    if (plan === 'Trial') return { Trial: null };
     return { Free: null };
   }
 
@@ -575,12 +600,12 @@ export class AdminSubscriptionsComponent {
   }
 
   private async _runSubscriptionAction(
-    subscription: Subscription,
+    userId: Principal,
     action: string,
     operation: () => Promise<unknown>,
     successMessage: string,
   ): Promise<void> {
-    const actionId = `${subscription.userId.toText()}:${action}`;
+    const actionId = `${userId.toText()}:${action}`;
     this._actionInFlight.set(actionId);
     try {
       await operation();

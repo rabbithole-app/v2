@@ -14,6 +14,7 @@ use std::path::Path;
 use crate::vetkey;
 
 const MAX_CHUNK_SIZE: usize = 1_900_000;
+const ENCRYPTED_MESSAGE_OVERHEAD_BYTES: usize = 28;
 
 // ---------------------------------------------------------------------------
 // Candid types
@@ -131,25 +132,32 @@ enum CreateMode {
 }
 
 #[derive(candid::CandidType)]
-struct CreateArguments {
-    createMode: CreateMode,
-    entry: Entry,
+enum EncryptionMode {
+    Encrypted,
+    Plaintext,
 }
 
 #[derive(candid::CandidType)]
-struct CreateBatchArguments {
+struct BeginUploadSessionArguments {
     entry: Entry,
+    totalSize: Nat,
+    declaredUploadBytes: Option<Nat>,
+    expectedChunkCount: Option<Nat>,
+    createMode: CreateMode,
+    encryptionMode: Option<EncryptionMode>,
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Debug)]
-struct StorageBatchResponse {
+struct BeginUploadSessionResponse {
     batchId: Nat,
+    node: NodeDetails,
 }
 
 #[derive(candid::CandidType)]
 struct StorageChunkArguments {
     batchId: Nat,
     content: Vec<u8>,
+    chunkIndex: Option<Nat>,
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Debug)]
@@ -158,17 +166,9 @@ struct StorageChunkResponse {
 }
 
 #[derive(candid::CandidType)]
-enum UpdateArguments {
-    File {
-        path: String,
-        metadata: FileUpdateMetadata,
-    },
-}
-
-#[derive(candid::CandidType)]
-struct FileUpdateMetadata {
+struct FinishUploadSessionArguments {
+    batchId: Nat,
     sha256: Option<Vec<u8>>,
-    chunkIds: Vec<Nat>,
     contentType: String,
 }
 
@@ -249,18 +249,28 @@ pub async fn upload(
     let plaintext = std::fs::read(file_path)
         .with_context(|| format!("Failed to read file: {}", file_path.display()))?;
 
-    // 1. Create file entry
+    // 1. Reserve an upload session and create the file entry.
     let entry: Entry = (EntryKind::File, remote_path.to_string());
-    let create_response = agent
-        .update(&canister_id, "create")
-        .with_arg(Encode!(&CreateArguments {
-            createMode: CreateMode::GetOrCreate,
+    let declared_upload_bytes = plaintext
+        .len()
+        .checked_add(ENCRYPTED_MESSAGE_OVERHEAD_BYTES)
+        .context("Encrypted upload size overflow")?;
+    let expected_chunks = declared_upload_bytes.div_ceil(MAX_CHUNK_SIZE);
+    let session_response = agent
+        .update(&canister_id, "beginUploadSession")
+        .with_arg(Encode!(&BeginUploadSessionArguments {
             entry: entry.clone(),
+            totalSize: Nat::from(plaintext.len() as u64),
+            declaredUploadBytes: Some(Nat::from(declared_upload_bytes as u64)),
+            expectedChunkCount: Some(Nat::from(expected_chunks as u64)),
+            createMode: CreateMode::GetOrCreate,
+            encryptionMode: Some(EncryptionMode::Encrypted),
         })?)
         .call_and_wait()
         .await
-        .context("create call failed")?;
-    let details = Decode!(&create_response, NodeDetails)?;
+        .context("beginUploadSession call failed")?;
+    let session = Decode!(&session_response, BeginUploadSessionResponse)?;
+    let details = session.node;
 
     // 2. Derive key material
     let key_material =
@@ -269,20 +279,8 @@ pub async fn upload(
     // 3. Encrypt
     let encrypted_bytes = vetkey::encrypt(&key_material, &plaintext)?;
 
-    // 4. Create storage batch
-    let batch_response = agent
-        .update(&canister_id, "createStorageBatch")
-        .with_arg(Encode!(&CreateBatchArguments {
-            entry: entry.clone(),
-        })?)
-        .call_and_wait()
-        .await
-        .context("createStorageBatch call failed")?;
-    let batch = Decode!(&batch_response, StorageBatchResponse)?;
-
-    // 5. Upload chunks
+    // 4. Upload chunks
     let chunk_count = encrypted_bytes.len().div_ceil(MAX_CHUNK_SIZE);
-    let mut chunk_ids: Vec<Nat> = Vec::with_capacity(chunk_count);
     let mut hasher = Sha256::new();
 
     for i in 0..chunk_count {
@@ -292,36 +290,33 @@ pub async fn upload(
         hasher.update(chunk_content);
 
         let chunk_response = agent
-            .update(&canister_id, "createStorageChunk")
+            .update(&canister_id, "appendUploadChunk")
             .with_arg(Encode!(&StorageChunkArguments {
-                batchId: batch.batchId.clone(),
+                batchId: session.batchId.clone(),
                 content: chunk_content.to_vec(),
+                chunkIndex: Some(Nat::from(i as u64)),
             })?)
             .call_and_wait()
             .await
-            .with_context(|| format!("createStorageChunk failed for chunk {}/{}", i + 1, chunk_count))?;
+            .with_context(|| format!("appendUploadChunk failed for chunk {}/{}", i + 1, chunk_count))?;
 
-        let chunk = Decode!(&chunk_response, StorageChunkResponse)?;
-        chunk_ids.push(chunk.chunkId);
+        let _chunk = Decode!(&chunk_response, StorageChunkResponse)?;
     }
 
-    // 6. Finalize
+    // 5. Finalize
     let sha256_hash = hasher.finalize().to_vec();
-    let update_args = UpdateArguments::File {
-        path: remote_path.to_string(),
-        metadata: FileUpdateMetadata {
-            sha256: Some(sha256_hash),
-            chunkIds: chunk_ids,
-            contentType: content_type.to_string(),
-        },
+    let finish_args = FinishUploadSessionArguments {
+        batchId: session.batchId,
+        sha256: Some(sha256_hash),
+        contentType: content_type.to_string(),
     };
 
     agent
-        .update(&canister_id, "update")
-        .with_arg(Encode!(&update_args)?)
+        .update(&canister_id, "finishUploadSession")
+        .with_arg(Encode!(&finish_args)?)
         .call_and_wait()
         .await
-        .context("update (finalize) call failed")?;
+        .context("finishUploadSession call failed")?;
 
     Ok(details)
 }

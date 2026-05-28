@@ -30,6 +30,12 @@ const DEFAULT_PROJECT_ID = '0000000-0000-0000-0000-00000000000';
 // Public API
 // -------------------------------------------------------------------
 
+export interface BlobStorageChunkSource {
+  readonly chunkCount: number;
+  getChunk(index: number): Promise<Uint8Array>;
+  releaseChunk?(index: number): Promise<void>;
+}
+
 export interface BlobStorageGatewayClientConfig {
   agent: HttpAgent;
   /** Storage bucket name. Defaults to "default-bucket". */
@@ -181,16 +187,39 @@ export class BlobStorageGatewayClient {
     blobHash: string,
     onProgress?: (completedChunks: number, totalChunks: number) => void,
   ): Promise<void> {
+    await this.uploadChunkSource(
+      {
+        chunkCount: encryptedChunks.length,
+        getChunk: async (index) => encryptedChunks[index],
+      },
+      chunkHashes,
+      blobHash,
+      onProgress,
+    );
+  }
+
+  /**
+   * Upload chunks from a bounded source. This keeps large BlobStorage uploads
+   * from retaining every encrypted chunk in browser memory.
+   */
+  async uploadChunkSource(
+    chunkSource: BlobStorageChunkSource,
+    chunkHashes: YHash[],
+    blobHash: string,
+    onProgress?: (completedChunks: number, totalChunks: number) => void,
+  ): Promise<void> {
     let completedChunks = 0;
-    const total = encryptedChunks.length;
+    const total = chunkSource.chunkCount;
 
     const uploadSingle = async (index: number) => {
+      const chunkBytes = await chunkSource.getChunk(index);
       await this.uploadChunk({
-        chunkBytes: encryptedChunks[index],
+        chunkBytes,
         blobHash,
         chunkHash: chunkHashes[index].toShaString(),
         chunkIndex: index,
       });
+      await chunkSource.releaseChunk?.(index);
       completedChunks++;
       onProgress?.(completedChunks, total);
     };

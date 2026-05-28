@@ -7,7 +7,7 @@ import NotificationTypes "../Notifications/Types";
 
 module {
   public type CorrelationId = Text;
-  public type Plan = { #Free; #Trial; #Pro };
+  public type Plan = { #Free; #Pro };
   public type Progress = { processed : Nat; total : Nat };
 
   public type NotificationRequest = {
@@ -122,6 +122,45 @@ module {
     severity : { #warning; #critical };
   };
 
+  public type StorageFundingStatus = {
+    #requested;
+    #inFlight;
+    #completed : { cyclesAdded : Nat };
+    #pendingCmc : { recoveryId : Nat; reason : Text };
+    #refunded : { reason : Text };
+    #failed : { reason : Text };
+  };
+
+  public type StorageFundingChanged = {
+    accountOwner : Principal;
+    canisterId : Principal;
+    status : StorageFundingStatus;
+    currentBalance : ?Nat;
+    requiredBalance : ?Nat;
+    correlationId : ?CorrelationId;
+  };
+
+  public type StorageOperationalSlice = {
+    #cycles;
+    #funding;
+    #storage;
+    #runtime;
+  };
+
+  public type StorageOperationalSeverity = {
+    #info;
+    #warning;
+    #critical;
+  };
+
+  public type StorageOperationalStateChanged = {
+    accountOwner : Principal;
+    canisterId : Principal;
+    slices : [StorageOperationalSlice];
+    severity : ?StorageOperationalSeverity;
+    correlationId : ?CorrelationId;
+  };
+
   public type StorageAccessLifecycleEvent = {
     #pendingGrantCreated : {
       grantId : Nat;
@@ -208,6 +247,8 @@ module {
     #balanceChanged : BalanceChanged;
     #paymentChanged : PaymentChanged;
     #cyclesAlert : CyclesAlert;
+    #storageFundingChanged : StorageFundingChanged;
+    #storageOperationalStateChanged : StorageOperationalStateChanged;
     #storageAccessChanged : StorageAccessChanged;
   };
 

@@ -24,8 +24,6 @@ type StepId = (typeof STEP_DEFS)[number]['id'];
 
 function paymentPhaseLabel(phase: PaymentPhase): string {
   switch (phase.type) {
-    case 'Activating':
-      return 'Activating trial';
     case 'Charging':
       return `Charging ${formatTokenAmount(phase.amount, phase.tokenId)}`;
     case 'CheckingBalances':

@@ -72,7 +72,6 @@ module {
     referralAppliedAt : ?Time.Time;
     role : Role;
     roleText : Text;
-    trialUsed : Bool;
     createdAt : Time.Time;
     updatedAt : Time.Time;
   };
@@ -108,7 +107,6 @@ module {
       id : ?[Principal];
       inviter : ?[Principal];
       role : ?Role;
-      trialUsed : ?Bool;
       verifiedEmail : ?Bool;
       identityProvider : ?Text;
       search : ?Text;
@@ -137,7 +135,6 @@ module {
     referralAppliedAt : ?Time.Time;
     role : Role;
     roleText : Text;
-    trialUsed : Bool;
     createdAt : Time.Time;
     updatedAt : Time.Time;
     profile : ?PublicProfileSummary;
@@ -347,7 +344,6 @@ module {
     ("referralAppliedAt", #Option(#Int)),
     ("role", #Variant([("user", #Null), ("admin", #Null), ("moderator", #Null)])),
     ("roleText", #Text),
-    ("trialUsed", #Bool),
     ("createdAt", #Int),
     ("updatedAt", #Int),
   ]);
@@ -386,7 +382,6 @@ module {
 
     ensureIndex("users_inviter_idx", [("inviterText", #Ascending)]);
     ensureIndex("users_role_text_idx", [("roleText", #Ascending)]);
-    ensureIndex("users_trial_used_idx", [("trialUsed", #Ascending)]);
     ensureIndex("users_verified_email_idx", [("identity.verifiedEmail", #Ascending)]);
     ensureIndex("users_identity_provider_idx", [("identity.provider", #Ascending)]);
     ensureIndex("users_created_at_idx", [("createdAt", #Ascending)]);
@@ -409,7 +404,6 @@ module {
         referralAppliedAt = null;
         role;
         roleText = roleToText(role);
-        trialUsed = false;
         createdAt = now;
         updatedAt = now;
       };
@@ -697,16 +691,6 @@ module {
       };
     };
 
-    public func hasUsedTrial(principal : Principal) : Bool {
-      let ?user = get(principal) else return false;
-      user.trialUsed;
-    };
-
-    public func markTrialUsed(principal : Principal) {
-      let ?(docId, user) = findDocument(principal) else return;
-      ignore usersCollection.replace(docId, { user with trialUsed = true; updatedAt = Time.now() });
-    };
-
     public func setRole(principal : Principal, role : Role) : Bool {
       let ?(docId, user) = findDocument(principal) else return false;
       ignore usersCollection.replace(docId, { user with role; roleText = roleToText(role); updatedAt = Time.now() });
@@ -750,7 +734,6 @@ module {
         referralAppliedAt = user.referralAppliedAt;
         role = user.role;
         roleText = user.roleText;
-        trialUsed = user.trialUsed;
         createdAt = user.createdAt;
         updatedAt = user.updatedAt;
         profile = switch (user.profile) {
@@ -840,10 +823,6 @@ module {
 
       switch (options.filter.role) {
         case (?role) ignore dbQuery.And("roleText", #eq(#Text(roleToText(role))));
-        case null {};
-      };
-      switch (options.filter.trialUsed) {
-        case (?trialUsed) ignore dbQuery.And("trialUsed", #eq(#Bool(trialUsed)));
         case null {};
       };
       switch (options.filter.verifiedEmail) {

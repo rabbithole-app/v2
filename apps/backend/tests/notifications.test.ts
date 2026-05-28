@@ -35,15 +35,6 @@ describe("Notifications", () => {
     expect(unreadPage.unreadCount).toBe(0n);
   });
 
-  test("activateTrial does not break notifications", async () => {
-    actor.setIdentity(userAlice);
-    await actor.ensureUser([]);
-    await actor.activateTrial();
-
-    const count = await actor.getUnreadNotificationCount();
-    expect(count).toBe(0n);
-  });
-
   test("markAllAsRead works on empty inbox", async () => {
     actor.setIdentity(userAlice);
     await actor.markAllNotificationsRead();

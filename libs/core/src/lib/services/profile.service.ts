@@ -49,10 +49,6 @@ export class ProfileService {
     catchError(() => of(true)),
   );
 
-  reload() {
-    this.#profileResource.reload();
-  }
-
   checkUsernameValidator(): AsyncValidatorFn {
     return async (
       control: AbstractControl<string | null>,
@@ -97,6 +93,10 @@ export class ProfileService {
       });
       throw error;
     }
+  }
+
+  reload() {
+    this.#profileResource.reload();
   }
 
   async updateProfile(args: UpdateProfileArgs) {

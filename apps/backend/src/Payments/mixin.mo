@@ -27,7 +27,6 @@ mixin(
   deps : {
     events : BackendEvents.EventSink;
     getAmbassadorChain : (Principal) -> Users.AmbassadorChain;
-    activateSubscription : (Principal, Subscriptions.Plan, ?Int) -> Result.Result<(), Subscriptions.ActivateError>;
     grantPaidPeriod : (Principal, Subscriptions.Plan, Time.Time) -> Result.Result<Subscriptions.PaidPeriodResult, Text>;
     onSubscriptionChanged : (Principal) -> async ();
     distributePayment : (TreasuryTypes.DistributePaymentArgs) -> async* TreasuryTypes.DistributePaymentResult;
@@ -146,12 +145,6 @@ mixin(
             paymentId = payment.id;
             paidAt = Time.now();
           });
-          // Activate Trial if user has no active subscription
-          switch (deps.activateSubscription(userId, #Trial, null)) {
-            case (#ok()) await deps.onSubscriptionChanged(userId);
-            case (#err(#AlreadyActive)) {};
-            case _ {};
-          };
           emitPaymentNotification(userId, #paymentReceived({ purpose = "license"; amount = payment.amount; tokenId = tokenIdText }));
 
           switch (Payments.extractStorageConfig(payment.metadata)) {

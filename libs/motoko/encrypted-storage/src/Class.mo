@@ -8,7 +8,7 @@ import T "Types";
 module {
   public type Gates = {
     canUploadEncrypted : Nat -> Result.Result<(), Text>;
-    canUseEncryption : () -> Result.Result<(), Text>;
+    canShare : () -> Result.Result<(), Text>;
     refreshSubscription : () -> async* Result.Result<T.SubscriptionStatus, Text>;
     onAccessChanged : ?(T.StoredStorageEvent -> ());
   };
@@ -19,7 +19,7 @@ module {
       case null null;
     };
     let shareGate : ?(() -> Result.Result<(), Text>) = switch (gates) {
-      case (?g) ?g.canUseEncryption;
+      case (?g) ?g.canShare;
       case null null;
     };
     let subscriptionRefreshGate : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>) = switch (gates) {
@@ -43,6 +43,9 @@ module {
 
     public func getStatus(cycleBalance : Nat) : T.StorageStatus =
       Lib.getStatus(store, cycleBalance);
+
+    public func memoryInfo() : T.MemoryInfo =
+      Lib.memoryInfo(store);
 
     public func httpRequest(req : T.HttpRequest) : Result.Result<T.HttpResponse, Text> =
       Lib.httpRequest(store, req);
@@ -416,11 +419,43 @@ module {
       await* Lib.createBatch(store, caller, args, uploadGate, subscriptionRefreshGate);
     };
 
+    public func beginUploadSession(caller : Principal, args : T.BeginUploadSessionArguments) : async* Result.Result<T.BeginUploadSessionResponse, Text> {
+      await* Lib.beginUploadSession(store, caller, args, uploadGate, subscriptionRefreshGate);
+    };
+
+    public func getUploadSession(caller : Principal, batchId : T.BatchId) : Result.Result<T.UploadSessionStatus, Text> =
+      Lib.getUploadSession(store, caller, batchId);
+
+    public func finishUploadSession(caller : Principal, args : T.FinishUploadSessionArguments) : async* Result.Result<Lib.UploadCommitMeasurement, Text> {
+      await* Lib.finishUploadSession(store, caller, args, uploadGate, subscriptionRefreshGate);
+    };
+
+    public func abortUploadSession(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> =
+      Lib.abortUploadSession(store, caller, batchId);
+
     public func rollbackBatch(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> =
       Lib.rollbackBatch(store, caller, batchId);
 
     public func createChunk(caller : Principal, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> =
       Lib.createChunk(store, caller, args, uploadGate);
+
+    public func appendUploadChunk(caller : Principal, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> =
+      Lib.appendUploadChunk(store, caller, args, uploadGate);
+
+    public func activeUploadReservationBytes() : Nat =
+      Lib.activeUploadReservationBytes(store);
+
+    public func activeUploadStagingBytes() : Nat =
+      Lib.activeUploadStagingBytes(store);
+
+    public func activeUploadStagingChunkCount() : Nat =
+      Lib.activeUploadStagingChunkCount(store);
+
+    public func activeUploadSessions() : [Lib.ActiveUploadSession] =
+      Lib.activeUploadSessions(store);
+
+    public func activeEncryptedUploadSessionCount() : Nat =
+      Lib.activeEncryptedUploadSessionCount(store);
 
     // --- Permissions ---
 
@@ -476,6 +511,10 @@ module {
       Lib.updateDirectoryPolicy(store, caller, args);
 
     // --- Caffeine Blob Storage ---
+
+    public func preflightCaffeineUpload(caller : Principal, args : T.PreflightCaffeineUploadArgs) : async* Result.Result<(), Text> {
+      await* Lib.preflightCaffeineUpload(store, caller, args, uploadGate, subscriptionRefreshGate);
+    };
 
     public func commitCaffeineUpload(caller : Principal, args : T.CommitCaffeineUploadArgs) : async* Result.Result<(), Text> {
       await* Lib.commitCaffeineUpload(store, caller, args, uploadGate, subscriptionRefreshGate);

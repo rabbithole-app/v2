@@ -1,0 +1,13 @@
+@if (effectiveCanisterId(); as canisterId) {
+  <div [class]="shellClass()">
+    <core-storage-metric-card
+      [canisterId]="canisterId"
+      [compact]="compactMetrics()"
+      [subscriptionLink]="subscriptionLink"
+    />
+    <core-canister-cycles-metric-card
+      [canisterId]="canisterId"
+      [compact]="compactMetrics()"
+    />
+  </div>
+}

@@ -33,6 +33,7 @@ import {
   CmcOpRetryResult,
   CmcOpSource,
   PendingCmcOp,
+  RefundReceipt,
   StatsView,
   TokenId,
 } from '@rabbithole/declarations/backend';
@@ -241,12 +242,27 @@ export class AdminCmcRecoveryComponent {
     return fractionText ? `${whole}.${fractionText}` : whole.toString();
   }
 
+  private _refundReference(reference: RefundReceipt['reference']): string {
+    if ('blockIndex' in reference) {
+      return `block ${reference.blockIndex.toString()}`;
+    }
+    if ('txHash' in reference) {
+      return `tx ${reference.txHash}`;
+    }
+    return `signature ${reference.signature}`;
+  }
+
   private _retryResultMessage(result: CmcOpRetryResult): string {
     if ('scheduled' in result) {
       return `Storage deployment scheduled for ${result.scheduled.canisterId.toText()}`;
     }
     if ('resolved' in result) return 'CMC operation resolved';
-    if ('refunded' in result) return 'Refund scheduled';
+    if ('refunded' in result) {
+      const receipt = result.refunded.receipt[0];
+      return receipt
+        ? `Refund completed: ${this._tokenLabel(receipt.tokenId)} ${this._refundReference(receipt.reference)}`
+        : 'Refund completed';
+    }
     if ('blockedByRefund' in result) {
       return 'Operation is blocked by refund state';
     }

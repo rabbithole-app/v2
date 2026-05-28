@@ -197,7 +197,6 @@ function convertPaymentPhase(phase: PaymentPhaseCandid): PaymentPhase {
       tokenId: Object.keys(tokenId)[0] as TokenId,
     }))
     .with({ RecordingLicense: P._ }, () => ({ type: 'RecordingLicense' }))
-    .with({ Activating: P._ }, () => ({ type: 'Activating' }))
     .with({ Queueing: P._ }, () => ({ type: 'Queueing' }))
     .exhaustive();
 }

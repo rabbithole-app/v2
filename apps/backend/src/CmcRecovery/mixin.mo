@@ -18,7 +18,7 @@ import Types "../StorageDeployer/Types";
 mixin (
   admin : { assertAdmin : (Principal) -> () },
   treasury : {
-    simpleRefund : (Principal, TreasuryTypes.TokenId, Nat) -> async* Result.Result<(), Text>;
+    simpleRefund : (Principal, TreasuryTypes.TokenId, Nat) -> async* Result.Result<TreasuryTypes.RefundReceipt, Text>;
   },
   cmc : {
     notifyTopUp : (Nat64, Principal) -> async Result.Result<Nat, CMCTypes.NotifyError>;
@@ -42,6 +42,7 @@ mixin (
     events : BackendEvents.EventSink;
     /// For `#selfTopUp` retry — the backend canister's own principal.
     selfCanisterId : Principal;
+    settleIncludedFundingReservation : (Nat, CmcRecovery.IncludedFundingSettlement) -> ();
   },
 ) {
   let cmcStore = CmcRecovery.new();
@@ -65,7 +66,7 @@ mixin (
     blockIndex : Nat,
     refund : ?CmcRecovery.RefundContext,
     err : CMCTypes.NotifyError,
-  ) : async* () {
+  ) : async* CmcRecovery.CmcNotifyOutcome {
     let kind : CmcRecovery.CmcOpKind = switch (source) {
       case (#storageCreation(_)) #CreateCanister;
       case _ #TopUp;
@@ -74,7 +75,32 @@ mixin (
     switch (CmcRecovery.classifyNotifyError(err)) {
       case (#refund(reason)) {
         Debug.print("[cmc recovery] terminal blockIndex=" # Nat.toText(blockIndex) # " " # reason);
-        await* executeTerminalRefund(source, refund, reason);
+        switch (await* executeTerminalRefund(source, refund, reason)) {
+          case (#ok(receipt)) {
+            deps.settleIncludedFundingReservation(blockIndex, #refunded);
+            #refunded({ reason; receipt });
+          };
+          case (#err(message)) {
+            let id = CmcRecovery.enqueueOrUpdate(
+              cmcStore,
+              {
+                kind;
+                blockIndex;
+                source;
+                refund;
+                lastError = reason # "; refund pending: " # message;
+              },
+            );
+            emitCmcAdminNotification(#cmcNotifyStuck({
+              id;
+              canisterId = targetCanisterId(source, deps.selfCanisterId);
+              blockIndex;
+              reason = reason # "; refund pending: " # message;
+              caller = payerOf(source, refund, deps.selfCanisterId);
+            }));
+            #refundPending({ id; reason = message });
+          };
+        };
       };
       case (#persist(reason)) {
         let id = CmcRecovery.enqueueOrUpdate(
@@ -89,6 +115,7 @@ mixin (
           reason;
           caller = payerOf(source, refund, deps.selfCanisterId);
         }));
+        #pending({ id; reason });
       };
     };
   };
@@ -101,25 +128,32 @@ mixin (
     source : CmcRecovery.CmcOpSource,
     refund : ?CmcRecovery.RefundContext,
     reason : Text,
-  ) : async* () {
+  ) : async* Result.Result<?TreasuryTypes.RefundReceipt, Text> {
     switch (source) {
       case (#storageCreation({ creationId })) {
         switch (await deps.refundFailedCreationInternal(creationId)) {
-          case (#ok) {};
-          case (#err(msg)) Debug.print("[cmc recovery] refundFailedCreationInternal(" # Nat.toText(creationId) # ") failed: " # msg);
+          case (#ok) #ok(null);
+          case (#err(msg)) {
+            Debug.print("[cmc recovery] refundFailedCreationInternal(" # Nat.toText(creationId) # ") failed: " # msg);
+            #err(msg);
+          };
         };
       };
       case (_) {
         switch (refund) {
           case (?ctx) {
             switch (await* treasury.simpleRefund(ctx.payer, ctx.tokenId, ctx.amount)) {
-              case (#ok) {};
-              case (#err(msg)) Debug.print("[cmc recovery] treasury.simpleRefund failed: " # msg # " (reason: " # reason # ")");
+              case (#ok(receipt)) #ok(?receipt);
+              case (#err(msg)) {
+                Debug.print("[cmc recovery] treasury.simpleRefund failed: " # msg # " (reason: " # reason # ")");
+                #err(msg);
+              };
             };
           };
           case null {
             // `#selfTopUp` with terminal CMC: ICP returned to treasury
             // subaccount automatically — no separate refund needed.
+            #ok(null);
           };
         };
       };
@@ -180,6 +214,7 @@ mixin (
       case (#ok(cycles)) {
         ignore CmcRecovery.removeById(cmcStore, op.id);
         CmcRecovery.incrResolved(cmcStore);
+        deps.settleIncludedFundingReservation(op.blockIndex, #completed);
         switch (op.refund) {
           case (?ctx) {
             let event : Notifications.NotificationPayload = if (isAuto) {
@@ -258,17 +293,35 @@ mixin (
   ) : async* CmcRecovery.CmcOpRetryResult {
     switch (CmcRecovery.classifyNotifyError(err)) {
       case (#refund(reason)) {
-        await* executeTerminalRefund(op.source, op.refund, reason);
-        ignore CmcRecovery.removeById(cmcStore, op.id);
-        // `totalRefunded` counts compensating refund operations — `#selfTopUp`
-        // has no user-facing refund (treasury auto-receives ICP back), so it
-        // must not inflate the counter. Presence of `op.refund` is the
-        // discriminator: #userTopUp / #autoTopUp / #storageCreation have one;
-        // #selfTopUp doesn't.
-        if (op.refund != null) {
-          CmcRecovery.incrRefunded(cmcStore);
+        switch (await* executeTerminalRefund(op.source, op.refund, reason)) {
+          case (#ok(receipt)) {
+            ignore CmcRecovery.removeById(cmcStore, op.id);
+            deps.settleIncludedFundingReservation(op.blockIndex, #refunded);
+            // `totalRefunded` counts compensating refund operations — `#selfTopUp`
+            // has no user-facing refund (treasury auto-receives ICP back), so it
+            // must not inflate the counter. Presence of `op.refund` is the
+            // discriminator: #userTopUp / #autoTopUp / #storageCreation have one;
+            // #selfTopUp doesn't.
+            if (op.refund != null) {
+              CmcRecovery.incrRefunded(cmcStore);
+            };
+            #refunded({ receipt });
+          };
+          case (#err(message)) {
+            let attempts = switch (CmcRecovery.bumpAttempts(cmcStore, op.id, reason # "; refund pending: " # message)) {
+              case (?n) n;
+              case null op.attempts;
+            };
+            emitCmcAdminNotification(#cmcNotifyStuck({
+              id = op.id;
+              canisterId = targetCanisterId(op.source, deps.selfCanisterId);
+              blockIndex = op.blockIndex;
+              reason = reason # "; refund pending: " # message;
+              caller = payerOf(op.source, op.refund, deps.selfCanisterId);
+            }));
+            #stillAmbiguous({ attempts });
+          };
         };
-        #refunded;
       };
       case (#persist(reason)) {
         let attempts = switch (CmcRecovery.bumpAttempts(cmcStore, op.id, reason)) {

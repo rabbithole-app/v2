@@ -109,7 +109,6 @@ export class AdminUserOverviewComponent {
 
   protected _planLabel(plan: Subscription['plan']): string {
     if ('Pro' in plan) return 'Pro';
-    if ('Trial' in plan) return 'Trial';
     return 'Free';
   }
 

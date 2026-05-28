@@ -1669,19 +1669,12 @@ module Treasury {
     };
   };
 
-  /// Refund from treasury subaccount → user subaccount. Reverse of simpleTransfer.
-  /// Transfers up to `maxAmount` from treasury back to user (minus ledger fee).
-  /// Checks actual treasury balance to avoid InsufficientFunds errors.
-  public func simpleRefund(
+  func simpleRefundIc(
     treasury : Treasury,
     userId : Principal,
     tokenId : Types.TokenId,
     maxAmount : Nat,
-  ) : async* Result.Result<(), Text> {
-    if (not isIcToken(tokenId)) {
-      return #err("simpleRefund only supports IC tokens");
-    };
-
+  ) : async* Result.Result<Types.RefundReceipt, Text> {
     let ledger = getIcLedger(tokenId);
     let fee = getIcFee(tokenId);
     let treasurySubaccount = Const.treasurySubaccount();
@@ -1705,8 +1698,177 @@ module Treasury {
       amount = refundAmount - fee;
     });
     switch (result) {
-      case (#Ok(_)) #ok();
+      case (#Ok(blockIndex)) #ok({
+        tokenId;
+        amount = refundAmount - fee;
+        recipient = userId;
+        network = #ic;
+        reference = #blockIndex(blockIndex);
+        at = Time.now();
+      });
       case (#Err(err)) #err("Refund failed: " # debug_show err);
+    };
+  };
+
+  func simpleRefundEvm(
+    treasury : Treasury,
+    userId : Principal,
+    tokenId : Types.TokenId,
+    maxAmount : Nat,
+  ) : async* Result.Result<Types.RefundReceipt, Text> {
+    let evmConfig = switch (getEvmChainConfig(treasury.store.chains, tokenId)) {
+      case (?cfg) cfg;
+      case null return #err("EVM chain not configured for refund");
+    };
+
+    let api = treasury.ecdsaApi;
+    let ecCtx = getEcCtx(treasury);
+    let rpcServices = buildRpcServices(evmConfig);
+    let (treasuryEvmAddr, treasuryPubKey) = switch (await* EvmRpc.deriveTreasuryAddress(treasury.store.thresholdKeyName, api)) {
+      case (#ok(pair)) pair;
+      case (#err(e)) return #err("Failed to derive treasury EVM address: " # e);
+    };
+    let userEvmAddr = switch (await* resolveEvmAddress(treasury, userId, evmConfig, api)) {
+      case (?addr) addr;
+      case null return #err("Failed to derive user EVM address");
+    };
+    let balance = switch (await getEvmTokenBalanceStep(evmConfig, tokenId, treasuryEvmAddr)) {
+      case (#ok(value)) value;
+      case (#err(e)) return #err("Failed to read treasury EVM balance: " # e);
+    };
+    if (balance < maxAmount) {
+      return #err("Insufficient treasury EVM balance for refund");
+    };
+
+    let remoteNonce = switch (await* EvmRpc.getNonce(evmConfig.evmRpcCanisterId, rpcServices, treasuryEvmAddr)) {
+      case (#ok(n)) n;
+      case (#err(e)) return #err("Failed to get treasury EVM nonce: " # e);
+    };
+    let nonce = switch (treasury.lastNonce) {
+      case (?local) if (local > remoteNonce) local else remoteNonce;
+      case null remoteNonce;
+    };
+    let result = await sendEvmTransferStep(
+      treasury.store.thresholdKeyName,
+      evmConfig,
+      rpcServices,
+      tokenId,
+      [],
+      treasuryPubKey,
+      userEvmAddr,
+      maxAmount,
+      nonce,
+      1_000_000_000,
+      100_000_000,
+      ecCtx,
+      api,
+    );
+    switch (result) {
+      case (#ok(txHash)) {
+        treasury.lastNonce := ?(nonce + 1);
+        #ok({
+          tokenId;
+          amount = maxAmount;
+          recipient = userId;
+          network = #evm;
+          reference = #txHash(txHash);
+          at = Time.now();
+        });
+      };
+      case (#err(e)) #err("EVM refund failed: " # e);
+    };
+  };
+
+  func simpleRefundSol(
+    treasury : Treasury,
+    userId : Principal,
+    tokenId : Types.TokenId,
+    maxAmount : Nat,
+  ) : async* Result.Result<Types.RefundReceipt, Text> {
+    let solConfig = switch (getSolanaChainConfig(treasury.store.chains, tokenId)) {
+      case (?cfg) cfg;
+      case null return #err("Solana chain not configured for refund");
+    };
+
+    let api = treasury.schnorrApi;
+    let rpcSources = buildSolRpcSources(solConfig);
+    let (treasurySolAddr, treasuryPubKey) = switch (await* SolRpc.deriveTreasurySolAddress(treasury.store.thresholdKeyName, api)) {
+      case (#ok(pair)) pair;
+      case (#err(e)) return #err("Failed to derive treasury Solana address: " # e);
+    };
+    let userSolAddr = switch (await* resolveSolAddress(treasury, userId, solConfig, api)) {
+      case (?addr) addr;
+      case null return #err("Failed to derive user Solana address");
+    };
+    let balance = switch (await getSolTokenBalanceStep(solConfig, tokenId, treasurySolAddr)) {
+      case (#ok(value)) value;
+      case (#err(e)) return #err("Failed to read treasury Solana balance: " # e);
+    };
+    if (balance < maxAmount) {
+      return #err("Insufficient treasury Solana balance for refund");
+    };
+
+    let result = switch (getSolMintAddress(tokenId, solConfig)) {
+      case (?mintAddress) {
+        await* SolRpc.sendSplTransfer(
+          {
+            solRpcCanisterId = solConfig.solRpcCanisterId;
+            rpcSources;
+            schnorrKeyName = treasury.store.thresholdKeyName;
+            derivationPath = [];
+            senderPubKey = treasuryPubKey;
+            mintAddress;
+            toAddress = userSolAddr;
+            amount = Nat64.fromNat(maxAmount);
+            decimals = getSolTokenDecimals(tokenId, solConfig);
+          },
+          api,
+        );
+      };
+      case null {
+        await* SolRpc.sendSolTransfer(
+          {
+            solRpcCanisterId = solConfig.solRpcCanisterId;
+            rpcSources;
+            schnorrKeyName = treasury.store.thresholdKeyName;
+            derivationPath = [];
+            senderPubKey = treasuryPubKey;
+            toAddress = userSolAddr;
+            lamports = Nat64.fromNat(maxAmount);
+          },
+          api,
+        );
+      };
+    };
+    switch (result) {
+      case (#ok(signature)) #ok({
+        tokenId;
+        amount = maxAmount;
+        recipient = userId;
+        network = #solana;
+        reference = #signature(signature);
+        at = Time.now();
+      });
+      case (#err(e)) #err("Solana refund failed: " # e);
+    };
+  };
+
+  /// Refund from treasury pool back to the user's derived wallet.
+  /// IC tokens use the fixed treasury subaccount. EVM/SOL tokens use the
+  /// treasury-derived chain address, which is where chargeAndDistribute stores
+  /// top-up payments when no ambassadors are attached.
+  public func simpleRefund(
+    treasury : Treasury,
+    userId : Principal,
+    tokenId : Types.TokenId,
+    maxAmount : Nat,
+  ) : async* Result.Result<Types.RefundReceipt, Text> {
+    if (isIcToken(tokenId)) {
+      await* simpleRefundIc(treasury, userId, tokenId, maxAmount);
+    } else if (isSolToken(tokenId)) {
+      await* simpleRefundSol(treasury, userId, tokenId, maxAmount);
+    } else {
+      await* simpleRefundEvm(treasury, userId, tokenId, maxAmount);
     };
   };
 

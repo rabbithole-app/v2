@@ -1,3 +1,4 @@
+import { uint8ArrayToArrayBuffer } from '../utils/bytes';
 import { YHash } from './merkle-tree';
 
 interface BlobRecord {
@@ -77,7 +78,7 @@ export class MockBlobGateway {
     const bytes = concatChunks(record.uploadedChunks);
     const payload = this.#tampered.has(blobHash) ? tamper(bytes) : bytes;
 
-    return new Response(payload, {
+    return new Response(uint8ArrayToArrayBuffer(payload), {
       status: 200,
       headers: { 'Content-Type': 'application/octet-stream' },
     });

@@ -27,8 +27,8 @@ export class AccountMenuTriggerContentComponent {
   readonly _computedClass = computed(() =>
     hlm('w-full max-w-[200px] flex items-center gap-2', this.userClass()),
   );
-  readonly #avatarService = inject(AvatarService);
   readonly profile = input.required<Profile>();
+  readonly #avatarService = inject(AvatarService);
   readonly avatarSrc = computed(() =>
     this.#avatarService.avatarSrc(this.profile().avatarRef[0]),
   );

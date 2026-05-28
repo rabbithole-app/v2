@@ -19,10 +19,10 @@ const AVATAR_GATEWAY_MAX_RETRIES = 0;
 export class AvatarService {
   readonly #actor = injectMainActor();
   readonly #agent = injectHttpAgent();
-  readonly #canisterId = inject(MAIN_CANISTER_ID_TOKEN);
   readonly #blobStorageConfig = inject(BLOB_STORAGE_CONFIG_TOKEN, {
     optional: true,
   });
+  readonly #canisterId = inject(MAIN_CANISTER_ID_TOKEN);
 
   avatarSrc(avatarRef: AvatarRef | null | undefined): string | null {
     const gatewayUrl = this.#gatewayUrl();
@@ -35,6 +35,10 @@ export class AvatarService {
     });
 
     return `${gatewayUrl}/${BLOB_STORAGE_GATEWAY_VERSION}/blob/?${query}`;
+  }
+
+  async clearAvatar(): Promise<void> {
+    await this.#actor().clearAvatar();
   }
 
   async uploadAvatar(
@@ -86,10 +90,6 @@ export class AvatarService {
     await client.uploadChunks([content], [chunkHash], rootHash);
 
     return actor.commitAvatarUpload(rootHash);
-  }
-
-  async clearAvatar(): Promise<void> {
-    await this.#actor().clearAvatar();
   }
 
   #gatewayUrl(): string | null {

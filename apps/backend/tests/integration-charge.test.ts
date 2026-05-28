@@ -76,7 +76,9 @@ const userIdentity = createIdentity('integ-user');
 const l1Identity = createIdentity('integ-l1');
 const FILE = { File: null } as const;
 const CREATE_NEW = { CreateNew: null } as const;
+const GET_OR_CREATE = { GetOrCreate: null } as const;
 const ENCRYPTED: EncryptionMode = { Encrypted: null } as const;
+const PLAINTEXT: EncryptionMode = { Plaintext: null } as const;
 
 // ---- Helpers ----
 
@@ -139,6 +141,14 @@ function expectTopUpSuccess(result: TopUpFromBalanceResult): { cyclesAdded: bigi
   if (!('ok' in result)) {
     throw new Error(`Expected top-up success, got error: ${result.err}`);
   }
+  return result.ok;
+}
+
+function unwrapStorageResult<T>(result: { ok: T } | { err: { message: string } }): T {
+  if ('err' in result) {
+    throw new Error(result.err.message);
+  }
+
   return result.ok;
 }
 
@@ -458,18 +468,6 @@ describe('Integration: auto-renew and grace period', () => {
     const notifs = await actor.listNotifications({ afterId: [], limit: 10n, unreadOnly: false });
     const lowNotif = findNotification(notifs.data, 'balanceLow');
     expect(lowNotif).toBeDefined();
-  });
-
-  test('trial activation works and has 14-day expiry', async () => {
-    const user = createIdentity('trial-user');
-    actor.setIdentity(user);
-    await actor.ensureUser([]);
-    await actor.activateTrial();
-
-    const sub = await actor.getSubscription();
-    expect(sub[0].plan).toEqual({ Trial: null });
-    expect(sub[0].status).toEqual({ Active: null });
-    expect(sub[0].expiresAt).toHaveLength(1);
   });
 
   test('grace period: expired > 3 days → downgrade to Free', async () => {
@@ -1359,7 +1357,7 @@ describe('Integration: topUpFromBalance full flow', () => {
         [100_000_000_000n, 5n, { warning: null }],
       ),
     });
-    await manager.pic.tick(20);
+    await manager.pic.tick(80);
 
     const cyclesAfter = await manager.getCyclesBalance(storageCanisterId);
     expect(cyclesAfter).toBeGreaterThan(cyclesBefore);
@@ -1371,89 +1369,52 @@ describe('Integration: topUpFromBalance full flow', () => {
     expect(topUpNotif).toBeDefined();
   });
 
-  test('auto-topup: does not top up Trial users', async () => {
-    actor.setIdentity(storageUser);
-    await actor.updateSettings({
-      spendingPriority: [{ ckUSDC: null }],
-      autoRenew: false, autoTopUp: true, topUpAmountCycles: ONE_TRILLION_CYCLES,
-    });
-
-    actor.setIdentity(manager.ownerIdentity);
-    const picTimeMs = await manager.pic.getTime();
-    const now = BigInt(picTimeMs) * 1_000_000n;
-    const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
-    await actor.activateSubscription(
-      storageUser.getPrincipal(),
-      { Trial: null },
-      [now + fourteenDays],
-    );
-
-    await manager.mintToUserSubaccount(
-      CKUSDC_CANISTER_ID,
-      storageUser.getPrincipal(),
-      50_000_000n,
-    );
-
-    actor.setIdentity(storageUser);
-    const notifsBefore = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
-    const completedBefore = notifsBefore.data.filter((notification) =>
-      hasNotificationEvent(notification, 'autoTopUpCompleted'),
-    ).length;
-    const cyclesBefore = await manager.getCyclesBalance(storageCanisterId);
-
-    await manager.pic.updateCall({
-      canisterId: backendCanisterId,
-      sender: storageCanisterId,
-      method: 'onStorageLowCycles',
-      arg: IDL.encode(
-        [IDL.Nat, IDL.Nat, IDL.Variant({ warning: IDL.Null, critical: IDL.Null })],
-        [100_000_000_000n, 5n, { warning: null }],
-      ),
-    });
-    await manager.pic.tick(10);
-
-    const cyclesAfter = await manager.getCyclesBalance(storageCanisterId);
-    expect(cyclesAfter).toBe(cyclesBefore);
-
-    const notifsAfter = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
-    const completedAfter = notifsAfter.data.filter((notification) =>
-      hasNotificationEvent(notification, 'autoTopUpCompleted'),
-    ).length;
-    expect(completedAfter).toBe(completedBefore);
-  });
-
   test('auto-topup: does not top up expired Pro users', async () => {
-    actor.setIdentity(storageUser);
+    const expiredUser = createIdentity('expired-pro-autotopup-user');
+    const expiredStorageInitArg = encodeStorageInitArg(expiredUser.getPrincipal());
+    const expiredStorage = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: ENCRYPTED_STORAGE_WASM_PATH,
+      sender: expiredUser.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
+      arg: expiredStorageInitArg,
+    });
+    await manager.pic.tick();
+
+    actor.setIdentity(expiredUser);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: false, autoTopUp: true, topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
+    const addResult = await actor.addStorage(expiredStorage.canisterId, expiredStorageInitArg);
+    expect(addResult).toHaveProperty('ok');
 
     actor.setIdentity(manager.ownerIdentity);
     const picTimeMs = await manager.pic.getTime();
     const now = BigInt(picTimeMs) * 1_000_000n;
     await actor.activateSubscription(
-      storageUser.getPrincipal(),
+      expiredUser.getPrincipal(),
       { Pro: null },
       [now - 1_000_000_000n],
     );
 
     await manager.mintToUserSubaccount(
       CKUSDC_CANISTER_ID,
-      storageUser.getPrincipal(),
+      expiredUser.getPrincipal(),
       50_000_000n,
     );
 
-    actor.setIdentity(storageUser);
+    actor.setIdentity(expiredUser);
     const notifsBefore = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
     const completedBefore = notifsBefore.data.filter((notification) =>
       hasNotificationEvent(notification, 'autoTopUpCompleted'),
     ).length;
-    const cyclesBefore = await manager.getCyclesBalance(storageCanisterId);
+    const cyclesBefore = await manager.getCyclesBalance(expiredStorage.canisterId);
 
     await manager.pic.updateCall({
       canisterId: backendCanisterId,
-      sender: storageCanisterId,
+      sender: expiredStorage.canisterId,
       method: 'onStorageLowCycles',
       arg: IDL.encode(
         [IDL.Nat, IDL.Nat, IDL.Variant({ warning: IDL.Null, critical: IDL.Null })],
@@ -1462,7 +1423,7 @@ describe('Integration: topUpFromBalance full flow', () => {
     });
     await manager.pic.tick(10);
 
-    const cyclesAfter = await manager.getCyclesBalance(storageCanisterId);
+    const cyclesAfter = await manager.getCyclesBalance(expiredStorage.canisterId);
     expect(cyclesAfter).toBe(cyclesBefore);
 
     const notifsAfter = await actor.listNotifications({ afterId: [], limit: 50n, unreadOnly: false });
@@ -1480,9 +1441,26 @@ describe('Integration: topUpFromBalance full flow', () => {
     });
     const response = await manager.pic.updateCall({
       canisterId: backendCanisterId,
-      sender: storageCanisterId,
+      sender: expiredStorage.canisterId,
       method: 'ensureStorageCyclesForUpload',
-      arg: IDL.encode([IDL.Nat, IDL.Nat], [100_000_000_000n, 1_073_741_824n]),
+      arg: IDL.encode(
+        [IDL.Record({
+          currentBalance: IDL.Nat,
+          requiredBalance: IDL.Nat,
+          postWriteFreezingReserve: IDL.Nat,
+          projectedCapacityBytes: IDL.Nat,
+          remainingUploadBytes: IDL.Nat,
+          activeUploadedBytes: IDL.Nat,
+        })],
+        [{
+          currentBalance: 100_000_000_000n,
+          requiredBalance: 2_000_000_000_000n,
+          postWriteFreezingReserve: 1_000_000_000_000n,
+          projectedCapacityBytes: 1_073_741_824n,
+          remainingUploadBytes: 1_073_741_824n,
+          activeUploadedBytes: 0n,
+        }],
+      ),
     });
     const [result] = IDL.decode([EnsureUploadCyclesResult], response) as [
       { ok: { cyclesAdded: [] | [bigint]; requiredBalance: bigint } } | { err: string },
@@ -1493,7 +1471,197 @@ describe('Integration: topUpFromBalance full flow', () => {
     }
   });
 
-  test('auto-topup: OnChain createStorageBatch preflights low cycles before chunks', async () => {
+  test('auto-topup: OnChain upload with enough local cycles does not require backend funding endpoint', async () => {
+    const uploadUser = createIdentity('onchain-local-cycles-user');
+    const uploadStorageInitArg = encodeStorageInitArg(uploadUser.getPrincipal());
+    const uploadStorage = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: ENCRYPTED_STORAGE_WASM_PATH,
+      sender: uploadUser.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(ICP_LEDGER_CANISTER_ID),
+      arg: uploadStorageInitArg,
+      cycles: 1_500_000_000_000n,
+    });
+    await manager.pic.tick();
+
+    const uploadStorageActor = uploadStorage.actor;
+    uploadStorageActor.setIdentity(uploadUser);
+    const createResult = await uploadStorageActor.create({
+      entry: [FILE, 'local-cycles.bin'],
+      createMode: CREATE_NEW,
+      encryptionMode: toNullable(PLAINTEXT),
+    });
+    expect(createResult).toHaveProperty('ok');
+
+    const cyclesBefore = await manager.getCyclesBalance(uploadStorage.canisterId);
+    expect(cyclesBefore).toBeGreaterThanOrEqual(1_250_000_000_000n);
+    expect(cyclesBefore).toBeLessThan(1_750_000_000_000n);
+
+    const sessionResult = await uploadStorageActor.beginUploadSession({
+      entry: [FILE, 'local-cycles.bin'],
+      totalSize: 284_645_470n,
+      declaredUploadBytes: [],
+      expectedChunkCount: [],
+      createMode: GET_OR_CREATE,
+      encryptionMode: toNullable(PLAINTEXT),
+    });
+    if ('err' in sessionResult) {
+      const fundingStatus = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
+      throw new Error(
+        `Expected upload session to succeed, got ${JSON.stringify(sessionResult.err, (_key, value) => typeof value === 'bigint' ? value.toString() : value)}; funding=${JSON.stringify(fundingStatus, (_key, value) => typeof value === 'bigint' ? value.toString() : value)}`,
+      );
+    }
+    expect(sessionResult).toHaveProperty('ok');
+  });
+
+  test('auto-topup: non-Pro OnChain upload requires manual funding before reserving unsafe writes', async () => {
+    const uploadUser = createIdentity('onchain-manual-funding-user');
+    const uploadStorageInitArg = encodeStorageInitArg(uploadUser.getPrincipal());
+    const uploadStorage = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: ENCRYPTED_STORAGE_WASM_PATH,
+      sender: uploadUser.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(ICP_LEDGER_CANISTER_ID),
+      arg: uploadStorageInitArg,
+      cycles: 750_000_000_000n,
+    });
+    await manager.pic.tick();
+
+    const uploadStorageActor = uploadStorage.actor;
+    uploadStorageActor.setIdentity(uploadUser);
+    const createResult = await uploadStorageActor.create({
+      entry: [FILE, 'manual-funding.bin'],
+      createMode: CREATE_NEW,
+      encryptionMode: toNullable(PLAINTEXT),
+    });
+    expect(createResult).toHaveProperty('ok');
+
+    const sessionResult = await uploadStorageActor.beginUploadSession({
+      entry: [FILE, 'manual-funding.bin'],
+      totalSize: 400_000_000n,
+      declaredUploadBytes: [],
+      expectedChunkCount: [],
+      createMode: GET_OR_CREATE,
+      encryptionMode: toNullable(PLAINTEXT),
+    });
+    expect(sessionResult).toHaveProperty('err');
+    if (!('err' in sessionResult)) {
+      throw new Error('Expected manual funding error before creating an upload session');
+    }
+    expect(sessionResult.err.message).toContain('Manual OnChain funding required');
+    expect(sessionResult.err.message).not.toContain('active Pro subscription');
+
+    const fundingStatus = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
+    expect(fundingStatus.activity.reservationBytes).toBe(0n);
+    expect(fundingStatus.funding.requestedTargetBalance).toBeGreaterThan(fundingStatus.balance);
+    expect(fundingStatus.funding.lastError).toEqual(['Manual top-up required for OnChain upload']);
+  });
+
+  test('auto-topup: OnChain upload hashes chunks during append and keeps finalization bounded', async () => {
+    const uploadUser = createIdentity('onchain-commit-work-user');
+    const uploadStorageInitArg = encodeStorageInitArg(uploadUser.getPrincipal());
+    const uploadStorage = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: ENCRYPTED_STORAGE_WASM_PATH,
+      sender: uploadUser.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(ICP_LEDGER_CANISTER_ID),
+      arg: uploadStorageInitArg,
+      cycles: 2_000_000_000_000n,
+    });
+    await manager.pic.tick();
+
+    const uploadStorageActor = uploadStorage.actor;
+    uploadStorageActor.setIdentity(uploadUser);
+
+    const firstChunk = new Uint8Array(1_000_000);
+    firstChunk.fill(1);
+    const secondChunk = new Uint8Array(1_000_000);
+    secondChunk.fill(2);
+    const fullContent = new Uint8Array(firstChunk.length + secondChunk.length);
+    fullContent.set(firstChunk);
+    fullContent.set(secondChunk, firstChunk.length);
+
+    const session = await uploadStorageActor.beginUploadSession({
+      entry: [FILE, 'commit-work.bin'],
+      totalSize: BigInt(fullContent.length),
+      declaredUploadBytes: [BigInt(fullContent.length)],
+      expectedChunkCount: [],
+      createMode: CREATE_NEW,
+      encryptionMode: toNullable(PLAINTEXT),
+    });
+    expect(session).toHaveProperty('ok');
+    if (!('ok' in session)) {
+      throw new Error(`Expected upload session, got ${JSON.stringify(session.err)}`);
+    }
+
+    const cyclesBeforeAppend = await manager.getCyclesBalance(uploadStorage.canisterId);
+    const firstAppend = await uploadStorageActor.appendUploadChunk({
+      batchId: session.ok.batchId,
+      content: firstChunk,
+      chunkIndex: [0n],
+    });
+    expect(firstAppend).toHaveProperty('ok');
+    const firstRetry = await uploadStorageActor.appendUploadChunk({
+      batchId: session.ok.batchId,
+      content: firstChunk,
+      chunkIndex: [0n],
+    });
+    expect(firstRetry).toHaveProperty('ok');
+    const conflictingRetry = await uploadStorageActor.appendUploadChunk({
+      batchId: session.ok.batchId,
+      content: secondChunk,
+      chunkIndex: [0n],
+    });
+    expect(conflictingRetry).toHaveProperty('err');
+    const secondAppend = await uploadStorageActor.appendUploadChunk({
+      batchId: session.ok.batchId,
+      content: secondChunk,
+      chunkIndex: [1n],
+    });
+    expect(secondAppend).toHaveProperty('ok');
+    const cyclesAfterAppend = await manager.getCyclesBalance(uploadStorage.canisterId);
+    const appendCyclesSpent = cyclesBeforeAppend - cyclesAfterAppend;
+    expect(appendCyclesSpent).toBeGreaterThan(0n);
+
+    const fundingBeforeFinish = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
+    expect(fundingBeforeFinish.activity.uploadedBytes).toBe(BigInt(fullContent.length));
+    expect(fundingBeforeFinish.activity.uploadedChunkCount).toBe(2n);
+    expect(fundingBeforeFinish.activity.remainingBytes).toBe(0n);
+    expect(fundingBeforeFinish.activity.remainingChunkCount).toBe(0n);
+    expect(fundingBeforeFinish.cost.remainingHashInstructions).toBe(0n);
+    expect(fundingBeforeFinish.cost.commitMetadata).toBeGreaterThanOrEqual(4_000_000n);
+    expect(fundingBeforeFinish.cost.commit).toBeGreaterThanOrEqual(
+      fundingBeforeFinish.cost.commitMetadata,
+    );
+    expect(fundingBeforeFinish.safety.minimumSafeBalance).toBeGreaterThanOrEqual(
+      fundingBeforeFinish.safety.postWriteFreezingReserve +
+      fundingBeforeFinish.cost.remainingWrite +
+      fundingBeforeFinish.cost.commit,
+    );
+
+    const cyclesBeforeFinish = await manager.getCyclesBalance(uploadStorage.canisterId);
+    const sha256 = new Uint8Array(await crypto.subtle.digest('SHA-256', fullContent));
+    const finish = await uploadStorageActor.finishUploadSession({
+      batchId: session.ok.batchId,
+      sha256: [sha256],
+      contentType: 'application/octet-stream',
+    });
+    expect(finish).toHaveProperty('ok');
+    const cyclesAfterFinish = await manager.getCyclesBalance(uploadStorage.canisterId);
+    const finishCyclesSpent = cyclesBeforeFinish - cyclesAfterFinish;
+    expect(finishCyclesSpent).toBeGreaterThan(0n);
+    expect(appendCyclesSpent).toBeGreaterThan(finishCyclesSpent);
+
+    const fundingAfterFinish = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
+    expect(fundingAfterFinish.lastCommit).toHaveLength(1);
+    const lastCommit = fundingAfterFinish.lastCommit[0]!;
+    expect(lastCommit.bytes).toEqual(BigInt(fullContent.length));
+    expect(lastCommit.chunkCount).toEqual(2n);
+    expect(lastCommit.hashRoundCount).toEqual(2n);
+    expect(lastCommit.hashInstructionCycles).toBeGreaterThan(0n);
+  });
+
+  test('auto-topup: OnChain upload requests funding below write reserve and enforces declared size before chunks', async () => {
     const uploadUser = createIdentity('onchain-preflight-user');
     actor.setIdentity(uploadUser);
     await actor.ensureUser([]);
@@ -1540,46 +1708,277 @@ describe('Integration: topUpFromBalance full flow', () => {
       encryptionMode: toNullable(ENCRYPTED),
     });
     expect(createResult).toHaveProperty('ok');
+    const uploadStatus = await uploadStorageActor.getStatus();
+    expect(uploadStatus.backendId).toHaveLength(1);
+    expect(uploadStatus.backendId[0]!.toText()).toBe(backendCanisterId.toText());
 
     const cyclesBefore = await manager.getCyclesBalance(uploadStorage.canisterId);
-    expect(cyclesBefore).toBeLessThan(ONE_TRILLION_CYCLES);
+    expect(cyclesBefore).toBeLessThan(850_000_000_000n);
 
-    const batchResult = await uploadStorageActor.createStorageBatch({
+    const sessionResult = await uploadStorageActor.beginUploadSession({
       entry: [FILE, 'preflight.bin'],
-      totalSize: 1_073_741_824n,
+      totalSize: 4_294_967_296n,
+      declaredUploadBytes: [],
+      expectedChunkCount: [],
+      createMode: GET_OR_CREATE,
+      encryptionMode: toNullable(ENCRYPTED),
     });
-    expect(batchResult).toHaveProperty('ok');
+    if (!('ok' in sessionResult)) {
+      throw new Error(`Expected upload session to succeed, got ${JSON.stringify(sessionResult.err)}`);
+    }
+    const fundingStatus = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
+    expect(fundingStatus.activity.reservationBytes).toBeGreaterThanOrEqual(4_294_967_296n);
+    expect(fundingStatus.activity.uploadedBytes).toBe(0n);
+    expect(fundingStatus.activity.remainingBytes).toBeGreaterThanOrEqual(4_294_967_296n);
+    expect(fundingStatus.memory.projectedAllocatedBytes).toBeGreaterThanOrEqual(fundingStatus.activity.reservationBytes);
+    expect(fundingStatus.runtimeMemory.memoryInfo.capacity).toBeGreaterThanOrEqual(fundingStatus.runtimeMemory.memoryInfo.allocated);
+    expect(fundingStatus.funding.requestedBytes).toBeGreaterThanOrEqual(4_294_967_296n);
+    expect(fundingStatus.funding.requestedTargetBalance).toBeGreaterThan(fundingStatus.balance);
+    expect(fundingStatus.funding.lastRequestedAt).toHaveLength(1);
     await manager.pic.tick(20);
+    const fundingStatusAfterTick = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
+    expect(fundingStatusAfterTick.funding.inFlight).toBe(false);
+    expect(fundingStatusAfterTick.funding.lastCompletedAt).toHaveLength(1);
+    expect(fundingStatusAfterTick.funding.lastError).toHaveLength(0);
 
     const cyclesAfter = await manager.getCyclesBalance(uploadStorage.canisterId);
     expect(cyclesAfter).toBeGreaterThan(cyclesBefore);
+
+    const largerReservationCreate = await uploadStorageActor.create({
+      entry: [FILE, 'preflight-larger-reservation.bin'],
+      createMode: CREATE_NEW,
+      encryptionMode: toNullable(ENCRYPTED),
+    });
+    expect(largerReservationCreate).toHaveProperty('ok');
+
+    const largerReservationSession = await uploadStorageActor.beginUploadSession({
+      entry: [FILE, 'preflight-larger-reservation.bin'],
+      totalSize: 8_589_934_592n,
+      declaredUploadBytes: [],
+      expectedChunkCount: [],
+      createMode: GET_OR_CREATE,
+      encryptionMode: toNullable(ENCRYPTED),
+    });
+    expect(largerReservationSession).toHaveProperty('ok');
+    if (!('ok' in largerReservationSession)) {
+      throw new Error('Expected larger reservation upload session to succeed');
+    }
+
+    const fundingStatusAfterLargerReservation = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
+    expect(fundingStatusAfterLargerReservation.funding.requestedTargetBalance).toBeGreaterThan(
+      fundingStatusAfterTick.funding.requestedTargetBalance,
+    );
+    expect(fundingStatusAfterLargerReservation.funding.lastRequestedAt).toEqual(fundingStatusAfterTick.funding.lastRequestedAt);
+    expect(fundingStatusAfterLargerReservation.funding.inFlight).toBe(false);
+
+    const rollbackLargerReservationBatch = await uploadStorageActor.abortUploadSession({
+      batchId: largerReservationSession.ok.batchId,
+    });
+    expect(rollbackLargerReservationBatch).toHaveProperty('ok');
+
+    const rollbackPreflightBatch = await uploadStorageActor.abortUploadSession({
+      batchId: sessionResult.ok.batchId,
+    });
+    expect(rollbackPreflightBatch).toHaveProperty('ok');
+
+    const overheadCreate = await uploadStorageActor.create({
+      entry: [FILE, 'encrypted-overhead.bin'],
+      createMode: CREATE_NEW,
+      encryptionMode: toNullable(ENCRYPTED),
+    });
+    expect(overheadCreate).toHaveProperty('ok');
+
+    const overheadSession = await uploadStorageActor.beginUploadSession({
+      entry: [FILE, 'encrypted-overhead.bin'],
+      totalSize: 1n,
+      declaredUploadBytes: [29n],
+      expectedChunkCount: [],
+      createMode: GET_OR_CREATE,
+      encryptionMode: toNullable(ENCRYPTED),
+    });
+    expect(overheadSession).toHaveProperty('ok');
+    if (!('ok' in overheadSession)) {
+      throw new Error('Expected encrypted overhead upload session to succeed');
+    }
+
+    const overheadContent = new Uint8Array(29);
+    const overheadChunkResult = await uploadStorageActor.appendUploadChunk({
+      batchId: overheadSession.ok.batchId,
+      content: overheadContent,
+      chunkIndex: [0n],
+    });
+    expect(overheadChunkResult).toHaveProperty("ok");
+    if (!("ok" in overheadChunkResult)) {
+      throw new Error("Expected encrypted overhead chunk upload to succeed");
+    }
+
+    const overheadHash = new Uint8Array(await crypto.subtle.digest("SHA-256", overheadContent));
+    const overheadSessionStatus = unwrapStorageResult(await uploadStorageActor.getUploadSession({
+      batchId: overheadSession.ok.batchId,
+    }));
+    const overheadFinish = await uploadStorageActor.finishUploadSession({
+      batchId: overheadSession.ok.batchId,
+      sha256: [overheadHash],
+      contentType: "application/octet-stream",
+    });
+    expect(overheadFinish).toHaveProperty("ok");
+
+    const reuseCommittedChunk = await uploadStorageActor.update({
+      File: {
+        path: "encrypted-overhead.bin",
+        metadata: {
+          sha256: [overheadHash],
+          chunkIds: overheadSessionStatus.chunkIds,
+          contentType: "application/octet-stream",
+        },
+      },
+    });
+    expect(reuseCommittedChunk).toHaveProperty("err");
+    if ("err" in reuseCommittedChunk) {
+      expect(reuseCommittedChunk.err.message).toContain("Chunk with id");
+    }
+
+    const underreportedCreate = await uploadStorageActor.create({
+      entry: [FILE, 'underreported.bin'],
+      createMode: CREATE_NEW,
+      encryptionMode: toNullable(ENCRYPTED),
+    });
+    expect(underreportedCreate).toHaveProperty('ok');
+
+    const underreportedSession = await uploadStorageActor.beginUploadSession({
+      entry: [FILE, 'underreported.bin'],
+      totalSize: 1n,
+      declaredUploadBytes: [],
+      expectedChunkCount: [],
+      createMode: GET_OR_CREATE,
+      encryptionMode: toNullable(ENCRYPTED),
+    });
+    expect(underreportedSession).toHaveProperty('ok');
+    if (!('ok' in underreportedSession)) {
+      throw new Error('Expected underreported upload session to succeed');
+    }
+
+    const chunkResult = await uploadStorageActor.appendUploadChunk({
+      batchId: underreportedSession.ok.batchId,
+      content: new Uint8Array(30),
+      chunkIndex: [0n],
+    });
+    expect(chunkResult).toHaveProperty('err');
+    if ('err' in chunkResult) {
+      expect(chunkResult.err.code).toEqual({ Validation: null });
+      expect(chunkResult.err.message).toContain('declared batch size');
+    }
   });
 
-  test('auto-topup: no topup when autoTopUp disabled', async () => {
-    // Disable autoTopUp
-    actor.setIdentity(storageUser);
+  test('auto-topup: Pro included funding works when paid autoTopUp is disabled', async () => {
+    const managedUser = createIdentity('pro-managed-funding-disabled-paid-autotopup');
+    actor.setIdentity(managedUser);
+    await actor.ensureUser([]);
     await actor.updateSettings({
       spendingPriority: [{ ckUSDC: null }],
       autoRenew: false, autoTopUp: false, topUpAmountCycles: ONE_TRILLION_CYCLES,
     });
 
-    const cyclesBefore = await manager.getCyclesBalance(storageCanisterId);
+    const managedStorageInitArg = encodeStorageInitArg(managedUser.getPrincipal());
+    const managedStorage = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: ENCRYPTED_STORAGE_WASM_PATH,
+      sender: managedUser.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
+      arg: managedStorageInitArg,
+      cycles: 1_000_000_000_000n,
+    });
+    await manager.pic.tick();
 
-    // Call onStorageLowCycles
+    const addResult = await actor.addStorage(managedStorage.canisterId, managedStorageInitArg);
+    expect(addResult).toHaveProperty('ok');
+
+    const managedStorageTwo = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: ENCRYPTED_STORAGE_WASM_PATH,
+      sender: managedUser.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
+      arg: managedStorageInitArg,
+      cycles: 1_000_000_000_000n,
+    });
+    await manager.pic.tick();
+
+    const addSecondResult = await actor.addStorage(managedStorageTwo.canisterId, managedStorageInitArg);
+    expect(addSecondResult).toHaveProperty('ok');
+
+    actor.setIdentity(manager.ownerIdentity);
+    const picTimeMs = await manager.pic.getTime();
+    const now = BigInt(picTimeMs) * 1_000_000n;
+    await actor.activateSubscription(
+      managedUser.getPrincipal(),
+      { Pro: null },
+      [now + 30n * 24n * 3_600_000_000_000n],
+    );
+
+    actor.setIdentity(managedUser);
+    const fundingBefore = await actor.getStorageFundingStatus();
+    expect(fundingBefore.managedFundingEligible).toBe(true);
+    expect(fundingBefore.includedCyclesLimit).toBe(2_000_000_000_000n);
+    expect(fundingBefore.includedCyclesUsed).toBe(0n);
+    expect(fundingBefore.includedCyclesRemaining).toBe(2_000_000_000_000n);
+    expect(fundingBefore.periodStart).toHaveLength(1);
+    expect(fundingBefore.periodEnd).toHaveLength(1);
+    expect(fundingBefore.paidAutoTopUpEnabled).toBe(false);
+    expect(fundingBefore.paidTopUpAmountCycles).toBe(ONE_TRILLION_CYCLES);
+
+    const cyclesBefore = await manager.getCyclesBalance(managedStorage.canisterId);
+    const secondCyclesBefore = await manager.getCyclesBalance(managedStorageTwo.canisterId);
+    const treasuryAccount = {
+      owner: backendCanisterId,
+      subaccount: [BackendManager.TREASURY_SUBACCOUNT] as [Uint8Array],
+    };
+    const backendDefaultAccount = {
+      owner: backendCanisterId,
+      subaccount: [] as [],
+    };
+    const treasuryIcpBefore = await manager.icpLedgerActor.icrc1_balance_of(treasuryAccount);
+    const backendDefaultIcpBefore = await manager.icpLedgerActor.icrc1_balance_of(backendDefaultAccount);
+
     await manager.pic.updateCall({
       canisterId: backendCanisterId,
-      sender: storageCanisterId,
+      sender: managedStorage.canisterId,
       method: 'onStorageLowCycles',
       arg: IDL.encode(
         [IDL.Nat, IDL.Nat, IDL.Variant({ warning: IDL.Null, critical: IDL.Null })],
         [100_000_000_000n, 5n, { warning: null }],
       ),
     });
-    await manager.pic.tick(10);
+    await manager.pic.tick(80);
 
-    // Cycles should NOT increase
-    const cyclesAfter = await manager.getCyclesBalance(storageCanisterId);
-    expect(cyclesAfter).toBe(cyclesBefore);
+    const cyclesAfter = await manager.getCyclesBalance(managedStorage.canisterId);
+    expect(cyclesAfter).toBeGreaterThan(cyclesBefore);
+    const treasuryIcpAfter = await manager.icpLedgerActor.icrc1_balance_of(treasuryAccount);
+    const backendDefaultIcpAfter = await manager.icpLedgerActor.icrc1_balance_of(backendDefaultAccount);
+    expect(treasuryIcpAfter).toBeLessThan(treasuryIcpBefore);
+    expect(backendDefaultIcpAfter).toBe(backendDefaultIcpBefore);
+
+    const fundingAfter = await actor.getStorageFundingStatus();
+    expect(fundingAfter.includedCyclesUsed).toBe(ONE_TRILLION_CYCLES);
+    expect(fundingAfter.includedCyclesRemaining).toBe(ONE_TRILLION_CYCLES);
+    expect(fundingAfter.paidAutoTopUpEnabled).toBe(false);
+
+    await manager.pic.updateCall({
+      canisterId: backendCanisterId,
+      sender: managedStorageTwo.canisterId,
+      method: 'onStorageLowCycles',
+      arg: IDL.encode(
+        [IDL.Nat, IDL.Nat, IDL.Variant({ warning: IDL.Null, critical: IDL.Null })],
+        [100_000_000_000n, 5n, { warning: null }],
+      ),
+    });
+    await manager.pic.tick(80);
+
+    const secondCyclesAfter = await manager.getCyclesBalance(managedStorageTwo.canisterId);
+    expect(secondCyclesAfter).toBeGreaterThan(secondCyclesBefore);
+    const fundingAfterSecondStorage = await actor.getStorageFundingStatus();
+    expect(fundingAfterSecondStorage.includedCyclesUsed).toBe(2_000_000_000_000n);
+    expect(fundingAfterSecondStorage.includedCyclesRemaining).toBe(0n);
+    expect(fundingAfterSecondStorage.paidAutoTopUpEnabled).toBe(false);
   });
 
   test('auto-topup: no topup for Free plan users', async () => {
@@ -2003,15 +2402,6 @@ describe('Integration: purchaseSubscription (direct balance purchase)', () => {
     await actor.ensureUser([]);
 
     const result = await actor.purchaseSubscription({ Free: null });
-    expect(expectPurchaseError(result)).toHaveProperty('InvalidPlan');
-  });
-
-  test('purchaseSubscription: Trial plan returns InvalidPlan', async () => {
-    const user = createIdentity('purchase-trial');
-    actor.setIdentity(user);
-    await actor.ensureUser([]);
-
-    const result = await actor.purchaseSubscription({ Trial: null });
     expect(expectPurchaseError(result)).toHaveProperty('InvalidPlan');
   });
 

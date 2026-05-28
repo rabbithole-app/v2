@@ -2051,21 +2051,24 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Uploads/doc.txt'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-
-      // Create batch
-      const { batchId } = await actor.createBatch({
-        entry: [FILE, 'Uploads/doc.txt'],
-        createMode: GET_OR_CREATE,
-        encryptionMode: [],
+        encryptionMode: [{ Plaintext: null }],
       });
 
       // Upload chunk
       const content = new TextEncoder().encode('Hello, World!');
+
+      // Create batch
+      const { batchId } = await actor.createBatch({
+        entry: [FILE, 'Uploads/doc.txt'],
+        totalSize: BigInt(content.length),
+        declaredUploadBytes: [],
+        expectedChunkCount: [],
+      });
+
       const { chunkId } = await actor.createChunk({
         batchId,
         content,
+        chunkIndex: [],
       });
 
       // Compute SHA-256
@@ -2144,15 +2147,20 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Committed/data.bin'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-      const { batchId } = await actor.createBatch({
-        entry: [FILE, 'Committed/data.bin'],
-        createMode: GET_OR_CREATE,
-        encryptionMode: [],
+        encryptionMode: [{ Plaintext: null }],
       });
       const content = new Uint8Array([1, 2, 3]);
-      const { chunkId } = await actor.createChunk({ batchId, content });
+      const { batchId } = await actor.createBatch({
+        entry: [FILE, 'Committed/data.bin'],
+        totalSize: BigInt(content.length),
+        declaredUploadBytes: [],
+        expectedChunkCount: [],
+      });
+      const { chunkId } = await actor.createChunk({
+        batchId,
+        content,
+        chunkIndex: [],
+      });
       const hashBuffer = await crypto.subtle.digest('SHA-256', content);
       await actor.update({
         File: {
@@ -2179,6 +2187,168 @@ describe('FileSystem', () => {
       // File should STILL be visible (GetOrCreate doesn't re-stage)
       ({ entries: items } = await actor.list([[DIRECTORY, 'Committed']]));
       expect(items.map((i) => i.name)).toContain('data.bin');
+    });
+
+    test('update rejects chunk ids that do not match chunk index order', async () => {
+      await actor.create({
+        entry: [FILE, 'Uploads/order.txt'],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+
+      const first = new TextEncoder().encode('first');
+      const second = new TextEncoder().encode('second');
+      const { batchId } = await actor.createBatch({
+        entry: [FILE, 'Uploads/order.txt'],
+        totalSize: BigInt(first.length + second.length),
+        declaredUploadBytes: [],
+        expectedChunkCount: [2n],
+      });
+      const { chunkId: firstChunkId } = await actor.createChunk({
+        batchId,
+        content: first,
+        chunkIndex: [0n],
+      });
+      const { chunkId: secondChunkId } = await actor.createChunk({
+        batchId,
+        content: second,
+        chunkIndex: [1n],
+      });
+      const hashBuffer = await crypto.subtle.digest(
+        'SHA-256',
+        new Uint8Array([...first, ...second]),
+      );
+
+      await expect(
+        actor.update({
+          File: {
+            path: 'Uploads/order.txt',
+            metadata: {
+              sha256: [new Uint8Array(hashBuffer)],
+              chunkIds: [secondChunkId, firstChunkId],
+              contentType: 'text/plain',
+            },
+          },
+        }),
+      ).rejects.toThrow('out of order');
+    });
+
+    test('upload session accepts out-of-order chunks and hashes chunk index order', async () => {
+      const first = new Uint8Array(1_900_000).fill(1);
+      const second = new Uint8Array(1_900_000).fill(2);
+      const third = new TextEncoder().encode('third');
+      const content = new Uint8Array([...first, ...second, ...third]);
+
+      const { batchId } = await actor.beginUploadSession({
+        entry: [FILE, 'Uploads/out-of-order.txt'],
+        totalSize: BigInt(content.length),
+        declaredUploadBytes: [],
+        expectedChunkCount: [3n],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+
+      await actor.appendUploadChunk({
+        batchId,
+        content: second,
+        chunkIndex: [1n],
+      });
+      await actor.appendUploadChunk({
+        batchId,
+        content: third,
+        chunkIndex: [2n],
+      });
+      await actor.appendUploadChunk({
+        batchId,
+        content: first,
+        chunkIndex: [0n],
+      });
+
+      const hashBuffer = await crypto.subtle.digest('SHA-256', content);
+      await actor.finishUploadSession({
+        batchId,
+        sha256: [new Uint8Array(hashBuffer)],
+        contentType: 'text/plain',
+      });
+
+      const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
+      expect(items.map((item) => item.name)).toContain('out-of-order.txt');
+    });
+
+    test('upload session owns target and accepts idempotent chunk retries', async () => {
+      const content = new TextEncoder().encode('Session content');
+      const { batchId } = await actor.beginUploadSession({
+        entry: [FILE, 'Uploads/session.txt'],
+        totalSize: BigInt(content.length),
+        declaredUploadBytes: [],
+        expectedChunkCount: [],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+
+      let { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
+      expect(items.map((item) => item.name)).not.toContain('session.txt');
+
+      const { chunkId } = await actor.appendUploadChunk({
+        batchId,
+        content,
+        chunkIndex: [0n],
+      });
+      const retry = await actor.appendUploadChunk({
+        batchId,
+        content,
+        chunkIndex: [0n],
+      });
+      expect(retry.chunkId).toBe(chunkId);
+
+      const hashBuffer = await crypto.subtle.digest('SHA-256', content);
+      await actor.finishUploadSession({
+        batchId,
+        sha256: [new Uint8Array(hashBuffer)],
+        contentType: 'text/plain',
+      });
+
+      ({ entries: items } = await actor.list([[DIRECTORY, 'Uploads']]));
+      expect(items.map((item) => item.name)).toContain('session.txt');
+    });
+
+    test('beginUploadSession resumes compatible in-progress session for same file', async () => {
+      const content = new TextEncoder().encode('resumable content');
+      const first = await actor.beginUploadSession({
+        entry: [FILE, 'Uploads/resume.txt'],
+        totalSize: BigInt(content.length),
+        declaredUploadBytes: [],
+        expectedChunkCount: [1n],
+        createMode: CREATE_NEW,
+        encryptionMode: [{ Plaintext: null }],
+      });
+
+      const retry = await actor.beginUploadSession({
+        entry: [FILE, 'Uploads/resume.txt'],
+        totalSize: BigInt(content.length),
+        declaredUploadBytes: [],
+        expectedChunkCount: [1n],
+        createMode: GET_OR_CREATE,
+        encryptionMode: [{ Plaintext: null }],
+      });
+
+      expect(retry.batchId).toBe(first.batchId);
+      expect(retry.node.name).toBe('resume.txt');
+
+      await actor.appendUploadChunk({
+        batchId: retry.batchId,
+        content,
+        chunkIndex: [0n],
+      });
+      const hashBuffer = await crypto.subtle.digest('SHA-256', content);
+      await actor.finishUploadSession({
+        batchId: retry.batchId,
+        sha256: [new Uint8Array(hashBuffer)],
+        contentType: 'text/plain',
+      });
+
+      const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
+      expect(items.map((item) => item.name)).toContain('resume.txt');
     });
   });
 

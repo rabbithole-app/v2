@@ -4,6 +4,11 @@
   </div>
 
   <div class="flex flex-wrap items-center gap-2">
+    <button hlmBtn size="sm" (click)="_openManualActivationDialog()">
+      <ng-icon hlmIcon name="lucideUserPlus" size="sm" />
+      Activate Pro
+    </button>
+
     <hlm-alert-dialog>
       <button
         hlmBtn
@@ -243,19 +248,6 @@
                       {{ _optionalDate(subscription.expiresAt) | date: 'medium' }}
                     </span>
                   }
-                  @case ('autoRenew') {
-                    <span
-                      hlmBadge
-                      [variant]="subscription.autoRenew ? 'default' : 'outline'"
-                    >
-                      {{ subscription.autoRenew ? 'Enabled' : 'Disabled' }}
-                    </span>
-                  }
-                  @case ('trialUsedBytes') {
-                    <span class="text-sm tabular-nums">
-                      {{ _formatBytes(subscription.trialUsedBytes) }}
-                    </span>
-                  }
                   @case ('activatedAt') {
                     <span class="text-sm whitespace-nowrap">
                       {{ _date(subscription.activatedAt) | date: 'medium' }}
@@ -294,23 +286,11 @@
                         <hlm-dropdown-menu-separator />
                         <button
                           hlmDropdownMenuItem
-                          (triggered)="_openSubscriptionDialog(subscription, 'activate', 'Trial')"
-                        >
-                          Activate trial
-                        </button>
-                        <button
-                          hlmDropdownMenuItem
                           (triggered)="_openSubscriptionDialog(subscription, 'activate', 'Pro')"
                         >
                           Activate Pro
                         </button>
                         <hlm-dropdown-menu-separator />
-                        <button
-                          hlmDropdownMenuItem
-                          (triggered)="_openSubscriptionDialog(subscription, 'renew', 'Trial')"
-                        >
-                          Renew trial
-                        </button>
                         <button
                           hlmDropdownMenuItem
                           (triggered)="_openSubscriptionDialog(subscription, 'renew', 'Pro')"
@@ -423,9 +403,28 @@
       <p hlmDialogDescription>
         @if (_dialogSubscription(); as subscription) {
           {{ subscription.userId.toText() }}
+        } @else {
+          Choose a user or paste a principal to activate Pro manually.
         }
       </p>
     </hlm-dialog-header>
+
+    @if (!_dialogSubscription()) {
+      <div class="grid gap-2 text-sm">
+        <p class="font-medium">User</p>
+        <core-user-target-combobox
+          class="block w-full [&_hlm-combobox-chips]:min-h-9 [&_hlm-combobox-chips]:rounded-md"
+          [allowTypedEmail]="false"
+          placeholder="Search user or paste principal"
+          [value]="_dialogTargets()"
+          (valueChange)="_setDialogTargets($event)"
+        >
+          <ng-template coreUserTargetComboboxValue let-selected>
+            {{ _userTargetSummary(selected) }}
+          </ng-template>
+        </core-user-target-combobox>
+      </div>
+    }
 
     <label class="grid gap-2 text-sm">
       <span class="font-medium">Duration, days</span>

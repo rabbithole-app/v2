@@ -71,18 +71,6 @@ mixin (
 
   // ---- Internal helpers for other mixins ----
 
-  func hasUsedTrial(principal : Principal) : Bool {
-    users.hasUsedTrial(principal);
-  };
-
-  func markTrialUsed(principal : Principal) {
-    users.markTrialUsed(principal);
-  };
-
-  func userExists(principal : Principal) : Bool {
-    users.exists(principal);
-  };
-
   // ---- Public queries ----
 
   public query ({ caller }) func getUser() : async ?Users.User {

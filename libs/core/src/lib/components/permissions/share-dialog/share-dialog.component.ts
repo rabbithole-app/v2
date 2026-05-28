@@ -154,8 +154,8 @@ export class ShareDialogComponent {
         .map((item) => item.user),
     ),
   ]);
-  readonly #mainActor = injectMainActor();
   readonly #avatarService = inject(AvatarService);
+  readonly #mainActor = injectMainActor();
   readonly profiles = resource({
     params: () => ({
       actor: this.#mainActor(),

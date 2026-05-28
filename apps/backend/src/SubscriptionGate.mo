@@ -1,4 +1,5 @@
 import Cycles "mo:core/Cycles";
+import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import Time "mo:core/Time";
@@ -9,12 +10,12 @@ import T "mo:encrypted-storage/Types";
 import Access "mo:encrypted-storage/Access/lib";
 import EncryptedStorage "mo:encrypted-storage";
 import Const "mo:encrypted-storage/Const";
+import Upload "mo:encrypted-storage/Upload/lib";
 
 module SubscriptionGate {
 
   type BackendActor = actor {
     checkSubscription : (wasmHash : Blob) -> async T.SubscriptionStatus;
-    reportTrialBytes : (bytes : Nat) -> async ();
   };
 
   /* ----------------------------- Subscription ------------------------------ */
@@ -52,10 +53,14 @@ module SubscriptionGate {
       };
     };
 
-    // 4. Also cache idle_cycles_burned_per_day (piggyback)
+    // 4. Also cache idle_cycles_burned_per_day (best-effort piggyback).
+    // Upload admission must not fail just because the management canister
+    // rejects runtime-status introspection.
     if (self.cachedIdleBurnPerDay == null) {
-      let status = await IC.ic.canister_status({ canister_id = self.canisterId });
-      self.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
+      try {
+        let status = await IC.ic.canister_status({ canister_id = self.canisterId });
+        self.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
+      } catch (_) {};
     };
 
     // 5. Inter-canister call to backend
@@ -84,34 +89,46 @@ module SubscriptionGate {
       checkedAt = Time.now();
     };
 
-    // 8. Batch-report unreported trial bytes
-    if (self.unreportedTrialBytes > 0) {
-      let bytes = self.unreportedTrialBytes;
-      self.unreportedTrialBytes := 0;
-      try {
-        await backend.reportTrialBytes(bytes);
-      } catch (_) {
-        // Restore if report fails — will retry next time
-        self.unreportedTrialBytes += bytes;
-      };
-    };
-
     #ok(result);
   };
 
   /* ----------------------------- Sync Gates ------------------------------- */
 
-  /// Check if cached subscription allows encryption and sharing operations.
-  /// Sync — uses cache only, no inter-canister call.
-  public func canUseEncryption(self : T.StableStore) : Result.Result<(), Text> {
+  func remainingNat(limit : Nat, used : Nat) : Nat {
+    if (limit <= used) return 0;
+    Nat.sub(limit, used);
+  };
+
+  let MB_BYTES : Nat = 1_048_576;
+  let GB_BYTES : Nat = 1_073_741_824;
+
+  func formatStorageBytes(bytes : Nat) : Text {
+    if (bytes >= GB_BYTES and bytes % GB_BYTES == 0) {
+      Nat.toText(bytes / GB_BYTES) # " GB"
+    } else if (bytes >= MB_BYTES) {
+      Nat.toText(bytes / MB_BYTES) # " MB"
+    } else if (bytes > 0) {
+      "less than 1 MB"
+    } else {
+      "0 MB"
+    };
+  };
+
+  let ACTIVE_PRO_REQUIRED : Text = "Active Pro subscription required";
+
+  /// Check if cached subscription allows ordinary sharing operations.
+  /// Storage license limits are personal-storage entitlements, not Pro sharing.
+  public func canShare(self : T.StableStore) : Result.Result<(), Text> {
     switch (self.subscriptionCache) {
-      case (?{ status = #active(_) }) #ok;
-      case (?{ status = #trial({ remainingBytes }) }) {
-        if (self.encryptedBytesUsed < remainingBytes) #ok
-        else #err("Trial storage limit exceeded");
+      case (?{ status = #active({ plan }) }) {
+        switch (plan) {
+          case (#Pro) #ok;
+          case _ #err(ACTIVE_PRO_REQUIRED);
+        };
       };
-      case (?{ status = #expired }) #err("Subscription expired — encryption disabled");
-      case (?{ status = #free }) #err("Encryption requires an active subscription");
+      case (?{ status = #licensed(_) }) #err(ACTIVE_PRO_REQUIRED);
+      case (?{ status = #expired }) #err("Subscription expired — " # ACTIVE_PRO_REQUIRED);
+      case (?{ status = #free }) #err(ACTIVE_PRO_REQUIRED);
       case (?{ status = #invalidWasm }) #err("Invalid WASM — contact support");
       case (?{ status = #unknownCanister }) #err("Unknown canister — contact support");
       case null #err("Subscription status unknown — call refreshSubscription first");
@@ -120,20 +137,22 @@ module SubscriptionGate {
 
   /// Check if caller can decrypt (getEncryptedVetkey).
   /// Account owner and recovery owners can ALWAYS decrypt (even when expired) — sovereignty guarantee.
-  /// Ordinary shared users can only decrypt when active/trial.
+  /// Ordinary shared users can only decrypt while the owner has active Pro.
   public func canDecrypt(self : T.StableStore, caller : Principal, owner : Principal, keyId : T.KeyId) : Result.Result<(), Text> {
     if (caller == owner or Access.isOwnerEquivalent(self.access, caller) or EncryptedStorage.hasActiveDurableGrantForKey(self, caller, keyId)) {
       // Owner-equivalent and durable succession principals can ALWAYS decrypt
       // permitted files. Ordinary sharing still follows the subscription gate.
       switch (self.subscriptionCache) {
-        case (?{ status = #active(_) or #trial(_) or #expired or #free }) #ok;
+        case (?{ status = #active(_) or #licensed(_) or #expired or #free }) #ok;
         case (?{ status = #invalidWasm }) #err("Invalid WASM — contact support");
         case (?{ status = #unknownCanister }) #err("Unknown canister — contact support");
         case null #err("Subscription status unknown — call refreshSubscription first");
       };
     } else {
-      // Shared user: only active/trial
-      canUseEncryption(self);
+      // Ordinary shared access is a Pro feature. A storage license keeps the
+      // owner's personal encrypted storage working, but it does not keep
+      // non-durable shares decryptable after Pro expires.
+      canShare(self);
     };
   };
 
@@ -142,13 +161,21 @@ module SubscriptionGate {
   public func canUploadEncrypted(self : T.StableStore, additionalBytes : Nat) : Result.Result<(), Text> {
     switch (self.subscriptionCache) {
       case (?{ status = #active(_) }) #ok;
-      case (?{ status = #trial({ remainingBytes }) }) {
-        if (self.encryptedBytesUsed + additionalBytes <= remainingBytes) #ok
+      case (?{ status = #licensed({ includedBytes; maxFileBytes }) }) {
+        if (additionalBytes > maxFileBytes) {
+          return #err(
+            "File exceeds included storage file limit (" #
+            formatStorageBytes(maxFileBytes) #
+            " max)"
+          );
+        };
+        let reservedBytes = Upload.activeDeclaredBytes(self.upload);
+        let projectedBytes = self.encryptedBytesUsed + reservedBytes + additionalBytes;
+        if (projectedBytes <= includedBytes) #ok
         else {
-          let remaining = if (remainingBytes > self.encryptedBytesUsed) {
-            remainingBytes - self.encryptedBytesUsed;
-          } else { 0 };
-          #err("File size exceeds remaining trial storage (" # debug_show (remaining / 1_000_000) # " MB remaining)");
+          let committedAndReserved = self.encryptedBytesUsed + reservedBytes;
+          let remaining = remainingNat(includedBytes, committedAndReserved);
+          #err("File size exceeds remaining included storage (" # formatStorageBytes(remaining) # " remaining)");
         };
       };
       case (?{ status = #expired }) #err("Subscription expired — encryption disabled");

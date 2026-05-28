@@ -1,9 +1,32 @@
+import Principal "mo:core/Principal";
 import Result "mo:core/Result";
+import Time "mo:core/Time";
 import ConfigTypes "ConfigTypes";
 
 module {
   public type ThresholdKeyName = ConfigTypes.ThresholdKeyName;
   public type TokenId = ConfigTypes.TokenId;
+
+  public type RefundNetwork = {
+    #ic;
+    #evm;
+    #solana;
+  };
+
+  public type RefundReference = {
+    #blockIndex : Nat;
+    #txHash : Text;
+    #signature : Text;
+  };
+
+  public type RefundReceipt = {
+    tokenId : TokenId;
+    amount : Nat;
+    recipient : Principal;
+    network : RefundNetwork;
+    reference : RefundReference;
+    at : Time.Time;
+  };
 
   /// Distribution and withdrawal configuration.
   public type DistributionConfig = {

@@ -231,5 +231,36 @@ describe('BlobStorageGatewayClient', () => {
       expect(progress).toHaveLength(3);
       expect(progress[progress.length - 1]).toEqual([3, 3]);
     });
+
+    it('uploads chunks from a bounded source and releases completed chunks', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ status: 'ok' }),
+      });
+      const { client } = createClient();
+
+      const chunks = [
+        new Uint8Array([1]),
+        new Uint8Array([2]),
+        new Uint8Array([3]),
+      ];
+      const hashes = await Promise.all(chunks.map((c) => YHash.fromChunk(c)));
+      const released: number[] = [];
+
+      await client.uploadChunkSource(
+        {
+          chunkCount: chunks.length,
+          getChunk: vi.fn(async (index: number) => chunks[index]),
+          releaseChunk: vi.fn(async (index: number) => {
+            released.push(index);
+          }),
+        },
+        hashes,
+        'sha256:' + 'cc'.repeat(32),
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(released.sort()).toEqual([0, 1, 2]);
+    });
   });
 });

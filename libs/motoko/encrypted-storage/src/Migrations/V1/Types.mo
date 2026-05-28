@@ -8,6 +8,7 @@ import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 import Map "mo:map/Map";
 import Vector "mo:vector";
 import MemoryRegion "mo:memory-region/MemoryRegion";
+import Sha256 "mo:sha2/Sha256";
 import CertifiedAssets "mo:certified-assets/Stable";
 
 import AccessTypes "../../Access/Types";
@@ -96,14 +97,16 @@ module {
 
   public type Plan = {
     #Free;
-    #Trial;
     #License;
     #Pro;
   };
 
   public type SubscriptionStatus = {
     #active : { plan : Plan };
-    #trial : { remainingBytes : Nat };
+    #licensed : {
+      includedBytes : Nat;
+      maxFileBytes : Nat;
+    };
     #expired;
     #free;
     #invalidWasm;
@@ -198,13 +201,22 @@ module {
   public type Batch = {
     owner : Principal;
     var expiresAt : Time.Time;
+    declaredTotalBytes : Nat;
     var totalBytes : Nat;
+    var hashState : Sha256.StaticSha256;
+    var hashedBytes : Nat;
+    var hashedChunkCount : Nat;
+    var hashInstructions : Nat;
+    var nextHashChunkIndex : Nat;
+    expectedChunkCount : Nat;
     chunkIds : Vector.Vector<ChunkId>;
+    chunkIdsByIndex : [var ?ChunkId];
   };
 
   public type StoredChunk = {
     pointer : SizedPointer;
     batchId : BatchId;
+    chunkIndex : Nat;
   };
 
   public type Configuration = {
@@ -250,7 +262,6 @@ module {
     var backendId : ?Principal;
     var subscriptionCache : ?SubscriptionCache;
     var encryptedBytesUsed : Nat;
-    var unreportedTrialBytes : Nat;
     var cachedModuleHash : ?Blob;
     var lastCycleAlertAt : Time.Time;
     var lastCycleAlertLevel : ?CycleAlertLevel;

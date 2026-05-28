@@ -39,6 +39,9 @@
       "@rabbithole/core/storage-runtime": [
         "libs/core/src/lib/storage-runtime/index.ts"
       ],
+      "@rabbithole/core/storage-capacity-metric": [
+        "libs/core/src/lib/components/storage-capacity-metric/index.ts"
+      ],
       "@rabbithole/core/wallet": [
         "libs/core/src/lib/components/account/wallet/index.ts"
       ],
@@ -95,6 +98,9 @@
       ],
       "@rabbithole/ui/magic-card": [
         "libs/app-ui/src/lib/magic-card/index.ts"
+      ],
+      "@rabbithole/ui/metric-card": [
+        "libs/app-ui/src/lib/metric-card/index.ts"
       ],
       "@rabbithole/ui/process-steps": [
         "libs/app-ui/src/lib/process-steps/index.ts"

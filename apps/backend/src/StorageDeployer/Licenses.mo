@@ -19,6 +19,7 @@ module {
   public type License = Types.License;
   public type PaymentReceipt = Types.PaymentReceipt;
   public type PaymentStatus = Types.PaymentStatus;
+  public type StorageLicenseEntitlement = Types.StorageLicenseEntitlement;
   public type ListLicensesOptions = Types.ListLicensesOptions;
   public type GetLicensesResponse = Types.GetLicensesResponse;
 
@@ -53,6 +54,10 @@ module {
       ("paymentId", #Text),
       ("paidAt", #Int),
       ("status", PaymentStatusSchema),
+    ])),
+    ("storageEntitlement", #Record([
+      ("includedBytes", #Nat),
+      ("maxFileBytes", #Nat),
     ])),
     ("statusTag", #Text),
     ("createdAt", #Int),
@@ -147,11 +152,12 @@ module {
 
     /// Insert a new license. Returns `#DuplicatePayment` if the same paymentId
     /// was already recorded (unique constraint on `receipt.paymentId`).
-    public func add(owner : Principal, receipt : PaymentReceipt) : { #ok; #err : { #DuplicatePayment } } {
+    public func add(owner : Principal, receipt : PaymentReceipt, storageEntitlement : StorageLicenseEntitlement) : { #ok; #err : { #DuplicatePayment } } {
       let license : License = {
         owner;
         canisterId = null;
         receipt;
+        storageEntitlement;
         statusTag = Types.tagOfPaymentStatus(receipt.status);
         createdAt = Time.now();
       };
@@ -174,17 +180,27 @@ module {
       ?license;
     };
 
-    /// Find the first unbound license for a user (canisterId = null).
-    /// Used to bind a freshly-created canister to an existing payment.
-    public func findUnbound(owner : Principal) : ?License {
+    public func findByCanister(canisterId : Principal) : ?License {
       let q = ZenDB.QueryBuilder()
-        .Where("owner", #eq(#Principal(owner)))
-        .Where("canisterId", #eq(#Null))
+        .Where("canisterId", #eq(#Option(#Principal(canisterId))))
+        .Where("statusTag", #eq(#Text("completed")))
         .Limit(1);
       let #ok({ documents }) = collection.search(q) else return null;
       if (documents.size() == 0) return null;
       let (_, license, _) = documents[0];
       ?license;
+    };
+
+    /// Find the first unbound license for a user (canisterId = null).
+    /// Used to bind a freshly-created canister to an existing payment.
+    public func findUnbound(owner : Principal) : ?License {
+      Array.find<License>(
+        listByOwner(owner),
+        func(license) = switch (license.canisterId) {
+          case null true;
+          case (?_) false;
+        },
+      );
     };
 
     /// List all licenses owned by a principal. Convenience wrapper over `list`
@@ -241,12 +257,14 @@ module {
       let q = ZenDB.QueryBuilder()
         .Where("owner", #eq(#Principal(owner)))
         .Where("receipt.paymentId", #eq(#Text(paymentId)))
-        .Where("canisterId", #eq(#Null))
         .Limit(1);
       let #ok({ documents }) = collection.search(q) else return;
       if (documents.size() == 0) return;
       let (docId, license, _) = documents[0];
-      ignore collection.replace(docId, { license with canisterId = ?canisterId });
+      switch (license.canisterId) {
+        case null ignore collection.replace(docId, { license with canisterId = ?canisterId });
+        case (?_) {};
+      };
     };
 
     /// Generic list with flexible filter. Enforces per-caller auth at the

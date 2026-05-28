@@ -52,6 +52,18 @@ export type AccessSource = { 'durablePolicy' : bigint } |
   { 'recoverySetup' : null };
 export interface AddRecoveryOwnerOptions { 'controllerRecovery' : boolean }
 export type BatchId = bigint;
+export interface BeginUploadSessionArguments {
+  'declaredUploadBytes' : [] | [bigint],
+  'createMode' : CreateMode,
+  'totalSize' : bigint,
+  'expectedChunkCount' : [] | [bigint],
+  'entry' : Entry,
+  'encryptionMode' : [] | [EncryptionMode],
+}
+export interface BeginUploadSessionResponse {
+  'node' : NodeDetails,
+  'batchId' : BatchId,
+}
 export interface CancelAccessRequestArguments { 'requestId' : bigint }
 export interface CancelDurableAccessPolicyArguments { 'policyId' : bigint }
 export interface CancelPendingAccessGrantArguments { 'grantId' : bigint }
@@ -96,9 +108,16 @@ export interface CreateArguments {
   'entry' : Entry,
   'encryptionMode' : [] | [EncryptionMode],
 }
+export interface CreateBatchArguments {
+  'declaredUploadBytes' : [] | [bigint],
+  'totalSize' : bigint,
+  'expectedChunkCount' : [] | [bigint],
+  'entry' : Entry,
+}
 export interface CreateBatchResponse { 'batchId' : BatchId }
 export interface CreateChunkArguments {
   'content' : Uint8Array,
+  'chunkIndex' : [] | [bigint],
   'batchId' : BatchId,
 }
 export interface CreateChunkResponse { 'chunkId' : bigint }
@@ -124,6 +143,7 @@ export interface CreatePendingAccessGrantArguments {
   'accessClass' : AccessClass,
 }
 export interface DeleteArguments { 'recursive' : boolean, 'entry' : Entry }
+export interface DeleteBatchArguments { 'batchId' : BatchId }
 export type DirectoryColor = { 'blue' : null } |
   { 'gray' : null } |
   { 'orange' : null } |
@@ -191,6 +211,7 @@ export interface EmailClaimState {
 }
 export type EmailCommitment = Uint8Array;
 export interface EncryptedStorageCanister {
+  'abortUploadSession' : ActorMethod<[DeleteBatchArguments], undefined>,
   'activateRecoveryOwnership' : ActorMethod<
     [Principal],
     OwnerEquivalentPrincipal
@@ -198,6 +219,14 @@ export interface EncryptedStorageCanister {
   'addRecoveryOwner' : ActorMethod<
     [Principal, AddRecoveryOwnerOptions],
     OwnerEquivalentPrincipal
+  >,
+  'appendUploadChunk' : ActorMethod<
+    [CreateChunkArguments],
+    CreateChunkResponse
+  >,
+  'beginUploadSession' : ActorMethod<
+    [BeginUploadSessionArguments],
+    BeginUploadSessionResponse
   >,
   'cancelAccessRequest' : ActorMethod<
     [CancelAccessRequestArguments],
@@ -230,7 +259,7 @@ export interface EncryptedStorageCanister {
     [CreateAccessBatchArguments],
     CreateAccessBatchResult
   >,
-  'createBatch' : ActorMethod<[CreateArguments], CreateBatchResponse>,
+  'createBatch' : ActorMethod<[CreateBatchArguments], CreateBatchResponse>,
   'createChunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
   'createDurableAccessGrant' : ActorMethod<
     [CreateDurableAccessGrantArguments],
@@ -245,14 +274,13 @@ export interface EncryptedStorageCanister {
     PendingAccessGrant
   >,
   'delete' : ActorMethod<[DeleteArguments], undefined>,
+  'finishUploadSession' : ActorMethod<
+    [FinishUploadSessionArguments],
+    undefined
+  >,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
   'getChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
-  /**
-   * / Get canister module_hash via canister_status.
-   * / Only accessible by canister controllers.
-   */
-  'getModuleHash' : ActorMethod<[], [] | [Uint8Array]>,
   'getMyAccessRequest' : ActorMethod<[], [] | [AccessRequest]>,
   'getOwnerActivityState' : ActorMethod<[], OwnerActivityState>,
   'getRecoveryStatus' : ActorMethod<[], RecoveryStatus>,
@@ -349,6 +377,11 @@ export interface FileVersionDetails {
   'createdAt' : Time,
   'size' : bigint,
   'index' : bigint,
+}
+export interface FinishUploadSessionArguments {
+  'sha256' : [] | [Uint8Array],
+  'contentType' : string,
+  'batchId' : BatchId,
 }
 export interface GetChunkArguments {
   'chunkIndex' : bigint,

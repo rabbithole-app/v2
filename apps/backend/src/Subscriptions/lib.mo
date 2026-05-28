@@ -13,7 +13,6 @@ import ZenDB "mo:zendb";
 module {
   public type Plan = {
     #Free;
-    #Trial;
     #Pro;
   };
 
@@ -30,14 +29,18 @@ module {
     activatedAt : Time.Time;
     expiresAt : ?Time.Time;
     autoRenew : Bool;
-    trialUsedBytes : Nat;
     createdAt : Time.Time;
     updatedAt : Time.Time;
   };
 
+  public type LicenseStorageLimits = {
+    includedBytes : Nat;
+    maxFileBytes : Nat;
+  };
+
   public type SubscriptionCheckResult = {
     #active : { plan : Plan };
-    #trial : { remainingBytes : Nat };
+    #licensed : LicenseStorageLimits;
     #expired;
     #free;
     #invalidWasm;
@@ -47,7 +50,6 @@ module {
   public type ActivateError = {
     #UserNotFound;
     #AlreadyActive;
-    #TrialAlreadyUsed;
   };
 
   public type PaidPeriodAction = { #Created; #Renewed; #Reactivated };
@@ -78,17 +80,15 @@ module {
     instructions : Nat;
   };
 
-  public let TRIAL_LIMIT_BYTES : Nat = 100_000_000; // 100 MB
   let LIST_SUBSCRIPTIONS_LIMIT_CAP : Nat = 100;
 
   let SubscriptionSchema : ZenDB.Types.Schema = #Record([
     ("userId", #Principal),
-    ("plan", #Variant([("Free", #Null), ("Trial", #Null), ("Pro", #Null)])),
+    ("plan", #Variant([("Free", #Null), ("Pro", #Null)])),
     ("status", #Variant([("Active", #Null), ("Expired", #Null), ("Cancelled", #Null)])),
     ("activatedAt", #Int),
     ("expiresAt", #Option(#Int)),
     ("autoRenew", #Bool),
-    ("trialUsedBytes", #Nat),
     ("createdAt", #Int),
     ("updatedAt", #Int),
   ]);
@@ -120,7 +120,6 @@ module {
         let values = Array.map<Plan, ZenDB.Types.Candid>(v, func(plan : Plan) : ZenDB.Types.Candid {
           switch plan {
             case (#Free) #Text("Free");
-            case (#Trial) #Text("Trial");
             case (#Pro) #Text("Pro");
           };
         });
@@ -158,7 +157,7 @@ module {
     dbQuery;
   };
 
-  public class Subscriptions(db : ZenDB.Database, hasUsedTrial : (Principal) -> Bool, markTrialUsed : (Principal) -> (), userExists : (Principal) -> Bool) {
+  public class Subscriptions(db : ZenDB.Database) {
     let #ok(collection) = db.createCollection<Subscription>("subscriptions", SubscriptionSchema, candifySubscriptions, ?{ schema_constraints = schemaConstraints }) else Runtime.unreachable();
 
     func findSubscription(userId : Principal) : ?(ZenDB.Types.DocumentId, Subscription) {
@@ -194,10 +193,10 @@ module {
 
     /// Apply a paid period to a user's subscription. Single source of truth for paid Pro logic.
     /// Active Pro with future expiresAt → extends from currentExpiresAt.
-    /// Everything else (no sub, Free, Trial, Expired) → starts from now.
+    /// Everything else (no sub, Free, Expired) → starts from now.
     public func grantPaidPeriod(userId : Principal, plan : Plan, durationNs : Time.Time) : Result.Result<PaidPeriodResult, Text> {
       switch (plan) {
-        case (#Free or #Trial) return #err("Only paid plans can be granted");
+        case (#Free) return #err("Only paid plans can be granted");
         case _ {};
       };
 
@@ -212,8 +211,7 @@ module {
             status = #Active;
             activatedAt = now;
             expiresAt = ?newExpiresAt;
-            autoRenew = true;
-            trialUsedBytes = 0;
+            autoRenew = false;
             createdAt = now;
             updatedAt = now;
           };
@@ -265,7 +263,6 @@ module {
             status = #Active;
             activatedAt = now;
             expiresAt;
-            autoRenew = true;
             updatedAt = now;
           });
         };
@@ -276,8 +273,7 @@ module {
             status = #Active;
             activatedAt = now;
             expiresAt;
-            autoRenew = true;
-            trialUsedBytes = 0;
+            autoRenew = false;
             createdAt = now;
             updatedAt = now;
           };
@@ -286,28 +282,6 @@ module {
       };
 
       #ok;
-    };
-
-    public func activateTrial(userId : Principal) : Result.Result<(), ActivateError> {
-      if (not userExists(userId)) return #err(#UserNotFound);
-      // Check persistent trial-used flag in Users (survives plan changes like Trial → Free)
-      if (hasUsedTrial(userId)) return #err(#TrialAlreadyUsed);
-
-      switch (findSubscription(userId)) {
-        case (?(_, sub)) {
-          if (sub.plan == #Trial) return #err(#TrialAlreadyUsed);
-          let effective = withEffectiveStatus(sub);
-          if (effective.status == #Active) return #err(#AlreadyActive);
-        };
-        case null {};
-      };
-
-      markTrialUsed(userId);
-
-      let now = Time.now();
-      let fourteenDays = 14 * 24 * 60 * 60 * 1_000_000_000; // 14 days in nanoseconds
-
-      activateSubscription(userId, #Trial, ?(now + fourteenDays));
     };
 
     public func expireOverdue() : [Principal] {
@@ -347,18 +321,6 @@ module {
 
       let #ok({ documents }) = collection.search(q) else return [];
       Array.map<(ZenDB.Types.DocumentId, Subscription, [ZenDB.Types.TextMatch]), (Principal, Subscription)>(documents, func(_, sub, _) = (sub.userId, sub));
-    };
-
-    public func recordTrialBytes(userId : Principal, bytes : Nat) {
-      let q = ZenDB.QueryBuilder().Where("userId", #eq(#Principal(userId))).Limit(1);
-      let #ok({ documents }) = collection.search(q) else return;
-      if (documents.size() == 0) return;
-      let (docId, sub, _) = documents[0];
-
-      ignore collection.updateById(docId, [
-        ("trialUsedBytes", #Nat(sub.trialUsedBytes + bytes)),
-        ("updatedAt", #Int(Time.now())),
-      ]);
     };
 
     func withEffectiveStatus(sub : Subscription) : Subscription {

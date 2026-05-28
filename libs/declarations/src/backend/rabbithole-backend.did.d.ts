@@ -33,7 +33,6 @@ export interface AdminUserListItem {
   'inviter' : [] | [Principal],
   'createdAt' : Time,
   'role' : Role,
-  'trialUsed' : boolean,
   'updatedAt' : Time,
   'identity' : UserIdentityAttributes,
   'profile' : [] | [PublicProfileSummary],
@@ -51,7 +50,6 @@ export interface AdminUserListOptions {
     'verifiedEmail' : [] | [boolean],
     'createdAt' : [] | [TimeRangeFilter],
     'role' : [] | [Role],
-    'trialUsed' : [] | [boolean],
     'search' : [] | [string],
     'updatedAt' : [] | [TimeRangeFilter],
     'identitySyncedAt' : [] | [TimeRangeFilter],
@@ -115,7 +113,7 @@ export type CmcOpKind = { 'CreateCanister' : null } |
   { 'TopUp' : null };
 export type CmcOpRetryResult = { 'scheduled' : { 'canisterId' : Principal } } |
   { 'resolved' : null } |
-  { 'refunded' : null } |
+  { 'refunded' : { 'receipt' : [] | [RefundReceipt] } } |
   { 'blockedByRefund' : null } |
   { 'notFound' : null } |
   { 'stillAmbiguous' : { 'attempts' : bigint } };
@@ -210,6 +208,14 @@ export interface EmailClaimState {
   'storage' : [] | [EmailClaim],
   'rabbithole' : [] | [EmailClaim],
 }
+export interface EnsureStorageCyclesForUploadRequest {
+  'activeUploadedBytes' : bigint,
+  'currentBalance' : bigint,
+  'projectedCapacityBytes' : bigint,
+  'postWriteFreezingReserve' : bigint,
+  'remainingUploadBytes' : bigint,
+  'requiredBalance' : bigint,
+}
 export interface EnvPair { 'value' : string, 'name' : string }
 export interface EvmChainConfig {
   'evmRpcCanisterId' : string,
@@ -296,7 +302,12 @@ export interface License {
   'owner' : Principal,
   'createdAt' : Time,
   'statusTag' : string,
+  'storageEntitlement' : StorageLicenseEntitlement,
   'canisterId' : [] | [Principal],
+}
+export interface LicenseStorageLimits {
+  'includedBytes' : bigint,
+  'maxFileBytes' : bigint,
 }
 export interface ListCreationsOptions {
   'pagination' : { 'offset' : bigint, 'limit' : bigint },
@@ -355,7 +366,6 @@ export type NotificationPayload = {
   { 'backendLowCycles' : { 'threshold' : bigint, 'current' : bigint } } |
   { 'topUpCompleted' : { 'canisterId' : Principal, 'cyclesAmount' : bigint } } |
   { 'depositReceived' : { 'tokenId' : string, 'amount' : bigint } } |
-  { 'trialStarted' : { 'limitBytes' : bigint } } |
   {
     'cmcNotifyStuck' : {
       'id' : bigint,
@@ -434,8 +444,7 @@ export type NotificationPayload = {
     'subscriptionRenewed' : {
       'expiresAt' : [] | [bigint],
       'plan' : { 'Pro' : null } |
-        { 'Free' : null } |
-        { 'Trial' : null },
+        { 'Free' : null },
     }
   } |
   {
@@ -454,11 +463,7 @@ export type NotificationPayload = {
     }
   } |
   {
-    'subscriptionActivated' : {
-      'plan' : { 'Pro' : null } |
-        { 'Free' : null } |
-        { 'Trial' : null },
-    }
+    'subscriptionActivated' : { 'plan' : { 'Pro' : null } | { 'Free' : null } }
   } |
   {
     'storageAccessRequestResolved' : {
@@ -499,7 +504,6 @@ export type PaymentPhase = { 'CheckingBalances' : null } |
   { 'Queueing' : null } |
   { 'FetchingRates' : null } |
   { 'Charging' : { 'tokenId' : TokenId, 'amount' : bigint } } |
-  { 'Activating' : null } |
   { 'RecordingLicense' : null };
 export interface PaymentReceipt {
   'status' : PaymentStatus,
@@ -535,8 +539,7 @@ export interface PendingRefund {
   'reason' : string,
 }
 export type Plan = { 'Pro' : null } |
-  { 'Free' : null } |
-  { 'Trial' : null };
+  { 'Free' : null };
 export interface PrepareAvatarUploadArgs {
   'content' : Uint8Array,
   'contentType' : string,
@@ -596,7 +599,6 @@ export interface Rabbithole {
     [Principal, Plan, [] | [bigint]],
     undefined
   >,
-  'activateTrial' : ActorMethod<[], undefined>,
   /**
    * / Register an externally-deployed storage canister with this backend.
    * /
@@ -623,10 +625,8 @@ export interface Rabbithole {
    * /     That's self-sabotage (controller loses Pro features), not a
    * /     risk for us — so we don't verify.
    * /
-   * / Trial — NOT auto-activated. Trial is part of the License offer
-   * / (strategy §3), not a freebie for any account registration.
-   * / Controller who wants Trial calls `activateTrial()` separately
-   * / (per-account, not per-storage; only once per account).
+   * / Storage license entitlement is attached only through the paid creation
+   * / flow. Imported canisters do not receive included encrypted storage quota.
    */
   'addStorage' : ActorMethod<[Principal, Uint8Array], Result_7>,
   'adminGetUserWalletMeta' : ActorMethod<
@@ -656,7 +656,10 @@ export interface Rabbithole {
     { 'ok' : null } |
       { 'notFound' : null }
   >,
-  'ensureStorageCyclesForUpload' : ActorMethod<[bigint, bigint], Result_5>,
+  'ensureStorageCyclesForUpload' : ActorMethod<
+    [EnsureStorageCyclesForUploadRequest],
+    Result_5
+  >,
   'ensureUser' : ActorMethod<[[] | [string]], undefined>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
   'getAmbassadorChainQuery' : ActorMethod<[], AmbassadorChain>,
@@ -689,6 +692,7 @@ export interface Rabbithole {
   'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
   'getSettings' : ActorMethod<[], UserSettings>,
   'getSolAddress' : ActorMethod<[], [] | [string]>,
+  'getStorageFundingStatus' : ActorMethod<[], StorageFundingStatus>,
   'getSubscription' : ActorMethod<[], [] | [Subscription]>,
   'getTreasuryBalances' : ActorMethod<[], Array<BalanceEntry>>,
   'getTreasuryWalletAddresses' : ActorMethod<
@@ -765,7 +769,7 @@ export interface Rabbithole {
    * / The initial record is created with `#ProcessingPayment(#Starting)`. A
    * / detached Timer picks up the flow on the next tick and transitions the
    * / record through all payment phases (`FetchingRates`, `Charging`,
-   * / `RecordingLicense`, `Activating`, `Queueing`) before handing off to the
+   * / `RecordingLicense`, `Queueing`) before handing off to the
    * / unified deploy queue.
    */
   'purchaseLicenseAndCreateStorage' : ActorMethod<
@@ -819,7 +823,6 @@ export interface Rabbithole {
     [Principal, Plan, [] | [bigint]],
     undefined
   >,
-  'reportTrialBytes' : ActorMethod<[bigint], undefined>,
   /**
    * / Admin-only retry for a creation whose deferred ambassador payout
    * / landed in `#failed`. Re-invokes the payout; on success the record's
@@ -885,6 +888,20 @@ export interface RefundContext {
   'payer' : Principal,
   'amount' : bigint,
 }
+export type RefundNetwork = { 'ic' : null } |
+  { 'evm' : null } |
+  { 'solana' : null };
+export interface RefundReceipt {
+  'at' : Time,
+  'tokenId' : TokenId,
+  'recipient' : Principal,
+  'network' : RefundNetwork,
+  'reference' : RefundReference,
+  'amount' : bigint,
+}
+export type RefundReference = { 'signature' : string } |
+  { 'blockIndex' : bigint } |
+  { 'txHash' : string };
 export interface ReleaseFullStatus {
   'tagName' : string,
   'isDownloaded' : boolean,
@@ -1078,6 +1095,17 @@ export interface StorageCreationRecord {
   'installedReleaseTag' : [] | [string],
   'canisterId' : [] | [Principal],
 }
+export interface StorageFundingStatus {
+  'spendingPriority' : Array<TokenId>,
+  'paidAutoTopUpEnabled' : boolean,
+  'periodEnd' : [] | [Time],
+  'includedCyclesRemaining' : bigint,
+  'includedCyclesUsed' : bigint,
+  'includedCyclesLimit' : bigint,
+  'periodStart' : [] | [Time],
+  'managedFundingEligible' : boolean,
+  'paidTopUpAmountCycles' : bigint,
+}
 export interface StorageInfo {
   'id' : bigint,
   'status' : CreationStatus,
@@ -1088,6 +1116,10 @@ export interface StorageInfo {
   'frontendInstallDiagnostics' : [] | [FrontendInstallDiagnostics],
   'updateAvailable' : [] | [UpdateInfo],
   'canisterId' : [] | [Principal],
+}
+export interface StorageLicenseEntitlement {
+  'includedBytes' : bigint,
+  'maxFileBytes' : bigint,
 }
 export type StorageVetKeyLevel = { 'highReplication' : null } |
   { 'standard' : null };
@@ -1119,14 +1151,11 @@ export interface Subscription {
   'createdAt' : Time,
   'plan' : Plan,
   'updatedAt' : Time,
-  'trialUsedBytes' : bigint,
   'autoRenew' : boolean,
 }
-export type SubscriptionCheckResult = {
-    'trial' : { 'remainingBytes' : bigint }
-  } |
-  { 'active' : { 'plan' : Plan } } |
+export type SubscriptionCheckResult = { 'active' : { 'plan' : Plan } } |
   { 'expired' : null } |
+  { 'licensed' : LicenseStorageLimits } |
   { 'free' : null } |
   { 'unknownCanister' : null } |
   { 'invalidWasm' : null };
@@ -1184,7 +1213,6 @@ export interface User {
   'inviterText' : string,
   'createdAt' : Time,
   'role' : Role,
-  'trialUsed' : boolean,
   'updatedAt' : Time,
   'identity' : UserIdentityAttributes,
   'profile' : [] | [UserProfile],

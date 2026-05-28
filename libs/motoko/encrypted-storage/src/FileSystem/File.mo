@@ -108,6 +108,19 @@ module File {
     commitVersion(fs, self, chunks, totalLength, contentHash, contentType);
   };
 
+  /// Adds a new version from already allocated content refs.
+  /// The caller transfers ownership of #OnChain pointers to the file version.
+  public func addVersionRefs(
+    fs : T.FileSystemStore,
+    self : T.FileMetadataStore,
+    chunks : [T.ContentRef],
+    totalLength : Nat,
+    contentHash : Blob,
+    contentType : Text,
+  ) {
+    commitVersion(fs, self, chunks, totalLength, contentHash, contentType);
+  };
+
   /// Shared version commit logic for both backends.
   func commitVersion(
     fs : T.FileSystemStore,

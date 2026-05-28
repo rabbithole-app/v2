@@ -64,11 +64,7 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
-  const Plan = IDL.Variant({
-    'Pro' : IDL.Null,
-    'Free' : IDL.Null,
-    'Trial' : IDL.Null,
-  });
+  const Plan = IDL.Variant({ 'Pro' : IDL.Null, 'Free' : IDL.Null });
   const AddStorageError = IDL.Variant({
     'NotController' : IDL.Null,
     'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
@@ -108,7 +104,6 @@ export const idlFactory = ({ IDL }) => {
       'verifiedEmail' : IDL.Opt(IDL.Bool),
       'createdAt' : IDL.Opt(TimeRangeFilter),
       'role' : IDL.Opt(Role),
-      'trialUsed' : IDL.Opt(IDL.Bool),
       'search' : IDL.Opt(IDL.Text),
       'updatedAt' : IDL.Opt(TimeRangeFilter),
       'identitySyncedAt' : IDL.Opt(TimeRangeFilter),
@@ -142,7 +137,6 @@ export const idlFactory = ({ IDL }) => {
     'inviter' : IDL.Opt(IDL.Principal),
     'createdAt' : Time,
     'role' : Role,
-    'trialUsed' : IDL.Bool,
     'updatedAt' : Time,
     'identity' : UserIdentityAttributes,
     'profile' : IDL.Opt(PublicProfileSummary),
@@ -167,10 +161,14 @@ export const idlFactory = ({ IDL }) => {
     'frontendUpdateAvailable' : IDL.Bool,
     'availableWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
   });
+  const LicenseStorageLimits = IDL.Record({
+    'includedBytes' : IDL.Nat,
+    'maxFileBytes' : IDL.Nat,
+  });
   const SubscriptionCheckResult = IDL.Variant({
-    'trial' : IDL.Record({ 'remainingBytes' : IDL.Nat }),
     'active' : IDL.Record({ 'plan' : Plan }),
     'expired' : IDL.Null,
+    'licensed' : LicenseStorageLimits,
     'free' : IDL.Null,
     'unknownCanister' : IDL.Null,
     'invalidWasm' : IDL.Null,
@@ -185,6 +183,14 @@ export const idlFactory = ({ IDL }) => {
     'NotOwner' : IDL.Null,
   });
   const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const EnsureStorageCyclesForUploadRequest = IDL.Record({
+    'activeUploadedBytes' : IDL.Nat,
+    'currentBalance' : IDL.Nat,
+    'projectedCapacityBytes' : IDL.Nat,
+    'postWriteFreezingReserve' : IDL.Nat,
+    'remainingUploadBytes' : IDL.Nat,
+    'requiredBalance' : IDL.Nat,
+  });
   const Result_5 = IDL.Variant({
     'ok' : IDL.Record({
       'cyclesAdded' : IDL.Opt(IDL.Nat),
@@ -209,7 +215,6 @@ export const idlFactory = ({ IDL }) => {
     'Queueing' : IDL.Null,
     'FetchingRates' : IDL.Null,
     'Charging' : IDL.Record({ 'tokenId' : TokenId, 'amount' : IDL.Nat }),
-    'Activating' : IDL.Null,
     'RecordingLicense' : IDL.Null,
   });
   const CreationStatus = IDL.Variant({
@@ -404,6 +409,17 @@ export const idlFactory = ({ IDL }) => {
     'releases' : IDL.Vec(ReleaseFullStatus),
     'completedDownloads' : IDL.Nat,
   });
+  const StorageFundingStatus = IDL.Record({
+    'spendingPriority' : IDL.Vec(TokenId),
+    'paidAutoTopUpEnabled' : IDL.Bool,
+    'periodEnd' : IDL.Opt(Time),
+    'includedCyclesRemaining' : IDL.Nat,
+    'includedCyclesUsed' : IDL.Nat,
+    'includedCyclesLimit' : IDL.Nat,
+    'periodStart' : IDL.Opt(Time),
+    'managedFundingEligible' : IDL.Bool,
+    'paidTopUpAmountCycles' : IDL.Nat,
+  });
   const Status = IDL.Variant({
     'Active' : IDL.Null,
     'Cancelled' : IDL.Null,
@@ -417,7 +433,6 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Time,
     'plan' : Plan,
     'updatedAt' : Time,
-    'trialUsedBytes' : IDL.Nat,
     'autoRenew' : IDL.Bool,
   });
   const BalanceEntry = IDL.Record({ 'tokenId' : TokenId, 'balance' : IDL.Nat });
@@ -438,7 +453,6 @@ export const idlFactory = ({ IDL }) => {
     'inviterText' : IDL.Text,
     'createdAt' : Time,
     'role' : Role,
-    'trialUsed' : IDL.Bool,
     'updatedAt' : Time,
     'identity' : UserIdentityAttributes,
     'profile' : IDL.Opt(UserProfile),
@@ -564,11 +578,16 @@ export const idlFactory = ({ IDL }) => {
     'amount' : IDL.Nat,
     'paidAt' : Time,
   });
+  const StorageLicenseEntitlement = IDL.Record({
+    'includedBytes' : IDL.Nat,
+    'maxFileBytes' : IDL.Nat,
+  });
   const License = IDL.Record({
     'receipt' : PaymentReceipt,
     'owner' : IDL.Principal,
     'createdAt' : Time,
     'statusTag' : IDL.Text,
+    'storageEntitlement' : StorageLicenseEntitlement,
     'canisterId' : IDL.Opt(IDL.Principal),
   });
   const GetLicensesResponse = IDL.Record({
@@ -633,7 +652,6 @@ export const idlFactory = ({ IDL }) => {
       'tokenId' : IDL.Text,
       'amount' : IDL.Nat,
     }),
-    'trialStarted' : IDL.Record({ 'limitBytes' : IDL.Nat }),
     'cmcNotifyStuck' : IDL.Record({
       'id' : IDL.Nat,
       'blockIndex' : IDL.Nat,
@@ -701,11 +719,7 @@ export const idlFactory = ({ IDL }) => {
     }),
     'subscriptionRenewed' : IDL.Record({
       'expiresAt' : IDL.Opt(IDL.Int),
-      'plan' : IDL.Variant({
-        'Pro' : IDL.Null,
-        'Free' : IDL.Null,
-        'Trial' : IDL.Null,
-      }),
+      'plan' : IDL.Variant({ 'Pro' : IDL.Null, 'Free' : IDL.Null }),
     }),
     'storageAccessRequestCreated' : IDL.Record({
       'requestId' : IDL.Nat,
@@ -719,11 +733,7 @@ export const idlFactory = ({ IDL }) => {
       'purpose' : IDL.Text,
     }),
     'subscriptionActivated' : IDL.Record({
-      'plan' : IDL.Variant({
-        'Pro' : IDL.Null,
-        'Free' : IDL.Null,
-        'Trial' : IDL.Null,
-      }),
+      'plan' : IDL.Variant({ 'Pro' : IDL.Null, 'Free' : IDL.Null }),
     }),
     'storageAccessRequestResolved' : IDL.Record({
       'status' : AccessRequestStatus,
@@ -978,10 +988,28 @@ export const idlFactory = ({ IDL }) => {
     'refund' : IDL.Null,
   });
   const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const RefundNetwork = IDL.Variant({
+    'ic' : IDL.Null,
+    'evm' : IDL.Null,
+    'solana' : IDL.Null,
+  });
+  const RefundReference = IDL.Variant({
+    'signature' : IDL.Text,
+    'blockIndex' : IDL.Nat,
+    'txHash' : IDL.Text,
+  });
+  const RefundReceipt = IDL.Record({
+    'at' : Time,
+    'tokenId' : TokenId,
+    'recipient' : IDL.Principal,
+    'network' : RefundNetwork,
+    'reference' : RefundReference,
+    'amount' : IDL.Nat,
+  });
   const CmcOpRetryResult = IDL.Variant({
     'scheduled' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'resolved' : IDL.Null,
-    'refunded' : IDL.Null,
+    'refunded' : IDL.Record({ 'receipt' : IDL.Opt(RefundReceipt) }),
     'blockedByRefund' : IDL.Null,
     'notFound' : IDL.Null,
     'stillAmbiguous' : IDL.Record({ 'attempts' : IDL.Nat }),
@@ -1076,7 +1104,6 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
-    'activateTrial' : IDL.Func([], [], []),
     'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_7], []),
     'adminGetUserWalletMeta' : IDL.Func(
         [IDL.Principal],
@@ -1121,7 +1148,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'ensureStorageCyclesForUpload' : IDL.Func(
-        [IDL.Nat, IDL.Nat],
+        [EnsureStorageCyclesForUploadRequest],
         [Result_5],
         [],
       ),
@@ -1162,6 +1189,7 @@ export const idlFactory = ({ IDL }) => {
     'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
     'getSettings' : IDL.Func([], [UserSettings], ['query']),
     'getSolAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
+    'getStorageFundingStatus' : IDL.Func([], [StorageFundingStatus], ['query']),
     'getSubscription' : IDL.Func([], [IDL.Opt(Subscription)], ['query']),
     'getTreasuryBalances' : IDL.Func([], [IDL.Vec(BalanceEntry)], []),
     'getTreasuryWalletAddresses' : IDL.Func(
@@ -1282,7 +1310,6 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
-    'reportTrialBytes' : IDL.Func([IDL.Nat], [], []),
     'retryAmbassadorPayout' : IDL.Func([IDL.Nat], [Result_2], []),
     'retryPendingCmcOp' : IDL.Func([IDL.Nat], [CmcOpRetryResult], []),
     'searchUserDirectory' : IDL.Func(

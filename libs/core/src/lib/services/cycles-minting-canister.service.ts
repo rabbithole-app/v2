@@ -1,4 +1,4 @@
-import { effect, Injectable, resource } from '@angular/core';
+import { Injectable, resource } from '@angular/core';
 
 import { injectCyclesMintingCanister } from '../injectors';
 
@@ -21,13 +21,4 @@ export class CyclesMintingCanisterService {
       );
     },
   });
-
-  constructor() {
-    effect(() => {
-      const rate = this.icpXdrConversionRate.value();
-      if (rate) {
-        console.log('ICP to Cycles conversion rate:', rate);
-      }
-    });
-  }
 }

@@ -21,5 +21,5 @@ vector = "0.4.6"
 byte-utils = "0.2.0"
 
 [toolchain]
-moc = "1.6.0"
-wasmtime = "44.0.0"
+moc = "1.8.2"
+wasmtime = "45.0.0"

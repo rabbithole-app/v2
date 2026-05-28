@@ -31,6 +31,7 @@ import {
   BrnAlertDialogContent,
   BrnAlertDialogTrigger,
 } from '@spartan-ng/brain/alert-dialog';
+import { toast } from '@spartan-ng/brain/sonner';
 import {
   ColumnDef,
   ColumnSizingState,
@@ -40,7 +41,6 @@ import {
   Updater,
 } from '@tanstack/angular-table';
 import { endOfDay, startOfDay } from 'date-fns';
-import { toast } from '@spartan-ng/brain/sonner';
 import { injectQueryParams } from 'ngxtension/inject-query-params';
 
 import {
@@ -116,7 +116,6 @@ const STATUS_OPTIONS = [
   { label: 'Checking balances', value: 'ProcessingPayment.CheckingBalances' },
   { label: 'Charging', value: 'ProcessingPayment.Charging' },
   { label: 'Recording license', value: 'ProcessingPayment.RecordingLicense' },
-  { label: 'Activating', value: 'ProcessingPayment.Activating' },
   { label: 'Queueing payment', value: 'ProcessingPayment.Queueing' },
   { label: 'Pending', value: 'Pending' },
   { label: 'Checking balance', value: 'CheckingBalance' },

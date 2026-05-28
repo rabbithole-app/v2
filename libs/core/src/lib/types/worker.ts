@@ -21,7 +21,6 @@ export const principalSchema = type('string').narrow((value, ctx) => {
 export const uploadSchema = type({
   id: uploadIdSchema,
   storageId: principalSchema,
-  bytes: 'ArrayBuffer',
   config: {
     'contentType?': 'string',
     'encryptionMode?': "'Encrypted' | 'Plaintext'",
@@ -32,6 +31,7 @@ export const uploadSchema = type({
 
 export const uploadAssetSchema = uploadSchema.and(
   type({
+    bytes: 'ArrayBuffer',
     config: {
       'contentEncoding?': "'br' | 'compress' | 'deflate' | 'gzip' | 'identity'",
       'headers?': type(['string', 'string']).array(),
@@ -42,6 +42,7 @@ export const uploadAssetSchema = uploadSchema.and(
 
 export const uploadFileSchema = uploadSchema.and(
   type({
+    file: 'object',
     'offscreenCanvas?': 'object',
   }),
 );
@@ -177,12 +178,12 @@ export type CoreWorkerActionsIn = Prettify<
     'download:start': { payload: DownloadRequest };
     'fs:load-list': unknown;
     'image:crop': { payload: ImageCropPayload };
+    'thumbnail:rewrap': { payload: ThumbnailRewrapRequest };
     'upload:add-asset': { payload: UploadAsset };
     'upload:add-file': { payload: UploadFile };
     'upload:cancel': { payload: Pick<UploadFile, 'id'> };
     'upload:remove': { payload: Pick<UploadFile, 'id'> };
     'upload:retry': { payload: Pick<UploadFile, 'id'> };
-    'thumbnail:rewrap': { payload: ThumbnailRewrapRequest };
     'worker:auth-sync': unknown;
     'worker:config': { payload: WorkerConfigIn };
     'worker:init-storage': { payload: PrincipalString };
@@ -280,9 +281,9 @@ export type Message<T extends Record<string, any>> = Prettify<
 
 export type UploadAsset = typeof uploadAssetSchema.infer;
 
-export type UploadFile = { offscreenCanvas?: OffscreenCanvas } & Omit<
+export type UploadFile = { file: File; offscreenCanvas?: OffscreenCanvas } & Omit<
   typeof uploadFileSchema.infer,
-  'offscreenCanvas'
+  'file' | 'offscreenCanvas'
 >;
 
 export type UploadId = typeof uploadIdSchema.infer;
@@ -290,12 +291,19 @@ export type UploadId = typeof uploadIdSchema.infer;
 export type UploadStatus = {
   id: string;
 } & (
+  | {
+      current: number;
+      message?: string;
+      retryAt?: number;
+      status: UploadState.WAITING_FOR_FUNDING;
+      total: number;
+    }
   | { current: number; status: UploadState.IN_PROGRESS; total: number }
   | { errorMessage: string; status: UploadState.FAILED }
   | {
       status: Exclude<
         UploadState,
-        UploadState.FAILED | UploadState.IN_PROGRESS
+        UploadState.FAILED | UploadState.IN_PROGRESS | UploadState.WAITING_FOR_FUNDING
       >;
     }
 );

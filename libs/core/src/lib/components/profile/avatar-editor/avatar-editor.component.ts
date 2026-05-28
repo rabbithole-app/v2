@@ -10,9 +10,10 @@ import {
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePencil, lucideTrash } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
-import { match, P } from 'ts-pattern';
 import { toast } from '@spartan-ng/brain/sonner';
+import { match, P } from 'ts-pattern';
 
+import type { AvatarRef } from '@rabbithole/declarations/backend';
 import {
   HlmAvatar,
   HlmAvatarFallback,
@@ -23,10 +24,8 @@ import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import type { AvatarRef } from '@rabbithole/declarations/backend';
-
-import { FileSystemAccessService } from '../../../services/file-system-access.service';
 import { AvatarService } from '../../../services/avatar.service';
+import { FileSystemAccessService } from '../../../services/file-system-access.service';
 import {
   AvatarCropDialogComponent,
   type AvatarCropDialogResult,
@@ -52,19 +51,19 @@ import {
   },
 })
 export class AvatarEditorComponent {
-  readonly avatarRef = input<AvatarRef | null>(null);
   readonly avatarChanged = output<AvatarRef | null>();
-  readonly disabled = input(false);
+  readonly avatarRef = input<AvatarRef | null>(null);
   readonly #avatarService = inject(AvatarService);
   readonly avatarSrc = computed(() =>
     this.#avatarService.avatarSrc(this.avatarRef()),
   );
+  readonly disabled = input(false);
 
-  readonly hasValue = computed(() => this.avatarRef() !== null);
   readonly saving = signal(false);
-  #isHovered = signal(false);
-
   readonly disabledState = computed(() => this.disabled() || this.saving());
+  readonly hasValue = computed(() => this.avatarRef() !== null);
+
+  #isHovered = signal(false);
   readonly showControls = computed(
     () => this.#isHovered() && !this.disabledState(),
   );
@@ -139,6 +138,11 @@ export class AvatarEditorComponent {
     });
   }
 
+  #errorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    return 'Unknown error';
+  }
+
   async #saveAvatar(content: Uint8Array, contentType: string) {
     this.saving.set(true);
     const id = toast.loading('Saving avatar...');
@@ -161,10 +165,5 @@ export class AvatarEditorComponent {
     } finally {
       this.saving.set(false);
     }
-  }
-
-  #errorMessage(error: unknown): string {
-    if (error instanceof Error && error.message) return error.message;
-    return 'Unknown error';
   }
 }

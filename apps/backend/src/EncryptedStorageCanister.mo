@@ -9,6 +9,7 @@ import Text "mo:core/Text";
 import Iter "mo:core/Iter";
 import Result "mo:core/Result";
 import Timer "mo:core/Timer";
+import Time "mo:core/Time";
 
 import IC "mo:ic";
 import MemoryRegion "mo:memory-region/MemoryRegion";
@@ -24,6 +25,7 @@ import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
 import EncryptedStorage "mo:encrypted-storage";
 import EncryptedStorageClass "mo:encrypted-storage/Class";
 import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
+import Const "mo:encrypted-storage/Const";
 import T "mo:encrypted-storage/Types";
 import SubscriptionGate "SubscriptionGate";
 import HttpAssetsMixin "HttpAssetsMixin";
@@ -52,8 +54,136 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     name = vetKeyName;
   };
   let canisterId = Principal.fromActor(this);
+  let PAGE_BYTES : Nat = 65_536;
+  let GIB_BYTES : Nat = 1_024 * 1_024 * 1_024;
+  let SECONDS_PER_DAY : Nat = 24 * 60 * 60;
+  let STORAGE_FREEZING_THRESHOLD_SECONDS_FALLBACK : Nat = 30 * SECONDS_PER_DAY;
+  let STORAGE_COST_CYCLES_PER_GIB_SECOND_13_NODE : Nat = 127_000;
+  let STORAGE_ONCHAIN_UPLOAD_TARGET_FLOOR_CYCLES : Nat = 1_000_000_000_000;
+  let STORAGE_ONCHAIN_UPLOAD_OPERATION_MARGIN_CYCLES : Nat = 25_000_000_000;
+  let IC_UPDATE_MESSAGE_EXECUTION_CYCLES : Nat = 5_000_000;
+  let IC_INGRESS_MESSAGE_RECEPTION_CYCLES : Nat = 1_200_000;
+  let IC_INGRESS_BYTE_RECEPTION_CYCLES : Nat = 2_000;
+  let STORAGE_ONCHAIN_STABLE_WRITE_EXECUTION_CYCLES_PER_BYTE : Nat = 500;
+  let STORAGE_ONCHAIN_HASH_INSTRUCTION_CYCLES_PER_BYTE : Nat = 384;
+  let STORAGE_ONCHAIN_COMMIT_METADATA_CYCLES_PER_CHUNK : Nat = 2_000_000;
+  let STORAGE_VETKD_DERIVE_TEST_KEY_CYCLES : Nat = 10_000_000_000;
+  let STORAGE_VETKD_DERIVE_PRODUCTION_KEY_CYCLES : Nat = 26_153_846_153;
+  let STORAGE_VETKD_DERIVE_KEY_MARGIN_CYCLES : Nat = 2_000_000_000;
+  let STORAGE_ONCHAIN_UPLOAD_FUNDING_COOLDOWN : Time.Time = 60_000_000_000; // 60 seconds
+  let STORAGE_FUNDING_IN_PROGRESS_ERROR : Text = "Storage funding is already in progress";
 
   var pendingStorageAccessEnvelopes : [StorageAccessClient.Envelope] = [];
+  transient var uploadFundingInFlight : Bool = false;
+  transient var uploadFundingRequestedBytes : Nat = 0;
+  transient var uploadFundingRequestedTargetBalance : Nat = 0;
+  transient var lastUploadFundingRequestAt : ?Time.Time = null;
+  transient var lastUploadFundingCompletedAt : ?Time.Time = null;
+  transient var lastUploadFundingError : ?Text = null;
+  transient var cachedFreezingThresholdSeconds : ?Nat = null;
+  transient var cachedRuntimeMemoryBytes : ?Nat = null;
+  transient var cachedRuntimeStableMemoryBytes : ?Nat = null;
+  transient var lastUploadCommitMeasurement : ?EncryptedStorage.UploadCommitMeasurement = null;
+
+  func resetUploadFundingRetryState() : () {
+    uploadFundingRequestedBytes := 0;
+    uploadFundingRequestedTargetBalance := 0;
+    lastUploadFundingRequestAt := null;
+    lastUploadFundingError := null;
+  };
+
+  public type UploadMemoryProjection = {
+    projectedAllocatedBytes : Nat;
+    projectedCapacityBytes : Nat;
+    projectedCapacityDeltaBytes : Nat;
+  };
+
+  public type ActiveUploadProjection = {
+    sessionCount : Nat;
+    encryptedSessionCount : Nat;
+    reservationBytes : Nat;
+    uploadedBytes : Nat;
+    uploadedChunkCount : Nat;
+    remainingBytes : Nat;
+    remainingChunkCount : Nat;
+  };
+
+  public type UploadCycleCostEstimate = {
+    operation : Nat;
+    remainingWrite : Nat;
+    remainingHashInstructions : Nat;
+    vetKeyDerivation : Nat;
+    commit : Nat;
+    commitMetadata : Nat;
+  };
+
+  public type CycleSafetyEnvelope = {
+    currentFreezingReserve : Nat;
+    postWriteFreezingReserve : Nat;
+    minimumSafeBalance : Nat;
+    targetBalance : Nat;
+    operationFloorBalance : Nat;
+  };
+
+  type UploadFundingRequirement = {
+    memory : UploadMemoryProjection;
+    activity : ActiveUploadProjection;
+    cost : UploadCycleCostEstimate;
+    safety : CycleSafetyEnvelope;
+  };
+
+  type EnsureStorageCyclesForUploadRequest = {
+    currentBalance : Nat;
+    requiredBalance : Nat;
+    postWriteFreezingReserve : Nat;
+    projectedCapacityBytes : Nat;
+    remainingUploadBytes : Nat;
+    activeUploadedBytes : Nat;
+  };
+
+  public type StorageCardMetrics = {
+    subscriptionStatus : ?T.SubscriptionStatus;
+    encryptedBytesUsed : Nat;
+    backendId : ?Principal;
+    storageBackendType : T.StorageBackend;
+    memoryInfo : T.MemoryInfo;
+    runtimeMemoryBytes : ?Nat;
+    runtimeStableMemoryBytes : ?Nat;
+  };
+
+  public type CanisterCyclesFundingState = {
+    requestedBytes : Nat;
+    requestedTargetBalance : Nat;
+    inFlight : Bool;
+    lastRequestedAt : ?Time.Time;
+    lastCompletedAt : ?Time.Time;
+    lastError : ?Text;
+  };
+
+  public type LastUploadCommitMetrics = {
+    bytes : Nat;
+    chunkCount : Nat;
+    hashRoundCount : Nat;
+    hashInstructionCycles : Nat;
+  };
+
+  public type RuntimeMemoryMetrics = {
+    memoryInfo : T.MemoryInfo;
+    runtimeMemoryBytes : ?Nat;
+    runtimeStableMemoryBytes : ?Nat;
+  };
+
+  public type CanisterCyclesCardMetrics = {
+    balance : Nat;
+    freezingThresholdSeconds : Nat;
+    memory : UploadMemoryProjection;
+    activity : ActiveUploadProjection;
+    cost : UploadCycleCostEstimate;
+    safety : CycleSafetyEnvelope;
+    funding : CanisterCyclesFundingState;
+    lastCommit : ?LastUploadCommitMetrics;
+    runtimeMemory : RuntimeMemoryMetrics;
+  };
 
   // Initialize HttpAssets first to use its certificate store
   var assetStableData = HttpAssets.init_stable_store(canisterId, owner);
@@ -103,15 +233,17 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   // Create class wrapper with subscription gates
   transient let es = EncryptedStorageClass.Storage(storage, ?{
     canUploadEncrypted = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canUploadEncrypted(storage, bytes);
-    canUseEncryption = func() : Result.Result<(), Text> = SubscriptionGate.canUseEncryption(storage);
+    canShare = func() : Result.Result<(), Text> = SubscriptionGate.canShare(storage);
     refreshSubscription = func() : async* Result.Result<T.SubscriptionStatus, Text> {
-      await* SubscriptionGate.ensureSubscription(storage, true);
+      await* SubscriptionGate.ensureSubscription(storage, false);
     };
     onAccessChanged = ?enqueueStorageAccessChanged;
   });
 
   func classifyStorageError(message : Text) : T.StorageErrorCode {
     if (Text.startsWith(message, #text "permission denied:")) return #PermissionDenied;
+    if (Text.startsWith(message, #text "Upload funding is pending:")) return #FundingPending;
+    if (Text.startsWith(message, #text "Manual OnChain funding required:")) return #InsufficientCycles;
     if (Text.startsWith(message, #text "Insufficient storage canister cycles:")) return #InsufficientCycles;
     if (Text.contains(message, #text "not found")) return #NotFound;
     if (Text.contains(message, #text "already exists")) return #Conflict;
@@ -131,15 +263,32 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
+  func ownerMetricsAccessError(caller : Principal) : ?T.StorageError {
+    if (es.isOwnerEquivalent(caller)) return null;
+    ?storageError("permission denied: caller is not owner-equivalent");
+  };
+
   // Reset cached module hash on upgrade (body re-executes for persistent actor class)
   storage.cachedModuleHash := null;
 
-  // Populate cachedIdleBurnPerDay at startup so cycle monitoring works immediately
+  func refreshRuntimeStatus() : async Bool {
+    try {
+      let status = await IC.ic.canister_status({ canister_id = canisterId });
+      storage.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
+      cachedFreezingThresholdSeconds := ?status.settings.freezing_threshold;
+      cachedRuntimeMemoryBytes := ?status.memory_size;
+      cachedRuntimeStableMemoryBytes := ?status.memory_metrics.stable_memory_size;
+      true;
+    } catch (_) {
+      false;
+    };
+  };
+
+  // Populate runtime cycle settings at startup so funding checks work immediately.
   ignore Timer.setTimer<system>(
     #seconds 0,
     func() : async () {
-      let status = await IC.ic.canister_status({ canister_id = canisterId });
-      storage.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
+      ignore await refreshRuntimeStatus();
     },
   );
 
@@ -170,28 +319,339 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  func ensureOnChainUploadCycles<system>(totalSize : Nat) : async* Result.Result<(), Text> {
+  func divCeil(value : Nat, divisor : Nat) : Nat {
+    if (value == 0) return 0;
+    ((value - 1) / divisor) + 1;
+  };
+
+  func freezingThresholdSeconds() : Nat {
+    switch (cachedFreezingThresholdSeconds) {
+      case (?seconds) seconds;
+      case null STORAGE_FREEZING_THRESHOLD_SECONDS_FALLBACK;
+    };
+  };
+
+  func storageCyclesForBytesForSeconds(bytes : Nat, seconds : Nat) : Nat {
+    divCeil(bytes * STORAGE_COST_CYCLES_PER_GIB_SECOND_13_NODE * seconds, GIB_BYTES);
+  };
+
+  func currentFreezingReserveCycles(memoryInfo : T.MemoryInfo) : Nat {
+    let seconds = freezingThresholdSeconds();
+    let cachedReserve = switch (storage.cachedIdleBurnPerDay) {
+      case (?burnPerDay) divCeil(burnPerDay * seconds, SECONDS_PER_DAY);
+      case null 0;
+    };
+    let regionReserve = storageCyclesForBytesForSeconds(memoryInfo.capacity, seconds);
+    if (cachedReserve > regionReserve) cachedReserve else regionReserve;
+  };
+
+  func projectedCapacityAfterAdditionalBytes(memoryInfo : T.MemoryInfo, additionalBytes : Nat) : Nat {
+    let projectedSize = memoryInfo.size + additionalBytes;
+    let projectedPages = divCeil(projectedSize, PAGE_BYTES);
+    projectedPages * PAGE_BYTES;
+  };
+
+  func postWriteFreezingReserveCycles(memoryInfo : T.MemoryInfo, projectedCapacityBytes : Nat) : Nat {
+    let currentReserve = currentFreezingReserveCycles(memoryInfo);
+    let capacityDelta = if (projectedCapacityBytes > memoryInfo.capacity) {
+      Nat.sub(projectedCapacityBytes, memoryInfo.capacity);
+    } else {
+      0;
+    };
+    currentReserve + storageCyclesForBytesForSeconds(capacityDelta, freezingThresholdSeconds());
+  };
+
+  func hashInstructionCycles(bytes : Nat) : Nat {
+    // SHA-256 is paid incrementally by appendUploadChunk. The base benchmark
+    // is ~320M instructions per MB; keep 20% headroom for reserve estimates.
+    bytes * STORAGE_ONCHAIN_HASH_INSTRUCTION_CYCLES_PER_BYTE;
+  };
+
+  func uploadChunkCount(bytes : Nat) : Nat {
+    if (bytes == 0) 0 else divCeil(bytes, Const.ONCHAIN_UPLOAD_MAX_STORED_CHUNK_SIZE);
+  };
+
+  func uploadWriteCost(bytes : Nat, chunkCount : Nat) : Nat {
+    let perMessageCost = IC_INGRESS_MESSAGE_RECEPTION_CYCLES + IC_UPDATE_MESSAGE_EXECUTION_CYCLES;
+    let perByteCost =
+      IC_INGRESS_BYTE_RECEPTION_CYCLES +
+      STORAGE_ONCHAIN_STABLE_WRITE_EXECUTION_CYCLES_PER_BYTE +
+      STORAGE_ONCHAIN_HASH_INSTRUCTION_CYCLES_PER_BYTE;
+    (chunkCount * perMessageCost) + (bytes * perByteCost);
+  };
+
+  func appendOperationCost(bytes : Nat) : Nat {
+    uploadWriteCost(bytes, 1);
+  };
+
+  func commitMetadataCycles(chunkCount : Nat) : Nat {
+    chunkCount * STORAGE_ONCHAIN_COMMIT_METADATA_CYCLES_PER_CHUNK;
+  };
+
+  func commitOperationCost(chunkCount : Nat) : Nat {
+    IC_INGRESS_MESSAGE_RECEPTION_CYCLES +
+    IC_UPDATE_MESSAGE_EXECUTION_CYCLES +
+    commitMetadataCycles(chunkCount);
+  };
+
+  func vetKeyDeriveKeyBaseCycles() : Nat {
+    switch (storage.vetKdKeyId.name) {
+      case ("test_key_1") STORAGE_VETKD_DERIVE_TEST_KEY_CYCLES;
+      case (_) STORAGE_VETKD_DERIVE_PRODUCTION_KEY_CYCLES;
+    };
+  };
+
+  func vetKeyDeriveKeyAttachedCycles() : Nat {
+    vetKeyDeriveKeyBaseCycles() + STORAGE_VETKD_DERIVE_KEY_MARGIN_CYCLES;
+  };
+
+  func vetKeyDerivationCost(encryptedSessionCount : Nat) : Nat {
+    encryptedSessionCount * vetKeyDeriveKeyAttachedCycles();
+  };
+
+  func onChainUploadFundingRequirement(totalSize : Nat, operationAdditionalBytes : Nat, operationCost : Nat) : UploadFundingRequirement {
+    let activeSessions = es.activeUploadSessions();
+    let activeEncryptedSessionCount = es.activeEncryptedUploadSessionCount();
+    var activeReservationBytes = 0;
+    var activeUploadedBytes = 0;
+    var activeUploadedChunkCount = 0;
+    var activeRemainingUploadBytes = 0;
+    for (session in activeSessions.vals()) {
+      activeReservationBytes += session.declaredBytes;
+      activeUploadedBytes += session.uploadedBytes;
+      activeUploadedChunkCount += session.uploadedChunkCount;
+      activeRemainingUploadBytes += session.remainingBytes;
+    };
+    let extraReservationBytes = if (totalSize > activeReservationBytes) {
+      Nat.sub(totalSize, activeReservationBytes);
+    } else {
+      0;
+    };
+    let requestedReservationBytes = activeReservationBytes + extraReservationBytes;
+    let remainingUploadBytes = activeRemainingUploadBytes + extraReservationBytes;
+    let memoryInfo = es.memoryInfo();
+    let committedAllocatedBytes = if (memoryInfo.allocated > activeUploadedBytes) {
+      Nat.sub(memoryInfo.allocated, activeUploadedBytes);
+    } else {
+      0;
+    };
+    let projectedAllocatedBytes = committedAllocatedBytes + requestedReservationBytes;
+    let projectedCapacityBytes = projectedCapacityAfterAdditionalBytes(memoryInfo, remainingUploadBytes);
+    let operationCapacityBytes = projectedCapacityAfterAdditionalBytes(memoryInfo, operationAdditionalBytes);
+    let currentFreezingReserve = currentFreezingReserveCycles(memoryInfo);
+    let postWriteFreezingReserve = postWriteFreezingReserveCycles(memoryInfo, projectedCapacityBytes);
+    let operationFreezingReserve = postWriteFreezingReserveCycles(memoryInfo, operationCapacityBytes);
+    let remainingUploadChunkCount = uploadChunkCount(remainingUploadBytes);
+    let remainingUploadHashInstructionCycles = hashInstructionCycles(remainingUploadBytes);
+    let remainingUploadCost = uploadWriteCost(remainingUploadBytes, remainingUploadChunkCount);
+    let activeCommitMetadataCycles = commitMetadataCycles(activeUploadedChunkCount);
+    let activeCommitCost = commitOperationCost(activeUploadedChunkCount);
+    let activeVetKeyDerivationCost = vetKeyDerivationCost(activeEncryptedSessionCount);
+    let minimumSafeBalance =
+      postWriteFreezingReserve +
+      remainingUploadCost +
+      activeVetKeyDerivationCost +
+      activeCommitCost +
+      STORAGE_ONCHAIN_UPLOAD_OPERATION_MARGIN_CYCLES;
+    {
+      memory = {
+        projectedAllocatedBytes;
+        projectedCapacityBytes;
+        projectedCapacityDeltaBytes = if (projectedCapacityBytes > memoryInfo.capacity) {
+          Nat.sub(projectedCapacityBytes, memoryInfo.capacity);
+        } else {
+          0;
+        };
+      };
+      activity = {
+        sessionCount = activeSessions.size();
+        encryptedSessionCount = activeEncryptedSessionCount;
+        reservationBytes = activeReservationBytes;
+        uploadedBytes = activeUploadedBytes;
+        uploadedChunkCount = activeUploadedChunkCount;
+        remainingBytes = remainingUploadBytes;
+        remainingChunkCount = remainingUploadChunkCount;
+      };
+      cost = {
+        operation = operationCost;
+        remainingWrite = remainingUploadCost;
+        remainingHashInstructions = remainingUploadHashInstructionCycles;
+        vetKeyDerivation = activeVetKeyDerivationCost;
+        commit = activeCommitCost;
+        commitMetadata = activeCommitMetadataCycles;
+      };
+      safety = {
+        currentFreezingReserve;
+        postWriteFreezingReserve;
+        minimumSafeBalance;
+        targetBalance = minimumSafeBalance + STORAGE_ONCHAIN_UPLOAD_TARGET_FLOOR_CYCLES;
+        operationFloorBalance = operationFreezingReserve + operationCost + STORAGE_ONCHAIN_UPLOAD_OPERATION_MARGIN_CYCLES;
+      };
+    };
+  };
+
+  func requestOnChainUploadFundingIfNeeded<system>(totalSize : Nat) : () {
     switch (es.getStorageBackendType()) {
-      case (#BlobStorage) return #ok;
+      case (#BlobStorage) return;
       case (#OnChain) {};
     };
 
-    let ?bid = storage.backendId else {
-      return #err("Insufficient storage canister cycles: backendId not set");
+    let requirement = onChainUploadFundingRequirement(totalSize, 0, 0);
+    let projectedAllocatedBytes = requirement.memory.projectedAllocatedBytes;
+    let currentBalance = Cycles.balance();
+    let requiredBalance = requirement.safety.targetBalance;
+    if (currentBalance >= requiredBalance) return;
+    if (projectedAllocatedBytes > uploadFundingRequestedBytes) {
+      uploadFundingRequestedBytes := projectedAllocatedBytes;
     };
+    if (requiredBalance > uploadFundingRequestedTargetBalance) {
+      uploadFundingRequestedTargetBalance := requiredBalance;
+    };
+    if (not hasManagedStorageFunding()) {
+      lastUploadFundingError := ?"Manual top-up required for OnChain upload";
+      return;
+    };
+    if (uploadFundingInFlight) return;
 
-    let backend : actor {
-      ensureStorageCyclesForUpload : (Nat, Nat) -> async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text>;
-    } = actor (Principal.toText(bid));
-
-    try {
-      switch (await backend.ensureStorageCyclesForUpload(Cycles.balance(), totalSize)) {
-        case (#ok _) #ok;
-        case (#err(message)) #err("Insufficient storage canister cycles: " # message);
+    let now : Time.Time = Time.now();
+    switch (lastUploadFundingRequestAt) {
+      case (?lastRequestedAt) {
+        if (now - lastRequestedAt < STORAGE_ONCHAIN_UPLOAD_FUNDING_COOLDOWN) return;
       };
-    } catch (e) {
-      #err("Insufficient storage canister cycles: auto top-up failed: " # Error.message(e));
+      case null {};
     };
+
+    let ?bid = storage.backendId else return;
+    let backend : actor {
+      ensureStorageCyclesForUpload : (EnsureStorageCyclesForUploadRequest) -> async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text>;
+    } = actor (Principal.toText(bid));
+    lastUploadFundingRequestAt := ?now;
+    uploadFundingInFlight := true;
+
+    ignore Timer.setTimer<system>(
+      #seconds 0,
+      func() : async () {
+        try {
+          let latestRequirement = onChainUploadFundingRequirement(0, 0, 0);
+          let requestedTargetBalance = if (uploadFundingRequestedTargetBalance > latestRequirement.safety.targetBalance) {
+            uploadFundingRequestedTargetBalance;
+          } else {
+            latestRequirement.safety.targetBalance;
+          };
+          let request : EnsureStorageCyclesForUploadRequest = {
+            currentBalance = Cycles.balance();
+            requiredBalance = requestedTargetBalance;
+            postWriteFreezingReserve = latestRequirement.safety.postWriteFreezingReserve;
+            projectedCapacityBytes = latestRequirement.memory.projectedCapacityBytes;
+            remainingUploadBytes = latestRequirement.activity.remainingBytes;
+            activeUploadedBytes = latestRequirement.activity.uploadedBytes;
+          };
+          let result = await backend.ensureStorageCyclesForUpload(request);
+          switch (result) {
+            case (#ok _) {
+              lastUploadFundingCompletedAt := ?Time.now();
+              lastUploadFundingError := null;
+            };
+            case (#err message) {
+              lastUploadFundingError := ?message;
+            };
+          };
+        } catch (e) {
+          lastUploadFundingError := ?Error.message(e);
+        };
+        uploadFundingInFlight := false;
+
+        let latestRequirement = onChainUploadFundingRequirement(0, 0, 0);
+        let requestedTargetBalance = if (uploadFundingRequestedTargetBalance > latestRequirement.safety.targetBalance) {
+          uploadFundingRequestedTargetBalance;
+        } else {
+          latestRequirement.safety.targetBalance;
+        };
+        if (Cycles.balance() < requestedTargetBalance) {
+          requestOnChainUploadFundingIfNeeded<system>(0);
+        } else {
+          uploadFundingRequestedBytes := latestRequirement.memory.projectedAllocatedBytes;
+          uploadFundingRequestedTargetBalance := latestRequirement.safety.targetBalance;
+        };
+      },
+    );
+  };
+
+  func hasManagedStorageFunding() : Bool {
+    switch (storage.subscriptionCache) {
+      case (?cache) switch (cache.status) {
+        case (#active({ plan })) switch (plan) {
+          case (#Pro) true;
+          case _ false;
+        };
+        case _ false;
+      };
+      case null false;
+    };
+  };
+
+  func uploadFundingWaitMessage(operation : Text, requirement : UploadFundingRequirement, currentBalance : Nat) : Text {
+    switch (lastUploadFundingError) {
+      case (?message) {
+        if (message != STORAGE_FUNDING_IN_PROGRESS_ERROR and not uploadFundingInFlight) {
+          return "Insufficient storage canister cycles: auto top-up failed: " # message;
+        };
+      };
+      case null {};
+    };
+    "Upload funding is pending: " #
+    operation #
+    " would leave storage below the freezing threshold. Minimum safe balance is " #
+    Nat.toText(requirement.safety.minimumSafeBalance) #
+    " cycles, current balance is " #
+    Nat.toText(currentBalance) #
+    " cycles, projected post-write freezing reserve is " #
+    Nat.toText(requirement.safety.postWriteFreezingReserve) #
+    " cycles.";
+  };
+
+  func manualOnChainFundingMessage(operation : Text, requirement : UploadFundingRequirement, currentBalance : Nat) : Text {
+    "Manual OnChain funding required: " #
+    operation #
+    " requires safe balance " #
+    Nat.toText(requirement.safety.minimumSafeBalance) #
+    " cycles before continuing OnChain upload work. Current balance is " #
+    Nat.toText(currentBalance) #
+    " cycles, recommended top-up target is " #
+    Nat.toText(requirement.safety.targetBalance) #
+    " cycles.";
+  };
+
+  func ensureOnChainUploadOperationCyclesOrRequest<system>(operation : Text, operationAdditionalBytes : Nat, operationCost : Nat) : ?Text {
+    switch (es.getStorageBackendType()) {
+      case (#BlobStorage) return null;
+      case (#OnChain) {};
+    };
+    requestOnChainUploadFundingIfNeeded<system>(0);
+    let requirement = onChainUploadFundingRequirement(0, operationAdditionalBytes, operationCost);
+    let currentBalance = Cycles.balance();
+    if (currentBalance >= requirement.safety.minimumSafeBalance and currentBalance >= requirement.safety.operationFloorBalance) return null;
+    if (not hasManagedStorageFunding()) {
+      return ?manualOnChainFundingMessage(operation, requirement, currentBalance);
+    };
+    ?uploadFundingWaitMessage(operation, requirement, currentBalance);
+  };
+
+  func ensureOnChainUploadProjectionOrRequest<system>(operation : Text, totalSize : Nat) : ?Text {
+    switch (es.getStorageBackendType()) {
+      case (#BlobStorage) return null;
+      case (#OnChain) {};
+    };
+    requestOnChainUploadFundingIfNeeded<system>(totalSize);
+    let requirement = onChainUploadFundingRequirement(totalSize, 0, 0);
+    let currentBalance = Cycles.balance();
+    if (hasManagedStorageFunding()) {
+      // Pro storage may start while background funding catches up; chunk and
+      // finish calls still enforce per-operation cycle safety.
+      return null;
+    };
+    if (currentBalance >= requirement.safety.minimumSafeBalance) return null;
+    return ?manualOnChainFundingMessage(operation, requirement, currentBalance);
   };
 
   func resolveExpectedStorageIdentityOrigin<system>() : Text {
@@ -345,8 +805,24 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   public shared ({ caller }) func update(args : T.UpdateArguments) : async T.StorageResult<()> {
+    switch (args) {
+      case (#File fileArgs) {
+        if (fileArgs.metadata.chunkIds.size() > 0) {
+          switch (ensureOnChainUploadOperationCyclesOrRequest<system>("finish upload session", 0, commitOperationCost(fileArgs.metadata.chunkIds.size()))) {
+            case (?message) return #err(storageError(message));
+            case null {};
+          };
+        };
+      };
+      case (#Directory _) {};
+    };
+    requestOnChainUploadFundingIfNeeded<system>(es.activeUploadReservationBytes());
     switch (await* es.update(caller, args)) {
-      case (#ok _) { reportLowCyclesIfNeeded<system>(); #ok };
+      case (#ok _) {
+        reportLowCyclesIfNeeded<system>();
+        requestOnChainUploadFundingIfNeeded<system>(0);
+        #ok;
+      };
       case (#err message) #err(storageError(message));
     };
   };
@@ -365,27 +841,67 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  public shared ({ caller }) func createStorageBatch(args : T.CreateBatchArguments) : async T.StorageResult<T.CreateBatchResponse> {
-    switch (await* es.createBatch(caller, args)) {
+  public shared ({ caller }) func beginUploadSession(args : T.BeginUploadSessionArguments) : async T.StorageResult<T.BeginUploadSessionResponse> {
+    switch (await* es.beginUploadSession(caller, args)) {
       case (#err message) #err(storageError(message));
       case (#ok response) {
-        switch (await* ensureOnChainUploadCycles<system>(args.totalSize)) {
-          case (#err message) {
+        switch (ensureOnChainUploadProjectionOrRequest<system>("start upload session", args.totalSize)) {
+          case (?message) {
             ignore es.rollbackBatch(caller, response.batchId);
-            #err(storageError(message));
+            return #err(storageError(message));
           };
-          case (#ok) #ok response;
+          case null {};
         };
+        #ok response;
       };
     };
   };
 
-  public shared ({ caller }) func createStorageChunk(args : T.CreateChunkArguments) : async T.StorageResult<T.CreateChunkResponse> {
-    switch (es.createChunk(caller, args)) {
+  public shared query ({ caller }) func getUploadSession(args : { batchId : T.BatchId }) : async T.StorageResult<T.UploadSessionStatus> {
+    switch (es.getUploadSession(caller, args.batchId)) {
+      case (#ok status) #ok status;
+      case (#err message) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func appendUploadChunk(args : T.CreateChunkArguments) : async T.StorageResult<T.CreateChunkResponse> {
+    switch (ensureOnChainUploadOperationCyclesOrRequest<system>("append upload chunk", args.content.size(), appendOperationCost(args.content.size()))) {
+      case (?message) return #err(storageError(message));
+      case null {};
+    };
+    switch (es.appendUploadChunk(caller, args)) {
       case (#ok response) {
         reportLowCyclesIfNeeded<system>();
+        requestOnChainUploadFundingIfNeeded<system>(0);
         #ok response;
       };
+      case (#err message) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func finishUploadSession(args : T.FinishUploadSessionArguments) : async T.StorageResult<()> {
+    let operationCost = switch (es.getUploadSession(caller, args.batchId)) {
+      case (#ok status) commitOperationCost(status.chunkIds.size());
+      case (#err message) return #err(storageError(message));
+    };
+    switch (ensureOnChainUploadOperationCyclesOrRequest<system>("finish upload session", 0, operationCost)) {
+      case (?message) return #err(storageError(message));
+      case null {};
+    };
+    switch (await* es.finishUploadSession(caller, args)) {
+      case (#ok measurement) {
+        lastUploadCommitMeasurement := ?measurement;
+        reportLowCyclesIfNeeded<system>();
+        requestOnChainUploadFundingIfNeeded<system>(0);
+        #ok;
+      };
+      case (#err message) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func abortUploadSession(args : { batchId : T.BatchId }) : async T.StorageResult<()> {
+    switch (es.abortUploadSession(caller, args.batchId)) {
+      case (#ok) #ok;
       case (#err message) #err(storageError(message));
     };
   };
@@ -829,7 +1345,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     switch (es.validateVetkeyAccess(caller, keyId)) {
       case (#err(message)) throw Error.reject(message);
       case (#ok(input)) {
-        await ManagementCanister.vetKdDeriveKey(input, storage.domainSeparatorBytes, storage.vetKdKeyId, transportKey);
+        let response = await (with cycles = vetKeyDeriveKeyAttachedCycles()) IC.ic.vetkd_derive_key({
+          context = storage.domainSeparatorBytes;
+          input;
+          key_id = storage.vetKdKeyId;
+          transport_public_key = transportKey;
+        });
+        response.encrypted_key;
       };
     };
   };
@@ -871,6 +1393,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   // _immutableObjectStorageConfirmBlobDeletion, _immutableObjectStorageUpdateGatewayPrincipals,
   // _immutableObjectStorageRefillCashier
   include MixinObjectStorage();
+
+  public shared ({ caller }) func preflightCaffeineUpload(args : T.PreflightCaffeineUploadArgs) : async T.StorageResult<()> {
+    switch (await* es.preflightCaffeineUpload(caller, args)) {
+      case (#ok _) #ok;
+      case (#err message) #err(storageError(message));
+    };
+  };
 
   public shared ({ caller }) func commitCaffeineUpload(args : T.CommitCaffeineUploadArgs) : async T.StorageResult<()> {
     switch (await* es.commitCaffeineUpload(caller, args)) {
@@ -974,7 +1503,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     assert Principal.equal(caller, owner) or Principal.equal(caller, canisterId) or Principal.isController(caller);
     switch (await* SubscriptionGate.ensureSubscription(storage, true)) {
       case (#err(message)) throw Error.reject(message);
-      case (#ok _) {};
+      case (#ok _) resetUploadFundingRetryState();
     };
   };
 
@@ -984,6 +1513,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       throw Error.reject("backend caller required");
     };
     storage.subscriptionCache := null;
+    resetUploadFundingRetryState();
   };
 
   public query func getCycleBalance() : async Nat {
@@ -994,10 +1524,87 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     es.getStatus(Cycles.balance());
   };
 
-  /// Get canister module_hash via canister_status.
-  /// Only accessible by canister controllers.
-  public shared func getModuleHash() : async ?Blob {
-    let status = await IC.ic.canister_status({ canister_id = canisterId });
-    status.module_hash;
+  func buildStorageCardMetrics() : StorageCardMetrics {
+    let status = es.getStatus(Cycles.balance());
+    {
+      subscriptionStatus = status.subscriptionStatus;
+      encryptedBytesUsed = status.encryptedBytesUsed;
+      backendId = status.backendId;
+      storageBackendType = status.storageBackendType;
+      memoryInfo = es.memoryInfo();
+      runtimeMemoryBytes = cachedRuntimeMemoryBytes;
+      runtimeStableMemoryBytes = cachedRuntimeStableMemoryBytes;
+    };
+  };
+
+  func buildCanisterCyclesCardMetrics() : CanisterCyclesCardMetrics {
+    let requirement = onChainUploadFundingRequirement(0, 0, 0);
+    let memoryInfo = es.memoryInfo();
+    {
+      balance = Cycles.balance();
+      freezingThresholdSeconds = freezingThresholdSeconds();
+      memory = requirement.memory;
+      activity = requirement.activity;
+      cost = requirement.cost;
+      safety = requirement.safety;
+      funding = {
+        requestedBytes = uploadFundingRequestedBytes;
+        requestedTargetBalance = uploadFundingRequestedTargetBalance;
+        inFlight = uploadFundingInFlight;
+        lastRequestedAt = lastUploadFundingRequestAt;
+        lastCompletedAt = lastUploadFundingCompletedAt;
+        lastError = lastUploadFundingError;
+      };
+      lastCommit = switch (lastUploadCommitMeasurement) {
+        case (?m) ?{
+          bytes = m.bytes;
+          chunkCount = m.chunkCount;
+          hashRoundCount = m.hashRoundCount;
+          hashInstructionCycles = m.hashInstructions;
+        };
+        case null null;
+      };
+      runtimeMemory = {
+        memoryInfo;
+        runtimeMemoryBytes = cachedRuntimeMemoryBytes;
+        runtimeStableMemoryBytes = cachedRuntimeStableMemoryBytes;
+      };
+    };
+  };
+
+  public shared query ({ caller }) func getStorageCardMetrics() : async T.StorageResult<StorageCardMetrics> {
+    switch (ownerMetricsAccessError(caller)) {
+      case (?err) #err(err);
+      case null #ok(buildStorageCardMetrics());
+    };
+  };
+
+  public shared ({ caller }) func refreshStorageCardMetrics() : async T.StorageResult<StorageCardMetrics> {
+    switch (ownerMetricsAccessError(caller)) {
+      case (?err) return #err(err);
+      case null {};
+    };
+    ignore await refreshRuntimeStatus();
+    switch (await* SubscriptionGate.ensureSubscription(storage, true)) {
+      case (#ok _) resetUploadFundingRetryState();
+      case (#err _) {};
+    };
+    #ok(buildStorageCardMetrics());
+  };
+
+  public shared query ({ caller }) func getCanisterCyclesCardMetrics() : async T.StorageResult<CanisterCyclesCardMetrics> {
+    switch (ownerMetricsAccessError(caller)) {
+      case (?err) #err(err);
+      case null #ok(buildCanisterCyclesCardMetrics());
+    };
+  };
+
+  public shared ({ caller }) func refreshCanisterCyclesCardMetrics() : async T.StorageResult<CanisterCyclesCardMetrics> {
+    switch (ownerMetricsAccessError(caller)) {
+      case (?err) return #err(err);
+      case null {};
+    };
+    ignore await refreshRuntimeStatus();
+    #ok(buildCanisterCyclesCardMetrics());
   };
 };

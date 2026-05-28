@@ -33,6 +33,7 @@ export enum UploadState {
   FAILED,
   CANCELED,
   FINALIZING,
+  WAITING_FOR_FUNDING,
 }
 
 /**
@@ -109,12 +110,13 @@ export type Permission = ExtractVariantKeys<PermissionRaw>;
  * Upload progress in bytes
  */
 export type Progress =
+  | { current: number; message?: string; retryAt?: number; status: UploadState.WAITING_FOR_FUNDING; total: number }
   | { current: number; status: UploadState.IN_PROGRESS; total: number }
   | { errorMessage: string; status: UploadState.FAILED }
   | {
       status: Exclude<
         UploadState,
-        UploadState.FAILED | UploadState.IN_PROGRESS
+        UploadState.FAILED | UploadState.IN_PROGRESS | UploadState.WAITING_FOR_FUNDING
       >;
     };
 

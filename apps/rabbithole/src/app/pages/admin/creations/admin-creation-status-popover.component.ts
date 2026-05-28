@@ -614,7 +614,6 @@ export class AdminCreationStatusPopoverComponent {
   }
 
   private _paymentPhaseKey(phase: PaymentPhase): string {
-    if ('Activating' in phase) return 'activating';
     if ('Charging' in phase) return 'charging';
     if ('CheckingBalances' in phase) return 'checking';
     if ('FetchingRates' in phase) return 'rates';
@@ -625,7 +624,6 @@ export class AdminCreationStatusPopoverComponent {
   }
 
   private _paymentPhaseLabel(phase: PaymentPhase): string {
-    if ('Activating' in phase) return 'Activating trial';
     if ('Charging' in phase) {
       return `Charging ${this._formatTokenAmount(phase.Charging.amount, phase.Charging.tokenId)}`;
     }

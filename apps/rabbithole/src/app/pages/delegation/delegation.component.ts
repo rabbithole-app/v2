@@ -94,8 +94,8 @@ const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
 })
 export class DelegationComponent {
   #profileService = inject(ProfileService);
-  #avatarService = inject(AvatarService);
   readonly profile = this.#profileService.profile;
+  #avatarService = inject(AvatarService);
   readonly avatarSrc = computed(() =>
     this.#avatarService.avatarSrc(this.profile()?.avatarRef[0]),
   );

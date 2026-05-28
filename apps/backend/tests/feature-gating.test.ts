@@ -109,8 +109,8 @@ describe("Feature Gating", () => {
     return unwrapStorageResult(await storageActor.create(args));
   }
 
-  async function createStorageBatch(args: Parameters<EncryptedStorageActorService["createStorageBatch"]>[0]) {
-    return unwrapStorageResult(await storageActor.createStorageBatch(args));
+  async function beginUploadSession(args: Parameters<EncryptedStorageActorService["beginUploadSession"]>[0]) {
+    return unwrapStorageResult(await storageActor.beginUploadSession(args));
   }
 
   beforeAll(async () => {
@@ -480,21 +480,14 @@ describe("Feature Gating", () => {
       expect(status.subscriptionStatus[0]).toEqual({ free: null });
     });
 
-    test("refreshSubscription returns #trial after activateTrial", async () => {
-      backendActor.setIdentity(manager.ownerIdentity);
-      // Register user first (required for activateTrial)
-      await backendActor.ensureUser([]);
-      await backendActor.activateTrial();
+    test("refreshSubscription returns #active after Pro activation", async () => {
+      await ensureOwnerProSubscription();
 
-      // Advance time to expire cache from previous test (24h TTL)
-      await manager.pic.advanceTime(25 * 60 * 60 * 1000);
-      await manager.pic.tick();
-
-      storageActor.setIdentity(manager.ownerIdentity);
-      await storageActor.refreshSubscription();
       const status = await storageActor.getStatus();
       expect(status.subscriptionStatus).toHaveLength(1);
-      expect(status.subscriptionStatus[0]).toHaveProperty("trial");
+      expect(status.subscriptionStatus[0]).toEqual({
+        active: { plan: { Pro: null } },
+      });
     });
 
     test("cache returns consistent status on repeated calls", async () => {
@@ -509,20 +502,22 @@ describe("Feature Gating", () => {
   // ===================== Feature Gates =====================
 
   describe("Permission and Encryption Gates", () => {
-    test("#trial — createAccessBatch works", async () => {
-      // Ensure trial is active and cache is fresh
-      await storageActor.refreshSubscription();
+    test("#active (Pro) — createAccessBatch works", async () => {
+      await ensureOwnerProSubscription();
+
       const s = await storageActor.getStatus();
-      expect(s.subscriptionStatus[0]).toHaveProperty("trial");
+      expect(s.subscriptionStatus[0]).toEqual({
+        active: { plan: { Pro: null } },
+      });
 
       await createStorageNode({
-        entry: [DIRECTORY, "TrialShared"],
+        entry: [DIRECTORY, "ProShared"],
         createMode: CREATE_NEW,
         encryptionMode: [],
       });
 
       await createOrdinaryAccessGrant({
-        entry: [[DIRECTORY, "TrialShared"]],
+        entry: [[DIRECTORY, "ProShared"]],
         user: userAlice.getPrincipal(),
         permission: { Read: null },
       });
@@ -1649,7 +1644,6 @@ describe("Feature Gating", () => {
     });
 
     test("#active (Pro) — createAccessBatch works after reactivation", async () => {
-      // Trial already expired from previous test (15 days advance)
       backendActor.setIdentity(manager.ownerIdentity);
       const proTimeMs = await manager.pic.getTime();
       const proNow = BigInt(proTimeMs) * 1_000_000n;
@@ -1671,14 +1665,15 @@ describe("Feature Gating", () => {
         active: { plan: { Pro: null } },
       });
 
+      const directoryName = "ProSharedReactivated";
       await createStorageNode({
-        entry: [DIRECTORY, "ProShared"],
+        entry: [DIRECTORY, directoryName],
         createMode: CREATE_NEW,
         encryptionMode: [],
       });
       // Grant to alice (not owner — owner can't change own rights)
       await createOrdinaryAccessGrant({
-        entry: [[DIRECTORY, "ProShared"]],
+        entry: [[DIRECTORY, directoryName]],
         user: userAlice.getPrincipal(),
         permission: { Read: null },
       });
@@ -1908,146 +1903,35 @@ describe("Feature Gating", () => {
     });
   });
 
-  // ===================== Trial Limit =====================
+  // ===================== Included Storage Limit =====================
 
-  describe("Trial Storage Limit", () => {
-    test("plaintext createBatch works regardless of subscription", async () => {
+  describe("Included Storage Limit", () => {
+    test("plaintext upload session works regardless of subscription", async () => {
       // Pro is active from B3 — plaintext should always work
-      await createStorageNode({
+      const session = await beginUploadSession({
         entry: [FILE, "plain-large.bin"],
+        totalSize: 500_000_000n,
+        declaredUploadBytes: [],
+        expectedChunkCount: [],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(PLAINTEXT),
       });
-
-      const batch = await createStorageBatch({
-        entry: [FILE, "plain-large.bin"],
-        totalSize: 500_000_000n,
-      });
-      expect(batch.batchId).toBeDefined();
+      expect(session.batchId).toBeDefined();
     });
 
-    test("encrypted createBatch works with Pro (no size limit)", async () => {
+    test("encrypted upload session works with Pro (no size limit)", async () => {
       await ensureOwnerProSubscription();
       await storageActor.refreshSubscription();
 
-      await createStorageNode({
-        entry: [FILE, "pro-huge.dat"],
-        createMode: CREATE_NEW,
-        encryptionMode: toNullable(ENCRYPTED),
-      });
-
-      const batch = await createStorageBatch({
+      const session = await beginUploadSession({
         entry: [FILE, "pro-huge.dat"],
         totalSize: 500_000_000n,
-      });
-      expect(batch.batchId).toBeDefined();
-    });
-
-    test("encrypted createBatch rejects file exceeding trial limit", async () => {
-      // Advance time so Pro (1h expiry) is expired and subscription cache (24h TTL) is stale
-      await manager.pic.advanceTime(25 * 60 * 60 * 1000); // 25 hours
-      await manager.pic.tick(10);
-
-      // Re-activate as Trial via admin
-      backendActor.setIdentity(manager.ownerIdentity);
-      const picTimeMs = await manager.pic.getTime();
-      const now = BigInt(picTimeMs) * 1_000_000n;
-      const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
-      await backendActor.activateSubscription(
-        manager.ownerIdentity.getPrincipal(),
-        { Trial: null },
-        [now + fourteenDays],
-      );
-      storageActor.setIdentity(manager.ownerIdentity);
-      await storageActor.refreshSubscription();
-
-      const status = await storageActor.getStatus();
-      expect(status.subscriptionStatus[0]).toHaveProperty("trial");
-
-      await createStorageNode({
-        entry: [FILE, "too-big.dat"],
+        declaredUploadBytes: [],
+        expectedChunkCount: [],
         createMode: CREATE_NEW,
         encryptionMode: toNullable(ENCRYPTED),
       });
-
-      // 150MB exceeds 100MB trial limit
-      await expect(
-        createStorageBatch({
-          entry: [FILE, "too-big.dat"],
-          totalSize: 150_000_000n,
-        }),
-      ).rejects.toThrow(/exceeds/i);
-    });
-
-    test("encrypted createBatch picks up Pro immediately after trial limit failure", async () => {
-      await createStorageNode({
-        entry: [FILE, "trial-to-pro-huge.dat"],
-        createMode: CREATE_NEW,
-        encryptionMode: toNullable(ENCRYPTED),
-      });
-
-      await expect(
-        createStorageBatch({
-          entry: [FILE, "trial-to-pro-huge.dat"],
-          totalSize: 150_000_000n,
-        }),
-      ).rejects.toThrow(/exceeds/i);
-
-      backendActor.setIdentity(manager.ownerIdentity);
-      const registeredStorages = await backendActor.listStorages();
-      expect(
-        registeredStorages.some(
-          (item) => item.canisterId[0]?.toText() === storage.canisterId.toText(),
-        ),
-      ).toBe(true);
-      const picTimeMs = await manager.pic.getTime();
-      const now = BigInt(picTimeMs) * 1_000_000n;
-      const thirtyDays = 30n * 24n * 60n * 60n * 1_000_000_000n;
-      await backendActor.activateSubscription(
-        manager.ownerIdentity.getPrincipal(),
-        { Pro: null },
-        [now + thirtyDays],
-      );
-      await manager.pic.tick();
-      const backendSubscription = await backendActor.getSubscription();
-      expect(backendSubscription[0]?.plan).toEqual({ Pro: null });
-
-      const statusAfterActivation = await storageActor.getStatus();
-      expect(statusAfterActivation.subscriptionStatus).toHaveLength(0);
-
-      const batch = await createStorageBatch({
-        entry: [FILE, "trial-to-pro-huge.dat"],
-        totalSize: 150_000_000n,
-      });
-      expect(batch.batchId).toBeDefined();
-    });
-
-    test("encrypted createBatch works within trial limit", async () => {
-      backendActor.setIdentity(manager.ownerIdentity);
-      const picTimeMs = await manager.pic.getTime();
-      const now = BigInt(picTimeMs) * 1_000_000n;
-      const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
-      await backendActor.activateSubscription(
-        manager.ownerIdentity.getPrincipal(),
-        { Trial: null },
-        [now + fourteenDays],
-      );
-      storageActor.setIdentity(manager.ownerIdentity);
-      await storageActor.refreshSubscription();
-      const status = await storageActor.getStatus();
-      expect(status.subscriptionStatus[0]).toHaveProperty("trial");
-
-      await createStorageNode({
-        entry: [FILE, "small-secret.dat"],
-        createMode: CREATE_NEW,
-        encryptionMode: toNullable(ENCRYPTED),
-      });
-
-      const batch = await createStorageBatch({
-        entry: [FILE, "small-secret.dat"],
-        totalSize: 1_000n,
-      });
-      expect(batch.batchId).toBeDefined();
+      expect(session.batchId).toBeDefined();
     });
 
     test("encryptedBytesUsed starts at zero", async () => {
@@ -2071,6 +1955,33 @@ describe("Feature Gating", () => {
       expect(status).toHaveProperty("encryptedBytesUsed");
       expect(status).toHaveProperty("subscriptionStatus");
       expect(status).toHaveProperty("backendId");
+    });
+
+    test("owner card metrics expose storage and cycle sidebar data", async () => {
+      const storageMetrics = unwrapStorageResult(await storageActor.getStorageCardMetrics());
+      expect(storageMetrics).toHaveProperty("encryptedBytesUsed");
+      expect(storageMetrics).toHaveProperty("storageBackendType");
+      expect(storageMetrics).toHaveProperty("memoryInfo");
+
+      const cyclesMetrics = unwrapStorageResult(await storageActor.getCanisterCyclesCardMetrics());
+      expect(cyclesMetrics.balance).toBeGreaterThan(0n);
+      expect(cyclesMetrics.safety.targetBalance).toBeGreaterThanOrEqual(
+        cyclesMetrics.safety.minimumSafeBalance,
+      );
+    });
+
+    test("non-owner cannot read owner cycle metrics", async () => {
+      const intruder = createIdentity("metrics-intruder");
+      storageActor.setIdentity(intruder);
+      try {
+        const result = await storageActor.getCanisterCyclesCardMetrics();
+        expect(result).toHaveProperty("err");
+        if ("err" in result) {
+          expect(result.err.code).toEqual({ PermissionDenied: null });
+        }
+      } finally {
+        storageActor.setIdentity(manager.ownerIdentity);
+      }
     });
 
     test("mutations do not crash with cycle monitoring", async () => {
@@ -2140,8 +2051,11 @@ describe("Feature Gating", () => {
 
   describe("checkSubscription direct variants", () => {
     const CheckResultIDL = IDL.Variant({
-      active: IDL.Record({ plan: IDL.Variant({ Free: IDL.Null, Trial: IDL.Null, Pro: IDL.Null }) }),
-      trial: IDL.Record({ remainingBytes: IDL.Nat }),
+      active: IDL.Record({ plan: IDL.Variant({ Free: IDL.Null, Pro: IDL.Null }) }),
+      licensed: IDL.Record({
+        includedBytes: IDL.Nat,
+        maxFileBytes: IDL.Nat,
+      }),
       expired: IDL.Null,
       free: IDL.Null,
       invalidWasm: IDL.Null,
@@ -2159,63 +2073,6 @@ describe("Feature Gating", () => {
       });
       const [result] = IDL.decode([CheckResultIDL], response);
       expect(result).toEqual({ invalidWasm: null });
-    });
-  });
-
-  // ===================== reportTrialBytes positive =====================
-
-  describe("reportTrialBytes positive case", () => {
-    test("reportTrialBytes records bytes and reduces remaining trial bytes", async () => {
-      // Ensure trial is active (from earlier "Subscription Check and Cache" tests)
-      // Expire cache and refresh to get current trial state
-      await manager.pic.advanceTime(25 * 60 * 60 * 1000);
-      await manager.pic.tick(10);
-
-      // Re-activate trial if needed (previous tests may have changed state)
-      backendActor.setIdentity(manager.ownerIdentity);
-      const sub = await backendActor.getSubscription();
-      const currentPlan = sub.length > 0 ? sub[0] : null;
-
-      // If not on trial, activate one via admin
-      if (!currentPlan || !("Trial" in currentPlan.plan) || "Expired" in currentPlan.status) {
-        const picTimeMs = await manager.pic.getTime();
-        const now = BigInt(picTimeMs) * 1_000_000n;
-        const fourteenDays = 14n * 24n * 60n * 60n * 1_000_000_000n;
-        await backendActor.activateSubscription(
-          manager.ownerIdentity.getPrincipal(),
-          { Trial: null },
-          [now + fourteenDays],
-        );
-      }
-
-      // Refresh subscription cache on storage
-      storageActor.setIdentity(manager.ownerIdentity);
-      await storageActor.refreshSubscription();
-
-      const statusBefore = await storageActor.getStatus();
-      expect(statusBefore.subscriptionStatus[0]).toHaveProperty("trial");
-      const remainingBefore = (statusBefore.subscriptionStatus[0] as any).trial.remainingBytes;
-
-      // Report 10MB of trial bytes from the storage canister
-      const reportedBytes = 10_000_000n;
-      await manager.pic.updateCall({
-        canisterId: backend.canisterId,
-        sender: storage.canisterId,
-        method: "reportTrialBytes",
-        arg: IDL.encode([IDL.Nat], [reportedBytes]),
-      });
-      await manager.pic.tick();
-
-      // Expire cache and refresh to pick up updated bytes
-      await manager.pic.advanceTime(25 * 60 * 60 * 1000);
-      await manager.pic.tick();
-      await storageActor.refreshSubscription();
-
-      const statusAfter = await storageActor.getStatus();
-      expect(statusAfter.subscriptionStatus[0]).toHaveProperty("trial");
-      const remainingAfter = (statusAfter.subscriptionStatus[0] as any).trial.remainingBytes;
-
-      expect(remainingAfter).toBe(remainingBefore - reportedBytes);
     });
   });
 });
