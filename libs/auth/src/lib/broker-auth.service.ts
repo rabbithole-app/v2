@@ -13,7 +13,7 @@ import { assertClient } from './asserts';
 import {
   AUTH_CONFIG,
   AUTH_IDENTITY_ATTRIBUTES_PROVIDER,
-  AuthClientLogoutOptions,
+  AuthClientSignOutOptions,
   AuthConfig,
   AuthSessionEvent,
   AuthSignInOptions,
@@ -57,7 +57,7 @@ export class BrokerAuthService {
 
   async requestAttributes(params: {
     keys: string[];
-    nonce: Uint8Array;
+    nonce: Uint8Array | Promise<Uint8Array>;
   }): Promise<SignedAttributes> {
     const { client } = this.#state();
     assertClient(client);
@@ -83,11 +83,11 @@ export class BrokerAuthService {
     });
   }
 
-  async signOut(opts?: AuthClientLogoutOptions) {
+  async signOut(opts?: AuthClientSignOutOptions) {
     const { client } = this.#state();
     assertClient(client);
 
-    await client.logout(opts);
+    await client.signOut(opts);
     await this.#initState({ clearAuthEvent: true });
   }
 

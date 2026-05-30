@@ -250,56 +250,11 @@
                   }
                   @case ('identityProvider') {
                     @if (user.identity.provider[0]; as provider) {
-                      @switch (provider) {
-                        @case ('apple') {
-                          <ng-icon
-                            name="hugeApple"
-                            class="size-4"
-                            [hlmTooltip]="_identityProviderLabel(provider)"
-                            [attr.aria-label]="_identityProviderLabel(provider)"
-                          />
-                        }
-                        @case ('google') {
-                          <ng-icon
-                            name="hugeGoogle"
-                            class="size-4"
-                            [hlmTooltip]="_identityProviderLabel(provider)"
-                            [attr.aria-label]="_identityProviderLabel(provider)"
-                          />
-                        }
-                        @case ('internet_identity') {
-                          <ng-icon
-                            name="hugeInfinity01"
-                            class="size-4"
-                            [hlmTooltip]="_identityProviderLabel(provider)"
-                            [attr.aria-label]="_identityProviderLabel(provider)"
-                          />
-                        }
-                        @case ('dev_openid') {
-                          <ng-icon
-                            name="hugeDeveloper"
-                            class="size-4"
-                            [hlmTooltip]="_identityProviderLabel(provider)"
-                            [attr.aria-label]="_identityProviderLabel(provider)"
-                          />
-                        }
-                        @case ('microsoft') {
-                          <ng-icon
-                            name="hugeMicrosoft"
-                            class="size-4"
-                            [hlmTooltip]="_identityProviderLabel(provider)"
-                            [attr.aria-label]="_identityProviderLabel(provider)"
-                          />
-                        }
-                        @default {
-                          <span
-                            class="text-xs font-medium uppercase"
-                            [hlmTooltip]="_identityProviderLabel(provider)"
-                          >
-                            {{ provider.slice(0, 2) }}
-                          </span>
-                        }
-                      }
+                      <span
+                        class="inline-flex h-6 items-center rounded-md border px-2 text-xs font-medium"
+                      >
+                        {{ _identityProviderLabel(provider) }}
+                      </span>
                     }
                   }
                   @case ('inviter') {

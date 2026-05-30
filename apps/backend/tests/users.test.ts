@@ -13,7 +13,7 @@ import {
 import { BackendManager } from "./setup/backend-manager.ts";
 import { userAlice, userBob, userCharlie } from "./setup/helpers.ts";
 import {
-  IdentityAttributesSyncResult,
+  IdentityAttributesFinishResult,
   InternetIdentityManager,
 } from "./setup/internet-identity.ts";
 
@@ -98,24 +98,24 @@ describe("Users", () => {
     expect(user.identity.syncedAt).toHaveLength(0);
   });
 
-  test("syncIdentityAttributes rejects calls without sender_info", async () => {
+  test("_internet_identity_sign_in_finish rejects calls without sender_info", async () => {
     actor.setIdentity(userAlice);
-    const nonce = await actor.attributeNonceBegin();
+    await actor._internet_identity_sign_in_start();
 
-    const result = await actor.syncIdentityAttributes(nonce);
-    expect(result).toEqual({ err: { untrustedSigner: null } });
+    const result = await actor._internet_identity_sign_in_finish();
+    expect(result).toEqual({ err: { NoAttributes: null } });
 
     const user = await actor.getUser();
     expect(user).toHaveLength(0);
   });
 
-  test("syncIdentityAttributes stores II caller_info name and email", async () => {
+  test("identity attribute callbacks store II caller_info name and email", async () => {
     await internetIdentity.deploy();
     const identityNumber = await internetIdentity.createGoogleOpenIdIdentity();
     const user = userCharlie.getPrincipal();
 
     actor.setIdentity(userCharlie);
-    const nonce = await actor.attributeNonceBegin();
+    const nonce = await actor._internet_identity_sign_in_start();
     const attributes = await internetIdentity.getGoogleSignedAttributes(
       identityNumber,
       nonce,
@@ -123,21 +123,24 @@ describe("Users", () => {
     expect(attributes.signature.length).toBeGreaterThan(0);
 
     const response = await internetIdentity.updateCallWithSenderInfo({
-      arg: IDL.encode([IDL.Vec(IDL.Nat8)], [nonce]),
+      arg: IDL.encode([], []),
       canisterId: manager.backendCanisterId,
-      method: "syncIdentityAttributes",
+      method: "_internet_identity_sign_in_finish",
       sender: user,
       senderInfo: internetIdentity.senderInfo(attributes),
     });
-    const [result] = IDL.decode([IdentityAttributesSyncResult], response);
-    expect(result).toEqual({ ok: null });
+    const [finishResult] = IDL.decode([IdentityAttributesFinishResult], response);
+    expect(finishResult).toEqual({ ok: null });
 
     actor.setIdentity(userCharlie);
+    const claimResult = await actor.claimVerifiedEmailAccess();
+    expect(claimResult).toEqual({ ok: null });
+
     const storedUser = expectSingle(await actor.getUser(), "synced user");
     expect(storedUser.id.toText()).toBe(user.toText());
     expect(storedUser.identity.email).toEqual(["andri.schatz@dfinity.org"]);
     expect(storedUser.identity.name).toEqual(["Andri Schatz"]);
-    expect(storedUser.identity.provider).toEqual(["google"]);
+    expect(storedUser.identity.provider).toEqual(["openid"]);
     expect(storedUser.identity.verifiedEmail).toEqual([true]);
     expect(storedUser.lastLoginAt).toHaveLength(1);
     expect(storedUser.identity.syncedAt).toHaveLength(1);

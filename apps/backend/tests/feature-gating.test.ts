@@ -24,7 +24,7 @@ import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls.ts";
 import { userAlice, userBob, userCharlie } from "./setup/helpers.ts";
 import {
   II_BACKEND_CANISTER_ID,
-  IdentityAttributesSyncResult,
+  IdentityAttributesFinishResult,
   updateCallWithSenderInfo,
 } from "./setup/internet-identity.ts";
 
@@ -84,8 +84,7 @@ function encodeVerifiedEmailCallerInfo({
       ["implicit:nonce", { Blob: nonce }],
       ["implicit:origin", { Text: origin }],
       ["implicit:issued_at_timestamp_ns", { Nat: issuedAtNs }],
-      ["openid:https://accounts.google.com:email", { Text: email }],
-      ["openid:https://accounts.google.com:email_verified", { Bool: true }],
+      ["openid:https://accounts.google.com:verified_email", { Text: email }],
     ],
   }]);
 }
@@ -221,12 +220,12 @@ describe("Feature Gating", () => {
     email: string,
   ): Promise<void> {
     backendActor.setIdentity(identity);
-    const nonce = await backendActor.attributeNonceBegin();
+    const nonce = await backendActor._internet_identity_sign_in_start();
     const issuedAtNs = BigInt(await manager.pic.getTime()) * 1_000_000n;
     const response = await updateCallWithSenderInfo(manager.pic, {
-      arg: IDL.encode([IDL.Vec(IDL.Nat8)], [nonce]),
+      arg: IDL.encode([], []),
       canisterId: backend.canisterId,
-      method: "syncIdentityAttributes",
+      method: "_internet_identity_sign_in_finish",
       sender: identity.getPrincipal(),
       senderInfo: {
         info: encodeVerifiedEmailCallerInfo({
@@ -238,8 +237,12 @@ describe("Feature Gating", () => {
         signer: II_BACKEND_CANISTER_ID,
       },
     });
-    const [result] = IDL.decode([IdentityAttributesSyncResult], response);
-    expect(result).toEqual({ ok: null });
+    const [finishResult] = IDL.decode([IdentityAttributesFinishResult], response);
+    expect(finishResult).toEqual({ ok: null });
+
+    backendActor.setIdentity(identity);
+    const claimResult = await backendActor.claimVerifiedEmailAccess();
+    expect(claimResult).toEqual({ ok: null });
   }
 
   async function syncStorageVerifiedEmail(
@@ -247,25 +250,28 @@ describe("Feature Gating", () => {
     email: string,
   ): Promise<unknown> {
     storageActor.setIdentity(identity);
-    const nonce = await storageActor.attributeNonceBegin();
+    const nonce = await storageActor._internet_identity_sign_in_start();
     const issuedAtNs = BigInt(await manager.pic.getTime()) * 1_000_000n;
     const response = await updateCallWithSenderInfo(manager.pic, {
-      arg: IDL.encode([IDL.Vec(IDL.Nat8)], [nonce]),
+      arg: IDL.encode([], []),
       canisterId: storage.canisterId,
-      method: "syncIdentityAttributes",
+      method: "_internet_identity_sign_in_finish",
       sender: identity.getPrincipal(),
       senderInfo: {
         info: encodeVerifiedEmailCallerInfo({
           email,
           issuedAtNs,
           nonce,
-          origin: `https://${storage.canisterId.toText()}.icp0.io`,
+          origin: "http://localhost:4201",
         }),
         signer: II_BACKEND_CANISTER_ID,
       },
     });
-    const [result] = IDL.decode([IdentityAttributesSyncResult], response);
-    return result;
+    const [finishResult] = IDL.decode([IdentityAttributesFinishResult], response);
+    expect(finishResult).toEqual({ ok: null });
+
+    storageActor.setIdentity(identity);
+    return await storageActor.claimVerifiedEmailAccess();
   }
 
   async function createOrdinaryAccessGrant(
@@ -654,7 +660,7 @@ describe("Feature Gating", () => {
     });
 
     test("pending email grant is claimed by verified email and reports the pending grant id", async () => {
-      const expectedOrigin = `https://${storage.canisterId.toText()}.icp0.io`;
+      const expectedOrigin = "http://localhost:4201";
       const email = "andri.schatz@dfinity.org";
 
       await ensureOwnerProSubscription();
@@ -687,12 +693,12 @@ describe("Feature Gating", () => {
       ).toBe(false);
 
       storageActor.setIdentity(userCharlie);
-      const nonce = await storageActor.attributeNonceBegin();
+      const nonce = await storageActor._internet_identity_sign_in_start();
       const issuedAtNs = BigInt(await manager.pic.getTime()) * 1_000_000n;
       const response = await updateCallWithSenderInfo(manager.pic, {
-        arg: IDL.encode([IDL.Vec(IDL.Nat8)], [nonce]),
+        arg: IDL.encode([], []),
         canisterId: storage.canisterId,
-        method: "syncIdentityAttributes",
+        method: "_internet_identity_sign_in_finish",
         sender: userCharlie.getPrincipal(),
         senderInfo: {
           info: encodeVerifiedEmailCallerInfo({
@@ -704,7 +710,9 @@ describe("Feature Gating", () => {
           signer: II_BACKEND_CANISTER_ID,
         },
       });
-      const [result] = IDL.decode([IdentityAttributesSyncResult], response);
+      const [finishResult] = IDL.decode([IdentityAttributesFinishResult], response);
+      expect(finishResult).toEqual({ ok: null });
+      const result = await storageActor.claimVerifiedEmailAccess();
       expect(result).toEqual({ ok: null });
 
       const recipientEvents = await storageActor.listStorageEvents([], 100n);

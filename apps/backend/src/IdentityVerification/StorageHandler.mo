@@ -13,7 +13,7 @@ module {
     afterClaim : () -> async ();
   };
 
-  public func onVerifiedAttributes(
+  public func claimVerifiedEmailAccess(
     deps : Deps,
     caller : Principal,
     attrs : IdentityVerification.VerifiedIdentityAttributes,

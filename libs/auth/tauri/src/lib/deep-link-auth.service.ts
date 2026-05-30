@@ -29,8 +29,8 @@ import {
 import { createAuthClient, loadIdentity, saveDelegationChain } from './utils';
 
 export type AuthClientInstance = AuthClient;
-export type AuthClientLogoutOptions = Parameters<
-  AuthClientInstance['logout']
+export type AuthClientSignOutOptions = Parameters<
+  AuthClientInstance['signOut']
 >[0];
 
 interface State {
@@ -83,7 +83,7 @@ export class TauriDeepLinkAuthService implements IAuthService {
     await openUrl(url);
   }
 
-  signOut(options?: AuthClientLogoutOptions) {
+  signOut(options?: AuthClientSignOutOptions) {
     const { client } = this.#state();
     this.#state.update((state) => ({
       ...state,
@@ -93,7 +93,7 @@ export class TauriDeepLinkAuthService implements IAuthService {
 
     assertClient(client);
 
-    return client.logout(options);
+    return client.signOut(options);
   }
 
   async #initState() {

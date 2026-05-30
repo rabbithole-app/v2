@@ -77,6 +77,7 @@ export class BlobStorageGatewayClient {
   async createCertificate(rootHash: string): Promise<Uint8Array> {
     const arg = IDL.encode([IDL.Text], [rootHash]);
     const result = await this.#agent.call(this.#canisterId, {
+      effectiveCanisterId: this.#canisterId,
       methodName: '_immutableObjectStorageCreateCertificate',
       arg,
     });

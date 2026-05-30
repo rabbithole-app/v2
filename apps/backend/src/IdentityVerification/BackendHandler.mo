@@ -8,8 +8,11 @@ import SharedAccess "../SharedAccess/lib";
 import IdentityVerification "lib";
 
 module {
-  public type Deps = {
+  public type VerifiedAttributesDeps = {
     upsertFromVerifiedAttributes : (Principal, IdentityVerification.VerifiedIdentityAttributes) -> Result.Result<(), Text>;
+  };
+
+  public type ClaimVerifiedEmailAccessDeps = {
     claimStorageEmailAccessByCommitment : (Principal, Principal, Blob) -> async ();
   };
 
@@ -38,10 +41,10 @@ module {
 
   public func onVerifiedAttributes(
     sharedAccess : SharedAccess.Store,
-    deps : Deps,
+    deps : VerifiedAttributesDeps,
     caller : Principal,
     attrs : IdentityVerification.VerifiedIdentityAttributes,
-  ) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+  ) : Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
     switch (deps.upsertFromVerifiedAttributes(caller, attrs)) {
       case (#ok) {
         let isVerifiedEmail = switch (attrs.verifiedEmail) {
@@ -52,7 +55,6 @@ module {
           switch (attrs.email) {
             case (?email) {
               linkSharedAccessForVerifiedEmail(sharedAccess, caller, email);
-              await claimStorageEmailAccessForVerifiedEmail(sharedAccess, caller, email, deps.claimStorageEmailAccessByCommitment);
             };
             case null {};
           };
@@ -63,5 +65,25 @@ module {
         #err(#malformedPayload);
       };
     };
+  };
+
+  public func claimVerifiedEmailAccess(
+    sharedAccess : SharedAccess.Store,
+    deps : ClaimVerifiedEmailAccessDeps,
+    caller : Principal,
+    attrs : IdentityVerification.VerifiedIdentityAttributes,
+  ) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+    let isVerifiedEmail = switch (attrs.verifiedEmail) {
+      case (?value) value;
+      case null false;
+    };
+    if (not isVerifiedEmail) {
+      return #err(#verifiedEmailRequired);
+    };
+    let ?email = attrs.email else {
+      return #err(#malformedPayload);
+    };
+    await claimStorageEmailAccessForVerifiedEmail(sharedAccess, caller, email, deps.claimStorageEmailAccessByCommitment);
+    #ok;
   };
 };

@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "ada924ed18c207b95b1d12c015b5838d48f232a469fdde5d7994f49d5f0a7b11",
+  "mopsTomlDepsHash": "2c7c9fe17b16e2d9421d47f48d04bc68484c209135e069a067d50970cd4976e5",
   "deps": {
     "caffeineai-object-storage": "0.1.1",
     "core": "2.5.0",
@@ -114,6 +114,7 @@
     "canister-rbac@0.1": "0.1.0",
     "core@2.0.0": "2.0.0",
     "compression": "0.3.0",
+    "identity-attributes": "0.4.0",
     "tar": "https://github.com/christoph-dfinity/motoko-tar#9dcd0bd79fe26a81cdfa75b5c8104c68a4cd67d9"
   },
   "hashes": {
@@ -1591,6 +1592,17 @@
       "core@2.0.0/src/pure/RealTimeQueue.mo": "ad0866b7bad9da97875e5e8d2f37e44909ac05899b244f844ffece6135559648",
       "core@2.0.0/src/pure/Queue.mo": "21cfed3bb4aa4bf8265adcaaea4e0f4b7f34c3ee81abbb9e6b889efd4626a8b8",
       "core@2.0.0/src/pure/Set.mo": "f0155b1d548cbc8889fcff75ef52f0cab7998b034621e4faac8d3b79d7bbac07"
+    },
+    "identity-attributes@0.4.0": {
+      "identity-attributes@0.4.0/src/lib.mo": "dcdf2d82818c4793daed63db051cc99b08a75cef14f696675ef92b0b559ce6b7",
+      "identity-attributes@0.4.0/src/Internal/Challenges.mo": "e313386cdc13ce92baf745f64bf54cf40d4d30d3265e6797aa86212659c8c8f2",
+      "identity-attributes@0.4.0/NOTICE": "ae3a34e972617652978a72d81f2af03822b81ccd5f2d40c08fe8ad83e16fc71e",
+      "identity-attributes@0.4.0/LICENSE": "840e3d57a38a8061f55d04470fbd58b9345326fa04ea10ee42add5c6e3b2aa08",
+      "identity-attributes@0.4.0/src/Internal/Attributes.mo": "7c52658b3be8dc0ab8b25f175e54af914f813f7d95cb9dde6301f4088f0dabc8",
+      "identity-attributes@0.4.0/mops.toml": "e99bd2eb4a35e136af41efdb47c66e44165183e1dcbf4d03fdae1776c480a5d6",
+      "identity-attributes@0.4.0/README.md": "9678275d74b736f88906aedc2b6328dfa14937864bc4010d48542028a3050927",
+      "identity-attributes@0.4.0/src/Internal/Value.mo": "135d2d56c4d5e114f5325c68231d6e1ca5f01a51113d29571b2836105ecd547c",
+      "identity-attributes@0.4.0/src/Internal/Verify.mo": "65c6d4dcc3bc6bebd8cc2e93cb434d9c382f83b2a1608a162e776c100e497893"
     }
   }
 }

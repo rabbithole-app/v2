@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { SignedAttributes } from '@icp-sdk/auth/client';
 
 import { BrokerAuthService } from './broker-auth.service';
-import { AuthClientLogoutOptions, AuthSignInOptions, IAuthService } from './tokens';
+import { AuthClientSignOutOptions, AuthSignInOptions, IAuthService } from './tokens';
 
 @Injectable()
 export class AuthService implements IAuthService {
@@ -15,7 +15,7 @@ export class AuthService implements IAuthService {
 
   async requestAttributes(params: {
     keys: string[];
-    nonce: Uint8Array;
+    nonce: Uint8Array | Promise<Uint8Array>;
   }): Promise<SignedAttributes> {
     return this.#broker.requestAttributes(params);
   }
@@ -24,7 +24,7 @@ export class AuthService implements IAuthService {
     await this.#broker.signIn(options);
   }
 
-  async signOut(opts?: AuthClientLogoutOptions) {
+  async signOut(opts?: AuthClientSignOutOptions) {
     await this.#broker.signOut(opts);
   }
 }

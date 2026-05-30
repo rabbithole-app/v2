@@ -64,6 +64,28 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const Error = IDL.Variant({
+    'FrontendOriginsNotConfigured' : IDL.Null,
+    'MixedSsoSources' : IDL.Record({
+      'otherKeys' : IDL.Vec(IDL.Text),
+      'ssoKeys' : IDL.Vec(IDL.Text),
+    }),
+    'Stale' : IDL.Record({ 'ageNs' : IDL.Nat }),
+    'MalformedCandid' : IDL.Null,
+    'AmbiguousAttribute' : IDL.Record({
+      'field' : IDL.Text,
+      'sources' : IDL.Vec(IDL.Text),
+    }),
+    'NoAttributes' : IDL.Null,
+    'UnknownNonce' : IDL.Null,
+    'UntrustedSsoSource' : IDL.Record({ 'domain' : IDL.Text }),
+    'MissingField' : IDL.Text,
+    'FrontendOriginMismatch' : IDL.Record({
+      'got' : IDL.Text,
+      'expected' : IDL.Vec(IDL.Text),
+    }),
+  });
+  const Result_8 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
   const Plan = IDL.Variant({ 'Pro' : IDL.Null, 'Free' : IDL.Null });
   const AddStorageError = IDL.Variant({
     'NotController' : IDL.Null,
@@ -172,6 +194,16 @@ export const idlFactory = ({ IDL }) => {
     'free' : IDL.Null,
     'unknownCanister' : IDL.Null,
     'invalidWasm' : IDL.Null,
+  });
+  const IdentityAttributesSyncError = IDL.Variant({
+    'expired' : IDL.Null,
+    'malformedPayload' : IDL.Null,
+    'verifiedEmailRequired' : IDL.Null,
+    'attributesNotFound' : IDL.Null,
+  });
+  const IdentityAttributesSyncResult = IDL.Variant({
+    'ok' : IDL.Null,
+    'err' : IdentityAttributesSyncError,
   });
   const CreateProfileArgs = IDL.Record({
     'username' : IDL.Text,
@@ -1024,19 +1056,6 @@ export const idlFactory = ({ IDL }) => {
     'match' : UserDirectoryMatch,
     'profile' : IDL.Opt(PublicProfileSummary),
   });
-  const IdentityAttributesSyncError = IDL.Variant({
-    'expired' : IDL.Null,
-    'untrustedSigner' : IDL.Null,
-    'malformedPayload' : IDL.Null,
-    'invalidOrigin' : IDL.Null,
-    'nonceMismatch' : IDL.Null,
-    'verifiedEmailRequired' : IDL.Null,
-    'nonceNotFound' : IDL.Null,
-  });
-  const IdentityAttributesSyncResult = IDL.Variant({
-    'ok' : IDL.Null,
-    'err' : IdentityAttributesSyncError,
-  });
   const Result_1 = IDL.Variant({
     'ok' : IDL.Record({ 'cyclesAdded' : IDL.Nat }),
     'err' : IDL.Text,
@@ -1099,6 +1118,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_8], []),
+    '_internet_identity_sign_in_start' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'activateSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
         [],
@@ -1126,7 +1147,6 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'applyReferralCode' : IDL.Func([IDL.Text], [ApplyReferralCodeResult], []),
-    'attributeNonceBegin' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'checkStorageUpdate' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UpdateInfo)],
@@ -1135,6 +1155,11 @@ export const idlFactory = ({ IDL }) => {
     'checkSubscription' : IDL.Func(
         [IDL.Vec(IDL.Nat8)],
         [SubscriptionCheckResult],
+        [],
+      ),
+    'claimVerifiedEmailAccess' : IDL.Func(
+        [],
+        [IdentityAttributesSyncResult],
         [],
       ),
     'clearAvatar' : IDL.Func([], [], []),
@@ -1320,11 +1345,6 @@ export const idlFactory = ({ IDL }) => {
     'setUserRole' : IDL.Func([IDL.Principal, Role], [], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'stopStorageDeployer' : IDL.Func([], [], []),
-    'syncIdentityAttributes' : IDL.Func(
-        [IDL.Vec(IDL.Nat8)],
-        [IdentityAttributesSyncResult],
-        [],
-      ),
     'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result_1], []),
     'triggerAutoRenewals' : IDL.Func([], [], []),
     'triggerExpireOverdue' : IDL.Func([], [IDL.Vec(IDL.Principal)], []),

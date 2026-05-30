@@ -26,8 +26,8 @@ import { waitDelegationExpired } from './operators';
 import { AUTH_CONFIG, AuthSignInOptions, IAuthService } from './tokens';
 
 export type AuthClientInstance = AuthClient;
-export type AuthClientLogoutOptions = Parameters<
-  AuthClientInstance['logout']
+export type AuthClientSignOutOptions = Parameters<
+  AuthClientInstance['signOut']
 >[0];
 
 interface State {
@@ -223,12 +223,12 @@ export class DelegationAuthService implements IAuthService {
     }
   }
 
-  async signOut(options?: AuthClientLogoutOptions) {
+  async signOut(options?: AuthClientSignOutOptions) {
     let client = this.#state().client;
 
     assertClient(client);
 
-    client.logout(options);
+    await client.signOut(options);
     await clearDelegationChain();
     client = await createAuthClient();
 

@@ -104,12 +104,15 @@ describe('provideRegistration', () => {
   let authEventId = 0;
   const mockActor = {
     applyReferralCode: vi.fn(),
-    attributeNonceBegin: vi.fn(),
+    _internet_identity_sign_in_start: vi.fn(),
     ensureUser: vi.fn(),
     getUser: vi.fn(),
-    syncIdentityAttributes: vi.fn(),
+    claimVerifiedEmailAccess: vi.fn(),
   };
   const actorSignal = signal(mockActor);
+  const mockAttributeActor = {
+    _internet_identity_sign_in_finish: vi.fn(),
+  };
 
   const mockAuthService = {
     ready$: of(true),
@@ -130,15 +133,24 @@ describe('provideRegistration', () => {
     vi.spyOn(Actor, 'agentOf').mockReturnValue({
       getPrincipal: vi.fn().mockResolvedValue(Principal.fromText('aaaaa-aa')),
     } as never);
+    vi.spyOn(Actor, 'createActor').mockReturnValue(
+      mockAttributeActor as never,
+    );
     mockActor.applyReferralCode.mockReset();
-    mockActor.attributeNonceBegin.mockReset();
+    mockActor._internet_identity_sign_in_start.mockReset();
     mockActor.ensureUser.mockReset();
     mockActor.getUser.mockReset();
-    mockActor.syncIdentityAttributes.mockReset();
+    mockActor.claimVerifiedEmailAccess.mockReset();
+    mockAttributeActor._internet_identity_sign_in_finish.mockReset();
     mockAuthService.requestAttributes.mockReset();
-    mockActor.attributeNonceBegin.mockResolvedValue(new Uint8Array([1, 2, 3]));
+    mockActor._internet_identity_sign_in_start.mockResolvedValue(
+      new Uint8Array([1, 2, 3]),
+    );
+    mockActor.claimVerifiedEmailAccess.mockResolvedValue({ ok: null });
     mockActor.ensureUser.mockResolvedValue(undefined);
-    mockActor.syncIdentityAttributes.mockResolvedValue({ ok: null });
+    mockAttributeActor._internet_identity_sign_in_finish.mockResolvedValue({
+      ok: null,
+    });
     vi.spyOn(HttpAgent, 'create').mockResolvedValue({
       call: vi.fn().mockResolvedValue(undefined),
     } as never);
@@ -284,13 +296,15 @@ describe('provideRegistration', () => {
 
     await vi.waitFor(
       () => {
-        expect(mockActor.ensureUser).toHaveBeenCalledWith(['dev_openid']);
+        expect(mockActor.ensureUser).toHaveBeenCalledWith([
+          'internet_identity',
+        ]);
       },
       { timeout: 2500 },
     );
   });
 
-  it('should request the verified email attribute for OpenID issuer sign-in', async () => {
+  it('should request unscoped attributes for Dev OpenID sign-in', async () => {
     mockActor.getUser
       .mockResolvedValueOnce([])
       .mockResolvedValue([
@@ -307,11 +321,7 @@ describe('provideRegistration', () => {
 
     await vi.waitFor(() => {
       expect(mockAuthService.requestAttributes).toHaveBeenCalledWith({
-        keys: [
-          'openid:https://openid.localhost:name',
-          'openid:https://openid.localhost:email',
-          'openid:https://openid.localhost:verified_email',
-        ],
+        keys: ['name', 'verified_email'],
         nonce: new Uint8Array([1, 2, 3]),
       });
     });

@@ -15,7 +15,6 @@ import {
   HttpAgent,
   HttpAgentOptions,
 } from '@icp-sdk/core/agent';
-import { IDL } from '@icp-sdk/core/candid';
 import { AttributesIdentity } from '@icp-sdk/core/identity';
 import { Principal } from '@icp-sdk/core/principal';
 import { derivedFrom } from 'ngxtension/derived-from';
@@ -45,7 +44,10 @@ import {
   IAuthService,
   SignedIdentityAttributes,
 } from '@rabbithole/auth';
-import { RabbitholeActorService } from '@rabbithole/declarations/backend';
+import {
+  RabbitholeActorService,
+  rabbitholeIdlFactory,
+} from '@rabbithole/declarations/backend';
 
 import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors/http-agent';
 import { injectMainActor, MAIN_ACTOR_TOKEN } from '../injectors/main-actor';
@@ -58,6 +60,7 @@ const IDENTITY_ATTRIBUTES_RETRY_ATTEMPTS = 3;
 const IDENTITY_ATTRIBUTES_RETRY_DELAY_MS = 500;
 const IDENTITY_ATTRIBUTES_CONFIRMATION_ATTEMPTS = 3;
 const IDENTITY_ATTRIBUTES_CONFIRMATION_DELAY_MS = 500;
+const DEV_OPENID_ISSUER = 'https://openid.localhost';
 
 /**
  * Captures `?ref=` query parameter from the current URL,
@@ -96,7 +99,7 @@ export function provideRegistration(): EnvironmentProviders {
           if (keys.length === 0) return null;
 
           const actor = injector.get(MAIN_ACTOR_TOKEN)();
-          const nonce = await actor.attributeNonceBegin();
+          const nonce = await actor._internet_identity_sign_in_start();
           return {
             keys,
             nonce,
@@ -164,6 +167,10 @@ function attributeKeys(authEvent: AuthSessionEvent): string[] {
   }
 
   if (authEvent.openIdIssuer) {
+    if (authEvent.openIdIssuer === DEV_OPENID_ISSUER) {
+      return ['name', 'verified_email'];
+    }
+
     return ['name', 'email', 'verified_email'].map(
       (key) => `openid:${authEvent.openIdIssuer}:${key}`,
     );
@@ -174,38 +181,6 @@ function attributeKeys(authEvent: AuthSessionEvent): string[] {
   }
 
   return [];
-}
-
-function authProviderFromEvent(authEvent: AuthSessionEvent): string | null {
-  if (authEvent.ssoDomain) {
-    return 'sso';
-  }
-
-  if (authEvent.openIdProvider) {
-    return authEvent.openIdProvider;
-  }
-
-  if (!authEvent.openIdIssuer) {
-    return null;
-  }
-
-  if (authEvent.openIdIssuer === 'https://openid.localhost') {
-    return 'dev_openid';
-  }
-
-  if (authEvent.openIdIssuer.includes('accounts.google.com')) {
-    return 'google';
-  }
-
-  if (authEvent.openIdIssuer.includes('appleid.apple.com')) {
-    return 'apple';
-  }
-
-  if (authEvent.openIdIssuer.includes('login.microsoftonline.com')) {
-    return 'microsoft';
-  }
-
-  return 'openid';
 }
 
 async function ensureRegistered({
@@ -229,7 +204,7 @@ async function ensureRegistered({
     const existingUser = fromNullable(user);
 
     if (authEvent?.hasAttributes) {
-      const synced = await syncIdentityAttributes({
+      const verified = await finishIdentityAttributesSignIn({
         actor,
         authConfig,
         authEvent,
@@ -239,12 +214,10 @@ async function ensureRegistered({
       });
       const registered =
         existingUser != null ||
-        (synced && (await waitForRegisteredUser(actor)));
+        (verified && (await waitForRegisteredUser(actor)));
 
       if (!registered) {
-        const fallbackProvider =
-          authProviderFromEvent(authEvent) ?? 'internet_identity';
-        await actor.ensureUser([fallbackProvider]);
+        await actor.ensureUser(['internet_identity']);
       }
     } else if (existingUser == null) {
       await actor.ensureUser(['internet_identity']);
@@ -316,7 +289,7 @@ async function requestSignedIdentityAttributesAfterSignIn({
   }
 
   const requestAttributes = authService.requestAttributes;
-  const nonce = await actor.attributeNonceBegin();
+  const nonce = await actor._internet_identity_sign_in_start();
   const attributes = await requestAttributesWithRetry(
     () => requestAttributes({ keys, nonce }),
     IDENTITY_ATTRIBUTES_RETRY_ATTEMPTS,
@@ -329,12 +302,14 @@ async function requestSignedIdentityAttributesAfterSignIn({
 }
 
 async function submitSignedIdentityAttributes({
+  actor,
   authConfig,
   authService,
   canisterId,
   httpAgentOptions,
   signedAttributes,
 }: {
+  actor: ActorSubclass<RabbitholeActorService>;
   authConfig: AuthConfig;
   authService: IAuthService;
   canisterId: Principal;
@@ -352,19 +327,33 @@ async function submitSignedIdentityAttributes({
       },
     });
     const agent = await HttpAgent.create({ ...httpAgentOptions, identity });
-    await agent.call(canisterId, {
-      arg: IDL.encode([IDL.Vec(IDL.Nat8)], [signedAttributes.nonce]),
-      callSync: false,
-      effectiveCanisterId: canisterId,
-      methodName: 'syncIdentityAttributes',
-    });
+    const attributeActor = Actor.createActor<RabbitholeActorService>(
+      rabbitholeIdlFactory,
+      {
+        agent,
+        canisterId,
+      },
+    );
+
+    const finishResult = await attributeActor._internet_identity_sign_in_finish();
+    if (!('ok' in finishResult)) {
+      console.warn('Identity attributes verification failed:', finishResult.err);
+      return false;
+    }
+
+    const claimResult = await actor.claimVerifiedEmailAccess();
+    if (!('ok' in claimResult)) {
+      console.warn('Verified email access claim failed:', claimResult.err);
+    }
+
     return true;
-  } catch {
+  } catch (error) {
+    console.warn('Identity attributes finish failed:', error);
     return false;
   }
 }
 
-async function syncIdentityAttributes({
+async function finishIdentityAttributesSignIn({
   actor,
   authConfig,
   authEvent,
@@ -401,6 +390,7 @@ async function syncIdentityAttributes({
     if (!signedAttributes) return false;
 
     return await submitSignedIdentityAttributes({
+      actor,
       authConfig,
       authService,
       canisterId,

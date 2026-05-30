@@ -25,6 +25,28 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const Error = IDL.Variant({
+    'FrontendOriginsNotConfigured' : IDL.Null,
+    'MixedSsoSources' : IDL.Record({
+      'otherKeys' : IDL.Vec(IDL.Text),
+      'ssoKeys' : IDL.Vec(IDL.Text),
+    }),
+    'Stale' : IDL.Record({ 'ageNs' : IDL.Nat }),
+    'MalformedCandid' : IDL.Null,
+    'AmbiguousAttribute' : IDL.Record({
+      'field' : IDL.Text,
+      'sources' : IDL.Vec(IDL.Text),
+    }),
+    'NoAttributes' : IDL.Null,
+    'UnknownNonce' : IDL.Null,
+    'UntrustedSsoSource' : IDL.Record({ 'domain' : IDL.Text }),
+    'MissingField' : IDL.Text,
+    'FrontendOriginMismatch' : IDL.Record({
+      'got' : IDL.Text,
+      'expected' : IDL.Vec(IDL.Text),
+    }),
+  });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
   const BatchId = IDL.Nat;
   const StorageErrorCode = IDL.Variant({
     'Internal' : IDL.Null,
@@ -321,6 +343,16 @@ export const idlFactory = ({ IDL }) => {
     'revokedAt' : IDL.Opt(Time),
   });
   const ClaimPendingAccessGrantArguments = IDL.Record({ 'grantId' : IDL.Nat });
+  const IdentityAttributesSyncError = IDL.Variant({
+    'expired' : IDL.Null,
+    'malformedPayload' : IDL.Null,
+    'verifiedEmailRequired' : IDL.Null,
+    'attributesNotFound' : IDL.Null,
+  });
+  const IdentityAttributesSyncResult = IDL.Variant({
+    'ok' : IDL.Null,
+    'err' : IdentityAttributesSyncError,
+  });
   const ClearArguments = IDL.Record({});
   const CommitCaffeineUploadArgs = IDL.Record({
     'sha256' : IDL.Vec(IDL.Nat8),
@@ -889,19 +921,6 @@ export const idlFactory = ({ IDL }) => {
     'is_aliased' : IDL.Opt(IDL.Bool),
     'content_encoding' : IDL.Text,
   });
-  const IdentityAttributesSyncError = IDL.Variant({
-    'expired' : IDL.Null,
-    'untrustedSigner' : IDL.Null,
-    'malformedPayload' : IDL.Null,
-    'invalidOrigin' : IDL.Null,
-    'nonceMismatch' : IDL.Null,
-    'verifiedEmailRequired' : IDL.Null,
-    'nonceNotFound' : IDL.Null,
-  });
-  const IdentityAttributesSyncResult = IDL.Variant({
-    'ok' : IDL.Null,
-    'err' : IdentityAttributesSyncError,
-  });
   const UpdateArguments = IDL.Variant({
     'File' : IDL.Record({
       'metadata' : IDL.Record({
@@ -950,6 +969,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_1], []),
+    '_internet_identity_sign_in_start' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'abortUploadSession' : IDL.Func(
         [IDL.Record({ 'batchId' : BatchId })],
         [StorageResult_1],
@@ -971,7 +992,6 @@ export const idlFactory = ({ IDL }) => {
         [StorageResult_6],
         [],
       ),
-    'attributeNonceBegin' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'beginUploadSession' : IDL.Func(
         [BeginUploadSessionArguments],
         [StorageResult_5],
@@ -1001,6 +1021,11 @@ export const idlFactory = ({ IDL }) => {
     'claimPendingAccessGrant' : IDL.Func(
         [ClaimPendingAccessGrantArguments],
         [PrincipalAccessGrant],
+        [],
+      ),
+    'claimVerifiedEmailAccess' : IDL.Func(
+        [],
+        [IdentityAttributesSyncResult],
         [],
       ),
     'clear' : IDL.Func([ClearArguments], [], []),
@@ -1230,11 +1255,6 @@ export const idlFactory = ({ IDL }) => {
     'set_asset_properties' : IDL.Func([SetAssetPropertiesArguments], [], []),
     'showTree' : IDL.Func([IDL.Opt(Entry)], [IDL.Text], ['query']),
     'store' : IDL.Func([StoreArgs], [], []),
-    'syncIdentityAttributes' : IDL.Func(
-        [IDL.Vec(IDL.Nat8)],
-        [IdentityAttributesSyncResult],
-        [],
-      ),
     'takeRecoveryOwnership' : IDL.Func([], [OwnerEquivalentPrincipal], []),
     'take_ownership' : IDL.Func([], [], []),
     'unset_asset_content' : IDL.Func([UnsetAssetContentArguments], [], []),

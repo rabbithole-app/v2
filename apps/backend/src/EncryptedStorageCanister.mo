@@ -31,6 +31,7 @@ import SubscriptionGate "SubscriptionGate";
 import HttpAssetsMixin "HttpAssetsMixin";
 import IdentityVerification "IdentityVerification/lib";
 import IdentityVerificationMixin "IdentityVerification/mixin";
+import IdentityAttributes "mo:identity-attributes";
 import StorageIdentityHandler "IdentityVerification/StorageHandler";
 import StorageAccessClient "StorageAccessBridge/StorageClient";
 import Utils "Utils/lib";
@@ -654,21 +655,12 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     return ?manualOnChainFundingMessage(operation, requirement, currentBalance);
   };
 
-  func resolveExpectedStorageIdentityOrigin<system>() : Text {
-    switch (Runtime.envVar<system>("PUBLIC_AUTH_EXPECTED_ORIGIN")) {
-      case (?origin) return origin;
-      case null {};
-    };
-    "https://" # Principal.toText(canisterId) # ".icp0.io";
-  };
-
-  func resolveTrustedIdentitySigner<system>() : Principal {
-    Principal.fromText(Utils.envText<system>("PUBLIC_CANISTER_ID:internet_identity_backend", "rdmx6-jaaaa-aaaaa-aaadq-cai"));
-  };
-
   include IdentityVerificationMixin({
-    onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
-      let result = await StorageIdentityHandler.onVerifiedAttributes(
+    onVerifiedAttributes = func(_caller : Principal, _attrs : IdentityVerification.VerifiedIdentityAttributes) : Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+      #ok;
+    };
+    claimVerifiedEmailAccess = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+      let result = await StorageIdentityHandler.claimVerifiedEmailAccess(
         {
           emailCommitment = func(email : Text) : Blob = EncryptedStorage.emailCommitment(storage, email);
           claimByEmailCommitments = func(principal : Principal, commitments : [Blob]) : Result.Result<[T.PrincipalAccessGrant], Text> {
@@ -688,8 +680,9 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         case (#err(error)) #err(error);
       };
     };
-    resolveTrustedIdentitySigner;
-    resolveExpectedIdentityOrigin = resolveExpectedStorageIdentityOrigin;
+  });
+  include IdentityAttributes({
+    onVerified = storeVerifiedIdentityAttributes;
   });
 
   transient let installerAssetPermissions : ?HttpAssets.SetPermissions =

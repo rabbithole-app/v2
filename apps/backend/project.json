@@ -30,6 +30,30 @@
         "parallel": false
       }
     },
+    "sync-local-env": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "bash scripts/sync-env.sh local",
+        "parallel": false
+      }
+    },
+    "sync-staging-env": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "bash scripts/sync-env.sh staging",
+        "parallel": false
+      }
+    },
+    "sync-ic-env": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "command": "bash scripts/sync-env.sh ic",
+        "parallel": false
+      }
+    },
     "deploy": {
       "executor": "nx:run-commands",
       "options": {
@@ -38,7 +62,8 @@
           "docker compose up -d --wait",
           "node scripts/bootstrap.mjs",
           "node scripts/generate-declarations.mjs",
-          "icp deploy -e local --cycles 20t"
+          "icp deploy -e local --cycles 20t",
+          "bash scripts/sync-env.sh local"
         ],
         "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
         "parallel": false
@@ -57,6 +82,7 @@
           "node scripts/bootstrap.mjs",
           "node scripts/generate-declarations.mjs",
           "icp deploy -e local --cycles 20t",
+          "bash scripts/sync-env.sh local",
           "docker compose logs -f network caddy mock-server"
         ],
         "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },

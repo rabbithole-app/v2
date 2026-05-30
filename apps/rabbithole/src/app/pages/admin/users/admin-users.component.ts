@@ -11,13 +11,6 @@ import { RouterLink } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
-  hugeApple,
-  hugeDeveloper,
-  hugeGoogle,
-  hugeInfinity01,
-  hugeMicrosoft,
-} from '@ng-icons/huge-icons';
-import {
   lucideArrowDown,
   lucideArrowUp,
   lucideArrowUpDown,
@@ -102,6 +95,12 @@ type ColumnId =
 type SortDirectionName = 'asc' | 'desc';
 type UserRoleValue = 'admin' | 'moderator' | 'user';
 
+const IDENTITY_PROVIDER_LABELS = {
+  internet_identity: 'Internet Identity',
+  openid: 'OpenID',
+  sso: 'SSO',
+} as const;
+
 const EMPTY_PAGE: AdminUsersPage = {
   data: [],
   total: [],
@@ -140,11 +139,6 @@ const EMPTY_PAGE: AdminUsersPage = {
       lucideColumns3,
       lucideExternalLink,
       lucideRefreshCw,
-      hugeApple,
-      hugeDeveloper,
-      hugeGoogle,
-      hugeInfinity01,
-      hugeMicrosoft,
     }),
   ],
   templateUrl: './admin-users.component.html',
@@ -258,11 +252,9 @@ export class AdminUsersComponent {
       label: 'Auth provider',
       operators: ['is'],
       options: [
-        { label: 'Apple', value: 'apple' },
-        { label: 'Dev OpenID', value: 'dev_openid' },
         { label: 'Internet Identity', value: 'internet_identity' },
-        { label: 'Google', value: 'google' },
-        { label: 'Microsoft', value: 'microsoft' },
+        { label: 'OpenID', value: 'openid' },
+        { label: 'SSO', value: 'sso' },
       ],
     }),
     rbthFilterColumn.date<AdminUserListItem>({
@@ -424,12 +416,11 @@ export class AdminUsersComponent {
   }
 
   protected _identityProviderLabel(provider: string): string {
-    if (provider === 'apple') return 'Apple';
-    if (provider === 'dev_openid') return 'Dev OpenID';
-    if (provider === 'google') return 'Google';
-    if (provider === 'internet_identity') return 'Internet Identity';
-    if (provider === 'microsoft') return 'Microsoft';
-    return provider;
+    return (
+      IDENTITY_PROVIDER_LABELS[
+        provider as keyof typeof IDENTITY_PROVIDER_LABELS
+      ] ?? provider
+    );
   }
 
   protected _isRole(role: Role, value: UserRoleValue): boolean {

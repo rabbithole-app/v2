@@ -37,6 +37,7 @@ import KnownWasmHashesMixin "KnownWasmHashes/mixin";
 import AvatarStorageMixin "AvatarStorage/mixin";
 import UsersMixin "Users/mixin";
 import IdentityVerificationMixin "IdentityVerification/mixin";
+import IdentityAttributes "mo:identity-attributes";
 import NotificationsMixin "Notifications/mixin";
 import Settings "Settings/lib";
 import SettingsMixin "Settings/mixin";
@@ -59,22 +60,6 @@ import Utils "Utils/lib";
 
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
-
-  func resolveBackendExpectedIdentityOrigin<system>() : Text {
-    switch (Runtime.envVar<system>("PUBLIC_AUTH_EXPECTED_ORIGIN")) {
-      case (?origin) return origin;
-      case null {};
-    };
-
-    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-frontend")) {
-      case (?frontendId) return "https://" # frontendId # ".icp0.io";
-      case null return "https://rabbithole.app";
-    };
-  };
-
-  func resolveTrustedIdentitySigner<system>() : Principal {
-    Principal.fromText(Utils.envText<system>("PUBLIC_CANISTER_ID:internet_identity_backend", "rdmx6-jaaaa-aaaaa-aaadq-cai"));
-  };
 
   // --- Database ---
 
@@ -122,19 +107,29 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   include AvatarStorageMixin(canisterId, db);
   include UsersMixin(installer, db, avatarUploadReservations, avatarDrafts);
   include IdentityVerificationMixin({
-    onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
-      await BackendIdentityHandler.onVerifiedAttributes(
+    onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+      BackendIdentityHandler.onVerifiedAttributes(
         sharedAccess,
         {
           upsertFromVerifiedAttributes;
+        },
+        caller,
+        attrs,
+      );
+    };
+    claimVerifiedEmailAccess = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : async Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
+      await BackendIdentityHandler.claimVerifiedEmailAccess(
+        sharedAccess,
+        {
           claimStorageEmailAccessByCommitment;
         },
         caller,
         attrs,
       );
     };
-    resolveTrustedIdentitySigner;
-    resolveExpectedIdentityOrigin = resolveBackendExpectedIdentityOrigin;
+  });
+  include IdentityAttributes({
+    onVerified = storeVerifiedIdentityAttributes;
   });
   include KnownWasmHashesMixin({ assertAdmin });
   include NotificationsMixin({
@@ -550,7 +545,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
       return #err(#Other({ error_message = "creation record missing for id=" # Nat.toText(creationId); error_code = 0 }));
     };
-    let envVars = StorageDeployerOrchestrator.buildEnvironmentVariables(storageOrchestrator, record.envPairs);
+    let envVars = StorageDeployerOrchestrator.buildEnvironmentVariables(storageOrchestrator, record.envPairs, null);
     let subnetSelection : ?CMCTypes.SubnetSelection = switch (record.subnetId) {
       case (?subnet) ?#Subnet({ subnet });
       case null null;

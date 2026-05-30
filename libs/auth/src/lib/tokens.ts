@@ -12,8 +12,8 @@ import { Observable } from 'rxjs';
 
 export type AuthClientInstance = AuthClient;
 
-export type AuthClientLogoutOptions = Parameters<
-  AuthClientInstance['logout']
+export type AuthClientSignOutOptions = Parameters<
+  AuthClientInstance['signOut']
 >[0];
 
 export type AuthConfig = {
@@ -59,7 +59,7 @@ export interface IAuthService {
   ready$: Observable<boolean>;
   requestAttributes?(params: {
     keys: string[];
-    nonce: Uint8Array;
+    nonce: Uint8Array | Promise<Uint8Array>;
   }): Promise<SignedAttributes>;
   signIn(options?: AuthSignInOptions): Promise<void> | void;
   signOut(): Promise<void> | void;
@@ -71,7 +71,7 @@ export type IdentityAttributesProvider = (
 
 export type IdentityAttributesRequest = {
   keys: string[];
-  nonce: Uint8Array;
+  nonce: Uint8Array | Promise<Uint8Array>;
 };
 
 export type SignedIdentityAttributes = {

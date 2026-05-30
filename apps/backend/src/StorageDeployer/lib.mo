@@ -23,6 +23,7 @@ import GitHubReleases "GitHubReleases";
 import HttpDownloader "HttpDownloader";
 import Licenses "Licenses";
 import StorageDeployer "StorageDeployer";
+import StorageEnvironment "../StorageEnvironment";
 import WasmInstaller "WasmInstaller";
 import FrontendInstaller "FrontendInstaller";
 import Types "Types";
@@ -250,6 +251,14 @@ module StorageDeployerOrchestrator {
     Text.compare(a.name, b.name);
   };
 
+  func envPairValue(pairsOpt : ?[Types.EnvPair], name : Text) : ?Text {
+    let ?pairs = pairsOpt else return null;
+    for (pair in pairs.vals()) {
+      if (Text.equal(pair.name, name)) return ?pair.value;
+    };
+    null;
+  };
+
   func refreshRuntimeConfig<system>(store : Store) {
     store.vetKeyName := ?Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
     store.cashierCanisterId := ?Principal.fromText(Utils.envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
@@ -259,38 +268,47 @@ module StorageDeployerOrchestrator {
   /// Public so CmcRecovery can rebuild the exact same `environment_variables`
   /// when retrying `notify_create_canister` on ambiguous failure — otherwise
   /// CMC might process a not-yet-resolved block with different env vars.
-  public func buildEnvironmentVariables<system>(self : Store, custom : ?[Types.EnvPair]) : ?[Types.EnvPair] {
+  public func buildEnvironmentVariables<system>(self : Store, custom : ?[Types.EnvPair], storageCanisterId : ?Principal) : ?[Types.EnvPair] {
     let ?backendId = self.canisterId else return null;
-    let ?vetKey = self.vetKeyName else return null;
+    let ?defaultVetKey = self.vetKeyName else return null;
     let ?cashier = self.cashierCanisterId else return null;
+    let vetKey = switch (envPairValue(custom, StorageEnvironment.VETKEY_NAME)) {
+      case (?value) value;
+      case null defaultVetKey;
+    };
 
     let set = Set.fromArray<Types.EnvPair>(
       [
-        { name = "PUBLIC_CANISTER_ID:rabbithole-backend"; value = Principal.toText(backendId) },
-        { name = "VETKEY_NAME"; value = vetKey },
+        { name = StorageEnvironment.RABBITHOLE_BACKEND_CANISTER_ID; value = Principal.toText(backendId) },
+        { name = StorageEnvironment.VETKEY_NAME; value = vetKey },
         {
-          name = "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL";
+          name = StorageEnvironment.CASHIER_PRINCIPAL;
           value = Principal.toText(cashier);
         },
       ],
       compareEnvPairByName,
     );
 
-    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:rabbithole-frontend")) {
-      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_CANISTER_ID:rabbithole-frontend"; value });
+    switch (Runtime.envVar<system>(StorageEnvironment.RABBITHOLE_FRONTEND_CANISTER_ID)) {
+      case (?value) Set.add(set, compareEnvPairByName, { name = StorageEnvironment.RABBITHOLE_FRONTEND_CANISTER_ID; value });
       case null {};
     };
-    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:internet_identity_frontend")) {
-      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_CANISTER_ID:internet_identity_frontend"; value });
+    switch (Runtime.envVar<system>(StorageEnvironment.INTERNET_IDENTITY_FRONTEND_CANISTER_ID)) {
+      case (?value) Set.add(set, compareEnvPairByName, { name = StorageEnvironment.INTERNET_IDENTITY_FRONTEND_CANISTER_ID; value });
       case null {};
     };
-    switch (Runtime.envVar<system>("PUBLIC_CANISTER_ID:internet_identity_backend")) {
-      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_CANISTER_ID:internet_identity_backend"; value });
-      case null {};
+    let trustedAttributeSigners = switch (Runtime.envVar<system>(StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS)) {
+      case (?value) value;
+      case null Runtime.trap("Missing required environment variable: " # StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS);
     };
-    switch (Runtime.envVar<system>("PUBLIC_STORAGE_AUTH_EXPECTED_ORIGIN")) {
-      case (?value) Set.add(set, compareEnvPairByName, { name = "PUBLIC_AUTH_EXPECTED_ORIGIN"; value });
-      case null {};
+    Set.add(set, compareEnvPairByName, { name = StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS; value = trustedAttributeSigners });
+
+    switch (Runtime.envVar<system>(StorageEnvironment.STORAGE_FRONTEND_ORIGINS)) {
+      case (?value) Set.add(set, compareEnvPairByName, { name = StorageEnvironment.FRONTEND_ORIGINS; value });
+      case null switch (storageCanisterId) {
+        case (?value) Set.add(set, compareEnvPairByName, { name = StorageEnvironment.FRONTEND_ORIGINS; value = "https://" # Principal.toText(value) # ".icp0.io" });
+        case null {};
+      };
     };
 
     switch (custom) {
@@ -1225,7 +1243,7 @@ module StorageDeployerOrchestrator {
           };
         };
 
-        let envVars = buildEnvironmentVariables(store, record.envPairs);
+        let envVars = buildEnvironmentVariables(store, record.envPairs, null);
         switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId, envVars)) {
           case (#ok(canisterId)) {
             await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare, onCreationChanged);
@@ -1307,7 +1325,7 @@ module StorageDeployerOrchestrator {
           case (?deployerCanisterId) {
             // Re-apply backend-derived env vars on every install/upgrade so
             // older storage canisters pick up newly required runtime config.
-            let envVars = buildEnvironmentVariables(store, record.envPairs);
+            let envVars = buildEnvironmentVariables(store, record.envPairs, ?canisterId);
 
             // Preserve every existing controller except the temporary deployer/backend canister.
             switch (await updateCanisterSettings(canisterId, deployerCanisterId, envVars)) {

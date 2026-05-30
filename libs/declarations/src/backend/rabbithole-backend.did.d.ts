@@ -217,6 +217,21 @@ export interface EnsureStorageCyclesForUploadRequest {
   'requiredBalance' : bigint,
 }
 export interface EnvPair { 'value' : string, 'name' : string }
+export type Error = { 'FrontendOriginsNotConfigured' : null } |
+  {
+    'MixedSsoSources' : {
+      'otherKeys' : Array<string>,
+      'ssoKeys' : Array<string>,
+    }
+  } |
+  { 'Stale' : { 'ageNs' : bigint } } |
+  { 'MalformedCandid' : null } |
+  { 'AmbiguousAttribute' : { 'field' : string, 'sources' : Array<string> } } |
+  { 'NoAttributes' : null } |
+  { 'UnknownNonce' : null } |
+  { 'UntrustedSsoSource' : { 'domain' : string } } |
+  { 'MissingField' : string } |
+  { 'FrontendOriginMismatch' : { 'got' : string, 'expected' : Array<string> } };
 export interface EvmChainConfig {
   'evmRpcCanisterId' : string,
   'assets' : Array<SupportedAsset>,
@@ -269,12 +284,9 @@ export interface GetSubscriptionsResponse {
 }
 export type Header = [string, string];
 export type IdentityAttributesSyncError = { 'expired' : null } |
-  { 'untrustedSigner' : null } |
   { 'malformedPayload' : null } |
-  { 'invalidOrigin' : null } |
-  { 'nonceMismatch' : null } |
   { 'verifiedEmailRequired' : null } |
-  { 'nonceNotFound' : null };
+  { 'attributesNotFound' : null };
 export type IdentityAttributesSyncResult = { 'ok' : null } |
   { 'err' : IdentityAttributesSyncError };
 export interface ImmutableObjectStorageCreateCertificateResult {
@@ -595,6 +607,8 @@ export interface Rabbithole {
     ImmutableObjectStorageRefillResult
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
+  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_8>,
+  '_internet_identity_sign_in_start' : ActorMethod<[], Uint8Array>,
   'activateSubscription' : ActorMethod<
     [Principal, Plan, [] | [bigint]],
     undefined
@@ -643,9 +657,9 @@ export interface Rabbithole {
   'adminListUsers' : ActorMethod<[AdminUserListOptions], AdminUsersPage>,
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
   'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
-  'attributeNonceBegin' : ActorMethod<[], Uint8Array>,
   'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'checkSubscription' : ActorMethod<[Uint8Array], SubscriptionCheckResult>,
+  'claimVerifiedEmailAccess' : ActorMethod<[], IdentityAttributesSyncResult>,
   'clearAvatar' : ActorMethod<[], undefined>,
   'commitAvatarUpload' : ActorMethod<[string], AvatarRef>,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array>,
@@ -683,6 +697,14 @@ export interface Rabbithole {
       'evmAddress' : [] | [string],
     }
   >,
+  /**
+   * / Transfer ICP from the treasury subaccount to CMC for a target
+   * / canister. Caller must ensure sufficient balance via
+   * / `guardTreasuryIcpReserve`, including the ledger fee. `icpE8s`
+   * / is the amount CMC should receive; the ledger fee is charged
+   * / separately by `ledger.transfer`. CMC `#Refunded` returns ICP to
+   * / the same subaccount, keeping the round-trip inside treasury.
+   */
   'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getPublicProfiles' : ActorMethod<
@@ -840,10 +862,6 @@ export interface Rabbithole {
   'setUserRole' : ActorMethod<[Principal, Role], undefined>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
-  'syncIdentityAttributes' : ActorMethod<
-    [Uint8Array],
-    IdentityAttributesSyncResult
-  >,
   'topUpFromBalance' : ActorMethod<[Principal, bigint], Result_1>,
   'triggerAutoRenewals' : ActorMethod<[], undefined>,
   'triggerExpireOverdue' : ActorMethod<[], Array<Principal>>,
@@ -940,6 +958,8 @@ export type Result_6 = { 'ok' : null } |
   { 'err' : DeleteStorageError };
 export type Result_7 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
+export type Result_8 = { 'ok' : null } |
+  { 'err' : Error };
 export type Role = { 'admin' : null } |
   { 'moderator' : null } |
   { 'user' : null };

@@ -13,7 +13,7 @@ is not used.
 | `rabbithole-backend`          | Main Motoko backend — users, profiles, treasury, etc.  |
 | `rabbithole-frontend`         | Asset canister that serves the SPA                     |
 | `encrypted-storage`           | WASM template installed by backend into user storages; not deployed standalone |
-| `internet_identity_backend`   | Auth logic (release-2026-04-26 — II was split)         |
+| `internet_identity_backend`   | Auth logic (release-2026-05-26-be)                    |
 | `internet_identity_frontend`  | II login UI (embedded in wasm, see *II architecture* below) |
 | `xrc`                         | DFINITY Exchange Rate Canister; placed on the local System subnet |
 | `sol_rpc` / `evm_rpc`         | Pre-built DFINITY RPC canisters; placed on the local Fiduciary subnet |
@@ -58,6 +58,20 @@ If you reset the local PocketIC state, rerun `npx nx serve backend` or
 `npx nx deploy backend`. Do not run bare `icp deploy` after a reset: bootstrap
 must recreate pinned infrastructure canisters and rewrite local init args
 before install.
+
+If you run `icp deploy` directly, sync the backend auth environment immediately
+after the deploy:
+
+```bash
+cd apps/backend
+icp deploy -e local --cycles 20t
+bash scripts/sync-env.sh local
+```
+
+For mainnet-like environments, run `bash scripts/sync-env.sh staging` or
+`bash scripts/sync-env.sh ic` after the frontend canister exists. The script
+sets `trusted_attribute_signers` and expands `frontend_origins` with the
+deployed frontend canister URL.
 
 ## Other targets
 
@@ -135,6 +149,8 @@ npm --prefix apps/backend test         # vitest + @dfinity/pic integration suite
        now-patched init-args/rabbithole-backend.did
 4. icp deploy -e local --cycles 20t
      → builds Motoko, downloads prebuilt wasms, installs everything
+5. bash scripts/sync-env.sh local
+     → sets dynamic auth env on rabbithole-backend after local canister IDs are known
 ```
 
 `generate-declarations.mjs` intentionally runs **after** bootstrap. The backend
@@ -196,7 +212,7 @@ config from those runtime values.
 ## Internet Identity architecture
 
 Since release-2026-04-21, II ships as **two canisters**. The local environment
-currently uses release-2026-04-26:
+currently uses release-2026-05-26-be:
 
 - `internet_identity_backend` — auth logic, `callerInfoSigner` / identity
   attributes, etc. Its wasm (`internet_identity_backend.wasm.gz`) does **not**

@@ -140,8 +140,13 @@ export class ConfigService {
           ] satisfies NonNullable<AuthConfig['openIdProviders']>
         : [...environment.openIdProviders];
 
+    const appUrl =
+      envName === 'STAGING' && info.rabbitholeFrontendCanisterId
+        ? canisterUrl(info.rabbitholeFrontendCanisterId, httpAgentHost)
+        : environment.appUrl;
+
     return this.#buildConfig({
-      appUrl: environment.appUrl,
+      appUrl,
       backendCanisterId: info.rabbitholeBackendCanisterId || environment.backendCanisterId,
       canisterId,
       envName,

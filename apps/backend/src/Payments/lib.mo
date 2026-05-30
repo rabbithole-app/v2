@@ -5,6 +5,7 @@ import Text "mo:core/Text";
 import ICPayWebhooks "mo:icpay-webhooks";
 import Json "mo:json";
 import TreasuryTypes "mo:treasury/Types";
+import StorageEnvironment "../StorageEnvironment";
 
 module {
   public type PaymentPurpose = {
@@ -16,15 +17,12 @@ module {
   public type StorageBackendType = { #BlobStorage; #OnChain };
   public type StorageVetKeyLevel = { #standard; #highReplication };
 
-  /// Env-var names that `buildEnvironmentVariables` pins to system-derived
-  /// values (backend principal, frontend canister, cashier, etc.).
+  /// Env-var names that `buildEnvironmentVariables` pins to backend-derived
+  /// runtime values (backend principal, frontend canister, cashier, etc.).
   /// Caller-provided pairs with these names are dropped so system defaults win.
-  public let RESERVED_ENV_NAMES : [Text] = [
-    "PUBLIC_CANISTER_ID:rabbithole-backend",
-    "PUBLIC_CANISTER_ID:rabbithole-frontend",
-    "PUBLIC_CANISTER_ID:internet_identity_frontend",
-    "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL",
-  ];
+  /// `VETKEY_NAME` stays outside this list for now because the paid license
+  /// flow still passes the selected vetkey level through controlled envPairs.
+  public let RESERVED_ENV_NAMES : [Text] = StorageEnvironment.SYSTEM_ENV_NAMES;
 
   func isReservedEnvName(name : Text) : Bool {
     for (reserved in RESERVED_ENV_NAMES.vals()) {

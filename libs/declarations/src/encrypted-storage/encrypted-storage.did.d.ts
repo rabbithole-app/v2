@@ -341,6 +341,8 @@ export interface EncryptedStorageCanister {
     _ImmutableObjectStorageRefillResult
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
+  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_1>,
+  '_internet_identity_sign_in_start' : ActorMethod<[], Uint8Array>,
   'abortUploadSession' : ActorMethod<
     [{ 'batchId' : BatchId }],
     StorageResult_1
@@ -355,7 +357,6 @@ export interface EncryptedStorageCanister {
   >,
   'api_version' : ActorMethod<[], number>,
   'appendUploadChunk' : ActorMethod<[CreateChunkArguments__1], StorageResult_6>,
-  'attributeNonceBegin' : ActorMethod<[], Uint8Array>,
   'beginUploadSession' : ActorMethod<
     [BeginUploadSessionArguments],
     StorageResult_5
@@ -381,6 +382,7 @@ export interface EncryptedStorageCanister {
     [ClaimPendingAccessGrantArguments],
     PrincipalAccessGrant
   >,
+  'claimVerifiedEmailAccess' : ActorMethod<[], IdentityAttributesSyncResult>,
   'clear' : ActorMethod<[ClearArguments], undefined>,
   'clearRecoveryController' : ActorMethod<[], Principal>,
   'clearStorage' : ActorMethod<[], undefined>,
@@ -550,10 +552,6 @@ export interface EncryptedStorageCanister {
   >,
   'showTree' : ActorMethod<[[] | [Entry]], string>,
   'store' : ActorMethod<[StoreArgs], undefined>,
-  'syncIdentityAttributes' : ActorMethod<
-    [Uint8Array],
-    IdentityAttributesSyncResult
-  >,
   'takeRecoveryOwnership' : ActorMethod<[], OwnerEquivalentPrincipal>,
   'take_ownership' : ActorMethod<[], undefined>,
   'unset_asset_content' : ActorMethod<[UnsetAssetContentArguments], undefined>,
@@ -574,6 +572,21 @@ export interface EncryptedStorageCanister {
 export type EncryptionMode = { 'Encrypted' : null } |
   { 'Plaintext' : null };
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
+export type Error = { 'FrontendOriginsNotConfigured' : null } |
+  {
+    'MixedSsoSources' : {
+      'otherKeys' : Array<string>,
+      'ssoKeys' : Array<string>,
+    }
+  } |
+  { 'Stale' : { 'ageNs' : bigint } } |
+  { 'MalformedCandid' : null } |
+  { 'AmbiguousAttribute' : { 'field' : string, 'sources' : Array<string> } } |
+  { 'NoAttributes' : null } |
+  { 'UnknownNonce' : null } |
+  { 'UntrustedSsoSource' : { 'domain' : string } } |
+  { 'MissingField' : string } |
+  { 'FrontendOriginMismatch' : { 'got' : string, 'expected' : Array<string> } };
 export interface FileMetadata {
   'storageBackend' : StorageBackend,
   'sha256' : [] | [Uint8Array],
@@ -621,12 +634,9 @@ export interface HasPermissionArguments {
 }
 export type Header = [string, string];
 export type IdentityAttributesSyncError = { 'expired' : null } |
-  { 'untrustedSigner' : null } |
   { 'malformedPayload' : null } |
-  { 'invalidOrigin' : null } |
-  { 'nonceMismatch' : null } |
   { 'verifiedEmailRequired' : null } |
-  { 'nonceNotFound' : null };
+  { 'attributesNotFound' : null };
 export type IdentityAttributesSyncResult = { 'ok' : null } |
   { 'err' : IdentityAttributesSyncError };
 export type Key = string;
@@ -798,6 +808,8 @@ export interface ResolveAccessRequestArguments {
 export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export type Result = { 'ok' : string } |
   { 'err' : string };
+export type Result_1 = { 'ok' : null } |
+  { 'err' : Error };
 export interface RevokeAccessBatchArguments {
   'items' : Array<RevokeAccessBatchItem>,
 }

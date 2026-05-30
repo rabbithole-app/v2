@@ -1,7 +1,5 @@
 import TreasuryConfigTypes "mo:treasury/ConfigTypes";
 
-import IIVerify "IIVerify";
-
 module {
   public type ThresholdKeyName = TreasuryConfigTypes.ThresholdKeyName;
 
@@ -11,13 +9,15 @@ module {
   public type SolanaChainConfig = TreasuryConfigTypes.SolanaChainConfig;
   public type ChainConfig = TreasuryConfigTypes.ChainConfig;
 
-  public type VerifiedIdentityAttributes = IIVerify.VerifiedIdentityAttributes;
+  public type VerifiedIdentityAttributes = {
+    email : ?Text;
+    name : ?Text;
+    verifiedEmail : ?Bool;
+    provider : ?Text;
+  };
 
   public type IdentityAttributesSyncError = {
-    #nonceNotFound;
-    #nonceMismatch;
-    #untrustedSigner;
-    #invalidOrigin;
+    #attributesNotFound;
     #expired;
     #malformedPayload;
     #verifiedEmailRequired;

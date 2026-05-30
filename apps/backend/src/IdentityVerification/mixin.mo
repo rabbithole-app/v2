@@ -1,129 +1,68 @@
-import Blob "mo:core/Blob";
 import Int "mo:core/Int";
 import Map "mo:core/Map";
 import Principal "mo:core/Principal";
-import Random "mo:core/Random";
 import Result "mo:core/Result";
-import Text "mo:core/Text";
 import Time "mo:core/Time";
-import Prim "mo:⛔";
 
 import IdentityVerification "lib";
 
 mixin(
   deps : {
-    onVerifiedAttributes : (Principal, IdentityVerification.VerifiedIdentityAttributes) -> async Result.Result<(), IdentityVerification.IdentityAttributesSyncError>;
-    resolveTrustedIdentitySigner : <system>() -> Principal;
-    resolveExpectedIdentityOrigin : <system>() -> Text;
+    onVerifiedAttributes : (Principal, IdentityVerification.VerifiedIdentityAttributes) -> Result.Result<(), IdentityVerification.IdentityAttributesSyncError>;
+    claimVerifiedEmailAccess : (Principal, IdentityVerification.VerifiedIdentityAttributes) -> async Result.Result<(), IdentityVerification.IdentityAttributesSyncError>;
   }
 ) {
-  type AttributeMap = IdentityVerification.AttributeMap;
-  type Icrc3Value = IdentityVerification.Icrc3Value;
   type IdentityAttributesSyncResult = IdentityVerification.IdentityAttributesSyncResult;
+  type VerifiedIdentityAttributes = IdentityVerification.VerifiedIdentityAttributes;
 
-  transient let pendingNonces : Map.Map<Blob, Time.Time> = Map.empty();
+  type PendingVerifiedAttributes = {
+    attrs : VerifiedIdentityAttributes;
+    createdAt : Time.Time;
+  };
 
-  func pruneExpiredNonces() {
+  transient let pendingVerifiedAttributes : Map.Map<Principal, PendingVerifiedAttributes> = Map.empty();
+
+  func pruneExpiredVerifiedAttributes() {
     let now = Time.now();
-    for ((nonce, createdAt) in Map.entries(pendingNonces)) {
-      if (Int.abs(now - createdAt) > IdentityVerification.NONCE_TTL_NS) {
-        Map.remove(pendingNonces, Blob.compare, nonce);
+    for ((principal, pending) in Map.entries(pendingVerifiedAttributes)) {
+      if (Int.abs(now - pending.createdAt) > IdentityVerification.VERIFIED_ATTRIBUTES_TTL_NS) {
+        Map.remove(pendingVerifiedAttributes, Principal.compare, principal);
       };
     };
   };
 
-  public shared func attributeNonceBegin() : async Blob {
-    pruneExpiredNonces();
-    let nonce = await Random.blob();
-    Map.add(pendingNonces, Blob.compare, nonce, Time.now());
-    nonce;
+  func storeVerifiedIdentityAttributes(caller : Principal, bundle : IdentityVerification.VerifiedIdentityAttributesBundle) {
+    if (Principal.isAnonymous(caller)) return;
+
+    pruneExpiredVerifiedAttributes();
+    let attrs = IdentityVerification.fromVerifiedBundle(bundle);
+    switch (deps.onVerifiedAttributes(caller, attrs)) {
+      case (#ok) {
+        Map.add(pendingVerifiedAttributes, Principal.compare, caller, {
+          attrs;
+          createdAt = Time.now();
+        });
+      };
+      case (#err(_)) {};
+    };
   };
 
-  public shared ({ caller }) func syncIdentityAttributes(nonce : Blob) : async IdentityAttributesSyncResult {
+  public shared ({ caller }) func claimVerifiedEmailAccess() : async IdentityAttributesSyncResult {
     assert not Principal.isAnonymous(caller);
 
-    let ?_createdAt = Map.get(pendingNonces, Blob.compare, nonce) else {
-      return #err(#nonceNotFound);
+    pruneExpiredVerifiedAttributes();
+    let ?pending = Map.get(pendingVerifiedAttributes, Principal.compare, caller) else {
+      return #err(#attributesNotFound);
     };
-    Map.remove(pendingNonces, Blob.compare, nonce);
+    Map.remove(pendingVerifiedAttributes, Principal.compare, caller);
 
-    let signerBlob = Prim.callerInfoSigner<system>();
-    if (signerBlob.size() == 0) {
-      return #err(#untrustedSigner);
-    };
-
-    let signer = Principal.fromBlob(signerBlob);
-    let trustedIdentitySigner = deps.resolveTrustedIdentitySigner<system>();
-    if (signer != trustedIdentitySigner) {
-      return #err(#untrustedSigner);
-    };
-
-    let data = Prim.callerInfoData<system>();
-    let ?attrsMap = decodeIcrc3ValueMap(data) else {
-      return #err(#malformedPayload);
-    };
-
-    let ?dataNonce = IdentityVerification.extractBlob(attrsMap, "implicit:nonce") else {
-      return #err(#malformedPayload);
-    };
-    if (dataNonce != nonce) {
-      return #err(#nonceMismatch);
-    };
-
-    let ?origin = IdentityVerification.extractText(attrsMap, "implicit:origin") else {
-      return #err(#malformedPayload);
-    };
-    let expectedIdentityOrigin = deps.resolveExpectedIdentityOrigin<system>();
-    if (origin != expectedIdentityOrigin) {
-      return #err(#invalidOrigin);
-    };
-
-    let ?issuedAt = IdentityVerification.extractNat(attrsMap, "implicit:issued_at_timestamp_ns") else {
-      return #err(#malformedPayload);
-    };
-    if (not IdentityVerification.isFresh(issuedAt, Int.abs(Time.now()))) {
+    if (Int.abs(Time.now() - pending.createdAt) > IdentityVerification.VERIFIED_ATTRIBUTES_TTL_NS) {
       return #err(#expired);
     };
 
-    let email = IdentityVerification.extractScopedText(attrsMap, "email");
-    let verifiedEmail = switch (IdentityVerification.extractScopedBool(attrsMap, "verified_email")) {
-      case (?value) ?value;
-      case null switch (IdentityVerification.extractScopedBool(attrsMap, "email_verified")) {
-        case (?value) ?value;
-        case null switch (IdentityVerification.extractScopedText(attrsMap, "verified_email")) {
-          // II exposes `verified_email` as the verified email value, not as a Bool.
-          case (?verifiedEmailText) switch (email) {
-            case (?emailText) ?(Text.toLower(verifiedEmailText) == Text.toLower(emailText));
-            case null ?(Text.trim(verifiedEmailText, #char ' ') != "");
-          };
-          case null null;
-        };
-      };
-    };
-
-    let attrs : IdentityVerification.VerifiedIdentityAttributes = {
-      email;
-      name = IdentityVerification.extractScopedText(attrsMap, "name");
-      verifiedEmail;
-      provider = IdentityVerification.inferProvider(attrsMap);
-    };
-
-    switch (await deps.onVerifiedAttributes(caller, attrs)) {
-      case (#ok _) {
-        #ok;
-      };
-      case (#err error) {
-        #err(error);
-      };
+    switch (await deps.claimVerifiedEmailAccess(caller, pending.attrs)) {
+      case (#ok _) #ok;
+      case (#err error) #err(error);
     };
   };
-
-  func decodeIcrc3ValueMap(data : Blob) : ?AttributeMap {
-    let ?val = (from_candid (data) : ?Icrc3Value) else return null;
-    switch val {
-      case (#Map entries) ?entries;
-      case _ null;
-    };
-  };
-
 };

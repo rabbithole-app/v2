@@ -5,7 +5,7 @@ import {
 
 export const environment = {
   identityProviderUrl: 'https://id.ai/authorize',
-  appUrl: 'https://dev.rabbithole.app',
+  appUrl: 'https://rabbithole.app',
   appName: 'Rabbithole',
   openIdProviders: ['google', 'apple', 'microsoft'] as const,
   httpAgentHost: 'https://icp-api.io',

@@ -116,13 +116,35 @@ export class InternetIdentityManager {
 
 export const IdentityAttributesSyncResult = IDL.Variant({
   err: IDL.Variant({
+    attributesNotFound: IDL.Null,
     expired: IDL.Null,
-    invalidOrigin: IDL.Null,
     malformedPayload: IDL.Null,
-    nonceMismatch: IDL.Null,
-    nonceNotFound: IDL.Null,
-    untrustedSigner: IDL.Null,
     verifiedEmailRequired: IDL.Null,
+  }),
+  ok: IDL.Null,
+});
+
+export const IdentityAttributesFinishResult = IDL.Variant({
+  err: IDL.Variant({
+    AmbiguousAttribute: IDL.Record({
+      field: IDL.Text,
+      sources: IDL.Vec(IDL.Text),
+    }),
+    FrontendOriginMismatch: IDL.Record({
+      got: IDL.Text,
+      expected: IDL.Vec(IDL.Text),
+    }),
+    FrontendOriginsNotConfigured: IDL.Null,
+    MalformedCandid: IDL.Null,
+    MissingField: IDL.Text,
+    MixedSsoSources: IDL.Record({
+      ssoKeys: IDL.Vec(IDL.Text),
+      otherKeys: IDL.Vec(IDL.Text),
+    }),
+    NoAttributes: IDL.Null,
+    Stale: IDL.Record({ ageNs: IDL.Nat }),
+    UnknownNonce: IDL.Null,
+    UntrustedSsoSource: IDL.Record({ domain: IDL.Text }),
   }),
   ok: IDL.Null,
 });

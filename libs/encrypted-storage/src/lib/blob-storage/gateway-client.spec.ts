@@ -72,6 +72,7 @@ describe('BlobStorageGatewayClient', () => {
       expect(mockAgent.call).toHaveBeenCalledWith(
         CANISTER_ID,
         expect.objectContaining({
+          effectiveCanisterId: CANISTER_ID,
           methodName: '_immutableObjectStorageCreateCertificate',
         }),
       );
