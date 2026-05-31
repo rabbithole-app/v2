@@ -217,8 +217,12 @@ The target scope limits where the delegated session can be used.
 
 ### Identity attribute sync
 
-When attributes are available, Rabbithole requests them through the Internet
-Identity auth client and submits them with an `AttributesIdentity`.
+When attributes are available, the browser receives signed attributes from
+Internet Identity with a one-time nonce. It then performs the finish call using
+an identity that carries those attributes. The backend checks the signature,
+nonce, origin, time, and caller, then stores the verified attributes for the
+principal. Storage invite claiming stays separate and only uses the verified
+email after sign-in.
 
 ```mermaid
 sequenceDiagram
@@ -227,17 +231,19 @@ sequenceDiagram
     participant II as id.ai / Internet Identity
     participant API as Rabbithole backend
 
-    B->>API: attributeNonceBegin()
+    B->>API: _internet_identity_sign_in_start()
     API-->>B: one-time nonce
-    B->>II: Request email/name attributes with nonce
-    II-->>B: Signed attribute payload
-    B->>API: syncIdentityAttributes(nonce)
-    API->>API: Verify signer, nonce, origin, time, caller
+    B->>II: Sign in and request email/name attributes with nonce
+    II-->>B: Delegation and signed attributes
+    B->>API: _internet_identity_sign_in_finish()
+    API->>API: Check signature, nonce, origin, time, caller
     API->>API: Store verified attributes for principal
+    B->>API: claimVerifiedEmailAccess()
+    API->>API: Claim storage invites for verified email
 ```
 
 The backend rejects stale, unsigned, reused, wrong-origin, or wrong-signer
-payloads.
+payloads before it stores attributes.
 
 ### Further reading
 

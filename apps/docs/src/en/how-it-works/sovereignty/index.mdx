@@ -7,8 +7,8 @@ sidebar:
 
 # Data sovereignty in Rabbithole
 
-Data sovereignty means your storage is not just an account in Rabbithole's
-database. When you create storage, Rabbithole deploys a personal Internet
+In Rabbithole, storage ownership is tied to a canister rather than only to an
+account record. When you create storage, Rabbithole deploys a personal Internet
 Computer canister for you with storage code, data, and its own web interface.
 
 After the handoff completes, Rabbithole removes itself from the controllers.
@@ -34,8 +34,8 @@ You control these parts of your storage:
 - **Canister settings**: your principal manages controllers and upgrades.
 - **Direct access**: your canister serves its own frontend at
   `https://<canister-id>.icp0.io`.
-- **Cycle funding**: you can keep the storage running with Rabbithole Pro or
-  with direct Internet Computer tooling.
+- **Cycle funding**: you can keep the storage running through automatic cycle
+  top-ups in Rabbithole Pro or direct Internet Computer tooling.
 - **Updates**: you choose whether Rabbithole gets temporary access to install a
   new version.
 - **Deletion**: you can delete the canister and its data when you no longer need
@@ -44,14 +44,16 @@ You control these parts of your storage:
 ## What Rabbithole still does
 
 Sovereignty does not mean Rabbithole disappears from the user experience. It
-means Rabbithole becomes a service layer around infrastructure that you control.
+means Rabbithole can still help with infrastructure that you control.
 
 Rabbithole can still provide:
 
 - the main app interface at `rabbithole.app`;
 - storage creation and initial setup;
-- optional code and frontend asset updates;
-- Pro top-ups that keep the cycle balance funded automatically;
+- storage code and frontend asset updates when you have active Pro and approve
+  temporary access;
+- automatic cycle top-ups when the canister needs cycles before expensive
+  operations;
 - Blob Storage coordination when you choose the lower-cost storage mode.
 
 ## How storage is created

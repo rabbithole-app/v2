@@ -5,7 +5,7 @@
   "projectType": "application",
   "targets": {
     "serve": {
-      "command": "npm run dev -- --port 4300",
+      "command": "npm run dev -- --port 4202",
       "options": {
         "cwd": "apps/docs"
       }

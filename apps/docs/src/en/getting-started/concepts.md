@@ -78,19 +78,6 @@ In Rabbithole, cycles keep your storage canister running. The setup fee covers
 canister creation and the initial cycle balance. Later, a storage canister may
 need more cycles to continue operating.
 
-## Rabbithole terms you will see later
-
-Some terms are specific to Rabbithole's storage and encryption model. They are
-explained in the pages where you need them.
-
-- [Authentication](/en/how-it-works/authentication) explains verified
-  attributes, privacy, and why one user can have different principals.
-- [Storage](/en/how-it-works/storage/) explains Blob Storage and On-chain
-  Storage.
-- [Encryption](/en/how-it-works/encryption) explains the encrypted mode. The
-  [Keys and vetKeys](/en/how-it-works/encryption/vetkeys) page explains
-  Standard and High Replication.
-
 ## How the pieces fit together
 
 When you create storage, Rabbithole deploys a storage canister and funds it with
@@ -98,5 +85,5 @@ cycles. You sign in through Internet Identity, and Rabbithole receives a
 principal for your session. After setup handoff, that principal is the owner
 identity Rabbithole uses for your storage canister.
 
-When encryption is enabled, your browser encrypts files before upload. The
-encryption page explains the key flow in more detail.
+Your browser encrypts files before upload. The encryption page explains the key
+flow in more detail.

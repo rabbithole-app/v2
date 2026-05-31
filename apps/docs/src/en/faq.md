@@ -5,8 +5,8 @@ description: Frequently asked questions about Rabbithole
 
 ## Data Sovereignty
 
-These answers explain who controls your storage and what remains under your
-control outside the Rabbithole interface.
+These answers cover storage ownership: who controls the canister and what stays
+under your control outside the Rabbithole interface.
 
 ### Who controls my storage canister?
 In the completed flow, you do. Rabbithole is a temporary controller during setup
@@ -20,15 +20,18 @@ API is public — you can interact with it through
 [Candid](https://internetcomputer.org/docs/building-apps/interact/candid/candid-concepts).
 
 ### What happens to my data if I stop paying?
-With On-chain Storage, your data remains in your canister while the canister
-stays funded with cycles. With Blob Storage, your canister keeps the file record
-and verification data, but blob availability depends on the Blob Storage funding
-and retention lifecycle. You can top up cycles directly without going through
-Rabbithole.
+With On-chain Storage, your data remains in your canister while it has cycles.
+With Blob Storage, your canister keeps the file record and verification data,
+but blob availability depends on Blob Storage funding and retention. You can top
+up cycles directly without going through Rabbithole.
+
+If Pro expires, storage falls back to the storage license issued during storage
+creation. The owner keeps personal encrypted storage within the license limits,
+but automatic cycle top-ups and shared access require active Pro.
 
 ## General
 
-These answers cover the basic product model and everyday usage limits.
+These are short answers about the product model and everyday limits.
 
 ### What is Rabbithole?
 A decentralized file storage app built on the Internet Computer, designed around
@@ -36,18 +39,35 @@ end-to-end encryption and personal canister ownership.
 
 ### How much does it cost?
 You pay a fixed setup price to create your storage. This covers canister
-creation, the initial cycles balance, deployment operations, and the
-infrastructure needed to complete the handoff. See
-[Data Sovereignty](/en/how-it-works/sovereignty) for details.
+creation, the initial cycles balance, deployment operations, storage license,
+and the infrastructure needed to complete the handoff. The storage license
+defines included encrypted storage and the maximum file size for the base
+scenario.
+
+Pro adds capabilities on top of the license: encrypted uploads without base
+limits, shared access, and automatic cycle top-ups. See
+[What Pro gives you](/en/how-it-works/pro) for details.
 
 ### What file types are supported?
 All file types. Rabbithole stores binary file data, so the file format does not
 matter.
 
 ### Is there a file size limit?
-Rabbithole does not set a separate hard file-size limit. Files are split into
-fragments automatically; in practice, file size depends on the selected storage
-mode, funded resources, your browser, and connection quality.
+For encrypted uploads, the limit depends on storage license or active Pro. The
+license defines included encrypted storage and the maximum file size. Active
+Pro, among other things, removes those base license limits.
+
+Rabbithole does not add a separate technical file-size limit. Upload and
+encryption work in fragments, so the browser does not need to keep the whole
+file in memory when working with large files. Practical limits are still
+possible: with On-chain Storage, the file is written into the canister, and
+large uploads can run into limits of the subnet where the user's canister is
+deployed, as well as the cycle balance.
+
+### Why does upload sometimes show Waiting for cycles?
+This is an On-chain Storage upload waiting for a safe cycle buffer. If the owner
+has active Pro, Rabbithole can top up the canister and continue the same upload
+session. Without Pro, the owner needs to top up the canister manually.
 
 ## Security
 
@@ -57,16 +77,14 @@ These answers summarize the confidentiality and recovery model.
 No. Rabbithole's code and product interface do not include a mechanism that
 gives the team separate access to user files.
 
-In encrypted mode, your browser encrypts the file before upload, so Rabbithole
-does not receive plaintext data. If you store a file without encryption, the
-canister and selected storage mode handle plaintext bytes. That is no longer a
-zero-knowledge mode, but it does not give the Rabbithole team an admin path to
-your files.
+Your browser encrypts the file before upload, so Rabbithole does not receive
+plaintext data. The canister keeps access rules and trusted records, while file
+bytes follow the selected storage mode already encrypted.
 
 ### What happens if I lose my device?
-You can recover access through Internet Identity's device recovery mechanism. In
-encrypted mode, your encryption keys are derived from your identity, not stored
-on any specific device.
+You can recover access through Internet Identity's device recovery mechanism.
+Your encryption keys are derived from your identity, not stored on any specific
+device.
 
 ### Has Rabbithole been audited?
 The code is open source and available for community review. Formal audits are planned.

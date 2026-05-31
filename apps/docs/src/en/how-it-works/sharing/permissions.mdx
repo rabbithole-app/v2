@@ -16,7 +16,7 @@ an encryption key.
 
 ## Permission levels
 
-Rabbithole shows three levels in the interface.
+Rabbithole shows three permission levels in the interface.
 
 | Permission | What the recipient can do |
 |---|---|
@@ -41,6 +41,14 @@ requests for encrypted files. The name after `/` is the canister permission.
 
 Blob Storage changes where file bytes live. It does not bypass permission checks
 in the storage canister.
+
+:::note{title="Shared access and Pro"}
+
+Shared access and access management require the storage owner to have active Pro.
+Storage license keeps the owner's personal encrypted storage available, but it
+does not keep shared access active after Pro expires.
+
+:::
 
 ## What a scope means
 
@@ -79,7 +87,7 @@ Internally, the canister resolves folder and file entries to stable key IDs.
 Permission checks use those key IDs and walk up the parent chain to find the
 strongest effective permission.
 
-This is why a folder grant can apply to a file inside the folder, and a root
+A folder grant can therefore apply to a file inside the folder, and a root
 grant can apply to the whole storage.
 
 :::
@@ -117,6 +125,10 @@ recovery and predefined policies.
 | **Standard access** | `ordinary` | Normal sharing and approved access requests. |
 | **Durable access** <Badge text="policy" type="info" outline /> | `durable` | Access described in advance by a policy and activated when the owner stays inactive. |
 | **Recovery access** <Badge text="recovery" type="warning" outline /> | `ownerEquivalent` | A backup owner principal with owner-level powers. |
+
+Standard access depends on the owner's Pro status. Durable access and recovery
+access cover sovereign scenarios: they can preserve access to permitted data
+even when the owner's Pro is not active.
 
 :::details{title="Durable access"}
 

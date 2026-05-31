@@ -67,7 +67,7 @@ sequenceDiagram
 ```
 
 If the user does not have `Read` access for the key ID, the canister rejects
-the request before key derivation. Plaintext files don't expose a vetKey.
+the request before key derivation.
 
 ## What this means for permissions
 
@@ -78,12 +78,21 @@ Sharing changes permissions, not file contents.
 - A recipient with **View** access can request the key for that file.
 - A revoked recipient can no longer request new keys for the revoked scope.
 
-This is why email invites work for encrypted files too. The invite can wait
+Email invites work for encrypted files in the same way. The invite can wait
 until the person signs in, and then the canister grants that person's principal
 the right to request the needed key.
 
 The full operation-to-permission table lives in the
 [Permission model](/en/how-it-works/sharing/permissions).
+
+:::note{title="What changes without active Pro"}
+
+Storage license keeps the owner's personal encrypted storage available, but
+invited users can request keys only while the owner has active Pro. Durable
+access and recovery access are separate sovereign scenarios described in the
+permission model.
+
+:::
 
 ## Revocation limits
 

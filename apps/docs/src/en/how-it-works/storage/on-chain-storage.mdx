@@ -9,14 +9,18 @@ import { OverviewGroup, Steps } from '@rspress/core/theme';
 
 ## What On-chain Storage is
 
-On-chain Storage keeps the file directly inside your personal canister instead of an external storage service.
+On-chain Storage keeps the file directly inside your personal canister. There
+is no external storage service for the bytes: the canister keeps the file
+itself, the file record, and access rules.
 
-That gives you a simpler trust model, but it also costs more because the Internet Computer has to keep the file itself in canister memory.
+This mode is simpler to reason about, but it costs more. Every stored byte
+lives in canister memory and is paid for with cycles, so On-chain Storage is a
+better fit for small, high-value files.
 
-:::note{title="About encryption"}
+:::tip{title="Trade-off"}
 
-On-chain Storage describes where the file lives.  
-Whether the file is encrypted before upload depends on your encryption settings.
+You remove the external storage layer. In exchange, cost is higher, and cycle
+balance becomes part of normal storage operations.
 
 :::
 
@@ -24,91 +28,142 @@ Whether the file is encrypted before upload depends on your encryption settings.
 
 ![On-chain Storage architecture](/diagrams/fossflow-diagram-4.png)
 
-This diagram shows the simpler On-chain Storage path:
+The On-chain Storage path is shorter:
 
-- your browser uploads the file directly to your canister
-- your personal canister keeps the **files, metadata, access rules, and app interface**
-- there is **no external gateway** and **no external object storage layer**
-
-In Rabbithole's model, your canister can hold not only the file and access rules, but also the app interface used to access it.
+- your browser prepares and uploads the file directly to the canister;
+- your personal canister keeps the file, trusted record, and access state;
+- there is no external gateway or external object storage layer in the file
+  path.
 
 ## How upload works
+
+Before upload, the canister checks that it can safely accept the file: you have
+write access, the declared size fits the storage, and the cycle balance is
+enough for the operation.
 
 <Steps>
 
 ### Prepare the file in the browser
 
-The file is split into chunks. If encryption is enabled, those chunks are encrypted locally before upload.
+The browser encrypts the file locally and splits it into chunks, so upload does
+not require one large request.
 
-### Send file chunks to your canister
+### Send chunks to the canister
 
-The browser uploads file chunks directly to your personal canister.
+The canister accepts file chunks one by one and keeps the upload within the
+allowed size and available cycles.
 
-### Store the file in your canister
+### Store the file and trusted record
 
-Your canister saves the file together with the file record, access rules, and related integrity data.
+After all chunks are transferred, the canister stores the file and records the
+data your browser uses for later verification.
 
 </Steps>
+
+## When cycles are low
+
+In On-chain Storage, cycle balance quickly becomes a practical constraint: the
+file lives inside canister memory, and writing bytes also costs cycles. If the
+safe balance is not enough during upload, two outcomes are possible.
+
+- **Active Pro is enabled**: Rabbithole can request an automatic cycle top-up.
+  The interface shows **Waiting for cycles...**, and the upload waits for
+  funding.
+- **Active Pro is not enabled**: the owner must top up the canister manually.
+  After top-up, a compatible retry can continue the upload.
+
+This is not an ownership error and does not mean the file is lost. The canister
+is refusing to start work it cannot safely finish.
 
 ## How download works
 
 <Steps>
 
-### Request file chunks from your canister
+### Request file chunks from the canister
 
-The browser asks your canister for the file data.
+The browser asks your canister for file data. There is no external file gateway
+in the file path.
 
 ### Verify and open locally
 
-The browser checks integrity and decrypts the file on your device if encryption is enabled.
+The browser checks integrity and decrypts the file on your device.
 
 </Steps>
 
 ## Why it costs more
 
-- Every stored byte lives inside canister memory.
-- The network must maintain that storage over time.
-- Large files become much more expensive than in Blob Storage.
+On-chain Storage costs more because every stored byte lives inside canister
+memory and affects the canister's operating balance.
+
+- The network maintains file bytes over time.
+- Stable memory and computation are paid from the canister's cycle balance.
+- Large files require a larger safe floor and may trigger funding checks more
+  often.
 
 ## Practical limits
 
-On-chain Storage is usually the better fit when:
+On-chain Storage makes sense when:
 
-- files are relatively small
-- the number of files is limited
-- simpler architecture matters more than cost efficiency
+- files are relatively small;
+- the number of files is limited;
+- simpler architecture matters more than cost efficiency;
+- you are ready to monitor cycles or use active Pro.
 
-It is usually a worse fit for large media collections or cost-sensitive bulk storage.
+For large media collections or cost-sensitive bulk storage, it is usually a poor
+fit.
 
 ## Why the trust model is simpler
 
-With On-chain Storage there is no external file gateway and no external object storage layer holding the file.
+With On-chain Storage, there is no external file gateway and no external object
+storage layer holding the file. That makes the storage path easier to reason
+about:
 
-That means the storage path is easier to reason about:
+- your browser prepares the file;
+- your canister stores the file;
+- your browser verifies and opens it again.
 
-- your browser prepares the file
-- your canister stores the file
-- your browser verifies and opens it again
+## Technical details
 
-## Best use cases
+:::details{title="Upload session"}
 
-On-chain Storage is best when:
+On-chain Storage does not write a large file directly into its final state.
+Upload runs through a session: the canister creates a temporary record, reserves
+the declared size, accepts file chunks, and only then moves data into the final
+file version.
 
-- you want the simplest architecture
-- you prefer stronger sovereignty over lower cost
-- your files are relatively small or limited in number
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant C as Canister
+    participant F as Cycle funding
 
-## A practical rule of thumb
+    B->>C: beginUploadSession
+    C->>C: Create a temporary record
+    C->>C: Reserve the declared size
+    alt cycles are low
+        C-->>B: Waiting for cycles...
+        F-->>C: Cycle top-up
+    end
+    alt upload can continue
+        loop for each file chunk
+            B->>C: appendUploadChunk
+            C->>C: Write chunk into the temporary record
+        end
+        B->>C: finishUploadSession
+        C->>C: Move data into the final file version
+        C-->>B: File saved
+    else upload cannot continue
+        B->>C: abortUploadSession
+        C->>C: Release temporary resources
+    end
+```
 
-Choose **On-chain Storage** for smaller, higher-value files where minimizing external dependencies matters more than cost.
+If cycles are low, the session waits for funding. A compatible retry can
+continue the existing session, so upload does not have to start from zero. If
+the upload cannot continue, the client tries to abort the session and release
+temporary resources.
 
-Examples:
-
-- personal documents
-- contracts and signed PDFs
-- backups of critical records
-
-Choose **Blob Storage** for larger archives, media collections, and cost-sensitive storage.
+:::
 
 ## Continue reading
 
@@ -125,8 +180,8 @@ Choose **Blob Storage** for larger archives, media collections, and cost-sensiti
         link: '/en/how-it-works/storage/integrity',
       },
       {
-        text: 'Data Sovereignty',
-        link: '/en/how-it-works/sovereignty',
+        text: 'Payment & Cycles',
+        link: '/en/how-it-works/payment',
       },
     ],
   }}

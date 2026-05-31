@@ -26,9 +26,9 @@ Internet Computer. After setup completes successfully:
 
 ## What you can store
 
-You may store any files that are legal in your jurisdiction. In encrypted mode,
-we cannot read file contents because encryption happens in your browser. You are
-solely responsible for what you store.
+You may store any files that are legal in your jurisdiction. We cannot read file
+contents because encryption happens in your browser. You are solely responsible
+for what you store.
 
 ## What we provide
 

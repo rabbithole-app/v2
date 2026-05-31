@@ -90,10 +90,10 @@ authenticated encryption.
 | Parameter | Current value |
 |-----------|---------------|
 | Canister max chunk size | 2,097,152 bytes |
-| Default on-chain plaintext chunk | 1,900,000 bytes |
+| Default on-chain pre-encryption chunk | 1,900,000 bytes |
 | Blob Storage chunk | 1,048,576 bytes |
 | AES-GCM overhead | 28 bytes: 12-byte IV + 16-byte authentication tag |
-| Blob encrypted plaintext chunk | 1,048,548 bytes |
+| Blob Storage pre-encryption chunk | 1,048,548 bytes |
 
 Large files are split into chunks. Each encrypted chunk carries its own
 authentication data, so tampering with ciphertext is detected during
@@ -131,7 +131,8 @@ Encryption narrows the trust surface, but it does not remove every assumption.
 - The Internet Computer protocol and vetKD service must behave correctly.
 - A user who already downloaded and decrypted a file may keep their copy after
   access is revoked.
-- Plaintext mode does not provide these confidentiality guarantees.
+- File metadata, such as names, sizes, and folder structure, does not receive the
+  same confidentiality guarantees as file contents.
 
 The broader assumptions are listed in the
 [Trust Model](/en/how-it-works/trust-model).

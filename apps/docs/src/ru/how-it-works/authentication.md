@@ -229,8 +229,12 @@ sequenceDiagram
 
 ### Синхронизация Identity Attributes
 
-Когда атрибуты доступны, Rabbithole запрашивает их через клиент входа Internet
-Identity и отправляет на серверную часть через `AttributesIdentity`.
+Когда атрибуты доступны, браузер получает у Internet Identity подписанные
+атрибуты с одноразовым nonce. Затем он выполняет финальный вызов входа от имени
+identity, в которую добавлены эти атрибуты. Серверная часть проверяет подпись,
+nonce, origin, время и caller, а затем сохраняет проверенные атрибуты для
+principal-идентификатора. Получение доступа к storage invite остаётся отдельным
+шагом и использует только уже верифицированный email.
 
 ```mermaid
 sequenceDiagram
@@ -239,17 +243,20 @@ sequenceDiagram
     participant II as id.ai / Internet Identity
     participant API as Серверная часть Rabbithole
 
-    B->>API: attributeNonceBegin()
+    B->>API: _internet_identity_sign_in_start()
     API-->>B: Одноразовый nonce
-    B->>II: Запрос атрибутов email/name с nonce
-    II-->>B: Подписанные данные атрибутов
-    B->>API: syncIdentityAttributes(nonce)
-    API->>API: Проверка подписи, nonce, origin, времени и caller
-    API->>API: Сохранение атрибутов для principal-идентификатора
+    B->>II: Вход и запрос атрибутов email/name с nonce
+    II-->>B: Делегация и подписанные атрибуты
+    B->>API: _internet_identity_sign_in_finish()
+    API->>API: Проверяет подпись, nonce, origin, время, caller
+    API->>API: Сохраняет проверенные атрибуты для principal-идентификатора
+    B->>API: claimVerifiedEmailAccess()
+    API->>API: Claim storage invites для верифицированного email
 ```
 
 Серверная часть отклоняет устаревшие, неподписанные, повторно использованные,
-подписанные не тем источником или пришедшие с неверного веб-адреса данные.
+подписанные не тем источником или пришедшие с неверного веб-адреса данные до
+сохранения атрибутов.
 
 ### Дополнительные материалы
 

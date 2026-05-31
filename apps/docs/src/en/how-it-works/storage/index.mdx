@@ -7,33 +7,28 @@ sidebar:
 
 import { Badge, OverviewGroup } from '@rspress/core/theme';
 
-## Storage mode and encryption mode are separate choices
+## Storage mode, license, and Pro are separate
 
-Rabbithole is designed around end-to-end encryption and personal canister
-ownership.
+Rabbithole uses several related concepts in the storage flow. They control
+different parts of the product:
 
-These storage modes describe **where a file is stored**.  
-Encryption is a **separate setting** and may depend on your plan and folder
-configuration.
+- **Storage mode** decides where file bytes live.
+- **Storage license** defines the base encrypted storage limits.
+- **Pro** adds extra features for storage you already created.
 
-There are two storage modes:
+Storage mode does not replace encryption or access control. File contents are
+encrypted in the browser before upload, and in both modes the storage canister
+keeps ownership, access rules, and trusted file records.
 
-- **Blob Storage** for lower cost and larger files
-- **On-chain Storage** for simpler trust assumptions and stronger sovereignty
+The full subscription feature list is on the
+[What Pro gives you](/en/how-it-works/pro) page.
 
 :::tip{title="Short version"}
 
-If you want the best default for everyday use, choose **Blob Storage**.  
-If you want everything to stay inside your personal canister, choose **On-chain Storage**.
-
-:::
-
-:::details{title="Where you choose the storage mode"}
-
-When you create a storage, Rabbithole asks you to choose **Blob Storage** or
-**On-chain Storage** before payment. Encryption remains a separate feature gate:
-the selected storage mode decides where file bytes live, while the encryption
-mode decides whether those bytes are encrypted before upload.
+For ordinary files, **Blob Storage** is usually the better fit: it is cheaper
+and handles large files more comfortably. Choose **On-chain Storage** when you
+want to avoid the external storage layer and cost or file size is not the main
+constraint.
 
 :::
 
@@ -41,61 +36,77 @@ mode decides whether those bytes are encrypted before upload.
 
 ### Blob Storage <Badge type="tip">Recommended</Badge>
 
-- About **$0.05 per GB per month**
-- Best for larger files and lower cost
-- The file is stored in external object storage
-- Your personal canister keeps access rules and file verification data
+Blob Storage keeps file bytes in external object storage, while your canister
+keeps the file record, access rules, and verification data. The external layer
+sees only encrypted bytes.
 
-### On-chain Storage <Badge type="info">Maximum control</Badge>
+- About **$0.05 per GB per month**.
+- Best for larger files and lower cost.
+- The file is stored in external object storage.
+- Your personal canister keeps access rules and file verification data.
 
-- About **$1.04 per GB per month**
-- Best for users who want the simplest trust model
-- The file is stored directly in your personal canister
-- No dependency on an external storage layer
+### On-chain Storage <Badge type="info">Advanced mode</Badge>
+
+On-chain Storage keeps the file directly inside your personal canister. There
+are fewer components to trust, but the cost is higher and the cycle balance
+matters more.
+
+- About **$1.04 per GB per month**.
+- Best for small, high-value files.
+- The file is stored directly in your personal canister.
+- There is no dependency on an external storage layer.
 
 ## Comparison
 
 | | Blob Storage | On-chain Storage |
 |---|---|---|
-| **Best for** | Everyday storage | Maximum sovereignty |
+| **Best for** | Everyday storage | Special scenarios and maximum control |
 | **Estimated cost** | About **$0.05/GB/month** | About **$1.04/GB/month** |
 | **Where the file lives** | External object storage | Your personal canister |
-| **What your canister keeps** | File record, access rules, verification data | File record, access rules, encrypted file |
+| **What your canister keeps** | File record, access rules, verification data | File record, access rules, file bytes |
+| **Upload concern** | Blob Storage availability and record commit | Cycle balance and canister safe floor |
 | **Trust model** | IC + local verification + storage service | IC + cryptography |
 
 :::note{title="About pricing"}
 
-These are rough estimates for comparison. Real storage cost can change over time.
+These are rough estimates for comparison. Real storage cost can change over
+time.
 
 :::
 
 :::note{title="Integrity and availability are different things"}
 
-Verification helps detect silent replacement of a file.  
-It does not guarantee that a file will remain available forever.
+Verification helps detect silent replacement of a file. It does not guarantee
+that a file will remain available forever. Availability depends on the storage
+mode, cycle balance, and retention rules of the selected storage service.
 
 :::
 
 ## What stays the same in both modes
 
-- Your personal canister remains the place that keeps file ownership and access
-  rules.
-- Rabbithole is built around encrypted storage, even though encryption depends
-  on plan and folder settings.
+Both modes keep the same user model. The byte location changes; ownership and
+access keep the same meaning.
+
+- Your personal canister keeps ownership, access rules, and trusted file
+  records.
+- Encrypted files are encrypted in the browser before upload.
+- The canister checks permissions before file operations and key derivation.
+- Storage license and Pro decide which encrypted uploads are allowed.
 - Integrity verification remains part of the storage path.
 
-## What happens if Rabbithole disappears?
+## What happens if Rabbithole is unavailable?
 
 **On-chain Storage:** your file remains inside your canister as long as the
 canister stays funded with [cycles](/en/how-it-works/payment).
 
 **Blob Storage:** your canister still keeps the file record and the information
-needed to verify the file. Availability then depends on the Blob Storage funding
-and retention lifecycle.
+needed to verify the file. File-byte availability depends on Blob Storage
+funding and retention policy.
 
 :::note{title="Rabbithole is an interface, not the owner of your data"}
 
-Your canister is the durable system of record. Rabbithole is one way to access it.
+The durable file record lives in your canister. Rabbithole helps you use it and
+manage service operations, but it does not become the data owner.
 
 :::
 
@@ -118,12 +129,12 @@ Your canister is the durable system of record. Rabbithole is one way to access i
         link: '/en/how-it-works/storage/integrity',
       },
       {
-        text: 'How shared access works',
-        link: '/en/how-it-works/sharing/',
-      },
-      {
         text: 'Payment & Cycles',
         link: '/en/how-it-works/payment',
+      },
+      {
+        text: 'What Pro gives you',
+        link: '/en/how-it-works/pro',
       },
     ],
   }}

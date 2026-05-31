@@ -107,8 +107,9 @@ sequenceDiagram
     S->>S: Store pending email grant
     S-->>API: Storage access event
     API->>API: Index pending email grant
-    R->>API: syncIdentityAttributes(nonce)
-    API->>API: Match verified email to commitment
+    R->>API: _internet_identity_sign_in_finish()
+    API->>API: Store verified email and match commitment
+    R->>API: claimVerifiedEmailAccess()
     API->>S: claimPendingAccessByBackendAttestation()
     S->>S: Create principal access grant
 ```

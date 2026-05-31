@@ -7,23 +7,15 @@ sidebar:
 
 import { OverviewGroup } from '@rspress/core/theme';
 
-## Encrypted mode starts in your browser
+## Encryption starts in your browser
 
-Rabbithole can store files in encrypted or plaintext mode. This section
-describes encrypted mode: your browser encrypts the file before upload, and the
-storage path receives encrypted bytes.
+Rabbithole encrypts file contents in your browser before upload. The storage path
+then receives encrypted bytes: the canister, Blob Storage, or On-chain Storage
+does not receive a readable file.
 
 That difference matters. Rabbithole can move the file, store metadata, check
 permissions, and verify integrity, but it does not need the readable file
 contents to do that work.
-
-:::note{title="Encrypted mode only"}
-
-These guarantees apply when encryption is enabled for the file or folder. If
-you upload a file without encryption, access rules still work, but the file is
-not protected by the confidentiality model described here.
-
-:::
 
 ```mermaid
 flowchart LR
@@ -50,9 +42,9 @@ flowchart LR
 
 ## What this means for you
 
-In encrypted mode, Rabbithole handles sealed data instead of readable data.
+Rabbithole handles sealed data instead of readable data.
 
-- The Rabbithole team cannot read encrypted file contents.
+- The Rabbithole team cannot read file contents.
 - Internet Computer nodes and storage services store encrypted chunks, not the
   plaintext file.
 - The storage canister controls who may request the file key.
@@ -83,8 +75,8 @@ understand how Standard differs from High Replication.
 
 ## Sharing does not re-encrypt the file
 
-When you share an encrypted file, Rabbithole changes access rules. It does not
-upload a second encrypted copy for the recipient.
+When you share a file, Rabbithole changes access rules. It does not upload a
+second encrypted copy for the recipient.
 
 If the recipient has access, the canister lets their browser request the same
 file key. If access is revoked, the canister stops allowing future key requests

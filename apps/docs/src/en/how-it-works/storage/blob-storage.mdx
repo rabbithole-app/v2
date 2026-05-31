@@ -9,29 +9,25 @@ import { OverviewGroup, Steps } from '@rspress/core/theme';
 
 ## What Blob Storage is
 
-Blob Storage is Rabbithole's lower-cost storage mode. The file is stored outside your canister, while your canister keeps the file record, access rules, and the information needed to verify that the file has not been replaced.
+Blob Storage is the recommended mode for most encrypted files. The bytes live
+outside your canister, while the canister keeps the file record, access rules,
+and the data your browser uses to detect replacement.
 
-When encryption is enabled, the storage layer sees only ciphertext.  
-When encryption is disabled, treat Blob Storage as a storage and access-control mode, not as a confidentiality mode.
+The storage layer sees only ciphertext. Blob Storage handles byte storage and
+delivery, while browser-side encryption protects file confidentiality before
+upload.
 
-:::tip{title="Trade-off at a glance"}
+:::tip{title="Trade-off"}
 
-You gain lower cost and support for larger files.  
-You accept that long-term availability depends on the Blob Storage service lifecycle.
+You pay less and handle large files more comfortably. In exchange, long-term
+byte availability depends on the Blob Storage lifecycle.
 
 :::
 
 :::note{title="Important distinction"}
 
-The external storage layer keeps the **file itself**.  
-Your personal canister keeps the **trusted metadata and verification data**.
-
-:::
-
-:::note{title="Encryption changes the privacy boundary"}
-
-With encryption enabled, Blob Storage cannot read file contents.  
-Without encryption, the storage infrastructure can see file contents, even though Rabbithole still enforces access rules between users.
+The external storage layer keeps the **file itself**. Your personal canister
+keeps the **trusted file record, access rules, and verification data**.
 
 :::
 
@@ -39,28 +35,34 @@ Without encryption, the storage infrastructure can see file contents, even thoug
 
 ![Blob Storage architecture](/diagrams/fossflow-diagram-2.png)
 
-This diagram shows the full Blob Storage path:
+The Blob Storage path looks like this:
 
-- your browser uploads the file
-- your personal canister keeps the **trusted record and access state**
-- the **Blob Gateway** is the upload and download service that stores the file in **S3-compatible object storage**
-- **Cashier** and **Cleanup service** handle storage billing and cleanup behind the scenes
+- your browser prepares and uploads the file;
+- your personal canister keeps the trusted record and access state;
+- **Blob Gateway** accepts uploads and returns files during download;
+- **Cashier** and **Cleanup service** handle billing and cleanup or retention
+  events.
 
 ## How upload works
 
 <Steps>
 
-### Prepare the file in the browser
+### Prepare chunks in the browser
 
-The browser splits the file into chunks. If encryption is enabled, those chunks are encrypted before upload.
+The browser splits the file into chunks and encrypts each chunk locally.
+Encrypted chunks are written to a temporary browser spool so the full encrypted
+file does not have to stay in memory.
 
-### Upload the file
+### Upload chunks to Blob gateway
 
-The browser sends file chunks to the Blob gateway, which stores them in an S3-compatible object storage layer.
+The browser reads encrypted chunks from the spool and sends them to Blob
+gateway. The gateway stores the data in S3-compatible object storage.
 
-### Save the file record in your canister
+### Write the result into the canister
 
-Your canister stores the file record, permissions, and the fingerprint used later to verify downloads.
+After successful upload, Rabbithole writes the result into the canister. The
+canister stores the trusted file record: size, hashes, metadata, and access
+state.
 
 </Steps>
 
@@ -74,7 +76,7 @@ flowchart LR
     V --> D[Decrypt locally]
 ```
 
-The browser does two separate things before opening the file:
+The browser does two things before opening the file:
 
 1. It gets the expected file fingerprint from your canister.
 2. It checks that the file downloaded from Blob Storage matches that fingerprint.
@@ -83,21 +85,32 @@ Only after that does decryption happen, if encryption was enabled for that file.
 
 ## How billing and cleanup fit in
 
-- **Blob Gateway** is the service that accepts uploads and returns files during download.
-- **Cashier** is the storage billing service that keeps the storage lifecycle funded and coordinated.
-- **Cleanup service** synchronizes deletion and retention-related cleanup with your canister.
+File bytes in Blob Storage have their own lifecycle. The canister remains the
+trusted system of record, but byte availability depends on Blob Storage funding
+and retention rules.
+
+- **Blob Gateway** accepts uploads and returns files during download.
+- **Cashier** keeps storage funded.
+- **Cleanup service** synchronizes deletion and retention events with your
+  canister.
 
 ## Why this model is cheaper
 
-Blob Storage is cheaper because the file itself does not have to live inside canister memory. Your canister stores a much smaller amount of information: file records, access state, and verification data.
+Blob Storage is cheaper because the file itself does not have to live inside
+canister memory. Your canister stores a much smaller amount of information:
+file records, access state, and verification data.
 
 ## What this mode trusts
 
-- The Internet Computer for your canister state
-- Cryptographic verification performed in the browser
-- The Blob Storage service for availability and retention of the file
+Trust is split across several parts:
 
-That is why Blob Storage is not the same trust model as On-chain Storage, even though both use the same end-to-end encryption.
+- The Internet Computer keeps your canister state.
+- The canister certifies trusted file metadata.
+- The browser verifies downloaded bytes before opening them.
+- Blob Storage is responsible for byte availability and retention.
+
+Blob Storage and On-chain Storage use the same end-to-end encryption, but their
+availability models differ.
 
 ## Continue reading
 

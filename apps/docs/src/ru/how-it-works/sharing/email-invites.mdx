@@ -113,8 +113,9 @@ sequenceDiagram
     S->>S: Сохраняет ожидающее правило доступа
     S-->>API: Событие изменения доступа
     API->>API: Индексирует ожидающее email-приглашение
-    R->>API: syncIdentityAttributes(nonce)
-    API->>API: Сопоставляет проверенный email с commitment
+    R->>API: _internet_identity_sign_in_finish()
+    API->>API: Сохраняет email и сопоставляет commitment
+    R->>API: claimVerifiedEmailAccess()
     API->>S: claimPendingAccessByBackendAttestation()
     S->>S: Создаёт активное правило для principal
 ```

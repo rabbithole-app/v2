@@ -5,16 +5,19 @@ description: How Rabbithole handles your data and protects your privacy
 
 # Privacy Policy
 
-**Last updated: May 18, 2026**
+**Last updated: May 31, 2026**
 
 ## The short version
 
-Rabbithole is designed around encrypted storage, and in encrypted mode we **cannot** access your file contents. When encryption is enabled, files are encrypted in your browser before they reach the network. We have no master keys and no backdoors for that encrypted mode.
+Rabbithole's file path is encrypted: we **cannot** access your file contents.
+Files are encrypted in your browser before they reach the network. We have no
+master keys and no backdoors for decrypting file contents.
 
 ## What we don't collect
 
-- **Encrypted file contents** — in encrypted mode, we never see plaintext
-- **Encryption keys** — in encrypted mode, they are derived via threshold cryptography and never exist in one place
+- **File contents** — we never see plaintext
+- **Encryption keys** — they are derived via threshold cryptography and never
+  exist in one place
 - **Passwords** — there are none; authentication is via Internet Identity (passkeys/biometrics)
 - **Email addresses by default** — registration does not require email. If you
   consent to share a verified email attribute, Rabbithole uses it for features
@@ -34,7 +37,7 @@ When you sign in, your browser generates a cryptographic identity (Principal ID)
 
 Your personal storage canister records:
 - File metadata (names, sizes, folder structure) — stored in your canister, not encrypted
-- File contents — encrypted when encryption is enabled
+- File contents — encrypted before they are written to the selected storage mode
 - Access permissions you set
 
 Your canister stores file records, access rules, and on-chain file bytes. Blob
@@ -50,7 +53,7 @@ infrastructure. We do not store payment details.
 
 ## Data location
 
-Your canister data is stored on the [Internet Computer](https://internetcomputer.org), distributed across independent nodes operated by different parties worldwide. In encrypted mode, no single node operator can access the file contents.
+Your canister data is stored on the [Internet Computer](https://internetcomputer.org), distributed across independent nodes operated by different parties worldwide. Node operators do not receive readable file contents.
 
 ## Data retention
 
@@ -67,7 +70,8 @@ file availability depends on the Blob Storage retention lifecycle.
 
 - **Internet Identity** — authentication provider (open source, operated by DFINITY Foundation)
 - **Internet Computer** — decentralized blockchain network
-- **Blob Storage infrastructure** — used when files are stored outside the canister; in encrypted mode it stores ciphertext, without encryption it may see file contents
+- **Blob Storage infrastructure** — used when files are stored outside the
+  canister; it stores ciphertext, not readable file contents
 
 We do not use Google Analytics, Facebook Pixel, or any third-party tracking service.
 

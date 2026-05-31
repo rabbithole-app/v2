@@ -21,8 +21,8 @@ After your storage is ready, you can:
 If words like canister, principal, or cycles are new to you, read
 [Core concepts](./concepts) before the deeper technical pages.
 
-Rabbithole is built around end-to-end encryption. When encryption is enabled,
-files are protected before upload.
+Rabbithole is built around end-to-end encryption. Files are protected before
+upload.
 
 :::tip{title="Want to know more?"}
 

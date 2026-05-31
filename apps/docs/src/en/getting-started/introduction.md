@@ -27,12 +27,12 @@ smart-contract application: it has code, state, and its own resource balance. In
 Rabbithole, that canister keeps file records, permissions, and, depending on the
 storage mode, the file bytes themselves.
 
-In encrypted mode, the file is encrypted directly in your browser before
-upload. Plaintext data is not sent to the storage backend, and keys are not
-derived from a password or stored by Rabbithole as a master key. The technical
-pages explain [vetKeys](https://docs.internetcomputer.org/concepts/vetkeys/)
-and storage modes later; the starting point is simpler: storage control and
-cryptography are built into the architecture, not only promised by the service.
+The file is encrypted directly in your browser before upload. Plaintext data is
+not sent to the storage backend, and keys are not derived from a password or
+stored by Rabbithole as a master key. The technical pages explain
+[vetKeys](https://docs.internetcomputer.org/concepts/vetkeys/) and storage modes
+later; the starting point is simpler: storage control and cryptography are built
+into the architecture instead of depending only on a service promise.
 
 New to Internet Computer terms? Read [Core concepts](./concepts) first.
 
@@ -57,7 +57,7 @@ flowchart LR
    a Rabbithole password.
 2. Rabbithole creates an independent storage canister for your account.
 3. You upload files through the app.
-4. If encryption is enabled, your browser encrypts the file before upload.
+4. Your browser encrypts the file before upload.
 5. When you download it, the browser verifies and decrypts the file locally.
 
 ## The core idea
@@ -68,9 +68,9 @@ not expose your files or keys. Rabbithole tries to move more of that trust into
 architecture.
 
 Storage ownership is expressed through canister control. Access rules live with
-the storage canister. When encryption is enabled, files are encrypted in your
-browser, and key derivation is handled by the network instead of a
-password-derived master key stored by Rabbithole.
+the storage canister. Files are encrypted in your browser, and key derivation is
+handled by the network instead of a password-derived master key stored by
+Rabbithole.
 
 The result is not magic, and it does not remove every assumption. Your browser,
 the Internet Computer protocol, and Rabbithole's code still matter. But the
@@ -112,8 +112,8 @@ detail.
   [open source](https://github.com/rabbithole-app/v2), encryption runs in your
   browser, and key derivation is enforced by IC consensus
 
-In encrypted mode, plaintext is not uploaded to the canister or Blob Storage.
-Rabbithole still relies on your browser, IC consensus, and correct code. The
+Plaintext is not uploaded to the canister or Blob Storage. Rabbithole still
+relies on your browser, IC consensus, and correct code. The
 [Trust Model](/en/how-it-works/trust-model) page lists those assumptions.
 
 :::tip{title="Want to go deeper?"}
