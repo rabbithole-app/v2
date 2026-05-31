@@ -59,7 +59,6 @@ export type {
   CommitCaffeineUploadArgs,
   DirectoryColor,
   Entry,
-  EncryptionMode,
   _SERVICE as EncryptedStorageActorService,
   ListResponse,
   NodeDetails,

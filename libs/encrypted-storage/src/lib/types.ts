@@ -8,14 +8,11 @@ import {
   AccessRequestStatus as AccessRequestStatusRaw,
   AccessScope,
   AccessSource,
-  DirectoryEncryptionPolicy as DirectoryEncryptionPolicyRaw,
-  EncryptionMode,
   Entry as EntryRaw,
   PendingAccessGrant,
   EncryptedStorageHttpPermission as PermissionRaw,
   StorageBackend,
   StoragePermission as StoragePermissionRaw,
-  ThumbnailEncryptionPolicy as ThumbnailEncryptionPolicyRaw,
   ThumbnailRef as ThumbnailRefRaw,
   ThumbnailStoragePolicy as ThumbnailStoragePolicyRaw,
   Time,
@@ -160,9 +157,6 @@ export type StorageClaimedPrincipal = {
 
 export type StorageClaimedPrincipalOrigin = 'rabbithole' | 'storage';
 
-export type StorageDirectoryEncryptionPolicy =
-  ExtractVariantKeys<DirectoryEncryptionPolicyRaw>;
-
 export type StoragePendingAccessGrant = PendingAccessGrant;
 
 export type StoragePermission = ExtractVariantKeys<StoragePermissionRaw>;
@@ -180,9 +174,6 @@ export type StoragePermissionItem = {
   targetKind?: 'email' | 'emailCommitment' | 'principal';
   user: string;
 };
-
-export type StorageThumbnailEncryptionPolicy =
-  ExtractVariantKeys<ThumbnailEncryptionPolicyRaw>;
 
 /**
  * Upload progress in bytes
@@ -234,11 +225,6 @@ export type StoreConfig = {
    */
   contentType?: string;
   /**
-   * Encryption mode for this file
-   * @default undefined (inherits from parent directory, defaults to 'Encrypted')
-   */
-  encryptionMode?: 'Encrypted' | 'Plaintext';
-  /**
    * File name
    * @default File object name or name in file path
    */
@@ -282,10 +268,6 @@ export type TreeNode = {
 
 type ExtractVariantKeys<T> =
   T extends Record<infer K, unknown> ? Extract<K, string> : never;
-
-export function toEncryptionMode(mode?: 'Encrypted' | 'Plaintext'): [] | [EncryptionMode] {
-  return mode ? [{ [mode]: null } as EncryptionMode] : [];
-}
 
 export function toEntryRaw(entry: Entry): EntryRaw {
   return [{ [entry[0]]: null } as EntryRaw[0], entry[1]];

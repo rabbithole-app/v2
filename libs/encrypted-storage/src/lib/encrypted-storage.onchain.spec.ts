@@ -2,6 +2,47 @@ import { Actor } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const vetkeyMocks = vi.hoisted(() => {
+  const encryptMessage = vi.fn(async (bytes: Uint8Array) => {
+    const encrypted = new Uint8Array(bytes.byteLength + 28);
+    encrypted.set(bytes);
+    return encrypted;
+  });
+  const derivedKeyMaterial = {
+    decryptMessage: vi.fn(async (bytes: Uint8Array) =>
+      bytes.slice(0, Math.max(0, bytes.byteLength - 28))),
+    encryptMessage,
+    getCryptoKey: vi.fn(() => ({})),
+  };
+  return { derivedKeyMaterial, encryptMessage };
+});
+
+vi.mock('idb-keyval', () => ({
+  get: vi.fn(async () => undefined),
+  set: vi.fn(async () => undefined),
+}));
+
+vi.mock('@dfinity/vetkeys', () => ({
+  DerivedKeyMaterial: {
+    fromCryptoKey: () => vetkeyMocks.derivedKeyMaterial,
+  },
+  DerivedPublicKey: {
+    deserialize: () => ({}),
+  },
+  EncryptedVetKey: {
+    deserialize: () => ({
+      decryptAndVerify: () => ({
+        asDerivedKeyMaterial: () => vetkeyMocks.derivedKeyMaterial,
+      }),
+    }),
+  },
+  TransportSecretKey: {
+    random: () => ({
+      publicKeyBytes: () => new Uint8Array([1, 2, 3]),
+    }),
+  },
+}));
+
 import { EncryptedStorage } from './encrypted-storage';
 
 describe('EncryptedStorage OnChain upload funding retry', () => {
@@ -17,6 +58,8 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
     beginUploadSession: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     finishUploadSession: ReturnType<typeof vi.fn>;
+    getEncryptedVetkey: ReturnType<typeof vi.fn>;
+    getVetkeyVerificationKey: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -25,20 +68,18 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
       create: vi.fn(async () => ({
         keyId,
         metadata: {
-          File: {
-            encryptionMode: { Plaintext: null },
-          },
+          File: {},
         },
       })),
+      getEncryptedVetkey: vi.fn(async () => new Uint8Array([1])),
+      getVetkeyVerificationKey: vi.fn(async () => new Uint8Array([2])),
       beginUploadSession: vi.fn(async () => ({
         ok: {
           batchId: 1n,
           node: {
             keyId,
             metadata: {
-              File: {
-                encryptionMode: { Plaintext: null },
-              },
+              File: {},
             },
           },
         },
@@ -75,7 +116,6 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
     const upload = storage.store([new TextEncoder().encode('retry finalize'), {
       fileName: 'retry-finalize.txt',
       contentType: 'text/plain',
-      encryptionMode: 'Plaintext',
     }]);
 
     await vi.waitFor(() => {
@@ -89,9 +129,8 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
     expect(actorMock.create).not.toHaveBeenCalled();
     expect(actorMock.beginUploadSession).toHaveBeenCalledWith(expect.objectContaining({
       createMode: { GetOrCreate: null },
-      declaredUploadBytes: [],
+      declaredUploadBytes: [42n],
       expectedChunkCount: [1n],
-      encryptionMode: [{ Plaintext: null }],
     }));
     expect(actorMock.appendUploadChunk).toHaveBeenCalledWith(expect.objectContaining({
       chunkIndex: [0n],
@@ -120,7 +159,6 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
     const upload = storage.store([new TextEncoder().encode('retry append'), {
       fileName: 'retry-append.txt',
       contentType: 'text/plain',
-      encryptionMode: 'Plaintext',
     }]);
 
     await vi.waitFor(() => {
@@ -153,7 +191,6 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
     await expect(storage.store([new TextEncoder().encode('terminal funding'), {
       fileName: 'terminal-funding.txt',
       contentType: 'text/plain',
-      encryptionMode: 'Plaintext',
     }])).rejects.toThrow(/Treasury ICP reserve low/);
 
     expect(actorMock.appendUploadChunk).toHaveBeenCalledTimes(1);

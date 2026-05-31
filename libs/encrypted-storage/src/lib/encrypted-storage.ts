@@ -50,16 +50,13 @@ import {
   RevokeStorageAccessGrants,
   StorageAccessGrantListMode,
   type StorageClaimedPrincipal,
-  StorageDirectoryEncryptionPolicy,
   StoragePendingAccessGrant,
   StoragePermission,
   StoragePermissionItem,
-  StorageThumbnailEncryptionPolicy,
   StorageThumbnailStoragePolicy,
   StoreArgs,
   StoreConfig,
   StorePathArgs,
-  toEncryptionMode,
   toEntryRaw,
   toOptionalEntryRaw,
   toStoragePermission,
@@ -166,15 +163,11 @@ export class EncryptedStorage {
     return await this.#createAccessBatchWithSubscriptionRefresh(args);
   }
 
-  async createDirectory(
-    path: string,
-    options?: { encryptionMode?: 'Encrypted' | 'Plaintext' },
-  ) {
+  async createDirectory(path: string) {
     const entry: EntryRaw = [{ Directory: null }, path];
     return unwrapStorageResult(await this.#actor.create({
       entry,
       createMode: { CreateNew: null },
-      encryptionMode: toEncryptionMode(options?.encryptionMode),
     }));
   }
 
@@ -194,7 +187,6 @@ export class EncryptedStorage {
   async *downloadStream(
     entry: Entry,
     options?: {
-      encrypted?: boolean;
       /** Required for BlobStorage downloads — used to construct certified HTTP path. */
       keyId?: [Principal, Uint8Array];
       onProgress?: (chunkIndex: number, totalChunks: number) => void;
@@ -204,15 +196,13 @@ export class EncryptedStorage {
       version?: number;
     },
   ): AsyncGenerator<Uint8Array> {
-    const isEncrypted = options?.encrypted !== false;
-
-    let derivedKeyMaterial: DerivedKeyMaterial | undefined;
-    if (isEncrypted && options?.keyId) {
-      derivedKeyMaterial = await this.#getDerivedKeyMaterialOrFetchIfNeeded(
-        ...options.keyId,
-      );
+    if (!options?.keyId) {
+      throw new Error('keyId is required for encrypted downloads');
     }
 
+    const derivedKeyMaterial = await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+      ...options.keyId,
+    );
     const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
 
     // ── BlobStorage download flow ──
@@ -256,12 +246,8 @@ export class EncryptedStorage {
         const end = Math.min(start + encChunkSize, allBytes.byteLength);
         const chunkBytes = allBytes.slice(start, end);
 
-        if (isEncrypted && derivedKeyMaterial) {
-          const decrypted = await derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator);
-          yield Uint8Array.from(decrypted);
-        } else {
-          yield chunkBytes;
-        }
+        const decrypted = await derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator);
+        yield Uint8Array.from(decrypted);
 
         options.onProgress?.(i + 1, totalChunks);
       }
@@ -283,15 +269,11 @@ export class EncryptedStorage {
       );
       const chunkBytes = chunkResult.content as Uint8Array;
 
-      if (isEncrypted && derivedKeyMaterial) {
-        const decrypted = await derivedKeyMaterial.decryptMessage(
-          chunkBytes,
-          domainSeparator,
-        );
-        yield Uint8Array.from(decrypted);
-      } else {
-        yield chunkBytes;
-      }
+      const decrypted = await derivedKeyMaterial.decryptMessage(
+        chunkBytes,
+        domainSeparator,
+      );
+      yield Uint8Array.from(decrypted);
 
       options?.onProgress?.(i + 1, totalChunks);
     }
@@ -310,7 +292,6 @@ export class EncryptedStorage {
    */
   async get(
     keyId: [Principal, Uint8Array],
-    options?: { encrypted?: boolean },
   ) {
     const url = new URL(
       `/encrypted/${keyId[0].toText()}/${new TextDecoder().decode(keyId[1])}`,
@@ -319,11 +300,6 @@ export class EncryptedStorage {
 
     const response = await fetch(url);
     const bytes = await response.bytes();
-
-    // Skip decryption for plaintext files
-    if (options?.encrypted === false) {
-      return new Blob([bytes]);
-    }
 
     // get derivedKeyMaterial for created file
     const derivedKeyMaterial = await this.#getDerivedKeyMaterialOrFetchIfNeeded(
@@ -571,7 +547,7 @@ export class EncryptedStorage {
       const backend = await this.getStorageBackend();
       const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
 
-      let derivedKeyMaterial: Awaited<ReturnType<typeof this.getDerivedKeyMaterial>> | undefined;
+      let derivedKeyMaterial: Awaited<ReturnType<typeof this.getDerivedKeyMaterial>>;
 
       // ── BlobStorage upload flow ──
       // Chunks go directly to the blob storage gateway, not through the canister.
@@ -581,36 +557,29 @@ export class EncryptedStorage {
             unwrapStorageResult(await this.#actor.create({
               entry,
               createMode: { GetOrCreate: null },
-              encryptionMode: toEncryptionMode(config.encryptionMode),
             })),
           config.signal,
         );
-        const isEncrypted =
-          'File' in details.metadata &&
-          'Encrypted' in details.metadata.File.encryptionMode;
-        const chunkSize = isEncrypted ? CAFFEINE_PLAINTEXT_CHUNK_SIZE : CAFFEINE_CHUNK_SIZE;
+        const chunkSize = CAFFEINE_PLAINTEXT_CHUNK_SIZE;
         const chunkCount = Math.max(1, Math.ceil(sourceSize / chunkSize));
-        const declaredUploadBytes = isEncrypted
-          ? BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD)
-          : BigInt(sourceSize);
+        const declaredUploadBytes =
+          BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD);
 
         unwrapStorageResult(await this.#actor.preflightCaffeineUpload({
           entry,
           size: declaredUploadBytes,
         }));
 
-        if (isEncrypted) {
-          this.#progress.setState((state) => ({
-            ...state,
-            [key]: { status: UploadState.REQUESTING_VETKD },
-          }));
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.REQUESTING_VETKD },
+        }));
 
-          derivedKeyMaterial =
-            await this.#getDerivedKeyMaterialOrFetchIfNeeded(
-              details.keyId[0],
-              Uint8Array.from(details.keyId[1]),
-            );
-        }
+        derivedKeyMaterial =
+          await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+            details.keyId[0],
+            Uint8Array.from(details.keyId[1]),
+          );
 
         const spool = createBlobUploadSpool(chunkCount);
         try {
@@ -625,9 +594,7 @@ export class EncryptedStorage {
               i * chunkSize,
               Math.min((i + 1) * chunkSize, sourceSize),
             );
-            const encrypted = isEncrypted && derivedKeyMaterial
-              ? await derivedKeyMaterial.encryptMessage(plain, domainSeparator)
-              : plain;
+            const encrypted = await derivedKeyMaterial.encryptMessage(plain, domainSeparator);
             contentHash.update(encrypted);
             totalEncryptedSize += encrypted.byteLength;
             chunkHashes.push(await YHash.fromChunk(encrypted));
@@ -694,6 +661,8 @@ export class EncryptedStorage {
 
       // ── Inline (on-chain) upload flow ──
       const chunkCount = Math.max(1, Math.ceil(sourceSize / this.#maxChunkSize));
+      const declaredUploadBytes =
+        BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD);
       const uploadController = new AbortController();
       const abortUpload = () => uploadController.abort(config.signal?.reason);
       if (config.signal?.aborted) {
@@ -730,10 +699,9 @@ export class EncryptedStorage {
             async () => unwrapStorageResult(await this.#actor.beginUploadSession({
               entry,
               totalSize: BigInt(sourceSize),
-              declaredUploadBytes: [],
+              declaredUploadBytes: [declaredUploadBytes],
               expectedChunkCount: [BigInt(chunkCount)],
               createMode: { GetOrCreate: null },
-              encryptionMode: toEncryptionMode(config.encryptionMode),
             })),
             uploadController.signal,
           ),
@@ -742,22 +710,17 @@ export class EncryptedStorage {
         );
         batchId = batch.batchId;
         const details = batch.node;
-        const isEncrypted =
-          'File' in details.metadata &&
-          'Encrypted' in details.metadata.File.encryptionMode;
 
-        if (isEncrypted) {
-          this.#progress.setState((state) => ({
-            ...state,
-            [key]: { status: UploadState.REQUESTING_VETKD },
-          }));
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.REQUESTING_VETKD },
+        }));
 
-          derivedKeyMaterial =
-            await this.#getDerivedKeyMaterialOrFetchIfNeeded(
-              details.keyId[0],
-              Uint8Array.from(details.keyId[1]),
-            );
-        }
+        derivedKeyMaterial =
+          await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+            details.keyId[0],
+            Uint8Array.from(details.keyId[1]),
+          );
 
         // Step 2: Upload chunks in bounded windows. The canister accepts
         // out-of-order chunks and hashes only the contiguous prefix.
@@ -781,9 +744,7 @@ export class EncryptedStorage {
               index * this.#maxChunkSize,
               Math.min((index + 1) * this.#maxChunkSize, sourceSize),
             );
-            const content = isEncrypted && derivedKeyMaterial
-              ? await derivedKeyMaterial.encryptMessage(plainChunk, domainSeparator)
-              : plainChunk;
+            const content = await derivedKeyMaterial.encryptMessage(plainChunk, domainSeparator);
 
             this.#sha256[key].update(content);
             uploadTasks.push(
@@ -870,18 +831,12 @@ export class EncryptedStorage {
   async updateDirectoryPolicy(
     path: string,
     policy: {
-      encryptionPolicy?: StorageDirectoryEncryptionPolicy;
-      thumbnailEncryptionPolicy?: StorageThumbnailEncryptionPolicy;
       thumbnailStoragePolicy?: StorageThumbnailStoragePolicy;
     },
   ) {
     return unwrapStorageResult(await this.#actor.updateDirectoryPolicy({
       entry: [{ Directory: null }, path],
-      encryptionPolicy: toOptionalVariant(policy.encryptionPolicy),
       thumbnailStoragePolicy: toOptionalVariant(policy.thumbnailStoragePolicy),
-      thumbnailEncryptionPolicy: toOptionalVariant(
-        policy.thumbnailEncryptionPolicy,
-      ),
     } as Parameters<EncryptedStorageActorService['updateDirectoryPolicy']>[0]));
   }
 

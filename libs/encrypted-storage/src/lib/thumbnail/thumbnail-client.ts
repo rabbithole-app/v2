@@ -33,16 +33,6 @@ const THUMBNAIL_KEY_WRAP_DOMAIN_SEPARATOR = utf8ToBytes(
   'rabbithole:thumbnail:keywrap:v1',
 );
 
-type EncryptedThumbnailRef = Extract<
-  ThumbnailEncryptionRef,
-  { Encrypted: unknown }
->['Encrypted'];
-
-type EncryptedThumbnailRequirement = Extract<
-  ThumbnailEncryptionRequirement,
-  { Encrypted: unknown }
->['Encrypted'];
-
 type ThumbnailClientConfig = {
   actor: ActorSubclass<EncryptedStorageActorService>;
   blobStorageClient?: BlobStorageGatewayClient;
@@ -74,9 +64,6 @@ export class ThumbnailClient {
   async getUrl(thumbnailRef: ThumbnailRef): Promise<string> {
     const url = this.#sourceUrl(thumbnailRef);
     const encryption = this.#encryption(thumbnailRef);
-    if ('Plaintext' in encryption) {
-      return url;
-    }
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -100,7 +87,7 @@ export class ThumbnailClient {
 
     const decryptedBytes = await this.#decryptContent(
       encryptedBytes,
-      encryption.Encrypted,
+      encryption,
     );
     const contentType = this.#contentType(thumbnailRef);
     return URL.createObjectURL(
@@ -112,32 +99,28 @@ export class ThumbnailClient {
 
   async rewrap(entry: Entry, thumbnailRef: ThumbnailRef): Promise<boolean> {
     const currentEncryption = this.#encryption(thumbnailRef);
-    if ('Plaintext' in currentEncryption) return false;
 
     const prepared = await this.#actor.prepareThumbnailUpload({
       entry: toEntryRaw(entry),
       contentType: this.#contentType(thumbnailRef),
       size: this.#size(thumbnailRef),
     });
-    if ('Plaintext' in prepared.encryption) {
-      return false;
-    }
     if (!storageBackendsEqual(this.#storageBackend(thumbnailRef), prepared.storageBackend)) {
       return false;
     }
 
-    const nextScopeKeyId = prepared.encryption.Encrypted.scopeKeyId;
-    if (keyIdsEqual(currentEncryption.Encrypted.scopeKeyId, nextScopeKeyId)) {
+    const nextScopeKeyId = prepared.encryption.scopeKeyId;
+    if (keyIdsEqual(currentEncryption.scopeKeyId, nextScopeKeyId)) {
       return false;
     }
 
     const thumbnailKeyBytes = await this.#unwrapKey(
-      currentEncryption.Encrypted,
+      currentEncryption,
     );
     const nextEncryption = await this.#wrapKey(
       thumbnailKeyBytes,
       nextScopeKeyId,
-      Uint8Array.from(currentEncryption.Encrypted.blobIv),
+      Uint8Array.from(currentEncryption.blobIv),
     );
 
     await this.#actor.rewrapThumbnail({
@@ -215,7 +198,7 @@ export class ThumbnailClient {
 
   async #decryptContent(
     encryptedContent: Uint8Array,
-    encryption: EncryptedThumbnailRef,
+    encryption: ThumbnailEncryptionRef,
   ): Promise<Uint8Array> {
     if (encryption.algorithm !== THUMBNAIL_ENCRYPTION_ALGORITHM) {
       throw new Error(
@@ -256,11 +239,7 @@ export class ThumbnailClient {
     content: Uint8Array,
     requirement: ThumbnailEncryptionRequirement,
   ): Promise<{ content: Uint8Array; encryption: ThumbnailEncryptionRef }> {
-    if ('Plaintext' in requirement) {
-      return { content, encryption: { Plaintext: null } };
-    }
-
-    const scopeKeyId = requirement.Encrypted.scopeKeyId;
+    const scopeKeyId = requirement.scopeKeyId;
     const thumbnailKeyBytes = crypto.getRandomValues(
       new Uint8Array(THUMBNAIL_KEY_BYTES),
     );
@@ -319,7 +298,7 @@ export class ThumbnailClient {
       : { BlobStorage: null };
   }
 
-  async #unwrapKey(encryption: EncryptedThumbnailRef): Promise<Uint8Array> {
+  async #unwrapKey(encryption: ThumbnailEncryptionRef): Promise<Uint8Array> {
     if (encryption.algorithm !== THUMBNAIL_ENCRYPTION_ALGORITHM) {
       throw new Error(
         `Unsupported thumbnail encryption algorithm: ${encryption.algorithm}`,
@@ -361,7 +340,7 @@ export class ThumbnailClient {
 
   async #wrapKey(
     thumbnailKeyBytes: Uint8Array,
-    scopeKeyId: EncryptedThumbnailRequirement['scopeKeyId'],
+    scopeKeyId: ThumbnailEncryptionRequirement['scopeKeyId'],
     blobIv: Uint8Array,
   ): Promise<ThumbnailEncryptionRef> {
     const scopeKey = await this.#getDerivedKeyMaterial(
@@ -374,19 +353,17 @@ export class ThumbnailClient {
     );
 
     return {
-      Encrypted: {
-        scopeKeyId,
-        wrappedKey: Uint8Array.from(wrappedKey),
-        blobIv,
-        algorithm: THUMBNAIL_ENCRYPTION_ALGORITHM,
-      },
+      scopeKeyId,
+      wrappedKey: Uint8Array.from(wrappedKey),
+      blobIv,
+      algorithm: THUMBNAIL_ENCRYPTION_ALGORITHM,
     };
   }
 }
 
 function keyIdsEqual(
-  left: EncryptedThumbnailRequirement['scopeKeyId'],
-  right: EncryptedThumbnailRequirement['scopeKeyId'],
+  left: ThumbnailEncryptionRequirement['scopeKeyId'],
+  right: ThumbnailEncryptionRequirement['scopeKeyId'],
 ): boolean {
   const leftBytes = Uint8Array.from(left[1]);
   const rightBytes = Uint8Array.from(right[1]);

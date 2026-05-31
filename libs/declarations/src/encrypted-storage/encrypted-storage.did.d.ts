@@ -57,9 +57,14 @@ export interface ActiveUploadProjection {
   'remainingBytes' : bigint,
   'sessionCount' : bigint,
   'remainingChunkCount' : bigint,
-  'encryptedSessionCount' : bigint,
 }
 export interface AddRecoveryOwnerOptions { 'controllerRecovery' : boolean }
+export interface AppendUploadChunkArguments {
+  'content' : Uint8Array,
+  'chunkIndex' : [] | [bigint],
+  'batchId' : BatchId,
+}
+export interface AppendUploadChunkResponse { 'chunkId' : bigint }
 export interface AssetDetails {
   'key' : Key,
   'encodings' : Array<AssetEncodingDetails>,
@@ -86,7 +91,6 @@ export interface BeginUploadSessionArguments {
   'totalSize' : bigint,
   'expectedChunkCount' : [] | [bigint],
   'entry' : Entry,
-  'encryptionMode' : [] | [EncryptionMode],
 }
 export interface BeginUploadSessionResponse {
   'node' : NodeDetails,
@@ -188,11 +192,7 @@ export interface CreateAccessRequestArguments {
   'emailCommitment' : [] | [EmailCommitment],
   'message' : [] | [string],
 }
-export interface CreateArguments {
-  'createMode' : CreateMode,
-  'entry' : Entry,
-  'encryptionMode' : [] | [EncryptionMode],
-}
+export interface CreateArguments { 'createMode' : CreateMode, 'entry' : Entry }
 export interface CreateAssetArguments {
   'key' : Key,
   'content_type' : string,
@@ -206,13 +206,7 @@ export interface CreateChunkArguments {
   'content' : Uint8Array,
   'batch_id' : BatchId,
 }
-export interface CreateChunkArguments__1 {
-  'content' : Uint8Array,
-  'chunkIndex' : [] | [bigint],
-  'batchId' : BatchId,
-}
 export interface CreateChunkResponse { 'chunk_id' : bigint }
-export interface CreateChunkResponse__1 { 'chunkId' : bigint }
 export interface CreateChunksArguments {
   'content' : Array<Uint8Array>,
   'batch_id' : BatchId,
@@ -256,16 +250,10 @@ export type DirectoryColor = { 'blue' : null } |
   { 'purple' : null } |
   { 'green' : null } |
   { 'yellow' : null };
-export type DirectoryEncryptionPolicy = { 'Encrypted' : null } |
-  { 'Auto' : null } |
-  { 'Plaintext' : null };
 export interface DirectoryMetadata {
   'color' : [] | [DirectoryColor],
-  'thumbnailEncryptionPolicy' : ThumbnailEncryptionPolicy,
-  'defaultEncryptionMode' : EncryptionMode,
   'defaultThumbnailStorageBackend' : StorageBackend,
   'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
-  'encryptionPolicy' : DirectoryEncryptionPolicy,
 }
 export interface DurableAccessPolicy {
   'id' : bigint,
@@ -356,7 +344,10 @@ export interface EncryptedStorageCanister {
     OwnerEquivalentPrincipal
   >,
   'api_version' : ActorMethod<[], number>,
-  'appendUploadChunk' : ActorMethod<[CreateChunkArguments__1], StorageResult_6>,
+  'appendUploadChunk' : ActorMethod<
+    [AppendUploadChunkArguments],
+    StorageResult_6
+  >,
   'beginUploadSession' : ActorMethod<
     [BeginUploadSessionArguments],
     StorageResult_5
@@ -569,8 +560,6 @@ export interface EncryptedStorageCanister {
   'validate_revoke_permission' : ActorMethod<[RevokePermission], Result>,
   'validate_take_ownership' : ActorMethod<[], Result>,
 }
-export type EncryptionMode = { 'Encrypted' : null } |
-  { 'Plaintext' : null };
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export type Error = { 'FrontendOriginsNotConfigured' : null } |
   {
@@ -594,7 +583,6 @@ export interface FileMetadata {
   'contentType' : string,
   'size' : bigint,
   'currentVersion' : bigint,
-  'encryptionMode' : EncryptionMode,
   'chunkCount' : bigint,
   'versionCount' : bigint,
 }
@@ -921,8 +909,8 @@ export type StorageBackend = { 'OnChain' : null } |
 export interface StorageCardMetrics {
   'runtimeStableMemoryBytes' : [] | [bigint],
   'runtimeMemoryBytes' : [] | [bigint],
-  'encryptedBytesUsed' : bigint,
   'subscriptionStatus' : [] | [SubscriptionStatus],
+  'storedBytesUsed' : bigint,
   'backendId' : [] | [Principal],
   'storageBackendType' : StorageBackend,
   'memoryInfo' : MemoryInfo,
@@ -949,12 +937,12 @@ export type StorageResult_4 = { 'ok' : UploadSessionStatus } |
   { 'err' : StorageError };
 export type StorageResult_5 = { 'ok' : BeginUploadSessionResponse } |
   { 'err' : StorageError };
-export type StorageResult_6 = { 'ok' : CreateChunkResponse__1 } |
+export type StorageResult_6 = { 'ok' : AppendUploadChunkResponse } |
   { 'err' : StorageError };
 export interface StorageStatus {
   'cycleBalance' : bigint,
-  'encryptedBytesUsed' : bigint,
   'subscriptionStatus' : [] | [SubscriptionStatus],
+  'storedBytesUsed' : bigint,
   'backendId' : [] | [Principal],
   'storageBackendType' : StorageBackend,
 }
@@ -989,21 +977,13 @@ export type SubscriptionStatus = { 'active' : { 'plan' : Plan } } |
   { 'free' : null } |
   { 'unknownCanister' : null } |
   { 'invalidWasm' : null };
-export type ThumbnailEncryptionPolicy = { 'FollowFile' : null } |
-  { 'Inherit' : null };
-export type ThumbnailEncryptionRef = {
-    'Encrypted' : {
-      'algorithm' : string,
-      'wrappedKey' : Uint8Array,
-      'blobIv' : Uint8Array,
-      'scopeKeyId' : KeyId,
-    }
-  } |
-  { 'Plaintext' : null };
-export type ThumbnailEncryptionRequirement = {
-    'Encrypted' : { 'scopeKeyId' : KeyId }
-  } |
-  { 'Plaintext' : null };
+export interface ThumbnailEncryptionRef {
+  'algorithm' : string,
+  'wrappedKey' : Uint8Array,
+  'blobIv' : Uint8Array,
+  'scopeKeyId' : KeyId,
+}
+export interface ThumbnailEncryptionRequirement { 'scopeKeyId' : KeyId }
 export type ThumbnailRef = {
     'OnChain' : {
       'key' : string,
@@ -1054,9 +1034,7 @@ export type UpdateArguments = {
   };
 export interface UpdateDirectoryPolicyArguments {
   'entry' : Entry,
-  'thumbnailEncryptionPolicy' : [] | [ThumbnailEncryptionPolicy],
   'thumbnailStoragePolicy' : [] | [ThumbnailStoragePolicy],
-  'encryptionPolicy' : [] | [DirectoryEncryptionPolicy],
 }
 export interface UploadCycleCostEstimate {
   'vetKeyDerivation' : bigint,

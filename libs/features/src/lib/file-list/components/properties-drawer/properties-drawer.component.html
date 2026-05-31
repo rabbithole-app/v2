@@ -33,63 +33,11 @@
                   </div>
                 </div>
               }
-              <div hlmField orientation="horizontal" class="justify-between">
-                <div hlmFieldTitle class="text-muted-foreground font-normal">Encryption</div>
-                <div hlmFieldContent class="items-end text-right">
-                  <span hlmBadge [variant]="encryptionBadgeVariant(item)">
-                    @if (encryptionMode(item) === 'encrypted') {
-                      <ng-icon name="lucideLock" class="!size-3" />
-                      Encrypted
-                    } @else {
-                      Plaintext
-                    }
-                  </span>
-                </div>
-              </div>
               @if (isDirectoryItem(item)) {
                 <div class="border-t border-border my-2"></div>
-                <div hlmFieldGroup class="gap-4">
-                  <div>
-                    <h3 class="text-sm font-medium">Folder defaults</h3>
-                    @if (!canEditDirectoryPolicy(item)) {
-                      <p class="mt-1 text-xs text-muted-foreground">
-                        ReadWriteManage access is required to change these settings.
-                      </p>
-                    }
-                  </div>
-
+                <div hlmFieldGroup class="gap-3">
                   <div hlmField>
-                    <label hlmFieldLabel>New file encryption</label>
-                    <hlm-select
-                      coreTransparentSelectBackdrop
-                      [value]="directoryPolicyDraft().encryptionPolicy"
-                      [disabled]="!canEditDirectoryPolicy(item) || directoryPolicySaving()"
-                      (valueChange)="setEncryptionPolicy($any($event))"
-                    >
-                      <hlm-select-trigger class="w-full">
-                        <hlm-select-value />
-                      </hlm-select-trigger>
-                      <hlm-select-content *hlmSelectPortal class="w-64 min-w-56">
-                        @for (option of encryptionPolicyOptions; track option.value) {
-                          <hlm-select-item
-                            [value]="option.value"
-                            class="flex flex-col items-start gap-0 justify-center"
-                          >
-                            <span>{{ option.label }}</span>
-                            <span class="text-muted-foreground text-xs">{{
-                              option.description
-                            }}</span>
-                          </hlm-select-item>
-                        }
-                      </hlm-select-content>
-                    </hlm-select>
-                    <p hlmFieldDescription>
-                      Effective: {{ policyLabel(item.defaultEncryptionMode) }}
-                    </p>
-                  </div>
-
-                  <div hlmField>
-                    <label hlmFieldLabel>Thumbnail storage</label>
+                    <div hlmFieldLabel>Thumbnail storage</div>
                     <hlm-select
                       coreTransparentSelectBackdrop
                       [value]="directoryPolicyDraft().thumbnailStoragePolicy"
@@ -97,7 +45,7 @@
                       (valueChange)="setThumbnailStoragePolicy($any($event))"
                     >
                       <hlm-select-trigger class="w-full">
-                        <hlm-select-value />
+                        {{ policyLabel(directoryPolicyDraft().thumbnailStoragePolicy) }}
                       </hlm-select-trigger>
                       <hlm-select-content *hlmSelectPortal class="w-64 min-w-56">
                         @for (option of thumbnailStoragePolicyOptions(); track option.value) {
@@ -116,33 +64,11 @@
                     <p hlmFieldDescription>
                       Effective: {{ item.defaultThumbnailStorageBackend }}
                     </p>
-                  </div>
-
-                  <div hlmField>
-                    <label hlmFieldLabel>Thumbnail encryption</label>
-                    <hlm-select
-                      coreTransparentSelectBackdrop
-                      [value]="directoryPolicyDraft().thumbnailEncryptionPolicy"
-                      [disabled]="!canEditDirectoryPolicy(item) || directoryPolicySaving()"
-                      (valueChange)="setThumbnailEncryptionPolicy($any($event))"
-                    >
-                      <hlm-select-trigger class="w-full">
-                        <hlm-select-value />
-                      </hlm-select-trigger>
-                      <hlm-select-content *hlmSelectPortal class="w-64 min-w-56">
-                        @for (option of thumbnailEncryptionPolicyOptions; track option.value) {
-                          <hlm-select-item
-                            [value]="option.value"
-                            class="flex flex-col items-start gap-0 justify-center"
-                          >
-                            <span>{{ option.label }}</span>
-                            <span class="text-muted-foreground text-xs">{{
-                              option.description
-                            }}</span>
-                          </hlm-select-item>
-                        }
-                      </hlm-select-content>
-                    </hlm-select>
+                    @if (!canEditDirectoryPolicy(item)) {
+                      <p hlmFieldDescription>
+                        ReadWriteManage access is required to change this setting.
+                      </p>
+                    }
                   </div>
 
                   <button
@@ -155,7 +81,7 @@
                     @if (directoryPolicySaving()) {
                       Saving...
                     } @else {
-                      Save folder defaults
+                      Save
                     }
                   </button>
                 </div>

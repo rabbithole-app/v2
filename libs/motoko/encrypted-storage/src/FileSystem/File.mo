@@ -11,15 +11,14 @@ import T "../Types";
 
 module File {
 
-  /// Creates a new file with the given encryption mode and max versions limit.
-  public func new(encryptionMode : T.EncryptionMode, maxVersions : ?Nat) : T.FileMetadataStore = {
+  /// Creates a new encrypted file metadata store with the given max versions limit.
+  public func new(maxVersions : ?Nat) : T.FileMetadataStore = {
     versions = Map.empty<Nat, T.FileVersion>();
     var nextVersionId = 0;
     var currentVersion = 0;
     var maxVersions = maxVersions;
     var locked = true;
     var thumbnailRef = null;
-    var encryptionMode = encryptionMode;
   };
 
   /// Returns the current (active) version, or null if no versions exist.
@@ -199,7 +198,6 @@ module File {
     var maxVersions = self.maxVersions;
     var locked = self.locked;
     var thumbnailRef = self.thumbnailRef;
-    var encryptionMode = self.encryptionMode;
   };
 
   /// Returns the number of versions.

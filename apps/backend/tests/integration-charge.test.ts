@@ -13,7 +13,6 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import {
   encryptedStorageIdlFactory,
   type EncryptedStorageActorService,
-  type EncryptionMode,
   initBackend,
   initEncryptedStorage,
   type NotificationsPage,
@@ -77,8 +76,6 @@ const l1Identity = createIdentity('integ-l1');
 const FILE = { File: null } as const;
 const CREATE_NEW = { CreateNew: null } as const;
 const GET_OR_CREATE = { GetOrCreate: null } as const;
-const ENCRYPTED: EncryptionMode = { Encrypted: null } as const;
-const PLAINTEXT: EncryptionMode = { Plaintext: null } as const;
 
 // ---- Helpers ----
 
@@ -1478,18 +1475,30 @@ describe('Integration: topUpFromBalance full flow', () => {
       wasm: ENCRYPTED_STORAGE_WASM_PATH,
       sender: uploadUser.getPrincipal(),
       idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
-      environmentVariables: buildStorageEnvironmentVariables(ICP_LEDGER_CANISTER_ID),
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
       arg: uploadStorageInitArg,
       cycles: 1_500_000_000_000n,
     });
     await manager.pic.tick();
+
+    actor.setIdentity(uploadUser);
+    await actor.ensureUser([]);
+    expect(await actor.addStorage(uploadStorage.canisterId, uploadStorageInitArg)).toHaveProperty('ok');
+
+    actor.setIdentity(manager.ownerIdentity);
+    const picTimeMs = await manager.pic.getTime();
+    const now = BigInt(picTimeMs) * 1_000_000n;
+    await actor.activateSubscription(
+      uploadUser.getPrincipal(),
+      { Pro: null },
+      [now + 30n * 24n * 3_600_000_000_000n],
+    );
 
     const uploadStorageActor = uploadStorage.actor;
     uploadStorageActor.setIdentity(uploadUser);
     const createResult = await uploadStorageActor.create({
       entry: [FILE, 'local-cycles.bin'],
       createMode: CREATE_NEW,
-      encryptionMode: toNullable(PLAINTEXT),
     });
     expect(createResult).toHaveProperty('ok');
 
@@ -1503,7 +1512,6 @@ describe('Integration: topUpFromBalance full flow', () => {
       declaredUploadBytes: [],
       expectedChunkCount: [],
       createMode: GET_OR_CREATE,
-      encryptionMode: toNullable(PLAINTEXT),
     });
     if ('err' in sessionResult) {
       const fundingStatus = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
@@ -1514,25 +1522,28 @@ describe('Integration: topUpFromBalance full flow', () => {
     expect(sessionResult).toHaveProperty('ok');
   });
 
-  test('auto-topup: non-Pro OnChain upload requires manual funding before reserving unsafe writes', async () => {
+  test('auto-topup: non-Pro external OnChain storage requires a license before reserving writes', async () => {
     const uploadUser = createIdentity('onchain-manual-funding-user');
     const uploadStorageInitArg = encodeStorageInitArg(uploadUser.getPrincipal());
     const uploadStorage = await manager.pic.setupCanister<EncryptedStorageActorService>({
       wasm: ENCRYPTED_STORAGE_WASM_PATH,
       sender: uploadUser.getPrincipal(),
       idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
-      environmentVariables: buildStorageEnvironmentVariables(ICP_LEDGER_CANISTER_ID),
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
       arg: uploadStorageInitArg,
       cycles: 750_000_000_000n,
     });
     await manager.pic.tick();
+
+    actor.setIdentity(uploadUser);
+    await actor.ensureUser([]);
+    expect(await actor.addStorage(uploadStorage.canisterId, uploadStorageInitArg)).toHaveProperty('ok');
 
     const uploadStorageActor = uploadStorage.actor;
     uploadStorageActor.setIdentity(uploadUser);
     const createResult = await uploadStorageActor.create({
       entry: [FILE, 'manual-funding.bin'],
       createMode: CREATE_NEW,
-      encryptionMode: toNullable(PLAINTEXT),
     });
     expect(createResult).toHaveProperty('ok');
 
@@ -1542,19 +1553,18 @@ describe('Integration: topUpFromBalance full flow', () => {
       declaredUploadBytes: [],
       expectedChunkCount: [],
       createMode: GET_OR_CREATE,
-      encryptionMode: toNullable(PLAINTEXT),
     });
     expect(sessionResult).toHaveProperty('err');
     if (!('err' in sessionResult)) {
-      throw new Error('Expected manual funding error before creating an upload session');
+      throw new Error('Expected license error before creating an upload session');
     }
-    expect(sessionResult.err.message).toContain('Manual OnChain funding required');
+    expect(sessionResult.err.message).toContain('Storage license required');
     expect(sessionResult.err.message).not.toContain('active Pro subscription');
 
     const fundingStatus = unwrapStorageResult(await uploadStorageActor.getCanisterCyclesCardMetrics());
     expect(fundingStatus.activity.reservationBytes).toBe(0n);
-    expect(fundingStatus.funding.requestedTargetBalance).toBeGreaterThan(fundingStatus.balance);
-    expect(fundingStatus.funding.lastError).toEqual(['Manual top-up required for OnChain upload']);
+    expect(fundingStatus.funding.requestedTargetBalance).toBe(0n);
+    expect(fundingStatus.funding.lastError).toEqual([]);
   });
 
   test('auto-topup: OnChain upload hashes chunks during append and keeps finalization bounded', async () => {
@@ -1564,11 +1574,24 @@ describe('Integration: topUpFromBalance full flow', () => {
       wasm: ENCRYPTED_STORAGE_WASM_PATH,
       sender: uploadUser.getPrincipal(),
       idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
-      environmentVariables: buildStorageEnvironmentVariables(ICP_LEDGER_CANISTER_ID),
+      environmentVariables: buildStorageEnvironmentVariables(backendCanisterId),
       arg: uploadStorageInitArg,
       cycles: 2_000_000_000_000n,
     });
     await manager.pic.tick();
+
+    actor.setIdentity(uploadUser);
+    await actor.ensureUser([]);
+    expect(await actor.addStorage(uploadStorage.canisterId, uploadStorageInitArg)).toHaveProperty('ok');
+
+    actor.setIdentity(manager.ownerIdentity);
+    const picTimeMs = await manager.pic.getTime();
+    const now = BigInt(picTimeMs) * 1_000_000n;
+    await actor.activateSubscription(
+      uploadUser.getPrincipal(),
+      { Pro: null },
+      [now + 30n * 24n * 3_600_000_000_000n],
+    );
 
     const uploadStorageActor = uploadStorage.actor;
     uploadStorageActor.setIdentity(uploadUser);
@@ -1587,7 +1610,6 @@ describe('Integration: topUpFromBalance full flow', () => {
       declaredUploadBytes: [BigInt(fullContent.length)],
       expectedChunkCount: [],
       createMode: CREATE_NEW,
-      encryptionMode: toNullable(PLAINTEXT),
     });
     expect(session).toHaveProperty('ok');
     if (!('ok' in session)) {
@@ -1705,7 +1727,6 @@ describe('Integration: topUpFromBalance full flow', () => {
     const createResult = await uploadStorageActor.create({
       entry: [FILE, 'preflight.bin'],
       createMode: CREATE_NEW,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     expect(createResult).toHaveProperty('ok');
     const uploadStatus = await uploadStorageActor.getStatus();
@@ -1721,7 +1742,6 @@ describe('Integration: topUpFromBalance full flow', () => {
       declaredUploadBytes: [],
       expectedChunkCount: [],
       createMode: GET_OR_CREATE,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     if (!('ok' in sessionResult)) {
       throw new Error(`Expected upload session to succeed, got ${JSON.stringify(sessionResult.err)}`);
@@ -1747,7 +1767,6 @@ describe('Integration: topUpFromBalance full flow', () => {
     const largerReservationCreate = await uploadStorageActor.create({
       entry: [FILE, 'preflight-larger-reservation.bin'],
       createMode: CREATE_NEW,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     expect(largerReservationCreate).toHaveProperty('ok');
 
@@ -1757,7 +1776,6 @@ describe('Integration: topUpFromBalance full flow', () => {
       declaredUploadBytes: [],
       expectedChunkCount: [],
       createMode: GET_OR_CREATE,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     expect(largerReservationSession).toHaveProperty('ok');
     if (!('ok' in largerReservationSession)) {
@@ -1784,7 +1802,6 @@ describe('Integration: topUpFromBalance full flow', () => {
     const overheadCreate = await uploadStorageActor.create({
       entry: [FILE, 'encrypted-overhead.bin'],
       createMode: CREATE_NEW,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     expect(overheadCreate).toHaveProperty('ok');
 
@@ -1794,7 +1811,6 @@ describe('Integration: topUpFromBalance full flow', () => {
       declaredUploadBytes: [29n],
       expectedChunkCount: [],
       createMode: GET_OR_CREATE,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     expect(overheadSession).toHaveProperty('ok');
     if (!('ok' in overheadSession)) {
@@ -1841,7 +1857,6 @@ describe('Integration: topUpFromBalance full flow', () => {
     const underreportedCreate = await uploadStorageActor.create({
       entry: [FILE, 'underreported.bin'],
       createMode: CREATE_NEW,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     expect(underreportedCreate).toHaveProperty('ok');
 
@@ -1851,7 +1866,6 @@ describe('Integration: topUpFromBalance full flow', () => {
       declaredUploadBytes: [],
       expectedChunkCount: [],
       createMode: GET_OR_CREATE,
-      encryptionMode: toNullable(ENCRYPTED),
     });
     expect(underreportedSession).toHaveProperty('ok');
     if (!('ok' in underreportedSession)) {

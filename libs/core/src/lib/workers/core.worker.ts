@@ -621,20 +621,15 @@ async function processThumbnailRewrap(
 }
 
 function toStorageThumbnailRef(ref: ThumbnailRewrapRequest['thumbnailRef']): StorageThumbnailRef {
-  const encryption: ThumbnailEncryptionRef =
-    ref.encryption.kind === 'Plaintext'
-      ? { Plaintext: null }
-      : {
-          Encrypted: {
-            scopeKeyId: [
-              Principal.fromText(ref.encryption.scopeKeyId[0]),
-              new Uint8Array(ref.encryption.scopeKeyId[1]),
-            ],
-            wrappedKey: new Uint8Array(ref.encryption.wrappedKey),
-            blobIv: new Uint8Array(ref.encryption.blobIv),
-            algorithm: ref.encryption.algorithm,
-          },
-        };
+  const encryption: ThumbnailEncryptionRef = {
+    scopeKeyId: [
+      Principal.fromText(ref.encryption.scopeKeyId[0]),
+      new Uint8Array(ref.encryption.scopeKeyId[1]),
+    ],
+    wrappedKey: new Uint8Array(ref.encryption.wrappedKey),
+    blobIv: new Uint8Array(ref.encryption.blobIv),
+    algorithm: ref.encryption.algorithm,
+  };
 
   if (ref.storageBackend === 'OnChain') {
     return {
@@ -706,7 +701,6 @@ async function processDownload(
 ) {
   try {
     const stream = encryptedStorage.downloadStream(request.entry, {
-      encrypted: request.encrypted,
       totalChunks: request.totalChunks,
       storageBackend: request.storageBackend,
       keyId: request.keyId
@@ -830,7 +824,6 @@ async function processArchiveDownload(
       zip.add(entry);
 
       const stream = encryptedStorage.downloadStream(file.entry, {
-        encrypted: file.encrypted,
         totalChunks: file.totalChunks,
         storageBackend: file.storageBackend,
         keyId: file.keyId

@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
 import type {
   EncryptedStorageActorService,
-  EncryptionMode,
   RabbitholeActorService,
 } from "@rabbithole/declarations";
 import {
@@ -31,8 +30,6 @@ import {
 const FILE = { File: null } as const;
 const DIRECTORY = { Directory: null } as const;
 const CREATE_NEW = { CreateNew: null } as const;
-const ENCRYPTED : EncryptionMode = { Encrypted: null } as const;
-const PLAINTEXT : EncryptionMode = { Plaintext: null } as const;
 
 const Icrc3Value = IDL.Rec();
 const AttributeMap = IDL.Vec(IDL.Tuple(IDL.Text, Icrc3Value));
@@ -358,7 +355,7 @@ describe("Feature Gating", () => {
 
     test("getStatus returns initial values for new canister", async () => {
       const status = await storageActor.getStatus();
-      expect(status.encryptedBytesUsed).toBe(0n);
+      expect(status.storedBytesUsed).toBe(0n);
       expect(status.cycleBalance).toBeGreaterThan(0n);
     });
 
@@ -367,11 +364,10 @@ describe("Feature Gating", () => {
       expect(balance).toBeGreaterThan(0n);
     });
 
-    test("plaintext operations work without subscription", async () => {
+    test("directory create works without subscription", async () => {
       const result = await createStorageNode({
         entry: [DIRECTORY, "Documents"],
         createMode: CREATE_NEW,
-        encryptionMode: toNullable<EncryptionMode>(),
       });
       expect(result.name).toBe("Documents");
     });
@@ -439,7 +435,6 @@ describe("Feature Gating", () => {
       const recoveryCreated = await createStorageNode({
         entry: [DIRECTORY, "RecoveryOwned"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(recoveryCreated.name).toBe("RecoveryOwned");
 
@@ -464,7 +459,6 @@ describe("Feature Gating", () => {
         createStorageNode({
           entry: [DIRECTORY, "RecoveryRevoked"],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         }),
       ).rejects.toThrow();
     });
@@ -519,7 +513,6 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, "ProShared"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       await createOrdinaryAccessGrant({
@@ -973,12 +966,10 @@ describe("Feature Gating", () => {
       const originalDirectory = await createStorageNode({
         entry: [DIRECTORY, "StableShare"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await createStorageNode({
         entry: [DIRECTORY, "StableShareTarget"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       const created = await storageActor.createAccessBatch({
@@ -1280,7 +1271,6 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, "EmailClaimRollback"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await storageActor.createPendingAccessGrant({
         ref: {
@@ -1496,7 +1486,6 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, "RequestApproved"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       const requester = createIdentity("access-request-approved-recipient");
@@ -1596,7 +1585,6 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, "Blocked"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       await expect(
@@ -1628,20 +1616,18 @@ describe("Feature Gating", () => {
       ).rejects.toThrow(/subscription|expired/i);
     });
 
-    test("plaintext create works with expired subscription", async () => {
+    test("file metadata create works with expired subscription", async () => {
       const result = await createStorageNode({
         entry: [FILE, "expired-ok.txt"],
         createMode: CREATE_NEW,
-        encryptionMode: toNullable(PLAINTEXT),
       });
       expect(result.name).toBe("expired-ok.txt");
     });
 
-    test("plaintext move/rename work with expired subscription", async () => {
+    test("move/rename work with expired subscription", async () => {
       await createStorageNode({
         entry: [DIRECTORY, "TempDir"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await storageActor.rename({
         entry: [DIRECTORY, "TempDir"],
@@ -1677,7 +1663,6 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, directoryName],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       // Grant to alice (not owner — owner can't change own rights)
       await createOrdinaryAccessGrant({
@@ -1703,7 +1688,6 @@ describe("Feature Gating", () => {
       const file = await createStorageNode({
         entry: [FILE, "DurableRevokedKey.txt"],
         createMode: CREATE_NEW,
-        encryptionMode: toNullable(ENCRYPTED),
       });
 
       await storageActor.createDurableAccessGrant({
@@ -1742,12 +1726,10 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, "DurableDirectory"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       const file = await createStorageNode({
         entry: [FILE, "DurableDirectory/Child.txt"],
         createMode: CREATE_NEW,
-        encryptionMode: toNullable(ENCRYPTED),
       });
 
       await storageActor.createDurableAccessGrant({
@@ -1780,7 +1762,6 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, "DurablePolicy"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       const policy = await storageActor.createDurableAccessPolicy({
@@ -1850,7 +1831,6 @@ describe("Feature Gating", () => {
       await createStorageNode({
         entry: [DIRECTORY, "DurableInactivity"],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       const policy = await storageActor.createDurableAccessPolicy({
@@ -1914,20 +1894,7 @@ describe("Feature Gating", () => {
   // ===================== Included Storage Limit =====================
 
   describe("Included Storage Limit", () => {
-    test("plaintext upload session works regardless of subscription", async () => {
-      // Pro is active from B3 — plaintext should always work
-      const session = await beginUploadSession({
-        entry: [FILE, "plain-large.bin"],
-        totalSize: 500_000_000n,
-        declaredUploadBytes: [],
-        expectedChunkCount: [],
-        createMode: CREATE_NEW,
-        encryptionMode: toNullable(PLAINTEXT),
-      });
-      expect(session.batchId).toBeDefined();
-    });
-
-    test("encrypted upload session works with Pro (no size limit)", async () => {
+    test("upload session works with Pro (no size limit)", async () => {
       await ensureOwnerProSubscription();
       await storageActor.refreshSubscription();
 
@@ -1937,14 +1904,13 @@ describe("Feature Gating", () => {
         declaredUploadBytes: [],
         expectedChunkCount: [],
         createMode: CREATE_NEW,
-        encryptionMode: toNullable(ENCRYPTED),
       });
       expect(session.batchId).toBeDefined();
     });
 
-    test("encryptedBytesUsed starts at zero", async () => {
+    test("storedBytesUsed starts at zero", async () => {
       const status = await storageActor.getStatus();
-      expect(status.encryptedBytesUsed).toBe(0n);
+      expect(status.storedBytesUsed).toBe(0n);
     });
   });
 
@@ -1960,14 +1926,14 @@ describe("Feature Gating", () => {
     test("getStatus includes all expected fields", async () => {
       const status = await storageActor.getStatus();
       expect(status).toHaveProperty("cycleBalance");
-      expect(status).toHaveProperty("encryptedBytesUsed");
+      expect(status).toHaveProperty("storedBytesUsed");
       expect(status).toHaveProperty("subscriptionStatus");
       expect(status).toHaveProperty("backendId");
     });
 
     test("owner card metrics expose storage and cycle sidebar data", async () => {
       const storageMetrics = unwrapStorageResult(await storageActor.getStorageCardMetrics());
-      expect(storageMetrics).toHaveProperty("encryptedBytesUsed");
+      expect(storageMetrics).toHaveProperty("storedBytesUsed");
       expect(storageMetrics).toHaveProperty("storageBackendType");
       expect(storageMetrics).toHaveProperty("memoryInfo");
 
@@ -1997,7 +1963,6 @@ describe("Feature Gating", () => {
         await createStorageNode({
           entry: [DIRECTORY, `cycle-test-${i}`],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         });
       }
       await storageActor.delete({
@@ -2014,7 +1979,6 @@ describe("Feature Gating", () => {
         await createStorageNode({
           entry: [DIRECTORY, `burn-${i}`],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         });
       }
       const balanceAfter = await storageActor.getCycleBalance();

@@ -9,8 +9,6 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideLock } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
 import { BrnSheetContent } from '@spartan-ng/brain/sheet';
 import { toast } from '@spartan-ng/brain/sonner';
@@ -22,30 +20,23 @@ import {
   RbthDrawerHeaderComponent,
   RbthDrawerTitleDirective,
 } from '@rabbithole/ui/drawer';
-import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 
 import { FileListService } from '../../services';
 import {
-  DirectoryEncryptionPolicy,
   isDirectory,
   isFile,
   NodeItem,
-  ThumbnailEncryptionPolicy,
   ThumbnailStoragePolicy,
 } from '../../types';
 
 type DirectoryPolicyDraft = {
-  encryptionPolicy: DirectoryEncryptionPolicy;
-  thumbnailEncryptionPolicy: ThumbnailEncryptionPolicy;
   thumbnailStoragePolicy: ThumbnailStoragePolicy;
 };
 
 const defaultPolicyDraft: DirectoryPolicyDraft = {
-  encryptionPolicy: 'auto',
-  thumbnailEncryptionPolicy: 'inherit',
   thumbnailStoragePolicy: 'inherit',
 };
 
@@ -55,51 +46,34 @@ const defaultPolicyDraft: DirectoryPolicyDraft = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DatePipe,
-    NgIcon,
     BrnSheetContent,
     RbthDrawerComponent,
     RbthDrawerContentComponent,
     RbthDrawerHeaderComponent,
     RbthDrawerTitleDirective,
-    HlmBadge,
     HlmButton,
     HlmFieldImports,
     CoreTransparentSelectBackdropDirective,
     BrnSelectImports,
     HlmSelectImports,
   ],
-  providers: [provideIcons({ lucideLock })],
 })
 export class PropertiesDrawerComponent {
-  readonly #fileListService = inject(FileListService);
-
   readonly directoryPolicyDraft =
     signal<DirectoryPolicyDraft>(defaultPolicyDraft);
 
   readonly directoryPolicySaving = signal(false);
 
-  readonly encryptionPolicyOptions = [
-    { value: 'auto', label: 'Auto', description: 'Inherit from parent folder' },
-    {
-      value: 'encrypted',
-      label: 'Encrypted',
-      description: 'New files require vetKeys',
-    },
-    {
-      value: 'plaintext',
-      label: 'Plaintext',
-      description: 'New files do not use encryption',
-    },
-  ] as const;
+  isDirectoryItem = isDirectory;
 
-  readonly thumbnailEncryptionPolicyOptions = [
-    { value: 'inherit', label: 'Inherit', description: 'Inherit from parent folder' },
-    {
-      value: 'followFile',
-      label: 'Follow file',
-      description: 'Use the file encryption mode',
-    },
-  ] as const;
+  isFileItem = isFile;
+
+  items = input.required<NodeItem[]>();
+  singleItem = computed(() =>
+    this.items().length === 1 ? this.items()[0] : null,
+  );
+
+  readonly #fileListService = inject(FileListService);
 
   readonly thumbnailStoragePolicyOptions = computed(() => {
     const options = [
@@ -119,15 +93,6 @@ export class PropertiesDrawerComponent {
       ? options.filter((option) => option.value !== 'onChain')
       : options;
   });
-
-  isFileItem = isFile;
-  isDirectoryItem = isDirectory;
-
-  items = input.required<NodeItem[]>();
-
-  singleItem = computed(() =>
-    this.items().length === 1 ? this.items()[0] : null,
-  );
 
   totalSize = computed(() =>
     this.items().reduce(
@@ -156,8 +121,6 @@ export class PropertiesDrawerComponent {
       }
 
       this.directoryPolicyDraft.set({
-        encryptionPolicy: item.encryptionPolicy,
-        thumbnailEncryptionPolicy: item.thumbnailEncryptionPolicy,
         thumbnailStoragePolicy: item.thumbnailStoragePolicy,
       });
     });
@@ -170,69 +133,31 @@ export class PropertiesDrawerComponent {
   directoryPolicyDirty(item: NodeItem) {
     if (!isDirectory(item)) return false;
     const draft = this.directoryPolicyDraft();
-    return draft.encryptionPolicy !== item.encryptionPolicy
-      || draft.thumbnailEncryptionPolicy !== item.thumbnailEncryptionPolicy
-      || draft.thumbnailStoragePolicy !== item.thumbnailStoragePolicy;
+    return draft.thumbnailStoragePolicy !== item.thumbnailStoragePolicy;
   }
 
-  encryptionBadgeVariant(item: NodeItem) {
-    return this.encryptionMode(item) === 'encrypted'
-      ? ('default' as const)
-      : ('secondary' as const);
+  formatSize(bytes: bigint | number) {
+    const n = Number(bytes);
+    if (n === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(n) / Math.log(k));
+    return `${parseFloat((n / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   }
 
-  encryptionMode(item: NodeItem) {
-    if (isFile(item)) return item.encryptionMode;
-    if (isDirectory(item)) return item.defaultEncryptionMode;
-    return 'encrypted';
+  open() {
+    this.drawer()?.open();
   }
 
-  policyLabel(
-    value:
-      | DirectoryEncryptionPolicy
-      | ThumbnailEncryptionPolicy
-      | ThumbnailStoragePolicy,
-  ) {
+  policyLabel(value: ThumbnailStoragePolicy) {
     switch (value) {
-      case 'auto':
-        return 'Auto';
-      case 'inherit':
-        return 'Inherit';
-      case 'encrypted':
-        return 'Encrypted';
-      case 'plaintext':
-        return 'Plaintext';
-      case 'followFile':
-        return 'Follow file';
-      case 'onChain':
-        return 'On-chain';
       case 'blobStorage':
         return 'Blob Storage';
+      case 'inherit':
+        return 'Inherit';
+      case 'onChain':
+        return 'On-chain';
     }
-  }
-
-  setEncryptionPolicy(value: DirectoryEncryptionPolicy | null) {
-    if (!value) return;
-    this.directoryPolicyDraft.update((draft) => ({
-      ...draft,
-      encryptionPolicy: value,
-    }));
-  }
-
-  setThumbnailEncryptionPolicy(value: ThumbnailEncryptionPolicy | null) {
-    if (!value) return;
-    this.directoryPolicyDraft.update((draft) => ({
-      ...draft,
-      thumbnailEncryptionPolicy: value,
-    }));
-  }
-
-  setThumbnailStoragePolicy(value: ThumbnailStoragePolicy | null) {
-    if (!value) return;
-    this.directoryPolicyDraft.update((draft) => ({
-      ...draft,
-      thumbnailStoragePolicy: value,
-    }));
   }
 
   async saveDirectoryPolicy(item: NodeItem) {
@@ -253,16 +178,11 @@ export class PropertiesDrawerComponent {
     }
   }
 
-  formatSize(bytes: bigint | number) {
-    const n = Number(bytes);
-    if (n === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(n) / Math.log(k));
-    return `${parseFloat((n / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-  }
-
-  open() {
-    this.drawer()?.open();
+  setThumbnailStoragePolicy(value: ThumbnailStoragePolicy | null) {
+    if (!value) return;
+    this.directoryPolicyDraft.update((draft) => ({
+      ...draft,
+      thumbnailStoragePolicy: value,
+    }));
   }
 }

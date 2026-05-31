@@ -19,23 +19,28 @@ export type CommonAttrs = {
 
 export type DirectoryColor = ExtractVariantKeys<DirectoryColorRaw>;
 
-export type DirectoryEncryptionPolicy = 'auto' | 'encrypted' | 'plaintext';
+export type DirectoryNode = {
+  color?: DirectoryColor;
+  defaultThumbnailStorageBackend: StorageBackendType;
+  thumbnailStoragePolicy: ThumbnailStoragePolicy;
+  type: 'directory';
+} & CommonAttrs;
 
-export type ThumbnailEncryptionPolicy = 'inherit' | 'followFile';
+export type DirectoryNodeExtended = DirectoryNode & ItemsCommonAttrs;
 
-export type ThumbnailStoragePolicy = 'inherit' | 'onChain' | 'blobStorage';
+export type FileNode = {
+  chunkCount: number;
+  contentType: string;
+  currentVersion: number;
+  sha256?: string;
+  size: bigint;
+  storageBackend: StorageBackendType;
+  thumbnailRef?: FileThumbnailRef;
+  type: 'file';
+  versionCount: number;
+} & CommonAttrs;
 
-export type ThumbnailEncryptionRef =
-  | {
-      kind: 'Plaintext';
-    }
-  | {
-      algorithm: string;
-      blobIv: Uint8Array;
-      kind: 'Encrypted';
-      scopeKeyId: [Principal, Uint8Array];
-      wrappedKey: Uint8Array;
-    };
+export type FileNodeExtended = FileNode & ItemsCommonAttrs;
 
 export type FileThumbnailRef =
   | {
@@ -55,34 +60,16 @@ export type FileThumbnailRef =
       storageBackend: 'BlobStorage';
     };
 
-export type DirectoryNode = {
-  color?: DirectoryColor;
-  defaultEncryptionMode: 'encrypted' | 'plaintext';
-  defaultThumbnailStorageBackend: StorageBackendType;
-  encryptionPolicy: DirectoryEncryptionPolicy;
-  thumbnailEncryptionPolicy: ThumbnailEncryptionPolicy;
-  thumbnailStoragePolicy: ThumbnailStoragePolicy;
-  type: 'directory';
-} & CommonAttrs;
-
-export type DirectoryNodeExtended = DirectoryNode & ItemsCommonAttrs;
-
-export type FileNode = {
-  chunkCount: number;
-  contentType: string;
-  currentVersion: number;
-  encryptionMode: 'encrypted' | 'plaintext';
-  sha256?: string;
-  size: bigint;
-  storageBackend: StorageBackendType;
-  thumbnailRef?: FileThumbnailRef;
-  type: 'file';
-  versionCount: number;
-} & CommonAttrs;
-
-export type FileNodeExtended = FileNode & ItemsCommonAttrs;
-
 export type NodeItem = DirectoryNodeExtended | FileNodeExtended;
+
+export type ThumbnailEncryptionRef = {
+  algorithm: string;
+  blobIv: Uint8Array;
+  scopeKeyId: [Principal, Uint8Array];
+  wrappedKey: Uint8Array;
+};
+
+export type ThumbnailStoragePolicy = 'blobStorage' | 'inherit' | 'onChain';
 
 type ItemsCommonAttrs = {
   disabled?: boolean;

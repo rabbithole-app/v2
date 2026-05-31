@@ -7,7 +7,7 @@ import T "Types";
 
 module {
   public type Gates = {
-    canUploadEncrypted : Nat -> Result.Result<(), Text>;
+    canStoreFileBytes : Nat -> Result.Result<(), Text>;
     canShare : () -> Result.Result<(), Text>;
     refreshSubscription : () -> async* Result.Result<T.SubscriptionStatus, Text>;
     onAccessChanged : ?(T.StoredStorageEvent -> ());
@@ -15,7 +15,7 @@ module {
 
   public class Storage(store : T.StableStore, gates : ?Gates) {
     let uploadGate : ?(Nat -> Result.Result<(), Text>) = switch (gates) {
-      case (?g) ?g.canUploadEncrypted;
+      case (?g) ?g.canStoreFileBytes;
       case null null;
     };
     let shareGate : ?(() -> Result.Result<(), Text>) = switch (gates) {
@@ -413,11 +413,7 @@ module {
     public func clear(caller : Principal) : Result.Result<(), Text> =
       Lib.clear(store, caller);
 
-    // --- Batch Upload ---
-
-    public func createBatch(caller : Principal, args : T.CreateBatchArguments) : async* Result.Result<T.CreateBatchResponse, Text> {
-      await* Lib.createBatch(store, caller, args, uploadGate, subscriptionRefreshGate);
-    };
+    // --- Upload sessions ---
 
     public func beginUploadSession(caller : Principal, args : T.BeginUploadSessionArguments) : async* Result.Result<T.BeginUploadSessionResponse, Text> {
       await* Lib.beginUploadSession(store, caller, args, uploadGate, subscriptionRefreshGate);
@@ -436,10 +432,7 @@ module {
     public func rollbackBatch(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> =
       Lib.rollbackBatch(store, caller, batchId);
 
-    public func createChunk(caller : Principal, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> =
-      Lib.createChunk(store, caller, args, uploadGate);
-
-    public func appendUploadChunk(caller : Principal, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> =
+    public func appendUploadChunk(caller : Principal, args : T.Chunk) : Result.Result<T.AppendUploadChunkResponse, Text> =
       Lib.appendUploadChunk(store, caller, args, uploadGate);
 
     public func activeUploadReservationBytes() : Nat =
@@ -454,8 +447,8 @@ module {
     public func activeUploadSessions() : [Lib.ActiveUploadSession] =
       Lib.activeUploadSessions(store);
 
-    public func activeEncryptedUploadSessionCount() : Nat =
-      Lib.activeEncryptedUploadSessionCount(store);
+    public func activeUploadSessionCount() : Nat =
+      Lib.activeUploadSessionCount(store);
 
     // --- Permissions ---
 

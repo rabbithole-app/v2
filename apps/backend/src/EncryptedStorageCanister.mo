@@ -101,7 +101,6 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public type ActiveUploadProjection = {
     sessionCount : Nat;
-    encryptedSessionCount : Nat;
     reservationBytes : Nat;
     uploadedBytes : Nat;
     uploadedChunkCount : Nat;
@@ -144,7 +143,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public type StorageCardMetrics = {
     subscriptionStatus : ?T.SubscriptionStatus;
-    encryptedBytesUsed : Nat;
+    storedBytesUsed : Nat;
     backendId : ?Principal;
     storageBackendType : T.StorageBackend;
     memoryInfo : T.MemoryInfo;
@@ -233,7 +232,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   // Create class wrapper with subscription gates
   transient let es = EncryptedStorageClass.Storage(storage, ?{
-    canUploadEncrypted = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canUploadEncrypted(storage, bytes);
+    canStoreFileBytes = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canStoreFileBytes(storage, bytes);
     canShare = func() : Result.Result<(), Text> = SubscriptionGate.canShare(storage);
     refreshSubscription = func() : async* Result.Result<T.SubscriptionStatus, Text> {
       await* SubscriptionGate.ensureSubscription(storage, false);
@@ -406,13 +405,12 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     vetKeyDeriveKeyBaseCycles() + STORAGE_VETKD_DERIVE_KEY_MARGIN_CYCLES;
   };
 
-  func vetKeyDerivationCost(encryptedSessionCount : Nat) : Nat {
-    encryptedSessionCount * vetKeyDeriveKeyAttachedCycles();
+  func vetKeyDerivationCost(sessionCount : Nat) : Nat {
+    sessionCount * vetKeyDeriveKeyAttachedCycles();
   };
 
   func onChainUploadFundingRequirement(totalSize : Nat, operationAdditionalBytes : Nat, operationCost : Nat) : UploadFundingRequirement {
     let activeSessions = es.activeUploadSessions();
-    let activeEncryptedSessionCount = es.activeEncryptedUploadSessionCount();
     var activeReservationBytes = 0;
     var activeUploadedBytes = 0;
     var activeUploadedChunkCount = 0;
@@ -447,7 +445,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     let remainingUploadCost = uploadWriteCost(remainingUploadBytes, remainingUploadChunkCount);
     let activeCommitMetadataCycles = commitMetadataCycles(activeUploadedChunkCount);
     let activeCommitCost = commitOperationCost(activeUploadedChunkCount);
-    let activeVetKeyDerivationCost = vetKeyDerivationCost(activeEncryptedSessionCount);
+    let activeVetKeyDerivationCost = vetKeyDerivationCost(activeSessions.size());
     let minimumSafeBalance =
       postWriteFreezingReserve +
       remainingUploadCost +
@@ -466,7 +464,6 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       };
       activity = {
         sessionCount = activeSessions.size();
-        encryptedSessionCount = activeEncryptedSessionCount;
         reservationBytes = activeReservationBytes;
         uploadedBytes = activeUploadedBytes;
         uploadedChunkCount = activeUploadedChunkCount;
@@ -857,7 +854,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
-  public shared ({ caller }) func appendUploadChunk(args : T.CreateChunkArguments) : async T.StorageResult<T.CreateChunkResponse> {
+  public shared ({ caller }) func appendUploadChunk(args : T.AppendUploadChunkArguments) : async T.StorageResult<T.AppendUploadChunkResponse> {
     switch (ensureOnChainUploadOperationCyclesOrRequest<system>("append upload chunk", args.content.size(), appendOperationCost(args.content.size()))) {
       case (?message) return #err(storageError(message));
       case null {};
@@ -1521,7 +1518,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     let status = es.getStatus(Cycles.balance());
     {
       subscriptionStatus = status.subscriptionStatus;
-      encryptedBytesUsed = status.encryptedBytesUsed;
+      storedBytesUsed = status.storedBytesUsed;
       backendId = status.backendId;
       storageBackendType = status.storageBackendType;
       memoryInfo = es.memoryInfo();

@@ -7,6 +7,7 @@ import {
   ElementRef,
   inject,
   input,
+  Input,
   signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
@@ -16,12 +17,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
 import { Observable, of, switchMap } from 'rxjs';
 
-import {
-  BLOB_STORAGE_CONFIG_TOKEN,
-  DownloadService,
-  ENCRYPTED_STORAGE_CANISTER_ID,
-  IS_PRODUCTION_TOKEN,
-} from '@rabbithole/core';
+import { DownloadService } from '@rabbithole/core';
 import { injectEncryptedStorage } from '@rabbithole/core/storage-runtime';
 import type { ThumbnailRef as StorageThumbnailRef } from '@rabbithole/declarations/encrypted-storage';
 import type { EncryptedStorage } from '@rabbithole/encrypted-storage';
@@ -34,9 +30,6 @@ import { isDirectory, isFile, NodeItem } from '../../types';
 import { toStorageThumbnailRef } from '../../utils';
 import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
 import { FileIconComponent } from '../file-icon/file-icon.component';
-
-const BLOB_STORAGE_GATEWAY_VERSION = 'v1';
-const DEFAULT_BLOB_STORAGE_PROJECT_ID = '0000000-0000-0000-0000-00000000000';
 
 export const gridItemVariants = cva(
   'grid gap-y-2 grid-rows-[1fr_36px] items-start p-3 select-none transition-colors duration-200 ease-in-out rounded-lg cursor-pointer hover:bg-muted focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
@@ -130,18 +123,11 @@ type EncryptedThumbnailRequest = {
 export class GridItemComponent implements FocusableOption, Highlightable {
   active = input(false, { transform: booleanAttribute });
   data = input.required<NodeItem>();
-  disabledInput = input(false, {
-    alias: 'disabled',
-    transform: booleanAttribute,
-  });
+  @Input({ transform: booleanAttribute }) disabled = false;
   element = inject(ElementRef);
   loading = input(false, { transform: booleanAttribute });
   selected = input(false, { transform: booleanAttribute });
   public readonly userClass = input<ClassValue>('', { alias: 'class' });
-
-  get disabled(): boolean {
-    return this.disabledInput();
-  }
 
   #downloadService = inject(DownloadService);
   protected readonly downloadProgress = computed<DownloadProgressState | null>(() => {
@@ -192,37 +178,22 @@ export class GridItemComponent implements FocusableOption, Highlightable {
     return `grid-item-${item.id.toString()}`;
   });
 
-  protected readonly isEncrypted = computed(() => {
-    const item = this.data();
-    if (isFile(item)) return item.encryptionMode === 'encrypted';
-    if (isDirectory(item)) return item.defaultEncryptionMode === 'encrypted';
-    return false;
-  });
-
-  protected readonly isFileNode = computed(() => isFile(this.data()));
-
   protected readonly isReadOnly = computed(() =>
     this.data().callerPermission === 'Read',
   );
 
-  protected readonly isShared = computed(() => {
-    const count = this.data().sharedWith;
-    return count !== undefined && count > 0;
-  });
   protected readonly badges = computed(() => {
     const items: { icon: string; title: string }[] = [];
-    if (this.isShared()) {
-      const count = this.data().sharedWith!;
+    const count = this.data().sharedWith ?? 0;
+    if (count > 0) {
       items.push({ icon: 'lucideUsers', title: `Shared with ${count} user(s)` });
     }
     if (this.isReadOnly()) {
       items.push({ icon: 'lucideEye', title: 'Read only' });
     }
-    if (this.isEncrypted() && this.isFileNode()) {
-      items.push({ icon: 'lucideLock', title: 'Encrypted' });
-    }
     return items;
   });
+
   protected readonly badgeTooltip = computed(() =>
     this.badges().map((b) => b.title).join(', '),
   );
@@ -239,7 +210,7 @@ export class GridItemComponent implements FocusableOption, Highlightable {
       const item = this.data();
       const thumbnailRef = isFile(item) ? item.thumbnailRef : undefined;
 
-      if (!thumbnailRef || thumbnailRef.encryption.kind === 'Plaintext') {
+      if (!thumbnailRef) {
         return null;
       }
 
@@ -273,37 +244,15 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   });
 
   protected readonly isDirectoryNode = computed(() => isDirectory(this.data()));
+
+  protected readonly isFileNode = computed(() => isFile(this.data()));
   protected readonly itemName = computed(() => this.data().name);
-
-  #blobStorageConfig = inject(BLOB_STORAGE_CONFIG_TOKEN, { optional: true });
-  #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
-
-  readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
 
   protected readonly thumbnailUrl = computed(() => {
     const item = this.data();
     if (isFile(item) && item.thumbnailRef) {
       const encryptedThumbnailUrl = this.encryptedThumbnailUrl();
       if (encryptedThumbnailUrl) return encryptedThumbnailUrl;
-      if (item.thumbnailRef.encryption.kind === 'Encrypted') return null;
-
-      if (item.thumbnailRef.storageBackend === 'OnChain') {
-        const storageUrl = this.#isProduction
-          ? `https://${this.#canisterId.toText()}.icp0.io`
-          : `https://${this.#canisterId.toText()}.localhost`;
-        return `${storageUrl}${item.thumbnailRef.key}`;
-      }
-
-      const gatewayUrl = this.#blobStorageConfig?.gatewayUrl.trim();
-      if (!gatewayUrl) return null;
-
-      const query = new URLSearchParams({
-        blob_hash: item.thumbnailRef.rootHash,
-        owner_id: this.#canisterId.toText(),
-        project_id: DEFAULT_BLOB_STORAGE_PROJECT_ID,
-      });
-
-      return `${gatewayUrl.replace(/\/+$/, '')}/${BLOB_STORAGE_GATEWAY_VERSION}/blob/?${query}`;
     }
     return null;
   });

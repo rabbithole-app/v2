@@ -61,10 +61,6 @@ module ErrorMessages {
     "Version " # debug_show version # " is out of bounds";
   };
 
-  public func vetKeyNotAvailableForPlaintext() : Text {
-    "VetKey not available for plaintext files";
-  };
-
   public func cannotVersionDirectory() : Text {
     "Cannot list or restore versions on a directory";
   };

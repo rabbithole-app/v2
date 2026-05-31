@@ -192,7 +192,7 @@ export class StorageMetricCardComponent {
           !forceRefresh &&
           storageBackend === 'OnChain' &&
           onChainRuntimeStableMemoryBytes(storageMetrics) <
-            storageMetrics.encryptedBytesUsed
+            storageMetrics.storedBytesUsed
         ) {
           try {
             storageMetrics =
@@ -211,7 +211,7 @@ export class StorageMetricCardComponent {
           ? 'OnChain'
           : 'BlobStorage';
       const license = licensedLimits(storageMetrics.subscriptionStatus);
-      const fileBytes = storageMetrics.encryptedBytesUsed;
+      const fileBytes = storageMetrics.storedBytesUsed;
       const stableMemoryBytes =
         storageBackend === 'OnChain'
           ? onChainStableMemoryBytes(storageMetrics, fileBytes)

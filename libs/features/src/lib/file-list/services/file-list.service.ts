@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
-import { AsyncQueuer, AsyncQueuerState } from '@tanstack/pacer';
 import { toast } from '@spartan-ng/brain/sonner';
+import { AsyncQueuer, AsyncQueuerState } from '@tanstack/pacer';
 import { intersectionWith, partition } from 'remeda';
 import { map, mergeAll, Subject } from 'rxjs';
 import { match, P } from 'ts-pattern';
@@ -21,17 +21,13 @@ import {
 import type {
   EncryptedStorage,
   Entry,
-  StorageDirectoryEncryptionPolicy,
   StoragePermission,
-  StorageThumbnailEncryptionPolicy,
   StorageThumbnailStoragePolicy,
 } from '@rabbithole/encrypted-storage';
 
 import {
-  DirectoryEncryptionPolicy,
   isFile,
   NodeItem,
-  ThumbnailEncryptionPolicy,
   ThumbnailStoragePolicy,
 } from '../types';
 import { convertToNodeItem, toWorkerThumbnailRef } from '../utils';
@@ -73,23 +69,6 @@ function handleDeleteQueuerState(
     );
 }
 
-const encryptionPolicyToStorage = {
-  auto: 'Auto',
-  encrypted: 'Encrypted',
-  plaintext: 'Plaintext',
-} as const satisfies Record<
-  DirectoryEncryptionPolicy,
-  StorageDirectoryEncryptionPolicy
->;
-
-const thumbnailEncryptionPolicyToStorage = {
-  inherit: 'Inherit',
-  followFile: 'FollowFile',
-} as const satisfies Record<
-  ThumbnailEncryptionPolicy,
-  StorageThumbnailEncryptionPolicy
->;
-
 const thumbnailStoragePolicyToStorage = {
   inherit: 'Inherit',
   onChain: 'OnChain',
@@ -119,17 +98,6 @@ export class FileListService {
     ),
   );
   encryptedStorage = injectEncryptedStorage();
-  storageBackendType = resource<
-    StorageBackendType | null,
-    { encryptedStorage: EncryptedStorage }
-  >({
-    params: () => ({ encryptedStorage: this.encryptedStorage() }),
-    loader: async ({ params }) =>
-      Object.keys(
-        await params.encryptedStorage.getStorageBackend(),
-      )[0] as StorageBackendType,
-    defaultValue: null,
-  });
   #files = new Subject<FileSystemFileItem[]>();
   files$ = this.#files.asObservable().pipe(mergeAll());
   #parentPath = computed(() => this.#state().parentPath);
@@ -157,6 +125,17 @@ export class FileListService {
     defaultValue: [],
   });
   state = this.#state.asReadonly();
+  storageBackendType = resource<
+    StorageBackendType | null,
+    { encryptedStorage: EncryptedStorage }
+  >({
+    params: () => ({ encryptedStorage: this.encryptedStorage() }),
+    loader: async ({ params }) =>
+      Object.keys(
+        await params.encryptedStorage.getStorageBackend(),
+      )[0] as StorageBackendType,
+    defaultValue: null,
+  });
   #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   #coreWorkerService = injectCoreWorker();
   #downloadService = inject(DownloadService);
@@ -219,15 +198,12 @@ export class FileListService {
       const path = item.parentPath
         ? `${item.parentPath}/${item.name}`
         : item.name;
-      const fileSize = item.encryptionMode === 'encrypted'
-        ? Number(item.size) - AES_GCM_OVERHEAD * item.chunkCount
-        : Number(item.size);
+      const fileSize = Number(item.size) - AES_GCM_OVERHEAD * item.chunkCount;
       await this.#downloadService.startDownload(
         {
           id: crypto.randomUUID(),
           storageId,
           entry: ['File', path],
-          encrypted: item.encryptionMode === 'encrypted',
           fileName: item.name,
           contentType: item.contentType,
           totalChunks: item.chunkCount,
@@ -243,9 +219,7 @@ export class FileListService {
       const archiveName = `archive-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.zip`;
 
       const fileSizes = fileItems.map((item) =>
-        item.encryptionMode === 'encrypted'
-          ? Number(item.size) - AES_GCM_OVERHEAD * item.chunkCount
-          : Number(item.size),
+        Number(item.size) - AES_GCM_OVERHEAD * item.chunkCount,
       );
       const totalSize = fileSizes.reduce((a, b) => a + b, 0);
       const toastId = toast.loading(
@@ -263,7 +237,6 @@ export class FileListService {
               : item.name;
             return {
               entry: ['File' as const, path],
-              encrypted: item.encryptionMode === 'encrypted',
               fileName: item.name,
               contentType: item.contentType,
               totalChunks: item.chunkCount,
@@ -422,8 +395,6 @@ export class FileListService {
   async updateDirectoryPolicy(
     itemId: bigint,
     policy: {
-      encryptionPolicy: DirectoryEncryptionPolicy;
-      thumbnailEncryptionPolicy: ThumbnailEncryptionPolicy;
       thumbnailStoragePolicy: ThumbnailStoragePolicy;
     },
   ) {
@@ -433,9 +404,6 @@ export class FileListService {
       ? `${item.parentPath}/${item.name}`
       : item.name;
     await this.encryptedStorage().updateDirectoryPolicy(path, {
-      encryptionPolicy: encryptionPolicyToStorage[policy.encryptionPolicy],
-      thumbnailEncryptionPolicy:
-        thumbnailEncryptionPolicyToStorage[policy.thumbnailEncryptionPolicy],
       thumbnailStoragePolicy:
         thumbnailStoragePolicyToStorage[policy.thumbnailStoragePolicy],
     });

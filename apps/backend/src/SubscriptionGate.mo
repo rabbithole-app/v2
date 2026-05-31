@@ -156,9 +156,9 @@ module SubscriptionGate {
     };
   };
 
-  /// Check if an encrypted upload of given size is allowed.
-  /// Used in createBatch (pre-check) and update (verification).
-  public func canUploadEncrypted(self : T.StableStore, additionalBytes : Nat) : Result.Result<(), Text> {
+  /// Check if storing additional file bytes is allowed.
+  /// Used in upload-session admission and finalization checks.
+  public func canStoreFileBytes(self : T.StableStore, additionalBytes : Nat) : Result.Result<(), Text> {
     switch (self.subscriptionCache) {
       case (?{ status = #active(_) }) #ok;
       case (?{ status = #licensed({ includedBytes; maxFileBytes }) }) {
@@ -170,16 +170,16 @@ module SubscriptionGate {
           );
         };
         let reservedBytes = Upload.activeDeclaredBytes(self.upload);
-        let projectedBytes = self.encryptedBytesUsed + reservedBytes + additionalBytes;
+        let projectedBytes = self.storedBytesUsed + reservedBytes + additionalBytes;
         if (projectedBytes <= includedBytes) #ok
         else {
-          let committedAndReserved = self.encryptedBytesUsed + reservedBytes;
+          let committedAndReserved = self.storedBytesUsed + reservedBytes;
           let remaining = remainingNat(includedBytes, committedAndReserved);
           #err("File size exceeds remaining included storage (" # formatStorageBytes(remaining) # " remaining)");
         };
       };
-      case (?{ status = #expired }) #err("Subscription expired — encryption disabled");
-      case (?{ status = #free }) #err("Encryption requires an active subscription");
+      case (?{ status = #expired }) #err("Subscription expired");
+      case (?{ status = #free }) #err("Storage license required");
       case (?{ status = #invalidWasm }) #err("Invalid WASM — contact support");
       case (?{ status = #unknownCanister }) #err("Unknown canister — contact support");
       case null #err("Subscription status unknown — call refreshSubscription first");

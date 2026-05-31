@@ -32,36 +32,17 @@ module {
     #BlobStorage : { blobId : Blob; size : Nat };
   };
 
-  public type EncryptionMode = {
-    #Encrypted;
-    #Plaintext;
-  };
-
-  public type DirectoryEncryptionPolicy = {
-    #Auto;
-    #Encrypted;
-    #Plaintext;
-  };
-
   public type ThumbnailStoragePolicy = {
     #Inherit;
     #OnChain;
     #BlobStorage;
   };
 
-  public type ThumbnailEncryptionPolicy = {
-    #Inherit;
-    #FollowFile;
-  };
-
   public type ThumbnailEncryptionRef = {
-    #Plaintext;
-    #Encrypted : {
-      scopeKeyId : VetKeys.KeyManager.KeyId;
-      wrappedKey : Blob;
-      blobIv : Blob;
-      algorithm : Text;
-    };
+    scopeKeyId : VetKeys.KeyManager.KeyId;
+    wrappedKey : Blob;
+    blobIv : Blob;
+    algorithm : Text;
   };
 
   public type ThumbnailRef = {
@@ -142,16 +123,12 @@ module {
     var maxVersions : ?Nat;
     var locked : Bool;
     var thumbnailRef : ?ThumbnailRef;
-    var encryptionMode : EncryptionMode;
   };
 
   public type DirectoryMetadataStore = {
     var color : ?DirectoryColor;
-    var defaultEncryptionMode : EncryptionMode;
-    var encryptionPolicy : DirectoryEncryptionPolicy;
     var thumbnailStoragePolicy : ThumbnailStoragePolicy;
     var defaultThumbnailStorageBackend : StorageBackend;
-    var thumbnailEncryptionPolicy : ThumbnailEncryptionPolicy;
   };
 
   public type NodeMetadataStore = {
@@ -261,7 +238,7 @@ module {
     /* === Subscription & Backend === */
     var backendId : ?Principal;
     var subscriptionCache : ?SubscriptionCache;
-    var encryptedBytesUsed : Nat;
+    var storedBytesUsed : Nat;
     var cachedModuleHash : ?Blob;
     var lastCycleAlertAt : Time.Time;
     var lastCycleAlertLevel : ?CycleAlertLevel;

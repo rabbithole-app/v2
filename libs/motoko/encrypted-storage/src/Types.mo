@@ -123,10 +123,7 @@ module {
   public type BatchId = V1.BatchId;
   public type ChunkId = V1.ChunkId;
   public type ContentRef = V1.ContentRef;
-  public type EncryptionMode = V1.EncryptionMode;
-  public type DirectoryEncryptionPolicy = V1.DirectoryEncryptionPolicy;
   public type ThumbnailStoragePolicy = V1.ThumbnailStoragePolicy;
-  public type ThumbnailEncryptionPolicy = V1.ThumbnailEncryptionPolicy;
   public type FileVersion = V1.FileVersion;
   public type StagingEntry = V1.StagingEntry;
 
@@ -214,18 +211,14 @@ module {
   };
 
   public type ThumbnailEncryptionRef = {
-    #Plaintext;
-    #Encrypted : {
-      scopeKeyId : KeyId;
-      wrappedKey : Blob;
-      blobIv : Blob;
-      algorithm : Text;
-    };
+    scopeKeyId : KeyId;
+    wrappedKey : Blob;
+    blobIv : Blob;
+    algorithm : Text;
   };
 
   public type ThumbnailEncryptionRequirement = {
-    #Plaintext;
-    #Encrypted : { scopeKeyId : KeyId };
+    scopeKeyId : KeyId;
   };
 
   public type FileMetadata = {
@@ -234,7 +227,6 @@ module {
     size : Nat;
     chunkCount : Nat;
     thumbnailRef : ?ThumbnailRef;
-    encryptionMode : EncryptionMode;
     versionCount : Nat;
     currentVersion : Nat;
     storageBackend : StorageBackend;
@@ -303,11 +295,8 @@ module {
 
   public type DirectoryMetadata = {
     color : ?DirectoryColor;
-    defaultEncryptionMode : EncryptionMode;
-    encryptionPolicy : DirectoryEncryptionPolicy;
     thumbnailStoragePolicy : ThumbnailStoragePolicy;
     defaultThumbnailStorageBackend : StorageBackend;
-    thumbnailEncryptionPolicy : ThumbnailEncryptionPolicy;
   };
 
   /* ------------------------------- FileSystem ------------------------------- */
@@ -339,7 +328,7 @@ module {
   public type StorageStatus = {
     cycleBalance : Nat;
     subscriptionStatus : ?SubscriptionStatus;
-    encryptedBytesUsed : Nat;
+    storedBytesUsed : Nat;
     backendId : ?Principal;
     storageBackendType : StorageBackend;
   };
@@ -379,7 +368,6 @@ module {
   public type CreateArguments = {
     entry : Entry;
     createMode : CreateMode;
-    encryptionMode : ?EncryptionMode;
   };
 
   public type UpdateArguments = {
@@ -401,9 +389,7 @@ module {
 
   public type UpdateDirectoryPolicyArguments = {
     entry : Entry;
-    encryptionPolicy : ?DirectoryEncryptionPolicy;
     thumbnailStoragePolicy : ?ThumbnailStoragePolicy;
-    thumbnailEncryptionPolicy : ?ThumbnailEncryptionPolicy;
   };
 
   public type MoveArguments = {
@@ -446,14 +432,7 @@ module {
 
   /* --------------------------------- Upload --------------------------------- */
 
-  public type CreateBatchArguments = {
-    entry : Entry;
-    totalSize : Nat;
-    declaredUploadBytes : ?Nat;
-    expectedChunkCount : ?Nat;
-  };
-
-  public type CreateBatchResponse = {
+  public type ReserveBatchResponse = {
     batchId : BatchId;
   };
 
@@ -463,7 +442,6 @@ module {
     declaredUploadBytes : ?Nat;
     expectedChunkCount : ?Nat;
     createMode : CreateMode;
-    encryptionMode : ?EncryptionMode;
   };
 
   public type BeginUploadSessionResponse = {
@@ -486,14 +464,9 @@ module {
     contentType : Text;
   };
 
-  public type CreateChunkArguments = Chunk;
+  public type AppendUploadChunkArguments = Chunk;
 
-  public type CreateChunksArguments = {
-    batchId : BatchId;
-    content : [Blob];
-  };
-
-  public type DeleteBatchArguments = {
+  public type AbortUploadSessionArguments = {
     batchId : BatchId;
   };
 
@@ -506,7 +479,7 @@ module {
     chunkIndex : ?Nat;
   };
 
-  public type CreateChunkResponse = {
+  public type AppendUploadChunkResponse = {
     chunkId : Nat;
   };
 

@@ -37,25 +37,11 @@ module Thumbnail {
     };
   };
 
-  public func isEncrypted(ref : T.ThumbnailRef) : Bool {
-    switch (encryption(ref)) {
-      case (#Encrypted(_)) true;
-      case (#Plaintext) false;
-    };
-  };
-
   public func validateEncryption(expected : T.ThumbnailEncryptionRequirement, provided : T.ThumbnailEncryptionRef) : Result.Result<(), Text> {
-    switch (expected, provided) {
-      case (#Plaintext, #Plaintext) #ok;
-      case (#Plaintext, #Encrypted(_)) #err("Encrypted thumbnail metadata is not expected for this entry.");
-      case (#Encrypted(_), #Plaintext) #err("Encrypted file thumbnails must be encrypted.");
-      case (#Encrypted(expectedEncrypted), #Encrypted(providedEncrypted)) {
-        if (expectedEncrypted.scopeKeyId != providedEncrypted.scopeKeyId) {
-          #err("Encrypted thumbnail scope does not match current directory scope.");
-        } else {
-          #ok;
-        };
-      };
+    if (expected.scopeKeyId != provided.scopeKeyId) {
+      #err("Encrypted thumbnail scope does not match current directory scope.");
+    } else {
+      #ok;
     };
   };
 

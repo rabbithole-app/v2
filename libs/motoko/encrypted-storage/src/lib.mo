@@ -35,7 +35,7 @@ import Thumbnail "Thumbnail";
 import Const "Const";
 import Http "Http";
 import Certification "Certification";
-import FileAccounting "FileAccounting";
+import StorageAccounting "StorageAccounting";
 import UploadSession "UploadSession";
 import UploadStaging "UploadSession/Staging";
 
@@ -83,7 +83,7 @@ module EncryptedFileStorage {
       // Subscription & Backend
       var backendId = backendId;
       var subscriptionCache = null;
-      var encryptedBytesUsed = 0;
+      var storedBytesUsed = 0;
       var cachedModuleHash = null;
       var lastCycleAlertAt = 0;
       var lastCycleAlertLevel = null;
@@ -120,7 +120,7 @@ module EncryptedFileStorage {
         case (?cache) ?cache.status;
         case null null;
       };
-      encryptedBytesUsed = self.encryptedBytesUsed;
+      storedBytesUsed = self.storedBytesUsed;
       backendId = self.backendId;
       storageBackendType = self.storageBackendType;
     };
@@ -1525,7 +1525,6 @@ module EncryptedFileStorage {
   /// let result = EncryptedStorage.create(storage, caller, {
   ///   entry = (#File, "dir/subdir/file.jpg");
   ///   createMode = #CreateNew;
-  ///   encryptionMode = null;
   /// });
   /// ```
   public func create(self : T.StableStore, caller : Principal, args : T.CreateArguments) : Result.Result<T.NodeDetails, Text> {
@@ -1643,11 +1642,12 @@ module EncryptedFileStorage {
   /// Updates data for a file or directory.
   /// To fully upload the file, follow these steps:
   /// 1. Create a file using the `create` method.
-  /// 2. Create a batch file using `createBatch` and upload all chunks from the file using `createChunk`.
-  /// 3. Complete the upload process by calling `update`.
-  func checkEncryptedUpload(
+  /// 2. Start an upload session using `beginUploadSession`.
+  /// 3. Upload all chunks using `appendUploadChunk`.
+  /// 4. Complete the upload process using `finishUploadSession`.
+  func checkStorageLimit(
     additionalBytes : Nat,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<(), Text> {
     switch (await* refreshSubscriptionStatus(onSubscriptionRefresh)) {
@@ -1655,7 +1655,7 @@ module EncryptedFileStorage {
       case (#ok) {};
     };
 
-    switch (onEncryptedUpload) {
+    switch (onFileStorage) {
       case (?check) switch (check(additionalBytes)) {
         case (#err msg) #err msg;
         case (#ok) #ok;
@@ -1680,7 +1680,7 @@ module EncryptedFileStorage {
     self : T.StableStore,
     caller : Principal,
     args : T.UpdateArguments,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<(), Text> {
     let entry = switch (args) {
@@ -1752,12 +1752,10 @@ module EncryptedFileStorage {
           totalLength += size;
         };
 
-        // Size was reserved at createBatch; refresh entitlement status before commit.
-        if (file.encryptionMode == #Encrypted) {
-          switch (await* refreshSubscriptionStatus(onSubscriptionRefresh)) {
-            case (#err msg) return #err msg;
-            case (#ok) {};
-          };
+        // Size was reserved by the upload session; refresh entitlement status before commit.
+        switch (await* refreshSubscriptionStatus(onSubscriptionRefresh)) {
+          case (#err msg) return #err msg;
+          case (#ok) {};
         };
 
         let hashResult = switch (batchId) {
@@ -1800,7 +1798,7 @@ module EncryptedFileStorage {
           func(address : Nat, size : Nat) : T.ContentRef = #OnChain(address, size),
         );
 
-        let encryptedBytesBefore = FileAccounting.encryptedFileStoredBytes(file);
+        let storedBytesBefore = StorageAccounting.fileStoredBytes(file);
         File.addVersionRefs(self.fs, file, contentRefs, totalLength, hash, contentType);
         Certification.certifyContentHash(self, {
           keyId;
@@ -1811,9 +1809,9 @@ module EncryptedFileStorage {
           case null {};
         };
 
-        FileAccounting.applyEncryptedFileStoredBytesDelta(self, {
+        StorageAccounting.applyStoredBytesDelta(self, {
           file;
-          beforeBytes = encryptedBytesBefore;
+          beforeBytes = storedBytesBefore;
         });
 
         // Remove staging marker — file upload is now complete
@@ -1875,11 +1873,11 @@ module EncryptedFileStorage {
                 };
                 case null {};
               };
-              let encryptedBytesBefore = FileAccounting.encryptedFileStoredBytes(file);
+              let storedBytesBefore = StorageAccounting.fileStoredBytes(file);
               File.deallocateAll(self.fs, file);
-              FileAccounting.applyEncryptedFileStoredBytesDelta(self, {
+              StorageAccounting.applyStoredBytesDelta(self, {
                 file;
-                beforeBytes = encryptedBytesBefore;
+                beforeBytes = storedBytesBefore;
               });
             };
             case _ {};
@@ -1898,7 +1896,7 @@ module EncryptedFileStorage {
     self : T.StableStore,
     caller : Principal,
     args : T.PreflightCaffeineUploadArgs,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<(), Text> {
     switch (self.storageBackendType) {
@@ -1914,12 +1912,11 @@ module EncryptedFileStorage {
 
     let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
     let #File(file) = node.metadata else return #err("Expected file, got directory");
+    let _ = file;
 
-    if (file.encryptionMode == #Encrypted) {
-      switch (await* checkEncryptedUpload(args.size, onEncryptedUpload, onSubscriptionRefresh)) {
-        case (#err msg) return #err msg;
-        case (#ok) {};
-      };
+    switch (await* checkStorageLimit(args.size, onFileStorage, onSubscriptionRefresh)) {
+      case (#err msg) return #err msg;
+      case (#ok) {};
     };
 
     #ok;
@@ -1931,7 +1928,7 @@ module EncryptedFileStorage {
     self : T.StableStore,
     caller : Principal,
     args : T.CommitCaffeineUploadArgs,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<(), Text> {
     let entry = (#File, args.entry.1);
@@ -1943,11 +1940,9 @@ module EncryptedFileStorage {
     let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
     let #File(file) = node.metadata else return #err("Expected file, got directory");
 
-    if (file.encryptionMode == #Encrypted) {
-      switch (await* checkEncryptedUpload(args.size, onEncryptedUpload, onSubscriptionRefresh)) {
-        case (#err msg) return #err msg;
-        case (#ok) {};
-      };
+    switch (await* checkStorageLimit(args.size, onFileStorage, onSubscriptionRefresh)) {
+      case (#err msg) return #err msg;
+      case (#ok) {};
     };
 
     // Decertify stale blob-info from previous version (if BlobStorage)
@@ -1959,7 +1954,7 @@ module EncryptedFileStorage {
       case null {};
     };
 
-    let encryptedBytesBefore = FileAccounting.encryptedFileStoredBytes(file);
+    let storedBytesBefore = StorageAccounting.fileStoredBytes(file);
     File.addVersionBlobStorage(self.fs, file, Text.encodeUtf8(args.rootHash), args.size, args.sha256, args.contentType);
     Certification.certifyContentHash(self, {
       keyId = node.keyId;
@@ -1973,9 +1968,9 @@ module EncryptedFileStorage {
       bodyHash = blobInfoHash;
     }));
 
-    FileAccounting.applyEncryptedFileStoredBytesDelta(self, {
+    StorageAccounting.applyStoredBytesDelta(self, {
       file;
-      beforeBytes = encryptedBytesBefore;
+      beforeBytes = storedBytesBefore;
     });
 
     // Remove staging marker
@@ -1986,78 +1981,6 @@ module EncryptedFileStorage {
     };
 
     #ok;
-  };
-
-
-  /// Creates a batch for subsequent linking of chunks of the file
-  ///
-  /// Example:
-  /// ```motoko
-  /// let result = EncryptedStorage.createBatch(storage, caller, { entry = #File("dir/subdir/file.jpg") });
-  /// let batchId = switch (result) {
-  ///   case (#ok { batchId }) batchId;
-  ///   case (#err message) return #err message;
-  /// };
-  /// // next, we are already uploading chunks using this `batchId`
-  /// // let chunkId = switch (EncryptedStorage.createChunk(storage, caller, { batchId; content = blobContent })) {
-  /// //   case (#ok { chunkId }) chunkId;
-  /// //   case (#err message) return #err message;
-  /// // };
-  /// ```
-  public func createBatch(
-    self : T.StableStore,
-    caller : Principal,
-    args : T.CreateBatchArguments,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
-    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
-  ) : async* Result.Result<T.CreateBatchResponse, Text> {
-    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
-      case (#ok _) {};
-      case (#err message) return #err message;
-    };
-
-    // Included storage pre-check for encrypted files (before uploading chunks)
-    let nodeKey = UploadStaging.entryToNodeKey(self.fs, { entry = args.entry });
-    let isEncrypted = switch (nodeKey) {
-      case (?nk) switch (Map.get(self.staging, Utils.hashNodes, nk)) {
-        case (?{ node = { metadata = #File(fileMeta) } }) fileMeta.encryptionMode == #Encrypted;
-        case _ false;
-      };
-      case null false;
-    };
-
-    if (isEncrypted) {
-      switch (await* checkEncryptedUpload(args.totalSize, onEncryptedUpload, onSubscriptionRefresh)) {
-        case (#err msg) return #err msg;
-        case (#ok) {};
-      };
-    };
-
-    let shape = switch (UploadSession.validateUploadShape({
-      totalSize = args.totalSize;
-      expectedChunkCount = args.expectedChunkCount;
-      declaredUploadBytes = args.declaredUploadBytes;
-      isEncrypted;
-    })) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-
-    // Cleanup expired staging entries
-    UploadStaging.cleanupExpired(self);
-
-    let result = Upload.createBatch(self.upload, caller, shape.declaredUploadBytes, shape.chunkCount);
-
-    // Bind staging entry to the newly created batch
-    switch (result) {
-      case (#ok { batchId }) UploadStaging.bindBatch(self, {
-        entry = args.entry;
-        batchId;
-      });
-      case _ {};
-    };
-
-    result;
   };
 
   public func activeUploadReservationBytes(self : T.StableStore) : Nat {
@@ -2076,8 +1999,8 @@ module EncryptedFileStorage {
     Upload.activeSessions(self.upload);
   };
 
-  public func activeEncryptedUploadSessionCount(self : T.StableStore) : Nat {
-    UploadSession.activeEncryptedCount(self);
+  public func activeUploadSessionCount(self : T.StableStore) : Nat {
+    UploadSession.activeUploadSessionCount(self);
   };
 
   public func memoryInfo(self : T.StableStore) : T.MemoryInfo {
@@ -2088,13 +2011,13 @@ module EncryptedFileStorage {
     self : T.StableStore,
     caller : Principal,
     args : T.BeginUploadSessionArguments,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<T.BeginUploadSessionResponse, Text> {
     await* UploadSession.begin(self, caller, {
       request = args;
       hooks = {
-        onEncryptedUpload = onEncryptedUpload;
+        onFileStorage = onFileStorage;
         onSubscriptionRefresh = onSubscriptionRefresh;
         createTarget = func(createArgs : T.CreateArguments) : Result.Result<T.NodeDetails, Text> {
           create(self, caller, createArgs);
@@ -2110,23 +2033,26 @@ module EncryptedFileStorage {
   public func appendUploadChunk(
     self : T.StableStore,
     caller : Principal,
-    args : T.CreateChunkArguments,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
-  ) : Result.Result<T.CreateChunkResponse, Text> {
-    createChunk(self, caller, args, onEncryptedUpload);
+    args : T.AppendUploadChunkArguments,
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
+  ) : Result.Result<T.AppendUploadChunkResponse, Text> {
+    let _ = onFileStorage;
+    // Storage quota is reserved at beginUploadSession. Per-chunk checks only
+    // enforce the declared batch size inside Upload.appendChunk.
+    Upload.appendChunk(self.upload, caller, args);
   };
 
   public func finishUploadSession(
     self : T.StableStore,
     caller : Principal,
     args : T.FinishUploadSessionArguments,
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>),
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<UploadCommitMeasurement, Text> {
     await* UploadSession.finish(self, caller, {
       request = args;
       gates = {
-        onEncryptedUpload = onEncryptedUpload;
+        onFileStorage = onFileStorage;
         onSubscriptionRefresh = onSubscriptionRefresh;
       };
     });
@@ -2138,24 +2064,6 @@ module EncryptedFileStorage {
 
   public func rollbackBatch(self : T.StableStore, caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> {
     UploadSession.rollback(self, caller, { batchId });
-  };
-
-  /// Creates a chunk
-  ///
-  /// Example:
-  /// ```motoko
-  /// let result = EncryptedStorage.createChunk(storage, caller, { batchId; content = blobContent });
-  /// let chunkId = switch (result) {
-  ///   case (#ok { chunkId }) chunkId;
-  ///   case (#err message) return #err message;
-  /// };
-  /// // after uploading all the chunks of the file, you can call the `update` method and attach the chunks to the already created file.
-  /// ```
-  public func createChunk(self : T.StableStore, caller : Principal, args : T.Chunk, onEncryptedUpload : ?(Nat -> Result.Result<(), Text>)) : Result.Result<T.CreateChunkResponse, Text> {
-    let _ = onEncryptedUpload;
-    // Storage quota is reserved at createBatch/beginUploadSession. Per-chunk
-    // checks only enforce the declared batch size inside Upload.createChunk.
-    Upload.createChunk(self.upload, caller, args);
   };
 
   /// Move directories and files from one location to another. The method also recursively merges folders and files, replacing existing files and combining access rights.
@@ -2191,7 +2099,7 @@ module EncryptedFileStorage {
       case (_, #err message) return #err("Target error: " # message);
     };
 
-    FileSystem.move(self.fs, args.entry, args.target, self.storageBackendType);
+    FileSystem.move(self.fs, args.entry, args.target);
   };
 
   /// Renames an entry (file or directory) without moving it
@@ -2470,16 +2378,6 @@ module EncryptedFileStorage {
   /// Validates vetkey access (sync) and returns the derivation input blob.
   /// Use this from the canister actor to avoid module-level async self-calls.
   public func validateVetkeyAccess(self : T.StableStore, caller : T.Caller, keyId : T.KeyId) : Result.Result<Blob, Text> {
-    // Guard: reject VetKey requests for plaintext files
-    switch (FileSystem.get(self.fs, #keyId(keyId))) {
-      case (?{ metadata = #File(fileMeta) }) {
-        if (fileMeta.encryptionMode == #Plaintext) {
-          return #err(ErrorMessages.vetKeyNotAvailableForPlaintext());
-        };
-      };
-      case _ {};
-    };
-
     switch (Permissions.ensureUserCanRead(self.fs, caller, #keyId keyId)) {
       case (#err message) #err message;
       case (#ok _) {

@@ -2,8 +2,50 @@ import { Actor } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const vetkeyMocks = vi.hoisted(() => {
+  const encryptMessage = vi.fn(async (bytes: Uint8Array) => {
+    const encrypted = new Uint8Array(bytes.byteLength + 28);
+    encrypted.set(bytes);
+    return encrypted;
+  });
+  const decryptMessage = vi.fn(async (bytes: Uint8Array) =>
+    bytes.slice(0, Math.max(0, bytes.byteLength - 28)));
+  const derivedKeyMaterial = {
+    decryptMessage,
+    encryptMessage,
+    getCryptoKey: vi.fn(() => ({})),
+  };
+  return { decryptMessage, derivedKeyMaterial, encryptMessage };
+});
+
 vi.mock('@rabbithole/declarations', () => ({
   encryptedStorageIdlFactory: () => ({}),
+}));
+
+vi.mock('idb-keyval', () => ({
+  get: vi.fn(async () => undefined),
+  set: vi.fn(async () => undefined),
+}));
+
+vi.mock('@dfinity/vetkeys', () => ({
+  DerivedKeyMaterial: {
+    fromCryptoKey: () => vetkeyMocks.derivedKeyMaterial,
+  },
+  DerivedPublicKey: {
+    deserialize: () => ({}),
+  },
+  EncryptedVetKey: {
+    deserialize: () => ({
+      decryptAndVerify: () => ({
+        asDerivedKeyMaterial: () => vetkeyMocks.derivedKeyMaterial,
+      }),
+    }),
+  },
+  TransportSecretKey: {
+    random: () => ({
+      publicKeyBytes: () => new Uint8Array([1, 2, 3]),
+    }),
+  },
 }));
 
 vi.mock('./utils/verify-ic-certificate', () => ({
@@ -11,7 +53,10 @@ vi.mock('./utils/verify-ic-certificate', () => ({
     response.body instanceof Uint8Array ? response.body : new Uint8Array(response.body)),
 }));
 
-import { CAFFEINE_CHUNK_SIZE } from './blob-storage/constants';
+import {
+  AES_GCM_OVERHEAD,
+  CAFFEINE_PLAINTEXT_CHUNK_SIZE,
+} from './blob-storage/constants';
 import { BlobHashTree, YHash } from './blob-storage/merkle-tree';
 import { MockBlobGateway } from './blob-storage/mock-gateway';
 import { EncryptedStorage } from './encrypted-storage';
@@ -27,7 +72,9 @@ describe('EncryptedStorage BlobStorage integration', () => {
   let actorMock: {
     commitCaffeineUpload: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    getEncryptedVetkey: ReturnType<typeof vi.fn>;
     getStorageBackendType: ReturnType<typeof vi.fn>;
+    getVetkeyVerificationKey: ReturnType<typeof vi.fn>;
     http_request: ReturnType<typeof vi.fn>;
     preflightCaffeineUpload: ReturnType<typeof vi.fn>;
   };
@@ -45,12 +92,12 @@ describe('EncryptedStorage BlobStorage integration', () => {
       create: vi.fn(async () => ({
         keyId,
         metadata: {
-          File: {
-            encryptionMode: { Plaintext: null },
-          },
+          File: {},
         },
       })),
+      getEncryptedVetkey: vi.fn(async () => new Uint8Array([1])),
       getStorageBackendType: vi.fn(async () => ({ BlobStorage: null })),
+      getVetkeyVerificationKey: vi.fn(async () => new Uint8Array([2])),
       preflightCaffeineUpload: vi.fn(async () => undefined),
       commitCaffeineUpload: vi.fn(async () => undefined),
       http_request: vi.fn(async () => {
@@ -96,7 +143,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
     gateway.reset();
   });
 
-  it('uploads plaintext bytes through blob-tree/chunk flow and commits metadata on-chain', async () => {
+  it('uploads encrypted bytes through blob-tree/chunk flow and commits metadata on-chain', async () => {
     const storage = new EncryptedStorage({
       canisterId,
       agent: agentMock as never,
@@ -108,7 +155,6 @@ describe('EncryptedStorage BlobStorage integration', () => {
     await storage.store([bytes, {
       fileName: 'blob.txt',
       contentType: 'text/plain',
-      encryptionMode: 'Plaintext',
     }]);
 
     expect(actorMock.create).toHaveBeenCalledOnce();
@@ -118,21 +164,23 @@ describe('EncryptedStorage BlobStorage integration', () => {
 
     const commitArgs = actorMock.commitCaffeineUpload.mock.calls[0][0];
     const record = gateway.getRecord(commitArgs.rootHash);
+    const encryptedBytes = new Uint8Array(bytes.byteLength + AES_GCM_OVERHEAD);
+    encryptedBytes.set(bytes);
     expect(record).toBeDefined();
     expect(record?.headers).toEqual([
-      `Content-Length: ${bytes.byteLength}`,
+      `Content-Length: ${encryptedBytes.byteLength}`,
       'Content-Type: text/plain',
     ]);
     expect(record?.uploadedChunks.size).toBe(1);
 
-    const chunkHash = await YHash.fromChunk(bytes);
+    const chunkHash = await YHash.fromChunk(encryptedBytes);
     const expectedTree = await BlobHashTree.build([chunkHash], {
       'Content-Type': 'text/plain',
-      'Content-Length': bytes.byteLength.toString(),
+      'Content-Length': encryptedBytes.byteLength.toString(),
     });
 
     expect(commitArgs.rootHash).toBe(expectedTree.tree.hash.toShaString());
-    expect(Number(commitArgs.size)).toBe(bytes.byteLength);
+    expect(Number(commitArgs.size)).toBe(encryptedBytes.byteLength);
   });
 
   it('stops BlobStorage upload before gateway work when preflight rejects', async () => {
@@ -148,7 +196,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
 
     await expect(storage.store([
       new TextEncoder().encode('too large'),
-      { fileName: 'too-large.txt', encryptionMode: 'Plaintext' },
+      { fileName: 'too-large.txt' },
     ])).rejects.toThrow('File exceeds storage license quota');
 
     expect(actorMock.create).toHaveBeenCalledOnce();
@@ -157,16 +205,16 @@ describe('EncryptedStorage BlobStorage integration', () => {
     expect(actorMock.commitCaffeineUpload).not.toHaveBeenCalled();
   });
 
-  it('uploads multi-chunk plaintext blobs through a bounded readable source', async () => {
+  it('uploads multi-chunk encrypted blobs through a bounded readable source', async () => {
     const storage = new EncryptedStorage({
       canisterId,
       agent: agentMock as never,
       origin: 'https://example.test',
       blobStorageGatewayUrl: gateway.url,
     });
-    const bytes = new Uint8Array(CAFFEINE_CHUNK_SIZE + 17);
-    bytes.fill(7, 0, CAFFEINE_CHUNK_SIZE);
-    bytes.fill(11, CAFFEINE_CHUNK_SIZE);
+    const bytes = new Uint8Array(CAFFEINE_PLAINTEXT_CHUNK_SIZE + 17);
+    bytes.fill(7, 0, CAFFEINE_PLAINTEXT_CHUNK_SIZE);
+    bytes.fill(11, CAFFEINE_PLAINTEXT_CHUNK_SIZE);
 
     const readable = {
       close: vi.fn(async () => undefined),
@@ -177,9 +225,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
       slice: vi.fn(async (start: number, end: number) => bytes.slice(start, end)),
     };
 
-    await storage.store([readable, {
-      encryptionMode: 'Plaintext',
-    }]);
+    await storage.store([readable, {}]);
 
     const commitArgs = actorMock.commitCaffeineUpload.mock.calls[0][0];
     const record = gateway.getRecord(commitArgs.rootHash);
@@ -188,7 +234,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
     expect(readable.close).toHaveBeenCalledOnce();
     expect(readable.slice).toHaveBeenCalledTimes(2);
     expect(record?.uploadedChunks.size).toBe(2);
-    expect(Number(commitArgs.size)).toBe(bytes.byteLength);
+    expect(Number(commitArgs.size)).toBe(bytes.byteLength + 2 * AES_GCM_OVERHEAD);
   });
 
   it('downloads blob bytes through certified metadata + gateway flow', async () => {
@@ -203,12 +249,10 @@ describe('EncryptedStorage BlobStorage integration', () => {
     await storage.store([bytes, {
       fileName: 'download.txt',
       contentType: 'text/plain',
-      encryptionMode: 'Plaintext',
     }]);
 
     const chunks: Uint8Array[] = [];
     for await (const chunk of storage.downloadStream(['File', 'download.txt'], {
-      encrypted: false,
       storageBackend: 'BlobStorage',
       keyId,
       totalChunks: 1,
@@ -234,7 +278,6 @@ describe('EncryptedStorage BlobStorage integration', () => {
     await storage.store([bytes, {
       fileName: 'tampered.txt',
       contentType: 'text/plain',
-      encryptionMode: 'Plaintext',
     }]);
 
     const { rootHash } = actorMock.commitCaffeineUpload.mock.calls[0][0];
@@ -243,7 +286,6 @@ describe('EncryptedStorage BlobStorage integration', () => {
     const readAll = async () => {
       const output: Uint8Array[] = [];
       for await (const chunk of storage.downloadStream(['File', 'tampered.txt'], {
-        encrypted: false,
         storageBackend: 'BlobStorage',
         keyId,
         totalChunks: 1,

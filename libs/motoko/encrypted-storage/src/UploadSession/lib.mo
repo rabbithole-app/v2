@@ -11,9 +11,9 @@ import Certification "../Certification";
 import Const "../Const";
 import ErrorMessages "../ErrorMessages";
 import File "../FileSystem/File";
-import FileAccounting "../FileAccounting";
 import FileSystem "../FileSystem";
 import Permissions "../FileSystem/Permissions";
+import StorageAccounting "../StorageAccounting";
 import T "../Types";
 import Upload "../Upload";
 import Utils "../Utils";
@@ -28,12 +28,12 @@ module {
   };
 
   public type FundingGates = {
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>);
+    onFileStorage : ?(Nat -> Result.Result<(), Text>);
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>);
   };
 
   public type BeginHooks = {
-    onEncryptedUpload : ?(Nat -> Result.Result<(), Text>);
+    onFileStorage : ?(Nat -> Result.Result<(), Text>);
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>);
     createTarget : (T.CreateArguments) -> Result.Result<T.NodeDetails, Text>;
   };
@@ -42,7 +42,6 @@ module {
     totalSize : Nat;
     expectedChunkCount : ?Nat;
     declaredUploadBytes : ?Nat;
-    isEncrypted : Bool;
   };
 
   public type UploadShape = {
@@ -75,13 +74,13 @@ module {
     gates : FundingGates;
   };
 
-  type EncryptedUploadCheckArguments = {
+  type StorageLimitCheckArguments = {
     additionalBytes : Nat;
     gates : FundingGates;
   };
 
   public func validateUploadShape(args : ValidateUploadShapeArguments) : Result.Result<UploadShape, Text> {
-    let { totalSize; expectedChunkCount; declaredUploadBytes; isEncrypted } = args;
+    let { totalSize; expectedChunkCount; declaredUploadBytes } = args;
     let minimumChunkCount = if (totalSize == 0) 1 else (totalSize + Const.ONCHAIN_UPLOAD_CHUNK_SIZE - 1) / Const.ONCHAIN_UPLOAD_CHUNK_SIZE;
     let chunkCount = Option.get(expectedChunkCount, minimumChunkCount);
     if (chunkCount < minimumChunkCount) {
@@ -96,11 +95,7 @@ module {
       );
     };
 
-    let maxUploadBytes = if (isEncrypted) {
-      totalSize + (chunkCount * Const.ENCRYPTED_CHUNK_OVERHEAD_BYTES);
-    } else {
-      totalSize;
-    };
+    let maxUploadBytes = totalSize + (chunkCount * Const.ENCRYPTED_CHUNK_OVERHEAD_BYTES);
     let declared = Option.get(declaredUploadBytes, maxUploadBytes);
     if (declared > maxUploadBytes) {
       return #err(
@@ -133,15 +128,15 @@ module {
     };
   };
 
-  func checkEncryptedUpload(
-    { additionalBytes; gates } : EncryptedUploadCheckArguments,
+  func checkStorageLimit(
+    { additionalBytes; gates } : StorageLimitCheckArguments,
   ) : async* Result.Result<(), Text> {
     switch (await* refreshSubscriptionStatus(gates.onSubscriptionRefresh)) {
       case (#err msg) return #err msg;
       case (#ok) {};
     };
 
-    switch (gates.onEncryptedUpload) {
+    switch (gates.onFileStorage) {
       case (?check) switch (check(additionalBytes)) {
         case (#err msg) #err msg;
         case (#ok) #ok;
@@ -170,15 +165,10 @@ module {
               if (not Principal.equal(batch.owner, caller)) {
                 return #err("Upload already in progress for this file.");
               };
-              let isEncrypted = switch (staging.node.metadata) {
-                case (#File(fileMeta)) fileMeta.encryptionMode == #Encrypted;
-                case (#Directory(_)) false;
-              };
               let shape = switch (validateUploadShape({
                 totalSize = request.totalSize;
                 expectedChunkCount = request.expectedChunkCount;
                 declaredUploadBytes = request.declaredUploadBytes;
-                isEncrypted;
               })) {
                 case (#ok(value)) value;
                 case (#err(message)) return #err(message);
@@ -206,7 +196,6 @@ module {
     let nodeDetails = switch (hooks.createTarget({
       entry = request.entry;
       createMode = request.createMode;
-      encryptionMode = request.encryptionMode;
     })) {
       case (#ok(value)) value;
       case (#err(message)) return #err(message);
@@ -216,29 +205,21 @@ module {
     let ?node = Map.get(self.fs.nodes, Utils.hashNodes, nodeKey) else {
       return #err("Upload session target not found after create.");
     };
-    let isEncrypted = switch (node.metadata) {
-      case (#File(fileMeta)) fileMeta.encryptionMode == #Encrypted;
-      case (#Directory(_)) false;
-    };
-
-    if (isEncrypted) {
-      switch (await* checkEncryptedUpload({
-        additionalBytes = request.totalSize;
-        gates = hooks;
-      })) {
-        case (#err msg) {
-          Staging.removeNodeIfUncommitted(self, { nodeKey; node });
-          return #err msg;
-        };
-        case (#ok) {};
+    switch (await* checkStorageLimit({
+      additionalBytes = request.totalSize;
+      gates = hooks;
+    })) {
+      case (#err msg) {
+        Staging.removeNodeIfUncommitted(self, { nodeKey; node });
+        return #err msg;
       };
+      case (#ok) {};
     };
 
     let shape = switch (validateUploadShape({
       totalSize = request.totalSize;
       expectedChunkCount = request.expectedChunkCount;
       declaredUploadBytes = request.declaredUploadBytes;
-      isEncrypted;
     })) {
       case (#ok(value)) value;
       case (#err(message)) {
@@ -247,7 +228,7 @@ module {
       };
     };
 
-    let batch = switch (Upload.createBatch(self.upload, caller, shape.declaredUploadBytes, shape.chunkCount)) {
+    let batch = switch (Upload.reserveBatch(self.upload, caller, shape.declaredUploadBytes, shape.chunkCount)) {
       case (#ok(value)) value;
       case (#err(message)) {
         Staging.removeNodeIfUncommitted(self, { nodeKey; node });
@@ -322,11 +303,9 @@ module {
       totalLength += size;
     };
 
-    if (file.encryptionMode == #Encrypted) {
-      switch (await* refreshSubscriptionStatus(gates.onSubscriptionRefresh)) {
-        case (#err msg) return #err msg;
-        case (#ok) {};
-      };
+    switch (await* refreshSubscriptionStatus(gates.onSubscriptionRefresh)) {
+      case (#err msg) return #err msg;
+      case (#ok) {};
     };
 
     let hashResult = switch (Upload.getBatchHash(self.upload, batchId)) {
@@ -357,7 +336,7 @@ module {
       func(address : Nat, size : Nat) : T.ContentRef = #OnChain(address, size),
     );
 
-    let encryptedBytesBefore = FileAccounting.encryptedFileStoredBytes(file);
+    let storedBytesBefore = StorageAccounting.fileStoredBytes(file);
     File.addVersionRefs(self.fs, file, contentRefs, totalLength, hash, contentType);
     Certification.certifyContentHash(self, {
       keyId = liveNode.keyId;
@@ -365,9 +344,9 @@ module {
     });
     ignore Upload.forgetBatch(self.upload, batchId);
 
-    FileAccounting.applyEncryptedFileStoredBytesDelta(self, {
+    StorageAccounting.applyStoredBytesDelta(self, {
       file;
-      beforeBytes = encryptedBytesBefore;
+      beforeBytes = storedBytesBefore;
     });
 
     Staging.removeByNodeKey(self, { nodeKey });
@@ -433,17 +412,12 @@ module {
     rollback(self, caller, args);
   };
 
-  public func activeEncryptedCount(self : T.StableStore) : Nat {
+  public func activeUploadSessionCount(self : T.StableStore) : Nat {
     var count = 0;
     for ((_, staging) in Map.entries(self.staging)) {
       switch (staging.batchId) {
         case (?batchId) switch (Upload.getBatch(self.upload, batchId)) {
-          case (?_) switch (staging.node.metadata) {
-            case (#File(fileMeta)) {
-              if (fileMeta.encryptionMode == #Encrypted) count += 1;
-            };
-            case (#Directory(_)) {};
-          };
+          case (?_) count += 1;
           case null {};
         };
         case null {};

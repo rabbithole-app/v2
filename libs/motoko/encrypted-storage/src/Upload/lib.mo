@@ -243,7 +243,7 @@ module {
     };
   };
 
-  public func createBatch(self : Store, caller : Principal, declaredTotalBytes : Nat, expectedChunkCount : Nat) : Result.Result<T.CreateBatchResponse, Text> {
+  public func reserveBatch(self : Store, caller : Principal, declaredTotalBytes : Nat, expectedChunkCount : Nat) : Result.Result<T.ReserveBatchResponse, Text> {
     let now = Time.now();
 
     for ((batchId, batch) in Map.entries(self.batches)) {
@@ -310,7 +310,7 @@ module {
     #ok;
   };
 
-  public func createChunk(self : Store, caller : Principal, args : T.Chunk) : Result.Result<T.CreateChunkResponse, Text> {
+  public func appendChunk(self : Store, caller : Principal, args : T.Chunk) : Result.Result<T.AppendUploadChunkResponse, Text> {
     switch (self.configuration.maxChunks) {
       case (?maxChunks) {
         if (Nat64.fromNat(Map.size(self.chunks)) >= maxChunks) {

@@ -14,9 +14,7 @@
         [color]="directoryColor()"
         [active]="active()"
       >
-        @if (isEncrypted()) {
-          <ng-icon icon name="lucideLock" />
-        }
+        <ng-icon icon name="lucideLock" />
       </rbth-feat-file-list-animated-folder>
     } @else if (isFile && hasThumb && thumbUrl) {
       <div

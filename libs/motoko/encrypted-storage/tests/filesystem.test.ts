@@ -113,6 +113,47 @@ describe('FileSystem', () => {
     return null;
   }
 
+  async function uploadSessionFile(args: {
+    path: string;
+    chunks: Uint8Array[];
+    contentType?: string;
+    createMode?: Parameters<_SERVICE['beginUploadSession']>[0]['createMode'];
+  }) {
+    const content = new Uint8Array(
+      args.chunks.reduce((total, chunk) => total + chunk.byteLength, 0),
+    );
+    let offset = 0;
+    for (const chunk of args.chunks) {
+      content.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    const { batchId } = await actor.beginUploadSession({
+      entry: [FILE, args.path],
+      totalSize: BigInt(content.byteLength),
+      declaredUploadBytes: [BigInt(content.byteLength)],
+      expectedChunkCount: [BigInt(args.chunks.length)],
+      createMode: args.createMode ?? CREATE_NEW,
+    });
+
+    for (const [chunkIndex, chunk] of args.chunks.entries()) {
+      await actor.appendUploadChunk({
+        batchId,
+        content: chunk,
+        chunkIndex: [BigInt(chunkIndex)],
+      });
+    }
+
+    const hashBuffer = await crypto.subtle.digest('SHA-256', content);
+    await actor.finishUploadSession({
+      batchId,
+      sha256: [new Uint8Array(hashBuffer)],
+      contentType: args.contentType ?? 'application/octet-stream',
+    });
+
+    return { batchId, content };
+  }
+
   describe('hasPermission', () => {
     test('Owner should have #ReadWriteManage', async () => {
       expect(
@@ -160,7 +201,6 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(result).toMatchObject({
         id: 1938810470400000002n,
@@ -169,13 +209,11 @@ describe('FileSystem', () => {
       const result2 = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/detective'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(result2).toMatchObject({ id: 1938810470400000003n });
       const result3 = await actor.create({
         entry: [FILE, 'Documents/Photos/1.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(result3).toMatchObject({ id: 1938810470400000005n });
     });
@@ -184,14 +222,12 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [DIRECTORY, 'Documents/Books/classic'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       await expect(
         actor.create({
           entry: [DIRECTORY, 'Documents/Books/classic'],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         }),
       ).rejects.toThrowError();
     });
@@ -202,7 +238,6 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       await expect(
@@ -231,13 +266,11 @@ describe('FileSystem', () => {
       const result = await actor.create({
         entry: [FILE, 'Documents/WP/bitcoin.pdf'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(result).toMatchObject({ id: 1938810470400000002n });
       const result2 = await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       expect(result2).toMatchObject({ id: 1938810470400000004n });
 
@@ -262,42 +295,34 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Photos/1.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/2.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/2.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Photos/Turkey/3.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/1.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/Turkey/2.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/2.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Shared/Photos/3.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
     });
 
@@ -458,17 +483,14 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Documents/report.pdf'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Documents/notes.txt'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Photos'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
     });
 
@@ -534,17 +556,14 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]/bitcoin.pdf'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [FILE, 'Private/wallet.dat'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]-charlie[rwm]']],
@@ -814,7 +833,6 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-anyone[r]'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-anyone[r]']],
@@ -868,12 +886,10 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-alice[rw]-bob[r]'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Shared/with-charlie[rwm]'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await grantPermission({
         entry: [[DIRECTORY, 'Shared/with-alice[rw]-bob[r]']],
@@ -1083,7 +1099,6 @@ describe('FileSystem', () => {
         const node = await actor.create({
           entry: [DIRECTORY, 'TestDir'],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         });
         expect(node.callerPermission).toEqual([]);
       });
@@ -1133,7 +1148,6 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [DIRECTORY, 'test/dir/subdir'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await grantPermission({
         entry: [[DIRECTORY, 'test/dir/subdir']],
@@ -1175,7 +1189,6 @@ describe('FileSystem', () => {
         await actor.create({
           entry: [DIRECTORY, 'Shared/photos'],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         });
       });
 
@@ -1511,17 +1524,14 @@ describe('FileSystem', () => {
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]/photos'],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         });
         await actor.create({
           entry: [DIRECTORY, 'Shared/with-alice[rw]-and-bob[r]/documents'],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         });
         await actor.create({
           entry: [FILE, 'Private/wallet.dat'],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         });
         await grantPermission({
           entry: [[DIRECTORY, 'Shared/with-alice[rw]']],
@@ -1622,93 +1632,11 @@ describe('FileSystem', () => {
     });
   });
 
-  describe('encryption mode', () => {
-    test('should create plaintext file', async () => {
-      const result = await actor.create({
-        entry: [FILE, 'Public/readme.txt'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      expect('File' in result.metadata).toBeTruthy();
-      if ('File' in result.metadata) {
-        expect('Plaintext' in result.metadata.File.encryptionMode).toBeTruthy();
-      }
-    });
-
-    test('should create encrypted file (default)', async () => {
-      const result = await actor.create({
-        entry: [FILE, 'Private/secret.dat'],
-        createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-      expect('File' in result.metadata).toBeTruthy();
-      if ('File' in result.metadata) {
-        expect('Encrypted' in result.metadata.File.encryptionMode).toBeTruthy();
-      }
-    });
-
-    test('should inherit directory defaultEncryptionMode', async () => {
-      await actor.create({
-        entry: [DIRECTORY, 'PublicDir'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      const file = await actor.create({
-        entry: [FILE, 'PublicDir/file.txt'],
-        createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-      if ('File' in file.metadata) {
-        expect('Plaintext' in file.metadata.File.encryptionMode).toBeTruthy();
-      }
-    });
-
-    test('should resolve auto directory encryption policy through parent changes', async () => {
-      await actor.create({
-        entry: [DIRECTORY, 'PublicDir'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      const child = await actor.create({
-        entry: [DIRECTORY, 'PublicDir/Child'],
-        createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-      expect('Directory' in child.metadata).toBeTruthy();
-      if ('Directory' in child.metadata) {
-        expect('Auto' in child.metadata.Directory.encryptionPolicy).toBeTruthy();
-        expect('Plaintext' in child.metadata.Directory.defaultEncryptionMode).toBeTruthy();
-      }
-
-      await actor.updateDirectoryPolicy({
-        entry: [DIRECTORY, 'PublicDir'],
-        encryptionPolicy: [{ Encrypted: null }],
-        thumbnailStoragePolicy: [],
-        thumbnailEncryptionPolicy: [],
-      });
-
-      const { entries } = await actor.list([[DIRECTORY, 'PublicDir']]);
-      const childAfterUpdate = entries.find((item) => item.name === 'Child');
-      expect(childAfterUpdate).toBeDefined();
-      if (childAfterUpdate && 'Directory' in childAfterUpdate.metadata) {
-        expect('Encrypted' in childAfterUpdate.metadata.Directory.defaultEncryptionMode).toBeTruthy();
-      }
-
-      const file = await actor.create({
-        entry: [FILE, 'PublicDir/Child/file.txt'],
-        createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-      if ('File' in file.metadata) {
-        expect('Encrypted' in file.metadata.File.encryptionMode).toBeTruthy();
-      }
-    });
-
-    test('should update directory thumbnail policies', async () => {
+  describe('thumbnail storage policy', () => {
+    test('should update directory thumbnail storage policy', async () => {
       const dir = await actor.create({
         entry: [DIRECTORY, 'Media'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       if ('Directory' in dir.metadata) {
         expect('Inherit' in dir.metadata.Directory.thumbnailStoragePolicy).toBeTruthy();
@@ -1717,15 +1645,12 @@ describe('FileSystem', () => {
 
       const updated = await actor.updateDirectoryPolicy({
         entry: [DIRECTORY, 'Media'],
-        encryptionPolicy: [],
         thumbnailStoragePolicy: [{ BlobStorage: null }],
-        thumbnailEncryptionPolicy: [{ FollowFile: null }],
       });
 
       if ('Directory' in updated.metadata) {
         expect('BlobStorage' in updated.metadata.Directory.thumbnailStoragePolicy).toBeTruthy();
         expect('BlobStorage' in updated.metadata.Directory.defaultThumbnailStorageBackend).toBeTruthy();
-        expect('FollowFile' in updated.metadata.Directory.thumbnailEncryptionPolicy).toBeTruthy();
       }
     });
 
@@ -1733,18 +1658,14 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [DIRECTORY, 'Media'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.updateDirectoryPolicy({
         entry: [DIRECTORY, 'Media'],
-        encryptionPolicy: [],
         thumbnailStoragePolicy: [{ BlobStorage: null }],
-        thumbnailEncryptionPolicy: [],
       });
       await actor.create({
         entry: [FILE, 'Media/photo.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       const prepared = await actor.prepareThumbnailUpload({
@@ -1753,30 +1674,7 @@ describe('FileSystem', () => {
         size: 3n,
       });
       expect('BlobStorage' in prepared.storageBackend).toBeTruthy();
-      expect('Encrypted' in prepared.encryption).toBeTruthy();
-
-      await expect(
-        actor.commitThumbnailUpload({
-          entry: [FILE, 'Media/photo.jpg'],
-          rootHash: 'sha256:plaintext',
-          sha256: new Uint8Array([1, 2, 3]),
-          contentType: 'image/jpeg',
-          size: 3n,
-          encryption: { Plaintext: null },
-        }),
-      ).rejects.toThrow('Encrypted file thumbnails must be encrypted');
-
-      const encryption =
-        'Encrypted' in prepared.encryption
-          ? {
-              Encrypted: {
-                scopeKeyId: prepared.encryption.Encrypted.scopeKeyId,
-                wrappedKey: new Uint8Array([4, 5, 6]),
-                blobIv: new Uint8Array([7, 8, 9]),
-                algorithm: 'AES-GCM-256+vetkey-wrap-v1',
-              },
-            }
-          : { Plaintext: null };
+      expect(prepared.encryption.scopeKeyId).toBeDefined();
 
       const updated = await actor.commitThumbnailUpload({
         entry: [FILE, 'Media/photo.jpg'],
@@ -1784,7 +1682,12 @@ describe('FileSystem', () => {
         sha256: new Uint8Array([1, 2, 3]),
         contentType: 'image/jpeg',
         size: 3n,
-        encryption,
+        encryption: {
+          scopeKeyId: prepared.encryption.scopeKeyId,
+          wrappedKey: new Uint8Array([4, 5, 6]),
+          blobIv: new Uint8Array([7, 8, 9]),
+          algorithm: 'AES-GCM-256+vetkey-wrap-v1',
+        },
       });
 
       if ('File' in updated.metadata) {
@@ -1794,112 +1697,8 @@ describe('FileSystem', () => {
           expect(thumbnailRef.BlobStorage.rootHash).toBe('sha256:test');
           expect(thumbnailRef.BlobStorage.contentType).toBe('image/jpeg');
           expect(thumbnailRef.BlobStorage.size).toBe(3n);
-          expect('Encrypted' in thumbnailRef.BlobStorage.encryption).toBeTruthy();
+          expect(thumbnailRef.BlobStorage.encryption.scopeKeyId).toEqual(prepared.encryption.scopeKeyId);
         }
-      }
-    });
-
-    test('should keep plaintext thumbnail metadata when file moves to another directory', async () => {
-      await actor.create({
-        entry: [DIRECTORY, 'Public'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      await actor.create({
-        entry: [DIRECTORY, 'Archive'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      await actor.create({
-        entry: [FILE, 'Public/photo.jpg'],
-        createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-
-      const updated = await actor.setThumbnail({
-        entry: [FILE, 'Public/photo.jpg'],
-        thumbnailRef: [
-          {
-            OnChain: {
-              key: '/thumbnail/Public/photo.jpg',
-              sha256: [new Uint8Array([1, 2, 3])],
-              contentType: 'image/jpeg',
-              size: 3n,
-              encryption: { Plaintext: null },
-            },
-          },
-        ],
-      });
-      if ('File' in updated.metadata) {
-        expect(updated.metadata.File.thumbnailRef.length).toBe(1);
-      }
-
-      await actor.move({
-        entry: [FILE, 'Public/photo.jpg'],
-        target: [[DIRECTORY, 'Archive']],
-      });
-
-      const { entries } = await actor.list([[DIRECTORY, 'Archive']]);
-      const moved = entries.find((entry) => entry.name === 'photo.jpg');
-      expect(moved).toBeDefined();
-      if (moved && 'File' in moved.metadata) {
-        expect(moved.metadata.File.thumbnailRef.length).toBe(1);
-        const thumbnailRef = moved.metadata.File.thumbnailRef[0];
-        expect(thumbnailRef && 'OnChain' in thumbnailRef).toBeTruthy();
-        if (thumbnailRef && 'OnChain' in thumbnailRef) {
-          expect('Plaintext' in thumbnailRef.OnChain.encryption).toBeTruthy();
-        }
-      }
-    });
-
-    test('should clear plaintext thumbnail metadata when file moves to directory with another thumbnail backend', async () => {
-      await actor.create({
-        entry: [DIRECTORY, 'Public'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      await actor.create({
-        entry: [DIRECTORY, 'Archive'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      await actor.updateDirectoryPolicy({
-        entry: [DIRECTORY, 'Archive'],
-        encryptionPolicy: [],
-        thumbnailStoragePolicy: [{ BlobStorage: null }],
-        thumbnailEncryptionPolicy: [],
-      });
-      await actor.create({
-        entry: [FILE, 'Public/photo.jpg'],
-        createMode: CREATE_NEW,
-        encryptionMode: [],
-      });
-
-      await actor.setThumbnail({
-        entry: [FILE, 'Public/photo.jpg'],
-        thumbnailRef: [
-          {
-            OnChain: {
-              key: '/thumbnail/Public/photo.jpg',
-              sha256: [new Uint8Array([1, 2, 3])],
-              contentType: 'image/jpeg',
-              size: 3n,
-              encryption: { Plaintext: null },
-            },
-          },
-        ],
-      });
-
-      await actor.move({
-        entry: [FILE, 'Public/photo.jpg'],
-        target: [[DIRECTORY, 'Archive']],
-      });
-
-      const { entries } = await actor.list([[DIRECTORY, 'Archive']]);
-      const moved = entries.find((entry) => entry.name === 'photo.jpg');
-      expect(moved).toBeDefined();
-      if (moved && 'File' in moved.metadata) {
-        expect(moved.metadata.File.thumbnailRef).toEqual([]);
       }
     });
 
@@ -1907,29 +1706,22 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [DIRECTORY, 'Media'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.create({
         entry: [DIRECTORY, 'Archive'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await actor.updateDirectoryPolicy({
         entry: [DIRECTORY, 'Media'],
-        encryptionPolicy: [],
         thumbnailStoragePolicy: [{ BlobStorage: null }],
-        thumbnailEncryptionPolicy: [],
       });
       await actor.updateDirectoryPolicy({
         entry: [DIRECTORY, 'Archive'],
-        encryptionPolicy: [],
         thumbnailStoragePolicy: [{ BlobStorage: null }],
-        thumbnailEncryptionPolicy: [],
       });
       await actor.create({
         entry: [FILE, 'Media/photo.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       const prepared = await actor.prepareThumbnailUpload({
@@ -1937,17 +1729,6 @@ describe('FileSystem', () => {
         contentType: 'image/jpeg',
         size: 3n,
       });
-      const encryption =
-        'Encrypted' in prepared.encryption
-          ? {
-              Encrypted: {
-                scopeKeyId: prepared.encryption.Encrypted.scopeKeyId,
-                wrappedKey: new Uint8Array([4, 5, 6]),
-                blobIv: new Uint8Array([7, 8, 9]),
-                algorithm: 'AES-GCM-256+vetkey-wrap-v1',
-              },
-            }
-          : { Plaintext: null };
 
       const updated = await actor.commitThumbnailUpload({
         entry: [FILE, 'Media/photo.jpg'],
@@ -1955,7 +1736,12 @@ describe('FileSystem', () => {
         sha256: new Uint8Array([1, 2, 3]),
         contentType: 'image/jpeg',
         size: 3n,
-        encryption,
+        encryption: {
+          scopeKeyId: prepared.encryption.scopeKeyId,
+          wrappedKey: new Uint8Array([4, 5, 6]),
+          blobIv: new Uint8Array([7, 8, 9]),
+          algorithm: 'AES-GCM-256+vetkey-wrap-v1',
+        },
       });
       expect('File' in updated.metadata).toBeTruthy();
       if (!('File' in updated.metadata)) return;
@@ -1983,21 +1769,18 @@ describe('FileSystem', () => {
         contentType: 'image/jpeg',
         size: 3n,
       });
-      expect('Encrypted' in rewrapPrepared.encryption).toBeTruthy();
       expect(originalThumbnailRef && 'BlobStorage' in originalThumbnailRef).toBeTruthy();
-      if ('Encrypted' in rewrapPrepared.encryption && originalThumbnailRef && 'BlobStorage' in originalThumbnailRef) {
+      if (originalThumbnailRef && 'BlobStorage' in originalThumbnailRef) {
         const rewrapped = await actor.rewrapThumbnail({
           entry: [FILE, 'Archive/photo.jpg'],
           thumbnailRef: {
             BlobStorage: {
               ...originalThumbnailRef.BlobStorage,
               encryption: {
-                Encrypted: {
-                  scopeKeyId: rewrapPrepared.encryption.Encrypted.scopeKeyId,
-                  wrappedKey: new Uint8Array([10, 11, 12]),
-                  blobIv: new Uint8Array([7, 8, 9]),
-                  algorithm: 'AES-GCM-256+vetkey-wrap-v1',
-                },
+                scopeKeyId: rewrapPrepared.encryption.scopeKeyId,
+                wrappedKey: new Uint8Array([10, 11, 12]),
+                blobIv: new Uint8Array([7, 8, 9]),
+                algorithm: 'AES-GCM-256+vetkey-wrap-v1',
               },
             },
           },
@@ -2007,12 +1790,10 @@ describe('FileSystem', () => {
           expect(thumbnailRef && 'BlobStorage' in thumbnailRef).toBeTruthy();
           if (thumbnailRef && 'BlobStorage' in thumbnailRef) {
             expect(thumbnailRef.BlobStorage.encryption).toEqual({
-              Encrypted: {
-                scopeKeyId: rewrapPrepared.encryption.Encrypted.scopeKeyId,
-                wrappedKey: new Uint8Array([10, 11, 12]),
-                blobIv: new Uint8Array([7, 8, 9]),
-                algorithm: 'AES-GCM-256+vetkey-wrap-v1',
-              },
+              scopeKeyId: rewrapPrepared.encryption.scopeKeyId,
+              wrappedKey: new Uint8Array([10, 11, 12]),
+              blobIv: new Uint8Array([7, 8, 9]),
+              algorithm: 'AES-GCM-256+vetkey-wrap-v1',
             });
           }
         }
@@ -2026,7 +1807,6 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Uploads/photo.jpg'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       // File should NOT be visible in list
@@ -2039,7 +1819,6 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Uploads/get-or-create-new.jpg'],
         createMode: GET_OR_CREATE,
-        encryptionMode: [],
       });
 
       const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
@@ -2047,47 +1826,13 @@ describe('FileSystem', () => {
     });
 
     test('file becomes visible in list() after full upload flow', async () => {
-      // Create file
-      await actor.create({
-        entry: [FILE, 'Uploads/doc.txt'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-
-      // Upload chunk
       const content = new TextEncoder().encode('Hello, World!');
-
-      // Create batch
-      const { batchId } = await actor.createBatch({
-        entry: [FILE, 'Uploads/doc.txt'],
-        totalSize: BigInt(content.length),
-        declaredUploadBytes: [],
-        expectedChunkCount: [],
+      await uploadSessionFile({
+        path: 'Uploads/doc.txt',
+        chunks: [content],
+        contentType: 'text/plain',
       });
 
-      const { chunkId } = await actor.createChunk({
-        batchId,
-        content,
-        chunkIndex: [],
-      });
-
-      // Compute SHA-256
-      const hashBuffer = await crypto.subtle.digest('SHA-256', content);
-      const sha256 = new Uint8Array(hashBuffer);
-
-      // Commit via update
-      await actor.update({
-        File: {
-          path: 'Uploads/doc.txt',
-          metadata: {
-            sha256: [sha256],
-            chunkIds: [chunkId],
-            contentType: 'text/plain',
-          },
-        },
-      });
-
-      // File should now be visible in list
       const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
       const fileNames = items.map((item) => item.name);
       expect(fileNames).toContain('doc.txt');
@@ -2098,7 +1843,6 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Deep/Nested/Dir/file.txt'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       // Parent directories should be visible
@@ -2114,14 +1858,12 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Staging/retry.bin'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       // GetOrCreate should work (retry upload)
       const result = await actor.create({
         entry: [FILE, 'Staging/retry.bin'],
         createMode: GET_OR_CREATE,
-        encryptionMode: [],
       });
       expect(result.name).toBe('retry.bin');
     });
@@ -2130,47 +1872,20 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Staging/dup.bin'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
 
       await expect(
         actor.create({
           entry: [FILE, 'Staging/dup.bin'],
           createMode: CREATE_NEW,
-          encryptionMode: [],
         }),
       ).rejects.toThrowError();
     });
 
     test('GetOrCreate on committed file should not go to staging', async () => {
-      // Create and commit a file first
-      await actor.create({
-        entry: [FILE, 'Committed/data.bin'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-      const content = new Uint8Array([1, 2, 3]);
-      const { batchId } = await actor.createBatch({
-        entry: [FILE, 'Committed/data.bin'],
-        totalSize: BigInt(content.length),
-        declaredUploadBytes: [],
-        expectedChunkCount: [],
-      });
-      const { chunkId } = await actor.createChunk({
-        batchId,
-        content,
-        chunkIndex: [],
-      });
-      const hashBuffer = await crypto.subtle.digest('SHA-256', content);
-      await actor.update({
-        File: {
-          path: 'Committed/data.bin',
-          metadata: {
-            sha256: [new Uint8Array(hashBuffer)],
-            chunkIds: [chunkId],
-            contentType: 'application/octet-stream',
-          },
-        },
+      await uploadSessionFile({
+        path: 'Committed/data.bin',
+        chunks: [new Uint8Array([1, 2, 3])],
       });
 
       // File should be visible (committed)
@@ -2181,56 +1896,11 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Committed/data.bin'],
         createMode: GET_OR_CREATE,
-        encryptionMode: [],
       });
 
       // File should STILL be visible (GetOrCreate doesn't re-stage)
       ({ entries: items } = await actor.list([[DIRECTORY, 'Committed']]));
       expect(items.map((i) => i.name)).toContain('data.bin');
-    });
-
-    test('update rejects chunk ids that do not match chunk index order', async () => {
-      await actor.create({
-        entry: [FILE, 'Uploads/order.txt'],
-        createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
-      });
-
-      const first = new TextEncoder().encode('first');
-      const second = new TextEncoder().encode('second');
-      const { batchId } = await actor.createBatch({
-        entry: [FILE, 'Uploads/order.txt'],
-        totalSize: BigInt(first.length + second.length),
-        declaredUploadBytes: [],
-        expectedChunkCount: [2n],
-      });
-      const { chunkId: firstChunkId } = await actor.createChunk({
-        batchId,
-        content: first,
-        chunkIndex: [0n],
-      });
-      const { chunkId: secondChunkId } = await actor.createChunk({
-        batchId,
-        content: second,
-        chunkIndex: [1n],
-      });
-      const hashBuffer = await crypto.subtle.digest(
-        'SHA-256',
-        new Uint8Array([...first, ...second]),
-      );
-
-      await expect(
-        actor.update({
-          File: {
-            path: 'Uploads/order.txt',
-            metadata: {
-              sha256: [new Uint8Array(hashBuffer)],
-              chunkIds: [secondChunkId, firstChunkId],
-              contentType: 'text/plain',
-            },
-          },
-        }),
-      ).rejects.toThrow('out of order');
     });
 
     test('upload session accepts out-of-order chunks and hashes chunk index order', async () => {
@@ -2242,10 +1912,9 @@ describe('FileSystem', () => {
       const { batchId } = await actor.beginUploadSession({
         entry: [FILE, 'Uploads/out-of-order.txt'],
         totalSize: BigInt(content.length),
-        declaredUploadBytes: [],
+        declaredUploadBytes: [BigInt(content.length)],
         expectedChunkCount: [3n],
         createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
       });
 
       await actor.appendUploadChunk({
@@ -2280,10 +1949,9 @@ describe('FileSystem', () => {
       const { batchId } = await actor.beginUploadSession({
         entry: [FILE, 'Uploads/session.txt'],
         totalSize: BigInt(content.length),
-        declaredUploadBytes: [],
+        declaredUploadBytes: [BigInt(content.length)],
         expectedChunkCount: [],
         createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
       });
 
       let { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
@@ -2317,19 +1985,17 @@ describe('FileSystem', () => {
       const first = await actor.beginUploadSession({
         entry: [FILE, 'Uploads/resume.txt'],
         totalSize: BigInt(content.length),
-        declaredUploadBytes: [],
+        declaredUploadBytes: [BigInt(content.length)],
         expectedChunkCount: [1n],
         createMode: CREATE_NEW,
-        encryptionMode: [{ Plaintext: null }],
       });
 
       const retry = await actor.beginUploadSession({
         entry: [FILE, 'Uploads/resume.txt'],
         totalSize: BigInt(content.length),
-        declaredUploadBytes: [],
+        declaredUploadBytes: [BigInt(content.length)],
         expectedChunkCount: [1n],
         createMode: GET_OR_CREATE,
-        encryptionMode: [{ Plaintext: null }],
       });
 
       expect(retry.batchId).toBe(first.batchId);
@@ -2357,7 +2023,6 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Docs/v.txt'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       const versions = await actor.listVersions({
         entry: [FILE, 'Docs/v.txt'],
@@ -2369,7 +2034,6 @@ describe('FileSystem', () => {
       await actor.create({
         entry: [FILE, 'Docs/v.txt'],
         createMode: CREATE_NEW,
-        encryptionMode: [],
       });
       await expect(
         actor.restoreVersion({ entry: [FILE, 'Docs/v.txt'], version: 5n }),
@@ -2381,7 +2045,6 @@ describe('FileSystem', () => {
     await actor.create({
       entry: [DIRECTORY, 'test/dir/sub'],
       createMode: CREATE_NEW,
-      encryptionMode: [],
     });
     const preReinstallTree = await actor.showTree([]);
 

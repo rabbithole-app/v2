@@ -74,20 +74,6 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func createBatch(args : T.CreateBatchArguments) : async T.CreateBatchResponse {
-    switch (await* EncryptedStorage.createBatch(storage, caller, args, null, null)) {
-      case (#ok batch) batch;
-      case (#err(message)) throw Error.reject(message);
-    };
-  };
-
-  public shared ({ caller }) func createChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
-    switch (EncryptedStorage.createChunk(storage, caller, args, null)) {
-      case (#ok chunk) chunk;
-      case (#err(message)) throw Error.reject(message);
-    };
-  };
-
   public shared ({ caller }) func beginUploadSession(args : T.BeginUploadSessionArguments) : async T.BeginUploadSessionResponse {
     switch (await* EncryptedStorage.beginUploadSession(storage, caller, args, null, null)) {
       case (#ok session) session;
@@ -95,7 +81,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func appendUploadChunk(args : T.CreateChunkArguments) : async T.CreateChunkResponse {
+  public shared ({ caller }) func appendUploadChunk(args : T.AppendUploadChunkArguments) : async T.AppendUploadChunkResponse {
     switch (EncryptedStorage.appendUploadChunk(storage, caller, args, null)) {
       case (#ok chunk) chunk;
       case (#err(message)) throw Error.reject(message);
@@ -109,7 +95,7 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     };
   };
 
-  public shared ({ caller }) func abortUploadSession(args : T.DeleteBatchArguments) : async () {
+  public shared ({ caller }) func abortUploadSession(args : T.AbortUploadSessionArguments) : async () {
     switch (EncryptedStorage.abortUploadSession(storage, caller, args.batchId)) {
       case (#ok) {};
       case (#err(message)) throw Error.reject(message);

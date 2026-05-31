@@ -23,7 +23,6 @@ export const uploadSchema = type({
   storageId: principalSchema,
   config: {
     'contentType?': 'string',
-    'encryptionMode?': "'Encrypted' | 'Plaintext'",
     fileName: 'string>=1',
     'path?': 'string',
   },
@@ -50,7 +49,6 @@ export const uploadFileSchema = uploadSchema.and(
 export const downloadRequestSchema = type({
   id: uploadIdSchema,
   storageId: principalSchema,
-  encrypted: 'boolean',
   entry: type(["'Directory' | 'File'", 'string>=1']),
   fileName: 'string>=1',
   'contentType?': 'string',
@@ -66,11 +64,8 @@ export const fileIdSchema = uploadFileSchema.pick('id');
 const bytesSchema = type('number').array();
 
 export const thumbnailEncryptionRefSchema = type({
-  kind: "'Plaintext'",
-}).or({
   algorithm: 'string>=1',
   blobIv: bytesSchema,
-  kind: "'Encrypted'",
   scopeKeyId: type([principalSchema, bytesSchema]),
   wrappedKey: bytesSchema,
 });
@@ -121,7 +116,6 @@ export const archiveDownloadRequestSchema = type({
   archiveName: 'string>=1',
   files: type({
     entry: type(["'File'", 'string>=1']),
-    encrypted: 'boolean',
     fileName: 'string>=1',
     'contentType?': 'string',
     totalChunks: 'number',

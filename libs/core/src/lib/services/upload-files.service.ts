@@ -50,7 +50,6 @@ export class UploadFilesService implements IUploadService {
   #coreWorkerService = injectCoreWorker();
 
   async add(item: {
-    encryptionMode?: 'Encrypted' | 'Plaintext';
     file: File;
     path?: string;
   }) {
@@ -95,7 +94,6 @@ export class UploadFilesService implements IUploadService {
       config: {
         fileName: item.file.name,
         contentType: item.file.type,
-        ...(item.encryptionMode && { encryptionMode: item.encryptionMode }),
       },
     };
 

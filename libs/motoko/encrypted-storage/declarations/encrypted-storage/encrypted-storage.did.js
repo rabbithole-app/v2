@@ -11,7 +11,7 @@ import { IDL } from '@icp-sdk/core/candid';
 export const idlFactory = ({ IDL }) => {
   const TreeNode = IDL.Rec();
   const BatchId = IDL.Nat;
-  const DeleteBatchArguments = IDL.Record({ 'batchId' : BatchId });
+  const AbortUploadSessionArguments = IDL.Record({ 'batchId' : BatchId });
   const Permission = IDL.Variant({
     'Read' : IDL.Null,
     'ReadWrite' : IDL.Null,
@@ -33,12 +33,12 @@ export const idlFactory = ({ IDL }) => {
   const AddRecoveryOwnerOptions = IDL.Record({
     'controllerRecovery' : IDL.Bool,
   });
-  const CreateChunkArguments = IDL.Record({
+  const AppendUploadChunkArguments = IDL.Record({
     'content' : IDL.Vec(IDL.Nat8),
     'chunkIndex' : IDL.Opt(IDL.Nat),
     'batchId' : BatchId,
   });
-  const CreateChunkResponse = IDL.Record({ 'chunkId' : IDL.Nat });
+  const AppendUploadChunkResponse = IDL.Record({ 'chunkId' : IDL.Nat });
   const CreateMode = IDL.Variant({
     'GetOrCreate' : IDL.Null,
     'CreateNew' : IDL.Null,
@@ -47,17 +47,12 @@ export const idlFactory = ({ IDL }) => {
     IDL.Variant({ 'File' : IDL.Null, 'Directory' : IDL.Null }),
     IDL.Text,
   );
-  const EncryptionMode = IDL.Variant({
-    'Encrypted' : IDL.Null,
-    'Plaintext' : IDL.Null,
-  });
   const BeginUploadSessionArguments = IDL.Record({
     'declaredUploadBytes' : IDL.Opt(IDL.Nat),
     'createMode' : CreateMode,
     'totalSize' : IDL.Nat,
     'expectedChunkCount' : IDL.Opt(IDL.Nat),
     'entry' : Entry,
-    'encryptionMode' : IDL.Opt(EncryptionMode),
   });
   const StorageBackend = IDL.Variant({
     'OnChain' : IDL.Null,
@@ -66,14 +61,11 @@ export const idlFactory = ({ IDL }) => {
   const Owner = IDL.Principal;
   const KeyName = IDL.Vec(IDL.Nat8);
   const KeyId = IDL.Tuple(Owner, KeyName);
-  const ThumbnailEncryptionRef = IDL.Variant({
-    'Encrypted' : IDL.Record({
-      'algorithm' : IDL.Text,
-      'wrappedKey' : IDL.Vec(IDL.Nat8),
-      'blobIv' : IDL.Vec(IDL.Nat8),
-      'scopeKeyId' : KeyId,
-    }),
-    'Plaintext' : IDL.Null,
+  const ThumbnailEncryptionRef = IDL.Record({
+    'algorithm' : IDL.Text,
+    'wrappedKey' : IDL.Vec(IDL.Nat8),
+    'blobIv' : IDL.Vec(IDL.Nat8),
+    'scopeKeyId' : KeyId,
   });
   const ThumbnailRef = IDL.Variant({
     'OnChain' : IDL.Record({
@@ -99,7 +91,6 @@ export const idlFactory = ({ IDL }) => {
     'contentType' : IDL.Text,
     'size' : IDL.Nat,
     'currentVersion' : IDL.Nat,
-    'encryptionMode' : EncryptionMode,
     'chunkCount' : IDL.Nat,
     'versionCount' : IDL.Nat,
   });
@@ -112,27 +103,15 @@ export const idlFactory = ({ IDL }) => {
     'green' : IDL.Null,
     'yellow' : IDL.Null,
   });
-  const ThumbnailEncryptionPolicy = IDL.Variant({
-    'FollowFile' : IDL.Null,
-    'Inherit' : IDL.Null,
-  });
   const ThumbnailStoragePolicy = IDL.Variant({
     'OnChain' : IDL.Null,
     'BlobStorage' : IDL.Null,
     'Inherit' : IDL.Null,
   });
-  const DirectoryEncryptionPolicy = IDL.Variant({
-    'Encrypted' : IDL.Null,
-    'Auto' : IDL.Null,
-    'Plaintext' : IDL.Null,
-  });
   const DirectoryMetadata = IDL.Record({
     'color' : IDL.Opt(DirectoryColor),
-    'thumbnailEncryptionPolicy' : ThumbnailEncryptionPolicy,
-    'defaultEncryptionMode' : EncryptionMode,
     'defaultThumbnailStorageBackend' : StorageBackend,
     'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
-    'encryptionPolicy' : DirectoryEncryptionPolicy,
   });
   const SharingInfo = IDL.Record({ 'sharedWith' : IDL.Nat });
   const NodeDetails = IDL.Record({
@@ -292,7 +271,6 @@ export const idlFactory = ({ IDL }) => {
   const CreateArguments = IDL.Record({
     'createMode' : CreateMode,
     'entry' : Entry,
-    'encryptionMode' : IDL.Opt(EncryptionMode),
   });
   const CreateAccessBatchItem = IDL.Record({
     'ref' : AccessRef,
@@ -311,13 +289,6 @@ export const idlFactory = ({ IDL }) => {
     'principalGrants' : IDL.Vec(PrincipalAccessGrant),
     'cancelledPendingGrants' : IDL.Vec(PendingAccessGrant),
   });
-  const CreateBatchArguments = IDL.Record({
-    'declaredUploadBytes' : IDL.Opt(IDL.Nat),
-    'totalSize' : IDL.Nat,
-    'expectedChunkCount' : IDL.Opt(IDL.Nat),
-    'entry' : Entry,
-  });
-  const CreateBatchResponse = IDL.Record({ 'batchId' : BatchId });
   const CreateDurableAccessGrantArguments = IDL.Record({
     'permission' : Permission,
     'principal' : IDL.Principal,
@@ -503,10 +474,7 @@ export const idlFactory = ({ IDL }) => {
     'size' : IDL.Nat,
     'entry' : Entry,
   });
-  const ThumbnailEncryptionRequirement = IDL.Variant({
-    'Encrypted' : IDL.Record({ 'scopeKeyId' : KeyId }),
-    'Plaintext' : IDL.Null,
-  });
+  const ThumbnailEncryptionRequirement = IDL.Record({ 'scopeKeyId' : KeyId });
   const PrepareThumbnailUploadResult = IDL.Record({
     'storageBackend' : StorageBackend,
     'contentType' : IDL.Text,
@@ -579,12 +547,10 @@ export const idlFactory = ({ IDL }) => {
   });
   const UpdateDirectoryPolicyArguments = IDL.Record({
     'entry' : Entry,
-    'thumbnailEncryptionPolicy' : IDL.Opt(ThumbnailEncryptionPolicy),
     'thumbnailStoragePolicy' : IDL.Opt(ThumbnailStoragePolicy),
-    'encryptionPolicy' : IDL.Opt(DirectoryEncryptionPolicy),
   });
   const EncryptedStorageCanister = IDL.Service({
-    'abortUploadSession' : IDL.Func([DeleteBatchArguments], [], []),
+    'abortUploadSession' : IDL.Func([AbortUploadSessionArguments], [], []),
     'activateRecoveryOwnership' : IDL.Func(
         [IDL.Principal],
         [OwnerEquivalentPrincipal],
@@ -596,8 +562,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'appendUploadChunk' : IDL.Func(
-        [CreateChunkArguments],
-        [CreateChunkResponse],
+        [AppendUploadChunkArguments],
+        [AppendUploadChunkResponse],
         [],
       ),
     'beginUploadSession' : IDL.Func(
@@ -643,8 +609,6 @@ export const idlFactory = ({ IDL }) => {
         [CreateAccessBatchResult],
         [],
       ),
-    'createBatch' : IDL.Func([CreateBatchArguments], [CreateBatchResponse], []),
-    'createChunk' : IDL.Func([CreateChunkArguments], [CreateChunkResponse], []),
     'createDurableAccessGrant' : IDL.Func(
         [CreateDurableAccessGrantArguments],
         [PrincipalAccessGrant],

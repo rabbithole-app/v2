@@ -13,13 +13,11 @@ import { StoragePermission } from '@rabbithole/encrypted-storage';
 import {
   CommonAttrs,
   DirectoryColor,
-  DirectoryEncryptionPolicy,
   DirectoryNode,
-  ThumbnailEncryptionRef,
-  FileThumbnailRef,
   FileNode,
+  FileThumbnailRef,
   NodeItem,
-  ThumbnailEncryptionPolicy,
+  ThumbnailEncryptionRef,
   ThumbnailStoragePolicy,
 } from '../types';
 
@@ -27,65 +25,11 @@ function variantKey<T extends object>(variant: T): keyof T & string {
   return Object.keys(variant)[0] as keyof T & string;
 }
 
-const directoryEncryptionPolicyMap = {
-  Auto: 'auto',
-  Encrypted: 'encrypted',
-  Plaintext: 'plaintext',
-} as const satisfies Record<string, DirectoryEncryptionPolicy>;
-
-const thumbnailEncryptionPolicyMap = {
-  Inherit: 'inherit',
-  FollowFile: 'followFile',
-} as const satisfies Record<string, ThumbnailEncryptionPolicy>;
-
 const thumbnailStoragePolicyMap = {
   Inherit: 'inherit',
   OnChain: 'onChain',
   BlobStorage: 'blobStorage',
 } as const satisfies Record<string, ThumbnailStoragePolicy>;
-
-function convertThumbnailRef(value: ThumbnailRefRaw): FileThumbnailRef {
-  if ('OnChain' in value) {
-    const sha256 = fromNullable(value.OnChain.sha256);
-    return {
-      storageBackend: 'OnChain',
-      key: value.OnChain.key,
-      contentType: value.OnChain.contentType,
-      size: value.OnChain.size,
-      sha256: sha256 ? uint8ArrayToHexString(sha256) : undefined,
-      encryption: convertThumbnailEncryptionRef(value.OnChain.encryption),
-    };
-  }
-
-  const sha256 = fromNullable(value.BlobStorage.sha256);
-  return {
-    storageBackend: 'BlobStorage',
-    rootHash: value.BlobStorage.rootHash,
-    contentType: value.BlobStorage.contentType,
-    size: value.BlobStorage.size,
-    sha256: sha256 ? uint8ArrayToHexString(sha256) : undefined,
-    encryption: convertThumbnailEncryptionRef(value.BlobStorage.encryption),
-  };
-}
-
-function convertThumbnailEncryptionRef(
-  value: ThumbnailEncryptionRefRaw,
-): ThumbnailEncryptionRef {
-  if ('Plaintext' in value) {
-    return { kind: 'Plaintext' };
-  }
-
-  return {
-    kind: 'Encrypted',
-    scopeKeyId: [
-      value.Encrypted.scopeKeyId[0],
-      new Uint8Array(value.Encrypted.scopeKeyId[1]),
-    ],
-    wrappedKey: new Uint8Array(value.Encrypted.wrappedKey),
-    blobIv: new Uint8Array(value.Encrypted.blobIv),
-    algorithm: value.Encrypted.algorithm,
-  };
-}
 
 export function convertToNodeItem(
   node: NodeDetails,
@@ -133,9 +77,6 @@ export function convertToNodeItem(
         thumbnailRef: thumbnailRef
           ? convertThumbnailRef(thumbnailRef)
           : undefined,
-        encryptionMode: (
-          'Encrypted' in file.encryptionMode ? 'encrypted' : 'plaintext'
-        ) as 'encrypted' | 'plaintext',
         versionCount: Number(file.versionCount),
         currentVersion: Number(file.currentVersion),
         storageBackend: Object.keys(file.storageBackend)[0] as StorageBackendType,
@@ -143,14 +84,6 @@ export function convertToNodeItem(
     })
     .with({ Directory: P.select() }, (directory) => {
       const color = fromNullable(directory.color);
-      const encryptionPolicy =
-        variantKey(
-          directory.encryptionPolicy,
-        ) as keyof typeof directoryEncryptionPolicyMap;
-      const thumbnailEncryptionPolicy =
-        variantKey(
-          directory.thumbnailEncryptionPolicy,
-        ) as keyof typeof thumbnailEncryptionPolicyMap;
       const thumbnailStoragePolicy =
         variantKey(
           directory.thumbnailStoragePolicy,
@@ -158,17 +91,9 @@ export function convertToNodeItem(
       const dir: DirectoryNode = {
         ...commonAttrs,
         type: 'directory',
-        defaultEncryptionMode: (
-          'Encrypted' in directory.defaultEncryptionMode
-            ? 'encrypted'
-            : 'plaintext'
-        ) as 'encrypted' | 'plaintext',
         defaultThumbnailStorageBackend: variantKey(
           directory.defaultThumbnailStorageBackend,
         ) as StorageBackendType,
-        encryptionPolicy: directoryEncryptionPolicyMap[encryptionPolicy],
-        thumbnailEncryptionPolicy:
-          thumbnailEncryptionPolicyMap[thumbnailEncryptionPolicy],
         thumbnailStoragePolicy:
           thumbnailStoragePolicyMap[thumbnailStoragePolicy],
       };
@@ -180,4 +105,42 @@ export function convertToNodeItem(
       return dir;
     })
     .exhaustive();
+}
+
+function convertThumbnailEncryptionRef(
+  value: ThumbnailEncryptionRefRaw,
+): ThumbnailEncryptionRef {
+  return {
+    scopeKeyId: [
+      value.scopeKeyId[0],
+      new Uint8Array(value.scopeKeyId[1]),
+    ],
+    wrappedKey: new Uint8Array(value.wrappedKey),
+    blobIv: new Uint8Array(value.blobIv),
+    algorithm: value.algorithm,
+  };
+}
+
+function convertThumbnailRef(value: ThumbnailRefRaw): FileThumbnailRef {
+  if ('OnChain' in value) {
+    const sha256 = fromNullable(value.OnChain.sha256);
+    return {
+      storageBackend: 'OnChain',
+      key: value.OnChain.key,
+      contentType: value.OnChain.contentType,
+      size: value.OnChain.size,
+      sha256: sha256 ? uint8ArrayToHexString(sha256) : undefined,
+      encryption: convertThumbnailEncryptionRef(value.OnChain.encryption),
+    };
+  }
+
+  const sha256 = fromNullable(value.BlobStorage.sha256);
+  return {
+    storageBackend: 'BlobStorage',
+    rootHash: value.BlobStorage.rootHash,
+    contentType: value.BlobStorage.contentType,
+    size: value.BlobStorage.size,
+    sha256: sha256 ? uint8ArrayToHexString(sha256) : undefined,
+    encryption: convertThumbnailEncryptionRef(value.BlobStorage.encryption),
+  };
 }

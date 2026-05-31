@@ -66,17 +66,11 @@ pub struct BlobStorageThumbnailRef {
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
-pub struct EncryptedThumbnailRef {
+pub struct ThumbnailEncryptionRef {
     pub scopeKeyId: (Principal, Vec<u8>),
     pub wrappedKey: Vec<u8>,
     pub blobIv: Vec<u8>,
     pub algorithm: String,
-}
-
-#[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
-pub enum ThumbnailEncryptionRef {
-    Plaintext,
-    Encrypted(EncryptedThumbnailRef),
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug, Serialize)]
@@ -132,19 +126,12 @@ enum CreateMode {
 }
 
 #[derive(candid::CandidType)]
-enum EncryptionMode {
-    Encrypted,
-    Plaintext,
-}
-
-#[derive(candid::CandidType)]
 struct BeginUploadSessionArguments {
     entry: Entry,
     totalSize: Nat,
     declaredUploadBytes: Option<Nat>,
     expectedChunkCount: Option<Nat>,
     createMode: CreateMode,
-    encryptionMode: Option<EncryptionMode>,
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Debug)]
@@ -264,7 +251,6 @@ pub async fn upload(
             declaredUploadBytes: Some(Nat::from(declared_upload_bytes as u64)),
             expectedChunkCount: Some(Nat::from(expected_chunks as u64)),
             createMode: CreateMode::GetOrCreate,
-            encryptionMode: Some(EncryptionMode::Encrypted),
         })?)
         .call_and_wait()
         .await

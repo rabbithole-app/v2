@@ -10,6 +10,7 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AbortUploadSessionArguments { 'batchId' : BatchId }
 export type AccessClass = { 'ordinary' : null } |
   { 'ownerEquivalent' : null } |
   { 'durable' : null };
@@ -51,6 +52,12 @@ export type AccessSource = { 'durablePolicy' : bigint } |
   { 'ordinaryInvite' : bigint } |
   { 'recoverySetup' : null };
 export interface AddRecoveryOwnerOptions { 'controllerRecovery' : boolean }
+export interface AppendUploadChunkArguments {
+  'content' : Uint8Array,
+  'chunkIndex' : [] | [bigint],
+  'batchId' : BatchId,
+}
+export interface AppendUploadChunkResponse { 'chunkId' : bigint }
 export type BatchId = bigint;
 export interface BeginUploadSessionArguments {
   'declaredUploadBytes' : [] | [bigint],
@@ -58,7 +65,6 @@ export interface BeginUploadSessionArguments {
   'totalSize' : bigint,
   'expectedChunkCount' : [] | [bigint],
   'entry' : Entry,
-  'encryptionMode' : [] | [EncryptionMode],
 }
 export interface BeginUploadSessionResponse {
   'node' : NodeDetails,
@@ -103,24 +109,7 @@ export interface CreateAccessRequestArguments {
   'emailCommitment' : [] | [EmailCommitment],
   'message' : [] | [string],
 }
-export interface CreateArguments {
-  'createMode' : CreateMode,
-  'entry' : Entry,
-  'encryptionMode' : [] | [EncryptionMode],
-}
-export interface CreateBatchArguments {
-  'declaredUploadBytes' : [] | [bigint],
-  'totalSize' : bigint,
-  'expectedChunkCount' : [] | [bigint],
-  'entry' : Entry,
-}
-export interface CreateBatchResponse { 'batchId' : BatchId }
-export interface CreateChunkArguments {
-  'content' : Uint8Array,
-  'chunkIndex' : [] | [bigint],
-  'batchId' : BatchId,
-}
-export interface CreateChunkResponse { 'chunkId' : bigint }
+export interface CreateArguments { 'createMode' : CreateMode, 'entry' : Entry }
 export interface CreateDurableAccessGrantArguments {
   'permission' : Permission,
   'principal' : Principal,
@@ -143,7 +132,6 @@ export interface CreatePendingAccessGrantArguments {
   'accessClass' : AccessClass,
 }
 export interface DeleteArguments { 'recursive' : boolean, 'entry' : Entry }
-export interface DeleteBatchArguments { 'batchId' : BatchId }
 export type DirectoryColor = { 'blue' : null } |
   { 'gray' : null } |
   { 'orange' : null } |
@@ -151,16 +139,10 @@ export type DirectoryColor = { 'blue' : null } |
   { 'purple' : null } |
   { 'green' : null } |
   { 'yellow' : null };
-export type DirectoryEncryptionPolicy = { 'Encrypted' : null } |
-  { 'Auto' : null } |
-  { 'Plaintext' : null };
 export interface DirectoryMetadata {
   'color' : [] | [DirectoryColor],
-  'thumbnailEncryptionPolicy' : ThumbnailEncryptionPolicy,
-  'defaultEncryptionMode' : EncryptionMode,
   'defaultThumbnailStorageBackend' : StorageBackend,
   'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
-  'encryptionPolicy' : DirectoryEncryptionPolicy,
 }
 export interface DurableAccessPolicy {
   'id' : bigint,
@@ -211,7 +193,7 @@ export interface EmailClaimState {
 }
 export type EmailCommitment = Uint8Array;
 export interface EncryptedStorageCanister {
-  'abortUploadSession' : ActorMethod<[DeleteBatchArguments], undefined>,
+  'abortUploadSession' : ActorMethod<[AbortUploadSessionArguments], undefined>,
   'activateRecoveryOwnership' : ActorMethod<
     [Principal],
     OwnerEquivalentPrincipal
@@ -221,8 +203,8 @@ export interface EncryptedStorageCanister {
     OwnerEquivalentPrincipal
   >,
   'appendUploadChunk' : ActorMethod<
-    [CreateChunkArguments],
-    CreateChunkResponse
+    [AppendUploadChunkArguments],
+    AppendUploadChunkResponse
   >,
   'beginUploadSession' : ActorMethod<
     [BeginUploadSessionArguments],
@@ -259,8 +241,6 @@ export interface EncryptedStorageCanister {
     [CreateAccessBatchArguments],
     CreateAccessBatchResult
   >,
-  'createBatch' : ActorMethod<[CreateBatchArguments], CreateBatchResponse>,
-  'createChunk' : ActorMethod<[CreateChunkArguments], CreateChunkResponse>,
   'createDurableAccessGrant' : ActorMethod<
     [CreateDurableAccessGrantArguments],
     PrincipalAccessGrant
@@ -356,8 +336,6 @@ export interface EncryptedStorageCanister {
     NodeDetails
   >,
 }
-export type EncryptionMode = { 'Encrypted' : null } |
-  { 'Plaintext' : null };
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
 export interface FileMetadata {
   'storageBackend' : StorageBackend,
@@ -366,7 +344,6 @@ export interface FileMetadata {
   'contentType' : string,
   'size' : bigint,
   'currentVersion' : bigint,
-  'encryptionMode' : EncryptionMode,
   'chunkCount' : bigint,
   'versionCount' : bigint,
 }
@@ -607,21 +584,13 @@ export interface StoredStorageEvent {
   'timestamp' : Time,
   'correlationId' : [] | [string],
 }
-export type ThumbnailEncryptionPolicy = { 'FollowFile' : null } |
-  { 'Inherit' : null };
-export type ThumbnailEncryptionRef = {
-    'Encrypted' : {
-      'algorithm' : string,
-      'wrappedKey' : Uint8Array,
-      'blobIv' : Uint8Array,
-      'scopeKeyId' : KeyId,
-    }
-  } |
-  { 'Plaintext' : null };
-export type ThumbnailEncryptionRequirement = {
-    'Encrypted' : { 'scopeKeyId' : KeyId }
-  } |
-  { 'Plaintext' : null };
+export interface ThumbnailEncryptionRef {
+  'algorithm' : string,
+  'wrappedKey' : Uint8Array,
+  'blobIv' : Uint8Array,
+  'scopeKeyId' : KeyId,
+}
+export interface ThumbnailEncryptionRequirement { 'scopeKeyId' : KeyId }
 export type ThumbnailRef = {
     'OnChain' : {
       'key' : string,
@@ -668,9 +637,7 @@ export type UpdateArguments = {
   };
 export interface UpdateDirectoryPolicyArguments {
   'entry' : Entry,
-  'thumbnailEncryptionPolicy' : [] | [ThumbnailEncryptionPolicy],
   'thumbnailStoragePolicy' : [] | [ThumbnailStoragePolicy],
-  'encryptionPolicy' : [] | [DirectoryEncryptionPolicy],
 }
 export type VetKey = Uint8Array;
 export type VetKeyVerificationKey = Uint8Array;

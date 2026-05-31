@@ -299,7 +299,10 @@ module StorageDeployerOrchestrator {
     };
     let trustedAttributeSigners = switch (Runtime.envVar<system>(StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS)) {
       case (?value) value;
-      case null Runtime.trap("Missing required environment variable: " # StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS);
+      case null switch (Runtime.envVar<system>(StorageEnvironment.INTERNET_IDENTITY_BACKEND_CANISTER_ID)) {
+        case (?value) value;
+        case null Runtime.trap("Missing required environment variable: " # StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS);
+      };
     };
     Set.add(set, compareEnvPairByName, { name = StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS; value = trustedAttributeSigners });
 
