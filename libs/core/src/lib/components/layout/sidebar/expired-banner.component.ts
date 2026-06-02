@@ -3,7 +3,6 @@ import {
   Component,
   inject,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideInfo } from '@ng-icons/lucide';
 
@@ -12,10 +11,11 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 
 import { SubscriptionService } from '../../../services/subscription.service';
 import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
+import { UserSettingsDialogService } from '../../account/user-settings-dialog/user-settings-dialog.service';
 
 @Component({
   selector: 'core-expired-banner',
-  imports: [HlmButton, HlmIcon, NgIcon, RouterLink],
+  imports: [HlmButton, HlmIcon, NgIcon],
   providers: [provideIcons({ lucideInfo })],
   template: `
     @if (backendFeaturesEnabled && subscriptionService.isExpired()) {
@@ -25,9 +25,16 @@ import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
           Your subscription has expired. Your data is safe — you can still
           decrypt your files. Encryption and sharing are paused.
         </p>
-        <a hlmBtn size="sm" variant="outline" class="shrink-0" routerLink="/dashboard/subscription">
+        <button
+          hlmBtn
+          size="sm"
+          variant="outline"
+          type="button"
+          class="shrink-0"
+          (click)="openSubscriptionSettings()"
+        >
           Resubscribe
-        </a>
+        </button>
       </div>
     }
   `,
@@ -37,4 +44,9 @@ import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
 export class ExpiredBannerComponent {
   readonly backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
   subscriptionService = inject(SubscriptionService);
+  readonly #settingsDialogService = inject(UserSettingsDialogService);
+
+  openSubscriptionSettings(): void {
+    void this.#settingsDialogService.open('subscription');
+  }
 }

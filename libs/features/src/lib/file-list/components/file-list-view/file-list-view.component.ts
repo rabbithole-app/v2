@@ -24,7 +24,12 @@ import { toast } from '@spartan-ng/brain/sonner';
 import { intersectionWith } from 'remeda';
 import { filter, from, map, mergeWith, switchMap } from 'rxjs';
 
-import { injectCoreWorker, ShareDialogComponent } from '@rabbithole/core';
+import {
+  injectCoreWorker,
+  PageHeaderActionsDirective,
+  ProFeatureGateService,
+  ShareDialogComponent,
+} from '@rabbithole/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   injectEncryptedStorage,
@@ -75,6 +80,7 @@ import { UploadDrawerComponent } from '../upload-drawer/upload-drawer.component'
     HlmContextMenuImports,
     HlmDropdownMenuImports,
     HlmEmptyImports,
+    PageHeaderActionsDirective,
   ],
   providers: [
     FileListService,
@@ -142,6 +148,7 @@ export class FileListViewComponent {
   #dialogService = inject(HlmDialogService);
   #drawerOpen = false;
   #encryptedStorage = injectEncryptedStorage();
+  #proFeatureGate = inject(ProFeatureGateService);
 
   private readonly propertiesDrawer = viewChild(PropertiesDrawerComponent);
   private readonly shareDialog = viewChild(ShareDialogComponent);
@@ -195,27 +202,33 @@ export class FileListViewComponent {
     this.fileListService.download(selected);
   }
 
-  _handleMakePublic(selected: bigint[]) {
+  async _handleMakePublic(selected: bigint[]) {
     const items = this.#resolveItems(selected);
     if (items.length === 0) return;
-    this.#permissionsService.createAccessGrants({
-      items: items.map((item) => ({
-        entry: this.#itemEntry(item),
-        target: { principal: '2vxsx-fae' },
-        permission: 'Read',
-      })),
+
+    await this.#proFeatureGate.run('share', () => {
+      this.#permissionsService.createAccessGrants({
+        items: items.map((item) => ({
+          entry: this.#itemEntry(item),
+          target: { principal: '2vxsx-fae' },
+          permission: 'Read',
+        })),
+      });
+      toast.success(
+        items.length === 1
+          ? `"${items[0].name}" is now public`
+          : `${items.length} items are now public`,
+      );
     });
-    toast.success(
-      items.length === 1
-        ? `"${items[0].name}" is now public`
-        : `${items.length} items are now public`,
-    );
   }
 
-  _handleManageAccess(selected: bigint[]) {
+  async _handleManageAccess(selected: bigint[]) {
     const items = this.#resolveItems(selected);
     if (items.length === 0) return;
-    this.#openShareDialog(items, 'manage');
+
+    await this.#proFeatureGate.run('share', () =>
+      this.#openShareDialog(items, 'manage'),
+    );
   }
 
   _handleMove(selected: bigint[]) {
@@ -335,10 +348,13 @@ export class FileListViewComponent {
     this.#updateDrawerItems(items);
   }
 
-  _handleShare(selected: bigint[]) {
+  async _handleShare(selected: bigint[]) {
     const items = this.#resolveItems(selected);
     if (items.length === 0) return;
-    this.#openShareDialog(items, 'share');
+
+    await this.#proFeatureGate.run('share', () =>
+      this.#openShareDialog(items, 'share'),
+    );
   }
 
   _handleShareAccessGrants(args: CreateStorageAccessGrants) {

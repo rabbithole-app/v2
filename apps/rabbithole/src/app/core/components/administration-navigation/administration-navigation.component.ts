@@ -4,10 +4,12 @@ import {
   computed,
   inject,
   resource,
+  signal,
 } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideChevronDown,
   lucideCircleAlert,
   lucideCreditCard,
   lucideGauge,
@@ -36,6 +38,7 @@ import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
   providers: [
     provideIcons({
       lucideCircleAlert,
+      lucideChevronDown,
       lucideCreditCard,
       lucideGauge,
       lucideKeyRound,
@@ -48,7 +51,6 @@ import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
 export class AdministrationNavigationComponent {
   readonly #actor = injectMainActor();
   readonly #authService = inject(AUTH_SERVICE);
-
   readonly adminCheckParams = computed(() => {
     if (!this.#authService.isAuthenticated()) return undefined;
 
@@ -57,6 +59,7 @@ export class AdministrationNavigationComponent {
       principal: this.#authService.identity().getPrincipal(),
     };
   });
+  readonly administrationNavExpanded = signal(true);
 
   readonly administrationNavItems = [
     {
@@ -109,4 +112,8 @@ export class AdministrationNavigationComponent {
       params ? params.actor.isAdmin(params.principal) : false,
     defaultValue: false,
   });
+
+  toggleAdministrationNav(): void {
+    this.administrationNavExpanded.update((expanded) => !expanded);
+  }
 }

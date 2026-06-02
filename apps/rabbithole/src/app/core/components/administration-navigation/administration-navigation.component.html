@@ -1,8 +1,28 @@
 @if (isAdmin.value()) {
-  <hlm-sidebar-separator class="mx-0" />
   <div hlmSidebarGroup>
     <div hlmSidebarGroupLabel>Administration</div>
-    <div hlmSidebarGroupContent>
+    <button
+      hlmSidebarGroupAction
+      type="button"
+      aria-controls="administration-navigation"
+      aria-label="Toggle administration menu"
+      [attr.aria-expanded]="administrationNavExpanded()"
+      (click)="toggleAdministrationNav()"
+    >
+      <ng-icon
+        hlmIcon
+        name="lucideChevronDown"
+        size="sm"
+        class="transition-transform"
+        [class.rotate-180]="administrationNavExpanded()"
+      />
+    </button>
+    <div
+      hlmSidebarGroupContent
+      id="administration-navigation"
+      class="group-data-[collapsible=icon]:!block"
+      [class.hidden]="!administrationNavExpanded()"
+    >
       <ul hlmSidebarMenu>
         @for (item of administrationNavItems; track item.route) {
           <li hlmSidebarMenuItem>
@@ -13,6 +33,7 @@
               #rla="routerLinkActive"
               [routerLinkActiveOptions]="{ exact: item.exact }"
               [isActive]="rla.isActive"
+              [tooltip]="item.label"
             >
               <ng-icon hlmIcon [name]="item.icon" size="sm" hlmMenuIcon />
               <span>{{ item.label }}</span>

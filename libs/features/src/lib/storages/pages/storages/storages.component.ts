@@ -8,7 +8,7 @@ import {
   lucideRefreshCw,
 } from '@ng-icons/lucide';
 
-import { StoragesService } from '@rabbithole/core';
+import { PageHeaderActionsDirective, StoragesService } from '@rabbithole/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
@@ -24,6 +24,7 @@ import { StorageCardComponent } from '../../components';
     RouterLink,
     HlmIcon,
     HlmSpinner,
+    PageHeaderActionsDirective,
     ...HlmButtonImports,
     ...HlmButtonGroupImports,
     ...HlmEmptyImports,

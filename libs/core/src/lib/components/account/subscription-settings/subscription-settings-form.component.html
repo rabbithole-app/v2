@@ -1,0 +1,71 @@
+<div hlmFieldGroup class="gap-5">
+  @if (isPro()) {
+    <rbth-frame>
+      <header rbthFrameHeader>
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <ng-icon
+              hlmIcon
+              name="lucideZap"
+              size="sm"
+              class="text-muted-foreground"
+            />
+            <div rbthFrameTitle>Current Plan</div>
+          </div>
+          <span hlmBadge variant="outline" class="bg-white">
+            <ng-icon
+              name="lucideStar"
+              color="var(--color-amber-500)"
+              aria-hidden="true"
+            />
+            Pro Monthly
+          </span>
+        </div>
+      </header>
+
+      <div rbthFramePanel>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="flex items-baseline gap-1">
+            <span class="text-2xl font-semibold tracking-normal">{{ proPriceLabel }}</span>
+            <span class="text-lg text-muted-foreground">/mo</span>
+          </div>
+          <p class="text-sm text-muted-foreground">
+            {{ nextBillingLabel() }} {{ nextBillingValue() }}
+          </p>
+        </div>
+
+        <p class="mt-3 text-sm text-muted-foreground">{{ planDescription }}</p>
+      </div>
+    </rbth-frame>
+  } @else {
+    <div hlmField orientation="responsive" class="rounded-lg bg-muted/35 p-3">
+      <div hlmFieldContent>
+        <div hlmFieldTitle>Pro subscription</div>
+        <p hlmFieldDescription>{{ activationDescription() }}</p>
+      </div>
+      <button
+        hlmBtn
+        type="button"
+        class="w-full shrink-0 sm:w-auto"
+        (click)="requestProActivation()"
+      >
+        <ng-icon hlmIcon name="lucideSparkles" size="sm" />
+        {{ activationLabel() }} - {{ proPriceLabel }}
+      </button>
+    </div>
+  }
+
+  <div hlmField orientation="responsive" class="py-1">
+    <div hlmFieldContent>
+      <div hlmFieldTitle>Auto-renew</div>
+      <p hlmFieldDescription>Renews from balance, then pauses.</p>
+    </div>
+    <hlm-switch
+      aria-label="Toggle subscription auto-renew"
+      [checked]="autoRenew()"
+      (checkedChange)="onAutoRenewChange($event)"
+    />
+  </div>
+
+  <core-spending-priority-list />
+</div>

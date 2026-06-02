@@ -10,11 +10,11 @@
   </div>
 } @else {
   <hlm-tabs [tab]="activeTab()" class="w-full">
-    <hlm-tabs-list class="!h-auto w-fit max-w-full items-stretch">
+    <hlm-tabs-list class="w-fit max-w-full">
       @for (network of networks(); track network.id) {
         <button
           [hlmTabsTrigger]="network.id"
-          class="h-auto min-h-10 whitespace-nowrap px-3 py-2 text-center leading-tight"
+          class="whitespace-nowrap"
           (click)="selectTab(network.id)"
         >
           {{ network.tabLabel }}

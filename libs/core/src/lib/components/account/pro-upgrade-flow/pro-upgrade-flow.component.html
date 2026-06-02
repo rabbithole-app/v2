@@ -1,0 +1,168 @@
+<div class="flex min-h-[360px] flex-1 flex-col">
+  <div class="flex min-h-0 flex-1 flex-col">
+    @switch (state()) {
+      @case ('ready') {
+        <div class="space-y-5">
+          <div class="rounded-lg border bg-muted/40 p-4">
+            <div class="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <div
+                class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+              >
+                <ng-icon name="lucideShield" hlmIcon size="sm" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-medium">
+                  Pro - {{ priceLabel }}/month
+                </p>
+                <ul
+                  class="mt-3 grid gap-2 text-sm leading-5 text-muted-foreground"
+                >
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-2">
+                    <ng-icon
+                      name="lucideCheck"
+                      hlmIcon
+                      size="xs"
+                      class="mt-0.5 text-green-600"
+                    />
+                    <span>Shared access, permissions, and email invites</span>
+                  </li>
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-2">
+                    <ng-icon
+                      name="lucideCheck"
+                      hlmIcon
+                      size="xs"
+                      class="mt-0.5 text-green-600"
+                    />
+                    <span>
+                      Storage code and web interface updates after approval
+                    </span>
+                  </li>
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-2">
+                    <ng-icon
+                      name="lucideCheck"
+                      hlmIcon
+                      size="xs"
+                      class="mt-0.5 text-green-600"
+                    />
+                    <span>Encrypted uploads without base license limits</span>
+                  </li>
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-2">
+                    <ng-icon
+                      name="lucideCheck"
+                      hlmIcon
+                      size="xs"
+                      class="mt-0.5 text-green-600"
+                    />
+                    <span>Automatic cycle top-ups for your storages</span>
+                  </li>
+                  <li class="grid grid-cols-[1rem_minmax(0,1fr)] gap-2">
+                    <ng-icon
+                      name="lucideCheck"
+                      hlmIcon
+                      size="xs"
+                      class="mt-0.5 text-green-600"
+                    />
+                    <span>2 TC included cycle balance per Pro period</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <core-wallet-balance-panel [requiredUsd]="PRO_MONTHLY_PRICE_USD" />
+
+          <p
+            class="flex items-center justify-center gap-1 text-xs text-muted-foreground"
+          >
+            <ng-icon name="lucideLock" hlmIcon size="xs" />
+            Payment is charged from one supported wallet balance on-chain.
+          </p>
+        </div>
+      }
+
+      @case ('processing') {
+        <hlm-empty class="min-h-0 flex-1 border-0">
+          <hlm-empty-header>
+            <hlm-empty-media variant="icon">
+              <hlm-spinner />
+            </hlm-empty-media>
+            <div hlmEmptyTitle>Activating Pro...</div>
+            <div hlmEmptyDescription>
+              Keep this dialog open while the backend confirms your payment.
+            </div>
+          </hlm-empty-header>
+        </hlm-empty>
+      }
+
+      @case ('success') {
+        <hlm-empty class="min-h-0 flex-1 border-0">
+          <hlm-empty-header>
+            <hlm-empty-media variant="icon">
+              <ng-icon
+                name="lucideCheck"
+                hlmIcon
+                size="sm"
+                class="text-green-600"
+              />
+            </hlm-empty-media>
+            <div hlmEmptyTitle>Pro is active</div>
+            <div hlmEmptyDescription>
+              Your storages now use Pro limits and managed funding rules.
+            </div>
+          </hlm-empty-header>
+        </hlm-empty>
+      }
+
+      @case ('error') {
+        <div class="space-y-5">
+          <div hlmAlert variant="destructive">
+            <ng-icon hlmAlertIcon name="lucideTriangleAlert" />
+            <h4 hlmAlertTitle>Upgrade failed</h4>
+            <p hlmAlertDescription>
+              {{
+                errorMessage() ??
+                  'The subscription was not activated. Try again.'
+              }}
+            </p>
+          </div>
+
+          <core-wallet-balance-panel [requiredUsd]="PRO_MONTHLY_PRICE_USD" />
+        </div>
+      }
+    }
+  </div>
+
+  <div class="mt-auto flex flex-col-reverse gap-2 pt-5 sm:flex-row sm:justify-end">
+    @switch (state()) {
+      @case ('ready') {
+        <button hlmBtn variant="outline" type="button" (click)="cancelFlow()">
+          Cancel
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          [disabled]="!canUpgrade()"
+          (click)="upgrade()"
+        >
+          <ng-icon name="lucideCreditCard" hlmIcon size="sm" />
+          {{ ctaLabel() }}
+        </button>
+      }
+      @case ('processing') {
+        <button hlmBtn disabled type="button">
+          <hlm-spinner size="sm" />
+          Processing
+        </button>
+      }
+      @case ('success') {
+        <button hlmBtn type="button" (click)="closeSuccess()">Continue</button>
+      }
+      @case ('error') {
+        <button hlmBtn variant="outline" type="button" (click)="cancelFlow()">
+          Cancel
+        </button>
+        <button hlmBtn type="button" (click)="retry()">Review balance</button>
+      }
+    }
+  </div>
+</div>

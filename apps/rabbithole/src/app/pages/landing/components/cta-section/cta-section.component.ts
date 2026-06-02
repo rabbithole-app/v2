@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideGithub } from '@ng-icons/lucide';
+import { lucideGithub, lucidePlus } from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
@@ -11,7 +11,7 @@ import { HlmSeparator } from '@spartan-ng/helm/separator';
 @Component({
   selector: 'app-landing-cta',
   imports: [RouterLink, NgIcon, HlmSeparator, ...HlmButtonImports, RbthRainbowButton],
-  providers: [provideIcons({ lucideGithub })],
+  providers: [provideIcons({ lucideGithub, lucidePlus })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'block pt-24 px-6',
@@ -34,6 +34,7 @@ import { HlmSeparator } from '@spartan-ng/helm/separator';
           [routerLink]="ctaLink()"
           [queryParams]="ctaQueryParams()"
         >
+          <ng-icon name="lucidePlus" size="18" />
           Create Storage
         </a>
         <a

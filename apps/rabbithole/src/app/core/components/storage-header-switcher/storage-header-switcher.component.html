@@ -1,0 +1,80 @@
+<ul hlmSidebarMenu>
+  <li hlmSidebarMenuItem>
+    <button
+      hlmSidebarMenuButton
+      size="lg"
+      [hlmDropdownMenuTrigger]="storageMenu"
+      [side]="menuSide()"
+      align="start"
+      class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+      [attr.aria-label]="'Select storage, current: ' + activeStorageLabel()"
+    >
+      <img class="h-7 w-7 shrink-0" alt="Rabbithole" src="logo-rabbit.svg" />
+      @if (!iconOnlyTrigger()) {
+        <div class="grid min-w-0 flex-1 text-left text-sm leading-tight">
+          <span class="truncate font-medium">Rabbithole</span>
+          <span
+            class="truncate text-xs text-muted-foreground"
+            [title]="activeStorageLabel()"
+          >
+            {{ activeStorageLabel() }}
+          </span>
+        </div>
+        <ng-icon
+          name="lucideChevronsUpDown"
+          class="ml-auto text-base"
+          aria-hidden="true"
+        />
+      }
+    </button>
+  </li>
+</ul>
+
+<ng-template #storageMenu>
+  <hlm-dropdown-menu
+    class="w-80 max-w-[calc(100vw-1rem)] rounded-lg"
+    [class.ml-3]="iconOnlyTrigger()"
+  >
+    <hlm-dropdown-menu-group>
+      @if (hasAvailableStorages()) {
+        @for (storage of availableStorages(); track storage.id) {
+          @let canisterId = storage.canisterId!.toText();
+          @let isUpgrading = isStorageUpgrading(canisterId);
+          <button
+            hlmDropdownMenuCheckbox
+            [checked]="canisterId === activeCanisterId()"
+            [disabled]="isUpgrading"
+            (triggered)="navigateToStorage(canisterId)"
+          >
+            @if (isUpgrading) {
+              <span
+                class="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center"
+              >
+                <hlm-spinner size="text-xs" icon="lucideLoader2" />
+              </span>
+            } @else {
+              <hlm-dropdown-menu-checkbox-indicator />
+            }
+            <span
+              class="truncate font-mono"
+              [class.opacity-50]="isUpgrading"
+            >
+              {{ canisterId }}
+            </span>
+          </button>
+        }
+      } @else {
+        <button hlmDropdownMenuItem disabled>
+          <span>No storages yet</span>
+        </button>
+      }
+    </hlm-dropdown-menu-group>
+    <hlm-dropdown-menu-separator />
+    <hlm-dropdown-menu-group>
+      <button hlmDropdownMenuItem (triggered)="openCreateStorage()">
+        <ng-icon hlm name="lucidePlus" hlmMenuIcon size="sm" />
+        <span>New Storage</span>
+      </button>
+    </hlm-dropdown-menu-group>
+  </hlm-dropdown-menu>
+</ng-template>

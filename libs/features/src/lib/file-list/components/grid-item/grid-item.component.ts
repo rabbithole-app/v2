@@ -11,11 +11,12 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { uint8ArrayToHexString } from '@dfinity/utils';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideEye, lucideLock, lucideUsers } from '@ng-icons/lucide';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ClassValue } from 'clsx';
-import { Observable, of, switchMap } from 'rxjs';
+import { distinctUntilChanged, Observable, of, switchMap } from 'rxjs';
 
 import { DownloadService } from '@rabbithole/core';
 import { injectEncryptedStorage } from '@rabbithole/core/storage-runtime';
@@ -26,7 +27,7 @@ import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { hlm } from '@spartan-ng/helm/utils';
 
-import { isDirectory, isFile, NodeItem } from '../../types';
+import { FileThumbnailRef, isDirectory, isFile, NodeItem } from '../../types';
 import { toStorageThumbnailRef } from '../../utils';
 import { AnimatedFolderComponent } from '../animated-folder/animated-folder.component';
 import { FileIconComponent } from '../file-icon/file-icon.component';
@@ -70,9 +71,32 @@ export type DownloadProgressState = {
 export type GridItemVariants = VariantProps<typeof gridItemVariants>;
 
 type EncryptedThumbnailRequest = {
+  cacheKey: string;
   storage: EncryptedStorage;
   thumbnailRef: StorageThumbnailRef;
 };
+
+function thumbnailCacheKey(ref: FileThumbnailRef): string {
+  const encryption = ref.encryption;
+  const encryptionKey = [
+    encryption.scopeKeyId[0].toText(),
+    uint8ArrayToHexString(encryption.scopeKeyId[1]),
+    uint8ArrayToHexString(encryption.blobIv),
+    uint8ArrayToHexString(encryption.wrappedKey),
+    encryption.algorithm,
+  ].join(':');
+  const base = [
+    ref.storageBackend,
+    ref.contentType,
+    ref.size.toString(),
+    ref.sha256 ?? '',
+    encryptionKey,
+  ].join(':');
+
+  return ref.storageBackend === 'OnChain'
+    ? `${base}:${ref.key}`
+    : `${base}:${ref.rootHash}`;
+}
 
 @Component({
   selector: 'rbth-feat-file-list-grid-item',
@@ -215,6 +239,7 @@ export class GridItemComponent implements FocusableOption, Highlightable {
       }
 
       return {
+        cacheKey: thumbnailCacheKey(thumbnailRef),
         storage: this.#encryptedStorage(),
         thumbnailRef: toStorageThumbnailRef(thumbnailRef),
       };
@@ -222,6 +247,11 @@ export class GridItemComponent implements FocusableOption, Highlightable {
 
   protected readonly encryptedThumbnailUrl = toSignal(
     toObservable(this.#encryptedThumbnailRequest).pipe(
+      distinctUntilChanged(
+        (previous, current) =>
+          previous?.cacheKey === current?.cacheKey &&
+          previous?.storage === current?.storage,
+      ),
       switchMap((request) =>
         request ? this.#loadEncryptedThumbnailUrl(request) : of(null),
       ),

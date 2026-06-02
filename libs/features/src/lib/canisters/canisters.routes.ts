@@ -6,6 +6,11 @@ import { canisterListResolver, canisterStatusResolver } from './resolvers';
 export const canisterDetailRoutes: Route[] = [
   {
     path: '',
+    data: {
+      header: {
+        title: 'Canister Management',
+      },
+    },
     resolve: {
       canisterList: canisterListResolver,
       canisterStatus: canisterStatusResolver,

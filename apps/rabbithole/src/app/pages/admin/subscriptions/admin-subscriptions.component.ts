@@ -41,6 +41,7 @@ import { endOfDay, startOfDay } from 'date-fns';
 import {
   formatBytes,
   injectMainActor,
+  PageHeaderActionsDirective,
   timeInNanosToDate,
   UserTarget,
   UserTargetComboboxComponent,
@@ -66,6 +67,7 @@ import {
 import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -102,6 +104,7 @@ const EMPTY_PAGE: GetSubscriptionsResponse = {
     HlmBadge,
     HlmInput,
     HlmIcon,
+    PageHeaderActionsDirective,
     HlmSpinner,
     NgIcon,
     RbthDataTableFilterComponent,
@@ -109,6 +112,7 @@ const EMPTY_PAGE: GetSubscriptionsResponse = {
     UserTargetComboboxComponent,
     UserTargetComboboxValueDirective,
     ...HlmAlertDialogImports,
+    ...HlmButtonGroupImports,
     ...HlmButtonImports,
     ...HlmDialogImports,
     ...HlmDropdownMenuImports,

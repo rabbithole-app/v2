@@ -1,11 +1,4 @@
-<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-  <div class="space-y-2">
-    <h1 class="text-2xl font-semibold tracking-normal">Admin overview</h1>
-    <p class="max-w-2xl text-sm text-muted-foreground">
-      Treasury funding and backend runtime health.
-    </p>
-  </div>
-
+<ng-template rbthPageHeaderActions>
   <button
     hlmBtn
     variant="outline"
@@ -16,7 +9,7 @@
     <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
     Refresh
   </button>
-</header>
+</ng-template>
 
 <section class="grid gap-3 md:grid-cols-2">
   <rbth-frame class="h-full">

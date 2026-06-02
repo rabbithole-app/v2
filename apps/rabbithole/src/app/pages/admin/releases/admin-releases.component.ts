@@ -25,6 +25,7 @@ import { toast } from '@spartan-ng/brain/sonner';
 import {
   formatBytes,
   injectMainActor,
+  PageHeaderActionsDirective,
   timeInNanosToDate,
 } from '@rabbithole/core';
 import {
@@ -69,6 +70,7 @@ const EMPTY_STATUS: ReleasesFullStatus = {
     HlmIcon,
     HlmSpinner,
     NgIcon,
+    PageHeaderActionsDirective,
     RbthFrameComponent,
     RbthFrameHeaderDirective,
     RbthFramePanelDirective,

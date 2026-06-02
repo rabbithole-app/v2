@@ -23,9 +23,13 @@ import {
 } from '@angular/forms/signals';
 import { debounceTime, distinctUntilChanged, filter, from, of, switchMap } from 'rxjs';
 
-import { injectMainActor, ProfileService } from '@rabbithole/core';
-import type { AvatarRef } from '@rabbithole/declarations/backend';
+import {
+  injectMainActor,
+  PageHeaderService,
+  ProfileService,
+} from '@rabbithole/core';
 import { AvatarEditorComponent } from '@rabbithole/core/profile';
+import type { AvatarRef } from '@rabbithole/declarations/backend';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmFormField, HlmHint } from '@spartan-ng/helm/form-field';
 import { HlmInput } from '@spartan-ng/helm/input';
@@ -53,18 +57,18 @@ interface ProfileFormData {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileComponent {
+  readonly avatarRef = signal<AvatarRef | null>(null);
   readonly #profileService = inject(ProfileService);
   readonly profile = this.#profileService.profile;
   readonly isEditMode = computed(() => !!this.profile());
   readonly loading = signal(false);
-  readonly avatarRef = signal<AvatarRef | null>(null);
   readonly model = signal<ProfileFormData>({
     username: '',
     displayName: null,
   });
-
   /** Async username check result — null = not checked, true = taken, false = available */
   readonly usernameTaken = signal<boolean | null>(null);
+
   readonly profileForm = form(this.model, (s) => {
     // Username validation only in create mode
     applyWhen(s.username, () => !this.isEditMode(), (s2) => {
@@ -88,16 +92,24 @@ export class ProfileComponent {
     // Username readonly in edit mode
     readonly(s.username, () => this.isEditMode());
   });
-
   readonly profileReady = toSignal(this.#profileService.ready$, {
     initialValue: false,
   });
+
   readonly usernameChecking = signal(false);
   readonly #actor = injectMainActor();
-
   readonly #destroyRef = inject(DestroyRef);
 
+  readonly #pageHeader = inject(PageHeaderService);
+
   constructor() {
+    effect((onCleanup) => {
+      const unregisterTitle = this.#pageHeader.setTitle(
+        this.isEditMode() ? 'Edit Profile' : 'Set Up Profile',
+      );
+      onCleanup(unregisterTitle);
+    });
+
     // Sync profile data into model (runs once when profile loads)
     effect(() => {
       const p = this.profile();
@@ -135,6 +147,11 @@ export class ProfileComponent {
       this.usernameTaken.set(taken);
       this.usernameChecking.set(false);
     });
+  }
+
+  handleAvatarChanged(avatarRef: AvatarRef | null) {
+    this.avatarRef.set(avatarRef);
+    this.#profileService.reload();
   }
 
   handleSubmit(event: Event) {
@@ -175,10 +192,5 @@ export class ProfileComponent {
     } finally {
       this.loading.set(false);
     }
-  }
-
-  handleAvatarChanged(avatarRef: AvatarRef | null) {
-    this.avatarRef.set(avatarRef);
-    this.#profileService.reload();
   }
 }

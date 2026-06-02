@@ -26,6 +26,7 @@ import { toast } from '@spartan-ng/brain/sonner';
 
 import {
   injectMainActor,
+  PageHeaderActionsDirective,
   timeInNanosToDate,
 } from '@rabbithole/core';
 import {
@@ -62,8 +63,9 @@ const EMPTY_STATS: StatsView = {
     NgIcon,
     BrnAlertDialogContent,
     BrnAlertDialogTrigger,
-      HlmBadge,
+    HlmBadge,
     HlmIcon,
+    PageHeaderActionsDirective,
     HlmSpinner,
     ...HlmAlertDialogImports,
     ...HlmButtonImports,

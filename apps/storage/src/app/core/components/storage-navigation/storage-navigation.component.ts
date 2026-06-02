@@ -7,7 +7,6 @@ import {
 } from '@ng-icons/lucide';
 
 import { NavigationComponent, NavItem } from '@rabbithole/core';
-import { StorageCapacityMetricComponent } from '@rabbithole/core/storage-capacity-metric';
 import {
   AccessRequestsCapabilityService,
   provideEncryptedStorage,
@@ -23,13 +22,11 @@ import {
   template: `<div hlmSidebarGroupLabel>Storage</div>
     <div hlmSidebarGroupContent>
       <core-navigation [data]="data()" />
-      <core-storage-capacity-metric />
     </div> `,
   imports: [
     NavigationComponent,
     HlmSidebarGroupLabel,
     HlmSidebarGroupContent,
-    StorageCapacityMetricComponent,
   ],
   providers: [
     provideIcons({

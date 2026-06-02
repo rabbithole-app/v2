@@ -24,6 +24,8 @@ import {
   CanisterDataInfo,
   CoreTransparentSelectBackdropDirective,
   injectCoreWorker,
+  PageHeaderActionsDirective,
+  PageHeaderContextDirective,
 } from '@rabbithole/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
@@ -67,6 +69,8 @@ import { ICManagementService } from '../../services';
     CoreTransparentSelectBackdropDirective,
     HlmIcon,
     NgIcon,
+    PageHeaderActionsDirective,
+    PageHeaderContextDirective,
     CanisterMemoryComponent,
     CanisterRuntimeComponent,
     CanisterHealthCheckComponent,

@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideRefreshCw } from '@ng-icons/lucide';
 
+import { PageHeaderActionsDirective } from '@rabbithole/core';
 import {
   BalanceService,
   WalletNetworksViewComponent,
@@ -15,10 +15,10 @@ import { HlmSwitch } from '@spartan-ng/helm/switch';
 @Component({
   selector: 'rbth-page-wallet',
   imports: [
-    RouterLink,
     NgIcon,
     HlmIcon,
     HlmSwitch,
+    PageHeaderActionsDirective,
     WalletNetworksViewComponent,
     WalletSummaryHeaderComponent,
     ...HlmButtonImports,
@@ -29,7 +29,6 @@ import { HlmSwitch } from '@spartan-ng/helm/switch';
 })
 export class WalletPageComponent {
   readonly #balanceService = inject(BalanceService);
-
   readonly hideZero = this.#balanceService.hideZero;
 
   refresh(): void {

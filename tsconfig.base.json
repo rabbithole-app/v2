@@ -126,6 +126,9 @@
       "@rabbithole/ui/tree-select": [
         "libs/app-ui/src/lib/tree-select/index.ts"
       ],
+      "@rabbithole/ui/user-identity": [
+        "libs/app-ui/src/lib/user-identity/index.ts"
+      ],
       "@rabbithole/utils": [
         "libs/utils/src/index.ts"
       ],
@@ -173,9 +176,6 @@
       ],
       "@rabbithole/pages/pricing": [
         "libs/pages/src/lib/pricing/pricing.component.ts"
-      ],
-      "@rabbithole/pages/subscription": [
-        "libs/pages/src/lib/subscription/subscription-page.component.ts"
       ],
       "@rabbithole/pages/wallet": [
         "libs/pages/src/lib/wallet/wallet-page.component.ts"

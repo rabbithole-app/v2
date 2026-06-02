@@ -27,8 +27,8 @@ import {
   lucideShieldCheck,
 } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
-import { cva } from 'class-variance-authority';
 import { toast } from '@spartan-ng/brain/sonner';
+import { cva } from 'class-variance-authority';
 import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
 import {
@@ -36,6 +36,7 @@ import {
   injectMainActor,
   LICENSE_PRICE_USD,
   parseCanisterRejectError,
+  type StorageCreationStatus,
   StoragesService,
 } from '@rabbithole/core';
 import { ENV_NAME } from '@rabbithole/core/app-runtime';
@@ -65,6 +66,13 @@ import { buildCreationSteps } from '../../utils';
 export type VetKeyLevel = 'high-replication' | 'standard';
 
 type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
+
+function getCreationStatusCanisterId(
+  status: StorageCreationStatus | null,
+): string | null {
+  if (!status || !('canisterId' in status)) return null;
+  return status.canisterId.toText();
+}
 
 function isVetKeyLevel(value: unknown): value is VetKeyLevel {
   return value === 'standard' || value === 'high-replication';
@@ -134,14 +142,13 @@ export class CreateStorageDialogComponent {
   readonly balancePaymentPanel = viewChild(WalletBalancePanelComponent);
   readonly #createdCanisterId = signal<string | null>(null);
   readonly createdCanisterId = this.#createdCanisterId.asReadonly();
+  readonly #storagesService = inject(StoragesService);
 
   // ═══════════════════════════════════════════════════════════════
   // WIZARD STATE
   // ═══════════════════════════════════════════════════════════════
 
-  readonly #storagesService = inject(StoragesService);
   readonly creationStatus = computed(() => this.#storagesService.creationStatus());
-
   /**
    * Maps the live `creationStatus` + known canister id into a 5-step list
    * consumed by `rbth-process-steps`. See buildCreationSteps for the exact
@@ -158,6 +165,7 @@ export class CreateStorageDialogComponent {
       canisterIdText ?? undefined,
     );
   });
+
   readonly creationProgressLabel = computed(() => {
     const steps = this.creationSteps();
     const total = steps.length;
@@ -175,12 +183,12 @@ export class CreateStorageDialogComponent {
 
     return `Step ${completed + 1} of ${total}${active?.description ? ' — ' + active.description : ''}`;
   });
-
   readonly licensePriceLabel = formatUsd(LICENSE_PRICE_USD);
 
   readonly #step = signal<WizardStep>('configure');
 
   readonly step = this.#step.asReadonly();
+
   readonly dialogTitle = computed(() => {
     switch (this.step()) {
       case 'configure': return 'Create Storage';
@@ -192,40 +200,41 @@ export class CreateStorageDialogComponent {
       case 'payment': return `Pay from balance — ${this.licensePriceLabel}`;
     }
   });
-  readonly #errorMessage = signal<string | null>(null);
+  readonly highReplicationVetKeyAvailable = ENV_NAME !== 'DEV';
+  readonly #vetKeyLevel = signal<VetKeyLevel>('standard');
 
-  readonly errorMessage = this.#errorMessage.asReadonly();
-
-  readonly isCompleted = computed(() =>
-    this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
+  readonly effectiveVetKeyLevel = computed<VetKeyLevel>(() =>
+    this.highReplicationVetKeyAvailable ? this.#vetKeyLevel() : 'standard',
   );
-  readonly LICENSE_PRICE_USD = LICENSE_PRICE_USD;
+
+  readonly #errorMessage = signal<string | null>(null);
+  readonly errorMessage = this.#errorMessage.asReadonly();
 
   // ═══════════════════════════════════════════════════════════════
   // CONFIGURATION
   // ═══════════════════════════════════════════════════════════════
 
-  readonly payFromBalanceLabel = `Pay ${formatUsd(LICENSE_PRICE_USD)} from balance`;
-  readonly #storageBackend = signal<StorageBackendType>('BlobStorage');
-
-  readonly storageBackend = this.#storageBackend.asReadonly();
-  readonly #vetKeyLevel = signal<VetKeyLevel>('standard');
-  readonly highReplicationVetKeyAvailable = ENV_NAME !== 'DEV';
-  readonly effectiveVetKeyLevel = computed<VetKeyLevel>(() =>
-    this.highReplicationVetKeyAvailable ? this.#vetKeyLevel() : 'standard',
-  );
-  readonly standardVetKeyOptionClass = hlm(vetKeyOptionVariants({ disabled: false }));
   readonly highReplicationVetKeyOptionClass = computed(() =>
     hlm(vetKeyOptionVariants({ disabled: !this.highReplicationVetKeyAvailable })),
   );
+  readonly isCompleted = computed(() =>
+    this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
+  );
+  readonly LICENSE_PRICE_USD = LICENSE_PRICE_USD;
+  readonly payFromBalanceLabel = `Pay ${formatUsd(LICENSE_PRICE_USD)} from balance`;
+
+  readonly standardVetKeyOptionClass = hlm(vetKeyOptionVariants({ disabled: false }));
+  readonly #storageBackend = signal<StorageBackendType>('BlobStorage');
+  readonly storageBackend = this.#storageBackend.asReadonly();
+  readonly vetKeyLevel = this.#vetKeyLevel.asReadonly();
 
   // ═══════════════════════════════════════════════════════════════
   // SERVICES
   // ═══════════════════════════════════════════════════════════════
 
-  readonly vetKeyLevel = this.#vetKeyLevel.asReadonly();
-
   readonly #actor = injectMainActor();
+
+  readonly #completionToastShown = signal(false);
   readonly #destroyRef = inject(DestroyRef);
   readonly #dialogRef = inject(BrnDialogRef);
   readonly #router = inject(Router);
@@ -234,12 +243,17 @@ export class CreateStorageDialogComponent {
     effect(() => {
       const status = this.creationStatus();
       const currentStep = untracked(() => this.step());
-      const alreadyCompleted = untracked(() => this.#createdCanisterId()) !== null;
+      const completionToastShown = untracked(() => this.#completionToastShown());
       const alreadyFailed = untracked(() => this.#errorMessage()) !== null;
 
       if (currentStep === 'creating' && status) {
-        if (status.type === 'Completed' && !alreadyCompleted) {
-          this.#createdCanisterId.set(status.canisterId.toText());
+        const canisterId = getCreationStatusCanisterId(status);
+        if (canisterId) {
+          this.#createdCanisterId.set(canisterId);
+        }
+
+        if (status.type === 'Completed' && !completionToastShown) {
+          this.#completionToastShown.set(true);
           toast.success('Storage created successfully!');
         } else if (status.type === 'Failed' && !alreadyFailed) {
           this.#errorMessage.set(status.message);
@@ -261,6 +275,7 @@ export class CreateStorageDialogComponent {
   createAnother(): void {
     this.#storagesService.clearTrackedCreation();
     this.#step.set('configure');
+    this.#completionToastShown.set(false);
     this.#errorMessage.set(null);
     this.#createdCanisterId.set(null);
     this.#storageBackend.set('BlobStorage');
@@ -389,7 +404,6 @@ export class CreateStorageDialogComponent {
 
       if (result.type === 'created') {
         this.#createdCanisterId.set(result.canisterId);
-        toast.success('Storage created successfully!');
         return;
       }
 

@@ -13,6 +13,11 @@ import { AccessRequestsShellComponent } from './components/access-requests/acces
 export const accessRequestsRoutes: Route[] = [
   {
     path: '',
+    data: {
+      header: {
+        title: 'Access requests',
+      },
+    },
     canActivate: [accessRequestsCanActivate],
     resolve: {
       accessRequests: accessRequestsResolver,

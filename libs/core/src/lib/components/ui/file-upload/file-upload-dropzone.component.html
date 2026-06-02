@@ -31,15 +31,6 @@
   </div>
   <div hlmEmptyContent>
     <div
-      class="text-muted-foreground/70 flex flex-wrap justify-center gap-1 text-xs"
-    >
-      <span>All files</span>
-      <span>∙</span>
-      <span>Max {{ config.maxFiles }} files</span>
-      <span>∙</span>
-      <span>Up to {{ config.maxSize | formatBytes }}</span>
-    </div>
-    <div
       class="flex flex-wrap justify-center gap-2"
       (click)="$event.stopPropagation()"
       (keydown)="$event.stopPropagation()"

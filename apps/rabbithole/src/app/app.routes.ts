@@ -78,18 +78,22 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'profile',
+        data: {
+          header: {
+            title: 'Profile',
+          },
+        },
         loadComponent: () =>
           import('@rabbithole/pages/profile').then((m) => m.ProfileComponent),
       },
       {
-        path: 'subscription',
-        loadComponent: () =>
-          import('@rabbithole/pages/subscription').then(
-            (m) => m.SubscriptionPageComponent,
-          ),
-      },
-      {
         path: 'wallet',
+        data: {
+          header: {
+            title: 'Wallet',
+            subtitle: 'Balances across supported networks.',
+          },
+        },
         loadComponent: () =>
           import('@rabbithole/pages/wallet').then((m) => m.WalletPageComponent),
       },
@@ -105,6 +109,12 @@ export const appRoutes: Route[] = [
           {
             path: '',
             pathMatch: 'full',
+            data: {
+              header: {
+                title: 'Admin overview',
+                subtitle: 'Treasury funding and backend runtime health.',
+              },
+            },
             loadComponent: () =>
               import('./pages/admin/admin-overview.component').then(
                 (m) => m.AdminOverviewComponent,
@@ -112,6 +122,11 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'creations',
+            data: {
+              header: {
+                title: 'Creations',
+              },
+            },
             loadComponent: () =>
               import('./pages/admin/creations/admin-creations.component').then(
                 (m) => m.AdminCreationsComponent,
@@ -119,6 +134,13 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'cmc-recovery',
+            data: {
+              header: {
+                title: 'CMC Recovery',
+                subtitle:
+                  'Ambiguous CMC notify operations that need an admin decision.',
+              },
+            },
             loadComponent: () =>
               import(
                 './pages/admin/cmc-recovery/admin-cmc-recovery.component'
@@ -126,6 +148,11 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'subscriptions',
+            data: {
+              header: {
+                title: 'Subscriptions',
+              },
+            },
             loadComponent: () =>
               import(
                 './pages/admin/subscriptions/admin-subscriptions.component'
@@ -133,6 +160,11 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'licenses',
+            data: {
+              header: {
+                title: 'Licenses',
+              },
+            },
             loadComponent: () =>
               import('./pages/admin/licenses/admin-licenses.component').then(
                 (m) => m.AdminLicensesComponent,
@@ -140,6 +172,11 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'releases',
+            data: {
+              header: {
+                title: 'Releases',
+              },
+            },
             loadComponent: () =>
               import('./pages/admin/releases/admin-releases.component').then(
                 (m) => m.AdminReleasesComponent,
@@ -147,6 +184,11 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'users/:principal',
+            data: {
+              header: {
+                title: 'User details',
+              },
+            },
             resolve: {
               userDetail: (
                 route: ActivatedRouteSnapshot,
@@ -169,6 +211,11 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'users',
+            data: {
+              header: {
+                title: 'Users',
+              },
+            },
             loadComponent: () =>
               import('./pages/admin/users/admin-users.component').then(
                 (m) => m.AdminUsersComponent,
@@ -237,6 +284,14 @@ export const appRoutes: Route[] = [
                 './core/components/storage-navigation/storage-navigation.component'
               ).then((m) => m.StorageNavigationComponent),
             outlet: 'sidebar',
+          },
+          {
+            path: '',
+            loadComponent: () =>
+              import(
+                './core/components/storage-metrics-footer/storage-metrics-footer.component'
+              ).then((m) => m.StorageMetricsFooterComponent),
+            outlet: 'sidebarBottom',
           },
         ],
       },

@@ -6,6 +6,7 @@ import {
   lucideShare2,
 } from '@ng-icons/lucide';
 
+import { PageHeaderActionsDirective } from '@rabbithole/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmButtonGroupImports } from '@spartan-ng/helm/button-group';
 import { HlmEmptyImports } from '@spartan-ng/helm/empty';
@@ -21,6 +22,7 @@ import { SharedWithMeStore } from '../../shared-with-me.store';
     NgIcon,
     HlmIcon,
     HlmSpinner,
+    PageHeaderActionsDirective,
     SharedStorageCardComponent,
     ...HlmButtonImports,
     ...HlmButtonGroupImports,

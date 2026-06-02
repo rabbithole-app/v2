@@ -5,6 +5,12 @@ import {
   inject,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import {
+  lucideBookOpen,
+  lucideLayoutDashboard,
+  lucideLogIn,
+} from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
@@ -12,7 +18,8 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 
 @Component({
   selector: 'app-landing-hero',
-  imports: [RouterLink, ...HlmButtonImports, RbthRainbowButton],
+  imports: [NgIcon, RouterLink, ...HlmButtonImports, RbthRainbowButton],
+  providers: [provideIcons({ lucideBookOpen, lucideLayoutDashboard, lucideLogIn })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'block',
@@ -30,11 +37,14 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
         </h1>
         <p class="mt-5 max-w-md text-lg text-muted-foreground max-lg:mx-auto">
           No passwords. No master keys.
-          When encryption is on, files are sealed in your browser and
-          protected by cryptography, not cloud promises.
+          Files are encrypted in your browser and protected by cryptography,
+          not cloud promises.
         </p>
         <div class="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
-          <a rbthRainbowBtn size="lg" [routerLink]="ctaLink()">{{ ctaText() }}</a>
+          <a rbthRainbowBtn size="lg" [routerLink]="ctaLink()">
+            <ng-icon [name]="ctaIcon()" size="18" />
+            {{ ctaText() }}
+          </a>
           <a
             hlmBtn
             variant="outline"
@@ -43,6 +53,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
             target="_blank"
             rel="noopener"
           >
+            <ng-icon name="lucideBookOpen" size="18" />
             Read Docs
           </a>
         </div>
@@ -61,10 +72,13 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 })
 export class HeroSectionComponent {
   readonly #authService = inject(AUTH_SERVICE);
+  readonly ctaIcon = computed(() =>
+    this.#authService.isAuthenticated() ? 'lucideLayoutDashboard' : 'lucideLogIn',
+  );
   readonly ctaLink = computed(() =>
     this.#authService.isAuthenticated() ? '/dashboard' : '/login',
   );
   readonly ctaText = computed(() =>
-    this.#authService.isAuthenticated() ? 'My Files' : 'Open App',
+    this.#authService.isAuthenticated() ? 'Open Dashboard' : 'Open App',
   );
 }

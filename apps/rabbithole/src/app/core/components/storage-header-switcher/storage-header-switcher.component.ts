@@ -1,0 +1,119 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+} from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { NgIcon, provideIcons } from '@ng-icons/core';
+import {
+  lucideChevronsUpDown,
+  lucideLoader2,
+  lucidePlus,
+} from '@ng-icons/lucide';
+import { filter, map, startWith } from 'rxjs';
+
+import { isPrincipal, StoragesService } from '@rabbithole/core';
+import { HlmDropdownMenuImports } from '@spartan-ng/helm/dropdown-menu';
+import { HlmIcon } from '@spartan-ng/helm/icon';
+import {
+  HlmSidebarHeader,
+  HlmSidebarImports,
+  HlmSidebarService,
+} from '@spartan-ng/helm/sidebar';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
+
+@Component({
+  selector: 'app-storage-header-switcher',
+  imports: [
+    NgIcon,
+    HlmIcon,
+    HlmSpinner,
+    ...HlmSidebarImports,
+    ...HlmDropdownMenuImports,
+  ],
+  providers: [
+    provideIcons({
+      lucideChevronsUpDown,
+      lucideLoader2,
+      lucidePlus,
+    }),
+  ],
+  templateUrl: './storage-header-switcher.component.html',
+  hostDirectives: [HlmSidebarHeader],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class StorageHeaderSwitcherComponent {
+  readonly #router = inject(Router);
+  readonly activeCanisterId = toSignal(
+    this.#router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+      startWith(this.#router.url),
+      map((url) => {
+        const segments = url.split(/[?#(]/)[0].split('/').filter(Boolean);
+        const candidate = segments[0] === 'dashboard' ? segments[1] : segments[0];
+        return candidate && isPrincipal(candidate) ? candidate : null;
+      }),
+    ),
+    { initialValue: null },
+  );
+  readonly #storagesService = inject(StoragesService);
+  readonly storages = this.#storagesService.storages;
+  readonly availableStorages = computed(() =>
+    this.storages().filter(
+      (s) =>
+        s.canisterId &&
+        (s.status.type === 'Completed' ||
+          s.status.type === 'UpgradingWasm' ||
+          s.status.type === 'UpgradingFrontend' ||
+          s.status.type === 'UpdatingControllers' ||
+          s.status.type === 'RevokingInstallerPermission'),
+    ),
+  );
+  readonly hasAvailableStorages = computed(
+    () => this.availableStorages().length > 0,
+  );
+  readonly activeStorageLabel = computed(
+    () =>
+      this.activeCanisterId() ??
+      (this.hasAvailableStorages() ? 'Select storage' : 'No storages yet'),
+  );
+  readonly #sidebarService = inject(HlmSidebarService);
+  readonly iconOnlyTrigger = computed(
+    () =>
+      this.#sidebarService.state() === 'collapsed' &&
+      !this.#sidebarService.isMobile(),
+  );
+  readonly menuSide = computed(() =>
+    this.#sidebarService.isMobile() ? 'bottom' : 'right',
+  );
+
+  readonly #upgradingCanisterIds = computed(() => {
+    const upgrading = new Set<string>();
+    for (const s of this.storages()) {
+      if (
+        s.canisterId &&
+        s.status.type !== 'Completed' &&
+        s.status.type !== 'Failed' &&
+        s.status.type !== 'Pending'
+      ) {
+        upgrading.add(s.canisterId.toText());
+      }
+    }
+    return upgrading;
+  });
+
+  isStorageUpgrading(canisterId: string): boolean {
+    return this.#upgradingCanisterIds().has(canisterId);
+  }
+
+  navigateToStorage(canisterId: string): void {
+    this.#router.navigate(['/dashboard', canisterId, 'drive']);
+  }
+
+  openCreateStorage(): void {
+    this.#router.navigate(['/dashboard', { outlets: { dialog: 'create-storage' } }]);
+  }
+}

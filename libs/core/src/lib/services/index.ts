@@ -5,6 +5,7 @@ export * from './download.service';
 export * from './file-system-access.service';
 export * from './icp-ledger.service';
 export * from './notification.service';
+export * from './pro-feature-gate.service';
 export * from './profile.service';
 export * from './registration.service';
 export * from './settings.service';

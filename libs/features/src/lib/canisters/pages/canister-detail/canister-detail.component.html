@@ -1,72 +1,69 @@
 @if (canisterStatus(); as status) {
-  <div class="space-y-6">
-    <!-- Header with title, select and action buttons -->
-    <div class="flex items-center justify-between gap-4">
-      <div class="flex items-center gap-4">
-        <h1 class="text-2xl font-semibold">Canister Management</h1>
-
-        <div
-          hlmButtonGroup
-          class="[&>hlm-select>hlm-select-trigger>button]:rounded-r-none"
-        >
-          <hlm-select
-            coreTransparentSelectBackdrop
-            [value]="currentCanisterId()"
-            (valueChange)="_onCanisterChange($event)"
-          >
-            <hlm-select-trigger class="w-64">
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              @for (canisterId of canisterList(); track canisterId) {
-                <hlm-select-item [value]="canisterId">
-                  {{ canisterId }}
-                </hlm-select-item>
-              }
-            </hlm-select-content>
-          </hlm-select>
-          <button
-            hlmBtn
-            variant="outline"
-            size="icon"
-            [disabled]="isLoadingStatus()"
-            (click)="_refreshStatus()"
-          >
-            @if (isLoadingStatus()) {
-              <hlm-spinner class="size-4" />
-            } @else {
-              <ng-icon hlm size="sm" name="lucideRefreshCw" />
-            }
-          </button>
-        </div>
-      </div>
-
-      @if (isController()) {
-        <rbth-feat-canisters-wasm-install>
-          <rbth-feat-canisters-frontend-upload-drawer>
-            <div hlmButtonGroup>
-              <button
-                hlmBtn
-                variant="outline"
-                rbthFeatCanistersWasmInstallTrigger
-              >
-                <ng-icon hlm size="sm" name="lucideBinary" />
-                Install WASM
-              </button>
-              <button
-                hlmBtn
-                variant="outline"
-                rbthFeatCanistersFrontendUploadTrigger
-              >
-                <ng-icon hlm size="sm" name="lucidePackage" />
-                Install frontend
-              </button>
-            </div>
-          </rbth-feat-canisters-frontend-upload-drawer>
-        </rbth-feat-canisters-wasm-install>
-      }
+  <ng-template rbthPageHeaderContext>
+    <div
+      hlmButtonGroup
+      class="[&>hlm-select>hlm-select-trigger>button]:rounded-r-none"
+    >
+      <hlm-select
+        coreTransparentSelectBackdrop
+        [value]="currentCanisterId()"
+        (valueChange)="_onCanisterChange($event)"
+      >
+        <hlm-select-trigger class="w-64">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          @for (canisterId of canisterList(); track canisterId) {
+            <hlm-select-item [value]="canisterId">
+              {{ canisterId }}
+            </hlm-select-item>
+          }
+        </hlm-select-content>
+      </hlm-select>
+      <button
+        hlmBtn
+        variant="outline"
+        size="icon"
+        [disabled]="isLoadingStatus()"
+        (click)="_refreshStatus()"
+      >
+        @if (isLoadingStatus()) {
+          <hlm-spinner class="size-4" />
+        } @else {
+          <ng-icon hlm size="sm" name="lucideRefreshCw" />
+        }
+      </button>
     </div>
+  </ng-template>
 
+  <ng-template rbthPageHeaderActions>
+    @if (isController()) {
+      <rbth-feat-canisters-wasm-install>
+        <rbth-feat-canisters-frontend-upload-drawer>
+          <div hlmButtonGroup>
+            <button
+              hlmBtn
+              variant="outline"
+              rbthFeatCanistersWasmInstallTrigger
+            >
+              <ng-icon hlm size="sm" name="lucideBinary" />
+              Install WASM
+            </button>
+            <button
+              hlmBtn
+              variant="outline"
+              rbthFeatCanistersFrontendUploadTrigger
+            >
+              <ng-icon hlm size="sm" name="lucidePackage" />
+              Install frontend
+            </button>
+          </div>
+        </rbth-feat-canisters-frontend-upload-drawer>
+      </rbth-feat-canisters-wasm-install>
+    }
+  </ng-template>
+
+  <div class="space-y-6">
     <!-- Main content -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
       <!-- Runtime Section -->

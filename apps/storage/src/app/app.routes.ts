@@ -8,6 +8,11 @@ import {
 export const appRoutes: Route[] = [
   {
     path: '',
+    data: {
+      header: {
+        title: 'Storage',
+      },
+    },
     loadComponent: () =>
       import('@rabbithole/pages/dashboard').then((m) => m.DashboardComponent),
     canActivate: [dashboardGuard],
@@ -45,6 +50,14 @@ export const appRoutes: Route[] = [
             './core/components/storage-navigation/storage-navigation.component'
           ).then((m) => m.StorageNavigationComponent),
         outlet: 'sidebar',
+      },
+      {
+        path: '',
+        loadComponent: () =>
+          import(
+            './core/components/storage-metrics-footer/storage-metrics-footer.component'
+          ).then((m) => m.StorageMetricsFooterComponent),
+        outlet: 'sidebarBottom',
       },
       {
         path: '',

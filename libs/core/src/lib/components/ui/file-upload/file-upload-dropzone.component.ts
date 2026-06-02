@@ -21,7 +21,6 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 
 import { FileSystemAccessService } from '../../../services';
 import { injectFileUploadConfig } from './file-upload.token';
-import { FormatBytesPipe } from './format-bytes.pipe';
 
 export const dropzoneVariants = cva(
   'border-input hover:bg-accent/50 data-[dragging=true]:bg-accent/50 min-h-40 rounded-xl border transition-colors',
@@ -46,7 +45,6 @@ export const dropzoneVariants = cva(
     ...HlmEmptyImports,
     NgIcon,
     HlmIcon,
-    FormatBytesPipe,
     NgTemplateOutlet,
   ],
   providers: [provideIcons({ lucideFileUp })],

@@ -3,7 +3,6 @@ import {
   Component,
   computed,
   inject,
-  viewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
@@ -15,8 +14,7 @@ import {
 } from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
-import { SubscriptionService } from '@rabbithole/core';
-import { PaymentDrawerComponent } from '@rabbithole/features/payment';
+import { SubscriptionService, UserSettingsDialogService } from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmCardImports } from '@spartan-ng/helm/card';
 import { HlmIcon } from '@spartan-ng/helm/icon';
@@ -30,7 +28,6 @@ import { PricingFaqComponent } from './pricing-faq.component';
     HlmButton,
     HlmIcon,
     NgIcon,
-    PaymentDrawerComponent,
     PricingFaqComponent,
   ],
   providers: [
@@ -73,8 +70,7 @@ export class PricingComponent {
   proDisabled = computed(() => this.isPro());
 
   #router = inject(Router);
-
-  private readonly paymentDrawer = viewChild(PaymentDrawerComponent);
+  #settingsDialogService = inject(UserSettingsDialogService);
 
   onLicenseClick(): void {
     if (!this.isAuthenticated()) {
@@ -90,9 +86,11 @@ export class PricingComponent {
       return;
     }
     if (this.isPro()) {
-      this.#router.navigate(['/dashboard/subscription']);
+      void this.#settingsDialogService.open('subscription');
       return;
     }
-    this.paymentDrawer()?.open();
+    void this.#settingsDialogService.openProUpgrade(
+      this.isExpired() ? 'expired-subscription' : 'pricing',
+    );
   }
 }

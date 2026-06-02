@@ -23,7 +23,7 @@ export class RbthMetricCardComponent {
 
   protected readonly _computedClass = computed(() =>
     hlm(
-      'relative flex flex-col overflow-hidden rounded-lg border bg-sidebar text-sidebar-foreground shadow-xs',
+      'relative flex flex-col overflow-hidden rounded-lg border bg-white text-sidebar-foreground shadow-xs',
       this.userClass(),
     ),
   );

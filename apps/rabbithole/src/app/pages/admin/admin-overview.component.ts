@@ -21,6 +21,7 @@ import {
   injectMainActor,
   MAIN_CANISTER_ID_TOKEN,
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
+  PageHeaderActionsDirective,
 } from '@rabbithole/core';
 import {
   fetchTokenBalancesForWallet,
@@ -50,6 +51,7 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
     RbthFrameHeaderDirective,
     RbthFramePanelDirective,
     RbthFrameTitleDirective,
+    PageHeaderActionsDirective,
     WalletNetworksViewComponent,
     ...HlmButtonImports,
   ],

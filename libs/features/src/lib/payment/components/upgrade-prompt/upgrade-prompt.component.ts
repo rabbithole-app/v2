@@ -1,11 +1,17 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
 } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideShield } from '@ng-icons/lucide';
-import { injectBrnDialogContext } from '@spartan-ng/brain/dialog';
+import {
+  BrnDialogClose,
+  BrnDialogRef,
+  injectBrnDialogContext,
+} from '@spartan-ng/brain/dialog';
 
+import { UserSettingsDialogService } from '@rabbithole/core';
 import { HlmButton } from '@spartan-ng/helm/button';
 import {
   HlmDialogDescription,
@@ -16,7 +22,7 @@ import {
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
 export interface UpgradePromptContext {
-  feature: 'encrypt' | 'share' | 'storage-limit' | 'file-size-limit';
+  feature: 'encrypt' | 'file-size-limit' | 'share' | 'storage-limit';
 }
 
 const FEATURE_CONFIG = {
@@ -41,6 +47,7 @@ const FEATURE_CONFIG = {
 @Component({
   selector: 'rbth-feat-upgrade-prompt',
   imports: [
+    BrnDialogClose,
     HlmButton,
     HlmDialogDescription,
     HlmDialogFooter,
@@ -79,12 +86,20 @@ const FEATURE_CONFIG = {
 
     <hlm-dialog-footer>
       <button hlmBtn variant="outline" brnDialogClose>Maybe Later</button>
-      <button hlmBtn brnDialogClose="upgrade">Upgrade to Pro</button>
+      <button hlmBtn (click)="upgrade()">Upgrade to Pro</button>
     </hlm-dialog-footer>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UpgradePromptComponent {
-  #context = injectBrnDialogContext<UpgradePromptContext>();
-  config = FEATURE_CONFIG[this.#context.feature];
+  feature = injectBrnDialogContext<UpgradePromptContext>().feature;
+  config = FEATURE_CONFIG[this.feature];
+
+  #dialogRef = inject(BrnDialogRef);
+  #settingsDialogService = inject(UserSettingsDialogService);
+
+  upgrade(): void {
+    this.#dialogRef.close();
+    void this.#settingsDialogService.openProUpgrade(this.feature);
+  }
 }

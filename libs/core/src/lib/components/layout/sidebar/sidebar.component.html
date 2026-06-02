@@ -1,12 +1,29 @@
-<hlm-sidebar collapsible="icon">
-  <core-sidebar-header />
+<hlm-sidebar collapsible="icon" variant="inset">
+  @if (sidebarHeaderSlot()) {
+    <ng-content select="[coreSidebarHeader]" />
+  } @else {
+    <core-sidebar-header />
+  }
   <div hlmSidebarContent class="gap-0">
     <ng-content select="[sidebarTop]" />
     <router-outlet name="sidebar" />
+    <ng-content select="[sidebarAfter]" />
     <div hlmSidebarGroup>
       <div hlmSidebarGroupLabel>Resources</div>
       <div hlmSidebarGroupContent>
         <ul hlmSidebarMenu>
+          <li hlmSidebarMenuItem>
+            <a
+              rbthSidebarMenuButton
+              routerLink="/"
+              [hlmTooltip]="'Home'"
+              [tooltipDisabled]="tooltipDisabled()"
+              position="right"
+            >
+              <ng-icon hlmIcon name="lucideHouse" size="sm" hlmMenuIcon />
+              <span>Home</span>
+            </a>
+          </li>
           <li hlmSidebarMenuItem>
             <a
               rbthSidebarMenuButton
@@ -40,13 +57,9 @@
     </div>
   </div>
   <div hlmSidebarFooter>
-    @defer (on idle) {
-      <core-sidebar-subscription-footer />
-    } @placeholder {
-      <div class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground">
-        <span class="group-data-[collapsible=icon]:hidden truncate">Loading account</span>
-      </div>
-    }
+    <ng-content select="[sidebarBottom]" />
+    <router-outlet name="sidebarBottom" />
+    <core-account-menu />
   </div>
   <button hlmSidebarRail>
     <span class="sr-only">Toggle sidebar</span>
@@ -56,20 +69,36 @@
   <core-expired-banner />
   <router-outlet name="banner" />
   <div class="flex min-w-0 flex-1 flex-col">
-    <header class="bg-card sticky top-0 z-50 border-b">
-      <div class="flex items-center justify-between gap-6 p-2 sm:px-4">
-        <div class="flex items-center gap-4">
+    <header class="bg-card sticky top-0 z-50 h-14 border-b">
+      <div class="flex h-full items-center justify-between gap-4 px-2 sm:px-4">
+        <div class="flex min-w-0 items-center gap-4">
           <button hlmSidebarTrigger class="-ml-1">
             <span class="sr-only">Toggle sidebar</span>
           </button>
-          <hlm-separator
-            orientation="vertical"
-            class="mr-2 data-[orientation=vertical]:h-4"
-          />
+          @if (pageTitle(); as title) {
+            <div class="min-w-0">
+              <h1 hlmLarge class="truncate leading-5">
+                {{ title }}
+              </h1>
+              @if (pageSubtitle(); as subtitle) {
+                <p class="mt-0.5 truncate text-xs leading-4 text-muted-foreground">
+                  {{ subtitle }}
+                </p>
+              }
+            </div>
+          }
+          @if (headerContextTemplate(); as contextTemplate) {
+            <ng-container [ngTemplateOutlet]="contextTemplate" />
+          }
           <router-outlet name="header" />
         </div>
-        <core-notification-bell />
-        <core-account-menu class="self-end" />
+
+        <div class="flex shrink-0 items-center gap-3">
+          @if (headerActionsTemplate(); as actionsTemplate) {
+            <ng-container [ngTemplateOutlet]="actionsTemplate" />
+          }
+          <core-notification-bell />
+        </div>
       </div>
     </header>
     <div class="flex min-w-0 flex-1 flex-col px-4 py-6 sm:px-6">

@@ -15,7 +15,13 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideCircleHelp, lucideRefreshCw, lucideZap } from '@ng-icons/lucide';
+import {
+  lucideChevronDown,
+  lucideChevronUp,
+  lucideCircleHelp,
+  lucideRefreshCw,
+  lucideZap,
+} from '@ng-icons/lucide';
 import type { BrnDialogState } from '@spartan-ng/brain/dialog';
 import { toast } from '@spartan-ng/brain/sonner';
 import { cva } from 'class-variance-authority';
@@ -53,6 +59,7 @@ import { parseCanisterRejectError } from '../../utils/parse-canister-reject-erro
 import { calculatePaymentEligibility } from '../../utils/payment-eligibility';
 import { BalanceService, WalletBalancePanelComponent } from '../account/wallet';
 import { MetricLegendRowComponent } from './metric-legend-row.component';
+import { StorageCapacityMetricStateService } from './storage-capacity-metric-state.service';
 import {
   CanisterCyclesMetricSnapshot,
   CycleStatus,
@@ -136,6 +143,8 @@ type CyclesMetricResourceParams = {
   ],
   providers: [
     provideIcons({
+      lucideChevronDown,
+      lucideChevronUp,
       lucideCircleHelp,
       lucideRefreshCw,
       lucideZap,
@@ -187,10 +196,10 @@ export class CanisterCyclesMetricCardComponent {
   readonly managedFundingEligible = computed(
     () => this.storageFundingStatus()?.managedFundingEligible ?? false,
   );
-
   readonly paidAutoTopUpInFlight = signal(false);
 
   readonly #settingsService = inject(SettingsService);
+
   readonly canTogglePaidAutoTopUp = computed(
     () =>
       this.managedFundingEligible() &&
@@ -210,7 +219,6 @@ export class CanisterCyclesMetricCardComponent {
   readonly topUpCycles = computed(() => tcToCycles(this.topUpTc()));
   readonly #balanceService = inject(BalanceService);
   readonly #cmcService = inject(CyclesMintingCanisterService);
-
   readonly topUpEstimatedUsd = computed(() => {
     const cyclesPerIcp = this.#cmcService.icpXdrConversionRate.value();
     const icpUsd = this.#balanceService.rates()['ICP'] ?? 0;
@@ -218,6 +226,7 @@ export class CanisterCyclesMetricCardComponent {
 
     return (Number(this.topUpCycles()) / Number(cyclesPerIcp)) * icpUsd;
   });
+
   readonly topUpEligibility = computed(() =>
     calculatePaymentEligibility(
       this.#balanceService.balances(),
@@ -244,12 +253,12 @@ export class CanisterCyclesMetricCardComponent {
   readonly cycleAvailableWidth = computed(() =>
     this.#width(this.availableCycleBalance(), this.cycleScale()),
   );
-
   readonly cycleDeficit = computed(() => {
     const snapshot = this.snapshot();
     const target = this.cycleSafeFloorBalance();
     return target > snapshot.cycleBalance ? target - snapshot.cycleBalance : 0n;
   });
+
   readonly cycleFreezeLeft = computed(() =>
     this.#cycleBalancePosition(this.snapshot().currentFreezingReserve),
   );
@@ -308,6 +317,8 @@ export class CanisterCyclesMetricCardComponent {
   readonly cycleTargetLeft = computed(() =>
     this.#cycleBalancePosition(this.cycleTargetBalance()),
   );
+  readonly #metricState = inject(StorageCapacityMetricStateService);
+  readonly detailsExpanded = this.#metricState.cyclesExpanded;
   readonly freezeTooltip = computed(
     () =>
       `Freezing reserve: below ${this.formatCycles(this.snapshot().currentFreezingReserve)} this canister can freeze.`,
@@ -450,6 +461,10 @@ export class CanisterCyclesMetricCardComponent {
     } finally {
       this.topUpInFlight.set(false);
     }
+  }
+
+  toggleDetailsExpanded(): void {
+    this.#metricState.toggleCyclesDetails();
   }
 
   #cycleBalancePosition(value: bigint): string {

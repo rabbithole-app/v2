@@ -1,0 +1,54 @@
+<div hlmField>
+  <div hlmFieldContent class="gap-3">
+    <div class="flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div hlmFieldTitle>Spending priority</div>
+        <p hlmFieldDescription>First funded asset pays.</p>
+      </div>
+      @if (isSaving()) {
+        <span class="shrink-0 text-[11px] text-muted-foreground">Saving...</span>
+      }
+    </div>
+
+    <div
+      cdkDropList
+      cdkDropListOrientation="mixed"
+      [cdkDropListData]="items()"
+      [cdkDropListDisabled]="isSaving() || !settingsReady()"
+      class="priority-drop-zone flex flex-wrap gap-1.5 rounded-lg border border-dashed bg-muted/20 p-2 transition-colors"
+      (cdkDropListDropped)="drop($event)"
+    >
+      @for (item of items(); track item.key; let index = $index) {
+        <div
+          cdkDrag
+          [cdkDragData]="item"
+          [cdkDragDisabled]="isSaving() || !settingsReady()"
+          class="inline-flex h-auto min-h-7 max-w-full items-center justify-start gap-1.5 rounded-md border bg-background px-1.5 py-1 text-foreground transition-colors hover:bg-muted/50"
+        >
+          <button
+            hlmBtn
+            cdkDragHandle
+            variant="ghost"
+            size="icon"
+            class="size-5 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
+            type="button"
+            [attr.aria-label]="'Reorder ' + item.label + ' on ' + item.network"
+            [disabled]="isSaving() || !settingsReady()"
+          >
+            <ng-icon hlmIcon name="lucideGripVertical" size="xs" />
+          </button>
+
+          <span class="w-5 shrink-0 text-[11px] tabular-nums text-muted-foreground">
+            {{ index + 1 }}
+          </span>
+          <span class="shrink-0 text-sm font-medium leading-none">
+            {{ item.label }}
+          </span>
+          <span hlmBadge variant="secondary">
+            {{ item.network }}
+          </span>
+        </div>
+      }
+    </div>
+  </div>
+</div>

@@ -1,9 +1,9 @@
-<div class="flex justify-between items-center">
-  <h1 class="text-2xl font-semibold">Storage</h1>
+<ng-template rbthPageHeaderActions>
   @if (canWrite()) {
     <rbth-feat-file-list-upload-drawer />
   }
-</div>
+</ng-template>
+
 @if (noAccess()) {
   <rbth-feat-file-list-no-access-empty
     [accessRequest]="accessRequest()"
@@ -33,7 +33,6 @@
   </div>
 } @else {
   <rbth-feat-file-list-grid-view
-    class="mt-4"
     [hlmContextMenuTrigger]="emptyAreaContextMenu"
     [disabled]="!canWrite()"
     [items]="items()"

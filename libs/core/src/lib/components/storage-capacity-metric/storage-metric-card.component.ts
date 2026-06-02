@@ -11,10 +11,15 @@ import {
   runInInjectionContext,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideHardDrive, lucideRefreshCw, lucideStar } from '@ng-icons/lucide';
+import {
+  lucideChevronDown,
+  lucideChevronUp,
+  lucideHardDrive,
+  lucideRefreshCw,
+  lucideStar,
+} from '@ng-icons/lucide';
 import { cva } from 'class-variance-authority';
 
 import {
@@ -27,6 +32,7 @@ import {
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmHoverCardImports } from '@spartan-ng/helm/hover-card';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import {
   injectEncryptedStorageActor,
@@ -34,8 +40,10 @@ import {
 } from '../../injectors/storage-actor';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../../tokens/encrypted-storage-canister';
 import { formatBytes } from '../../utils/format-bytes';
+import { UserSettingsDialogService } from '../account/user-settings-dialog/user-settings-dialog.service';
 import { FormatBytesPipe } from '../ui/file-upload/format-bytes.pipe';
 import { MetricLegendRowComponent } from './metric-legend-row.component';
+import { StorageCapacityMetricStateService } from './storage-capacity-metric-state.service';
 import {
   EMPTY_STORAGE_METRIC_SNAPSHOT,
   maxBigInt,
@@ -78,11 +86,13 @@ const refreshIconVariants = cva('', {
     RbthMetricCardFooterDirective,
     RbthMetricCardHeaderDirective,
     RbthMetricCardTitleDirective,
-    RouterLink,
     ...HlmHoverCardImports,
+    ...HlmTooltipImports,
   ],
   providers: [
     provideIcons({
+      lucideChevronDown,
+      lucideChevronUp,
       lucideHardDrive,
       lucideRefreshCw,
       lucideStar,
@@ -92,8 +102,9 @@ const refreshIconVariants = cva('', {
 export class StorageMetricCardComponent {
   readonly canisterId = input<string | null>(null);
   readonly compact = input(false);
+  readonly #metricState = inject(StorageCapacityMetricStateService);
+  readonly detailsExpanded = this.#metricState.storageExpanded;
   readonly #refreshNonce = signal(0);
-
   readonly #metrics = resource({
     params: (): StorageMetricResourceParams => ({
       canisterId: this.canisterId(),
@@ -102,6 +113,7 @@ export class StorageMetricCardComponent {
     loader: ({ params }) => this.#load(params),
     defaultValue: EMPTY_STORAGE_METRIC_SNAPSHOT,
   });
+
   readonly snapshot = linkedSignal<
     MetricSnapshotSource<StorageMetricSnapshot>,
     StorageMetricSnapshot
@@ -126,10 +138,10 @@ export class StorageMetricCardComponent {
       maxBigInt(1n, snapshot.fileBytes, snapshot.stableMemoryBytes)
     );
   });
-
   readonly filesWidth = computed(() =>
     this.#width(this.snapshot().fileBytes, this.totalBytes()),
   );
+
   readonly loading = computed(() => this.#metrics.isLoading());
   readonly refreshIconClass = computed(() =>
     refreshIconVariants({ loading: this.loading() }),
@@ -142,11 +154,25 @@ export class StorageMetricCardComponent {
   readonly stableWidth = computed(() =>
     this.#width(this.snapshot().stableMemoryBytes, this.totalBytes()),
   );
-  readonly subscriptionLink = input<string | null>(null);
+  readonly subscriptionCtaEnabled = input(true);
   readonly #injector = inject(Injector);
+  readonly #settingsDialogService = inject(UserSettingsDialogService);
+
+  openSubscriptionAction(): void {
+    if (this.snapshot().isPro) {
+      void this.#settingsDialogService.open('subscription');
+      return;
+    }
+
+    void this.#settingsDialogService.openProUpgrade('storage-limit');
+  }
 
   refreshMetrics(): void {
     this.#refreshNonce.update((value) => value + 1);
+  }
+
+  toggleDetailsExpanded(): void {
+    this.#metricState.toggleStorageDetails();
   }
 
   async #load({

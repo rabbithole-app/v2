@@ -6,13 +6,17 @@
     </hlm-avatar>
 
     <div class="min-w-0 flex-1">
-      <div class="truncate font-medium">
-        {{ title() }}
+      <div class="flex min-w-0 items-center gap-1.5">
+        <div class="truncate font-medium">
+          <span>{{ title() }}</span>
+          @if (username(); as value) {
+            <span class="text-muted-foreground"> · @{{ value }}</span>
+          }
+        </div>
+        <ng-content select="[rbthUserIdentityTitleMeta]" />
       </div>
 
-      @if (username(); as value) {
-        <div class="truncate text-xs text-muted-foreground">@{{ value }}</div>
-      } @else if (email(); as value) {
+      @if (!username() && email(); as value) {
         <div class="truncate text-xs text-muted-foreground">
           {{ value }}
         </div>

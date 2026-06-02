@@ -1,33 +1,28 @@
-<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-  <div class="space-y-2">
-    <h1 class="text-2xl font-semibold tracking-normal">Creations</h1>
-    <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-      <span
-        hlmBadge
-        [variant]="_deployerRunning.value() ? 'default' : 'secondary'"
-      >
-        Deployer {{ _deployerRunning.value() ? 'running' : 'stopped' }}
-      </span>
-    </div>
-  </div>
+<ng-template rbthPageHeaderContext>
+  <span
+    hlmBadge
+    [variant]="_deployerRunning.value() ? 'default' : 'secondary'"
+  >
+    Deployer {{ _deployerRunning.value() ? 'running' : 'stopped' }}
+  </span>
+</ng-template>
 
-  <div class="flex flex-wrap items-center gap-2">
-    <button
-      hlmBtn
-      variant="outline"
+<ng-template rbthPageHeaderActions>
+  <button
+    hlmBtn
+    variant="outline"
+    size="sm"
+    [disabled]="_actionInFlight() === 'deployer:start' || _actionInFlight() === 'deployer:stop'"
+    (click)="_stopOrStartDeployer()"
+  >
+    <ng-icon
+      hlmIcon
+      [name]="_deployerRunning.value() ? 'lucidePause' : 'lucidePlay'"
       size="sm"
-      [disabled]="_actionInFlight() === 'deployer:start' || _actionInFlight() === 'deployer:stop'"
-      (click)="_stopOrStartDeployer()"
-    >
-      <ng-icon
-        hlmIcon
-        [name]="_deployerRunning.value() ? 'lucidePause' : 'lucidePlay'"
-        size="sm"
-      />
-      {{ _deployerRunning.value() ? 'Stop deployer' : 'Start deployer' }}
-    </button>
-  </div>
-</header>
+    />
+    {{ _deployerRunning.value() ? 'Stop deployer' : 'Start deployer' }}
+  </button>
+</ng-template>
 
 <rbth-data-table-filter
   [columns]="_filterColumns"

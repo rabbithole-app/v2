@@ -9,17 +9,25 @@ import { cva } from "class-variance-authority";
 
 import { HlmSidebarService } from "@spartan-ng/helm/sidebar";
 
-import { SIDEBAR_SUBSCRIPTION_LINK_TOKEN } from "../../tokens/backend-features";
 import { ENCRYPTED_STORAGE_CANISTER_ID } from "../../tokens/encrypted-storage-canister";
 import { CanisterCyclesMetricCardComponent } from "./canister-cycles-metric-card.component";
 import { StorageMetricCardComponent } from "./storage-metric-card.component";
 
-const metricCardsShellVariants = cva("mx-2 mt-4 flex flex-col gap-2", {
+type StorageCapacityMetricPlacement = "content" | "footer";
+
+const metricCardsShellVariants = cva("flex flex-col gap-2", {
   variants: {
     compact: {
       false: "",
       true: "items-center",
     },
+    placement: {
+      content: "mt-4",
+      footer: "",
+    },
+  },
+  defaultVariants: {
+    placement: "content",
   },
 });
 
@@ -31,7 +39,6 @@ const metricCardsShellVariants = cva("mx-2 mt-4 flex flex-col gap-2", {
 })
 export class StorageCapacityMetricComponent {
   readonly canisterId = input<string | null>(null);
-
   readonly #sidebarService = inject(HlmSidebarService);
   readonly compactMetrics = computed(
     () =>
@@ -45,8 +52,13 @@ export class StorageCapacityMetricComponent {
   readonly effectiveCanisterId = computed(
     () => this.canisterId() ?? this.#providedCanisterId?.toText() ?? null,
   );
+
+  readonly placement = input<StorageCapacityMetricPlacement>("content");
   readonly shellClass = computed(() =>
-    metricCardsShellVariants({ compact: this.compactMetrics() }),
+    metricCardsShellVariants({
+      compact: this.compactMetrics(),
+      placement: this.placement(),
+    }),
   );
-  readonly subscriptionLink = inject(SIDEBAR_SUBSCRIPTION_LINK_TOKEN);
+  readonly subscriptionCtaEnabled = input(true);
 }

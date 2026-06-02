@@ -6,6 +6,11 @@ import { fileListResolver } from './resolvers/file-list';
 export const fileListRoutes: Route[] = [
   {
     path: '',
+    data: {
+      header: {
+        title: 'Storage',
+      },
+    },
     resolve: {
       fileList: fileListResolver,
     },
@@ -13,6 +18,11 @@ export const fileListRoutes: Route[] = [
   },
   {
     path: '**',
+    data: {
+      header: {
+        title: 'Storage',
+      },
+    },
     resolve: {
       fileList: fileListResolver,
     },

@@ -41,7 +41,6 @@ import {
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
   principalFromConfig,
   provideCoreWorker,
-  SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
 } from '@rabbithole/core/app-runtime';
 
 import { environment } from '../environments/environment';
@@ -162,10 +161,6 @@ export const appConfig: ApplicationConfig = {
     {
       provide: ACCOUNT_MENU_BACKEND_LINKS_ENABLED_TOKEN,
       useValue: false,
-    },
-    {
-      provide: SIDEBAR_SUBSCRIPTION_LINK_TOKEN,
-      useValue: null,
     },
     {
       provide: MULTI_CHAIN_RPC_CONFIG_TOKEN,

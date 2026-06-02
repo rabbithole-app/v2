@@ -45,6 +45,8 @@ import { injectQueryParams } from 'ngxtension/inject-query-params';
 
 import {
   injectMainActor,
+  PageHeaderActionsDirective,
+  PageHeaderContextDirective,
   timeInNanosToDate,
   UserTarget,
   UserTargetComboboxComponent,
@@ -145,6 +147,8 @@ const STATUS_OPTIONS = [
     HlmBadge,
     HlmIcon,
     HlmSpinner,
+    PageHeaderActionsDirective,
+    PageHeaderContextDirective,
     RbthDataTableFilterComponent,
     RbthFilterValueDirective,
     UserTargetComboboxComponent,

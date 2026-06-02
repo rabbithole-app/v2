@@ -20,7 +20,6 @@ import {
 import { map } from "rxjs/operators";
 
 import { NavigationComponent, NavItem } from "@rabbithole/core";
-import { StorageCapacityMetricComponent } from "@rabbithole/core/storage-capacity-metric";
 import {
   type AccessRequestsCapability,
   AccessRequestsCapabilityService,
@@ -40,16 +39,14 @@ const EMPTY_ACCESS_REQUESTS_CAPABILITY: AccessRequestsCapability = {
 
 @Component({
   selector: "app-storage-navigation",
-  template: `<div hlmSidebarGroupLabel>Navigation</div>
+  template: `<div hlmSidebarGroupLabel>Current storage</div>
     <div hlmSidebarGroupContent>
       <core-navigation [data]="data()" [exact]="'/dashboard/' + canisterId()" />
-      <core-storage-capacity-metric [canisterId]="canisterId()" />
     </div> `,
   imports: [
     NavigationComponent,
     HlmSidebarGroupLabel,
     HlmSidebarGroupContent,
-    StorageCapacityMetricComponent,
   ],
   providers: [
     provideIcons({

@@ -1,25 +1,28 @@
-<header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-  <div>
-    <h1 class="text-2xl font-semibold tracking-normal">Subscriptions</h1>
-  </div>
-
-  <div class="flex flex-wrap items-center gap-2">
-    <button hlmBtn size="sm" (click)="_openManualActivationDialog()">
-      <ng-icon hlmIcon name="lucideUserPlus" size="sm" />
-      Activate Pro
-    </button>
-
-    <hlm-alert-dialog>
+<ng-template rbthPageHeaderActions>
+  <div class="flex items-center">
+    <div hlmButtonGroup>
       <button
         hlmBtn
-        brnAlertDialogTrigger
         variant="outline"
         size="sm"
-        [disabled]="_actionInFlight() === 'expire-overdue'"
+        (click)="_openManualActivationDialog()"
       >
-        <ng-icon hlmIcon name="lucideTimerReset" size="sm" />
-        Expire overdue
+        <ng-icon hlmIcon name="lucideUserPlus" size="sm" />
+        Activate Pro
       </button>
+
+      <button
+        hlmBtn
+        variant="outline"
+        size="icon-sm"
+        aria-label="Subscription maintenance actions"
+        [hlmDropdownMenuTrigger]="subscriptionActionsMenu"
+      >
+        <ng-icon hlmIcon name="lucideEllipsis" size="sm" />
+      </button>
+    </div>
+
+    <hlm-alert-dialog #expireOverdueDialog="hlmAlertDialog" class="hidden">
       <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
         <hlm-alert-dialog-header>
           <h3 hlmAlertDialogTitle>
@@ -43,17 +46,7 @@
       </hlm-alert-dialog-content>
     </hlm-alert-dialog>
 
-    <hlm-alert-dialog>
-      <button
-        hlmBtn
-        brnAlertDialogTrigger
-        variant="outline"
-        size="sm"
-        [disabled]="_actionInFlight() === 'auto-renewals'"
-      >
-        <ng-icon hlmIcon name="lucideRotateCcw" size="sm" />
-        Auto renewals
-      </button>
+    <hlm-alert-dialog #autoRenewalsDialog="hlmAlertDialog" class="hidden">
       <hlm-alert-dialog-content *brnAlertDialogContent="let ctx">
         <hlm-alert-dialog-header>
           <h3 hlmAlertDialogTitle>Run subscription auto-renewals?</h3>
@@ -74,8 +67,29 @@
         </hlm-alert-dialog-footer>
       </hlm-alert-dialog-content>
     </hlm-alert-dialog>
+
+    <ng-template #subscriptionActionsMenu>
+      <hlm-dropdown-menu class="w-48">
+        <button
+          hlmDropdownMenuItem
+          [brnAlertDialogTriggerFor]="expireOverdueDialog"
+          [disabled]="_actionInFlight() === 'expire-overdue'"
+        >
+          <ng-icon hlmIcon name="lucideTimerReset" size="sm" hlmMenuIcon />
+          Expire overdue
+        </button>
+        <button
+          hlmDropdownMenuItem
+          [brnAlertDialogTriggerFor]="autoRenewalsDialog"
+          [disabled]="_actionInFlight() === 'auto-renewals'"
+        >
+          <ng-icon hlmIcon name="lucideRotateCcw" size="sm" hlmMenuIcon />
+          Auto renewals
+        </button>
+      </hlm-dropdown-menu>
+    </ng-template>
   </div>
-</header>
+</ng-template>
 
 <rbth-data-table-filter
   [columns]="_filterColumns"
@@ -280,21 +294,28 @@
                     </button>
                     <ng-template #actionsMenu>
                       <hlm-dropdown-menu class="w-48">
-                        <hlm-dropdown-menu-label>
-                          Subscription
-                        </hlm-dropdown-menu-label>
-                        <hlm-dropdown-menu-separator />
                         <button
                           hlmDropdownMenuItem
                           (triggered)="_openSubscriptionDialog(subscription, 'activate', 'Pro')"
                         >
+                          <ng-icon
+                            hlmIcon
+                            name="lucideUserPlus"
+                            size="sm"
+                            hlmMenuIcon
+                          />
                           Activate Pro
                         </button>
-                        <hlm-dropdown-menu-separator />
                         <button
                           hlmDropdownMenuItem
                           (triggered)="_openSubscriptionDialog(subscription, 'renew', 'Pro')"
                         >
+                          <ng-icon
+                            hlmIcon
+                            name="lucideRotateCcw"
+                            size="sm"
+                            hlmMenuIcon
+                          />
                           Renew Pro
                         </button>
                       </hlm-dropdown-menu>

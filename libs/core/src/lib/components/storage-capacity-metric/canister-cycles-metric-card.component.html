@@ -61,6 +61,7 @@
           class="h-6 w-6 rounded-md text-muted-foreground hover:text-foreground"
           [disabled]="loading()"
           aria-label="Refresh canister cycles"
+          hlmTooltip="Refresh"
           (click)="refreshMetrics()"
         >
           <ng-icon
@@ -68,6 +69,27 @@
             hlmIcon
             size="xs"
             [class]="refreshIconClass()"
+          />
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          size="icon"
+          variant="ghost"
+          class="h-6 w-6 rounded-md text-muted-foreground hover:text-foreground"
+          [attr.aria-expanded]="detailsExpanded()"
+          [attr.aria-label]="
+            detailsExpanded()
+              ? 'Collapse canister cycles details'
+              : 'Expand canister cycles details'
+          "
+          [hlmTooltip]="detailsExpanded() ? 'Collapse' : 'Expand'"
+          (click)="toggleDetailsExpanded()"
+        >
+          <ng-icon
+            [name]="detailsExpanded() ? 'lucideChevronUp' : 'lucideChevronDown'"
+            hlmIcon
+            size="xs"
           />
         </button>
       </div>
@@ -129,49 +151,51 @@
           ></span>
         </div>
 
-        <div class="mt-3 flex flex-col gap-2">
-          <core-metric-legend-row
-            kind="freeze"
-            label="Freeze"
-            [value]="formatCycles(snapshot().currentFreezingReserve)"
-          />
-
-          <core-metric-legend-row
-            kind="safeFloor"
-            label="Safe floor"
-            [value]="formatCycles(cycleSafeFloorBalance())"
-          />
-
-          <core-metric-legend-row
-            kind="target"
-            label="Target"
-            [value]="formatCycles(cycleTargetBalance())"
-          />
-
-          <core-metric-legend-row
-            kind="headroom"
-            label="Headroom"
-            [value]="formatCycles(availableCycleBalance())"
-          />
-        </div>
-
-        @if (includedFundingStatus(); as funding) {
-          <div class="mt-4 border-t border-border pt-3">
+        @if (detailsExpanded()) {
+          <div class="mt-3 flex flex-col gap-2">
             <core-metric-legend-row
-              kind="included"
-              label="Included top-up"
-              [value]="
-                formatIncludedTopUp(
-                  funding.includedCyclesUsed,
-                  funding.includedCyclesLimit
-                )
-              "
+              kind="freeze"
+              label="Freeze"
+              [value]="formatCycles(snapshot().currentFreezingReserve)"
             />
-            <p class="mt-2 text-[0.7rem] leading-snug text-muted-foreground">
-              {{ formatIncludedCycles(funding.includedCyclesRemaining) }}
-              left this period.
-            </p>
+
+            <core-metric-legend-row
+              kind="safeFloor"
+              label="Safe floor"
+              [value]="formatCycles(cycleSafeFloorBalance())"
+            />
+
+            <core-metric-legend-row
+              kind="target"
+              label="Target"
+              [value]="formatCycles(cycleTargetBalance())"
+            />
+
+            <core-metric-legend-row
+              kind="headroom"
+              label="Headroom"
+              [value]="formatCycles(availableCycleBalance())"
+            />
           </div>
+
+          @if (includedFundingStatus(); as funding) {
+            <div class="mt-4 border-t border-border pt-3">
+              <core-metric-legend-row
+                kind="included"
+                label="Included top-up"
+                [value]="
+                  formatIncludedTopUp(
+                    funding.includedCyclesUsed,
+                    funding.includedCyclesLimit
+                  )
+                "
+              />
+              <p class="mt-2 text-[0.7rem] leading-snug text-muted-foreground">
+                {{ formatIncludedCycles(funding.includedCyclesRemaining) }}
+                left this period.
+              </p>
+            </div>
+          }
         }
       </div>
     </div>
@@ -206,87 +230,90 @@
   </rbth-metric-card>
 </ng-template>
 
-<hlm-dialog
-  [state]="topUpDialogState()"
-  (stateChanged)="topUpDialogState.set($event)"
->
-  <hlm-dialog-content
-    *hlmDialogPortal
-    class="w-[calc(100vw-2rem)] sm:max-w-[720px]"
+@if (topUpDialogState() === 'open') {
+  <hlm-dialog
+    class="hidden"
+    [state]="topUpDialogState()"
+    (stateChanged)="topUpDialogState.set($event)"
   >
-    <hlm-dialog-header>
-      <h3 hlmDialogTitle>Top up canister cycles</h3>
-      <p hlmDialogDescription>
-        Add cycles from your Rabbithole balance to keep this storage canister
-        above the safe target.
-      </p>
-    </hlm-dialog-header>
+    <hlm-dialog-content
+      *hlmDialogPortal
+      class="w-[calc(100vw-2rem)] sm:max-w-[720px]"
+    >
+      <hlm-dialog-header>
+        <h3 hlmDialogTitle>Top up canister cycles</h3>
+        <p hlmDialogDescription>
+          Add cycles from your Rabbithole balance to keep this storage canister
+          above the safe target.
+        </p>
+      </hlm-dialog-header>
 
-    <div class="space-y-4">
-      <label hlmField>
-        <span hlmFieldLabel>Amount</span>
-        <div class="relative">
-          <input
-            hlmInput
-            type="number"
-            min="0.1"
-            step="0.1"
-            class="pr-10"
-            [formControl]="topUpAmountControl"
-          />
-          <span
-            class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
-          >
-            TC
+      <div class="space-y-4">
+        <label hlmField>
+          <span hlmFieldLabel>Amount</span>
+          <div class="relative">
+            <input
+              hlmInput
+              type="number"
+              min="0.1"
+              step="0.1"
+              class="pr-10"
+              [formControl]="topUpAmountControl"
+            />
+            <span
+              class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
+            >
+              TC
+            </span>
+          </div>
+          <span hlmFieldDescription>
+            Step 0.1 TC. Estimated cost {{ topUpCostLabel() }}.
           </span>
-        </div>
-        <span hlmFieldDescription>
-          Step 0.1 TC. Estimated cost {{ topUpCostLabel() }}.
-        </span>
-        @if (topUpAmountControl.invalid && topUpAmountControl.touched) {
-          <hlm-field-error>Enter at least 0.1 TCycles.</hlm-field-error>
-        }
-      </label>
+          @if (topUpAmountControl.invalid && topUpAmountControl.touched) {
+            <hlm-field-error>Enter at least 0.1 TCycles.</hlm-field-error>
+          }
+        </label>
 
-      <div class="grid gap-2 rounded-lg border bg-muted/35 p-3 text-sm">
-        <div class="flex items-center justify-between gap-3">
-          <span class="text-muted-foreground">Current balance</span>
-          <span class="tabular-nums">{{
-            formatCycles(snapshot().cycleBalance)
-          }}</span>
+        <div class="grid gap-2 rounded-lg border bg-muted/35 p-3 text-sm">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">Current balance</span>
+            <span class="tabular-nums">{{
+              formatCycles(snapshot().cycleBalance)
+            }}</span>
+          </div>
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-muted-foreground">After top-up</span>
+            <span class="tabular-nums">{{
+              formatCycles(projectedCycleBalance())
+            }}</span>
+          </div>
         </div>
-        <div class="flex items-center justify-between gap-3">
-          <span class="text-muted-foreground">After top-up</span>
-          <span class="tabular-nums">{{
-            formatCycles(projectedCycleBalance())
-          }}</span>
-        </div>
+
+        <core-wallet-balance-panel [requiredUsd]="topUpEstimatedUsd()" />
+
+        @if (topUpDisabledReason(); as reason) {
+          <p class="text-sm text-muted-foreground">{{ reason }}</p>
+        }
       </div>
 
-      <core-wallet-balance-panel [requiredUsd]="topUpEstimatedUsd()" />
-
-      @if (topUpDisabledReason(); as reason) {
-        <p class="text-sm text-muted-foreground">{{ reason }}</p>
-      }
-    </div>
-
-    <hlm-dialog-footer>
-      <button hlmBtn type="button" variant="outline" hlmDialogClose>
-        Cancel
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        [disabled]="!canTopUp()"
-        (click)="submitTopUp()"
-      >
-        @if (topUpInFlight()) {
-          <hlm-spinner size="sm" />
-        } @else {
-          <ng-icon name="lucideZap" hlmIcon size="sm" />
-        }
-        Top up
-      </button>
-    </hlm-dialog-footer>
-  </hlm-dialog-content>
-</hlm-dialog>
+      <hlm-dialog-footer>
+        <button hlmBtn type="button" variant="outline" hlmDialogClose>
+          Cancel
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          [disabled]="!canTopUp()"
+          (click)="submitTopUp()"
+        >
+          @if (topUpInFlight()) {
+            <hlm-spinner size="sm" />
+          } @else {
+            <ng-icon name="lucideZap" hlmIcon size="sm" />
+          }
+          Top up
+        </button>
+      </hlm-dialog-footer>
+    </hlm-dialog-content>
+  </hlm-dialog>
+}

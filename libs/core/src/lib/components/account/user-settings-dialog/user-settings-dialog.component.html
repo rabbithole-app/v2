@@ -1,0 +1,120 @@
+<section
+  class="grid min-h-[420px] overflow-hidden md:grid-cols-[184px_minmax(0,1fr)]"
+>
+  <hlm-sidebar
+    collapsible="none"
+    class="!h-full !min-h-0 !w-full border-b md:border-r md:border-b-0"
+  >
+    <div hlmSidebarContent>
+      <div hlmSidebarGroup>
+        <div hlmSidebarGroupLabel>Account</div>
+        <div hlmSidebarGroupContent>
+          <ul hlmSidebarMenu>
+            <li hlmSidebarMenuItem>
+              <button
+                hlmSidebarMenuButton
+                type="button"
+                [isActive]="activeSection() === 'settings'"
+                (click)="selectSection('settings')"
+              >
+                <ng-icon name="lucideSettings" aria-hidden="true" />
+                <span>Settings</span>
+              </button>
+            </li>
+            <li hlmSidebarMenuItem>
+              <button
+                hlmSidebarMenuButton
+                type="button"
+                [isActive]="activeSection() === 'subscription'"
+                (click)="selectSection('subscription')"
+              >
+                <ng-icon name="lucideCreditCard" aria-hidden="true" />
+                <span>Subscription</span>
+              </button>
+            </li>
+            <li hlmSidebarMenuItem>
+              <button
+                hlmSidebarMenuButton
+                type="button"
+                [isActive]="activeSection() === 'wallet'"
+                (click)="selectSection('wallet')"
+              >
+                <ng-icon name="lucideWallet" aria-hidden="true" />
+                <span>Wallet</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </hlm-sidebar>
+
+  <main class="flex min-w-0 flex-col overflow-hidden p-5">
+    <hlm-dialog-header class="pr-8">
+      <div class="flex items-center gap-2">
+        @if (activeView() === 'subscriptionUpgrade') {
+          <button
+            hlmBtn
+            variant="ghost"
+            size="icon"
+            type="button"
+            aria-label="Back to subscription settings"
+            (click)="backToSubscription()"
+          >
+            <ng-icon name="lucideArrowLeft" hlmIcon size="sm" />
+          </button>
+        }
+        <h2 hlmDialogTitle>{{ title() }}</h2>
+      </div>
+    </hlm-dialog-header>
+
+    <div class="mt-5 flex min-h-0 flex-1 flex-col overflow-auto">
+      @switch (activeView()) {
+        @case ('settings') {
+          <div class="min-h-44"></div>
+        }
+        @case ('subscription') {
+          <core-subscription-settings-form
+            (activatePro)="openSubscriptionUpgrade()"
+          />
+        }
+        @case ('wallet') {
+          <div class="space-y-5">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <core-wallet-summary-header size="md" />
+
+              <div class="flex flex-wrap items-center gap-3">
+                <label class="flex items-center gap-3 text-sm">
+                  <span class="text-muted-foreground">Hide zero balances</span>
+                  <hlm-switch
+                    [checked]="hideZeroBalances()"
+                    (checkedChange)="toggleHideZeroBalances($event)"
+                  />
+                </label>
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  aria-label="Refresh wallet balances"
+                  (click)="refreshWallet()"
+                >
+                  <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+                </button>
+              </div>
+            </div>
+
+            <core-wallet-networks-view />
+          </div>
+        }
+        @case ('subscriptionUpgrade') {
+          <core-pro-upgrade-flow
+            [source]="upgradeSource()"
+            (cancelled)="handleUpgradeCancelled()"
+            (completed)="handleUpgradeCompleted($event)"
+          />
+        }
+      }
+    </div>
+  </main>
+</section>

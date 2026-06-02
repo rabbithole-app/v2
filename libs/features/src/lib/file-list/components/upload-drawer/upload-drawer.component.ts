@@ -11,6 +11,7 @@ import {
   lucideCross,
   lucideFolderUp,
   lucideList,
+  lucidePanelRightOpen,
   lucideTriangleAlert,
 } from '@ng-icons/lucide';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
@@ -63,6 +64,7 @@ import { FileListService } from '../../services';
     provideIcons({
       lucideCross,
       lucideList,
+      lucidePanelRightOpen,
       lucideTriangleAlert,
       lucideFolderUp,
     }),
