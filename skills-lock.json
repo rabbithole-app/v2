@@ -12,6 +12,18 @@
       "sourceType": "github",
       "computedHash": "9c7d9f132a00440288123f76af21a50977178b65d3bd56d4077250ec008c71e7"
     },
+    "autosync-ic-skills": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "skillPath": "skills/autosync-ic-skills/SKILL.md",
+      "computedHash": "0ccbf3c4c42156bf3c3150efda6a97e4db27068df498e6b9ad781c0aa80eefb8"
+    },
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "8df9b47092524833138b58682d03f2e153a242e550d1693657afdbee0cc9cdb0"
+    },
     "brand-writer": {
       "source": "zed-industries/zed",
       "sourceType": "github",
@@ -26,7 +38,8 @@
     "canister-security": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "aa599635ccf3d5996cab1230b49e2e345535cd25b5d522d1ffc07804c2944a51"
+      "skillPath": "skills/canister-security/SKILL.md",
+      "computedHash": "8367257eb731552d5406e4d7ee49879036b7bcbb9483fdb2664d1953e81738f1"
     },
     "certified-variables": {
       "source": "dfinity/icskills",
@@ -154,17 +167,25 @@
     "icp-cli": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "da74dbb9e76285fb7266119026d2e067329e19aa65b586a5437dffdc176a1701"
+      "skillPath": "skills/icp-cli/SKILL.md",
+      "computedHash": "ae12383d4605471b6b8071ab0376856ca0789f8c9146cc4dc8e3bfad66695d48"
     },
     "icrc-ledger": {
       "source": "dfinity/icskills",
       "sourceType": "github",
       "computedHash": "0a87182ac37e596cdc8c0c329d18191483ae25a7e5dfd647fee717a08bd92d7e"
     },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": "skill/SKILL.md",
+      "computedHash": "34e59a34b9705187e87039faa5d9585aebe0056ef657f761b905afef276a3362"
+    },
     "internet-identity": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "7c2b67113bea9f53588786977c78c4429d7ee64261e264b6b4a43f4e55739b3f"
+      "skillPath": "skills/internet-identity/SKILL.md",
+      "computedHash": "51502376b829dcc8b7b109dc1bae37d21c9c0070ea79914d19da9cc6a0bfad95"
     },
     "link-workspace-packages": {
       "source": "nrwl/nx-ai-agents-config",
@@ -172,16 +193,35 @@
       "skillPath": "skills/link-workspace-packages/SKILL.md",
       "computedHash": "28a62513af1293c1ca064203a3d6e4dcdbd08f5be6e5ce9a16acc6176bef2ca4"
     },
+    "migrating-motoko": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "skillPath": "skills/migrating-motoko/SKILL.md",
+      "computedHash": "c3bf144fa83262ae3d0a212b8bb45be11641e7f25cc8e059dffb4715bd91f4cd"
+    },
+    "migrating-motoko-enhanced": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "skillPath": "skills/migrating-motoko-enhanced/SKILL.md",
+      "computedHash": "2b55988526543ec4ec28f028e7025838110daf7be8fa8fce2e64f9ae4871d1e8"
+    },
     "monitor-ci": {
       "source": "nrwl/nx-ai-agents-config",
       "sourceType": "github",
       "skillPath": "skills/monitor-ci/SKILL.md",
       "computedHash": "e549eacd3b7175f16cfb933a817481b99b7effc6f10c93de3c98cb8cf082c4ce"
     },
+    "mops-cli": {
+      "source": "dfinity/icskills",
+      "sourceType": "github",
+      "skillPath": "skills/mops-cli/SKILL.md",
+      "computedHash": "8dc49e796c33b8a7f9afaf710633ae7368c652f306e4cdacb5247a7372432e0d"
+    },
     "motoko": {
       "source": "dfinity/icskills",
       "sourceType": "github",
-      "computedHash": "4847670a56acc0264f22392edb3212c18fa12f07a803cd4b0f61b7d844d10376"
+      "skillPath": "skills/motoko/SKILL.md",
+      "computedHash": "95213a75a9c65edb3fede53fcc0bfb42edb6fbec85e91d2ca0fb1095a75d391b"
     },
     "multi-canister": {
       "source": "dfinity/icskills",

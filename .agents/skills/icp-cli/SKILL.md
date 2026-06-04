@@ -17,29 +17,11 @@ Before generating any `icp` command not explicitly documented here, run `icp --h
 
 ## Installation
 
-**Recommended (npm)** — requires [Node.js](https://nodejs.org/) >= 22:
 ```bash
 npm install -g @icp-sdk/icp-cli @icp-sdk/ic-wasm
 ```
 
-`ic-wasm` is required when using official recipes (`@dfinity/rust`, `@dfinity/motoko`, `@dfinity/asset-canister`) — they depend on it for optimization and metadata embedding.
-
-**Alternative methods:**
-```bash
-# Homebrew (macOS/Linux)
-brew install icp-cli
-brew install ic-wasm
-
-# Shell script (macOS/Linux/WSL)
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dfinity/icp-cli/releases/latest/download/icp-cli-installer.sh | sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/dfinity/ic-wasm/releases/latest/download/ic-wasm-installer.sh | sh
-```
-
-**Verify:**
-```bash
-icp --version
-ic-wasm --version
-```
+`ic-wasm` is required when using official recipes (`@dfinity/rust`, `@dfinity/motoko`, `@dfinity/asset-canister`) — they depend on it for optimization and metadata embedding. Requires [Node.js](https://nodejs.org/) >= 22. Also available via Homebrew and shell script installer — see the [icp-cli releases](https://github.com/dfinity/icp-cli/releases).
 
 **Linux note:** On minimal installs, you may need system libraries: `sudo apt-get install -y libdbus-1-3 libssl3 ca-certificates` (Ubuntu/Debian) or `sudo dnf install -y dbus-libs openssl ca-certificates` (Fedora/RHEL).
 
@@ -77,22 +59,7 @@ ic-wasm --version
      type: "@dfinity/rust@v3.2.0"
    ```
 
-4. **Writing manual build steps when a recipe exists.** Official recipes handle Rust, Motoko, and asset canister builds. Use them instead of writing shell commands:
-   ```yaml
-   # Unnecessary — use a recipe instead
-   build:
-     steps:
-       - type: script
-         commands:
-           - cargo build --target wasm32-unknown-unknown --release
-           - cp target/.../backend.wasm "$ICP_WASM_OUTPUT_PATH"
-
-   # Preferred
-   recipe:
-     type: "@dfinity/rust@v3.2.0"
-     configuration:
-       package: backend
-   ```
+4. **Writing manual build steps when a recipe exists.** Official recipes handle Rust, Motoko, and asset canister builds. Use `recipe: { type: "@dfinity/rust@v3.2.0", configuration: { package: backend } }` instead of writing shell commands in `build.steps`.
 
 5. **Not committing `.icp/data/` to version control.** Mainnet canister IDs are stored in `.icp/data/mappings/<environment>.ids.json`. Losing this file means losing the mapping between canister names and on-chain IDs. Always commit `.icp/data/` — never delete it. Add `.icp/cache/` to `.gitignore` (it is ephemeral and rebuilt automatically).
 
@@ -197,6 +164,7 @@ ic-wasm --version
     ```bash
     icp network stop --project-root-override /path/to/other-project
     ```
+    To run both networks at once instead of stopping one — e.g. parallel git worktrees — set `gateway.port: 0` so each gets a free port. See "Parallel local networks (git worktrees)" under How It Works.
 
     **Scenario B — a non-icp service holds the port.** Configure an alternate port in `icp.yaml` and read the actual URLs dynamically via `icp network status --json` rather than hardcoding localhost:8000:
     ```yaml
@@ -288,6 +256,32 @@ environments:
         compute_allocation: 20
         freezing_threshold: 7776000
 ```
+
+### Parallel local networks (git worktrees)
+
+Local networks are project-local — keyed by project root (Pitfall 9). Separate git worktrees of the same repo are separate project roots, so each worktree can run its own independent local network. This lets multiple agents or branches build and deploy in parallel without interfering. The only obstacle is the gateway port: every worktree defaults to `8000`, so the second `icp network start` fails with a port conflict.
+
+Set the managed network's gateway port to `0` so the OS assigns a free ephemeral port per worktree:
+
+```yaml
+networks:
+  - name: local
+    mode: managed
+    gateway:
+      port: 0   # 0 = OS picks a free port — avoids collisions across worktrees
+```
+
+`icp network start -d` prints the chosen port (`Network started on port 58157`). To recover it afterward — for tests, scripts, or another agent — query the running network and read `gateway_url`:
+
+```bash
+icp network start -d
+icp network status --json
+# -> { "managed": true, "api_url": "http://localhost:58157/", "gateway_url": "http://localhost:58157/", ... }
+
+icp network status --json | jq -r '.gateway_url'   # http://localhost:58157/
+```
+
+Never hardcode `localhost:8000` when using `port: 0` — the port changes on every start, so read `gateway_url` (or `api_url`) from `icp network status --json` each time. To target a specific worktree's network from outside its directory, pass the global `--project-root-override <path>` flag (e.g. `icp network status --json --project-root-override /path/to/worktree`).
 
 ### Install Modes
 
