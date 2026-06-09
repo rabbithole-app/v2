@@ -98,6 +98,7 @@ module {
   /// Basic information about a release and its assets
   public type ReleaseInfo = {
     tagName : Text;
+    htmlUrl : Text;
     name : Text;
     draft : Bool;
     prerelease : Bool;
@@ -154,32 +155,6 @@ module {
     compatibleFrom : [Text];
   };
 
-  public type ChangelogRange = {
-    from : ?Text;
-    to : Text;
-    compareUrl : ?Text;
-    maxCommits : ?Nat;
-  };
-
-  public type ChangelogItem = {
-    text : Text;
-    commit : ?Text;
-    commitUrl : ?Text;
-  };
-
-  public type ChangelogSection = {
-    kind : Text;
-    title : Text;
-    items : [ChangelogItem];
-  };
-
-  public type ReleaseChangelog = {
-    range : ChangelogRange;
-    bump : Text;
-    summary : Text;
-    sections : [ChangelogSection];
-  };
-
   public type ReleaseNoteSection = {
     title : Text;
     items : [Text];
@@ -202,13 +177,13 @@ module {
     did : ?ReleaseArtifactManifest;
     stableSignature : ?ReleaseArtifactManifest;
     upgrade : ReleaseUpgradeManifest;
-    changelog : ReleaseChangelog;
     releaseNotes : ?ReleaseNotes;
   };
 
   /// Full status of a release with all asset details
   public type ReleaseFullStatus = {
     tagName : Text;
+    htmlUrl : Text;
     name : Text;
     draft : Bool;
     prerelease : Bool;

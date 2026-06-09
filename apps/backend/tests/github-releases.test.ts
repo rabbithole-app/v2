@@ -79,7 +79,7 @@ function storageReleaseManifestContent(
   return new TextEncoder().encode(
     JSON.stringify({
       schemaVersion: overrides.schemaVersion ?? 1,
-      version: tag.replace(/^v/, ""),
+      version: versionFromReleaseTag(tag),
       tagName: tag,
       commit: "0000000000000000000000000000000000000000",
       frontendAssetTreeHash: TEST_SHA256_HEX,
@@ -103,12 +103,6 @@ function storageReleaseManifestContent(
       upgrade: {
         argStrategy: overrides.argStrategy ?? "reuseInstallArgV1",
         compatibleFrom: [],
-      },
-      changelog: {
-        range: { from: null, to: tag, compareUrl: null, maxCommits: null },
-        bump: "none",
-        summary: "Storage test release.",
-        sections: [],
       },
       releaseNotes: {
         source: "generated",
@@ -207,12 +201,12 @@ describe("GitHub Releases", () => {
     expect(status.releases[0]?.manifest[0]?.upgrade.argStrategy).toBe(
       "reuseInstallArgV1",
     );
-    expect(status.releases[0]?.manifest[0]?.changelog.summary).toBe(
+    expect(status.releases[0]?.manifest[0]?.releaseNotes[0]?.summary).toBe(
       "Storage test release.",
     );
   });
 
-  test("should have downloaded release after download", async () => {
+  test("should have indexed release manifest after discovery", async () => {
     const status = await backendFixture.actor.getStorageReleaseAdminStatus();
     console.log("Has downloaded release:", status.hasDownloadedRelease);
     console.log(
@@ -220,10 +214,9 @@ describe("GitHub Releases", () => {
       status.hasDeploymentReadyRelease,
     );
 
-    // If downloads completed, should have a downloaded release
-    if (status.completedDownloads > 0n) {
-      expect(status.hasDownloadedRelease).toBe(true);
-    }
+    expect(status.releasesCount).toBeGreaterThan(0n);
+    expect(status.completedDownloads).toBeGreaterThan(0n);
+    expect(status.releases.some((release) => release.manifest.length === 1)).toBe(true);
   });
 
   test("should check individual release readiness via unified API", async () => {
@@ -269,8 +262,8 @@ describe("GitHub Releases", () => {
   });
 
   test("should index all fetched storage releases and prepare selected assets", async () => {
-    const olderTag = "v0.2.0-test";
-    const newerTag = "v0.3.0-test";
+    const olderTag = "storage-v0.2.0";
+    const newerTag = "storage-v0.3.0";
 
     await manager.pic.tick();
     await manager.pic.advanceTime(86_400_000);
@@ -346,7 +339,10 @@ describe("GitHub Releases", () => {
       await backendFixture.actor.getStorageReleaseAdminStatus();
     expect(statusBefore.hasDownloadedRelease).toBe(true);
 
-    const releaseBefore = statusBefore.releases[0];
+    const releaseBefore = statusBefore.releases.find((release) => {
+      const frontendAsset = release.assets.find((a) => a.name.includes("frontend"));
+      return release.isDownloaded && frontendAsset?.sha256.length === 1;
+    });
     const frontendAssetBefore = releaseBefore?.assets.find((a) =>
       a.name.includes("frontend"),
     );
@@ -355,7 +351,7 @@ describe("GitHub Releases", () => {
     console.log("Status before invalidation:");
     console.log("  Has downloaded release:", statusBefore.hasDownloadedRelease);
     console.log("  Completed downloads:", statusBefore.completedDownloads);
-    const hashBefore = frontendAssetBefore?.sha256
+    const hashBefore = frontendAssetBefore?.sha256.length === 1
       ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetBefore?.sha256))
       : undefined;
     console.log("  Frontend hash before:", hashBefore);
@@ -383,7 +379,9 @@ describe("GitHub Releases", () => {
       async () => {
         const status =
           await backendFixture.actor.getStorageReleaseAdminStatus();
-        const release = status.releases[0];
+        const release = status.releases.find(
+          (release) => release.tagName === releaseBefore?.tagName,
+        );
         const frontendAsset = release?.assets.find((a) =>
           a.name.includes("frontend"),
         );
@@ -395,6 +393,7 @@ describe("GitHub Releases", () => {
         return currentHash !== hashBefore;
       },
       { frontend: frontendV2Content },
+      { releaseTags: releaseBefore ? [releaseBefore.tagName] : undefined },
     );
 
     await manager.pic.tick();
@@ -402,11 +401,13 @@ describe("GitHub Releases", () => {
     // Get status after invalidation and re-download
     const statusAfter =
       await backendFixture.actor.getStorageReleaseAdminStatus();
-    const releaseAfter = statusAfter.releases[0];
+    const releaseAfter = statusAfter.releases.find(
+      (release) => release.tagName === releaseBefore?.tagName,
+    );
     const frontendAssetAfter = releaseAfter?.assets.find((a) =>
       a.name.includes("frontend"),
     );
-    const hashAfter = frontendAssetAfter?.sha256
+    const hashAfter = frontendAssetAfter?.sha256.length === 1
       ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetAfter?.sha256))
       : undefined;
 
@@ -436,8 +437,8 @@ describe("GitHub Releases", () => {
     console.log("\n=== Asset Invalidation Test Complete ===");
   });
 
-  test("should reject a downloaded release with unsupported WASM arg strategy", async () => {
-    const releaseTag = "v9.0.0-unsupported-arg";
+  test("should reject a release manifest with unsupported WASM arg strategy", async () => {
+    const releaseTag = "storage-v9.0.0-unsupported-arg";
 
     await manager.pic.tick();
     await manager.pic.advanceTime(86_400_000);
@@ -449,7 +450,7 @@ describe("GitHub Releases", () => {
         const release = status.releases.find(
           (item) => item.tagName === releaseTag,
         );
-        return Boolean(release?.isDownloaded);
+        return Boolean(release?.manifestError.length === 1);
       },
       {
         manifest: (tag) =>
@@ -480,7 +481,7 @@ describe("GitHub Releases", () => {
     const status = await backendFixture.actor.getStorageReleaseAdminStatus();
     const release = status.releases.find((item) => item.tagName === releaseTag);
     expect(release).toBeDefined();
-    expect(release?.isDownloaded).toBe(true);
+    expect(release?.isDownloaded).toBe(false);
     expect(release?.isDeploymentReady).toBe(false);
     expect(status.hasDeploymentReadyRelease).toBe(false);
     expect(release?.manifestError[0]).toContain(
@@ -488,3 +489,7 @@ describe("GitHub Releases", () => {
     );
   });
 });
+
+function versionFromReleaseTag(tag: string): string {
+  return tag.replace(/^storage-v/, "").replace(/^v/, "");
+}

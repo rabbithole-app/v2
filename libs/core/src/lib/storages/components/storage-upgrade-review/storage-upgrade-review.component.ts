@@ -68,14 +68,14 @@ export class StorageUpgradeReviewComponent {
   readonly releaseOptions = input<readonly StorageReleaseOption[]>([]);
   readonly releaseOptionsLoading = input(false);
   readonly releaseTagChange = output<string | null>();
-  readonly selectedChangelogSections = computed(
+  readonly selectedReleaseNotesSections = computed(
     () =>
-      this.selectedReleaseOption()?.changelogSections.filter(
+      this.selectedReleaseOption()?.releaseNotesSections.filter(
         (section) => section.items.length > 0,
       ) ?? [],
   );
-  readonly selectedChangelogSummary = computed(
-    () => this.selectedReleaseOption()?.changelogSummary,
+  readonly selectedReleaseNotesSummary = computed(
+    () => this.selectedReleaseOption()?.releaseNotesSummary,
   );
   readonly selectedReleaseTag = input<string | null>(null);
   readonly selectedUpdateInfo = input<UpdateInfo | undefined>();
@@ -83,11 +83,6 @@ export class StorageUpgradeReviewComponent {
 
   readonly snapshotsGuideHref =
     'https://docs.internetcomputer.org/guides/canister-management/snapshots/';
-  private readonly fallbackCommitBaseUrl = 'https://github.com/rabbithole-app/v2/commit';
-
-  commitHref(commit: string, commitUrl?: string): string {
-    return commitUrl ?? `${this.fallbackCommitBaseUrl}/${commit}`;
-  }
 
   selectRelease(releaseTag: string | null): void {
     this.releaseTagChange.emit(releaseTag);

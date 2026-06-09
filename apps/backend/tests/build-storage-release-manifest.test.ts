@@ -114,7 +114,7 @@ describe("build-storage-release-manifest", () => {
 
     execFileSync(process.execPath, [
       scriptPath,
-      "--version", "0.1.0",
+      "--version", "9.9.9",
       "--artifacts-dir", artifactsDir,
       "--frontend-dir", frontendDir,
       "--output", outputPath,
@@ -154,7 +154,8 @@ describe("build-storage-release-manifest", () => {
     expect(manifest.artifacts.stableSignature.name).toBe("encrypted-storage.most");
     expect(manifest.upgrade.compatibleFrom).toEqual(["0.0.1"]);
     expect(manifest.releaseNotes.source).toBe("generated");
-    expect(manifest.releaseNotes.summary).toBe(manifest.changelog.summary);
+    expect(manifest.releaseNotes.summary).toBe("Storage maintenance release.");
+    expect(manifest.changelog).toBeUndefined();
     expect(releaseBody).toContain(`Frontend asset tree: \`sha256:${expectedHash}\``);
     expect(releaseBody).toContain("## Artifacts");
     expect(releaseBody).toContain("## Wasm Verification");
@@ -435,10 +436,12 @@ describe("build-storage-release-manifest", () => {
     ]);
 
     const initialManifest = JSON.parse(await readFile(outputPath, "utf8"));
+    const initialReleaseBody = await readFile(bodyPath, "utf8");
     expect(initialManifest.version).toBe("0.1.0");
     expect(initialManifest.tagName).toBe("storage-v0.1.0");
-    expect(initialManifest.changelog.range.from).toBeNull();
-    expect(initialManifest.changelog.bump).toBe("major");
+    expect(initialManifest.changelog).toBeUndefined();
+    expect(initialManifest.releaseNotes.summary).toBe("Storage release with 1 breaking change.");
+    expect(initialReleaseBody).not.toContain("Full Changelog");
 
     git(repoDir, ["tag", "storage-v0.1.0"]);
     await writeFile(join(repoDir, "apps/storage/app.ts"), "export const version = 2;\n");
@@ -456,9 +459,11 @@ describe("build-storage-release-manifest", () => {
     ]);
 
     const patchManifest = JSON.parse(await readFile(outputPath, "utf8"));
+    const patchReleaseBody = await readFile(bodyPath, "utf8");
     expect(patchManifest.version).toBe("0.1.1");
     expect(patchManifest.tagName).toBe("storage-v0.1.1");
-    expect(patchManifest.changelog.range.from).toBe("storage-v0.1.0");
-    expect(patchManifest.changelog.bump).toBe("patch");
+    expect(patchManifest.changelog).toBeUndefined();
+    expect(patchManifest.releaseNotes.summary).toBe("Storage release with 1 fix.");
+    expect(patchReleaseBody).toContain("**Full Changelog**: https://github.com/rabbithole-app/v2/compare/storage-v0.1.0...storage-v0.1.1");
   });
 });

@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,10 @@ let tempDir: string | undefined;
 
 async function readJson(path: string) {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function sha256File(path: string) {
+  return createHash("sha256").update(await readFile(path)).digest("hex");
 }
 
 describe("mock storage release scripts", () => {
@@ -242,5 +247,36 @@ describe("mock storage release scripts", () => {
     ]);
     expect(baselineAfter[0].created_at).toBe("2024-01-16T12:00:00Z");
     expect(manifest.upgrade.compatibleFrom).toEqual([]);
+  });
+
+  test("keeps committed mock release asset digests in sync with files", async () => {
+    const mockRoot = join(repoRoot, "apps/backend/mock");
+    const releases = await readJson(join(mockRoot, "api/releases.json"));
+
+    for (const release of releases) {
+      const tagName = release.tag_name;
+      const releaseAssetsDir = join(mockRoot, "assets", tagName);
+
+      for (const asset of release.assets) {
+        const expectedDigest = String(asset.digest ?? "").replace(/^sha256:/, "");
+        const assetPath = join(releaseAssetsDir, asset.name);
+        const actualDigest = await sha256File(assetPath);
+        const actualSize = (await stat(assetPath)).size;
+
+        expect(actualDigest, `${tagName}/${asset.name}`).toBe(expectedDigest);
+        expect(actualSize, `${tagName}/${asset.name} size`).toBe(asset.size);
+      }
+
+      const manifest = await readJson(join(releaseAssetsDir, "storage-release.json"));
+      for (const [kind, artifact] of Object.entries(manifest.artifacts)) {
+        const metadata = artifact as { name: string; sha256: string; size: number };
+        const artifactPath = join(releaseAssetsDir, metadata.name);
+        const actualDigest = await sha256File(artifactPath);
+        const actualSize = (await stat(artifactPath)).size;
+
+        expect(actualDigest, `${tagName}/manifest.artifacts.${kind}`).toBe(metadata.sha256);
+        expect(actualSize, `${tagName}/manifest.artifacts.${kind} size`).toBe(metadata.size);
+      }
+    }
   });
 });

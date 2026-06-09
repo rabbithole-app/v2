@@ -282,14 +282,6 @@ module StorageReleasePlanner {
       case (?manifest) manifest.upgrade.compatibleFrom;
       case null [];
     };
-    let changelogSummary = switch (release.manifest) {
-      case (?manifest) ?manifest.changelog.summary;
-      case null null;
-    };
-    let changelogSections = switch (release.manifest) {
-      case (?manifest) manifest.changelog.sections;
-      case null [];
-    };
     let releaseNotesSummary = switch (release.manifest) {
       case (?manifest) {
         switch (manifest.releaseNotes) {
@@ -333,9 +325,8 @@ module StorageReleasePlanner {
 
     {
       tagName = release.tagName;
+      releaseUrl = release.htmlUrl;
       version = ReleaseTags.version(release.tagName);
-      changelogSummary;
-      changelogSections;
       releaseNotesSummary;
       releaseNotesSections;
       compatibleFrom;

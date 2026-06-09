@@ -104,7 +104,6 @@ canisters:
         STORAGE_UPDATE_RELEASE_SELECTOR: 'latest-prerelease'
         STORAGE_LICENSE_INCLUDED_BYTES: '1073741824' #1gb
         STORAGE_LICENSE_MAX_FILE_BYTES: '104857600' #100mb
-        PUBLIC_ENV_NAME: 'DEV'
         STORAGE_FRONTEND_ORIGINS: 'http://localhost:4201'
         # Local II backend canister ID is dynamic; run scripts/sync-env.sh local after raw icp deploy.
         frontend_origins: 'http://localhost:4200'

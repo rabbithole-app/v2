@@ -141,15 +141,12 @@ module {
     frontendUpdateAvailable : Bool;
   };
 
-  public type ChangelogItem = GitHubReleasesTypes.ChangelogItem;
-  public type ChangelogSection = GitHubReleasesTypes.ChangelogSection;
   public type ReleaseNoteSection = GitHubReleasesTypes.ReleaseNoteSection;
 
   public type StorageReleaseOption = {
     tagName : Text;
+    releaseUrl : Text;
     version : Text;
-    changelogSummary : ?Text;
-    changelogSections : [ChangelogSection];
     releaseNotesSummary : ?Text;
     releaseNotesSections : [ReleaseNoteSection];
     compatibleFrom : [Text];

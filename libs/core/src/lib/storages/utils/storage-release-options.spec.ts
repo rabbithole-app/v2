@@ -39,19 +39,6 @@ describe('buildStorageReleaseOptions', () => {
       disabledReason: 'Compatible from storage-v0.2.0-dev',
     });
     expect(options[1]).toMatchObject({
-      changelogSections: [
-        {
-          items: [
-            {
-              commit: 'abc1234',
-              commitUrl: 'https://github.com/rabbithole-app/v2/commit/abc1234',
-              text: `${options[1]?.tagName} change`,
-            },
-          ],
-          kind: 'fixes',
-          title: 'Fixes',
-        },
-      ],
       disabled: false,
       releaseNotesSections: [
         {
@@ -60,6 +47,7 @@ describe('buildStorageReleaseOptions', () => {
         },
       ],
       releaseNotesSummary: `${options[1]?.tagName} release notes`,
+      releaseUrl: `https://github.com/rabbithole-app/v2/releases/tag/${options[1]?.tagName}`,
       tagName: 'storage-v0.2.0-dev',
     });
     expect(storageActor.getStorageReleaseState).toHaveBeenCalledTimes(1);
@@ -174,8 +162,6 @@ function createStorageActor(
 function releaseOption(
   tagName: string,
   overrides: Partial<{
-    changelogSections: unknown[];
-    changelogSummary: [] | [string];
     compatibleFrom: string[];
     disabled: boolean;
     disabledReason: [] | [string];
@@ -188,20 +174,6 @@ function releaseOption(
   }> = {},
 ): unknown {
   return {
-    changelogSections: [
-      {
-        items: [
-          {
-            commit: ['abc1234'],
-            commitUrl: ['https://github.com/rabbithole-app/v2/commit/abc1234'],
-            text: `${tagName} change`,
-          },
-        ],
-        kind: 'fixes',
-        title: 'Fixes',
-      },
-    ],
-    changelogSummary: [`${tagName} summary`],
     compatibleFrom: [],
     disabled: false,
     disabledReason: [],
@@ -213,6 +185,7 @@ function releaseOption(
       },
     ],
     releaseNotesSummary: [`${tagName} release notes`],
+    releaseUrl: `https://github.com/rabbithole-app/v2/releases/tag/${tagName}`,
     tagName,
     updateInfo: [
       {

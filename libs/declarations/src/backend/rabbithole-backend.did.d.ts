@@ -109,22 +109,6 @@ export interface CallbackStreamingStrategy {
 }
 export type ChainConfig = { 'Evm' : EvmChainConfig } |
   { 'Solana' : SolanaChainConfig };
-export interface ChangelogItem {
-  'text' : string,
-  'commitUrl' : [] | [string],
-  'commit' : [] | [string],
-}
-export interface ChangelogRange {
-  'to' : string,
-  'compareUrl' : [] | [string],
-  'from' : [] | [string],
-  'maxCommits' : [] | [bigint],
-}
-export interface ChangelogSection {
-  'title' : string,
-  'kind' : string,
-  'items' : Array<ChangelogItem>,
-}
 export type CmcOpKind = { 'CreateCanister' : null } |
   { 'TopUp' : null };
 export type CmcOpRetryResult = { 'scheduled' : { 'canisterId' : Principal } } |
@@ -936,18 +920,13 @@ export interface ReleaseArtifactManifest {
   'name' : string,
   'size' : [] | [bigint],
 }
-export interface ReleaseChangelog {
-  'bump' : string,
-  'summary' : string,
-  'sections' : Array<ChangelogSection>,
-  'range' : ChangelogRange,
-}
 export interface ReleaseFullStatus {
   'tagName' : string,
   'isDownloaded' : boolean,
   'name' : string,
   'createdAt' : Time,
   'assets' : Array<AssetFullStatus>,
+  'htmlUrl' : string,
   'publishedAt' : [] | [Time],
   'manifestError' : [] | [string],
   'isDeploymentReady' : boolean,
@@ -1182,7 +1161,6 @@ export interface StorageLicenseEntitlement {
 export interface StorageReleaseManifest {
   'did' : [] | [ReleaseArtifactManifest],
   'frontendAssetTreeHash' : [] | [Uint8Array],
-  'changelog' : ReleaseChangelog,
   'tagName' : string,
   'wasm' : [] | [ReleaseArtifactManifest],
   'frontend' : [] | [ReleaseArtifactManifest],
@@ -1200,11 +1178,10 @@ export interface StorageReleaseOption {
   'compatibleFrom' : Array<string>,
   'disabled' : boolean,
   'version' : string,
-  'changelogSummary' : [] | [string],
   'releaseNotesSections' : Array<ReleaseNoteSection>,
   'disabledReason' : [] | [string],
+  'releaseUrl' : string,
   'frontendUpdateAvailable' : boolean,
-  'changelogSections' : Array<ChangelogSection>,
   'updateInfo' : [] | [UpdateInfo],
 }
 export interface StorageReleaseOptionsResult {

@@ -17,8 +17,8 @@
     },
     "did": {
       "name": "encrypted-storage.did",
-      "size": 31603,
-      "sha256": "993edb0d2d3e12388c913b65282e9f4fcb2838428d48fbd7889c373078c02ab8"
+      "size": 31467,
+      "sha256": "5bb17d2412add03e9417d25abf27e88def9e68d2fc999a6f091964ef588ebcd1"
     },
     "stableSignature": {
       "name": "encrypted-storage.most",
@@ -29,17 +29,6 @@
   "upgrade": {
     "argStrategy": "reuseInstallArgV1",
     "compatibleFrom": []
-  },
-  "changelog": {
-    "range": {
-      "from": null,
-      "to": "storage-v0.1.0",
-      "compareUrl": null,
-      "maxCommits": 1
-    },
-    "bump": "none",
-    "summary": "Storage maintenance release.",
-    "sections": []
   },
   "releaseNotes": {
     "source": "generated",

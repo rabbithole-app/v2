@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { STORAGE_FRONTEND_ARCHIVE_PATH, STORAGE_FRONTEND_V2_ARCHIVE_PATH, STORAGE_WASM_PATH } from "./constants";
 
 // GitHub API mock data
-const MOCK_RELEASE_TAG = "storage-v0.1.0-test";
+const MOCK_RELEASE_TAG = "storage-v0.1.0";
 const MOCK_WASM_ASSET_NAME = "encrypted-storage.wasm.gz";
 const MOCK_FRONTEND_ASSET_NAME = "storage-frontend.tar";
 const MOCK_MANIFEST_ASSET_NAME = "storage-release.json";
@@ -156,12 +156,6 @@ function buildManifestContent(wasm: AssetMeta, frontend: AssetMeta, stableSignat
       argStrategy: "reuseInstallArgV1",
       compatibleFrom: version === baselineVersion ? [] : [baselineVersion],
     },
-    changelog: {
-      range: { from: null, to: tag, compareUrl: null, maxCommits: null },
-      bump: "none",
-      summary: "Storage test release.",
-      sections: [],
-    },
     releaseNotes: {
       source: "generated",
       summary: "Storage test release.",
@@ -196,8 +190,8 @@ function createMockReleasesResponse(
       body: `Test release body for ${tag}`,
       url: `https://api.github.com/repos/rabbithole-app/v2/releases/${releaseIndex + 1}`,
       html_url: `https://github.com/rabbithole-app/v2/releases/tag/${tag}`,
-      draft: true,
-      prerelease: false,
+      draft: false,
+      prerelease: versionFromReleaseTag(tag).includes("-"),
       immutable: false,
       created_at: releaseDate,
       published_at: releaseDate,

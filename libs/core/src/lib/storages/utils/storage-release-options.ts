@@ -7,23 +7,11 @@ import type { EncryptedStorageActorService } from '@rabbithole/declarations/encr
 import type { UpdateInfo } from '../types/storage.types';
 import { convertUpdateInfo } from './storage-converters';
 
-export type StorageReleaseChangelogItem = {
-  commit?: string;
-  commitUrl?: string;
-  text: string;
-};
-export type StorageReleaseChangelogSection = {
-  items: StorageReleaseChangelogItem[];
-  kind: string;
-  title: string;
-};
 export type StorageReleaseNoteSection = {
   items: string[];
   title: string;
 };
 export type StorageReleaseOption = {
-  changelogSections: StorageReleaseChangelogSection[];
-  changelogSummary?: string;
   compatibleFrom: string[];
   disabled: boolean;
   disabledReason?: string;
@@ -31,6 +19,7 @@ export type StorageReleaseOption = {
   releaseNotesSections: StorageReleaseNoteSection[];
   releaseNotesSummary?: string;
   tagName: string;
+  releaseUrl: string;
   updateInfo?: UpdateInfo;
   version: string;
   wasmUpdateAvailable: boolean;
@@ -105,16 +94,6 @@ function convertStorageReleaseOption(
   const updateInfo = fromNullable(option.updateInfo);
 
   return {
-    changelogSections: option.changelogSections.map((section) => ({
-      items: section.items.map((item) => ({
-        commit: fromNullable(item.commit),
-        commitUrl: fromNullable(item.commitUrl),
-        text: item.text,
-      })),
-      kind: section.kind,
-      title: section.title,
-    })),
-    changelogSummary: fromNullable(option.changelogSummary),
     compatibleFrom: option.compatibleFrom,
     disabled: option.disabled,
     disabledReason: fromNullable(option.disabledReason),
@@ -125,6 +104,7 @@ function convertStorageReleaseOption(
     })),
     releaseNotesSummary: fromNullable(option.releaseNotesSummary),
     tagName: option.tagName,
+    releaseUrl: option.releaseUrl,
     updateInfo: updateInfo ? convertUpdateInfo(updateInfo) : undefined,
     version: option.version,
     wasmUpdateAvailable: option.wasmUpdateAvailable,

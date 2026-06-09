@@ -429,28 +429,6 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'size' : IDL.Opt(IDL.Nat),
   });
-  const ChangelogItem = IDL.Record({
-    'text' : IDL.Text,
-    'commitUrl' : IDL.Opt(IDL.Text),
-    'commit' : IDL.Opt(IDL.Text),
-  });
-  const ChangelogSection = IDL.Record({
-    'title' : IDL.Text,
-    'kind' : IDL.Text,
-    'items' : IDL.Vec(ChangelogItem),
-  });
-  const ChangelogRange = IDL.Record({
-    'to' : IDL.Text,
-    'compareUrl' : IDL.Opt(IDL.Text),
-    'from' : IDL.Opt(IDL.Text),
-    'maxCommits' : IDL.Opt(IDL.Nat),
-  });
-  const ReleaseChangelog = IDL.Record({
-    'bump' : IDL.Text,
-    'summary' : IDL.Text,
-    'sections' : IDL.Vec(ChangelogSection),
-    'range' : ChangelogRange,
-  });
   const ReleaseUpgradeManifest = IDL.Record({
     'compatibleFrom' : IDL.Vec(IDL.Text),
     'argStrategy' : IDL.Text,
@@ -467,7 +445,6 @@ export const idlFactory = ({ IDL }) => {
   const StorageReleaseManifest = IDL.Record({
     'did' : IDL.Opt(ReleaseArtifactManifest),
     'frontendAssetTreeHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'changelog' : ReleaseChangelog,
     'tagName' : IDL.Text,
     'wasm' : IDL.Opt(ReleaseArtifactManifest),
     'frontend' : IDL.Opt(ReleaseArtifactManifest),
@@ -484,6 +461,7 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'createdAt' : Time,
     'assets' : IDL.Vec(AssetFullStatus),
+    'htmlUrl' : IDL.Text,
     'publishedAt' : IDL.Opt(Time),
     'manifestError' : IDL.Opt(IDL.Text),
     'isDeploymentReady' : IDL.Bool,
@@ -522,11 +500,10 @@ export const idlFactory = ({ IDL }) => {
     'compatibleFrom' : IDL.Vec(IDL.Text),
     'disabled' : IDL.Bool,
     'version' : IDL.Text,
-    'changelogSummary' : IDL.Opt(IDL.Text),
     'releaseNotesSections' : IDL.Vec(ReleaseNoteSection),
     'disabledReason' : IDL.Opt(IDL.Text),
+    'releaseUrl' : IDL.Text,
     'frontendUpdateAvailable' : IDL.Bool,
-    'changelogSections' : IDL.Vec(ChangelogSection),
     'updateInfo' : IDL.Opt(UpdateInfo),
   });
   const StorageReleaseOptionsResult = IDL.Record({

@@ -12,6 +12,7 @@ import Types "GitHubReleasesTypes";
 
 module {
   let ISO_8601_FORMAT = "YYYY-MM-DDTHH:mm:ssZ";
+  let ISO_8601_MILLIS_FORMAT = "YYYY-MM-DDTHH:mm:ss.SSSZ";
 
   public func parseReleasesBody(body : Blob) : Result.Result<[Types.Release], Text> {
     let ?jsonText = Text.decodeUtf8(body) else return #err("Failed to decode body as UTF-8");
@@ -42,10 +43,17 @@ module {
   func parseTimeField(json : Json.Json, field : Text) : Result.Result<Time.Time, Text> {
     switch (Json.getAsText(json, field)) {
       case (#ok(str)) {
-        let ?dateTime = DateTime.fromText(str, ISO_8601_FORMAT) else return #err("Failed to parse date: " # str);
+        let ?dateTime = parseDateTime(str) else return #err("Failed to parse date: " # str);
         #ok(dateTime.toTime());
       };
       case (#err(_)) #err("Missing field: " # field);
+    };
+  };
+
+  func parseDateTime(str : Text) : ?DateTime.DateTime {
+    switch (DateTime.fromText(str, ISO_8601_FORMAT)) {
+      case (?dateTime) ?dateTime;
+      case null DateTime.fromText(str, ISO_8601_MILLIS_FORMAT);
     };
   };
 
@@ -295,92 +303,6 @@ module {
     #ok({ argStrategy; compatibleFrom });
   };
 
-  func parseChangelogRange(json : Json.Json) : Result.Result<Types.ChangelogRange, Text> {
-    let from = switch (parseOptionalTextField(json, "changelog.range.from")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let to = switch (parseTextField(json, "changelog.range.to")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let compareUrl = switch (parseOptionalTextField(json, "changelog.range.compareUrl")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let maxCommits = switch (parseOptionalNatField(json, "changelog.range.maxCommits")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    #ok({ from; to; compareUrl; maxCommits });
-  };
-
-  func parseChangelogItem(json : Json.Json) : Result.Result<Types.ChangelogItem, Text> {
-    let text = switch (parseTextField(json, "text")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let commit = switch (parseOptionalTextField(json, "commit")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let commitUrl = switch (parseOptionalTextField(json, "commitUrl")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    #ok({ text; commit; commitUrl });
-  };
-
-  func parseChangelogSection(json : Json.Json) : Result.Result<Types.ChangelogSection, Text> {
-    let kind = switch (parseTextField(json, "kind")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let title = switch (parseTextField(json, "title")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let itemsJson = switch (Json.getAsArray(json, "items")) {
-      case (#ok(value)) value;
-      case (#err(_)) return #err("Expected changelog section items");
-    };
-    let items = Vector.new<Types.ChangelogItem>();
-    for (itemJson in itemsJson.vals()) {
-      switch (parseChangelogItem(itemJson)) {
-        case (#ok(item)) Vector.add(items, item);
-        case (#err(message)) return #err(message);
-      };
-    };
-    #ok({ kind; title; items = Vector.toArray(items) });
-  };
-
-  func parseReleaseChangelog(json : Json.Json) : Result.Result<Types.ReleaseChangelog, Text> {
-    let range = switch (parseChangelogRange(json)) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let bump = switch (parseTextField(json, "changelog.bump")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let summary = switch (parseTextField(json, "changelog.summary")) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
-    let sectionsJson = switch (Json.getAsArray(json, "changelog.sections")) {
-      case (#ok(value)) value;
-      case (#err(_)) return #err("Expected changelog.sections array");
-    };
-    let sections = Vector.new<Types.ChangelogSection>();
-    for (sectionJson in sectionsJson.vals()) {
-      switch (parseChangelogSection(sectionJson)) {
-        case (#ok(section)) Vector.add(sections, section);
-        case (#err(message)) return #err(message);
-      };
-    };
-    #ok({ range; bump; summary; sections = Vector.toArray(sections) });
-  };
-
   func parseReleaseNoteSection(json : Json.Json) : Result.Result<Types.ReleaseNoteSection, Text> {
     let title = switch (parseTextField(json, "title")) {
       case (#ok(value)) value;
@@ -463,10 +385,6 @@ module {
       case (#ok(value)) value;
       case (#err(message)) return #err(message);
     };
-    let changelog = switch (parseReleaseChangelog(json)) {
-      case (#ok(value)) value;
-      case (#err(message)) return #err(message);
-    };
     let releaseNotes = switch (parseReleaseNotes(json)) {
       case (#ok(value)) value;
       case (#err(message)) return #err(message);
@@ -483,7 +401,6 @@ module {
       did;
       stableSignature;
       upgrade;
-      changelog;
       releaseNotes;
     });
   };

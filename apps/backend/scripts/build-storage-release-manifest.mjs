@@ -922,6 +922,12 @@ function buildManifest(args) {
   validateVersion(version);
 
   const tagName = `${STORAGE_TAG_PREFIX}${version}`;
+  const changelogRange = {
+    from: previousTag || null,
+    to: tagName,
+    compareUrl: buildCompareUrl(repoUrl, previousTag, tagName),
+    maxCommits: maxCommits || null,
+  };
   const releaseNotes = collectReleaseNotes(args, changelog, tagName);
   const argStrategy = args['arg-strategy'] ?? process.env.STORAGE_RELEASE_ARG_STRATEGY ?? 'reuseInstallArgV1';
   const artifacts = collectArtifacts(artifactsDir);
@@ -948,22 +954,11 @@ function buildManifest(args) {
       argStrategy,
       compatibleFrom,
     },
-    changelog: {
-      range: {
-        from: previousTag || null,
-        to: tagName,
-        compareUrl: buildCompareUrl(repoUrl, previousTag, tagName),
-        maxCommits: maxCommits || null,
-      },
-      bump: changelog.bump,
-      summary: changelog.summary,
-      sections: changelog.sections,
-    },
     releaseNotes: releaseNotes.releaseNotes,
   };
 
   validateReleaseContract(manifest);
-  return { manifest, releaseBodyMarkdown: releaseNotes.markdown, repoUrl };
+  return { changelog, changelogRange, manifest, releaseBodyMarkdown: releaseNotes.markdown, repoUrl };
 }
 
 function validateReleaseContract(manifest) {
@@ -980,7 +975,7 @@ function validateReleaseContract(manifest) {
   }
 }
 
-function renderReleaseBody(manifest, releaseBodyMarkdown, repoUrl) {
+function renderReleaseBody(manifest, releaseBodyMarkdown, repoUrl, changelogRange) {
   const lines = [
     `This is storage release [${manifest.tagName}](${releaseDownloadBaseUrl(manifest, repoUrl)}) for commit [${manifest.commit}](${commitUrl(manifest, repoUrl) ?? manifest.commit}).`,
     '',
@@ -988,8 +983,8 @@ function renderReleaseBody(manifest, releaseBodyMarkdown, repoUrl) {
     '',
   ];
 
-  if (manifest.changelog.range.compareUrl) {
-    lines.push(`**Full Changelog**: ${manifest.changelog.range.compareUrl}`, '');
+  if (changelogRange.compareUrl) {
+    lines.push(`**Full Changelog**: ${changelogRange.compareUrl}`, '');
   }
 
   lines.push('## Upgrade Compatibility', '');
@@ -1044,19 +1039,19 @@ function writeJson(path, data) {
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
-function writeGitHubOutputs(manifest) {
+function writeGitHubOutputs(manifest, changelog, changelogRange) {
   if (!process.env.GITHUB_OUTPUT) return;
 
   const lines = [
     `version=${manifest.version}`,
     `tag_name=${manifest.tagName}`,
-    `changelog_bump=${manifest.changelog.bump}`,
+    `changelog_bump=${changelog.bump}`,
     `arg_strategy=${manifest.upgrade.argStrategy}`,
     `frontend_asset_tree_hash=${manifest.frontendAssetTreeHash}`,
   ];
 
-  if (manifest.changelog.range.from) {
-    lines.push(`previous_tag=${manifest.changelog.range.from}`);
+  if (changelogRange.from) {
+    lines.push(`previous_tag=${changelogRange.from}`);
   }
 
   writeFileSync(process.env.GITHUB_OUTPUT, lines.join('\n'), { flag: 'a' });
@@ -1064,7 +1059,7 @@ function writeGitHubOutputs(manifest) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const { manifest, releaseBodyMarkdown, repoUrl } = buildManifest(args);
+  const { changelog, changelogRange, manifest, releaseBodyMarkdown, repoUrl } = buildManifest(args);
   const artifactsDir = resolve(args['artifacts-dir'] ?? 'release-artifacts');
   const output = resolve(args.output ?? join(artifactsDir, 'storage-release.json'));
 
@@ -1074,10 +1069,10 @@ function main() {
   if (bodyPath) {
     const resolvedBodyPath = resolve(bodyPath);
     mkdirSync(dirname(resolvedBodyPath), { recursive: true });
-    writeFileSync(resolvedBodyPath, renderReleaseBody(manifest, releaseBodyMarkdown, repoUrl));
+    writeFileSync(resolvedBodyPath, renderReleaseBody(manifest, releaseBodyMarkdown, repoUrl, changelogRange));
   }
 
-  writeGitHubOutputs(manifest);
+  writeGitHubOutputs(manifest, changelog, changelogRange);
 
   console.log(`Wrote ${basename(output)} for ${manifest.tagName}`);
 }

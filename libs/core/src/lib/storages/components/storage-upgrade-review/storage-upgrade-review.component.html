@@ -76,50 +76,54 @@
       </div>
     }
 
-    @if (selectedChangelogSummary() || selectedChangelogSections().length > 0) {
+    @if (
+      selectedReleaseNotesSummary() ||
+      selectedReleaseNotesSections().length > 0 ||
+      selectedReleaseOption()?.releaseUrl
+    ) {
       <div hlmAlert>
         <ng-icon hlmAlertIcon name="lucideListChecks" />
-        <h4 hlmAlertTitle>Changelog</h4>
+        <h4 hlmAlertTitle>Release notes</h4>
         <div class="col-start-2 space-y-3 text-sm">
-          @if (selectedChangelogSummary(); as summary) {
+          @if (selectedReleaseNotesSummary(); as summary) {
             <p class="text-muted-foreground text-pretty">{{ summary }}</p>
           }
 
-          @if (selectedChangelogSections().length > 0) {
-            <ng-scrollbar hlm class="h-56 pr-3" appearance="compact">
+          @if (selectedReleaseNotesSections().length > 0) {
+            <ng-scrollbar hlm class="h-48 pr-3" appearance="compact">
               <div scrollViewport class="space-y-3 pr-3">
                 @for (
-                  section of selectedChangelogSections();
-                  track section.kind
+                  section of selectedReleaseNotesSections();
+                  track section.title
                 ) {
                   <section class="space-y-1">
                     <h5 class="font-medium text-foreground">
                       {{ section.title }}
                     </h5>
                     <ul class="list-disc space-y-1 pl-4 text-muted-foreground">
-                      @for (item of section.items; track item.text) {
-                        <li>
-                          <span>{{ item.text }}</span>
-                          @if (item.commit; as commit) {
-                            <a
-                              hlmBtn
-                              variant="link"
-                              size="xs"
-                              class="font-mono"
-                              [href]="commitHref(commit, item.commitUrl)"
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              {{ commit }}
-                            </a>
-                          }
-                        </li>
+                      @for (item of section.items; track item) {
+                        <li>{{ item }}</li>
                       }
                     </ul>
                   </section>
                 }
               </div>
             </ng-scrollbar>
+          }
+
+          @if (selectedReleaseOption()?.releaseUrl; as releaseUrl) {
+            <a
+              hlmBtn
+              variant="link"
+              size="sm"
+              class="px-0"
+              [href]="releaseUrl"
+              target="_blank"
+              rel="noreferrer"
+            >
+              View GitHub release
+              <ng-icon hlmIcon name="lucideExternalLink" size="sm" />
+            </a>
           }
         </div>
       </div>

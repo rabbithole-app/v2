@@ -434,6 +434,7 @@ module {
         releaseInfos,
         {
           tagName = release.tagName;
+          htmlUrl = release.htmlUrl;
           name = release.name;
           draft = release.draft;
           prerelease = release.prerelease;
@@ -644,6 +645,7 @@ module {
         releaseInfos,
         {
           tagName = release.tagName;
+          htmlUrl = release.htmlUrl;
           name = release.name;
           draft = release.draft;
           prerelease = release.prerelease;
