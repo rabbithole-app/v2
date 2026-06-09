@@ -618,6 +618,14 @@ export const idlFactory = ({ IDL }) => {
     'version' : IDL.Opt(IDL.Nat),
   });
   const ChunkContent = IDL.Record({ 'content' : IDL.Vec(IDL.Nat8) });
+  const StorageReleaseState = IDL.Record({
+    'frontendAssetTreeHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'manifestHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'installedAt' : IDL.Opt(Time),
+    'releaseTag' : IDL.Opt(IDL.Text),
+    'schemaVersion' : IDL.Nat,
+  });
   const UploadSessionStatus = IDL.Record({
     'declaredUploadBytes' : IDL.Nat,
     'expiresAt' : Time,
@@ -887,6 +895,12 @@ export const idlFactory = ({ IDL }) => {
     'permission' : Permission,
     'of_principal' : IDL.Principal,
   });
+  const StorageReleaseStateInput = IDL.Record({
+    'frontendAssetTreeHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'manifestHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'releaseTag' : IDL.Text,
+  });
   const StoreArgs = IDL.Record({
     'key' : Key,
     'content' : IDL.Vec(IDL.Nat8),
@@ -1079,6 +1093,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getStorageEventsUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getStorageReleaseState' : IDL.Func([], [StorageReleaseState], ['query']),
     'getUploadSession' : IDL.Func(
         [IDL.Record({ 'batchId' : BatchId })],
         [StorageResult_4],
@@ -1223,6 +1238,7 @@ export const idlFactory = ({ IDL }) => {
         [NodeDetails],
         [],
       ),
+    'setStorageReleaseState' : IDL.Func([StorageReleaseStateInput], [], []),
     'set_asset_content' : IDL.Func([SetAssetContentArguments], [], []),
     'set_asset_properties' : IDL.Func([SetAssetPropertiesArguments], [], []),
     'showTree' : IDL.Func([IDL.Opt(Entry)], [IDL.Text], ['query']),

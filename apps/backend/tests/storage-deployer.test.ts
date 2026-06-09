@@ -1,6 +1,10 @@
 import type { CanisterFixture } from "@dfinity/pic";
 import { createIdentity } from "@dfinity/pic";
-import { fromNullable, principalToSubAccount, uint8ArrayToHexString } from "@dfinity/utils";
+import {
+  fromNullable,
+  principalToSubAccount,
+  uint8ArrayToHexString,
+} from "@dfinity/utils";
 import { IDL } from "@icp-sdk/core/candid";
 import { Buffer } from "node:buffer";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -12,8 +16,13 @@ import {
   type ListCreationsOptions,
   type RabbitholeActorService,
   type StorageInfo,
+  type StorageReleaseState,
   UpdateInfo,
 } from "@rabbithole/declarations";
+
+type BackendPrincipal = Parameters<
+  RabbitholeActorService["getStorageUpgradePlan"]
+>[0];
 
 /**
  * Drive a user to a `#Failed` creation record that holds a `licensePaymentId`:
@@ -29,7 +38,10 @@ async function createFailedStorageWithLicense(
   await fundUserForLicenseOnly(manager, backendFixture, identity);
   backendFixture.actor.setIdentity(identity);
 
-  const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
+  const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+    { OnChain: null },
+    { standard: null },
+  );
   // Charge succeeds → startStorageCreation schedules deploy → deploy hits
   // insufficient ICP → record is marked #Failed. Outer `purchaseLicense...`
   // returns #ok because charge did succeed; failure is async on the queue.
@@ -39,14 +51,22 @@ async function createFailedStorageWithLicense(
   expect(finalStatus).toHaveProperty("Failed");
 
   const storages = await backendFixture.actor.listStorages();
-  const failed = storages.find(s => "Failed" in s.status);
+  const failed = storages.find((s) => "Failed" in s.status);
   if (!failed) throw new Error("failed record not found");
   return failed.id;
 }
 
 import { BackendManager } from "./setup/backend-manager";
-import { E8S_PER_ICP, ICP_LEDGER_CANISTER_ID, ICP_TRANSACTION_FEE, ONE_TRILLION_CYCLES } from "./setup/constants";
-import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
+import {
+  E8S_PER_ICP,
+  ICP_LEDGER_CANISTER_ID,
+  ICP_TRANSACTION_FEE,
+  ONE_TRILLION_CYCLES,
+} from "./setup/constants";
+import {
+  frontendV2Content,
+  runHttpDownloaderQueueProcessor,
+} from "./setup/github-outcalls";
 
 const CheckSubscriptionResultIDL = IDL.Variant({
   active: IDL.Record({ plan: IDL.Variant({ Free: IDL.Null, Pro: IDL.Null }) }),
@@ -67,6 +87,9 @@ type CheckSubscriptionResult =
   | { invalidWasm: null }
   | { licensed: { includedBytes: bigint; maxFileBytes: bigint } }
   | { unknownCanister: null };
+
+const TEST_SHA256_HEX =
+  "0000000000000000000000000000000000000000000000000000000000000000";
 
 async function drainTreasuryIcpBelowCmcFunding(
   manager: BackendManager,
@@ -91,7 +114,8 @@ async function drainTreasuryIcpBelowCmcFunding(
       },
     },
   });
-  if ("err" in result) throw new Error(`Drain treasury ICP failed: ${JSON.stringify(result.err)}`);
+  if ("err" in result)
+    throw new Error(`Drain treasury ICP failed: ${JSON.stringify(result.err)}`);
 }
 
 /**
@@ -114,9 +138,12 @@ function formatCreationStatus(status: CreationStatus): string {
   if ("ProcessingPayment" in status) return "ProcessingPayment";
   if ("Pending" in status) return "Pending";
   if ("CheckingBalance" in status) return "CheckingBalance";
-  if ("TransferringICP" in status) return `TransferringICP (${status.TransferringICP.amount} e8s)`;
-  if ("NotifyingCMC" in status) return `NotifyingCMC (block ${status.NotifyingCMC.blockIndex})`;
-  if ("CanisterCreated" in status) return `CanisterCreated (${status.CanisterCreated.canisterId.toText()})`;
+  if ("TransferringICP" in status)
+    return `TransferringICP (${status.TransferringICP.amount} e8s)`;
+  if ("NotifyingCMC" in status)
+    return `NotifyingCMC (block ${status.NotifyingCMC.blockIndex})`;
+  if ("CanisterCreated" in status)
+    return `CanisterCreated (${status.CanisterCreated.canisterId.toText()})`;
   if ("InstallingWasm" in status) {
     const { processed, total } = status.InstallingWasm.progress;
     return `InstallingWasm (${processed}/${total})`;
@@ -129,7 +156,8 @@ function formatCreationStatus(status: CreationStatus): string {
     const { processed, total } = status.UploadingFrontend.progress;
     return `UploadingFrontend (${processed}/${total})`;
   }
-  if ("UpdatingControllers" in status) return `UpdatingControllers (${status.UpdatingControllers.canisterId.toText()})`;
+  if ("UpdatingControllers" in status)
+    return `UpdatingControllers (${status.UpdatingControllers.canisterId.toText()})`;
   if ("UpgradingWasm" in status) {
     const { processed, total } = status.UpgradingWasm.progress;
     return `UpgradingWasm (${processed}/${total})`;
@@ -138,7 +166,8 @@ function formatCreationStatus(status: CreationStatus): string {
     const { processed, total } = status.UpgradingFrontend.progress;
     return `UpgradingFrontend (${processed}/${total})`;
   }
-  if ("Completed" in status) return `Completed (${status.Completed.canisterId.toText()})`;
+  if ("Completed" in status)
+    return `Completed (${status.Completed.canisterId.toText()})`;
   if ("Failed" in status) return `Failed: ${status.Failed}`;
   return "Unknown";
 }
@@ -191,11 +220,18 @@ async function fundUserForLicenseOnly(
 
   manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
   const result = await manager.icpLedgerActor.icrc1_transfer({
-    to: { owner: backendFixture.canisterId, subaccount: [principalToSubAccount(identity.getPrincipal())] },
+    to: {
+      owner: backendFixture.canisterId,
+      subaccount: [principalToSubAccount(identity.getPrincipal())],
+    },
     amount: depositAmount,
-    fee: [], memo: [], from_subaccount: [], created_at_time: [],
+    fee: [],
+    memo: [],
+    from_subaccount: [],
+    created_at_time: [],
   });
-  if ("Err" in result) throw new Error(`Fund failed: ${JSON.stringify(result)}`);
+  if ("Err" in result)
+    throw new Error(`Fund failed: ${JSON.stringify(result)}`);
 }
 
 /**
@@ -215,17 +251,59 @@ async function fundUserForStorage(
   // Compute cycles cost dynamically from CMC rate
   const totalCycles = 2_000_000_000_000n; // 1.5TC initial + 0.5TC creation cost
   const rate = await manager.cmcActor.get_icp_xdr_conversion_rate();
-  const cyclesE8s = (totalCycles * 10_000n * E8S_PER_ICP) / (ONE_TRILLION_CYCLES * rate.data.xdr_permyriad_per_icp);
+  const cyclesE8s =
+    (totalCycles * 10_000n * E8S_PER_ICP) /
+    (ONE_TRILLION_CYCLES * rate.data.xdr_permyriad_per_icp);
   // Add 100_000_000 e8s (1 ICP) buffer for license fee + fees
   const depositAmount = cyclesE8s + 100_000_000n;
 
   manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
   const result = await manager.icpLedgerActor.icrc1_transfer({
-    to: { owner: backendFixture.canisterId, subaccount: [principalToSubAccount(identity.getPrincipal())] },
+    to: {
+      owner: backendFixture.canisterId,
+      subaccount: [principalToSubAccount(identity.getPrincipal())],
+    },
     amount: depositAmount,
-    fee: [], memo: [], from_subaccount: [], created_at_time: [],
+    fee: [],
+    memo: [],
+    from_subaccount: [],
+    created_at_time: [],
   });
-  if ("Err" in result) throw new Error(`Fund failed: ${JSON.stringify(result)}`);
+  if ("Err" in result)
+    throw new Error(`Fund failed: ${JSON.stringify(result)}`);
+}
+
+async function getStorageReleaseState(
+  manager: BackendManager,
+  canisterId: BackendPrincipal,
+  identity?: ReturnType<typeof createIdentity>,
+): Promise<StorageReleaseState> {
+  const storageActor = manager.pic.createActor<EncryptedStorageActorService>(
+    encryptedStorageIdlFactory,
+    canisterId,
+  );
+  if (identity) {
+    storageActor.setIdentity(identity);
+  }
+  return storageActor.getStorageReleaseState();
+}
+
+async function getStorageUpgradePlan(
+  manager: BackendManager,
+  backendFixture: CanisterFixture<RabbitholeActorService>,
+  canisterId: BackendPrincipal,
+  identity?: ReturnType<typeof createIdentity>,
+) {
+  const observedState = await getStorageReleaseState(
+    manager,
+    canisterId,
+    identity,
+  );
+  const result = await backendFixture.actor.getStorageUpgradePlan(
+    canisterId,
+    observedState,
+  );
+  return { observedState, result };
 }
 
 /** Build a ListCreationsOptions with the given filter id and default pagination. */
@@ -261,11 +339,17 @@ async function pollCreationStatusById(
     await manager.pic.advanceTime(100);
     await manager.pic.tick(5);
 
-    const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    const { data } = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
     if (data.length === 0) continue;
 
     latestStatus = data[0]!.status;
-    if (attempts % 10 === 0 || "Completed" in latestStatus || "Failed" in latestStatus) {
+    if (
+      attempts % 10 === 0 ||
+      "Completed" in latestStatus ||
+      "Failed" in latestStatus
+    ) {
       console.log(`  Status: ${formatCreationStatus(latestStatus)}`);
     }
 
@@ -326,6 +410,56 @@ async function pollStorageStatus(
   return finalStatus;
 }
 
+function storageReleaseManifest(
+  tag: string,
+  compatibleFrom: string[],
+  wasmSha256 = TEST_SHA256_HEX,
+): Uint8Array {
+  const version = tag.replace(/^storage-v/, "").replace(/^v/, "");
+
+  return new TextEncoder().encode(
+    JSON.stringify({
+      schemaVersion: 1,
+      version,
+      tagName: tag,
+      commit: "0000000000000000000000000000000000000000",
+      frontendAssetTreeHash: TEST_SHA256_HEX,
+      artifacts: {
+        wasm: {
+          name: "encrypted-storage.wasm.gz",
+          size: 1,
+          sha256: wasmSha256,
+        },
+        frontend: {
+          name: "storage-frontend.tar",
+          size: 1,
+          sha256: TEST_SHA256_HEX,
+        },
+        stableSignature: {
+          name: "encrypted-storage.most",
+          size: 1,
+          sha256: TEST_SHA256_HEX,
+        },
+      },
+      upgrade: {
+        argStrategy: "reuseInstallArgV1",
+        compatibleFrom,
+      },
+      changelog: {
+        range: { from: null, to: tag, compareUrl: null, maxCommits: null },
+        bump: "none",
+        summary: "Storage test release.",
+        sections: [],
+      },
+      releaseNotes: {
+        source: "generated",
+        summary: "Storage test release.",
+        sections: [],
+      },
+    }),
+  );
+}
+
 /**
  * Helper to wait for releases to be downloaded and ready for deployment
  */
@@ -338,7 +472,9 @@ async function waitForReleasesReady(
   // Use unified HTTP mocking from github-outcalls.ts
   await runHttpDownloaderQueueProcessor(
     manager.pic,
-    async () => (await backendFixture.actor.getReleasesFullStatus()).hasDownloadedRelease,
+    async () =>
+      (await backendFixture.actor.getStorageReleaseAdminStatus())
+        .hasDownloadedRelease,
   );
   await manager.pic.tick();
 
@@ -351,7 +487,7 @@ async function waitForReleasesReady(
   while (extractionAttempts < maxExtractionAttempts) {
     await manager.pic.tick(ticksPerIteration);
 
-    const status = await backendFixture.actor.getReleasesFullStatus();
+    const status = await backendFixture.actor.getStorageReleaseAdminStatus();
     if (status.hasDeploymentReadyRelease) {
       console.log("✓ Release is deployment ready");
       break;
@@ -377,7 +513,7 @@ async function waitForReleasesReady(
   }
 
   // Verify deployment readiness
-  const finalStatus = await backendFixture.actor.getReleasesFullStatus();
+  const finalStatus = await backendFixture.actor.getStorageReleaseAdminStatus();
   expect(finalStatus.hasDeploymentReadyRelease).toBe(true);
   console.log("✓ Releases downloaded and extracted successfully");
 }
@@ -418,7 +554,9 @@ describe("StorageDeployer", () => {
   // ═══════════════════════════════════════════════════════════════
 
   test("should have ICP on user subaccount after deposit", async () => {
-    const userSubaccount = principalToSubAccount(manager.ownerIdentity.getPrincipal());
+    const userSubaccount = principalToSubAccount(
+      manager.ownerIdentity.getPrincipal(),
+    );
     const depositAmount = 100n * E8S_PER_ICP;
 
     // Deposit ICP to user's subaccount under backend canister
@@ -446,7 +584,9 @@ describe("StorageDeployer", () => {
 
   test("should reject transfer from subaccount with insufficient balance", async () => {
     const emptyUserIdentity = createIdentity("emptyUser");
-    const emptySubaccount = principalToSubAccount(emptyUserIdentity.getPrincipal());
+    const emptySubaccount = principalToSubAccount(
+      emptyUserIdentity.getPrincipal(),
+    );
 
     // Check balance is 0
     const balance = await manager.icpLedgerActor.icrc1_balance_of({
@@ -481,170 +621,229 @@ describe("StorageDeployer", () => {
   // E2E TESTS — FULL DEPLOYMENT FLOW
   // ═══════════════════════════════════════════════════════════════
 
-  test("should have releases downloaded and deployment ready", { timeout: 360000 }, async () => {
-    await waitForReleasesReady(manager, backendFixture);
+  test(
+    "should have releases downloaded and deployment ready",
+    { timeout: 360000 },
+    async () => {
+      await waitForReleasesReady(manager, backendFixture);
 
-    const status = await backendFixture.actor.getReleasesFullStatus();
-    console.log("\n=== Releases Status ===");
-    console.log("Releases count:", status.releasesCount);
-    console.log("Has downloaded release:", status.hasDownloadedRelease);
-    console.log("Has deployment ready release:", status.hasDeploymentReadyRelease);
+      const status = await backendFixture.actor.getStorageReleaseAdminStatus();
+      console.log("\n=== Releases Status ===");
+      console.log("Releases count:", status.releasesCount);
+      console.log("Has downloaded release:", status.hasDownloadedRelease);
+      console.log(
+        "Has deployment ready release:",
+        status.hasDeploymentReadyRelease,
+      );
 
-    expect(status.hasDownloadedRelease).toBe(true);
-    expect(status.hasDeploymentReadyRelease).toBe(true);
-  });
+      expect(status.hasDownloadedRelease).toBe(true);
+      expect(status.hasDeploymentReadyRelease).toBe(true);
+    },
+  );
 
-  test("should complete full storage creation E2E flow", { timeout: 360000 }, async () => {
-    console.log("\n=== E2E Storage Creation Test ===");
+  test(
+    "should complete full storage creation E2E flow",
+    { timeout: 360000 },
+    async () => {
+      console.log("\n=== E2E Storage Creation Test ===");
 
-    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
-    console.log("Test user:", e2eTestIdentity.getPrincipal().toText());
+      const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+      console.log("Test user:", e2eTestIdentity.getPrincipal().toText());
 
-    // Register user and fund subaccount (license fee + canister creation cycles)
-    await fundUserForStorage(manager, backendFixture, e2eTestIdentity);
-    backendFixture.actor.setIdentity(e2eTestIdentity);
+      // Register user and fund subaccount (license fee + canister creation cycles)
+      await fundUserForStorage(manager, backendFixture, e2eTestIdentity);
+      backendFixture.actor.setIdentity(e2eTestIdentity);
 
-    // Verify releases are ready
-    const releasesStatus = await backendFixture.actor.getReleasesFullStatus();
-    expect(releasesStatus.hasDeploymentReadyRelease).toBe(true);
+      // Verify releases are ready
+      const releasesStatus =
+        await backendFixture.actor.getStorageReleaseAdminStatus();
+      expect(releasesStatus.hasDeploymentReadyRelease).toBe(true);
 
-    // Purchase license and start creation
-    console.log("\n=== Starting Storage Creation ===");
-    const createResult = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
-    console.log("Create result:", createResult);
-    expect(createResult).toHaveProperty("ok");
+      // Purchase license and start creation
+      console.log("\n=== Starting Storage Creation ===");
+      const createResult =
+        await backendFixture.actor.purchaseLicenseAndCreateStorage(
+          { OnChain: null },
+          { standard: null },
+        );
+      console.log("Create result:", createResult);
+      expect(createResult).toHaveProperty("ok");
 
-    // Poll for completion using listStorages
-    console.log("\n=== Polling Creation Status ===");
-    const finalStatus = await pollStorageStatus(manager, backendFixture);
+      // Poll for completion using listStorages
+      console.log("\n=== Polling Creation Status ===");
+      const finalStatus = await pollStorageStatus(manager, backendFixture);
 
-    expect(finalStatus).not.toBeNull();
-    expect(finalStatus).toHaveProperty("Completed");
+      expect(finalStatus).not.toBeNull();
+      expect(finalStatus).toHaveProperty("Completed");
 
-    if (finalStatus && "Completed" in finalStatus) {
-      console.log("\n✓ E2E Storage Creation Completed!");
-      const canisterId = finalStatus.Completed.canisterId;
-      console.log("  Canister ID:", canisterId.toText());
-    }
+      if (finalStatus && "Completed" in finalStatus) {
+        console.log("\n✓ E2E Storage Creation Completed!");
+        const canisterId = finalStatus.Completed.canisterId;
+        console.log("  Canister ID:", canisterId.toText());
 
-    // Verify storage is listed
-    const storages = await backendFixture.actor.listStorages();
-    console.log("\n=== Storage List ===");
-    console.log("Number of storages:", storages.length);
-    expect(storages.length).toBeGreaterThan(0);
+        const storageActor =
+          manager.pic.createActor<EncryptedStorageActorService>(
+            encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+            canisterId,
+          );
+        const releaseState = await storageActor.getStorageReleaseState();
+        expect(fromNullable(releaseState.releaseTag)).toBe("v0.1.0-test");
+        expect(fromNullable(releaseState.wasmHash)).toBeDefined();
+        expect(fromNullable(releaseState.frontendAssetTreeHash)).toBeDefined();
+      }
 
-    const storage = storages[0] as StorageInfo;
-    console.log("Storage info:", {
-      id: storage.id,
-      canisterId: fromNullable(storage.canisterId)?.toText() ?? "none",
-      releaseTag: storage.releaseTag,
-      status: Object.keys(storage.status)[0],
-    });
+      // Verify storage is listed
+      const storages = await backendFixture.actor.listStorages();
+      console.log("\n=== Storage List ===");
+      console.log("Number of storages:", storages.length);
+      expect(storages.length).toBeGreaterThan(0);
 
-    expect(storage.status).toHaveProperty("Completed");
-    expect(storage.canisterId.length).toBe(1);
+      const storage = storages[0] as StorageInfo;
+      console.log("Storage info:", {
+        id: storage.id,
+        canisterId: fromNullable(storage.canisterId)?.toText() ?? "none",
+        releaseTag: storage.releaseTag,
+        status: Object.keys(storage.status)[0],
+      });
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
+      expect(storage.status).toHaveProperty("Completed");
+      expect(storage.canisterId.length).toBe(1);
 
-  test("purchaseLicenseAndCreateStorage preserves active Pro subscription", { timeout: 180000 }, async () => {
-    const identity = createIdentity("pro-license-no-downgrade");
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
 
-    await waitForReleasesReady(manager, backendFixture);
-    await fundUserForStorage(manager, backendFixture, identity);
+  test(
+    "purchaseLicenseAndCreateStorage preserves active Pro subscription",
+    { timeout: 180000 },
+    async () => {
+      const identity = createIdentity("pro-license-no-downgrade");
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-    await backendFixture.actor.activateSubscription(
-      identity.getPrincipal(),
-      { Pro: null },
-      [],
-    );
+      await waitForReleasesReady(manager, backendFixture);
+      await fundUserForStorage(manager, backendFixture, identity);
 
-    backendFixture.actor.setIdentity(identity);
-    const before = await backendFixture.actor.getSubscription();
-    expect(before[0]?.plan).toEqual({ Pro: null });
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+      await backendFixture.actor.activateSubscription(
+        identity.getPrincipal(),
+        { Pro: null },
+        [],
+      );
 
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
-    expect(result).toHaveProperty("ok");
-    if (!("ok" in result)) throw new Error("Expected storage purchase to start");
+      backendFixture.actor.setIdentity(identity);
+      const before = await backendFixture.actor.getSubscription();
+      expect(before[0]?.plan).toEqual({ Pro: null });
 
-    const finalStatus = await pollCreationStatusById(manager, backendFixture, result.ok, 60);
-    expect(finalStatus).toHaveProperty("Completed");
+      const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+        { OnChain: null },
+        { standard: null },
+      );
+      expect(result).toHaveProperty("ok");
+      if (!("ok" in result))
+        throw new Error("Expected storage purchase to start");
 
-    const after = await backendFixture.actor.getSubscription();
-    expect(after).toHaveLength(1);
-    expect(after[0]!.plan).toEqual({ Pro: null });
-    expect(after[0]!.status).toEqual({ Active: null });
+      const finalStatus = await pollCreationStatusById(
+        manager,
+        backendFixture,
+        result.ok,
+        60,
+      );
+      expect(finalStatus).toHaveProperty("Completed");
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
+      const after = await backendFixture.actor.getSubscription();
+      expect(after).toHaveLength(1);
+      expect(after[0]!.plan).toEqual({ Pro: null });
+      expect(after[0]!.status).toEqual({ Active: null });
 
-  test("expired Pro falls back to storage license entitlement", { timeout: 240000 }, async () => {
-    const identity = createIdentity("expired-pro-license-fallback");
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
 
-    await waitForReleasesReady(manager, backendFixture);
-    await fundUserForStorage(manager, backendFixture, identity);
+  test(
+    "expired Pro falls back to storage license entitlement",
+    { timeout: 240000 },
+    async () => {
+      const identity = createIdentity("expired-pro-license-fallback");
 
-    backendFixture.actor.setIdentity(identity);
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
-    expect(result).toHaveProperty("ok");
-    if (!("ok" in result)) throw new Error("Expected storage purchase to start");
+      await waitForReleasesReady(manager, backendFixture);
+      await fundUserForStorage(manager, backendFixture, identity);
 
-    const finalStatus = await pollCreationStatusById(manager, backendFixture, result.ok, 80);
-    expect(finalStatus).toHaveProperty("Completed");
-    if (!finalStatus || !("Completed" in finalStatus)) {
-      throw new Error("Expected completed storage creation");
-    }
+      backendFixture.actor.setIdentity(identity);
+      const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+        { OnChain: null },
+        { standard: null },
+      );
+      expect(result).toHaveProperty("ok");
+      if (!("ok" in result))
+        throw new Error("Expected storage purchase to start");
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const nowNs = BigInt(await manager.pic.getTime()) * 1_000_000n;
-    await backendFixture.actor.activateSubscription(
-      identity.getPrincipal(),
-      { Pro: null },
-      [nowNs - 1_000_000_000n],
-    );
+      const finalStatus = await pollCreationStatusById(
+        manager,
+        backendFixture,
+        result.ok,
+        80,
+      );
+      expect(finalStatus).toHaveProperty("Completed");
+      if (!finalStatus || !("Completed" in finalStatus)) {
+        throw new Error("Expected completed storage creation");
+      }
 
-    const [knownHash] = await backendFixture.actor.listKnownWasmHashes();
-    if (!knownHash) throw new Error("Expected at least one known storage WASM hash");
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+      const nowNs = BigInt(await manager.pic.getTime()) * 1_000_000n;
+      await backendFixture.actor.activateSubscription(
+        identity.getPrincipal(),
+        { Pro: null },
+        [nowNs - 1_000_000_000n],
+      );
 
-    const response = await manager.pic.updateCall({
-      canisterId: backendFixture.canisterId,
-      sender: finalStatus.Completed.canisterId,
-      method: "checkSubscription",
-      arg: IDL.encode([IDL.Vec(IDL.Nat8)], [knownHash.hash]),
-    });
-    const [decoded] = IDL.decode([CheckSubscriptionResultIDL], response) as [
-      CheckSubscriptionResult,
-    ];
+      const [knownHash] = await backendFixture.actor.listKnownWasmHashes();
+      if (!knownHash)
+        throw new Error("Expected at least one known storage WASM hash");
 
-    expect(decoded).toHaveProperty("licensed");
-    if (!("licensed" in decoded)) throw new Error("Expected licensed fallback");
-    expect(decoded.licensed.includedBytes).toBeGreaterThan(0n);
-    expect(decoded.licensed.maxFileBytes).toBeGreaterThan(0n);
+      const response = await manager.pic.updateCall({
+        canisterId: backendFixture.canisterId,
+        sender: finalStatus.Completed.canisterId,
+        method: "checkSubscription",
+        arg: IDL.encode([IDL.Vec(IDL.Nat8)], [knownHash.hash]),
+      });
+      const [decoded] = IDL.decode([CheckSubscriptionResultIDL], response) as [
+        CheckSubscriptionResult,
+      ];
 
-    const storageActor = manager.pic.createActor<EncryptedStorageActorService>(
-      encryptedStorageIdlFactory,
-      finalStatus.Completed.canisterId,
-    );
-    storageActor.setIdentity(identity);
-    await storageActor.refreshSubscription();
-    await expect(
-      storageActor.createAccessBatch({
-        items: [
-          {
-            ref: { principal: createIdentity("expired-pro-share-recipient").getPrincipal() },
-            accessClass: { ordinary: null },
-            scope: { root: null },
-            permission: { Read: null },
-            source: { directGrant: null },
-            expiresAt: [],
-          },
-        ],
-      }),
-    ).rejects.toThrow(/active pro/i);
+      expect(decoded).toHaveProperty("licensed");
+      if (!("licensed" in decoded))
+        throw new Error("Expected licensed fallback");
+      expect(decoded.licensed.includedBytes).toBeGreaterThan(0n);
+      expect(decoded.licensed.maxFileBytes).toBeGreaterThan(0n);
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
+      const storageActor =
+        manager.pic.createActor<EncryptedStorageActorService>(
+          encryptedStorageIdlFactory,
+          finalStatus.Completed.canisterId,
+        );
+      storageActor.setIdentity(identity);
+      await storageActor.refreshSubscription();
+      await expect(
+        storageActor.createAccessBatch({
+          items: [
+            {
+              ref: {
+                principal: createIdentity(
+                  "expired-pro-share-recipient",
+                ).getPrincipal(),
+              },
+              accessClass: { ordinary: null },
+              scope: { root: null },
+              permission: { Read: null },
+              source: { directGrant: null },
+              expiresAt: [],
+            },
+          ],
+        }),
+      ).rejects.toThrow(/active pro/i);
+
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
 
   test("should reject duplicate creation while in progress", async () => {
     const duplicateTestIdentity = createIdentity("duplicateTestUser");
@@ -653,7 +852,10 @@ describe("StorageDeployer", () => {
     await fundUserForStorage(manager, backendFixture, duplicateTestIdentity);
     backendFixture.actor.setIdentity(duplicateTestIdentity);
 
-    const result1 = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
+    const result1 = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      { standard: null },
+    );
 
     if ("ok" in result1) {
       // Check if there's an active creation using listStorages
@@ -661,7 +863,11 @@ describe("StorageDeployer", () => {
       const activeStorage = findActiveStorage(storages);
 
       if (activeStorage) {
-        const result2 = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
+        const result2 =
+          await backendFixture.actor.purchaseLicenseAndCreateStorage(
+            { OnChain: null },
+            { standard: null },
+          );
         console.log("Duplicate create result:", result2);
 
         expect(result2).toHaveProperty("err");
@@ -675,42 +881,59 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
 
-  test("should create storage for second user via purchaseLicenseAndCreateStorage", { timeout: 120000 }, async () => {
-    const secondUserIdentity = createIdentity("secondStorageTestUser");
+  test(
+    "should create storage for second user via purchaseLicenseAndCreateStorage",
+    { timeout: 120000 },
+    async () => {
+      const secondUserIdentity = createIdentity("secondStorageTestUser");
 
-    await fundUserForStorage(manager, backendFixture, secondUserIdentity);
-    backendFixture.actor.setIdentity(secondUserIdentity);
+      await fundUserForStorage(manager, backendFixture, secondUserIdentity);
+      backendFixture.actor.setIdentity(secondUserIdentity);
 
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
-    console.log("Second user create result:", result);
-    expect(result).toHaveProperty("ok");
+      const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+        { OnChain: null },
+        { standard: null },
+      );
+      console.log("Second user create result:", result);
+      expect(result).toHaveProperty("ok");
 
-    const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
-    expect(finalStatus).not.toBeNull();
-    expect(finalStatus).toHaveProperty("Completed");
+      const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
+      expect(finalStatus).not.toBeNull();
+      expect(finalStatus).toHaveProperty("Completed");
 
-    const storages = await backendFixture.actor.listStorages();
-    expect(storages.length).toBeGreaterThan(0);
+      const storages = await backendFixture.actor.listStorages();
+      expect(storages.length).toBeGreaterThan(0);
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
 
-  test("should create storage using treasury subaccount after license charge", { timeout: 120000 }, async () => {
-    const identity = createIdentity("treasury-funded-storage");
+  test(
+    "should create storage using treasury subaccount after license charge",
+    { timeout: 120000 },
+    async () => {
+      const identity = createIdentity("treasury-funded-storage");
 
-    await waitForReleasesReady(manager, backendFixture);
-    await fundUserForLicenseOnly(manager, backendFixture, identity);
-    await manager.mintToTreasurySubaccount(ICP_LEDGER_CANISTER_ID, 2n * E8S_PER_ICP);
+      await waitForReleasesReady(manager, backendFixture);
+      await fundUserForLicenseOnly(manager, backendFixture, identity);
+      await manager.mintToTreasurySubaccount(
+        ICP_LEDGER_CANISTER_ID,
+        2n * E8S_PER_ICP,
+      );
 
-    backendFixture.actor.setIdentity(identity);
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
-    expect(result).toHaveProperty("ok");
+      backendFixture.actor.setIdentity(identity);
+      const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+        { OnChain: null },
+        { standard: null },
+      );
+      expect(result).toHaveProperty("ok");
 
-    const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
-    expect(finalStatus).toHaveProperty("Completed");
+      const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
+      expect(finalStatus).toHaveProperty("Completed");
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
 
   // ═══════════════════════════════════════════════════════════════
   // STORAGE UPGRADE TESTS
@@ -724,30 +947,38 @@ describe("StorageDeployer", () => {
     const storages = await backendFixture.actor.listStorages();
     expect(storages.length).toBeGreaterThan(0);
 
-    const completedStorage = storages.find(s => "Completed" in s.status);
+    const completedStorage = storages.find((s) => "Completed" in s.status);
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
     // updateAvailable should be empty since assets haven't changed
     expect(completedStorage.updateAvailable).toEqual([]);
 
-    // checkStorageUpdate should also return empty
     const canisterId = fromNullable(completedStorage.canisterId);
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
-    const updateInfo = await backendFixture.actor.checkStorageUpdate(canisterId);
-    expect(updateInfo).toEqual([]);
+    const { result } = await getStorageUpgradePlan(
+      manager,
+      backendFixture,
+      canisterId,
+      e2eTestIdentity,
+    );
+    expect(result).toHaveProperty("ok");
+    if ("ok" in result) {
+      expect(result.ok.options).toEqual([]);
+      expect(result.ok.stateInSync).toBe(true);
+    }
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
 
-  test("should reject upgrade when no update available", async () => {
+  test("should reject upgrade when target release is not compatible", async () => {
     const e2eTestIdentity = createIdentity("e2eStorageTestUser");
     backendFixture.actor.setIdentity(e2eTestIdentity);
 
     const storages = await backendFixture.actor.listStorages();
-    const completedStorage = storages.find(s => "Completed" in s.status);
+    const completedStorage = storages.find((s) => "Completed" in s.status);
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
@@ -755,11 +986,24 @@ describe("StorageDeployer", () => {
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
-    const result = await backendFixture.actor.upgradeStorage(canisterId);
+    const observedState = await getStorageReleaseState(
+      manager,
+      canisterId,
+      e2eTestIdentity,
+    );
+    const currentReleaseTag = fromNullable(observedState.releaseTag);
+    expect(currentReleaseTag).toBeDefined();
+    if (!currentReleaseTag) return;
+
+    const result = await backendFixture.actor.startStorageUpgrade(
+      canisterId,
+      currentReleaseTag,
+      observedState,
+    );
 
     expect(result).toHaveProperty("err");
     if ("err" in result) {
-      expect(result.err).toHaveProperty("NoUpdateAvailable");
+      expect(result.err).toHaveProperty("ReleaseNotCompatible");
     }
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
@@ -770,7 +1014,7 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(e2eTestIdentity);
 
     const storages = await backendFixture.actor.listStorages();
-    const completedStorage = storages.find(s => "Completed" in s.status);
+    const completedStorage = storages.find((s) => "Completed" in s.status);
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
@@ -778,11 +1022,24 @@ describe("StorageDeployer", () => {
     expect(canisterId).toBeDefined();
     if (!canisterId) return;
 
+    const observedState = await getStorageReleaseState(
+      manager,
+      canisterId,
+      e2eTestIdentity,
+    );
+    const currentReleaseTag = fromNullable(observedState.releaseTag);
+    expect(currentReleaseTag).toBeDefined();
+    if (!currentReleaseTag) return;
+
     // Switch to different user
     const otherIdentity = createIdentity("otherUserForUpgrade");
     backendFixture.actor.setIdentity(otherIdentity);
 
-    const result = await backendFixture.actor.upgradeStorage(canisterId);
+    const result = await backendFixture.actor.startStorageUpgrade(
+      canisterId,
+      currentReleaseTag,
+      observedState,
+    );
     expect(result).toHaveProperty("err");
     if ("err" in result) {
       expect(result.err).toHaveProperty("NotFound");
@@ -791,88 +1048,351 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
 
-  test("should detect update available after assets change", { timeout: 360000 }, async () => {
-    console.log("\n=== Testing Update Detection ===");
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
+  test(
+    "should complete baseline install refresh and frontend upgrade flow",
+    { timeout: 360000 },
+    async () => {
+      console.log("\n=== Testing Storage Release Delivery Flow ===");
+      const compatibleReleaseTag = "v0.1.1-test";
+      const incompatibleReleaseTag = "v1.0.0-test";
+      const e2eTestIdentity = createIdentity("e2eStorageTestUser");
 
-    // Remember original frontend hash before refresh
-    const statusBefore = await backendFixture.actor.getReleasesFullStatus();
-    const frontendAssetBefore = statusBefore.releases[0]?.assets.find(a => a.name.includes("frontend"));
-    const originalHash = frontendAssetBefore?.sha256?.length === 1
-      ? Buffer.from(frontendAssetBefore.sha256[0]).toString("hex")
-      : "";
-    console.log("Original frontend hash:", originalHash.slice(0, 16) + "...");
+      backendFixture.actor.setIdentity(e2eTestIdentity);
+      const currentStorages = await backendFixture.actor.listStorages();
+      const currentCompletedStorage = currentStorages.find(
+        (s) => "Completed" in s.status,
+      );
+      expect(currentCompletedStorage).toBeDefined();
+      if (!currentCompletedStorage) return;
 
-    // Advance time by 1 day to trigger the daily recurring timer
-    // which calls checkAndDownloadReleases via timer (not blocking update call).
-    // Direct refreshReleases() uses `await` for HTTP outcalls which deadlocks with PocketIC polling.
-    await manager.pic.advanceTime(86_400_000);
+      const canisterId = fromNullable(currentCompletedStorage.canisterId);
+      expect(canisterId).toBeDefined();
+      if (!canisterId) return;
 
-    await runHttpDownloaderQueueProcessor(
-      manager.pic,
-      async () => {
-        const releasesStatus = await backendFixture.actor.getReleasesFullStatus();
-        const frontendAsset = releasesStatus.releases[0]?.assets.find(a => a.name.includes("frontend"));
-        if (frontendAsset?.sha256?.length !== 1) return false;
-        const currentHash = Buffer.from(frontendAsset.sha256[0]).toString("hex");
-        return currentHash !== originalHash;
-      },
-      { frontend: frontendV2Content },
-    );
+      const baselineState = await getStorageReleaseState(
+        manager,
+        canisterId,
+        e2eTestIdentity,
+      );
+      expect(fromNullable(baselineState.releaseTag)).toBe("v0.1.0-test");
+      const baselineWasmHash = fromNullable(baselineState.wasmHash);
+      expect(baselineWasmHash).toBeDefined();
+      if (!baselineWasmHash) return;
+      const baselineWasmHashHex = Buffer.from(baselineWasmHash).toString("hex");
 
-    await manager.pic.tick();
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
 
-    // Wait for frontend extraction
-    let extractionAttempts = 0;
-    while (extractionAttempts < 50) {
-      await manager.pic.tick(20);
-      const status = await backendFixture.actor.getReleasesFullStatus();
-      if (status.hasDeploymentReadyRelease) break;
-      extractionAttempts++;
-    }
+      // Remember original frontend hash before refresh
+      const statusBefore =
+        await backendFixture.actor.getStorageReleaseAdminStatus();
+      const frontendAssetBefore = statusBefore.releases[0]?.assets.find((a) =>
+        a.name.includes("frontend"),
+      );
+      const originalHash =
+        frontendAssetBefore?.sha256?.length === 1
+          ? Buffer.from(frontendAssetBefore.sha256[0]).toString("hex")
+          : "";
+      console.log("Original frontend hash:", originalHash.slice(0, 16) + "...");
 
-    const statusAfter = await backendFixture.actor.getReleasesFullStatus();
-    console.log("Deployment ready:", statusAfter.hasDeploymentReadyRelease);
+      // Advance time by 1 day to trigger the daily recurring timer
+      // which calls checkAndDownloadReleases via timer (not blocking update call).
+      // Direct refreshStorageReleaseIndex() uses `await` for HTTP outcalls which deadlocks with PocketIC polling.
+      await manager.pic.advanceTime(86_400_000);
 
-    // Now check update availability
+      await runHttpDownloaderQueueProcessor(
+        manager.pic,
+        async () => {
+          const releasesStatus =
+            await backendFixture.actor.getStorageReleaseAdminStatus();
+          const compatibleRelease = releasesStatus.releases.find(
+            (item) => item.tagName === compatibleReleaseTag,
+          );
+          const incompatibleRelease = releasesStatus.releases.find(
+            (item) => item.tagName === incompatibleReleaseTag,
+          );
+          return (
+            compatibleRelease?.manifest.length === 1 &&
+            incompatibleRelease?.isDownloaded === true
+          );
+        },
+        {
+          frontend: frontendV2Content,
+          manifest: (tag) =>
+            storageReleaseManifest(
+              tag,
+              tag === incompatibleReleaseTag ? [] : ["0.1.0-test"],
+              baselineWasmHashHex,
+            ),
+        },
+        {
+          maxAttempts: 80,
+          releaseTags: [compatibleReleaseTag, incompatibleReleaseTag],
+        },
+      );
+
+      await manager.pic.tick();
+
+      const statusAfter =
+        await backendFixture.actor.getStorageReleaseAdminStatus();
+      const compatibleReleaseAfter = statusAfter.releases.find(
+        (item) => item.tagName === compatibleReleaseTag,
+      );
+      console.log(
+        "Deployment ready:",
+        compatibleReleaseAfter?.isDeploymentReady ?? false,
+      );
+      expect(compatibleReleaseAfter?.manifest).toHaveLength(1);
+      expect(compatibleReleaseAfter?.isDeploymentReady).toBe(false);
+
+      // Now check update availability
+      backendFixture.actor.setIdentity(e2eTestIdentity);
+
+      const storages = await backendFixture.actor.listStorages();
+      const completedStorage = storages.find((s) => "Completed" in s.status);
+      expect(completedStorage).toBeDefined();
+      if (!completedStorage) return;
+
+      // Should have update available (at least frontend changed)
+      expect(completedStorage.updateAvailable.length).toBe(1);
+
+      const updateInfo = fromNullable(completedStorage.updateAvailable);
+      expect(updateInfo).toBeDefined();
+      if (!updateInfo) return;
+
+      console.log("Update available:", formatUpdateInfo(updateInfo));
+      expect(updateInfo.frontendUpdateAvailable).toBe(true);
+
+      const { result: planResult } = await getStorageUpgradePlan(
+        manager,
+        backendFixture,
+        canisterId,
+        e2eTestIdentity,
+      );
+      expect(planResult).toHaveProperty("ok");
+      if (!("ok" in planResult)) return;
+
+      const releaseOptions = planResult.ok.options;
+      expect(releaseOptions.map((option) => option.tagName)).toEqual([
+        incompatibleReleaseTag,
+        compatibleReleaseTag,
+      ]);
+
+      const compatibleOption = releaseOptions.find(
+        (option) => option.tagName === compatibleReleaseTag,
+      );
+      expect(compatibleOption).toBeDefined();
+      expect(compatibleOption?.disabled).toBe(false);
+      expect(compatibleOption?.updateInfo).toHaveLength(1);
+
+      const queryUpdateInfo = fromNullable(compatibleOption?.updateInfo ?? []);
+      expect(queryUpdateInfo).toBeDefined();
+      if (!queryUpdateInfo) return;
+      expect(queryUpdateInfo.frontendUpdateAvailable).toBe(true);
+
+      const availableReleaseTag = fromNullable(
+        queryUpdateInfo.availableReleaseTag,
+      );
+      expect(availableReleaseTag).toBeDefined();
+      if (!availableReleaseTag) return;
+      expect(availableReleaseTag).toBe(compatibleReleaseTag);
+
+      const incompatibleOption = releaseOptions.find(
+        (option) => option.tagName === incompatibleReleaseTag,
+      );
+      expect(incompatibleOption).toBeDefined();
+      expect(incompatibleOption?.disabled).toBe(true);
+      expect(incompatibleOption?.disabledReason[0]).toBe(
+        "No upgrade path declared",
+      );
+      expect(incompatibleOption?.updateInfo).toHaveLength(0);
+
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+      const prepareResult =
+        await backendFixture.actor.prepareStorageRelease(availableReleaseTag);
+      expect(prepareResult).toHaveProperty("ok");
+
+      await runHttpDownloaderQueueProcessor(
+        manager.pic,
+        async () => {
+          const status =
+            await backendFixture.actor.getStorageReleaseAdminStatus();
+          const release = status.releases.find(
+            (item) => item.tagName === availableReleaseTag,
+          );
+          return Boolean(release?.isDownloaded);
+        },
+        {
+          frontend: frontendV2Content,
+          manifest: (tag) =>
+            storageReleaseManifest(
+              tag,
+              tag === incompatibleReleaseTag ? [] : ["0.1.0-test"],
+              baselineWasmHashHex,
+            ),
+        },
+        { maxAttempts: 80, releaseTags: [availableReleaseTag] },
+      );
+
+      let extractionAttempts = 0;
+      while (extractionAttempts < 50) {
+        await manager.pic.tick(20);
+        const status =
+          await backendFixture.actor.getStorageReleaseAdminStatus();
+        const release = status.releases.find(
+          (item) => item.tagName === availableReleaseTag,
+        );
+        if (release?.isDeploymentReady) break;
+        extractionAttempts++;
+      }
+
+      const preparedStatus =
+        await backendFixture.actor.getStorageReleaseAdminStatus();
+      const preparedRelease = preparedStatus.releases.find(
+        (item) => item.tagName === availableReleaseTag,
+      );
+      expect(preparedRelease?.isDeploymentReady).toBe(true);
+
+      // Step 1: Add backend as controller (simulates what frontend does)
+      const coControllerIdentity = createIdentity("e2eStorageCoController");
+      await manager.pic.updateCanisterSettings({
+        canisterId,
+        sender: e2eTestIdentity.getPrincipal(),
+        controllers: [
+          e2eTestIdentity.getPrincipal(),
+          coControllerIdentity.getPrincipal(),
+          backendFixture.canisterId,
+        ],
+      });
+
+      // Step 2: Grant backend Commit permission on assets
+      const storageActor =
+        manager.pic.createActor<EncryptedStorageActorService>(
+          encryptedStorageIdlFactory,
+          canisterId,
+        );
+      storageActor.setIdentity(e2eTestIdentity);
+      await storageActor.grant_permission({
+        to_principal: backendFixture.canisterId,
+        permission: { Commit: null },
+      });
+
+      // Step 3: Call startStorageUpgrade
+      backendFixture.actor.setIdentity(e2eTestIdentity);
+      const { observedState, result: planBefore } =
+        await getStorageUpgradePlan(
+          manager,
+          backendFixture,
+          canisterId,
+          e2eTestIdentity,
+        );
+      expect(planBefore).toHaveProperty("ok");
+      if (!("ok" in planBefore)) return;
+      const targetRelease = planBefore.ok.options.find(
+        (option) =>
+          option.tagName === availableReleaseTag &&
+          !option.disabled &&
+          option.updateInfo.length === 1,
+      );
+      expect(targetRelease).toBeDefined();
+      if (!targetRelease) return;
+
+      const upgradeResult = await backendFixture.actor.startStorageUpgrade(
+        canisterId,
+        targetRelease.tagName,
+        observedState,
+      );
+      console.log("Upgrade result:", upgradeResult);
+      expect(upgradeResult).toHaveProperty("ok");
+
+      // Step 4: Poll for completion
+      const finalStatus = await pollStorageStatus(manager, backendFixture);
+      console.log(
+        "Final status:",
+        finalStatus ? formatCreationStatus(finalStatus) : "null",
+      );
+
+      expect(finalStatus).not.toBeNull();
+      expect(finalStatus).toHaveProperty("Completed");
+
+      // Step 5: Verify selected release is installed and no more frontend update is available
+      const releaseStateAfter = await getStorageReleaseState(
+        manager,
+        canisterId,
+        e2eTestIdentity,
+      );
+      expect(fromNullable(releaseStateAfter.releaseTag)).toBe(
+        availableReleaseTag,
+      );
+
+      const storagesAfter = await backendFixture.actor.listStorages();
+      const updatedStorage = storagesAfter.find(
+        (s) =>
+          "Completed" in s.status &&
+          fromNullable(s.canisterId)?.toText() === canisterId.toText(),
+      );
+      expect(updatedStorage).toBeDefined();
+      if (!updatedStorage) return;
+
+      const diagnostics = fromNullable(
+        updatedStorage.frontendInstallDiagnostics,
+      );
+      expect(diagnostics).toBeDefined();
+      if (!diagnostics) return;
+      expect(diagnostics.stage).toBe("completed");
+      expect(diagnostics.totalFiles).toBeGreaterThan(0n);
+      expect(diagnostics.batchesTotal).toBeGreaterThan(0n);
+      expect(diagnostics.batchesProcessed).toBe(diagnostics.batchesTotal);
+      expect(diagnostics.processedFiles).toBe(diagnostics.totalFiles);
+      expect(diagnostics.processedBytes).toBe(diagnostics.totalBytes);
+      expect(diagnostics.uploadedFiles + diagnostics.skippedFiles).toBe(
+        diagnostics.totalFiles,
+      );
+      expect(diagnostics.uploadedBytes + diagnostics.skippedBytes).toBe(
+        diagnostics.totalBytes,
+      );
+
+      const { result: planAfter } = await getStorageUpgradePlan(
+        manager,
+        backendFixture,
+        canisterId,
+        e2eTestIdentity,
+      );
+      expect(planAfter).toHaveProperty("ok");
+      if ("ok" in planAfter) {
+        const frontendUpdateAfter = planAfter.ok.options.find(
+          (option) =>
+            !option.disabled &&
+            fromNullable(option.updateInfo)?.frontendUpdateAvailable === true,
+        );
+        expect(frontendUpdateAfter).toBeUndefined();
+      }
+
+      // Step 6: Verify controllers — backend should have removed itself
+      const controllers = await manager.pic.getControllers(canisterId);
+      console.log(
+        "Controllers after upgrade:",
+        controllers.map((c) => c.toText()),
+      );
+      expect(controllers.map((c) => c.toText())).toContain(
+        e2eTestIdentity.getPrincipal().toText(),
+      );
+      expect(controllers.map((c) => c.toText())).toContain(
+        coControllerIdentity.getPrincipal().toText(),
+      );
+      expect(controllers.map((c) => c.toText())).not.toContain(
+        backendFixture.canisterId.toText(),
+      );
+
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
+
+  test("should allow getStorageUpgradePlan from any caller with observed state", async () => {
     const e2eTestIdentity = createIdentity("e2eStorageTestUser");
     backendFixture.actor.setIdentity(e2eTestIdentity);
 
     const storages = await backendFixture.actor.listStorages();
-    const completedStorage = storages.find(s => "Completed" in s.status);
-    expect(completedStorage).toBeDefined();
-    if (!completedStorage) return;
-
-    // Should have update available (at least frontend changed)
-    expect(completedStorage.updateAvailable.length).toBe(1);
-
-    const updateInfo = fromNullable(completedStorage.updateAvailable);
-    expect(updateInfo).toBeDefined();
-    if (!updateInfo) return;
-
-    console.log("Update available:", formatUpdateInfo(updateInfo));
-    expect(updateInfo.frontendUpdateAvailable).toBe(true);
-
-    // checkStorageUpdate (public query) should also work
-    const canisterId = fromNullable(completedStorage.canisterId);
-    expect(canisterId).toBeDefined();
-    if (!canisterId) return;
-
-    const queryUpdateInfo = fromNullable(await backendFixture.actor.checkStorageUpdate(canisterId));
-    expect(queryUpdateInfo).toBeDefined();
-    if (!queryUpdateInfo) return;
-
-    expect(queryUpdateInfo.frontendUpdateAvailable).toBe(true);
-
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
-
-  test("should allow checkStorageUpdate from any caller (public query)", async () => {
-    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
-    backendFixture.actor.setIdentity(e2eTestIdentity);
-
-    const storages = await backendFixture.actor.listStorages();
-    const completedStorage = storages.find(s => "Completed" in s.status);
+    const completedStorage = storages.find((s) => "Completed" in s.status);
     expect(completedStorage).toBeDefined();
     if (!completedStorage) return;
 
@@ -884,178 +1404,119 @@ describe("StorageDeployer", () => {
     const anonymousIdentity = createIdentity("anonymousUpgradeChecker");
     backendFixture.actor.setIdentity(anonymousIdentity);
 
-    const updateInfo = await backendFixture.actor.checkStorageUpdate(canisterId);
-    // Should still return update info (public query)
-    expect(updateInfo.length).toBe(1);
-
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
-
-  test("should upgrade storage frontend only", { timeout: 360000 }, async () => {
-    console.log("\n=== Testing Frontend-Only Upgrade ===");
-
-    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
-    backendFixture.actor.setIdentity(e2eTestIdentity);
-
-    const storages = await backendFixture.actor.listStorages();
-    const completedStorage = storages.find(s => "Completed" in s.status);
-    expect(completedStorage).toBeDefined();
-    if (!completedStorage) return;
-
-    const canisterId = fromNullable(completedStorage.canisterId);
-    expect(canisterId).toBeDefined();
-    if (!canisterId) return;
-
-    // Step 1: Add backend as controller (simulates what frontend does)
-    const coControllerIdentity = createIdentity("e2eStorageCoController");
-    await manager.pic.updateCanisterSettings({
+    const observedState = await getStorageReleaseState(
+      manager,
       canisterId,
-      sender: e2eTestIdentity.getPrincipal(),
-      controllers: [
-        e2eTestIdentity.getPrincipal(),
-        coControllerIdentity.getPrincipal(),
-        backendFixture.canisterId,
-      ],
-    });
-
-    // Step 2: Grant backend Commit permission on assets
-    const storageActor = manager.pic.createActor<EncryptedStorageActorService>(
-      encryptedStorageIdlFactory,
+      e2eTestIdentity,
+    );
+    const plan = await backendFixture.actor.getStorageUpgradePlan(
       canisterId,
+      observedState,
     );
-    storageActor.setIdentity(e2eTestIdentity);
-    await storageActor.grant_permission({
-      to_principal: backendFixture.canisterId,
-      permission: { Commit: null },
-    });
-
-    // Step 3: Call upgradeStorage
-    backendFixture.actor.setIdentity(e2eTestIdentity);
-    const upgradeResult = await backendFixture.actor.upgradeStorage(canisterId);
-    console.log("Upgrade result:", upgradeResult);
-    expect(upgradeResult).toHaveProperty("ok");
-
-    // Step 4: Poll for completion
-    const finalStatus = await pollStorageStatus(manager, backendFixture);
-    console.log("Final status:", finalStatus ? formatCreationStatus(finalStatus) : "null");
-
-    expect(finalStatus).not.toBeNull();
-    expect(finalStatus).toHaveProperty("Completed");
-
-    // Step 5: Verify no more update available
-    const storagesAfter = await backendFixture.actor.listStorages();
-    const updatedStorage = storagesAfter.find(s =>
-      "Completed" in s.status
-      && fromNullable(s.canisterId)?.toText() === canisterId.toText()
-    );
-    expect(updatedStorage).toBeDefined();
-    if (!updatedStorage) return;
-
-    const diagnostics = fromNullable(updatedStorage.frontendInstallDiagnostics);
-    expect(diagnostics).toBeDefined();
-    if (!diagnostics) return;
-    expect(diagnostics.stage).toBe("completed");
-    expect(diagnostics.totalFiles).toBeGreaterThan(0n);
-    expect(diagnostics.batchesTotal).toBeGreaterThan(0n);
-    expect(diagnostics.batchesProcessed).toBe(diagnostics.batchesTotal);
-    expect(diagnostics.processedFiles).toBe(diagnostics.totalFiles);
-    expect(diagnostics.processedBytes).toBe(diagnostics.totalBytes);
-    expect(diagnostics.uploadedFiles + diagnostics.skippedFiles).toBe(diagnostics.totalFiles);
-    expect(diagnostics.uploadedBytes + diagnostics.skippedBytes).toBe(diagnostics.totalBytes);
-
-    // Frontend was updated, but WASM may still show an update since we didn't change WASM assets
-    // The frontendUpdateAvailable should be false now
-    const updateAfter = fromNullable(await backendFixture.actor.checkStorageUpdate(canisterId));
-    if (updateAfter) {
-      console.log("Update after upgrade:", formatUpdateInfo(updateAfter));
-      expect(updateAfter.frontendUpdateAvailable).toBe(false);
-    }
-
-    // Step 6: Verify controllers — backend should have removed itself
-    const controllers = await manager.pic.getControllers(canisterId);
-    console.log("Controllers after upgrade:", controllers.map(c => c.toText()));
-    expect(controllers.map(c => c.toText())).toContain(e2eTestIdentity.getPrincipal().toText());
-    expect(controllers.map(c => c.toText())).toContain(coControllerIdentity.getPrincipal().toText());
-    expect(controllers.map(c => c.toText())).not.toContain(backendFixture.canisterId.toText());
-
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
-
-  test("should return update info in listStorages", { timeout: 120000 }, async () => {
-    const updateInfoTestIdentity = createIdentity("updateInfoTestUser");
-
-    await fundUserForStorage(manager, backendFixture, updateInfoTestIdentity);
-    backendFixture.actor.setIdentity(updateInfoTestIdentity);
-
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
-    expect(result).toHaveProperty("ok");
-
-    const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
-    expect(finalStatus).toHaveProperty("Completed");
-
-    // listStorages should include updateAvailable field
-    const storages = await backendFixture.actor.listStorages();
-    const newStorage = storages.find(s => "Completed" in s.status);
-    expect(newStorage).toBeDefined();
-    if (!newStorage) return;
-
-    expect(newStorage).toHaveProperty("updateAvailable");
-
-    const updateInfo = fromNullable(newStorage.updateAvailable);
-    if (updateInfo) {
-      console.log("Update info in listStorages:", formatUpdateInfo(updateInfo));
+    expect(plan).toHaveProperty("ok");
+    if ("ok" in plan) {
+      expect(plan.ok.options.length).toBeGreaterThan(0);
     }
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
+
+  test(
+    "should return update info in listStorages",
+    { timeout: 120000 },
+    async () => {
+      const updateInfoTestIdentity = createIdentity("updateInfoTestUser");
+
+      await fundUserForStorage(manager, backendFixture, updateInfoTestIdentity);
+      backendFixture.actor.setIdentity(updateInfoTestIdentity);
+
+      const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+        { OnChain: null },
+        { standard: null },
+      );
+      expect(result).toHaveProperty("ok");
+
+      const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
+      expect(finalStatus).toHaveProperty("Completed");
+
+      // listStorages should include updateAvailable field
+      const storages = await backendFixture.actor.listStorages();
+      const newStorage = storages.find((s) => "Completed" in s.status);
+      expect(newStorage).toBeDefined();
+      if (!newStorage) return;
+
+      expect(newStorage).toHaveProperty("updateAvailable");
+
+      const updateInfo = fromNullable(newStorage.updateAvailable);
+      if (updateInfo) {
+        console.log(
+          "Update info in listStorages:",
+          formatUpdateInfo(updateInfo),
+        );
+      }
+
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
 
   // ═══════════════════════════════════════════════════════════════
   // BACKEND CANISTER UPGRADE TESTS
   // ═══════════════════════════════════════════════════════════════
 
-  test("should preserve storages after backend canister upgrade", { timeout: 120000 }, async () => {
-    console.log("\n=== Testing Backend Canister Upgrade ===");
+  test(
+    "should preserve storages after backend canister upgrade",
+    { timeout: 120000 },
+    async () => {
+      console.log("\n=== Testing Backend Canister Upgrade ===");
 
-    // Step 1: Capture storages before upgrade
-    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
-    backendFixture.actor.setIdentity(e2eTestIdentity);
-    const storagesBefore = await backendFixture.actor.listStorages();
-    const completedBefore = storagesBefore.filter(s => "Completed" in s.status);
-    console.log("Storages before upgrade:", storagesBefore.length, "completed:", completedBefore.length);
-    expect(completedBefore.length).toBeGreaterThan(0);
-
-    // Step 2: Upgrade backend canister
-    console.log("Upgrading backend canister...");
-    await manager.upgradeBackendCanister(backendFixture);
-
-    // Wait for start() timer to fire (Timer.setTimer #seconds 0 in main.mo)
-    await manager.pic.advanceTime(2000);
-    await manager.pic.tick(10);
-    console.log("Backend canister upgraded");
-
-    // Step 3: Verify storages are preserved
-    backendFixture.actor.setIdentity(e2eTestIdentity);
-    const storagesAfter = await backendFixture.actor.listStorages();
-    console.log("Storages after upgrade:", storagesAfter.length);
-    expect(storagesAfter.length).toBe(storagesBefore.length);
-
-    for (const before of completedBefore) {
-      const after = storagesAfter.find(s => s.id === before.id);
-      expect(after).toBeDefined();
-      if (!after) continue;
-      expect(after.status).toHaveProperty("Completed");
-      expect(fromNullable(after.canisterId)?.toText()).toBe(
-        fromNullable(before.canisterId)?.toText()
+      // Step 1: Capture storages before upgrade
+      const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+      backendFixture.actor.setIdentity(e2eTestIdentity);
+      const storagesBefore = await backendFixture.actor.listStorages();
+      const completedBefore = storagesBefore.filter(
+        (s) => "Completed" in s.status,
       );
-    }
+      console.log(
+        "Storages before upgrade:",
+        storagesBefore.length,
+        "completed:",
+        completedBefore.length,
+      );
+      expect(completedBefore.length).toBeGreaterThan(0);
 
-    // Step 4: Verify deployer is running again
-    const isRunning = await backendFixture.actor.isStorageDeployerRunning();
-    expect(isRunning).toBe(true);
-    console.log("Deployer is running:", isRunning);
+      // Step 2: Upgrade backend canister
+      console.log("Upgrading backend canister...");
+      await manager.upgradeBackendCanister(backendFixture);
 
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
-  });
+      // Wait for start() timer to fire (Timer.setTimer #seconds 0 in main.mo)
+      await manager.pic.advanceTime(2000);
+      await manager.pic.tick(10);
+      console.log("Backend canister upgraded");
+
+      // Step 3: Verify storages are preserved
+      backendFixture.actor.setIdentity(e2eTestIdentity);
+      const storagesAfter = await backendFixture.actor.listStorages();
+      console.log("Storages after upgrade:", storagesAfter.length);
+      expect(storagesAfter.length).toBe(storagesBefore.length);
+
+      for (const before of completedBefore) {
+        const after = storagesAfter.find((s) => s.id === before.id);
+        expect(after).toBeDefined();
+        if (!after) continue;
+        expect(after.status).toHaveProperty("Completed");
+        expect(fromNullable(after.canisterId)?.toText()).toBe(
+          fromNullable(before.canisterId)?.toText(),
+        );
+      }
+
+      // Step 4: Verify deployer is running again
+      const isRunning = await backendFixture.actor.isStorageDeployerRunning();
+      expect(isRunning).toBe(true);
+      console.log("Deployer is running:", isRunning);
+
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    },
+  );
 
   // ═══════════════════════════════════════════════════════════════
   // RESUME, REFUND, TIMELINE, LICENSE STATUS
@@ -1076,16 +1537,17 @@ describe("StorageDeployer", () => {
     const e2eTestIdentity = createIdentity("e2eStorageTestUser");
     backendFixture.actor.setIdentity(e2eTestIdentity);
     const storages = await backendFixture.actor.listStorages();
-    const completed = storages.find(s => "Completed" in s.status);
+    const completed = storages.find((s) => "Completed" in s.status);
     if (!completed) throw new Error("no completed storage from earlier test");
 
     const detail = await backendFixture.actor.getCreationDetail(completed.id);
-    if (detail.length === 0) throw new Error("creation not found via getCreationDetail");
+    if (detail.length === 0)
+      throw new Error("creation not found via getCreationDetail");
     const events = detail[0].events;
 
     // The timeline must include at least the major transitions: Pending →
     // (balance/transfer/notify) → CanisterCreated → installing → completed.
-    const tags = events.map(e => Object.keys(e.status)[0]);
+    const tags = events.map((e) => Object.keys(e.status)[0]);
     expect(tags).toContain("CanisterCreated");
     expect(tags).toContain("Completed");
 
@@ -1110,25 +1572,39 @@ describe("StorageDeployer", () => {
   test("listCreations pins non-admin callers to their own records", async () => {
     // Owner can see their own record…
     const owner = createIdentity("history-owner");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, owner);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      owner,
+    );
 
     backendFixture.actor.setIdentity(owner);
-    const ownerView = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    const ownerView = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
     expect(ownerView.data.length).toBe(1);
 
     // …but a stranger cannot (server enforces owner=caller on non-admins).
     const stranger = createIdentity("history-stranger");
     backendFixture.actor.setIdentity(stranger);
-    const strangerView = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    const strangerView = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
     expect(strangerView.data.length).toBe(0);
   });
 
   test("listCreations is readable by admin for any record", async () => {
     const owner = createIdentity("history-owner-for-admin");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, owner);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      owner,
+    );
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    const { data } = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
     expect(data.length).toBe(1);
     const detail = await backendFixture.actor.getCreationDetail(creationId);
     expect(detail[0]?.events.length).toBeGreaterThan(0);
@@ -1136,18 +1612,31 @@ describe("StorageDeployer", () => {
 
   test("resumeStorageCreation: owner can resume own failed creation", async () => {
     const identity = createIdentity("resume-owner");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     // Top up the subaccount so the second attempt can actually pay for the canister
     manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
     await manager.icpLedgerActor.icrc1_transfer({
-      to: { owner: backendFixture.canisterId, subaccount: [principalToSubAccount(identity.getPrincipal())] },
+      to: {
+        owner: backendFixture.canisterId,
+        subaccount: [principalToSubAccount(identity.getPrincipal())],
+      },
       amount: 2n * E8S_PER_ICP,
-      fee: [], memo: [], from_subaccount: [], created_at_time: [],
+      fee: [],
+      memo: [],
+      from_subaccount: [],
+      created_at_time: [],
     });
 
     backendFixture.actor.setIdentity(identity);
-    const resumeResult = await backendFixture.actor.recoverFailedStorage(creationId, { resume: null });
+    const resumeResult = await backendFixture.actor.recoverFailedStorage(
+      creationId,
+      { resume: null },
+    );
     expect(resumeResult).toHaveProperty("ok");
 
     const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
@@ -1156,11 +1645,17 @@ describe("StorageDeployer", () => {
 
   test("resumeStorageCreation: rejected for non-owner non-admin", async () => {
     const owner = createIdentity("resume-owner-reject");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, owner);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      owner,
+    );
 
     const stranger = createIdentity("resume-stranger");
     backendFixture.actor.setIdentity(stranger);
-    const result = await backendFixture.actor.recoverFailedStorage(creationId, { resume: null });
+    const result = await backendFixture.actor.recoverFailedStorage(creationId, {
+      resume: null,
+    });
     expect(result).toHaveProperty("err");
     if ("err" in result) expect(result.err).toMatch(/not owner and not admin/);
   });
@@ -1169,46 +1664,72 @@ describe("StorageDeployer", () => {
     const identity = createIdentity("resume-not-failed");
     await fundUserForStorage(manager, backendFixture, identity);
     backendFixture.actor.setIdentity(identity);
-    await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
+    await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      { standard: null },
+    );
     await pollStorageStatus(manager, backendFixture, 60);
     const storages = await backendFixture.actor.listStorages();
-    const completed = storages.find(s => "Completed" in s.status);
+    const completed = storages.find((s) => "Completed" in s.status);
     if (!completed) throw new Error("expected a completed record");
 
-    const result = await backendFixture.actor.recoverFailedStorage(completed.id, { resume: null });
+    const result = await backendFixture.actor.recoverFailedStorage(
+      completed.id,
+      { resume: null },
+    );
     expect(result).toHaveProperty("err");
     if ("err" in result) expect(result.err).toMatch(/not in failed state/);
   }, 180000);
 
   test("reinstallFailedStorageWasm: rejected when failed creation has no canister", async () => {
     const identity = createIdentity("reinstall-no-canister");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     backendFixture.actor.setIdentity(identity);
-    const result = await backendFixture.actor.reinstallFailedStorageWasm(creationId);
+    const result =
+      await backendFixture.actor.reinstallFailedStorageWasm(creationId);
     expect(result).toHaveProperty("err");
     if ("err" in result) expect(result.err).toMatch(/no canister/);
   });
 
   test("reinstallFailedStorageWasm: rejected for non-owner non-admin", async () => {
     const owner = createIdentity("reinstall-owner-reject");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, owner);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      owner,
+    );
 
     const stranger = createIdentity("reinstall-stranger");
     backendFixture.actor.setIdentity(stranger);
-    const result = await backendFixture.actor.reinstallFailedStorageWasm(creationId);
+    const result =
+      await backendFixture.actor.reinstallFailedStorageWasm(creationId);
     expect(result).toHaveProperty("err");
     if ("err" in result) expect(result.err).toMatch(/not owner and not admin/);
   });
 
   test("refundFailedStorage: owner receives money back and record is removed", async () => {
     const identity = createIdentity("refund-owner");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     // Balance before — what's on the user subaccount right after the failed charge
-    const userAccount = { owner: backendFixture.canisterId, subaccount: [principalToSubAccount(identity.getPrincipal())] as [Uint8Array] };
+    const userAccount = {
+      owner: backendFixture.canisterId,
+      subaccount: [principalToSubAccount(identity.getPrincipal())] as [
+        Uint8Array,
+      ],
+    };
     manager.icpLedgerActor.setIdentity(identity);
-    const balanceBefore = await manager.icpLedgerActor.icrc1_balance_of(userAccount);
+    const balanceBefore =
+      await manager.icpLedgerActor.icrc1_balance_of(userAccount);
 
     backendFixture.actor.setIdentity(identity);
     const licensesBefore = (await backendFixture.actor.listLicenses([])).data;
@@ -1216,11 +1737,14 @@ describe("StorageDeployer", () => {
     expect(licensesBefore[0]!.receipt.status).toEqual({ completed: null });
     const refundAmount = licensesBefore[0]!.receipt.amount;
 
-    const result = await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
+    const result = await backendFixture.actor.recoverFailedStorage(creationId, {
+      refund: null,
+    });
     expect(result).toHaveProperty("ok");
 
     // User balance grew by (amount - 1 ICP-ledger fee)
-    const balanceAfter = await manager.icpLedgerActor.icrc1_balance_of(userAccount);
+    const balanceAfter =
+      await manager.icpLedgerActor.icrc1_balance_of(userAccount);
     expect(balanceAfter - balanceBefore).toBeGreaterThan(0n);
     expect(balanceAfter - balanceBefore).toBeLessThanOrEqual(refundAmount);
 
@@ -1231,18 +1755,26 @@ describe("StorageDeployer", () => {
 
     // Creation record is gone from owner's list
     const storagesAfter = await backendFixture.actor.listStorages();
-    expect(storagesAfter.find(s => s.id === creationId)).toBeUndefined();
+    expect(storagesAfter.find((s) => s.id === creationId)).toBeUndefined();
   });
 
   test("refundFailedStorage: second call on same creation returns already-refunded", async () => {
     const identity = createIdentity("refund-idempotent");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     backendFixture.actor.setIdentity(identity);
-    const first = await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
+    const first = await backendFixture.actor.recoverFailedStorage(creationId, {
+      refund: null,
+    });
     expect(first).toHaveProperty("ok");
 
-    const second = await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
+    const second = await backendFixture.actor.recoverFailedStorage(creationId, {
+      refund: null,
+    });
     expect(second).toHaveProperty("err");
     // After first refund the creation record is deleted, so second call
     // reports "creation not found". The double-refund guard is unreachable
@@ -1252,11 +1784,17 @@ describe("StorageDeployer", () => {
 
   test("refundFailedStorage: rejected for non-owner non-admin", async () => {
     const owner = createIdentity("refund-owner-reject");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, owner);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      owner,
+    );
 
     const stranger = createIdentity("refund-stranger");
     backendFixture.actor.setIdentity(stranger);
-    const result = await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
+    const result = await backendFixture.actor.recoverFailedStorage(creationId, {
+      refund: null,
+    });
     expect(result).toHaveProperty("err");
     if ("err" in result) expect(result.err).toMatch(/not owner and not admin/);
   });
@@ -1265,25 +1803,40 @@ describe("StorageDeployer", () => {
     const e2eTestIdentity = createIdentity("e2eStorageTestUser");
     backendFixture.actor.setIdentity(e2eTestIdentity);
     const storages = await backendFixture.actor.listStorages();
-    const completed = storages.find(s => "Completed" in s.status);
-    if (!completed) throw new Error("expected a completed storage from earlier test");
+    const completed = storages.find((s) => "Completed" in s.status);
+    if (!completed)
+      throw new Error("expected a completed storage from earlier test");
 
-    const result = await backendFixture.actor.recoverFailedStorage(completed.id, { refund: null });
+    const result = await backendFixture.actor.recoverFailedStorage(
+      completed.id,
+      { refund: null },
+    );
     expect(result).toHaveProperty("err");
-    if ("err" in result) expect(result.err).toMatch(/canister already created|not in failed state/);
+    if ("err" in result)
+      expect(result.err).toMatch(
+        /canister already created|not in failed state/,
+      );
   });
 
   test("resumeStorageCreation: rejected after license was refunded", async () => {
     const identity = createIdentity("resume-after-refund");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     // Refund first — this deletes the creation record, so resume will get
     // "creation not found". That's the correct outer-layer behaviour; the
     // internal "license was refunded" branch is covered at the library level.
     backendFixture.actor.setIdentity(identity);
-    await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
+    await backendFixture.actor.recoverFailedStorage(creationId, {
+      refund: null,
+    });
 
-    const result = await backendFixture.actor.recoverFailedStorage(creationId, { resume: null });
+    const result = await backendFixture.actor.recoverFailedStorage(creationId, {
+      resume: null,
+    });
     expect(result).toHaveProperty("err");
     if ("err" in result) expect(result.err).toMatch(/creation not found/);
   });
@@ -1294,25 +1847,43 @@ describe("StorageDeployer", () => {
 
   test("refundFailedStorage: notifies admin with #creationRefunded", async () => {
     const identity = createIdentity("refund-notify-admin");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     // Snapshot admin inbox before the refund so we can find the new event.
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const before = await backendFixture.actor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
+    const before = await backendFixture.actor.listNotifications({
+      afterId: [],
+      limit: 100n,
+      unreadOnly: false,
+    });
 
     backendFixture.actor.setIdentity(identity);
-    const refundResult = await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
+    const refundResult = await backendFixture.actor.recoverFailedStorage(
+      creationId,
+      { refund: null },
+    );
     expect(refundResult).toHaveProperty("ok");
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const after = await backendFixture.actor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
+    const after = await backendFixture.actor.listNotifications({
+      afterId: [],
+      limit: 100n,
+      unreadOnly: false,
+    });
     // Admin got at least one extra notification after the refund.
     expect(after.data.length).toBeGreaterThan(before.data.length);
     // And that notification is #creationRefunded for the matching creationId.
     const refundEvent = after.data.find((n) => {
       const key = Object.keys(n.payload)[0];
       if (key !== "creationRefunded") return false;
-      return (n.payload as { creationRefunded: { creationId: bigint } }).creationRefunded.creationId === creationId;
+      return (
+        (n.payload as { creationRefunded: { creationId: bigint } })
+          .creationRefunded.creationId === creationId
+      );
     });
     expect(refundEvent).toBeDefined();
   });
@@ -1328,14 +1899,21 @@ describe("StorageDeployer", () => {
 
   test("refundFailedStorage: concurrent refund on same creationId never double-transfers", async () => {
     const identity = createIdentity("refund-concurrent");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     const userAccount = {
       owner: backendFixture.canisterId,
-      subaccount: [principalToSubAccount(identity.getPrincipal())] as [Uint8Array],
+      subaccount: [principalToSubAccount(identity.getPrincipal())] as [
+        Uint8Array,
+      ],
     };
     manager.icpLedgerActor.setIdentity(identity);
-    const balanceBefore = await manager.icpLedgerActor.icrc1_balance_of(userAccount);
+    const balanceBefore =
+      await manager.icpLedgerActor.icrc1_balance_of(userAccount);
 
     backendFixture.actor.setIdentity(identity);
     const licenses = (await backendFixture.actor.listLicenses([])).data;
@@ -1363,7 +1941,8 @@ describe("StorageDeployer", () => {
     expect(err).toMatch(/in progress|already refunded|not found/);
 
     // Money moved exactly once — ledger fee is paid once, not twice.
-    const balanceAfter = await manager.icpLedgerActor.icrc1_balance_of(userAccount);
+    const balanceAfter =
+      await manager.icpLedgerActor.icrc1_balance_of(userAccount);
     const delta = balanceAfter - balanceBefore;
     expect(delta).toBeGreaterThan(0n);
     expect(delta).toBeLessThanOrEqual(refundAmount);
@@ -1371,7 +1950,11 @@ describe("StorageDeployer", () => {
 
   test("TOCTOU: resume and refund fired together resolve to exactly one winner", async () => {
     const identity = createIdentity("refund-vs-resume");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     // Seed the user subaccount with enough ICP so that if resume wins it can
     // actually proceed with canister creation (otherwise the `resume-wins`
@@ -1429,7 +2012,8 @@ describe("StorageDeployer", () => {
     if (!completed) throw new Error("no completed storage from earlier test");
 
     const detail = await backendFixture.actor.getCreationDetail(completed.id);
-    if (detail.length === 0) throw new Error("creation not found via getCreationDetail");
+    if (detail.length === 0)
+      throw new Error("creation not found via getCreationDetail");
     const events = detail[0].events;
 
     const fullTags = events.map((e) => {
@@ -1468,15 +2052,24 @@ describe("StorageDeployer", () => {
     backendFixture.actor.setIdentity(manager.ownerIdentity);
     const adminWideFilter: ListCreationsOptions = {
       filter: {
-        id: [], completedAt: [], owner: [], createdAt: [],
-        hasLicense: [], hasCanister: [], statusTag: [], releaseTag: [], canisterId: [],
+        id: [],
+        completedAt: [],
+        owner: [],
+        createdAt: [],
+        hasLicense: [],
+        hasCanister: [],
+        statusTag: [],
+        releaseTag: [],
+        canisterId: [],
         ambassadorPayoutStatus: [],
       },
       sort: [],
       pagination: { limit: 1000n, offset: 0n },
       count: false,
     };
-    const { data } = await backendFixture.actor.listCreations([adminWideFilter]);
+    const { data } = await backendFixture.actor.listCreations([
+      adminWideFilter,
+    ]);
     expect(data.length).toBeGreaterThan(0);
     const owners = new Set(data.map((r) => r.owner.toText()));
     expect(owners.size).toBeGreaterThan(1);
@@ -1497,22 +2090,32 @@ describe("StorageDeployer", () => {
 
   test("deferred payout: refund before CanisterCreated — no ambassador payout", async () => {
     const identity = createIdentity("deferred-refund");
-    const creationId = await createFailedStorageWithLicense(manager, backendFixture, identity);
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      identity,
+    );
 
     // Record is #Failed with canisterId=null — refund window is open.
     // Ambassador payout hasn't fired because we never reached #CanisterCreated.
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    const { data } = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
     expect(data.length).toBe(1);
     expect(data[0].ambassadorPayoutStatusTag).toBe("pending");
 
     // distributionLog: the ONLY row for this payment should be the charge row,
     // which has L1=L2=0 (deferred mode). No "ambassador:<paymentId>" row yet.
-    const allDistRows = await backendFixture.actor.getDistributionLog({ offset: 0n, limit: 1000n });
+    const allDistRows = await backendFixture.actor.getDistributionLog({
+      offset: 0n,
+      limit: 1000n,
+    });
     const paymentId = data[0].licensePaymentId[0];
     expect(paymentId).toBeDefined();
-    const rowsForThisCreation = allDistRows.filter((r) =>
-      r.paymentId === paymentId || r.paymentId === `ambassador:${paymentId}`,
+    const rowsForThisCreation = allDistRows.filter(
+      (r) =>
+        r.paymentId === paymentId || r.paymentId === `ambassador:${paymentId}`,
     );
     expect(rowsForThisCreation.length).toBe(1);
     expect(rowsForThisCreation[0].paymentId).toBe(paymentId);
@@ -1525,14 +2128,24 @@ describe("StorageDeployer", () => {
     const licensesBefore = (await backendFixture.actor.listLicenses([])).data;
     const receiptAmount = licensesBefore[0]!.receipt.amount;
 
-    const userAccount = { owner: backendFixture.canisterId, subaccount: [principalToSubAccount(identity.getPrincipal())] as [Uint8Array] };
+    const userAccount = {
+      owner: backendFixture.canisterId,
+      subaccount: [principalToSubAccount(identity.getPrincipal())] as [
+        Uint8Array,
+      ],
+    };
     manager.icpLedgerActor.setIdentity(identity);
-    const balanceBefore = await manager.icpLedgerActor.icrc1_balance_of(userAccount);
+    const balanceBefore =
+      await manager.icpLedgerActor.icrc1_balance_of(userAccount);
 
-    const refundResult = await backendFixture.actor.recoverFailedStorage(creationId, { refund: null });
+    const refundResult = await backendFixture.actor.recoverFailedStorage(
+      creationId,
+      { refund: null },
+    );
     expect(refundResult).toHaveProperty("ok");
 
-    const balanceAfter = await manager.icpLedgerActor.icrc1_balance_of(userAccount);
+    const balanceAfter =
+      await manager.icpLedgerActor.icrc1_balance_of(userAccount);
     const delta = balanceAfter - balanceBefore;
 
     // Full refund minus two ledger fees (no ambassador share was taken).
@@ -1546,7 +2159,10 @@ describe("StorageDeployer", () => {
     const l1 = createIdentity("deferred-l1");
     backendFixture.actor.setIdentity(l1);
     await backendFixture.actor.ensureUser([]);
-    await backendFixture.actor.createProfile({ username: "deferred-l1", displayName: [] });
+    await backendFixture.actor.createProfile({
+      username: "deferred-l1",
+      displayName: [],
+    });
     const l1Profile = await backendFixture.actor.getProfile();
     const l1Code = l1Profile[0]?.referralCode?.[0];
     expect(l1Code).toBeDefined();
@@ -1558,11 +2174,16 @@ describe("StorageDeployer", () => {
     const payer = createIdentity("deferred-payer");
     backendFixture.actor.setIdentity(payer);
     await backendFixture.actor.ensureUser([]);
-    expect(await backendFixture.actor.applyReferralCode(l1Code)).toEqual({ ok: null });
+    expect(await backendFixture.actor.applyReferralCode(l1Code)).toEqual({
+      ok: null,
+    });
     await fundUserForStorage(manager, backendFixture, payer);
 
     // Happy-path purchase.
-    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage({ OnChain: null }, { standard: null });
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      { standard: null },
+    );
     expect(result).toHaveProperty("ok");
     if (!("ok" in result)) throw new Error();
     const creationId = result.ok;
@@ -1574,35 +2195,52 @@ describe("StorageDeployer", () => {
 
     // Record status is #completed for the payout.
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const { data } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    const { data } = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
     expect(data.length).toBe(1);
     expect(data[0].ambassadorPayoutStatusTag).toBe("completed");
 
     // distributionLog should have BOTH: charge row (L1=0) and payout row (L1>0).
-    const allDistRows = await backendFixture.actor.getDistributionLog({ offset: 0n, limit: 1000n });
+    const allDistRows = await backendFixture.actor.getDistributionLog({
+      offset: 0n,
+      limit: 1000n,
+    });
     const paymentId = data[0].licensePaymentId[0]!;
     const chargeRow = allDistRows.find((r) => r.paymentId === paymentId);
-    const payoutRow = allDistRows.find((r) => r.paymentId === `ambassador:${paymentId}`);
+    const payoutRow = allDistRows.find(
+      (r) => r.paymentId === `ambassador:${paymentId}`,
+    );
     expect(chargeRow).toBeDefined();
     expect(payoutRow).toBeDefined();
-    expect(chargeRow!.l1Amount).toBe(0n);         // charge phase: 100% treasury
-    expect(payoutRow!.l1Amount).toBeGreaterThan(0n);  // payout phase: ambassador got cut
-    expect(payoutRow!.ambassadorL1[0]?.toText()).toBe(l1.getPrincipal().toText());
+    expect(chargeRow!.l1Amount).toBe(0n); // charge phase: 100% treasury
+    expect(payoutRow!.l1Amount).toBeGreaterThan(0n); // payout phase: ambassador got cut
+    expect(payoutRow!.ambassadorL1[0]?.toText()).toBe(
+      l1.getPrincipal().toText(),
+    );
 
     // Dedup check — admin calls retryAmbassadorPayout, which re-invokes
     // treasury.distributeAmbassadorShare. Dedup via `"ambassador:" # paymentId`
     // in processedPayments must return #AlreadyProcessed → status stays
     // #completed, and NO new distribution row appears for this payment.
     const rowCountBefore = allDistRows.length;
-    const retryResult = await backendFixture.actor.retryAmbassadorPayout(creationId);
+    const retryResult =
+      await backendFixture.actor.retryAmbassadorPayout(creationId);
     expect(retryResult).toHaveProperty("ok");
 
-    const afterRetry = await backendFixture.actor.getDistributionLog({ offset: 0n, limit: 1000n });
-    const ambassadorRowsAfter = afterRetry.filter((r) => r.paymentId === `ambassador:${paymentId}`);
+    const afterRetry = await backendFixture.actor.getDistributionLog({
+      offset: 0n,
+      limit: 1000n,
+    });
+    const ambassadorRowsAfter = afterRetry.filter(
+      (r) => r.paymentId === `ambassador:${paymentId}`,
+    );
     expect(ambassadorRowsAfter.length).toBe(1); // still one — dedup prevented a second row
     expect(afterRetry.length).toBe(rowCountBefore); // overall log didn't grow
 
-    const { data: dataAfterRetry } = await backendFixture.actor.listCreations([listCreationsByIdOpts(creationId)]);
+    const { data: dataAfterRetry } = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
     expect(dataAfterRetry[0].ambassadorPayoutStatusTag).toBe("completed");
   }, 300_000);
 
@@ -1613,7 +2251,10 @@ describe("StorageDeployer", () => {
     });
 
     backendFixture.actor.setIdentity(manager.ownerIdentity);
-    const result = await backendFixture.actor.addStorage(emptyCanisterId, new Uint8Array());
+    const result = await backendFixture.actor.addStorage(
+      emptyCanisterId,
+      new Uint8Array(),
+    );
     expect(result).toHaveProperty("err");
     if ("err" in result) {
       expect(result.err).toHaveProperty("InvalidWasm");

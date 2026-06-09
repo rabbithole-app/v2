@@ -62,6 +62,14 @@ export const appRoutes: Route[] = [
       {
         path: '',
         loadComponent: () =>
+          import('@rabbithole/core/storage-version-info').then(
+            (m) => m.StorageVersionInfoComponent,
+          ),
+        outlet: 'header',
+      },
+      {
+        path: '',
+        loadComponent: () =>
           import(
             './core/components/update-banner/update-banner.component'
           ).then((m) => m.UpdateBannerComponent),

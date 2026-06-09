@@ -1,0 +1,13 @@
+{
+  "name": "core-storage-version-info",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/core/storage-version-info/src",
+  "prefix": "core",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

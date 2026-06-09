@@ -2,15 +2,33 @@ import type { CanisterFixture } from "@dfinity/pic";
 import { fromDefinedNullable, uint8ArrayToHexString } from "@dfinity/utils";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 
-import type { ExtractionStatus, RabbitholeActorService } from "@rabbithole/declarations";
+import type {
+  ExtractionStatus,
+  RabbitholeActorService,
+} from "@rabbithole/declarations";
 
 import { BackendManager } from "./setup/backend-manager";
-import { frontendV2Content, runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
+import {
+  frontendV2Content,
+  runHttpDownloaderQueueProcessor,
+} from "./setup/github-outcalls";
 
 /**
  * Helper to format asset download status for logging
  */
-function formatDownloadStatus(downloadStatus: { Completed: { size: bigint } } | { Downloading: { chunksCompleted: bigint; chunksError: bigint; chunksTotal: bigint } } | { Error: string } | { NotStarted: null }): string {
+function formatDownloadStatus(
+  downloadStatus:
+    | { Completed: { size: bigint } }
+    | {
+        Downloading: {
+          chunksCompleted: bigint;
+          chunksError: bigint;
+          chunksTotal: bigint;
+        };
+      }
+    | { Error: string }
+    | { NotStarted: null },
+): string {
   if ("Completed" in downloadStatus) {
     return `Completed (${downloadStatus.Completed.size} bytes)`;
   }
@@ -26,7 +44,9 @@ function formatDownloadStatus(downloadStatus: { Completed: { size: bigint } } | 
 /**
  * Helper to format extraction status for logging
  */
-function formatExtractionStatus(extractionStatus: [] | [ExtractionStatus]): string {
+function formatExtractionStatus(
+  extractionStatus: [] | [ExtractionStatus],
+): string {
   if (extractionStatus.length === 0) {
     return "N/A";
   }
@@ -35,12 +55,68 @@ function formatExtractionStatus(extractionStatus: [] | [ExtractionStatus]): stri
     return `Complete (${status.Complete.length} files)`;
   }
   if ("Decoding" in status) {
-    const percent = status.Decoding.total > 0n
-      ? Number((status.Decoding.processed * 100n) / status.Decoding.total)
-      : 0;
+    const percent =
+      status.Decoding.total > 0n
+        ? Number((status.Decoding.processed * 100n) / status.Decoding.total)
+        : 0;
     return `Decoding (${status.Decoding.processed}/${status.Decoding.total}, ${percent}%)`;
   }
   return "Idle";
+}
+
+const TEST_SHA256_HEX =
+  "0000000000000000000000000000000000000000000000000000000000000000";
+
+function storageReleaseManifestContent(
+  tag: string,
+  overrides: Partial<{
+    argStrategy: string;
+    frontendName: string;
+    schemaVersion: number;
+    wasmName: string;
+  }> = {},
+): Uint8Array {
+  return new TextEncoder().encode(
+    JSON.stringify({
+      schemaVersion: overrides.schemaVersion ?? 1,
+      version: tag.replace(/^v/, ""),
+      tagName: tag,
+      commit: "0000000000000000000000000000000000000000",
+      frontendAssetTreeHash: TEST_SHA256_HEX,
+      artifacts: {
+        wasm: {
+          name: overrides.wasmName ?? "encrypted-storage.wasm.gz",
+          size: 1,
+          sha256: TEST_SHA256_HEX,
+        },
+        frontend: {
+          name: overrides.frontendName ?? "storage-frontend.tar",
+          size: 1,
+          sha256: TEST_SHA256_HEX,
+        },
+        stableSignature: {
+          name: "encrypted-storage.most",
+          size: 1,
+          sha256: TEST_SHA256_HEX,
+        },
+      },
+      upgrade: {
+        argStrategy: overrides.argStrategy ?? "reuseInstallArgV1",
+        compatibleFrom: [],
+      },
+      changelog: {
+        range: { from: null, to: tag, compareUrl: null, maxCommits: null },
+        bump: "none",
+        summary: "Storage test release.",
+        sections: [],
+      },
+      releaseNotes: {
+        source: "generated",
+        summary: "Storage test release.",
+        sections: [],
+      },
+    }),
+  );
 }
 
 describe("GitHub Releases", () => {
@@ -58,14 +134,16 @@ describe("GitHub Releases", () => {
 
   test("should have releases full status available", async () => {
     // Check initial releases status using unified API
-    const status = await backendFixture.actor.getReleasesFullStatus();
+    const status = await backendFixture.actor.getStorageReleaseAdminStatus();
     console.log("Initial releases full status:");
     console.log("  Releases count:", status.releasesCount);
     console.log("  Pending downloads:", status.pendingDownloads);
     console.log("  Completed downloads:", status.completedDownloads);
     console.log("  Has downloaded release:", status.hasDownloadedRelease);
-    console.log("  Has deployment ready release:", status.hasDeploymentReadyRelease);
-    console.log("  Default version key:", status.defaultVersionKey);
+    console.log(
+      "  Has deployment ready release:",
+      status.hasDeploymentReadyRelease,
+    );
 
     // Initially should have no releases
     expect(status.releasesCount).toBe(0n);
@@ -82,22 +160,29 @@ describe("GitHub Releases", () => {
     // Use unified API to check readiness
     await runHttpDownloaderQueueProcessor(
       manager.pic,
-      async () => (await backendFixture.actor.getReleasesFullStatus()).hasDownloadedRelease,
+      async () =>
+        (await backendFixture.actor.getStorageReleaseAdminStatus())
+          .hasDownloadedRelease,
     );
     await manager.pic.tick();
 
     // Check status after download using unified API
-    const status = await backendFixture.actor.getReleasesFullStatus();
+    const status = await backendFixture.actor.getStorageReleaseAdminStatus();
     console.log("\n=== Final Releases Full Status ===");
     console.log("Releases count:", status.releasesCount);
     console.log("Pending downloads:", status.pendingDownloads);
     console.log("Completed downloads:", status.completedDownloads);
     console.log("Has downloaded release:", status.hasDownloadedRelease);
-    console.log("Has deployment ready release:", status.hasDeploymentReadyRelease);
+    console.log(
+      "Has deployment ready release:",
+      status.hasDeploymentReadyRelease,
+    );
 
     for (const release of status.releases) {
       console.log(`\nRelease: ${release.tagName} (${release.name})`);
-      console.log(`  Draft: ${release.draft}, Prerelease: ${release.prerelease}`);
+      console.log(
+        `  Draft: ${release.draft}, Prerelease: ${release.prerelease}`,
+      );
       console.log(`  Is Downloaded: ${release.isDownloaded}`);
       console.log(`  Is Deployment Ready: ${release.isDeploymentReady}`);
 
@@ -112,12 +197,28 @@ describe("GitHub Releases", () => {
 
     // Verify releases were downloaded
     expect(status.releasesCount).toBeGreaterThan(0n);
+
+    const manifestAsset = status.releases[0]?.assets.find(
+      (asset) => asset.name === "storage-release.json",
+    );
+    expect(manifestAsset).toBeDefined();
+    expect(manifestAsset?.downloadStatus).toHaveProperty("Completed");
+    expect(status.releases[0]?.manifestError).toHaveLength(0);
+    expect(status.releases[0]?.manifest[0]?.upgrade.argStrategy).toBe(
+      "reuseInstallArgV1",
+    );
+    expect(status.releases[0]?.manifest[0]?.changelog.summary).toBe(
+      "Storage test release.",
+    );
   });
 
   test("should have downloaded release after download", async () => {
-    const status = await backendFixture.actor.getReleasesFullStatus();
+    const status = await backendFixture.actor.getStorageReleaseAdminStatus();
     console.log("Has downloaded release:", status.hasDownloadedRelease);
-    console.log("Has deployment ready release:", status.hasDeploymentReadyRelease);
+    console.log(
+      "Has deployment ready release:",
+      status.hasDeploymentReadyRelease,
+    );
 
     // If downloads completed, should have a downloaded release
     if (status.completedDownloads > 0n) {
@@ -126,20 +227,26 @@ describe("GitHub Releases", () => {
   });
 
   test("should check individual release readiness via unified API", async () => {
-    const status = await backendFixture.actor.getReleasesFullStatus();
+    const status = await backendFixture.actor.getStorageReleaseAdminStatus();
 
     // Find the first release and check its status flags
     if (status.releases.length > 0) {
       const firstRelease = status.releases[0];
-      console.log(`Release ${firstRelease.tagName} isDownloaded:`, firstRelease.isDownloaded);
-      console.log(`Release ${firstRelease.tagName} isDeploymentReady:`, firstRelease.isDeploymentReady);
+      console.log(
+        `Release ${firstRelease.tagName} isDownloaded:`,
+        firstRelease.isDownloaded,
+      );
+      console.log(
+        `Release ${firstRelease.tagName} isDeploymentReady:`,
+        firstRelease.isDeploymentReady,
+      );
 
       // Check if all assets are downloaded
       const allDownloaded = firstRelease.assets.every(
-        asset => "Completed" in asset.downloadStatus,
+        (asset) => "Completed" in asset.downloadStatus,
       );
       // Check if all .tar/.tar.gz assets are extracted
-      const allExtracted = firstRelease.assets.every(asset => {
+      const allExtracted = firstRelease.assets.every((asset) => {
         // If no extraction status, it's not a tar asset
         if (asset.extractionStatus.length === 0) return true;
         const status = asset.extractionStatus[0];
@@ -161,32 +268,112 @@ describe("GitHub Releases", () => {
     }
   });
 
+  test("should index all fetched storage releases and prepare selected assets", async () => {
+    const olderTag = "v0.2.0-test";
+    const newerTag = "v0.3.0-test";
+
+    await manager.pic.tick();
+    await manager.pic.advanceTime(86_400_000);
+    await runHttpDownloaderQueueProcessor(
+      manager.pic,
+      async () => {
+        const status =
+          await backendFixture.actor.getStorageReleaseAdminStatus();
+        const newerRelease = status.releases.find(
+          (release) => release.tagName === newerTag,
+        );
+        const olderRelease = status.releases.find(
+          (release) => release.tagName === olderTag,
+        );
+        return Boolean(
+          newerRelease?.isDownloaded && olderRelease?.manifest.length === 1,
+        );
+      },
+      undefined,
+      { maxAttempts: 80, releaseTags: [newerTag, olderTag] },
+    );
+    await manager.pic.tick();
+
+    const statusBefore =
+      await backendFixture.actor.getStorageReleaseAdminStatus();
+    const orderedTags = statusBefore.releases.map((release) => release.tagName);
+    expect(orderedTags.indexOf(newerTag)).toBeLessThan(
+      orderedTags.indexOf(olderTag),
+    );
+
+    const olderBefore = statusBefore.releases.find(
+      (release) => release.tagName === olderTag,
+    );
+    expect(olderBefore).toBeDefined();
+    expect(olderBefore?.manifest).toHaveLength(1);
+    expect(olderBefore?.isDownloaded).toBe(false);
+
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+    const prepareResult =
+      await backendFixture.actor.prepareStorageRelease(olderTag);
+    expect(prepareResult).toHaveProperty("ok");
+
+    await runHttpDownloaderQueueProcessor(
+      manager.pic,
+      async () => {
+        const status =
+          await backendFixture.actor.getStorageReleaseAdminStatus();
+        const olderRelease = status.releases.find(
+          (release) => release.tagName === olderTag,
+        );
+        return Boolean(olderRelease?.isDownloaded);
+      },
+      undefined,
+      { maxAttempts: 80, releaseTags: [olderTag] },
+    );
+
+    const knownHashes = await backendFixture.actor.listKnownWasmHashes();
+    const releaseTags = knownHashes.map((hash) => hash.releaseTag);
+    expect(
+      releaseTags.some(
+        (tag) =>
+          tag === `${olderTag}/encrypted-storage.wasm.gz` ||
+          tag === `${newerTag}/encrypted-storage.wasm.gz`,
+      ),
+    ).toBe(true);
+  });
+
   test("should invalidate and re-download assets when hash changes", async () => {
     console.log("\n=== Testing Asset Invalidation ===");
 
     // Get status before invalidation
-    const statusBefore = await backendFixture.actor.getReleasesFullStatus();
+    const statusBefore =
+      await backendFixture.actor.getStorageReleaseAdminStatus();
     expect(statusBefore.hasDownloadedRelease).toBe(true);
 
     const releaseBefore = statusBefore.releases[0];
-    const frontendAssetBefore = releaseBefore?.assets.find(a => a.name.includes("frontend"));
+    const frontendAssetBefore = releaseBefore?.assets.find((a) =>
+      a.name.includes("frontend"),
+    );
     // const hashBefore = frontendAssetBefore?.sha256 ?? [];
 
     console.log("Status before invalidation:");
     console.log("  Has downloaded release:", statusBefore.hasDownloadedRelease);
     console.log("  Completed downloads:", statusBefore.completedDownloads);
-    const hashBefore = frontendAssetBefore?.sha256 ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetBefore?.sha256)) : undefined;
+    const hashBefore = frontendAssetBefore?.sha256
+      ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetBefore?.sha256))
+      : undefined;
     console.log("  Frontend hash before:", hashBefore);
-    console.log("  Frontend extraction:", formatExtractionStatus(frontendAssetBefore?.extractionStatus ?? []));
+    console.log(
+      "  Frontend extraction:",
+      formatExtractionStatus(frontendAssetBefore?.extractionStatus ?? []),
+    );
 
     // Verify we have a hash before invalidation
     expect(hashBefore).toBeDefined();
 
-    console.log("\nTriggering refreshReleases with v2 frontend (different content)...");
+    console.log(
+      "\nTriggering refreshStorageReleaseIndex with v2 frontend (different content)...",
+    );
 
     // Advance time by 1 day to trigger the daily recurring timer
     // which calls checkAndDownloadReleases via timer (not blocking update call).
-    // Direct refreshReleases() uses `await` for HTTP outcalls which deadlocks with PocketIC polling.
+    // Direct refreshStorageReleaseIndex() uses `await` for HTTP outcalls which deadlocks with PocketIC polling.
     await manager.pic.advanceTime(86_400_000);
 
     // Process pending HTTP outcalls with v2 frontend asset
@@ -194,12 +381,17 @@ describe("GitHub Releases", () => {
     await runHttpDownloaderQueueProcessor(
       manager.pic,
       async () => {
-        const status = await backendFixture.actor.getReleasesFullStatus();
+        const status =
+          await backendFixture.actor.getStorageReleaseAdminStatus();
         const release = status.releases[0];
-        const frontendAsset = release?.assets.find(a => a.name.includes("frontend"));
+        const frontendAsset = release?.assets.find((a) =>
+          a.name.includes("frontend"),
+        );
         // Check if hash changed from original (invalidation + re-download completed)
         if (frontendAsset?.sha256?.length !== 1) return false;
-        const currentHash = uint8ArrayToHexString(fromDefinedNullable(frontendAsset.sha256));
+        const currentHash = uint8ArrayToHexString(
+          fromDefinedNullable(frontendAsset.sha256),
+        );
         return currentHash !== hashBefore;
       },
       { frontend: frontendV2Content },
@@ -208,16 +400,24 @@ describe("GitHub Releases", () => {
     await manager.pic.tick();
 
     // Get status after invalidation and re-download
-    const statusAfter = await backendFixture.actor.getReleasesFullStatus();
+    const statusAfter =
+      await backendFixture.actor.getStorageReleaseAdminStatus();
     const releaseAfter = statusAfter.releases[0];
-    const frontendAssetAfter = releaseAfter?.assets.find(a => a.name.includes("frontend"));
-    const hashAfter = frontendAssetAfter?.sha256 ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetAfter?.sha256)) : undefined;
+    const frontendAssetAfter = releaseAfter?.assets.find((a) =>
+      a.name.includes("frontend"),
+    );
+    const hashAfter = frontendAssetAfter?.sha256
+      ? uint8ArrayToHexString(fromDefinedNullable(frontendAssetAfter?.sha256))
+      : undefined;
 
     console.log("\nStatus after invalidation:");
     console.log("  Has downloaded release:", statusAfter.hasDownloadedRelease);
     console.log("  Completed downloads:", statusAfter.completedDownloads);
     console.log("  Frontend hash after:", hashAfter);
-    console.log("  Frontend extraction:", formatExtractionStatus(frontendAssetAfter?.extractionStatus ?? []));
+    console.log(
+      "  Frontend extraction:",
+      formatExtractionStatus(frontendAssetAfter?.extractionStatus ?? []),
+    );
 
     // Verify the release is still downloaded
     expect(statusAfter.hasDownloadedRelease).toBe(true);
@@ -234,5 +434,57 @@ describe("GitHub Releases", () => {
     expect(hashAfter).not.toBe(hashBefore);
 
     console.log("\n=== Asset Invalidation Test Complete ===");
+  });
+
+  test("should reject a downloaded release with unsupported WASM arg strategy", async () => {
+    const releaseTag = "v9.0.0-unsupported-arg";
+
+    await manager.pic.tick();
+    await manager.pic.advanceTime(86_400_000);
+    await runHttpDownloaderQueueProcessor(
+      manager.pic,
+      async () => {
+        const status =
+          await backendFixture.actor.getStorageReleaseAdminStatus();
+        const release = status.releases.find(
+          (item) => item.tagName === releaseTag,
+        );
+        return Boolean(release?.isDownloaded);
+      },
+      {
+        manifest: (tag) =>
+          storageReleaseManifestContent(tag, {
+            argStrategy: "replaceInitArgV2",
+          }),
+      },
+      { maxAttempts: 80, releaseTags: [releaseTag] },
+    );
+
+    for (let i = 0; i < 50; i++) {
+      await manager.pic.tick(20);
+      const status = await backendFixture.actor.getStorageReleaseAdminStatus();
+      const release = status.releases.find(
+        (item) => item.tagName === releaseTag,
+      );
+      const frontend = release?.assets.find(
+        (asset) => asset.name === "storage-frontend.tar",
+      );
+      if (
+        frontend?.extractionStatus[0] &&
+        "Complete" in frontend.extractionStatus[0]
+      ) {
+        break;
+      }
+    }
+
+    const status = await backendFixture.actor.getStorageReleaseAdminStatus();
+    const release = status.releases.find((item) => item.tagName === releaseTag);
+    expect(release).toBeDefined();
+    expect(release?.isDownloaded).toBe(true);
+    expect(release?.isDeploymentReady).toBe(false);
+    expect(status.hasDeploymentReadyRelease).toBe(false);
+    expect(release?.manifestError[0]).toContain(
+      "Unsupported storage WASM argStrategy replaceInitArgV2",
+    );
   });
 });

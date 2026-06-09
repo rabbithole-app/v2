@@ -1,0 +1,195 @@
+<div class="space-y-4">
+  <div class="space-y-2">
+    <label class="text-sm font-medium" [for]="selectId()">
+      Target version
+    </label>
+    <hlm-select
+      rbthTransparentSelectBackdrop
+      class="w-full"
+      [value]="selectedReleaseTag()"
+      (valueChange)="selectRelease($event)"
+    >
+      <hlm-select-trigger [buttonId]="selectId()" class="w-full">
+        <hlm-select-value placeholder="Select version" />
+      </hlm-select-trigger>
+      <hlm-select-content *hlmSelectPortal>
+        <hlm-select-group>
+          @for (option of releaseOptions(); track option.tagName) {
+            <hlm-select-item
+              [value]="option.tagName"
+              [disabled]="option.disabled"
+              class="items-start"
+            >
+              <hlm-item size="xs" class="w-full border-0 bg-transparent p-0">
+                <hlm-item-content class="min-w-0 gap-0">
+                  <hlm-item-title class="w-full truncate">
+                    {{ option.tagName }}
+                  </hlm-item-title>
+                  @if (option.disabledReason; as reason) {
+                    <p hlmItemDescription class="w-full truncate leading-none">
+                      {{ reason }}
+                    </p>
+                  }
+                </hlm-item-content>
+              </hlm-item>
+            </hlm-select-item>
+          } @empty {
+            <hlm-select-item value="__empty" disabled>
+              {{
+                releaseOptionsLoading()
+                  ? 'Loading releases...'
+                  : 'No newer releases available'
+              }}
+            </hlm-select-item>
+          }
+        </hlm-select-group>
+      </hlm-select-content>
+    </hlm-select>
+  </div>
+
+  @if (hasInstallableRelease()) {
+    <div class="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+      <span class="text-muted-foreground">Version:</span>
+      <span class="break-all font-mono">{{
+        currentReleaseTag() ?? 'unknown'
+      }}</span>
+      <span class="text-muted-foreground">&rarr;</span>
+      <span class="break-all font-mono font-medium">{{
+        selectedReleaseTag()
+      }}</span>
+    </div>
+
+    @if (selectedUpdateInfo(); as info) {
+      <div class="flex flex-wrap gap-2">
+        @if (info.wasmUpdateAvailable) {
+          <span hlmBadge variant="outline" class="text-xs">
+            <ng-icon hlmIcon name="lucidePackage" size="xs" />
+            WASM Module
+          </span>
+        }
+        @if (info.frontendUpdateAvailable) {
+          <span hlmBadge variant="outline" class="text-xs">
+            <ng-icon hlmIcon name="lucideGlobe" size="xs" />
+            Frontend
+          </span>
+        }
+      </div>
+    }
+
+    @if (selectedChangelogSummary() || selectedChangelogSections().length > 0) {
+      <div hlmAlert>
+        <ng-icon hlmAlertIcon name="lucideListChecks" />
+        <h4 hlmAlertTitle>Changelog</h4>
+        <div class="col-start-2 space-y-3 text-sm">
+          @if (selectedChangelogSummary(); as summary) {
+            <p class="text-muted-foreground text-pretty">{{ summary }}</p>
+          }
+
+          @if (selectedChangelogSections().length > 0) {
+            <ng-scrollbar hlm class="h-56 pr-3" appearance="compact">
+              <div scrollViewport class="space-y-3 pr-3">
+                @for (
+                  section of selectedChangelogSections();
+                  track section.kind
+                ) {
+                  <section class="space-y-1">
+                    <h5 class="font-medium text-foreground">
+                      {{ section.title }}
+                    </h5>
+                    <ul class="list-disc space-y-1 pl-4 text-muted-foreground">
+                      @for (item of section.items; track item.text) {
+                        <li>
+                          <span>{{ item.text }}</span>
+                          @if (item.commit; as commit) {
+                            <a
+                              hlmBtn
+                              variant="link"
+                              size="xs"
+                              class="font-mono"
+                              [href]="commitHref(commit, item.commitUrl)"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {{ commit }}
+                            </a>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </section>
+                }
+              </div>
+            </ng-scrollbar>
+          }
+        </div>
+      </div>
+    }
+
+    <ng-content select="[rbthStorageUpgradeReviewBeforePermissions]" />
+
+    <div hlmAlert class="!pr-4">
+      <ng-icon hlmAlertIcon name="lucideShieldCheck" />
+      <h4 hlmAlertTitle>Create a snapshot before upgrading</h4>
+      <p hlmAlertDescription>
+        A canister snapshot lets you restore the canister state if the new
+        version does not work as expected. Creating or restoring a snapshot
+        temporarily stops the canister.
+      </p>
+      <div
+        hlmAlertAction
+        class="!relative !end-auto !top-auto col-start-2 mt-3 flex flex-wrap gap-2"
+      >
+        @if (canisterManagementHref(); as href) {
+          <a hlmBtn [href]="href" variant="secondary" size="sm"
+            ><ng-icon hlmIcon name="lucideCamera" size="sm" /> Manage snapshots
+          </a>
+        }
+        <a
+          hlmBtn
+          variant="link"
+          size="sm"
+          [href]="snapshotsGuideHref"
+          target="_blank"
+          rel="noreferrer"
+        >
+          IC snapshots guide
+          <ng-icon hlmIcon name="lucideExternalLink" size="sm" />
+        </a>
+      </div>
+    </div>
+
+    <div hlmAlert>
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>Temporary permissions required</h4>
+      <p hlmAlertDescription>
+        The backend canister will be temporarily added as a controller of your
+        storage to install updates. It will be automatically removed after the
+        upgrade completes.
+      </p>
+    </div>
+
+    <ng-content select="[rbthStorageUpgradeReviewAfterPermissions]" />
+  } @else {
+    <div hlmAlert>
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>
+        {{
+          releaseOptionsLoading()
+            ? 'Checking releases'
+            : 'No compatible update available'
+        }}
+      </h4>
+      <p hlmAlertDesc>
+        @if (releaseOptionsLoading()) {
+          Checking which storage releases can be installed from your current
+          version.
+        } @else if (releaseOptions().length === 0) {
+          There are no storage releases newer than your current version.
+        } @else {
+          The releases listed above cannot be installed from your current
+          storage version.
+        }
+      </p>
+    </div>
+  }
+</div>

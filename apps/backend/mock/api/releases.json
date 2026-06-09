@@ -1,73 +1,71 @@
 [
   {
     "url": "http://mock-server:8080/repos/mock/releases/releases/1",
-    "html_url": "http://mock-server:8080/releases/tag/v0.1.1",
+    "html_url": "http://mock-server:8080/releases/tag/storage-v0.1.0",
     "id": 1,
-    "tag_name": "v0.1.1",
-    "name": "Storage v0.1.1",
-    "body": "## Changes\n- Initial release\n- Basic storage functionality",
-    "draft": true,
+    "tag_name": "storage-v0.1.0",
+    "name": "Storage v0.1.0",
+    "body": "## Storage v0.1.0\n\nStorage maintenance release.\n\n### Changes\n\n- Maintenance release.\n\n### Upgrade metadata\n\n- Version: `0.1.0`\n- Commit: `c8925f258a0a9e0e0e5c55b10135ff314c4c24c8`\n- Argument strategy: `reuseInstallArgV1`\n- Compatible from: `none declared`\n- Frontend asset tree: `sha256:2c224aa13aca062908fd79aa0b6d4d82ff1d157641df63fecc3d3ef3d7560da4`\n\n### Artifacts\n\n- wasm: `encrypted-storage.wasm.gz` (825461 bytes, sha256:e473e5f53cd7c88a278aaa1e6f02550de9708a505f92249e3fe47645a81620e2)\n- frontend: `storage-frontend.tar` (7190016 bytes, sha256:324169fbaa32a1cc11dd128d748d5876dede3d0dd8fca60788d0a8ea3e16cb29)\n- did: `encrypted-storage.did` (31603 bytes, sha256:993edb0d2d3e12388c913b65282e9f4fcb2838428d48fbd7889c373078c02ab8)\n- stableSignature: `encrypted-storage.most` (48991 bytes, sha256:151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914)\n\nThe machine-readable release contract is attached as `storage-release.json`.\n",
+    "draft": false,
     "prerelease": false,
-    "created_at": "2024-01-15T10:00:00Z",
+    "immutable": false,
+    "created_at": "2024-01-15T12:00:00Z",
     "published_at": "2024-01-15T12:00:00Z",
     "assets": [
       {
-        "url": "http://mock-server:8080/assets/encrypted-storage.wasm.gz",
+        "url": "http://mock-server:8080/assets/storage-v0.1.0/encrypted-storage.wasm.gz",
         "id": 101,
         "name": "encrypted-storage.wasm.gz",
         "label": "",
         "content_type": "application/gzip",
-        "size": 822371,
-        "created_at": "2024-01-15T10:00:00Z",
-        "updated_at": "2024-01-15T10:00:00Z",
-        "digest": "sha256:931374c5efc8b7056b479d495a9fe4a0c28d2f5163e573357142b50aeebe86ae"
+        "size": 825461,
+        "created_at": "2024-01-15T12:00:00Z",
+        "updated_at": "2024-01-15T12:00:00Z",
+        "digest": "sha256:e473e5f53cd7c88a278aaa1e6f02550de9708a505f92249e3fe47645a81620e2"
       },
       {
-        "url": "http://mock-server:8080/assets/storage-frontend.tar",
+        "url": "http://mock-server:8080/assets/storage-v0.1.0/encrypted-storage.did",
         "id": 102,
-        "name": "storage-frontend.tar",
+        "name": "encrypted-storage.did",
         "label": "",
-        "content_type": "application/x-tar",
-        "size": 7030272,
-        "created_at": "2024-01-15T10:00:00Z",
-        "updated_at": "2024-01-15T10:00:00Z",
-        "digest": "sha256:f9b57b8c63fcdc687b4279750537af9b9f1234b2c71ea4c957aca5b1865fec27"
-      }
-    ]
-  },
-  {
-    "url": "http://mock-server:8080/repos/mock/releases/releases/2",
-    "html_url": "http://mock-server:8080/releases/tag/v0.0.1-alpha",
-    "id": 2,
-    "tag_name": "v0.0.1-alpha",
-    "name": "Storage v0.0.1 Alpha",
-    "body": "## Alpha Release\n- Early testing version",
-    "draft": false,
-    "prerelease": true,
-    "created_at": "2024-01-01T10:00:00Z",
-    "published_at": "2024-01-01T12:00:00Z",
-    "assets": [
-      {
-        "url": "http://mock-server:8080/assets/encrypted-storage.wasm.gz",
-        "id": 201,
-        "name": "encrypted-storage.wasm.gz",
-        "label": "",
-        "content_type": "application/gzip",
-        "size": 822371,
-        "created_at": "2024-01-01T10:00:00Z",
-        "updated_at": "2024-01-01T10:00:00Z",
-        "digest": "sha256:931374c5efc8b7056b479d495a9fe4a0c28d2f5163e573357142b50aeebe86ae"
+        "content_type": "text/plain",
+        "size": 31603,
+        "created_at": "2024-01-15T12:00:00Z",
+        "updated_at": "2024-01-15T12:00:00Z",
+        "digest": "sha256:993edb0d2d3e12388c913b65282e9f4fcb2838428d48fbd7889c373078c02ab8"
       },
       {
-        "url": "http://mock-server:8080/assets/storage-frontend.tar",
-        "id": 202,
+        "url": "http://mock-server:8080/assets/storage-v0.1.0/encrypted-storage.most",
+        "id": 103,
+        "name": "encrypted-storage.most",
+        "label": "",
+        "content_type": "text/plain",
+        "size": 48991,
+        "created_at": "2024-01-15T12:00:00Z",
+        "updated_at": "2024-01-15T12:00:00Z",
+        "digest": "sha256:151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914"
+      },
+      {
+        "url": "http://mock-server:8080/assets/storage-v0.1.0/storage-frontend.tar",
+        "id": 104,
         "name": "storage-frontend.tar",
         "label": "",
         "content_type": "application/x-tar",
-        "size": 7030272,
-        "created_at": "2024-01-01T10:00:00Z",
-        "updated_at": "2024-01-01T10:00:00Z",
-        "digest": "sha256:f9b57b8c63fcdc687b4279750537af9b9f1234b2c71ea4c957aca5b1865fec27"
+        "size": 7190016,
+        "created_at": "2024-01-15T12:00:00Z",
+        "updated_at": "2024-01-15T12:00:00Z",
+        "digest": "sha256:324169fbaa32a1cc11dd128d748d5876dede3d0dd8fca60788d0a8ea3e16cb29"
+      },
+      {
+        "url": "http://mock-server:8080/assets/storage-v0.1.0/storage-release.json",
+        "id": 105,
+        "name": "storage-release.json",
+        "label": "",
+        "content_type": "application/json",
+        "size": 1401,
+        "created_at": "2024-01-15T12:00:00Z",
+        "updated_at": "2024-01-15T12:00:00Z",
+        "digest": "sha256:8ad8288bbe7f900de583b6c6b7cb9fca002aaf38b62bbe705857822ff7dc148c"
       }
     ]
   }

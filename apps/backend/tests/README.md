@@ -51,6 +51,7 @@ Common test utilities live in `libs/testing` (`@rabbithole/testing`):
 ### `profiles.test.ts`
 
 Tests for user profile management:
+
 - Create, read, update, delete profiles
 - Username validation
 - Profile listing with pagination, sorting, and filtering
@@ -60,6 +61,7 @@ Uses `setupChunkedCanister` directly (no Manager).
 ### `github-releases.test.ts`
 
 Tests for GitHub releases functionality:
+
 - Fetching releases via mocked HTTP outcalls
 - Download status tracking
 - Release readiness validation
@@ -67,6 +69,7 @@ Tests for GitHub releases functionality:
 ### `storage-deployer.test.ts`
 
 End-to-end tests for storage canister deployment:
+
 - ICP/XDR conversion rates from CMC
 - ICP Ledger balance checks
 - ICRC-2 allowance and transfer operations
@@ -75,6 +78,7 @@ End-to-end tests for storage canister deployment:
 ### `tar-extractor.test.ts`
 
 Tests for tar.gz archive extraction:
+
 - Download and extraction pipeline
 - File hash verification
 - Extraction progress tracking
@@ -109,6 +113,7 @@ BaseManager (libs/testing)           — NNS/PocketIC infrastructure
 ```
 
 **`BaseManager`** (`@rabbithole/testing`) handles:
+
 - PocketIC instance with a fresh NNS subnet and built-in ICP Ledger / CMC canisters
 - Application subnet creation
 - Pre-configured ICP Ledger and CMC actors
@@ -116,6 +121,7 @@ BaseManager (libs/testing)           — NNS/PocketIC infrastructure
 - Time and block advancement
 
 **`BackendManager`** (`tests/setup/backend-manager.ts`) adds:
+
 - System subnet for CMC operations
 - Chrono router advancement (240 min warmup)
 - `initBackendCanister()` — deploy rabbithole-backend + CMC authorization
@@ -143,13 +149,10 @@ For tests that require external HTTP calls (e.g., GitHub API), use the mocking u
 ```typescript
 import { runHttpDownloaderQueueProcessor, frontendV2Content } from "./setup/github-outcalls";
 
-await runHttpDownloaderQueueProcessor(
-  manager.pic,
-  async () => {
-    const status = await backendFixture.actor.getReleasesFullStatus();
-    return status.hasDownloadedRelease;
-  }
-);
+await runHttpDownloaderQueueProcessor(manager.pic, async () => {
+  const status = await backendFixture.actor.getStorageReleaseAdminStatus();
+  return status.hasDownloadedRelease;
+});
 ```
 
 ### Chunked WASM Installation
@@ -191,6 +194,7 @@ The `global-setup.ts` starts a PocketIC server before tests and provides the URL
 **Problem**: Canister WASM files are missing.
 
 **Solution**: Build the canisters first:
+
 ```bash
 npx nx build backend
 ```
@@ -200,6 +204,7 @@ npx nx build backend
 **Problem**: Tests exceed the timeout limit.
 
 **Solutions**:
+
 - Increase test timeout in specific tests: `test('...', { timeout: 60000 }, async () => {...})`
 - Ensure PocketIC server is running correctly
 - Check for infinite loops in async operations

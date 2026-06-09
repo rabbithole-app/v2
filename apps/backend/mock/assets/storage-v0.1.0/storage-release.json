@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0",
+  "tagName": "storage-v0.1.0",
+  "commit": "c8925f258a0a9e0e0e5c55b10135ff314c4c24c8",
+  "frontendAssetTreeHash": "2c224aa13aca062908fd79aa0b6d4d82ff1d157641df63fecc3d3ef3d7560da4",
+  "artifacts": {
+    "wasm": {
+      "name": "encrypted-storage.wasm.gz",
+      "size": 825461,
+      "sha256": "e473e5f53cd7c88a278aaa1e6f02550de9708a505f92249e3fe47645a81620e2"
+    },
+    "frontend": {
+      "name": "storage-frontend.tar",
+      "size": 7190016,
+      "sha256": "324169fbaa32a1cc11dd128d748d5876dede3d0dd8fca60788d0a8ea3e16cb29"
+    },
+    "did": {
+      "name": "encrypted-storage.did",
+      "size": 31603,
+      "sha256": "993edb0d2d3e12388c913b65282e9f4fcb2838428d48fbd7889c373078c02ab8"
+    },
+    "stableSignature": {
+      "name": "encrypted-storage.most",
+      "size": 48991,
+      "sha256": "151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914"
+    }
+  },
+  "upgrade": {
+    "argStrategy": "reuseInstallArgV1",
+    "compatibleFrom": []
+  },
+  "changelog": {
+    "range": {
+      "from": null,
+      "to": "storage-v0.1.0",
+      "compareUrl": null,
+      "maxCommits": 1
+    },
+    "bump": "none",
+    "summary": "Storage maintenance release.",
+    "sections": []
+  },
+  "releaseNotes": {
+    "source": "generated",
+    "summary": "Storage maintenance release.",
+    "sections": []
+  }
+}

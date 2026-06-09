@@ -1,0 +1,140 @@
+@if (releaseState.isLoading()) {
+  <button
+    type="button"
+    hlmBtn
+    variant="ghost"
+    size="icon-sm"
+    class="text-muted-foreground hover:text-foreground"
+    disabled
+    aria-label="Loading storage version information"
+  >
+    <hlm-spinner class="text-sm" />
+  </button>
+} @else {
+  <hlm-hover-card>
+    <button
+      type="button"
+      hlmBtn
+      hlmHoverCardTrigger
+      variant="ghost"
+      size="icon-sm"
+      class="text-muted-foreground hover:text-foreground"
+      aria-label="Storage version information"
+    >
+      <ng-icon hlmIcon name="lucideInfo" size="sm" aria-hidden="true" />
+    </button>
+    <hlm-hover-card-content
+      *hlmHoverCardPortal
+      class="w-96 max-w-[calc(100vw-2rem)]"
+    >
+      <div class="space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-sm font-semibold">Installed version</h3>
+          <button
+            type="button"
+            hlmBtn
+            variant="ghost"
+            size="icon-sm"
+            class="-mr-1 text-muted-foreground hover:text-foreground"
+            [attr.aria-label]="showDetails() ? 'Hide details' : 'Show details'"
+            [attr.aria-pressed]="showDetails()"
+            [hlmTooltip]="showDetails() ? 'Hide details' : 'Show details'"
+            (click)="toggleDetails()"
+          >
+            <ng-icon
+              hlmIcon
+              [name]="showDetails() ? 'lucideChevronsDownUp' : 'lucideChevronsUpDown'"
+              size="sm"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+
+        <dl class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3">
+          <dt class="text-xs text-muted-foreground">Canister</dt>
+          <dd class="min-w-0">
+            <rbth-copy-to-clipboard
+              class="w-full [&>[data-slot=copy-content]]:!overflow-visible [&>[data-slot=copy-content]]:!text-clip [&>[data-slot=copy-content]]:!whitespace-normal [&>[data-slot=copy-content]]:break-all"
+              size="xs"
+              [content]="canisterId"
+            >
+              {{ canisterId }}
+            </rbth-copy-to-clipboard>
+          </dd>
+
+          @if (releaseState.error()) {
+            <dt class="text-xs text-muted-foreground">Status</dt>
+            <dd class="min-w-0 text-xs text-muted-foreground">
+              Release state unavailable
+            </dd>
+          } @else if (releaseInfo(); as state) {
+            <dt class="text-xs text-muted-foreground">Tag</dt>
+            <dd class="min-w-0">
+              <span
+                hlmBadge
+                variant="secondary"
+                class="max-w-full truncate text-xs"
+                [class.text-muted-foreground]="!state.releaseTag"
+                [title]="state.releaseTag ?? 'Not recorded'"
+              >
+                {{ state.releaseTag ?? 'Not recorded' }}
+              </span>
+            </dd>
+
+            @for (row of hashRows(); track row.label) {
+              <dt class="text-xs text-muted-foreground">{{ row.label }}</dt>
+              <dd class="min-w-0">
+                @if (row.value) {
+                  <rbth-copy-to-clipboard
+                    class="w-full [&>[data-slot=copy-content]]:!overflow-visible [&>[data-slot=copy-content]]:!text-clip [&>[data-slot=copy-content]]:!whitespace-normal [&>[data-slot=copy-content]]:break-all"
+                    size="xs"
+                    [content]="row.value"
+                  >
+                    {{ row.value }}
+                  </rbth-copy-to-clipboard>
+                } @else {
+                  <span class="text-xs text-muted-foreground">
+                    Not recorded
+                  </span>
+                }
+              </dd>
+            }
+
+            @if (showDetails()) {
+              <dt class="text-xs text-muted-foreground">Schema</dt>
+              <dd class="min-w-0 text-xs">
+                {{ state.schemaVersion.toString() }}
+              </dd>
+
+              <dt class="text-xs text-muted-foreground">Installed at</dt>
+              <dd class="min-w-0 text-xs">
+                @if (state.installedAt; as installedAt) {
+                  {{ installedAt | date: 'medium' }}
+                } @else {
+                  <span class="text-muted-foreground">Not recorded</span>
+                }
+              </dd>
+
+              <dt class="text-xs text-muted-foreground">Manifest</dt>
+              <dd class="min-w-0">
+                @if (state.manifestHash; as manifestHash) {
+                  <rbth-copy-to-clipboard
+                    class="w-full [&>[data-slot=copy-content]]:!overflow-visible [&>[data-slot=copy-content]]:!text-clip [&>[data-slot=copy-content]]:!whitespace-normal [&>[data-slot=copy-content]]:break-all"
+                    size="xs"
+                    [content]="manifestHash"
+                  >
+                    {{ manifestHash }}
+                  </rbth-copy-to-clipboard>
+                } @else {
+                  <span class="text-xs text-muted-foreground">
+                    Not recorded
+                  </span>
+                }
+              </dd>
+            }
+          }
+        </dl>
+      </div>
+    </hlm-hover-card-content>
+  </hlm-hover-card>
+}

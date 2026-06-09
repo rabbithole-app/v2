@@ -85,14 +85,14 @@ export const idlFactory = ({ IDL }) => {
       'expected' : IDL.Vec(IDL.Text),
     }),
   });
-  const Result_8 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
+  const Result_9 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
   const Plan = IDL.Variant({ 'Pro' : IDL.Null, 'Free' : IDL.Null });
   const AddStorageError = IDL.Variant({
     'NotController' : IDL.Null,
     'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InvalidWasm' : IDL.Text,
   });
-  const Result_7 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const Result_8 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
   const UserSettings = IDL.Record({
     'spendingPriority' : IDL.Vec(TokenId),
     'topUpAmountCycles' : IDL.Nat,
@@ -175,14 +175,6 @@ export const idlFactory = ({ IDL }) => {
     'referralCodeNotFound' : IDL.Null,
     'alreadyApplied' : IDL.Null,
   });
-  const UpdateInfo = IDL.Record({
-    'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'wasmUpdateAvailable' : IDL.Bool,
-    'availableReleaseTag' : IDL.Opt(IDL.Text),
-    'currentReleaseTag' : IDL.Opt(IDL.Text),
-    'frontendUpdateAvailable' : IDL.Bool,
-    'availableWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-  });
   const LicenseStorageLimits = IDL.Record({
     'includedBytes' : IDL.Nat,
     'maxFileBytes' : IDL.Nat,
@@ -214,7 +206,7 @@ export const idlFactory = ({ IDL }) => {
     'NotFound' : IDL.Null,
     'NotOwner' : IDL.Null,
   });
-  const Result_6 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_7 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
   const EnsureStorageCyclesForUploadRequest = IDL.Record({
     'activeUploadedBytes' : IDL.Nat,
     'currentBalance' : IDL.Nat,
@@ -223,7 +215,7 @@ export const idlFactory = ({ IDL }) => {
     'remainingUploadBytes' : IDL.Nat,
     'requiredBalance' : IDL.Nat,
   });
-  const Result_5 = IDL.Variant({
+  const Result_6 = IDL.Variant({
     'ok' : IDL.Record({
       'cyclesAdded' : IDL.Opt(IDL.Nat),
       'requiredBalance' : IDL.Nat,
@@ -392,6 +384,17 @@ export const idlFactory = ({ IDL }) => {
     'principal' : IDL.Principal,
     'profile' : IDL.Opt(PublicProfileSummary),
   });
+  const StorageFundingStatus = IDL.Record({
+    'spendingPriority' : IDL.Vec(TokenId),
+    'paidAutoTopUpEnabled' : IDL.Bool,
+    'periodEnd' : IDL.Opt(Time),
+    'includedCyclesRemaining' : IDL.Nat,
+    'includedCyclesUsed' : IDL.Nat,
+    'includedCyclesLimit' : IDL.Nat,
+    'periodStart' : IDL.Opt(Time),
+    'managedFundingEligible' : IDL.Bool,
+    'paidTopUpAmountCycles' : IDL.Nat,
+  });
   const AssetDownloadStatus = IDL.Variant({
     'Error' : IDL.Text,
     'Downloading' : IDL.Record({
@@ -421,6 +424,60 @@ export const idlFactory = ({ IDL }) => {
     'downloadStatus' : AssetDownloadStatus,
     'extractionStatus' : IDL.Opt(ExtractionStatus),
   });
+  const ReleaseArtifactManifest = IDL.Record({
+    'sha256' : IDL.Opt(IDL.Text),
+    'name' : IDL.Text,
+    'size' : IDL.Opt(IDL.Nat),
+  });
+  const ChangelogItem = IDL.Record({
+    'text' : IDL.Text,
+    'commitUrl' : IDL.Opt(IDL.Text),
+    'commit' : IDL.Opt(IDL.Text),
+  });
+  const ChangelogSection = IDL.Record({
+    'title' : IDL.Text,
+    'kind' : IDL.Text,
+    'items' : IDL.Vec(ChangelogItem),
+  });
+  const ChangelogRange = IDL.Record({
+    'to' : IDL.Text,
+    'compareUrl' : IDL.Opt(IDL.Text),
+    'from' : IDL.Opt(IDL.Text),
+    'maxCommits' : IDL.Opt(IDL.Nat),
+  });
+  const ReleaseChangelog = IDL.Record({
+    'bump' : IDL.Text,
+    'summary' : IDL.Text,
+    'sections' : IDL.Vec(ChangelogSection),
+    'range' : ChangelogRange,
+  });
+  const ReleaseUpgradeManifest = IDL.Record({
+    'compatibleFrom' : IDL.Vec(IDL.Text),
+    'argStrategy' : IDL.Text,
+  });
+  const ReleaseNoteSection = IDL.Record({
+    'title' : IDL.Text,
+    'items' : IDL.Vec(IDL.Text),
+  });
+  const ReleaseNotes = IDL.Record({
+    'source' : IDL.Text,
+    'summary' : IDL.Text,
+    'sections' : IDL.Vec(ReleaseNoteSection),
+  });
+  const StorageReleaseManifest = IDL.Record({
+    'did' : IDL.Opt(ReleaseArtifactManifest),
+    'frontendAssetTreeHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'changelog' : ReleaseChangelog,
+    'tagName' : IDL.Text,
+    'wasm' : IDL.Opt(ReleaseArtifactManifest),
+    'frontend' : IDL.Opt(ReleaseArtifactManifest),
+    'upgrade' : ReleaseUpgradeManifest,
+    'releaseNotes' : IDL.Opt(ReleaseNotes),
+    'version' : IDL.Text,
+    'stableSignature' : IDL.Opt(ReleaseArtifactManifest),
+    'schemaVersion' : IDL.Nat,
+    'commit' : IDL.Text,
+  });
   const ReleaseFullStatus = IDL.Record({
     'tagName' : IDL.Text,
     'isDownloaded' : IDL.Bool,
@@ -428,12 +485,13 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Time,
     'assets' : IDL.Vec(AssetFullStatus),
     'publishedAt' : IDL.Opt(Time),
+    'manifestError' : IDL.Opt(IDL.Text),
     'isDeploymentReady' : IDL.Bool,
+    'manifest' : IDL.Opt(StorageReleaseManifest),
     'draft' : IDL.Bool,
     'prerelease' : IDL.Bool,
   });
   const ReleasesFullStatus = IDL.Record({
-    'defaultVersionKey' : IDL.Text,
     'releasesCount' : IDL.Nat,
     'pendingDownloads' : IDL.Nat,
     'hasDeploymentReadyRelease' : IDL.Bool,
@@ -441,16 +499,53 @@ export const idlFactory = ({ IDL }) => {
     'releases' : IDL.Vec(ReleaseFullStatus),
     'completedDownloads' : IDL.Nat,
   });
-  const StorageFundingStatus = IDL.Record({
-    'spendingPriority' : IDL.Vec(TokenId),
-    'paidAutoTopUpEnabled' : IDL.Bool,
-    'periodEnd' : IDL.Opt(Time),
-    'includedCyclesRemaining' : IDL.Nat,
-    'includedCyclesUsed' : IDL.Nat,
-    'includedCyclesLimit' : IDL.Nat,
-    'periodStart' : IDL.Opt(Time),
-    'managedFundingEligible' : IDL.Bool,
-    'paidTopUpAmountCycles' : IDL.Nat,
+  const StorageReleaseState = IDL.Record({
+    'frontendAssetTreeHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'manifestHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'wasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'installedAt' : IDL.Opt(Time),
+    'releaseTag' : IDL.Opt(IDL.Text),
+    'schemaVersion' : IDL.Nat,
+  });
+  const UpdateInfo = IDL.Record({
+    'currentWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'wasmUpdateAvailable' : IDL.Bool,
+    'availableReleaseTag' : IDL.Opt(IDL.Text),
+    'currentReleaseTag' : IDL.Opt(IDL.Text),
+    'frontendUpdateAvailable' : IDL.Bool,
+    'availableWasmHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+  });
+  const StorageReleaseOption = IDL.Record({
+    'releaseNotesSummary' : IDL.Opt(IDL.Text),
+    'wasmUpdateAvailable' : IDL.Bool,
+    'tagName' : IDL.Text,
+    'compatibleFrom' : IDL.Vec(IDL.Text),
+    'disabled' : IDL.Bool,
+    'version' : IDL.Text,
+    'changelogSummary' : IDL.Opt(IDL.Text),
+    'releaseNotesSections' : IDL.Vec(ReleaseNoteSection),
+    'disabledReason' : IDL.Opt(IDL.Text),
+    'frontendUpdateAvailable' : IDL.Bool,
+    'changelogSections' : IDL.Vec(ChangelogSection),
+    'updateInfo' : IDL.Opt(UpdateInfo),
+  });
+  const StorageReleaseOptionsResult = IDL.Record({
+    'stateInSync' : IDL.Bool,
+    'options' : IDL.Vec(StorageReleaseOption),
+  });
+  const UpgradeStorageError = IDL.Variant({
+    'StorageStateDrift' : IDL.Text,
+    'AlreadyUpgrading' : IDL.Null,
+    'NoUpdateAvailable' : IDL.Null,
+    'NotFound' : IDL.Null,
+    'NotOwner' : IDL.Null,
+    'ReleaseNotReady' : IDL.Null,
+    'ReleaseNotCompatible' : IDL.Null,
+    'NotCompleted' : IDL.Null,
+  });
+  const Result_5 = IDL.Variant({
+    'ok' : StorageReleaseOptionsResult,
+    'err' : UpgradeStorageError,
   });
   const Status = IDL.Variant({
     'Active' : IDL.Null,
@@ -998,6 +1093,7 @@ export const idlFactory = ({ IDL }) => {
     'blobId' : IDL.Vec(IDL.Nat8),
     'rootHash' : IDL.Text,
   });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const StorageBackendType = IDL.Variant({
     'OnChain' : IDL.Null,
     'BlobStorage' : IDL.Null,
@@ -1019,7 +1115,6 @@ export const idlFactory = ({ IDL }) => {
     'resume' : IDL.Null,
     'refund' : IDL.Null,
   });
-  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const RefundNetwork = IDL.Variant({
     'ic' : IDL.Null,
     'evm' : IDL.Null,
@@ -1057,19 +1152,14 @@ export const idlFactory = ({ IDL }) => {
     'profile' : IDL.Opt(PublicProfileSummary),
   });
   const Result_1 = IDL.Variant({
+    'ok' : IDL.Null,
+    'err' : UpgradeStorageError,
+  });
+  const Result = IDL.Variant({
     'ok' : IDL.Record({ 'cyclesAdded' : IDL.Nat }),
     'err' : IDL.Text,
   });
   const UpdateProfileArgs = IDL.Record({ 'displayName' : IDL.Opt(IDL.Text) });
-  const UpgradeStorageError = IDL.Variant({
-    'AlreadyUpgrading' : IDL.Null,
-    'NoUpdateAvailable' : IDL.Null,
-    'NotFound' : IDL.Null,
-    'NotOwner' : IDL.Null,
-    'ReleaseNotReady' : IDL.Null,
-    'NotCompleted' : IDL.Null,
-  });
-  const Result = IDL.Variant({ 'ok' : IDL.Null, 'err' : UpgradeStorageError });
   const WithdrawDestination = IDL.Variant({
     'IC' : IDL.Record({
       'owner' : IDL.Principal,
@@ -1118,14 +1208,14 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_8], []),
+    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_9], []),
     '_internet_identity_sign_in_start' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'activateSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
         [],
         [],
       ),
-    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_7], []),
+    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_8], []),
     'adminGetUserWalletMeta' : IDL.Func(
         [IDL.Principal],
         [
@@ -1147,11 +1237,6 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'applyReferralCode' : IDL.Func([IDL.Text], [ApplyReferralCodeResult], []),
-    'checkStorageUpdate' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Opt(UpdateInfo)],
-        ['query'],
-      ),
     'checkSubscription' : IDL.Func(
         [IDL.Vec(IDL.Nat8)],
         [SubscriptionCheckResult],
@@ -1166,7 +1251,7 @@ export const idlFactory = ({ IDL }) => {
     'commitAvatarUpload' : IDL.Func([IDL.Text], [AvatarRef], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Vec(IDL.Nat8)], []),
     'deleteProfile' : IDL.Func([], [], []),
-    'deleteStorage' : IDL.Func([IDL.Nat], [Result_6], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result_7], []),
     'dismissPendingCmcOp' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'ok' : IDL.Null, 'notFound' : IDL.Null })],
@@ -1174,7 +1259,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'ensureStorageCyclesForUpload' : IDL.Func(
         [EnsureStorageCyclesForUploadRequest],
-        [Result_5],
+        [Result_6],
         [],
       ),
     'ensureUser' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
@@ -1211,10 +1296,19 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(PublicProfileLookup)],
         ['query'],
       ),
-    'getReleasesFullStatus' : IDL.Func([], [ReleasesFullStatus], ['query']),
     'getSettings' : IDL.Func([], [UserSettings], ['query']),
     'getSolAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'getStorageFundingStatus' : IDL.Func([], [StorageFundingStatus], ['query']),
+    'getStorageReleaseAdminStatus' : IDL.Func(
+        [],
+        [ReleasesFullStatus],
+        ['query'],
+      ),
+    'getStorageUpgradePlan' : IDL.Func(
+        [IDL.Principal, StorageReleaseState],
+        [Result_5],
+        ['query'],
+      ),
     'getSubscription' : IDL.Func([], [IDL.Opt(Subscription)], ['query']),
     'getTreasuryBalances' : IDL.Func([], [IDL.Vec(BalanceEntry)], []),
     'getTreasuryWalletAddresses' : IDL.Func(
@@ -1304,6 +1398,7 @@ export const idlFactory = ({ IDL }) => {
         [PrepareAvatarUploadResult],
         [],
       ),
+    'prepareStorageRelease' : IDL.Func([IDL.Text], [Result_2], []),
     'processPendingRefunds' : IDL.Func([], [IDL.Nat], []),
     'purchaseLicenseAndCreateStorage' : IDL.Func(
         [StorageBackendType, StorageVetKeyLevel],
@@ -1327,8 +1422,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'recoverStuckCreation' : IDL.Func([IDL.Nat], [Result_2], []),
-    'refreshReleases' : IDL.Func([], [], []),
-    'registerLatestWasmHash' : IDL.Func([], [], []),
+    'refreshStorageReleaseIndex' : IDL.Func([], [], []),
     'reinstallFailedStorageWasm' : IDL.Func([IDL.Nat], [Result_2], []),
     'renewSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
@@ -1344,14 +1438,18 @@ export const idlFactory = ({ IDL }) => {
       ),
     'setUserRole' : IDL.Func([IDL.Principal, Role], [], []),
     'startStorageDeployer' : IDL.Func([], [], []),
+    'startStorageUpgrade' : IDL.Func(
+        [IDL.Principal, IDL.Text, StorageReleaseState],
+        [Result_1],
+        [],
+      ),
     'stopStorageDeployer' : IDL.Func([], [], []),
-    'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result_1], []),
+    'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result], []),
     'triggerAutoRenewals' : IDL.Func([], [], []),
     'triggerExpireOverdue' : IDL.Func([], [IDL.Vec(IDL.Principal)], []),
     'triggerSelfTopUp' : IDL.Func([], [], []),
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
     'updateSettings' : IDL.Func([UserSettings], [], []),
-    'upgradeStorage' : IDL.Func([IDL.Principal], [Result], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'withdraw' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
     'withdrawFromTreasury' : IDL.Func([WithdrawArgs], [WithdrawResult], []),

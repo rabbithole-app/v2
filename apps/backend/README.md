@@ -103,9 +103,9 @@ npm --prefix apps/backend test         # vitest + @dfinity/pic integration suite
 │  │ PocketIC               │           mock-server                     │
 │  │  subnets: NNS + II +   │           ┌──────────────────────────────┐│
 │  │   SNS + system +       │           │ nginx serving mock/          ││
-│  │   application +        │           │  api/releases.json           ││
-│  │   fiduciary            │           │  assets/encrypted-storage.gz ││
-│  │                        │           │  assets/storage-frontend.tar ││
+│  │   application +        │           │  api/releases*.json          ││
+│  │   fiduciary            │           │  assets/storage-v*/          ││
+│  │                        │           │  tag-scoped release assets   ││
 │  │ gateway :4943 → :8000  │           │ used by backend HTTP outcalls││
 │  │ admin :4942 → 127.0.0.1│           └──────────────────────────────┘│
 │  └────────────────────────┘                                           │

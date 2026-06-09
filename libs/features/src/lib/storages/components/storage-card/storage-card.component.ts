@@ -4,9 +4,11 @@ import {
   computed,
   inject,
   input,
+  resource,
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowUpCircle,
@@ -23,13 +25,22 @@ import {
   lucideRefreshCw,
   lucideSettings,
   lucideTrash2,
+  lucideTriangleAlert,
 } from '@ng-icons/lucide';
-import { BrnAlertDialogContent, BrnAlertDialogTrigger } from '@spartan-ng/brain/alert-dialog';
+import {
+  BrnAlertDialogContent,
+  BrnAlertDialogTrigger,
+} from '@spartan-ng/brain/alert-dialog';
 
 import { IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import {
+  ENCRYPTED_STORAGE_CANISTER_ID,
   getStorageCanisterId,
   getStorageDisplayStatus,
+  hasBlockedStorageReleaseOption,
+  hasInstallableStorageReleaseOption,
+  injectStorageReleaseOptionsLoader,
+  type LoadStorageReleaseOptions,
   type StorageCreationStatus,
   type StorageDisplayStatus,
   type StorageInfo,
@@ -52,6 +63,11 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { UpgradeStorageDialogComponent } from '../upgrade-storage-dialog/upgrade-storage-dialog.component';
 
 const STORAGE_DEV_FRONTEND_ORIGIN = 'http://localhost:4201';
+
+type ReleaseOptionsParams = {
+  canisterIdText: string;
+  loadStorageReleaseOptions: LoadStorageReleaseOptions;
+};
 
 @Component({
   selector: 'rbth-feat-storages-storage-card',
@@ -89,6 +105,7 @@ const STORAGE_DEV_FRONTEND_ORIGIN = 'http://localhost:4201';
       lucideRefreshCw,
       lucideSettings,
       lucideTrash2,
+      lucideTriangleAlert,
     }),
   ],
   templateUrl: './storage-card.component.html',
@@ -101,6 +118,46 @@ export class StorageCardComponent {
     const canisterId = getStorageCanisterId(this.storage());
     return canisterId?.toText() ?? null;
   });
+  readonly displayStatus = computed<StorageDisplayStatus>(() =>
+    getStorageDisplayStatus(this.storage().status),
+  );
+  readonly #loadStorageReleaseOptions = injectStorageReleaseOptionsLoader();
+
+  readonly #releaseOptionsParams = computed<ReleaseOptionsParams | null>(
+    () => {
+      const canisterIdText = this.canisterIdText();
+      if (!canisterIdText || this.displayStatus() !== 'completed') {
+        return null;
+      }
+
+      return {
+        canisterIdText,
+        loadStorageReleaseOptions: this.#loadStorageReleaseOptions(),
+      };
+    },
+    {
+      equal: (a, b) =>
+        a?.canisterIdText === b?.canisterIdText &&
+        a?.loadStorageReleaseOptions === b?.loadStorageReleaseOptions,
+    },
+  );
+
+  readonly #releaseOptionsResource = resource({
+    params: () => this.#releaseOptionsParams(),
+    loader: ({ params }) => {
+      if (!params) return Promise.resolve([]);
+      const canisterId = Principal.fromText(params.canisterIdText);
+      return params.loadStorageReleaseOptions(canisterId);
+    },
+  });
+  readonly releaseOptions = computed(() =>
+    this.#releaseOptionsResource.hasValue()
+      ? this.#releaseOptionsResource.value()
+      : [],
+  );
+  readonly blockedReleaseOption = computed(() =>
+    this.releaseOptions().find(hasBlockedStorageReleaseOption),
+  );
   readonly #isProduction = inject(IS_PRODUCTION_TOKEN);
   readonly canisterUrl = computed(() => {
     const canisterId = this.canisterIdText();
@@ -109,24 +166,36 @@ export class StorageCardComponent {
     const domain = this.#isProduction ? 'icp0.io' : 'localhost';
     return `https://${canisterId}.${domain}`;
   });
-
-  readonly displayStatus = computed<StorageDisplayStatus>(() =>
-    getStorageDisplayStatus(this.storage().status),
-  );
-
   readonly errorMessage = computed<string | null>(() => {
     const status = this.storage().status;
     return status.type === 'Failed' ? status.message : null;
   });
-
-  readonly hasUpdate = computed(() => !!this.storage().updateAvailable);
-
-  readonly hasWasmUpdate = computed(
-    () => !!this.storage().updateAvailable?.wasmUpdateAvailable,
+  readonly installableReleaseOption = computed(() =>
+    this.releaseOptions().find(hasInstallableStorageReleaseOption),
   );
+  readonly releaseOptionsLoaded = computed(() =>
+    this.#releaseOptionsResource.hasValue(),
+  );
+  readonly hasUpdate = computed(() => {
+    if (!this.releaseOptionsLoaded()) return false;
+    return !!this.installableReleaseOption();
+  });
+  readonly hasBlockedUpdate = computed(
+    () =>
+      this.releaseOptionsLoaded() &&
+      !this.hasUpdate() &&
+      !!this.blockedReleaseOption(),
+  );
+
+  readonly hasWasmUpdate = computed(() => {
+    const info = this.installableReleaseOption()?.updateInfo;
+    return this.hasUpdate() && !!info?.wasmUpdateAvailable;
+  });
   readonly isDeleting = signal(false);
   readonly isResuming = signal(false);
-  readonly lastUpgradeError = computed(() => this.storage().lastUpgradeError ?? null);
+  readonly lastUpgradeError = computed(
+    () => this.storage().lastUpgradeError ?? null,
+  );
 
   readonly showLocalDevFrontendAction = !this.#isProduction;
   readonly statusTooltip = computed<string>(() => {
@@ -137,9 +206,10 @@ export class StorageCardComponent {
     return progress ? `${label} (${progress})` : label;
   });
   readonly updateSummary = computed(() => {
-    const info = this.storage().updateAvailable;
+    const info = this.installableReleaseOption()?.updateInfo;
     if (!info) return '';
-    if (info.wasmUpdateAvailable && info.frontendUpdateAvailable) return 'WASM + Frontend';
+    if (info.wasmUpdateAvailable && info.frontendUpdateAvailable)
+      return 'WASM + Frontend';
     if (info.wasmUpdateAvailable) return 'WASM';
     return 'Frontend';
   });
@@ -186,9 +256,19 @@ export class StorageCardComponent {
   }
 
   openUpgradeDialog(): void {
+    if (!this.hasUpdate()) return;
+    const canisterId = getStorageCanisterId(this.storage());
+    if (!canisterId) return;
+
     const dialogRef = this.#dialogService.open(UpgradeStorageDialogComponent, {
       contentClass: 'min-w-[500px] sm:max-w-[600px]',
       context: { storage: this.storage() },
+      providers: [
+        {
+          provide: ENCRYPTED_STORAGE_CANISTER_ID,
+          useValue: canisterId,
+        },
+      ],
     });
 
     dialogRef.closed$.subscribe(() => {

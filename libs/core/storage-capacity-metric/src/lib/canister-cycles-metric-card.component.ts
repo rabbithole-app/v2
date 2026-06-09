@@ -28,6 +28,25 @@ import { cva } from 'class-variance-authority';
 import { startWith } from 'rxjs';
 
 import {
+  calculatePaymentEligibility,
+  CyclesMintingCanisterService,
+  formatTCycles,
+  formatUsd,
+  parseCanisterRejectError,
+  SettingsService,
+  StorageFundingService,
+} from '@rabbithole/core';
+import { injectMainActor } from '@rabbithole/core/app-runtime';
+import {
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  injectEncryptedStorageActor,
+  provideEncryptedStorageActor,
+} from '@rabbithole/core/storage-runtime';
+import {
+  BalanceService,
+  WalletBalancePanelComponent,
+} from '@rabbithole/core/wallet';
+import {
   RbthMetricCardComponent,
   RbthMetricCardContentDirective,
   RbthMetricCardFooterDirective,
@@ -44,20 +63,6 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmSwitch } from '@spartan-ng/helm/switch';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import { injectMainActor } from '../../injectors/main-actor';
-import {
-  injectEncryptedStorageActor,
-  provideEncryptedStorageActor,
-} from '../../injectors/storage-actor';
-import { CyclesMintingCanisterService } from '../../services/cycles-minting-canister.service';
-import { SettingsService } from '../../services/settings.service';
-import { StorageFundingService } from '../../services/storage-funding.service';
-import { ENCRYPTED_STORAGE_CANISTER_ID } from '../../tokens/encrypted-storage-canister';
-import { formatTCycles } from '../../utils/cycles';
-import { formatUsd } from '../../utils/format-number';
-import { parseCanisterRejectError } from '../../utils/parse-canister-reject-error';
-import { calculatePaymentEligibility } from '../../utils/payment-eligibility';
-import { BalanceService, WalletBalancePanelComponent } from '../account/wallet';
 import { MetricLegendRowComponent } from './metric-legend-row.component';
 import { StorageCapacityMetricStateService } from './storage-capacity-metric-state.service';
 import {

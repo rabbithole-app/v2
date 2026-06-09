@@ -5,7 +5,6 @@ import Nat64 "mo:core/Nat64";
 import Error "mo:core/Error";
 import Text "mo:core/Text";
 import Blob "mo:core/Blob";
-import Time "mo:core/Time";
 import Set "mo:core/Set";
 import Order "mo:core/Order";
 import Iter "mo:core/Iter";
@@ -14,23 +13,30 @@ import List "mo:core/List";
 import Int "mo:core/Int";
 
 import IC "mo:ic";
-import Json "mo:json";
-import Vector "mo:vector";
-import DateTime "mo:datetime/DateTime";
 import Hex "mo:hex";
+import Vector "mo:vector";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 
 import Types "GitHubReleasesTypes";
 import HttpDownloader "HttpDownloader";
+import Parser "GitHubReleasesParser";
+import ManifestPolicy "ReleaseManifestPolicy";
+import ReleaseTags "ReleaseTags";
+import SemVer "SemVer";
 
 module {
   let HTTP_OUTCALL_CYCLES : Nat = 50_000_000_000; // 50B cycles per HTTP request
   let MAX_RESPONSE_BYTES : Nat64 = 1_500_000; // 1.5MB response limit (buffer for headers)
-  let ISO_8601_FORMAT = "YYYY-MM-DDTHH:mm:ssZ";
 
   func compareHeaders(a : IC.HttpHeader, b : IC.HttpHeader) : Order.Order = Text.compare(a.name, b.name);
   func compareReleases(a : Types.Release, b : Types.Release) : Order.Order = Text.compare(a.tagName, b.tagName);
   func comparePublishedAt(a : Types.Release, b : Types.Release) : Order.Order = Int.compare(Option.get(a.publishedAt, a.createdAt), Option.get(b.publishedAt, b.createdAt));
+  func compareReleaseVersion(a : Types.Release, b : Types.Release) : Order.Order {
+    switch (SemVer.compareText(ReleaseTags.version(a.tagName), ReleaseTags.version(b.tagName))) {
+      case (#equal) comparePublishedAt(a, b);
+      case order order;
+    };
+  };
 
   // -- Re-exported Types --
 
@@ -49,6 +55,7 @@ module {
   public type AssetFullStatus = Types.AssetFullStatus;
   public type ReleaseFullStatus = Types.ReleaseFullStatus;
   public type ReleasesFullStatus = Types.ReleasesFullStatus;
+  public type StorageReleaseManifest = Types.StorageReleaseManifest;
   public type ExtractionInfoProvider = Types.ExtractionInfoProvider;
   public type InvalidatedAsset = Types.InvalidatedAsset;
   public type ListReleasesResult = Types.ListReleasesResult;
@@ -69,7 +76,11 @@ module {
     Set.values(releases) |> Iter.filterMap<Types.Release, Types.Release>(
       _,
       func(release : Types.Release) : ?Types.Release = if (release.draft == draft and release.prerelease == prerelease) ?release else null,
-    ) |> Iter.sort(_, comparePublishedAt) |> Iter.reverse(_) |> _.next();
+    ) |> Iter.sort(_, compareReleaseVersion) |> Iter.reverse(_) |> _.next();
+  };
+
+  func sortedReleasesDesc(releases : Set.Set<Types.Release>) : [Types.Release] {
+    Set.values(releases) |> Iter.sort(_, compareReleaseVersion) |> Iter.reverse(_) |> Iter.toArray(_);
   };
 
   // Find release by specific tag
@@ -84,6 +95,14 @@ module {
       case (#LatestDraft) findRelease(releases, true, false);
       case (#LatestPrerelease) findRelease(releases, false, true);
       case (#Version(tag)) findReleaseByTag(releases, tag);
+    };
+  };
+
+  func configuredAssetNameAndKind(asset : Types.GithubAsset) : (Text, Types.GithubAssetKind) {
+    switch (asset) {
+      case (#StorageWASM name) (name, #StorageWASM);
+      case (#StorageFrontend name) (name, #StorageFrontend);
+      case (#StorageReleaseManifest name) (name, #StorageReleaseManifest);
     };
   };
 
@@ -143,7 +162,7 @@ module {
         return #err("GitHub API returned status " # Nat.toText(response.status));
       };
 
-      let releases = switch (parseReleasesBody(response.body)) {
+      let releases = switch (Parser.parseReleasesBody(response.body)) {
         case (#ok(releases)) releases;
         case (#err(message)) return #err(message);
       };
@@ -157,53 +176,25 @@ module {
       // Track invalidated assets (hash changed)
       let invalidated = Vector.new<InvalidatedAsset>();
 
-      // Process configured assets - check for invalidation and start downloads
-      for ((selector, assets) in store.assets.vals()) {
+      // Keep the release index light: every release needs manifest metadata for
+      // SemVer/compatibility planning, while heavy install assets are prepared
+      // only for configured creation selectors or an explicitly selected tag.
+      let assets = configuredAssets(store);
+      for (release in releases.vals()) {
+        for (asset in assets.vals()) {
+          switch (asset) {
+            case (#StorageReleaseManifest(assetName)) queueAssetDownload(store, release, assetName, #StorageReleaseManifest, invalidated);
+            case _ {};
+          };
+        };
+      };
+
+      for ((selector, selectedAssets) in store.assets.vals()) {
         switch (findReleaseBySelector(store.releases, selector)) {
           case (?release) {
-            for (asset in assets.vals()) {
-              let (assetName, assetKind) : (Text, Types.GithubAssetKind) = switch (asset) {
-                case (#StorageWASM name) (name, #StorageWASM);
-                case (#StorageFrontend name) (name, #StorageFrontend);
-              };
-              let key = release.tagName # "/" # assetName;
-
-              // Find new asset info from release
-              let newAssetInfo = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName);
-
-              switch (HttpDownloader.find(store.downloaderStore, key), newAssetInfo) {
-                // Case 1: Existing download AND new asset has sha256 - check for invalidation
-                case (?existingDownload, ?newAsset) {
-                  if (HttpDownloader.hasFailedChunks(existingDownload)) {
-                    Vector.add(invalidated, { key; kind = assetKind });
-                    HttpDownloader.remove(store.downloaderStore, key);
-                    ignore downloadAsset(store, release.tagName, assetName);
-                  } else {
-                    switch (existingDownload.sha256, newAsset.sha256) {
-                      // Both have hashes - compare them
-                      case (?oldHash, ?newHash) {
-                        if (oldHash != newHash) {
-                          // Hash changed - invalidate and re-download
-                          Vector.add(invalidated, { key; kind = assetKind });
-                          HttpDownloader.remove(store.downloaderStore, key);
-                          ignore downloadAsset(store, release.tagName, assetName);
-                        };
-                        // else: hashes match, keep existing download
-                      };
-                      // Old download has no hash (legacy/in-progress) - don't invalidate
-                      case (null, _) {};
-                      // New asset has no hash - don't invalidate
-                      case (_, null) {};
-                    };
-                  };
-                };
-                // Case 2: No existing download - start new download
-                case (null, ?_newAsset) {
-                  ignore downloadAsset(store, release.tagName, assetName);
-                };
-                // Case 3: Asset not found in release - skip
-                case (_, null) {};
-              };
+            for (asset in selectedAssets.vals()) {
+              let (assetName, assetKind) = configuredAssetNameAndKind(asset);
+              queueAssetDownload(store, release, assetName, assetKind, invalidated);
             };
           };
           case null {};
@@ -216,14 +207,101 @@ module {
     };
   };
 
+  /// Queue configured storage assets for a concrete release tag.
+  ///
+  /// Release metadata must already be present from `listReleases`; this call
+  /// only schedules asset downloads and re-downloads changed/failed assets.
+  public func prepareReleaseDownloads(store : Store, releaseTag : Text) : Result.Result<[InvalidatedAsset], Text> {
+    let ?release = findReleaseByTag(store.releases, releaseTag) else return #err("Release not found: " # releaseTag);
+    let invalidated = Vector.new<InvalidatedAsset>();
+
+    for (asset in configuredAssets(store).vals()) {
+      let (assetName, assetKind) = configuredAssetNameAndKind(asset);
+      queueAssetDownload(store, release, assetName, assetKind, invalidated);
+    };
+
+    #ok(Vector.toArray(invalidated));
+  };
+
   /// Get the latest storage WASM download details
   public func latestStorageWasm(store : Store) : Result.Result<HttpDownloader.DownloadDetails, Text> {
     latestReleaseAsset(store, #StorageWASM);
   };
 
+  /// Get storage WASM download details for a concrete release tag.
+  public func storageWasm(store : Store, releaseTag : Text) : Result.Result<HttpDownloader.DownloadDetails, Text> {
+    releaseAsset(store, releaseTag, #StorageWASM);
+  };
+
+  /// Get storage WASM hash for a concrete release tag.
+  ///
+  /// Prefer the downloaded asset hash when available, but fall back to the
+  /// validated manifest so upgrade planning does not require the heavy WASM
+  /// artifact to be downloaded first.
+  public func storageWasmHash(store : Store, releaseTag : Text) : Result.Result<Blob, Text> {
+    switch (storageWasm(store, releaseTag)) {
+      case (#ok(details)) #ok(details.sha256);
+      case (#err(_)) storageArtifactHash(store, releaseTag, #StorageWASM);
+    };
+  };
+
   /// Get the latest storage frontend download details
   public func latestStorageFrontend(store : Store) : Result.Result<HttpDownloader.DownloadDetails, Text> {
     latestReleaseAsset(store, #StorageFrontend);
+  };
+
+  /// Get storage frontend download details for a concrete release tag.
+  public func storageFrontend(store : Store, releaseTag : Text) : Result.Result<HttpDownloader.DownloadDetails, Text> {
+    releaseAsset(store, releaseTag, #StorageFrontend);
+  };
+
+  /// Get storage release manifest download details for a concrete release tag.
+  public func storageReleaseManifest(store : Store, releaseTag : Text) : Result.Result<HttpDownloader.DownloadDetails, Text> {
+    releaseAsset(store, releaseTag, #StorageReleaseManifest);
+  };
+
+  /// Get the downloaded and validated storage-release.json for a concrete release tag.
+  public func storageReleaseManifestParsed(store : Store, releaseTag : Text) : Result.Result<StorageReleaseManifest, Text> {
+    let ?release = findReleaseByTag(store.releases, releaseTag) else return #err("No release found for tag " # releaseTag);
+    let assets = configuredAssets(store);
+    let (manifest, manifestError) = getReleaseManifest(store, release, assets);
+
+    switch (manifestError) {
+      case (?message) return #err(message);
+      case null {};
+    };
+
+    let ?parsedManifest = manifest else return #err("storage-release.json is not downloaded");
+    switch (ManifestPolicy.validate(release, parsedManifest, assets)) {
+      case (?message) #err(message);
+      case null #ok(parsedManifest);
+    };
+  };
+
+  /// Get the frontend asset-tree hash declared by storage-release.json.
+  public func storageFrontendAssetTreeHash(store : Store, releaseTag : Text) : Result.Result<Blob, Text> {
+    let ?release = findReleaseByTag(store.releases, releaseTag) else return #err("No release found for tag " # releaseTag);
+    let (manifest, manifestError) = getReleaseManifest(store, release, configuredAssets(store));
+
+    switch (manifestError) {
+      case (?message) return #err(message);
+      case null {};
+    };
+
+    switch (manifest) {
+      case (?(parsedManifest)) {
+        switch (parsedManifest.frontendAssetTreeHash) {
+          case (?hash) #ok(hash);
+          case null #err("storage-release.json missing frontendAssetTreeHash");
+        };
+      };
+      case null #err("storage-release.json is not downloaded");
+    };
+  };
+
+  /// Resolve a selector against the currently fetched GitHub releases.
+  public func getReleaseTagName(store : Store, selector : ReleaseSelector) : ?Text {
+    Option.map(findReleaseBySelector(store.releases, selector), func(r : Types.Release) : Text = r.tagName);
   };
 
   /// Get the tag name of the latest release
@@ -242,6 +320,38 @@ module {
       };
     };
     Option.map(optRelease, func(r : Types.Release) : Text = r.tagName);
+  };
+
+  /// Get all downloaded storage frontend archive details.
+  public func downloadedStorageFrontends(store : Store) : [(Text, HttpDownloader.DownloadDetails)] {
+    let frontends = Vector.new<(Text, HttpDownloader.DownloadDetails)>();
+    let ?assetName = configuredAssetName(store, #StorageFrontend) else return [];
+
+    for (release in sortedReleasesDesc(store.releases).vals()) {
+      let key = release.tagName # "/" # assetName;
+      switch (HttpDownloader.get(store.downloaderStore, key)) {
+        case (#ok(details)) Vector.add(frontends, (release.tagName, details));
+        case (#err(_)) {};
+      };
+    };
+
+    Vector.toArray(frontends);
+  };
+
+  /// Get all downloaded storage WASM archive details.
+  public func downloadedStorageWasms(store : Store) : [(Text, HttpDownloader.DownloadDetails)] {
+    let wasms = Vector.new<(Text, HttpDownloader.DownloadDetails)>();
+    let ?assetName = configuredAssetName(store, #StorageWASM) else return [];
+
+    for (release in sortedReleasesDesc(store.releases).vals()) {
+      let key = release.tagName # "/" # assetName;
+      switch (HttpDownloader.get(store.downloaderStore, key)) {
+        case (#ok(details)) Vector.add(wasms, (release.tagName, details));
+        case (#err(_)) {};
+      };
+    };
+
+    Vector.toArray(wasms);
   };
 
   // -- Status Query Functions --
@@ -295,7 +405,7 @@ module {
 
     let releaseInfos = Vector.new<ReleaseInfo>();
 
-    for (release in Set.values(store.releases)) {
+    for (release in sortedReleasesDesc(store.releases).vals()) {
       let assetInfos = Vector.new<AssetInfo>();
 
       for (asset in release.assets.vals()) {
@@ -355,9 +465,7 @@ module {
 
     // Check each configured asset
     for (asset in configuredAssets.vals()) {
-      let assetName = switch (asset) {
-        case (#StorageWASM(name) or #StorageFrontend(name)) name;
-      };
+      let (assetName, _) = configuredAssetNameAndKind(asset);
       let key = release.tagName # "/" # assetName;
       let status = getAssetDownloadStatus(store, key);
       switch (status) {
@@ -371,8 +479,8 @@ module {
 
   /// Check if a release is ready for deployment
   ///
-  /// A release is deployment ready when all assets are downloaded
-  /// and frontend archives are fully extracted
+  /// A release is deployment ready when all assets are downloaded, frontend
+  /// archives are fully extracted, and storage-release.json is supported.
   public func isReleaseDeploymentReady(store : Store, selector : ReleaseSelector, extractionProvider : ExtractionInfoProvider) : Bool {
     // First check if downloaded
     if (not isReleaseDownloaded(store, selector)) return false;
@@ -401,7 +509,13 @@ module {
       };
     };
 
-    true;
+    Option.isNull(releaseManifestValidationError(store, release, configuredAssets, true));
+  };
+
+  /// Returns null only when the release has a downloaded, supported manifest.
+  public func releaseManifestError(store : Store, releaseTag : Text) : ?Text {
+    let ?release = findReleaseByTag(store.releases, releaseTag) else return ?("No release found for tag " # releaseTag);
+    releaseManifestValidationError(store, release, configuredAssets(store), true);
   };
 
   // Compare selectors by their kind (ignoring version tag content)
@@ -443,98 +557,105 @@ module {
 
     let releaseInfos = Vector.new<ReleaseFullStatus>();
 
-    for ((selector, configuredAssets) in store.assets.vals()) {
-      switch (findReleaseBySelector(store.releases, selector)) {
-        case (null) {};
-        case (?release) {
-          let assetInfos = Vector.new<AssetFullStatus>();
-          var allAssetsDownloaded = true;
-          var allFrontendsExtracted = true;
+    let configuredAssetsList = configuredAssets(store);
 
-          for (asset in configuredAssets.vals()) {
-            let assetName = switch (asset) {
-              case (#StorageWASM(name) or #StorageFrontend(name)) name;
-            };
-            let key = release.tagName # "/" # assetName;
-            let downloadStatus = getAssetDownloadStatus(store, key);
+    for (release in sortedReleasesDesc(store.releases).vals()) {
+      let assetInfos = Vector.new<AssetFullStatus>();
+      var allAssetsDownloaded = true;
+      var allFrontendsExtracted = true;
 
-            // Track download status
-            switch (downloadStatus) {
-              case (#Completed _) completedDownloads += 1;
-              case (#Downloading _) {
-                pendingDownloads += 1;
-                allAssetsDownloaded := false;
-              };
-              case (#NotStarted) allAssetsDownloaded := false;
-              case (#Error _) allAssetsDownloaded := false;
-            };
+      for (asset in configuredAssetsList.vals()) {
+        let (assetName, _) = configuredAssetNameAndKind(asset);
+        let key = release.tagName # "/" # assetName;
+        let downloadStatus = getAssetDownloadStatus(store, key);
 
-            // Get extraction status for frontend assets
-            // Note: extraction is stored under "storage-frontend@latest" key, not the release tag path
-            let extractionStatus : ?ExtractionStatus = switch (asset) {
-              case (#StorageFrontend(_)) {
-                let versionKey = extractionProvider.getDefaultVersionKey();
-                let status = extractionProvider.getExtractionStatus(versionKey);
-                switch (status) {
-                  case (#Complete _) {};
-                  case _ allFrontendsExtracted := false;
-                };
-                ?status;
-              };
-              case _ null;
-            };
-
-            // Find asset size from release assets
-            let size = switch (Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName)) {
-              case (?a) a.size;
-              case null 0;
-            };
-            let contentType = switch (Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName)) {
-              case (?a) a.contentType;
-              case null "application/octet-stream";
-            };
-
-            // Get sha256 hash from completed download
-            let sha256 : ?Blob = switch (HttpDownloader.find(store.downloaderStore, key)) {
-              case (?download) download.hash;
-              case null null;
-            };
-
-            Vector.add(
-              assetInfos,
-              {
-                name = assetName;
-                size;
-                contentType;
-                downloadStatus;
-                extractionStatus;
-                sha256;
-              },
-            );
+        // Track download status
+        switch (downloadStatus) {
+          case (#Completed _) completedDownloads += 1;
+          case (#Downloading _) {
+            pendingDownloads += 1;
+            allAssetsDownloaded := false;
           };
+          case (#NotStarted) allAssetsDownloaded := false;
+          case (#Error _) allAssetsDownloaded := false;
+        };
 
-          let isDownloaded = allAssetsDownloaded;
-          let isDeploymentReady = allAssetsDownloaded and allFrontendsExtracted;
+        let extractionStatus : ?ExtractionStatus = switch (asset) {
+          case (#StorageFrontend(name)) {
+            let versionKey = release.tagName # "/" # name;
+            let status = extractionProvider.getExtractionStatus(versionKey);
+            switch (status) {
+              case (#Complete _) {};
+              case _ allFrontendsExtracted := false;
+            };
+            ?status;
+          };
+          case _ null;
+        };
 
-          if (isDownloaded) hasDownloaded := true;
-          if (isDeploymentReady) hasDeploymentReady := true;
+        let releaseAssetInfo = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName);
 
-          Vector.add(
-            releaseInfos,
-            {
-              tagName = release.tagName;
-              name = release.name;
-              draft = release.draft;
-              prerelease = release.prerelease;
-              createdAt = release.createdAt;
-              publishedAt = release.publishedAt;
-              assets = Vector.toArray(assetInfos);
-              isDownloaded;
-              isDeploymentReady;
-            },
-          );
+        let size = switch (releaseAssetInfo) {
+          case (?a) a.size;
+          case null 0;
+        };
+        let contentType = switch (releaseAssetInfo) {
+          case (?a) a.contentType;
+          case null "application/octet-stream";
+        };
+
+        let sha256 : ?Blob = switch (HttpDownloader.find(store.downloaderStore, key)) {
+          case (?download) download.hash;
+          case null null;
+        };
+
+        Vector.add(
+          assetInfos,
+          {
+            name = assetName;
+            size;
+            contentType;
+            downloadStatus;
+            extractionStatus;
+            sha256;
+          },
+        );
+      };
+
+      let (manifest, manifestError) = getReleaseManifest(store, release, configuredAssetsList);
+      let manifestValidationError = switch (manifestError, manifest) {
+        case (?message, _) ?message;
+        case (null, ?parsedManifest) ManifestPolicy.validate(release, parsedManifest, configuredAssetsList);
+        case (null, null) {
+          if (allAssetsDownloaded) {
+            ?"storage-release.json is not downloaded";
+          } else {
+            null;
+          };
         };
       };
+      let isDownloaded = allAssetsDownloaded;
+      let isDeploymentReady = allAssetsDownloaded and allFrontendsExtracted and Option.isNull(manifestValidationError);
+
+      if (isDownloaded) hasDownloaded := true;
+      if (isDeploymentReady) hasDeploymentReady := true;
+
+      Vector.add(
+        releaseInfos,
+        {
+          tagName = release.tagName;
+          name = release.name;
+          draft = release.draft;
+          prerelease = release.prerelease;
+          createdAt = release.createdAt;
+          publishedAt = release.publishedAt;
+          assets = Vector.toArray(assetInfos);
+          manifest;
+          manifestError = manifestValidationError;
+          isDownloaded;
+          isDeploymentReady;
+        },
+      );
     };
 
     {
@@ -542,13 +663,175 @@ module {
       pendingDownloads;
       completedDownloads;
       releases = Vector.toArray(releaseInfos);
-      defaultVersionKey = extractionProvider.getDefaultVersionKey();
       hasDownloadedRelease = hasDownloaded;
       hasDeploymentReadyRelease = hasDeploymentReady;
     };
   };
 
   // -- Private Helper Functions --
+
+  func configuredAssets(store : Store) : [Types.GithubAsset] {
+    let unique = Vector.new<Types.GithubAsset>();
+
+    for ((_, assets) in store.assets.vals()) {
+      for (asset in assets.vals()) {
+        let (_, assetKind) = configuredAssetNameAndKind(asset);
+        let exists = Vector.vals(unique) |> Iter.any(
+          _,
+          func(existing : Types.GithubAsset) : Bool {
+            let (_, existingKind) = configuredAssetNameAndKind(existing);
+            sameAssetKind(assetKind, existingKind);
+          },
+        );
+        if (not exists) {
+          Vector.add(unique, asset);
+        };
+      };
+    };
+
+    Vector.toArray(unique);
+  };
+
+  func sameAssetKind(a : Types.GithubAssetKind, b : Types.GithubAssetKind) : Bool {
+    switch (a, b) {
+      case (#StorageWASM, #StorageWASM) true;
+      case (#StorageFrontend, #StorageFrontend) true;
+      case (#StorageReleaseManifest, #StorageReleaseManifest) true;
+      case _ false;
+    };
+  };
+
+  func queueAssetDownload(store : Store, release : Types.Release, assetName : Text, assetKind : Types.GithubAssetKind, invalidated : Vector.Vector<InvalidatedAsset>) {
+    let key = release.tagName # "/" # assetName;
+
+    let newAssetInfo = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName);
+
+    switch (HttpDownloader.find(store.downloaderStore, key), newAssetInfo) {
+      case (?existingDownload, ?newAsset) {
+        if (HttpDownloader.hasFailedChunks(existingDownload)) {
+          Vector.add(invalidated, { key; kind = assetKind });
+          HttpDownloader.remove(store.downloaderStore, key);
+          ignore downloadAsset(store, release.tagName, assetName);
+        } else {
+          switch (existingDownload.sha256, newAsset.sha256) {
+            case (?oldHash, ?newHash) {
+              if (oldHash != newHash) {
+                Vector.add(invalidated, { key; kind = assetKind });
+                HttpDownloader.remove(store.downloaderStore, key);
+                ignore downloadAsset(store, release.tagName, assetName);
+              };
+            };
+            case (null, _) {};
+            case (_, null) {};
+          };
+        };
+      };
+      case (null, ?_) {
+        ignore downloadAsset(store, release.tagName, assetName);
+      };
+      case (_, null) {};
+    };
+  };
+
+  func getReleaseManifest(store : Store, release : Types.Release, configuredAssets : [Types.GithubAsset]) : (?Types.StorageReleaseManifest, ?Text) {
+    let manifestName = label find : ?Text {
+      for (asset in configuredAssets.vals()) {
+        switch (asset) {
+          case (#StorageReleaseManifest(name)) break find(?name);
+          case _ {};
+        };
+      };
+      null;
+    };
+
+    let ?assetName = manifestName else return (null, null);
+    let key = release.tagName # "/" # assetName;
+
+    switch (getAssetDownloadStatus(store, key)) {
+      case (#Completed _) {};
+      case (#Error message) return (null, ?message);
+      case _ return (null, null);
+    };
+
+    switch (HttpDownloader.get(store.downloaderStore, key)) {
+      case (#err(message)) (null, ?message);
+      case (#ok(details)) {
+        switch (Parser.parseStorageReleaseManifestBody(details.content)) {
+          case (#ok(manifest)) (?manifest, null);
+          case (#err(message)) (null, ?message);
+        };
+      };
+    };
+  };
+
+  func releaseManifestValidationError(store : Store, release : Types.Release, configuredAssets : [Types.GithubAsset], requireDownloaded : Bool) : ?Text {
+    let (manifest, manifestError) = getReleaseManifest(store, release, configuredAssets);
+    switch (manifestError) {
+      case (?message) return ?message;
+      case null {};
+    };
+
+    switch (manifest) {
+      case (?parsedManifest) ManifestPolicy.validate(release, parsedManifest, configuredAssets);
+      case null {
+        if (requireDownloaded) ?"storage-release.json is not downloaded" else null;
+      };
+    };
+  };
+
+  func storageArtifactHash(store : Store, releaseTag : Text, kind : GithubAssetKind) : Result.Result<Blob, Text> {
+    let manifest = switch (storageReleaseManifestParsed(store, releaseTag)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(message);
+    };
+
+    let artifact = switch (kind) {
+      case (#StorageWASM) manifest.wasm;
+      case (#StorageFrontend) manifest.frontend;
+      case (#StorageReleaseManifest) null;
+    };
+
+    let ?metadata = artifact else return #err("storage-release.json missing artifact hash source");
+    let ?sha256 = metadata.sha256 else return #err("storage-release.json artifact " # metadata.name # " missing sha256");
+    decodeSha256(sha256, "storage-release.json artifact " # metadata.name # ".sha256");
+  };
+
+  func decodeSha256(value : Text, path : Text) : Result.Result<Blob, Text> {
+    let normalized = Text.trimStart(value, #text "sha256:");
+    switch (Hex.toArray(normalized)) {
+      case (#ok(bytes)) {
+        if (bytes.size() != 32) {
+          return #err(path # " must be a 32-byte sha256 hex value");
+        };
+        #ok(Blob.fromArray(bytes));
+      };
+      case (#err(_)) #err(path # " must be a valid sha256 hex value");
+    };
+  };
+
+  func configuredAssetName(store : Store, kind : GithubAssetKind) : ?Text {
+    for ((_, assets) in store.assets.vals()) {
+      for (asset in assets.vals()) {
+        switch (kind, asset) {
+          case (#StorageWASM, #StorageWASM(name)) return ?name;
+          case (#StorageFrontend, #StorageFrontend(name)) return ?name;
+          case (#StorageReleaseManifest, #StorageReleaseManifest(name)) return ?name;
+          case _ {};
+        };
+      };
+    };
+    null;
+  };
+
+  func releaseAsset(store : Store, releaseTag : Text, kind : GithubAssetKind) : Result.Result<HttpDownloader.DownloadDetails, Text> {
+    let ?assetName = configuredAssetName(store, kind) else return #err("No configured asset of requested kind");
+    let ?release = findReleaseByTag(store.releases, releaseTag) else return #err("No release found for tag " # releaseTag);
+    let ?_asset = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName) else {
+      return #err("Asset " # assetName # " not found in release " # releaseTag);
+    };
+
+    HttpDownloader.get(store.downloaderStore, releaseTag # "/" # assetName);
+  };
 
   func latestReleaseAsset(store : Store, kind : GithubAssetKind) : Result.Result<HttpDownloader.DownloadDetails, Text> {
     // Find the first selector that has the requested asset kind
@@ -603,188 +886,4 @@ module {
     headers;
   };
 
-  func parseReleasesBody(body : Blob) : Result.Result<[Types.Release], Text> {
-    let ?jsonText = Text.decodeUtf8(body) else return #err("Failed to decode body as UTF-8");
-    let json = switch (Json.parse(jsonText)) {
-      case (#ok(json)) json;
-      case (#err(err)) return #err("Failed to parse JSON: " # Json.errToText(err));
-    };
-    let #array(releases) = json else return #err("Expected JSON array");
-    let parsedReleases = Vector.new<Types.Release>();
-    for (release in releases.vals()) {
-      switch (parseRelease(release)) {
-        case (#ok(release)) Vector.add(parsedReleases, release);
-        case (#err(message)) return #err(message);
-      };
-    };
-    #ok(Vector.toArray(parsedReleases));
-  };
-
-  func parseTimeField(json : Json.Json, field : Text) : Result.Result<Time.Time, Text> {
-    switch (Json.getAsText(json, field)) {
-      case (#ok(str)) {
-        let ?dateTime = DateTime.fromText(str, ISO_8601_FORMAT) else return #err("Failed to parse date: " # str);
-        #ok(dateTime.toTime());
-      };
-      case (#err(_)) #err("Missing field: " # field);
-    };
-  };
-
-  func parseTextField(json : Json.Json, field : Text) : Result.Result<Text, Text> {
-    switch (Json.getAsText(json, field)) {
-      case (#ok(str)) #ok(str);
-      case (#err(_)) #err("Missing field: " # field);
-    };
-  };
-
-  func parseBoolField(json : Json.Json, field : Text) : Result.Result<Bool, Text> {
-    switch (Json.getAsBool(json, field)) {
-      case (#ok(b)) #ok(b);
-      case (#err(_)) #err("Missing field: " # field);
-    };
-  };
-
-  func parseNatField(json : Json.Json, field : Text) : Result.Result<Nat, Text> {
-    switch (Json.getAsNat(json, field)) {
-      case (#ok(n)) #ok(n);
-      case (#err(_)) #err("Missing field: " # field);
-    };
-  };
-
-  func parseRelease(json : Json.Json) : Result.Result<Types.Release, Text> {
-    let url = switch (parseTextField(json, "url")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let htmlUrl = switch (parseTextField(json, "html_url")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let id = switch (parseNatField(json, "id")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let tagName = switch (parseTextField(json, "tag_name")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let name = switch (parseTextField(json, "name")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-
-    let body = switch (parseTextField(json, "body")) {
-      case (#ok(b)) b;
-      case (#err(_)) "";
-    };
-
-    let draft = switch (parseBoolField(json, "draft")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let prerelease = switch (parseBoolField(json, "prerelease")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let createdAt = switch (parseTimeField(json, "created_at")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-
-    let publishedAt = switch (parseTimeField(json, "published_at")) {
-      case (#ok(t)) ?t;
-      case (#err(_)) null;
-    };
-
-    let assetsJson = switch (Json.getAsArray(json, "assets")) {
-      case (#ok(arr)) arr;
-      case (#err(_)) return #err("Missing assets");
-    };
-
-    let assets = Vector.new<Types.Asset>();
-    for (assetJson in assetsJson.vals()) {
-      switch (parseAsset(assetJson)) {
-        case (#ok(asset)) Vector.add(assets, asset);
-        case (#err(message)) return #err(message);
-      };
-    };
-
-    let immutable = Text.startsWith(tagName, #text "v") or Text.contains(tagName, #text ".");
-
-    #ok({
-      url;
-      htmlUrl;
-      id;
-      tagName;
-      name;
-      body;
-      draft;
-      prerelease;
-      immutable;
-      createdAt;
-      publishedAt;
-      assets = Vector.toArray(assets);
-    });
-  };
-
-  func parseAsset(json : Json.Json) : Result.Result<Types.Asset, Text> {
-    let url = switch (parseTextField(json, "url")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let id = switch (parseNatField(json, "id")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let name = switch (parseTextField(json, "name")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-
-    let _label = switch (parseTextField(json, "label")) {
-      case (#ok(l)) l;
-      case (#err(_)) "";
-    };
-
-    let contentType = switch (parseTextField(json, "content_type")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let size = switch (parseNatField(json, "size")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let createdAt = switch (parseTimeField(json, "created_at")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-    let updatedAt = switch (parseTimeField(json, "updated_at")) {
-      case (#ok(v)) v;
-      case (#err(e)) return #err(e);
-    };
-
-    // Try to extract sha256 from digest field if present
-    let sha256 : ?Blob = switch (parseTextField(json, "digest")) {
-      case (#ok(digest)) {
-        let hash = Text.trimStart(digest, #text "sha256:");
-        switch (Hex.toArray(hash)) {
-          case (#ok(bytes)) ?Blob.fromArray(bytes);
-          case (#err(_)) null;
-        };
-      };
-      case (#err(_)) null;
-    };
-
-    #ok({
-      url;
-      id;
-      name;
-      _label;
-      contentType;
-      size;
-      sha256;
-      createdAt;
-      updatedAt;
-    });
-  };
 };

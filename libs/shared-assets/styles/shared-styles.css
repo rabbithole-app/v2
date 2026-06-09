@@ -6,7 +6,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-
 :root {
   color-scheme: light;
   --font-sans: 'Geist Sans', sans-serif;
@@ -164,18 +163,42 @@
 
 @utility bg-grid-check-sm {
   position: relative;
-  &::before { background-image: url('/grid-check-sm-mobile.svg'); }
-  @media (min-width: 768px) { &::before { background-image: url('/grid-check-sm-desktop.svg'); } }
-  .dark &::before { background-image: url('/grid-check-sm-mobile-dark.svg'); }
-  @media (min-width: 768px) { .dark &::before { background-image: url('/grid-check-sm-desktop-dark.svg'); } }
+  &::before {
+    background-image: url('/grid-check-sm-mobile.svg');
+  }
+  @media (min-width: 768px) {
+    &::before {
+      background-image: url('/grid-check-sm-desktop.svg');
+    }
+  }
+  .dark &::before {
+    background-image: url('/grid-check-sm-mobile-dark.svg');
+  }
+  @media (min-width: 768px) {
+    .dark &::before {
+      background-image: url('/grid-check-sm-desktop-dark.svg');
+    }
+  }
 }
 
 @utility bg-grid-check-md {
   position: relative;
-  &::before { background-image: url('/grid-check-md-mobile.svg'); }
-  @media (min-width: 768px) { &::before { background-image: url('/grid-check-md-desktop.svg'); } }
-  .dark &::before { background-image: url('/grid-check-md-mobile-dark.svg'); }
-  @media (min-width: 768px) { .dark &::before { background-image: url('/grid-check-md-desktop-dark.svg'); } }
+  &::before {
+    background-image: url('/grid-check-md-mobile.svg');
+  }
+  @media (min-width: 768px) {
+    &::before {
+      background-image: url('/grid-check-md-desktop.svg');
+    }
+  }
+  .dark &::before {
+    background-image: url('/grid-check-md-mobile-dark.svg');
+  }
+  @media (min-width: 768px) {
+    .dark &::before {
+      background-image: url('/grid-check-md-desktop-dark.svg');
+    }
+  }
 }
 
 @layer components {

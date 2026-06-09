@@ -3,6 +3,7 @@ import Blob "mo:core/Blob";
 import Cycles "mo:core/Cycles";
 import Error "mo:core/Error";
 import Nat "mo:core/Nat";
+import Order "mo:core/Order";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
@@ -20,6 +21,7 @@ import AssetsMiddleware "mo:liminal/Middleware/Assets";
 import HttpAssets "mo:http-assets";
 import AssetCanister "mo:liminal/AssetCanister";
 import Sha256 "mo:sha2/Sha256";
+import Hex "mo:hex";
 import Json "mo:json";
 import MixinObjectStorage "mo:caffeineai-object-storage/Mixin";
 import EncryptedStorage "mo:encrypted-storage";
@@ -85,6 +87,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   transient var cachedRuntimeMemoryBytes : ?Nat = null;
   transient var cachedRuntimeStableMemoryBytes : ?Nat = null;
   transient var lastUploadCommitMeasurement : ?EncryptedStorage.UploadCommitMeasurement = null;
+  var storageReleaseState : ?StorageReleaseState = null;
 
   func resetUploadFundingRetryState() : () {
     uploadFundingRequestedBytes := 0;
@@ -123,6 +126,22 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     minimumSafeBalance : Nat;
     targetBalance : Nat;
     operationFloorBalance : Nat;
+  };
+
+  public type StorageReleaseStateInput = {
+    releaseTag : Text;
+    wasmHash : ?Blob;
+    frontendAssetTreeHash : ?Blob;
+    manifestHash : ?Blob;
+  };
+
+  public type StorageReleaseState = {
+    schemaVersion : Nat;
+    releaseTag : ?Text;
+    wasmHash : ?Blob;
+    frontendAssetTreeHash : ?Blob;
+    manifestHash : ?Blob;
+    installedAt : ?Time.Time;
   };
 
   type UploadFundingRequirement = {
@@ -694,6 +713,85 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   transient var assetStore = HttpAssets.Assets(assetStableData, installerAssetPermissions);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
+
+  func isReleaseStateWriter(caller : Principal) : Bool {
+    Principal.equal(caller, owner)
+    or Principal.equal(caller, installer)
+    or (switch (backendId) {
+      case (?id) Principal.equal(caller, id);
+      case null false;
+    });
+  };
+
+  func isFrontendUserAsset(key : Text) : Bool {
+    key == "/info.json" or Text.startsWith(key, #text "/static/thumbnails/");
+  };
+
+  func compareAssetDetails(a : HttpAssets.AssetDetails, b : HttpAssets.AssetDetails) : Order.Order {
+    Text.compare(a.key, b.key);
+  };
+
+  func compareEncodingDetails(a : HttpAssets.AssetEncodingDetails, b : HttpAssets.AssetEncodingDetails) : Order.Order {
+    Text.compare(a.content_encoding, b.content_encoding);
+  };
+
+  func writeHashField(digest : Sha256.Digest, value : Text) {
+    digest.writeBlob(Text.encodeUtf8(Nat.toText(Text.size(value)) # ":" # value));
+  };
+
+  func frontendAssetTreeHash() : Blob {
+    let digest = Sha256.Digest(#sha256);
+    digest.writeBlob(Text.encodeUtf8("rabbithole-storage-frontend-assets-v1\n"));
+
+    let assets = Array.sort<HttpAssets.AssetDetails>(
+      Array.filter<HttpAssets.AssetDetails>(
+        assetStore.list({}),
+        func(asset) = not isFrontendUserAsset(asset.key),
+      ),
+      compareAssetDetails,
+    );
+
+    for (asset in assets.vals()) {
+      let encodings = Array.sort<HttpAssets.AssetEncodingDetails>(asset.encodings, compareEncodingDetails);
+      for (encoding in encodings.vals()) {
+        writeHashField(digest, asset.key);
+        writeHashField(digest, asset.content_type);
+        writeHashField(digest, encoding.content_encoding);
+        writeHashField(digest, Nat.toText(encoding.length));
+        writeHashField(
+          digest,
+          switch (encoding.sha256) {
+            case (?hash) Hex.toText(Blob.toArray(hash));
+            case null "none";
+          },
+        );
+      };
+    };
+
+    digest.sum();
+  };
+
+  func currentStorageReleaseState() : StorageReleaseState {
+    let liveFrontendAssetTreeHash = ?frontendAssetTreeHash();
+    switch (storageReleaseState) {
+      case (?state) {
+        {
+          state with
+          frontendAssetTreeHash = liveFrontendAssetTreeHash;
+        };
+      };
+      case null {
+        {
+          schemaVersion = 1;
+          releaseTag = null;
+          wasmHash = null;
+          frontendAssetTreeHash = liveFrontendAssetTreeHash;
+          manifestHash = null;
+          installedAt = null;
+        };
+      };
+    };
+  };
 
   // Initialize info.json asset with canister ID
   func initInfoJson<system>() : () {
@@ -1400,6 +1498,25 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public query func getStorageBackendType() : async T.StorageBackend {
     es.getStorageBackendType();
+  };
+
+  public shared ({ caller }) func setStorageReleaseState(args : StorageReleaseStateInput) : async () {
+    if (not isReleaseStateWriter(caller)) {
+      throw Error.reject("Not authorized to update storage release state");
+    };
+
+    storageReleaseState := ?{
+      schemaVersion = 1;
+      releaseTag = ?args.releaseTag;
+      wasmHash = args.wasmHash;
+      frontendAssetTreeHash = args.frontendAssetTreeHash;
+      manifestHash = args.manifestHash;
+      installedAt = ?Time.now();
+    };
+  };
+
+  public shared query func getStorageReleaseState() : async StorageReleaseState {
+    currentStorageReleaseState();
   };
 
   /* -------------------------------------------------------------------------- */

@@ -23,11 +23,18 @@ import {
   takeUntil,
 } from 'rxjs';
 
+import type { RabbitholeActorService } from '@rabbithole/declarations/backend';
+
 import { injectMainActor } from '../../injectors/main-actor';
 import { parseCanisterRejectError } from '../../utils/parse-canister-reject-error';
-import type { StorageCreationStatus, StorageInfo } from '../types/storage.types';
+import type {
+  StorageCreationStatus,
+  StorageInfo,
+} from '../types/storage.types';
 import { isStorageInProgress } from '../types/storage.types';
 import { convertStorageInfoList } from '../utils/storage-converters';
+import { formatUpgradeStorageError } from '../utils/storage-release-options';
+import type { StorageReleaseState } from '../utils/storage-release-options';
 
 const POLLING_INTERVAL_MS = 2000;
 
@@ -245,7 +252,9 @@ export class StoragesService {
     const toastId = toast.loading('Resuming storage setup...');
 
     try {
-      const result = await actor.recoverFailedStorage(storageId, { resume: null });
+      const result = await actor.recoverFailedStorage(storageId, {
+        resume: null,
+      });
 
       if ('err' in result) {
         toast.error(`Resume failed: ${result.err}`, { id: toastId });
@@ -266,26 +275,19 @@ export class StoragesService {
   }
 
   /**
-   * Register a creation id returned by `purchaseLicenseAndCreateStorage`.
-   * The service then follows this specific record through every status
-   * transition, regardless of intermediate states like `Pending`.
-   */
-  trackCreation(creationId: bigint): void {
-    this.#lastCreationId.set(creationId);
-    // Force an immediate reload so the UI doesn't wait up to 2s for the
-    // next polling tick to see the new record.
-    this.storagesResource.reload();
-  }
-
-  /**
    * Upgrade an existing storage canister.
-   * Backend determines what to update (WASM, frontend, or both) automatically.
+   * Backend determines what to update (WASM, frontend, or both) from the
+   * selected release and live storage state.
    * @param storageId ID of the storage record
    * @param canisterId Principal of the canister to upgrade
+   * @param releaseTag Exact release tag to install
+   * @param observedState Live state read from the storage canister
    */
-  async upgradeStorage(
+  async startStorageUpgrade(
     storageId: bigint,
     canisterId: Principal,
+    releaseTag: string,
+    observedState: StorageReleaseState,
   ): Promise<void> {
     if (this.#isUpgrading()) {
       throw new Error('Upgrade already in progress');
@@ -296,18 +298,16 @@ export class StoragesService {
     const actor = this.#actor();
 
     try {
-      const result = await actor.upgradeStorage(canisterId);
+      const result = await startStorageUpgradeWithObservedState(
+        actor,
+        canisterId,
+        releaseTag,
+        observedState,
+      );
 
       if ('err' in result) {
         const errorKey = Object.keys(result.err)[0];
-        const errorMessages: Record<string, string> = {
-          AlreadyUpgrading: 'An upgrade is already in progress',
-          NotFound: 'Storage not found',
-          NotOwner: 'You are not the owner of this storage',
-          NoUpdateAvailable: 'No update available',
-          UpToDate: 'Storage is already up to date',
-        };
-        const message = errorMessages[errorKey] ?? errorKey;
+        const message = formatUpgradeStorageError(errorKey);
         toast.error(`Upgrade failed: ${message}`);
         throw new Error(errorKey);
       }
@@ -325,4 +325,24 @@ export class StoragesService {
     }
   }
 
+  /**
+   * Register a creation id returned by `purchaseLicenseAndCreateStorage`.
+   * The service then follows this specific record through every status
+   * transition, regardless of intermediate states like `Pending`.
+   */
+  trackCreation(creationId: bigint): void {
+    this.#lastCreationId.set(creationId);
+    // Force an immediate reload so the UI doesn't wait up to 2s for the
+    // next polling tick to see the new record.
+    this.storagesResource.reload();
+  }
+}
+
+async function startStorageUpgradeWithObservedState(
+  actor: RabbitholeActorService,
+  canisterId: Principal,
+  releaseTag: string,
+  observedState: StorageReleaseState,
+) {
+  return actor.startStorageUpgrade(canisterId, releaseTag, observedState);
 }

@@ -38,8 +38,8 @@
                   <h4 hlmAlertTitle>Last upgrade failed</h4>
                   <div hlmAlertDescription class="min-w-0 space-y-2">
                     <p class="break-words">
-                      The storage was restored to its previous version. Review the
-                      error before retrying the upgrade.
+                      The storage was restored to its previous version. Review
+                      the error before retrying the upgrade.
                     </p>
                     <p
                       class="max-h-44 overflow-auto rounded-md bg-background/60 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap break-words"
@@ -61,6 +61,46 @@
               <ng-icon hlmIcon name="lucideArrowUpCircle" size="xs" />
               Update: {{ updateSummary() }}
             </button>
+          } @else if (hasBlockedUpdate()) {
+            <hlm-hover-card>
+              <span
+                hlmBadge
+                hlmHoverCardTrigger
+                variant="outline"
+                class="text-xs text-amber-600 cursor-help"
+              >
+                <ng-icon hlmIcon name="lucideTriangleAlert" size="xs" />
+                Update blocked
+              </span>
+              <hlm-hover-card-content
+                *hlmHoverCardPortal
+                class="w-96 max-w-[calc(100vw-2rem)] p-0"
+              >
+                <div hlmAlert class="border-0">
+                  <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+                  <h4 hlmAlertTitle>New release is not compatible</h4>
+                  <div hlmAlertDescription class="space-y-2">
+                    @if (blockedReleaseOption(); as option) {
+                      <p>
+                        Release
+                        <span class="font-mono text-foreground">{{
+                          option.tagName
+                        }}</span>
+                        cannot be installed from
+                        <span class="font-mono text-foreground">
+                          {{
+                            storage().releaseTag || 'the installed version'
+                          }} </span
+                        >.
+                      </p>
+                      @if (option.disabledReason; as reason) {
+                        <p class="text-xs">{{ reason }}</p>
+                      }
+                    }
+                  </div>
+                </div>
+              </hlm-hover-card-content>
+            </hlm-hover-card>
           }
         }
         @case ('in-progress') {
@@ -132,10 +172,16 @@
           hlmBtn
           variant="outline"
           size="sm"
-          [routerLink]="hasWasmUpdate() ? null : ['/dashboard', canisterIdText(), 'drive']"
+          [routerLink]="
+            hasWasmUpdate() ? null : ['/dashboard', canisterIdText(), 'drive']
+          "
           [class.pointer-events-none]="hasWasmUpdate()"
           [class.opacity-50]="hasWasmUpdate()"
-          [hlmTooltip]="hasWasmUpdate() ? 'Update required — storage module is outdated' : ''"
+          [hlmTooltip]="
+            hasWasmUpdate()
+              ? 'Update required — storage module is outdated'
+              : ''
+          "
         >
           Open
           <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
@@ -163,7 +209,10 @@
                 Open Local Dev App
               </button>
             }
-            <button hlmDropdownMenuItem (click)="navigateToCanisterManagement()">
+            <button
+              hlmDropdownMenuItem
+              (click)="navigateToCanisterManagement()"
+            >
               <ng-icon hlm name="lucideSettings" hlmMenuIcon size="sm" />
               Manage Canister
             </button>
@@ -192,7 +241,12 @@
           Removing...
         </button>
       } @else {
-        <button hlmBtn variant="outline" size="sm" (click)="retryFailedStorage()">
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          (click)="retryFailedStorage()"
+        >
           <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
           Resume
         </button>
@@ -221,15 +275,21 @@
               <hlm-alert-dialog-header>
                 <h3 hlmAlertDialogTitle>Remove storage from list?</h3>
                 <p hlmAlertDialogDescription>
-                  This will only remove the storage record from your list.
-                  The canister itself will not be deleted and will continue
-                  to exist on the Internet Computer. You can re-add it later
-                  using "Install on existing canister".
+                  This will only remove the storage record from your list. The
+                  canister itself will not be deleted and will continue to exist
+                  on the Internet Computer. You can re-add it later using
+                  "Install on existing canister".
                 </p>
               </hlm-alert-dialog-header>
               <hlm-alert-dialog-footer>
-                <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
-                <button hlmAlertDialogAction variant="destructive" (click)="deleteStorage()">
+                <button hlmAlertDialogCancel (click)="ctx.close()">
+                  Cancel
+                </button>
+                <button
+                  hlmAlertDialogAction
+                  variant="destructive"
+                  (click)="deleteStorage()"
+                >
                   Remove
                 </button>
               </hlm-alert-dialog-footer>
@@ -251,13 +311,20 @@
               <hlm-alert-dialog-header>
                 <h3 hlmAlertDialogTitle>Delete storage record?</h3>
                 <p hlmAlertDialogDescription>
-                  This will permanently remove this failed storage record from your list.
-                  If the setup was already paid for, use Resume before deleting it.
+                  This will permanently remove this failed storage record from
+                  your list. If the setup was already paid for, use Resume
+                  before deleting it.
                 </p>
               </hlm-alert-dialog-header>
               <hlm-alert-dialog-footer>
-                <button hlmAlertDialogCancel (click)="ctx.close()">Cancel</button>
-                <button hlmAlertDialogAction variant="destructive" (click)="deleteStorage()">
+                <button hlmAlertDialogCancel (click)="ctx.close()">
+                  Cancel
+                </button>
+                <button
+                  hlmAlertDialogAction
+                  variant="destructive"
+                  (click)="deleteStorage()"
+                >
                   Delete
                 </button>
               </hlm-alert-dialog-footer>

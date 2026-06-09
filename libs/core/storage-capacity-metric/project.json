@@ -1,0 +1,13 @@
+{
+  "name": "core-storage-capacity-metric",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/core/storage-capacity-metric/src",
+  "prefix": "core",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

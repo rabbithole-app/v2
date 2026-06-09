@@ -436,6 +436,7 @@ export interface EncryptedStorageCanister {
   'getStorageCardMetrics' : ActorMethod<[], StorageResult_2>,
   'getStorageChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getStorageEventsUnreadCount' : ActorMethod<[], bigint>,
+  'getStorageReleaseState' : ActorMethod<[], StorageReleaseState>,
   'getUploadSession' : ActorMethod<[{ 'batchId' : BatchId }], StorageResult_4>,
   'getVetkeyVerificationKey' : ActorMethod<[], VetKeyVerificationKey>,
   'get_chunk' : ActorMethod<[GetChunkArgs], ChunkContent>,
@@ -536,6 +537,7 @@ export interface EncryptedStorageCanister {
     ],
     NodeDetails
   >,
+  'setStorageReleaseState' : ActorMethod<[StorageReleaseStateInput], undefined>,
   'set_asset_content' : ActorMethod<[SetAssetContentArguments], undefined>,
   'set_asset_properties' : ActorMethod<
     [SetAssetPropertiesArguments],
@@ -925,6 +927,20 @@ export type StorageErrorCode = { 'Internal' : null } |
   { 'QuotaExceeded' : null } |
   { 'Conflict' : null };
 export type StorageEvent = { 'access' : StorageAccessEvent };
+export interface StorageReleaseState {
+  'frontendAssetTreeHash' : [] | [Uint8Array],
+  'manifestHash' : [] | [Uint8Array],
+  'wasmHash' : [] | [Uint8Array],
+  'installedAt' : [] | [Time],
+  'releaseTag' : [] | [string],
+  'schemaVersion' : bigint,
+}
+export interface StorageReleaseStateInput {
+  'frontendAssetTreeHash' : [] | [Uint8Array],
+  'manifestHash' : [] | [Uint8Array],
+  'wasmHash' : [] | [Uint8Array],
+  'releaseTag' : string,
+}
 export type StorageResult = { 'ok' : NodeDetails } |
   { 'err' : StorageError };
 export type StorageResult_1 = { 'ok' : null } |

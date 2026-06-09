@@ -2,43 +2,45 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   inject,
   signal,
-  untracked,
 } from '@angular/core';
-import { IcManagementCanister } from '@icp-sdk/canisters/ic-management';
-import { Principal } from '@icp-sdk/core/principal';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowUpCircle,
   lucideCheck,
   lucideCircleAlert,
-  lucideGlobe,
-  lucidePackage,
 } from '@ng-icons/lucide';
-import { BrnDialogClose, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
+import {
+  BrnDialogClose,
+  injectBrnDialogContext,
+} from '@spartan-ng/brain/dialog';
 import { toast } from '@spartan-ng/brain/sonner';
+import { rxEffect } from 'ngxtension/rx-effect';
+import { filter } from 'rxjs';
 
-import {
-  injectHttpAgent,
-  MAIN_CANISTER_ID_TOKEN,
-  parseCanisterRejectError,
-} from '@rabbithole/core';
-import {
-  type StorageInfo,
-  StoragesService,
-  type UpdateInfo,
-} from '@rabbithole/core';
 import {
   buildUpgradeCopy,
   buildUpgradeSteps,
+  getStorageCanisterId,
+  injectStorageReleaseOptions,
+  parseCanisterRejectError,
+  type StorageInfo,
+  type StorageReleaseOption,
+  StoragesService,
+  StorageUpgradeReviewComponent,
+  type UpdateInfo,
   type UpgradeStepId,
 } from '@rabbithole/core';
-import { AssetManager } from '@rabbithole/encrypted-storage';
+import {
+  provideAssetManager,
+  provideEncryptedStorageActor,
+  provideStorageReleaseOptions,
+} from '@rabbithole/core/storage-runtime';
 import { ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
-import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import {
   HlmDialogDescription,
@@ -48,6 +50,24 @@ import {
 } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 
+import { StorageUpgradeCoordinator } from './storage-upgrade-coordinator.service';
+
+type ActiveUpgradePlan = {
+  releaseTag: string;
+  storageId: bigint;
+  updateInfo: UpdateInfo;
+};
+
+type UpgradeLifecycleSnapshot = {
+  currentUpgradeError: string | null;
+  initialUpgradeError: string | null;
+  sawUpgrading: boolean;
+  selectedUpdateInfo: UpdateInfo;
+  status: StorageInfo['status'] | null;
+  step: WizardStep;
+  stillHasUpdate: boolean;
+};
+
 type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
 
 @Component({
@@ -55,7 +75,6 @@ type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
   imports: [
     NgIcon,
     HlmIcon,
-    HlmBadge,
     HlmDialogHeader,
     HlmDialogFooter,
     HlmDialogTitle,
@@ -64,14 +83,17 @@ type WizardStep = 'completed' | 'error' | 'review' | 'upgrading';
     ...HlmAlertImports,
     ...HlmButtonImports,
     ProcessStepListComponent,
+    StorageUpgradeReviewComponent,
   ],
   providers: [
+    StorageUpgradeCoordinator,
+    provideAssetManager(),
+    provideEncryptedStorageActor(),
+    provideStorageReleaseOptions(),
     provideIcons({
       lucideArrowUpCircle,
       lucideCheck,
       lucideCircleAlert,
-      lucideGlobe,
-      lucidePackage,
     }),
   ],
   templateUrl: './upgrade-storage-dialog.component.html',
@@ -83,21 +105,79 @@ export class UpgradeStorageDialogComponent {
   readonly #storagesService = inject(StoragesService);
   readonly currentStorage = computed(
     () =>
-      this.#storagesService.storages().find((storage) => storage.id === this.storage().id) ??
-      this.storage(),
+      this.#storagesService
+        .storages()
+        .find((storage) => storage.id === this.storage().id) ?? this.storage(),
   );
-  readonly updateInfo = computed<UpdateInfo>(() => {
-    const info = this.currentStorage().updateAvailable ?? this.storage().updateAvailable;
-    if (!info) {
-      throw new Error('updateAvailable must be defined when opening upgrade dialog');
-    }
-    return info;
-  });
+  readonly updateInfo = computed<UpdateInfo | undefined>(
+    () =>
+      this.currentStorage().updateAvailable ?? this.storage().updateAvailable,
+  );
   readonly availableReleaseTag = computed(
-    () => this.updateInfo().availableReleaseTag ?? 'unknown',
+    () => this.updateInfo()?.availableReleaseTag ?? 'unknown',
+  );
+  readonly canisterId = computed(
+    () =>
+      getStorageCanisterId(this.currentStorage()) ??
+      getStorageCanisterId(this.storage()),
+  );
+  readonly #router = inject(Router);
+  readonly canisterManagementHref = computed(() => {
+    const canisterId = this.canisterId();
+    if (!canisterId) return null;
+
+    return this.#router.serializeUrl(
+      this.#router.createUrlTree([
+        '/dashboard',
+        canisterId.toText(),
+        'canister',
+      ]),
+    );
+  });
+  readonly #releaseOptionsResource = injectStorageReleaseOptions();
+  readonly releaseOptions = computed<StorageReleaseOption[]>(() =>
+    this.#releaseOptionsResource.hasValue()
+      ? this.#releaseOptionsResource.value()
+      : [],
+  );
+  readonly #selectedReleaseTag = signal<string | null>(null);
+  readonly selectedReleaseTag = computed(() => {
+    const selectedTag = this.#selectedReleaseTag();
+    if (selectedTag) {
+      const selected = this.releaseOptions().find(
+        (option) => option.tagName === selectedTag && !option.disabled,
+      );
+      if (selected) return selected.tagName;
+    }
+    return (
+      this.releaseOptions().find((option) => !option.disabled)?.tagName ?? null
+    );
+  });
+  readonly selectedReleaseOption = computed(() => {
+    const selectedTag = this.selectedReleaseTag();
+    if (!selectedTag) return undefined;
+    return this.releaseOptions().find(
+      (option) => option.tagName === selectedTag,
+    );
+  });
+  readonly selectedTargetUpdateInfo = computed(
+    () => this.selectedReleaseOption()?.updateInfo,
   );
   readonly currentReleaseTag = computed(
-    () => this.updateInfo().currentReleaseTag ?? 'unknown',
+    () =>
+      this.selectedTargetUpdateInfo()?.currentReleaseTag ??
+      this.updateInfo()?.currentReleaseTag ??
+      this.currentStorage().releaseTag ??
+      this.storage().releaseTag ??
+      'unknown',
+  );
+  readonly currentReleaseTagValue = computed(
+    () =>
+      this.selectedTargetUpdateInfo()?.currentReleaseTag ??
+      this.updateInfo()?.currentReleaseTag ??
+      this.currentStorage().releaseTag ??
+      this.storage().releaseTag ??
+      null,
   );
   readonly #errorMessage = signal<string | null>(null);
   readonly errorMessage = this.#errorMessage.asReadonly();
@@ -106,11 +186,28 @@ export class UpgradeStorageDialogComponent {
   readonly previousUpgradeError = computed(
     () => this.currentStorage().lastUpgradeError ?? null,
   );
+  readonly releaseOptionsLoading = computed(() =>
+    this.#releaseOptionsResource.isLoading(),
+  );
+  readonly #activePlan = signal<ActiveUpgradePlan | null>(null);
+  readonly selectedUpdateInfo = computed<UpdateInfo>(
+    () =>
+      this.#activePlan()?.updateInfo ??
+      this.selectedTargetUpdateInfo() ??
+      this.updateInfo() ?? {
+        frontendUpdateAvailable: false,
+        wasmUpdateAvailable: false,
+      },
+  );
   readonly #step = signal<WizardStep>('review');
   readonly step = this.#step.asReadonly();
-  readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateInfo()));
+  readonly upgradeCopy = computed(() =>
+    buildUpgradeCopy(this.selectedUpdateInfo()),
+  );
   readonly #initialUpgradeError = signal<string | null>(null);
-  readonly #rawUpgradeStatus = computed(() => this.#storagesService.upgradeStatus());
+  readonly #rawUpgradeStatus = computed(() =>
+    this.#storagesService.upgradeStatus(),
+  );
   // Track whether we've seen an in-progress status from the backend.
   // This prevents false "upgrade failed" and UI flicker when the effect/template
   // fires before the first poll returns the new upgrading status.
@@ -120,7 +217,8 @@ export class UpgradeStorageDialogComponent {
     const status = this.#rawUpgradeStatus();
     if (!status) return null;
     if (status.type === 'Completed' && !this.#sawUpgrading()) {
-      const currentUpgradeError = this.currentStorage().lastUpgradeError ?? null;
+      const currentUpgradeError =
+        this.currentStorage().lastUpgradeError ?? null;
       const initialUpgradeError = this.#initialUpgradeError();
       if (!currentUpgradeError || currentUpgradeError === initialUpgradeError) {
         return null;
@@ -133,88 +231,68 @@ export class UpgradeStorageDialogComponent {
     buildUpgradeSteps(this.upgradeStatus(), {
       errorMessage: this.errorMessage(),
       failedStepId: this.#activeUpgradeStep(),
-      frontendUpdateAvailable: this.updateInfo().frontendUpdateAvailable,
+      frontendUpdateAvailable:
+        this.selectedUpdateInfo().frontendUpdateAvailable,
       isPreparing: this.isPreparing(),
-      wasmUpdateAvailable: this.updateInfo().wasmUpdateAvailable,
+      wasmUpdateAvailable: this.selectedUpdateInfo().wasmUpdateAvailable,
     }),
   );
-  readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
-  readonly #httpAgent = injectHttpAgent();
+  readonly #upgradeCoordinator = inject(StorageUpgradeCoordinator);
+  readonly #upgradeLifecycleSnapshot = computed<UpgradeLifecycleSnapshot>(
+    () => ({
+      currentUpgradeError: this.currentStorage().lastUpgradeError ?? null,
+      initialUpgradeError: this.#initialUpgradeError(),
+      sawUpgrading: this.#sawUpgrading(),
+      selectedUpdateInfo: this.selectedUpdateInfo(),
+      status: this.upgradeStatus(),
+      step: this.step(),
+      stillHasUpdate: !!this.currentStorage().updateAvailable,
+    }),
+    { equal: upgradeLifecycleSnapshotsEqual },
+  );
 
   constructor() {
-    // Watch upgrade status for completion/failure
-    effect(() => {
-      const status = this.upgradeStatus();
-      const currentStorage = this.currentStorage();
-      const currentStep = untracked(() => this.step());
-
-      if (currentStep !== 'upgrading') return;
-
-      const currentUpgradeError = currentStorage.lastUpgradeError ?? null;
-      const initialUpgradeError = untracked(() => this.#initialUpgradeError());
-      const sawUpgrading = untracked(() => this.#sawUpgrading());
-      const isNewUpgradeError =
-        currentUpgradeError &&
-        (currentUpgradeError !== initialUpgradeError || sawUpgrading);
-
-      if (isNewUpgradeError) {
-        untracked(() => {
-          this.#errorMessage.set(currentUpgradeError);
-          this.#step.set('error');
-          this.#isPreparing.set(false);
-        });
-        toast.error('Upgrade failed');
-        return;
-      }
-
-      if (!status) return;
-
-      if (status.type === 'Completed') {
-        // Check if upgrade actually succeeded by verifying updateAvailable is gone.
-        // If it's still present, the upgrade was reverted due to an error.
-        const stillHasUpdate = !!currentStorage.updateAvailable;
-
-        if (stillHasUpdate) {
-          untracked(() => {
-            this.#errorMessage.set(
-              currentStorage.lastUpgradeError ??
-                'Upgrade failed. The storage has been restored to its previous state.',
-            );
-            this.#step.set('error');
-            this.#isPreparing.set(false);
-          });
-          toast.error('Upgrade failed');
-        } else {
-          untracked(() => this.#step.set('completed'));
-          toast.success('Storage upgraded successfully!');
-        }
-      } else if (status.type === 'Failed') {
-        untracked(() => {
-          this.#errorMessage.set(status.message);
-          this.#step.set('error');
-          this.#isPreparing.set(false);
-        });
-        toast.error(`Upgrade failed: ${status.message}`);
-      } else {
-        // Any in-progress status — mark that upgrade has started on backend
-        untracked(() => {
-          this.#sawUpgrading.set(true);
-          this.#activeUpgradeStep.set(upgradeStepIdFromStatus(status, this.updateInfo()));
-        });
-      }
-    });
+    rxEffect(
+      toObservable(this.#upgradeLifecycleSnapshot).pipe(
+        filter(({ step }) => step === 'upgrading'),
+      ),
+      (snapshot) => this.#handleUpgradeLifecycle(snapshot),
+    );
   }
 
   finishUpgrade(): void {
     this.#storagesService.clearTrackedUpgrade();
+    this.#activePlan.set(null);
+  }
+
+  selectRelease(releaseTag: string | null): void {
+    this.#selectedReleaseTag.set(releaseTag);
   }
 
   async startUpgrade(): Promise<void> {
     const storage = this.storage();
-    const canisterId = storage.canisterId;
+    const canisterId = this.canisterId();
     if (!canisterId) return;
+    const selectedRelease = this.selectedReleaseOption();
 
-    this.#initialUpgradeError.set(this.currentStorage().lastUpgradeError ?? null);
+    if (!selectedRelease?.updateInfo || selectedRelease.disabled) {
+      this.#errorMessage.set(
+        selectedRelease?.disabledReason ?? 'Select an available release.',
+      );
+      this.#step.set('error');
+      return;
+    }
+
+    this.#initialUpgradeError.set(
+      this.currentStorage().lastUpgradeError ?? null,
+    );
+    const activePlan: ActiveUpgradePlan = {
+      releaseTag: selectedRelease.tagName,
+      storageId: storage.id,
+      updateInfo: selectedRelease.updateInfo,
+    };
+
+    this.#activePlan.set(activePlan);
     this.#sawUpgrading.set(false);
     this.#step.set('upgrading');
     this.#isPreparing.set(true);
@@ -222,32 +300,12 @@ export class UpgradeStorageDialogComponent {
     this.#errorMessage.set(null);
 
     try {
-      const agent = this.#httpAgent();
-      const icManagement = IcManagementCanister.create({ agent });
-
-      // Step 1: Get current controllers and add backend
-      const status = await icManagement.canisterStatus({ canisterId });
-      const controllers = status.settings.controllers
-        .map((p: Principal) => p.toText());
-
-      if (!controllers.includes(this.#backendCanisterId.toText())) {
-        await icManagement.updateSettings({
-          canisterId,
-          settings: {
-            controllers: [...controllers, this.#backendCanisterId.toText()],
-          },
-        });
-      }
-
-      // Step 2: Grant Commit permission to backend
-      const assetManager = new AssetManager({ agent, canisterId });
-      await assetManager.grantPermission('Commit', this.#backendCanisterId);
-
-      this.#isPreparing.set(false);
-      this.#activeUpgradeStep.set(firstUpdateStep(this.updateInfo()));
-
-      // Step 3: Call upgradeStorage on backend (scope determined automatically)
-      await this.#storagesService.upgradeStorage(storage.id, canisterId);
+      await this.#upgradeCoordinator.startUpgrade(activePlan, {
+        prepared: () => {
+          this.#isPreparing.set(false);
+          this.#activeUpgradeStep.set(firstUpdateStep(activePlan.updateInfo));
+        },
+      });
     } catch (error) {
       const errorMessage =
         parseCanisterRejectError(error) ?? 'An error has occurred';
@@ -261,8 +319,61 @@ export class UpgradeStorageDialogComponent {
     this.#step.set('review');
     this.#errorMessage.set(null);
     this.#initialUpgradeError.set(null);
+    this.#activePlan.set(null);
     this.#activeUpgradeStep.set('permissions');
     this.#sawUpgrading.set(false);
+  }
+
+  #handleUpgradeLifecycle(snapshot: UpgradeLifecycleSnapshot): void {
+    const {
+      currentUpgradeError,
+      initialUpgradeError,
+      sawUpgrading,
+      selectedUpdateInfo,
+      status,
+      stillHasUpdate,
+    } = snapshot;
+    const isNewUpgradeError =
+      currentUpgradeError &&
+      (currentUpgradeError !== initialUpgradeError || sawUpgrading);
+
+    if (isNewUpgradeError) {
+      this.#showUpgradeError(currentUpgradeError);
+      return;
+    }
+
+    if (!status) return;
+
+    if (status.type === 'Completed') {
+      if (stillHasUpdate) {
+        this.#showUpgradeError(
+          currentUpgradeError ??
+            'Upgrade failed. The storage has been restored to its previous state.',
+        );
+        return;
+      }
+
+      this.#step.set('completed');
+      toast.success('Storage upgraded successfully!');
+      return;
+    }
+
+    if (status.type === 'Failed') {
+      this.#showUpgradeError(status.message, `Upgrade failed: ${status.message}`);
+      return;
+    }
+
+    this.#sawUpgrading.set(true);
+    this.#activeUpgradeStep.set(
+      upgradeStepIdFromStatus(status, selectedUpdateInfo),
+    );
+  }
+
+  #showUpgradeError(message: string, toastMessage = 'Upgrade failed'): void {
+    this.#errorMessage.set(message);
+    this.#step.set('error');
+    this.#isPreparing.set(false);
+    toast.error(toastMessage);
   }
 }
 
@@ -270,6 +381,29 @@ function firstUpdateStep(updateInfo: UpdateInfo): UpgradeStepId {
   if (updateInfo.wasmUpdateAvailable) return 'wasm';
   if (updateInfo.frontendUpdateAvailable) return 'frontend';
   return 'finalize';
+}
+
+function upgradeLifecycleSnapshotsEqual(
+  a: UpgradeLifecycleSnapshot,
+  b: UpgradeLifecycleSnapshot,
+): boolean {
+  return (
+    a.currentUpgradeError === b.currentUpgradeError &&
+    a.initialUpgradeError === b.initialUpgradeError &&
+    a.sawUpgrading === b.sawUpgrading &&
+    a.selectedUpdateInfo.frontendUpdateAvailable ===
+      b.selectedUpdateInfo.frontendUpdateAvailable &&
+    a.selectedUpdateInfo.wasmUpdateAvailable ===
+      b.selectedUpdateInfo.wasmUpdateAvailable &&
+    a.status?.type === b.status?.type &&
+    upgradeStatusMessage(a.status) === upgradeStatusMessage(b.status) &&
+    a.step === b.step &&
+    a.stillHasUpdate === b.stillHasUpdate
+  );
+}
+
+function upgradeStatusMessage(status: StorageInfo['status'] | null): string {
+  return status?.type === 'Failed' ? status.message : '';
 }
 
 function upgradeStepIdFromStatus(

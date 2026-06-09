@@ -6,7 +6,7 @@ import {
   lucideHardDrive,
 } from '@ng-icons/lucide';
 
-import { NavigationComponent, NavItem } from '@rabbithole/core';
+import { NavigationComponent, NavItem } from '@rabbithole/core/app-runtime';
 import {
   AccessRequestsCapabilityService,
   provideEncryptedStorage,

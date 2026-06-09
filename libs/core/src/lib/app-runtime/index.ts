@@ -1,3 +1,4 @@
+export * from '../components/layout/navigation/navigation.component';
 export * from '../constants/auth';
 export * from '../constants/canister-env';
 export * from '../guards/admin.guard';
@@ -5,6 +6,7 @@ export * from '../guards/dashboard.guard';
 export * from '../guards/login.guard';
 export * from '../injectors/core-worker';
 export * from '../injectors/http-agent';
+export * from '../injectors/main-actor';
 export * from '../interceptors/ic-auth-sign-out-handler';
 export * from '../resolvers/profile';
 export * from '../services/file-system-access.service';
@@ -14,4 +16,5 @@ export * from '../tokens/encrypted-storage-canister';
 export * from '../tokens/main';
 export * from '../tokens/main-canister';
 export * from '../utils/canister-origin';
+export * from '../utils/parse-canister-reject-error';
 export * from '../utils/principal';

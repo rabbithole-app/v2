@@ -109,6 +109,22 @@ export interface CallbackStreamingStrategy {
 }
 export type ChainConfig = { 'Evm' : EvmChainConfig } |
   { 'Solana' : SolanaChainConfig };
+export interface ChangelogItem {
+  'text' : string,
+  'commitUrl' : [] | [string],
+  'commit' : [] | [string],
+}
+export interface ChangelogRange {
+  'to' : string,
+  'compareUrl' : [] | [string],
+  'from' : [] | [string],
+  'maxCommits' : [] | [bigint],
+}
+export interface ChangelogSection {
+  'title' : string,
+  'kind' : string,
+  'items' : Array<ChangelogItem>,
+}
 export type CmcOpKind = { 'CreateCanister' : null } |
   { 'TopUp' : null };
 export type CmcOpRetryResult = { 'scheduled' : { 'canisterId' : Principal } } |
@@ -607,7 +623,7 @@ export interface Rabbithole {
     ImmutableObjectStorageRefillResult
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
-  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_8>,
+  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_9>,
   '_internet_identity_sign_in_start' : ActorMethod<[], Uint8Array>,
   'activateSubscription' : ActorMethod<
     [Principal, Plan, [] | [bigint]],
@@ -642,7 +658,7 @@ export interface Rabbithole {
    * / Storage license entitlement is attached only through the paid creation
    * / flow. Imported canisters do not receive included encrypted storage quota.
    */
-  'addStorage' : ActorMethod<[Principal, Uint8Array], Result_7>,
+  'addStorage' : ActorMethod<[Principal, Uint8Array], Result_8>,
   'adminGetUserWalletMeta' : ActorMethod<
     [Principal],
     {
@@ -657,14 +673,13 @@ export interface Rabbithole {
   'adminListUsers' : ActorMethod<[AdminUserListOptions], AdminUsersPage>,
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
   'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
-  'checkStorageUpdate' : ActorMethod<[Principal], [] | [UpdateInfo]>,
   'checkSubscription' : ActorMethod<[Uint8Array], SubscriptionCheckResult>,
   'claimVerifiedEmailAccess' : ActorMethod<[], IdentityAttributesSyncResult>,
   'clearAvatar' : ActorMethod<[], undefined>,
   'commitAvatarUpload' : ActorMethod<[string], AvatarRef>,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_6>,
+  'deleteStorage' : ActorMethod<[bigint], Result_7>,
   'dismissPendingCmcOp' : ActorMethod<
     [bigint],
     { 'ok' : null } |
@@ -672,7 +687,7 @@ export interface Rabbithole {
   >,
   'ensureStorageCyclesForUpload' : ActorMethod<
     [EnsureStorageCyclesForUploadRequest],
-    Result_5
+    Result_6
   >,
   'ensureUser' : ActorMethod<[[] | [string]], undefined>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
@@ -697,24 +712,20 @@ export interface Rabbithole {
       'evmAddress' : [] | [string],
     }
   >,
-  /**
-   * / Transfer ICP from the treasury subaccount to CMC for a target
-   * / canister. Caller must ensure sufficient balance via
-   * / `guardTreasuryIcpReserve`, including the ledger fee. `icpE8s`
-   * / is the amount CMC should receive; the ledger fee is charged
-   * / separately by `ledger.transfer`. CMC `#Refunded` returns ICP to
-   * / the same subaccount, keeping the round-trip inside treasury.
-   */
   'getPendingRefunds' : ActorMethod<[], Array<PendingRefund>>,
   'getProfile' : ActorMethod<[], [] | [Profile]>,
   'getPublicProfiles' : ActorMethod<
     [Array<Principal>],
     Array<PublicProfileLookup>
   >,
-  'getReleasesFullStatus' : ActorMethod<[], ReleasesFullStatus>,
   'getSettings' : ActorMethod<[], UserSettings>,
   'getSolAddress' : ActorMethod<[], [] | [string]>,
   'getStorageFundingStatus' : ActorMethod<[], StorageFundingStatus>,
+  'getStorageReleaseAdminStatus' : ActorMethod<[], ReleasesFullStatus>,
+  'getStorageUpgradePlan' : ActorMethod<
+    [Principal, StorageReleaseState],
+    Result_5
+  >,
   'getSubscription' : ActorMethod<[], [] | [Subscription]>,
   'getTreasuryBalances' : ActorMethod<[], Array<BalanceEntry>>,
   'getTreasuryWalletAddresses' : ActorMethod<
@@ -782,6 +793,7 @@ export interface Rabbithole {
     [PrepareAvatarUploadArgs],
     PrepareAvatarUploadResult
   >,
+  'prepareStorageRelease' : ActorMethod<[string], Result_2>,
   'processPendingRefunds' : ActorMethod<[], bigint>,
   /**
    * / Purchase a license and kick off storage creation. Returns the creation
@@ -830,11 +842,7 @@ export interface Rabbithole {
    * / become Failed and can then use the regular recoverFailedStorage flow.
    */
   'recoverStuckCreation' : ActorMethod<[bigint], Result_2>,
-  'refreshReleases' : ActorMethod<[], undefined>,
-  /**
-   * / Register the latest downloaded WASM hash as known.
-   */
-  'registerLatestWasmHash' : ActorMethod<[], undefined>,
+  'refreshStorageReleaseIndex' : ActorMethod<[], undefined>,
   /**
    * / Owner-or-admin repair for failed initial creations whose canister already
    * / exists but cannot be resumed with a plain install. Reinstalls the latest
@@ -861,14 +869,17 @@ export interface Rabbithole {
   >,
   'setUserRole' : ActorMethod<[Principal, Role], undefined>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
+  'startStorageUpgrade' : ActorMethod<
+    [Principal, string, StorageReleaseState],
+    Result_1
+  >,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
-  'topUpFromBalance' : ActorMethod<[Principal, bigint], Result_1>,
+  'topUpFromBalance' : ActorMethod<[Principal, bigint], Result>,
   'triggerAutoRenewals' : ActorMethod<[], undefined>,
   'triggerExpireOverdue' : ActorMethod<[], Array<Principal>>,
   'triggerSelfTopUp' : ActorMethod<[], undefined>,
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
   'updateSettings' : ActorMethod<[UserSettings], undefined>,
-  'upgradeStorage' : ActorMethod<[Principal], Result>,
   'usernameExists' : ActorMethod<[string], boolean>,
   'withdraw' : ActorMethod<[WithdrawArgs], WithdrawResult>,
   'withdrawFromTreasury' : ActorMethod<[WithdrawArgs], WithdrawResult>,
@@ -920,6 +931,17 @@ export interface RefundReceipt {
 export type RefundReference = { 'signature' : string } |
   { 'blockIndex' : bigint } |
   { 'txHash' : string };
+export interface ReleaseArtifactManifest {
+  'sha256' : [] | [string],
+  'name' : string,
+  'size' : [] | [bigint],
+}
+export interface ReleaseChangelog {
+  'bump' : string,
+  'summary' : string,
+  'sections' : Array<ChangelogSection>,
+  'range' : ChangelogRange,
+}
 export interface ReleaseFullStatus {
   'tagName' : string,
   'isDownloaded' : boolean,
@@ -927,12 +949,26 @@ export interface ReleaseFullStatus {
   'createdAt' : Time,
   'assets' : Array<AssetFullStatus>,
   'publishedAt' : [] | [Time],
+  'manifestError' : [] | [string],
   'isDeploymentReady' : boolean,
+  'manifest' : [] | [StorageReleaseManifest],
   'draft' : boolean,
   'prerelease' : boolean,
 }
+export interface ReleaseNoteSection {
+  'title' : string,
+  'items' : Array<string>,
+}
+export interface ReleaseNotes {
+  'source' : string,
+  'summary' : string,
+  'sections' : Array<ReleaseNoteSection>,
+}
+export interface ReleaseUpgradeManifest {
+  'compatibleFrom' : Array<string>,
+  'argStrategy' : string,
+}
 export interface ReleasesFullStatus {
-  'defaultVersionKey' : string,
   'releasesCount' : bigint,
   'pendingDownloads' : bigint,
   'hasDeploymentReadyRelease' : boolean,
@@ -940,25 +976,27 @@ export interface ReleasesFullStatus {
   'releases' : Array<ReleaseFullStatus>,
   'completedDownloads' : bigint,
 }
-export type Result = { 'ok' : null } |
-  { 'err' : UpgradeStorageError };
-export type Result_1 = { 'ok' : { 'cyclesAdded' : bigint } } |
+export type Result = { 'ok' : { 'cyclesAdded' : bigint } } |
   { 'err' : string };
+export type Result_1 = { 'ok' : null } |
+  { 'err' : UpgradeStorageError };
 export type Result_2 = { 'ok' : null } |
   { 'err' : string };
 export type Result_3 = { 'ok' : null } |
   { 'err' : PurchaseError };
 export type Result_4 = { 'ok' : bigint } |
   { 'err' : PurchaseError };
-export type Result_5 = {
+export type Result_5 = { 'ok' : StorageReleaseOptionsResult } |
+  { 'err' : UpgradeStorageError };
+export type Result_6 = {
     'ok' : { 'cyclesAdded' : [] | [bigint], 'requiredBalance' : bigint }
   } |
   { 'err' : string };
-export type Result_6 = { 'ok' : null } |
+export type Result_7 = { 'ok' : null } |
   { 'err' : DeleteStorageError };
-export type Result_7 = { 'ok' : bigint } |
+export type Result_8 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
-export type Result_8 = { 'ok' : null } |
+export type Result_9 = { 'ok' : null } |
   { 'err' : Error };
 export type Role = { 'admin' : null } |
   { 'moderator' : null } |
@@ -1141,6 +1179,46 @@ export interface StorageLicenseEntitlement {
   'includedBytes' : bigint,
   'maxFileBytes' : bigint,
 }
+export interface StorageReleaseManifest {
+  'did' : [] | [ReleaseArtifactManifest],
+  'frontendAssetTreeHash' : [] | [Uint8Array],
+  'changelog' : ReleaseChangelog,
+  'tagName' : string,
+  'wasm' : [] | [ReleaseArtifactManifest],
+  'frontend' : [] | [ReleaseArtifactManifest],
+  'upgrade' : ReleaseUpgradeManifest,
+  'releaseNotes' : [] | [ReleaseNotes],
+  'version' : string,
+  'stableSignature' : [] | [ReleaseArtifactManifest],
+  'schemaVersion' : bigint,
+  'commit' : string,
+}
+export interface StorageReleaseOption {
+  'releaseNotesSummary' : [] | [string],
+  'wasmUpdateAvailable' : boolean,
+  'tagName' : string,
+  'compatibleFrom' : Array<string>,
+  'disabled' : boolean,
+  'version' : string,
+  'changelogSummary' : [] | [string],
+  'releaseNotesSections' : Array<ReleaseNoteSection>,
+  'disabledReason' : [] | [string],
+  'frontendUpdateAvailable' : boolean,
+  'changelogSections' : Array<ChangelogSection>,
+  'updateInfo' : [] | [UpdateInfo],
+}
+export interface StorageReleaseOptionsResult {
+  'stateInSync' : boolean,
+  'options' : Array<StorageReleaseOption>,
+}
+export interface StorageReleaseState {
+  'frontendAssetTreeHash' : [] | [Uint8Array],
+  'manifestHash' : [] | [Uint8Array],
+  'wasmHash' : [] | [Uint8Array],
+  'installedAt' : [] | [Time],
+  'releaseTag' : [] | [string],
+  'schemaVersion' : bigint,
+}
 export type StorageVetKeyLevel = { 'highReplication' : null } |
   { 'standard' : null };
 export interface StoredNotification {
@@ -1218,11 +1296,13 @@ export interface UpdateInfo {
   'availableWasmHash' : [] | [Uint8Array],
 }
 export interface UpdateProfileArgs { 'displayName' : [] | [string] }
-export type UpgradeStorageError = { 'AlreadyUpgrading' : null } |
+export type UpgradeStorageError = { 'StorageStateDrift' : string } |
+  { 'AlreadyUpgrading' : null } |
   { 'NoUpdateAvailable' : null } |
   { 'NotFound' : null } |
   { 'NotOwner' : null } |
   { 'ReleaseNotReady' : null } |
+  { 'ReleaseNotCompatible' : null } |
   { 'NotCompleted' : null };
 export interface User {
   'id' : Principal,

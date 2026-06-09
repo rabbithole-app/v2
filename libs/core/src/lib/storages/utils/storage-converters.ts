@@ -128,6 +128,20 @@ export function convertStorageInfoList(
 }
 
 /**
+ * Convert Candid UpdateInfo to TypeScript-friendly UpdateInfo
+ */
+export function convertUpdateInfo(info: UpdateInfoCandid): UpdateInfo {
+  return {
+    currentWasmHash: fromNullable(info.currentWasmHash) as Uint8Array | undefined,
+    availableWasmHash: fromNullable(info.availableWasmHash) as Uint8Array | undefined,
+    currentReleaseTag: fromNullable(info.currentReleaseTag),
+    availableReleaseTag: fromNullable(info.availableReleaseTag),
+    wasmUpdateAvailable: info.wasmUpdateAvailable,
+    frontendUpdateAvailable: info.frontendUpdateAvailable,
+  };
+}
+
+/**
  * Get canister ID from storage info if available
  */
 export function getStorageCanisterId(
@@ -208,19 +222,5 @@ function convertProgress(progress: ProgressCandid): Progress {
   return {
     processed: Number(progress.processed),
     total: Number(progress.total),
-  };
-}
-
-/**
- * Convert Candid UpdateInfo to TypeScript-friendly UpdateInfo
- */
-function convertUpdateInfo(info: UpdateInfoCandid): UpdateInfo {
-  return {
-    currentWasmHash: fromNullable(info.currentWasmHash) as Uint8Array | undefined,
-    availableWasmHash: fromNullable(info.availableWasmHash) as Uint8Array | undefined,
-    currentReleaseTag: fromNullable(info.currentReleaseTag),
-    availableReleaseTag: fromNullable(info.availableReleaseTag),
-    wasmUpdateAvailable: info.wasmUpdateAvailable,
-    frontendUpdateAvailable: info.frontendUpdateAvailable,
   };
 }

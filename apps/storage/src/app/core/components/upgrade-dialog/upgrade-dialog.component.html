@@ -24,41 +24,18 @@
 @switch (currentStep) {
   @case ('idle') {
     <div class="mt-4 space-y-4">
-      <div class="flex items-center gap-2 text-sm">
-        <span class="text-muted-foreground">Version:</span>
-        <span class="font-mono">{{ updateCheckService.currentReleaseTag() ?? 'unknown' }}</span>
-        <span class="text-muted-foreground">&rarr;</span>
-        <span class="font-mono font-medium">{{ updateCheckService.availableReleaseTag() ?? 'unknown' }}</span>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        @if (updateCheckService.updateInfo(); as info) {
-          @if (info.wasmUpdateAvailable) {
-            <span hlmBadge variant="outline" class="text-xs">
-              <ng-icon hlmIcon name="lucidePackage" size="xs" />
-              WASM Module
-            </span>
-          }
-          @if (info.frontendUpdateAvailable) {
-            <span hlmBadge variant="outline" class="text-xs">
-              <ng-icon hlmIcon name="lucideGlobe" size="xs" />
-              Frontend
-            </span>
-          }
-        }
-      </div>
-
-      <div hlmAlert>
-        <ng-icon hlmAlertIcon name="lucideCircleAlert" />
-        <h4 hlmAlertTitle>Temporary permissions required</h4>
-        <p hlmAlertDesc>
-          The backend canister will be temporarily added as a controller of your storage
-          to install updates. It will be automatically removed after the upgrade completes.
-        </p>
-      </div>
-
-      @if (updateCheckService.hasWasmUpdate()) {
-        <div hlmAlert variant="destructive">
+      <core-storage-upgrade-review
+        [currentReleaseTag]="updateCheckService.currentReleaseTag()"
+        [releaseOptions]="updateCheckService.releaseOptions()"
+        [releaseOptionsLoading]="updateCheckService.releaseOptionsLoading()"
+        [selectedReleaseOption]="updateCheckService.selectedReleaseOption()"
+        [selectedReleaseTag]="updateCheckService.selectedReleaseTag()"
+        [selectedUpdateInfo]="updateCheckService.selectedReleaseOption()?.updateInfo"
+        selectId="storage-release-select"
+        (releaseTagChange)="selectRelease($event)"
+      >
+        @if (updateCheckService.hasWasmUpdate()) {
+        <div rbthStorageUpgradeReviewAfterPermissions hlmAlert variant="destructive">
           <ng-icon hlmAlertIcon name="lucideCircleAlert" />
           <h4 hlmAlertTitle>Storage will be temporarily unavailable</h4>
           <p hlmAlertDesc>
@@ -66,7 +43,8 @@
             Do not close this tab until the update is complete.
           </p>
         </div>
-      }
+        }
+      </core-storage-upgrade-review>
     </div>
   }
 
@@ -128,7 +106,11 @@
     @switch (currentStep) {
       @case ('idle') {
         <button hlmBtn variant="outline" (click)="closeDialog()">Cancel</button>
-        <button hlmBtn (click)="startUpgrade()">
+        <button
+          hlmBtn
+          [disabled]="!updateCheckService.selectedReleaseOption()?.updateInfo"
+          (click)="startUpgrade()"
+        >
           <ng-icon hlmIcon name="lucideArrowUpCircle" size="sm" />
           Start Upgrade
         </button>

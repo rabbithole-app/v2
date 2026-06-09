@@ -1,6 +1,12 @@
-import { computed, Injectable, linkedSignal, resource, signal } from '@angular/core';
+import {
+  computed,
+  Injectable,
+  linkedSignal,
+  resource,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { connect } from 'ngxtension/connect'
+import { connect } from 'ngxtension/connect';
 import { isNonNullish } from 'remeda';
 import {
   distinctUntilChanged,
@@ -27,9 +33,9 @@ export class ReleasesService {
   releasesResource = resource({
     params: () => ({ actor: this.#actor() }),
     loader: async ({ params: { actor } }) => {
-      const result = await actor.getReleasesFullStatus();
+      const result = await actor.getStorageReleaseAdminStatus();
       return convertReleasesFullStatus(result);
-    }
+    },
   });
   #isLoading = linkedSignal(() => this.releasesResource.isLoading());
   readonly isLoading = this.#isLoading.asReadonly();
@@ -39,13 +45,13 @@ export class ReleasesService {
   releases = computed(() =>
     this.releasesResource.hasValue()
       ? this.releasesResource.value().releases
-      : []
+      : [],
   );
 
   constructor() {
     const hasWorkInProgress$ = toObservable(this.releasesResource.value).pipe(
-      filter(v => isNonNullish(v)),
-      map(status => {
+      filter((v) => isNonNullish(v)),
+      map((status) => {
         if (status.pendingDownloads) return true;
         return status.releases.some((release) =>
           release.assets.some((asset) => {
@@ -66,23 +72,25 @@ export class ReleasesService {
       share(),
     );
     connect(this.#isPolling, hasWorkInProgress$);
-    const on$ = hasWorkInProgress$.pipe(filter(v => v));
-    const off$ = hasWorkInProgress$.pipe(filter(v => !v));
-    interval(POLLING_INTERVAL_MS).pipe(
-      exhaustMap(() => {
-        const actor = this.#actor();
-        this.#isLoading.set(true);
-        return from(actor.getReleasesFullStatus()).pipe(
-          map(result => convertReleasesFullStatus(result)),
-          finalize(() => this.#isLoading.set(false))
-        );
-      }),
-      takeUntil(off$),
-      repeat({ delay: () => on$ }),
-      takeUntilDestroyed(),
-    ).subscribe((status) => {
-      this.releasesResource.set(status);
-    });
+    const on$ = hasWorkInProgress$.pipe(filter((v) => v));
+    const off$ = hasWorkInProgress$.pipe(filter((v) => !v));
+    interval(POLLING_INTERVAL_MS)
+      .pipe(
+        exhaustMap(() => {
+          const actor = this.#actor();
+          this.#isLoading.set(true);
+          return from(actor.getStorageReleaseAdminStatus()).pipe(
+            map((result) => convertReleasesFullStatus(result)),
+            finalize(() => this.#isLoading.set(false)),
+          );
+        }),
+        takeUntil(off$),
+        repeat({ delay: () => on$ }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((status) => {
+        this.releasesResource.set(status);
+      });
   }
 
   /**

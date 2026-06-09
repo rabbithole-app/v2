@@ -47,12 +47,14 @@ module {
   public type GithubAssetKind = {
     #StorageWASM;
     #StorageFrontend;
+    #StorageReleaseManifest;
   };
 
   /// GitHub asset with associated filename
   public type GithubAsset = {
     #StorageWASM : Text;
     #StorageFrontend : Text;
+    #StorageReleaseManifest : Text;
   };
 
   // -- Release Selection --
@@ -141,6 +143,69 @@ module {
     sha256 : ?Blob; // Hash of the downloaded content (null if not yet downloaded)
   };
 
+  public type ReleaseArtifactManifest = {
+    name : Text;
+    size : ?Nat;
+    sha256 : ?Text;
+  };
+
+  public type ReleaseUpgradeManifest = {
+    argStrategy : Text;
+    compatibleFrom : [Text];
+  };
+
+  public type ChangelogRange = {
+    from : ?Text;
+    to : Text;
+    compareUrl : ?Text;
+    maxCommits : ?Nat;
+  };
+
+  public type ChangelogItem = {
+    text : Text;
+    commit : ?Text;
+    commitUrl : ?Text;
+  };
+
+  public type ChangelogSection = {
+    kind : Text;
+    title : Text;
+    items : [ChangelogItem];
+  };
+
+  public type ReleaseChangelog = {
+    range : ChangelogRange;
+    bump : Text;
+    summary : Text;
+    sections : [ChangelogSection];
+  };
+
+  public type ReleaseNoteSection = {
+    title : Text;
+    items : [Text];
+  };
+
+  public type ReleaseNotes = {
+    source : Text;
+    summary : Text;
+    sections : [ReleaseNoteSection];
+  };
+
+  public type StorageReleaseManifest = {
+    schemaVersion : Nat;
+    version : Text;
+    tagName : Text;
+    commit : Text;
+    frontendAssetTreeHash : ?Blob;
+    wasm : ?ReleaseArtifactManifest;
+    frontend : ?ReleaseArtifactManifest;
+    did : ?ReleaseArtifactManifest;
+    stableSignature : ?ReleaseArtifactManifest;
+    upgrade : ReleaseUpgradeManifest;
+    changelog : ReleaseChangelog;
+    releaseNotes : ?ReleaseNotes;
+  };
+
   /// Full status of a release with all asset details
   public type ReleaseFullStatus = {
     tagName : Text;
@@ -150,6 +215,8 @@ module {
     createdAt : Time.Time;
     publishedAt : ?Time.Time;
     assets : [AssetFullStatus];
+    manifest : ?StorageReleaseManifest;
+    manifestError : ?Text;
     isDownloaded : Bool;
     isDeploymentReady : Bool;
   };
@@ -160,7 +227,6 @@ module {
     pendingDownloads : Nat;
     completedDownloads : Nat;
     releases : [ReleaseFullStatus];
-    defaultVersionKey : Text;
     hasDownloadedRelease : Bool;
     hasDeploymentReadyRelease : Bool;
   };
@@ -184,8 +250,6 @@ module {
   /// Interface for extraction status provider (used by orchestrator)
   public type ExtractionInfoProvider = {
     getExtractionStatus : (Text) -> ExtractionStatus;
-    getDefaultVersionKey : () -> Text;
-    getLatestReleaseTagName : () -> ?Text;
   };
 
   public type Options = {

@@ -1,116 +1,121 @@
-# Mock GitHub API Server
+# Mock GitHub release server
 
-A local mock server for emulating the GitHub API inside a Docker environment. Allows testing release downloads without making requests to the real GitHub.
+`apps/backend/mock` serves a local GitHub Releases API for the backend canister.
+Use it to test storage updates before publishing a real GitHub release.
 
-## Folder Structure
+The committed mock state represents the current baseline release. Local
+candidate releases are written to a gitignored overlay, so you can test an
+upgrade without changing the committed fixture.
 
-```
+## Files
+
+```text
 mock/
-├── nginx.conf          # nginx configuration
 ├── api/
-│   └── releases.json   # List of releases (GitHub API format)
-├── assets/             # Binary files (WASM, tar, etc.)
-│   ├── encrypted-storage.wasm.gz
-│   └── storage-frontend.tar
-└── README.md
+│   ├── releases.json        # committed baseline release index
+│   └── releases.local.json  # gitignored local candidate overlay
+├── assets/
+│   └── storage-v0.1.0/
+│       ├── encrypted-storage.wasm.gz
+│       ├── encrypted-storage.did
+│       ├── encrypted-storage.most
+│       ├── storage-frontend.tar
+│       └── storage-release.json
+└── nginx.conf
 ```
 
-## Usage
+The mock server returns `api/releases.local.json` when it exists. Otherwise, it
+returns `api/releases.json`.
 
-### 1. Adding Assets
+Local backend deployments set `STORAGE_INSTALL_RELEASE_TAG=storage-v0.1.0` and
+`STORAGE_UPDATE_RELEASE_SELECTOR=latest-prerelease`. New storage canisters
+start from the committed baseline even when `api/releases.local.json` contains
+newer dev prereleases. Those dev prereleases stay available as upgrade targets
+after **Refresh releases**.
 
-Place files in the `assets/` folder:
+## Test a local update
+
+Start from the committed baseline, then generate a local candidate release.
 
 ```bash
-cp path/to/encrypted-storage.wasm.gz mock/assets/
-cp path/to/storage-frontend.tar mock/assets/
+npx nx serve backend
 ```
 
-### 2. Configuring releases.json
-
-Edit `api/releases.json`. The backend parses these fields:
-
-```json
-[
-  {
-    "url": "http://mock-server:8080/repos/mock/releases/releases/1",
-    "html_url": "http://mock-server:8080/releases/tag/v0.1.0",
-    "id": 1,
-    "tag_name": "v0.1.0",
-    "name": "Storage v0.1.0",
-    "body": "Release notes",
-    "draft": true,
-    "prerelease": false,
-    "created_at": "2024-01-15T10:00:00Z",
-    "published_at": "2024-01-15T12:00:00Z",
-    "assets": [
-      {
-        "url": "http://mock-server:8080/assets/encrypted-storage.wasm.gz",
-        "id": 101,
-        "name": "encrypted-storage.wasm.gz",
-        "label": "",
-        "content_type": "application/gzip",
-        "size": 1048576,
-        "created_at": "2024-01-15T10:00:00Z",
-        "updated_at": "2024-01-15T10:00:00Z"
-      }
-    ]
-  }
-]
-```
-
-**Important**: The `url` field in assets must point to the actual download URL. The backend uses this field (not `browser_download_url`).
-
-### 3. Running
+Create or install a storage canister from the committed mock baseline. Then
+build a candidate release from your working tree:
 
 ```bash
-docker compose up -d
+npx nx run backend:generate-dev-storage-release
 ```
 
-## API Endpoints
+The command writes a tag-scoped release directory such as:
+
+```text
+apps/backend/mock/assets/storage-v0.1.1-dev/
+```
+
+It also writes `apps/backend/mock/api/releases.local.json`. In the admin
+release UI, run **Refresh releases**. The backend downloads the candidate,
+validates `storage-release.json`, extracts the frontend archive, and exposes the
+update to storage cards.
+
+By default, the candidate is the next patch version over the committed
+baseline. Use `--bump minor` or `--bump major` when you need to test a different
+upgrade path:
+
+```bash
+npx nx run backend:generate-dev-storage-release -- --bump minor
+```
+
+Each run replaces the local overlay unless you pass `--keep-previous-dev`. Use
+that flag to keep several dev candidates with different versions:
+
+```bash
+npx nx run backend:generate-dev-storage-release -- --bump minor --keep-previous-dev
+```
+
+After testing, clear the local overlay:
+
+```bash
+npx nx run backend:clear-dev-storage-releases
+```
+
+## Refresh the committed baseline locally
+
+Before the first public storage release, you can refresh the committed baseline
+from the local build output:
+
+```bash
+npx nx run backend:generate-mock-assets
+```
+
+This command rewrites `api/releases.json` and
+`assets/storage-v0.1.0/*`. Commit those files only when the baseline fixture
+must change.
+
+## Sync the committed baseline from GitHub
+
+After public storage releases exist, sync the committed baseline from the real
+GitHub release instead of rebuilding it locally:
+
+```bash
+npx nx run backend:sync-mock-storage-baseline -- --tag storage-v0.1.0
+```
+
+By default, the command reads from `rabbithole-app/v2`. Override the source with
+`--owner`, `--repo`, `--api-url`, or `GITHUB_TOKEN`.
+
+The synced mock release is written as a normal non-draft release. Drafts are
+reserved for GitHub publishing workflow states and are not used as a runtime
+delivery channel.
+
+## API endpoints
 
 | Endpoint | Description |
-|----------|-------------|
+| --- | --- |
 | `GET /health` | Health check |
-| `GET /repos/{owner}/{repo}/releases` | List of releases |
-| `GET /assets/{filename}` | Download asset (supports Range requests) |
+| `GET /repos/{owner}/{repo}/releases` | Release list with local overlay fallback |
+| `GET /assets/{tag}/{filename}` | Tag-scoped release asset download |
 
-## Environment Variables
-
-In `docker-compose.yml` for backend:
-
-| Variable | Description | Default (local) |
-|----------|-------------|-----------------|
-| `DFX_NETWORK` | dfx network | `local` |
-| `GITHUB_API_URL` | API URL | `http://mock-server:8080` |
-| `GITHUB_OWNER` | Repository owner | `mock` |
-| `GITHUB_REPO` | Repository name | `releases` |
-
-## Testing
-
-```bash
-# Health check
-curl http://mock-server:8080/health
-
-# List releases
-curl http://mock-server:8080/repos/mock/releases/releases
-
-# Download asset (full)
-curl http://mock-server:8080/assets/encrypted-storage.wasm.gz -o test.wasm.gz
-
-# Download asset (Range request - chunked)
-curl -H "Range: bytes=0-1023" http://mock-server:8080/assets/encrypted-storage.wasm.gz -I
-```
-
-## Switching to Production
-
-To deploy on IC, change the environment variables:
-
-```yaml
-environment:
-  - DFX_NETWORK=ic
-  - GITHUB_API_URL=https://api.github.com
-  - GITHUB_OWNER=rabbithole-app
-  - GITHUB_REPO=v2
-  - GITHUB_TOKEN=ghp_xxx
-```
+Asset downloads support HTTP Range requests, which the backend uses for
+chunked HTTP outcalls.

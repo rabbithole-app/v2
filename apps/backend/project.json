@@ -118,10 +118,40 @@
         "commands": [
           "npx nx build storage --skip-nx-cache",
           "cd apps/backend && icp build -e build encrypted-storage",
-          "cp apps/backend/.icp/cache/artifacts/encrypted-storage apps/backend/mock/assets/encrypted-storage.wasm.gz",
-          "COPYFILE_DISABLE=1 tar -cf apps/backend/mock/assets/storage-frontend.tar -C dist/apps/storage/browser .",
-          "node apps/backend/mock/sync-release-metadata.mjs"
+          "node apps/backend/scripts/create-mock-storage-release.mjs --mode baseline --version 0.1.0 --max-commits 1 --id 1 --name \"Storage v0.1.0\" --created-at 2024-01-15T12:00:00Z"
         ],
+        "parallel": false
+      }
+    },
+    "generate-dev-storage-release": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "npx nx build storage --skip-nx-cache",
+          "cd apps/backend && icp build -e build encrypted-storage",
+          "node apps/backend/scripts/create-mock-storage-release.mjs --mode dev"
+        ],
+        "parallel": false
+      }
+    },
+    "clear-dev-storage-releases": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node apps/backend/scripts/clear-dev-storage-releases.mjs",
+        "parallel": false
+      }
+    },
+    "sync-mock-storage-baseline": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node apps/backend/scripts/sync-mock-storage-baseline.mjs",
+        "parallel": false
+      }
+    },
+    "act-release-storage": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node apps/backend/scripts/act-release-storage.mjs",
         "parallel": false
       }
     }

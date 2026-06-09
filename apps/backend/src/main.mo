@@ -32,6 +32,7 @@ import CMCTypes "Types/CMCTypes";
 import LedgerTypes "Types/LedgerTypes";
 import XRCTypes "Types/XRCTypes";
 import Account "StorageDeployer/Utils/Account";
+import StorageReleaseConfig "StorageDeployer/StorageReleaseConfig";
 
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
 import AvatarStorageMixin "AvatarStorage/mixin";
@@ -69,6 +70,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // --- Storage Deployer ---
 
   transient let backendThresholdKeyName = Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
+  transient let storageReleaseConfig = StorageReleaseConfig.fromEnv<system>();
 
   let storageOrchestrator : StorageDeployerOrchestrator.Store = StorageDeployerOrchestrator.new<system>({
     github = {
@@ -77,7 +79,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       repo = Utils.envText<system>("GITHUB_REPO", "v2");
       token = Runtime.envVar<system>("GITHUB_TOKEN");
     };
-    assets = [(#LatestDraft, [#StorageWASM("encrypted-storage.wasm.gz"), #StorageFrontend("storage-frontend.tar")])];
+    assets = storageReleaseConfig.assets;
   });
   storageOrchestrator.canisterId := ?canisterId;
 
@@ -90,8 +92,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // minted for a creation that has an attached license.
   transient let storageOrchestratorRuntime = StorageDeployerOrchestrator.newRuntimeState();
 
-  transient let bindLicenseCallback : StorageDeployerOrchestrator.BindLicense =
-    func(owner, paymentId, cid) = licenses.bind(owner, paymentId, cid);
+  transient let bindLicenseCallback : StorageDeployerOrchestrator.BindLicense = func(owner, paymentId, cid) = licenses.bind(owner, paymentId, cid);
 
   // `orchestratorCallbacks` is declared AFTER the mixins below so its
   // payAmbassadorShareCallback can reference `getAmbassadorChain` and
@@ -250,15 +251,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
 
   func emitCreationChanged(record : StorageDeployerOrchestrator.StorageCreationRecord) {
-    backendEvents.emit(#creationChanged({
-      accountOwner = record.owner;
-      creationId = record.id;
-      canisterId = record.canisterId;
-      stage = record.statusTag;
-      progress = creationProgress(record.status);
-      terminal = creationTerminal(record.status);
-      eventIndex = record.events.size();
-    }));
+    backendEvents.emit(#creationChanged({ accountOwner = record.owner; creationId = record.id; canisterId = record.canisterId; stage = record.statusTag; progress = creationProgress(record.status); terminal = creationTerminal(record.status); eventIndex = record.events.size() }));
   };
 
   func emitCreationRecordChanged(creationId : Nat) {
@@ -340,10 +333,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // is awaited inline by the orchestrator so the payout result lands on the
   // creation record before WASM install is queued. Failures are captured in
   // `ambassadorPayoutStatus` rather than bubbling up as a task error.
-  transient let payAmbassadorShareCallback : StorageDeployerOrchestrator.PayAmbassadorShare =
-    func(creationId : Nat, owner : Principal, paymentId : Text) : async* () {
-      await* payAmbassadorShareForPayment(creationId, owner, paymentId);
-    };
+  transient let payAmbassadorShareCallback : StorageDeployerOrchestrator.PayAmbassadorShare = func(creationId : Nat, owner : Principal, paymentId : Text) : async* () {
+    await* payAmbassadorShareForPayment(creationId, owner, paymentId);
+  };
 
   // `var` — onCmcNotifyFailed assigned after CmcRecoveryMixin include (below).
   transient var orchestratorCallbacks : StorageDeployerOrchestrator.OrchestratorCallbacks = {
@@ -352,6 +344,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     payAmbassadorShare = ?payAmbassadorShareCallback;
     onCmcNotifyFailed = null;
     onCreationChanged = ?emitCreationChanged;
+    onAssetDownloaded = null;
   };
 
   transient var includedFundingSettlementHook : (Nat, CmcRecovery.IncludedFundingSettlement) -> () = func(_, _) {};
@@ -365,7 +358,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
 
   // --- Internal: storage environment for license purchase ---
-  func storageVetKeyEnv<system>(level : Payments.StorageVetKeyLevel) : ?[{ name : Text; value : Text }] {
+
+  func storageVetKeyEnv<system>(level : Payments.StorageVetKeyLevel) : ?[{
+    name : Text;
+    value : Text;
+  }] {
     let keyName = switch (level) {
       case (#standard) backendThresholdKeyName;
       case (#highReplication) "key_1";
@@ -379,7 +376,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       creations,
       userId,
       {
-        releaseSelector = #Latest;
+        releaseSelector = storageReleaseConfig.installSelector;
         initArg;
         envPairs;
         target = #Create({
@@ -407,13 +404,18 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       storageVetKeyEnv;
       createStorageForUser = createStorageForUserInternal;
       addLicense = func(owner : Principal, receipt : { tokenId : TreasuryTypes.TokenId; amount : Nat; paymentId : Text; paidAt : Int }) : Result.Result<(), { #DuplicatePayment }> {
-        StorageDeployerOrchestrator.addLicense(licenses, owner, {
-          tokenId = receipt.tokenId;
-          amount = receipt.amount;
-          paymentId = receipt.paymentId;
-          paidAt = receipt.paidAt;
-          status = #completed;
-        }, currentStorageLicenseLimits);
+        StorageDeployerOrchestrator.addLicense(
+          licenses,
+          owner,
+          {
+            tokenId = receipt.tokenId;
+            amount = receipt.amount;
+            paymentId = receipt.paymentId;
+            paidAt = receipt.paidAt;
+            status = #completed;
+          },
+          currentStorageLicenseLimits,
+        );
       };
     },
   );
@@ -434,7 +436,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // subaccount to buy cycles up to `BACKEND_CYCLES_TARGET`. Transient so we
   // can retune via upgrade without migration.
   transient let BACKEND_CYCLES_THRESHOLD : Nat = 2_000_000_000_000; // 2 TC
-  transient let BACKEND_CYCLES_TARGET    : Nat = 5_000_000_000_000; // 5 TC
+  transient let BACKEND_CYCLES_TARGET : Nat = 5_000_000_000_000; // 5 TC
 
   type EnsureStorageCyclesForUploadRequest = {
     currentBalance : Nat;
@@ -501,7 +503,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       fee = { e8s = Nat64.fromNat(LEDGER_FEE) };
       memo = MEMO_TOP_UP;
       from_subaccount = fromSubaccount;
-      created_at_time = ?{ timestamp_nanos = Nat64.fromNat(Int.abs(Time.now())) };
+      created_at_time = ?{
+        timestamp_nanos = Nat64.fromNat(Int.abs(Time.now()));
+      };
       amount = { e8s = Nat64.fromNat(icpE8s) };
     });
     switch (transferResult) {
@@ -598,7 +602,10 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
         return #err("creation not found");
       };
-      let isFailed = switch (record.status) { case (#Failed _) true; case _ false };
+      let isFailed = switch (record.status) {
+        case (#Failed _) true;
+        case _ false;
+      };
       if (not isFailed) return #err("creation is not in failed state");
       let ?paymentId = record.licensePaymentId else {
         return #err("no license on record — use purchase flow instead");
@@ -614,7 +621,10 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       // Checkpoint-aware target: existing canister → Link, else → fresh Create.
       let target : StorageDeployerOrchestrator.TargetCanister = switch (record.canisterId) {
         case (?id) #Existing(id);
-        case null #Create({ initialCycles = STORAGE_INITIAL_CYCLES; subnetId = null });
+        case null #Create({
+          initialCycles = STORAGE_INITIAL_CYCLES;
+          subnetId = null;
+        });
       };
 
       ignore StorageDeployerOrchestrator.startStorageCreation<system>(
@@ -622,7 +632,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
         creations,
         creationId,
         {
-          releaseSelector = #Latest;
+          releaseSelector = #Version(record.releaseTag);
           initArg = record.initArg;
           envPairs = record.envPairs;
           target;
@@ -648,7 +658,10 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
       let ?record = StorageDeployerOrchestrator.getCreationRecordById(creations, creationId) else {
         return #err("creation not found");
       };
-      let isFailed = switch (record.status) { case (#Failed _) true; case _ false };
+      let isFailed = switch (record.status) {
+        case (#Failed _) true;
+        case _ false;
+      };
       if (not isFailed) return #err("creation is not in failed state");
       let ?paymentId = record.licensePaymentId else {
         return #err("no license on record — use purchase flow instead");
@@ -686,7 +699,10 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
         return #err("creation not found");
       };
       let owner = record.owner;
-      let isFailed = switch (record.status) { case (#Failed _) true; case _ false };
+      let isFailed = switch (record.status) {
+        case (#Failed _) true;
+        case _ false;
+      };
       if (not isFailed) return #err("creation is not in failed state");
       if (record.canisterId != null) {
         return #err("canister already created — cannot refund; use #resume instead");
@@ -714,12 +730,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
               "creation failed before canister existed",
             );
             ignore StorageDeployerOrchestrator.removeRefundedCreation(creations, creationId);
-            emitBackendAdminNotification(#creationRefunded({
-              creationId;
-              owner;
-              tokenId = debug_show license.receipt.tokenId;
-              amount = license.receipt.amount;
-            }));
+            emitBackendAdminNotification(#creationRefunded({ creationId; owner; tokenId = debug_show license.receipt.tokenId; amount = license.receipt.amount }));
             #ok();
           };
         };
@@ -760,7 +771,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
             switch (record.licensePaymentId) {
               case (?paymentId) {
                 switch (StorageDeployerOrchestrator.findLicenseByPaymentId(licenses, record.owner, paymentId)) {
-                  case (?license) ?{ payer = record.owner; tokenId = license.receipt.tokenId; amount = license.receipt.amount };
+                  case (?license) ?{
+                    payer = record.owner;
+                    tokenId = license.receipt.tokenId;
+                    amount = license.receipt.amount;
+                  };
                   case null null;
                 };
               };
@@ -816,15 +831,19 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
+  orchestratorCallbacks := {
+    orchestratorCallbacks with
+    onAssetDownloaded = ?handleAssetDownloaded;
+  };
+
   transient let startCallbacks : StorageDeployerOrchestrator.StartCallbacks = {
     onAssetDownloaded = ?handleAssetDownloaded;
     orchestrator = orchestratorCallbacks;
   };
 
-  func syncLatestWasmHash() {
-    switch (storageOrchestrator.getLatestWasmHash()) {
-      case (?(hash, tag)) registerWasmHash(hash, tag);
-      case null {};
+  func syncDownloadedWasmHashes() {
+    for ((hash, tag) in storageOrchestrator.getDownloadedWasmHashes().vals()) {
+      registerWasmHash(hash, tag);
     };
   };
 
@@ -838,25 +857,31 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     #seconds 0,
     func() : async () {
       await StorageDeployerOrchestrator.start<system>(storageOrchestrator, creations, startCallbacks);
-      syncLatestWasmHash();
+      syncDownloadedWasmHashes();
     },
   );
 
   // Payment queue drain: check every 10 seconds if there are queued webhook events.
-  ignore Timer.recurringTimer<system>(#seconds(10), func() : async () {
-    schedulePaymentDrain<system>();
-  });
+  ignore Timer.recurringTimer<system>(
+    #seconds(10),
+    func() : async () {
+      schedulePaymentDrain<system>();
+    },
+  );
 
   // Daily timer: expire subscriptions + auto-renew
-  ignore Timer.recurringTimer<system>(#seconds(86400), func() : async () {
-    let expiredUsers = expireOverdueSubscriptions();
-    for (userId in expiredUsers.vals()) {
-      emitBackendNotification(userId, #subscriptionExpired);
-      await notifyUserStoragesSubscriptionChanged(userId);
-    };
-    syncLatestWasmHash();
-    processAutoRenewals<system>();
-  });
+  ignore Timer.recurringTimer<system>(
+    #seconds(86400),
+    func() : async () {
+      let expiredUsers = expireOverdueSubscriptions();
+      for (userId in expiredUsers.vals()) {
+        emitBackendNotification(userId, #subscriptionExpired);
+        await notifyUserStoragesSubscriptionChanged(userId);
+      };
+      syncDownloadedWasmHashes();
+      processAutoRenewals<system>();
+    },
+  );
 
   /// Purchase a license and kick off storage creation. Returns the creation
   /// id immediately — charge + deploy run asynchronously on the orchestrator
@@ -878,7 +903,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
     let initArg = Payments.encodeStorageInitArg(caller, ?storageBackendType);
     let options : StorageDeployerOrchestrator.CreateStorageOptions = {
-      releaseSelector = #Latest;
+      releaseSelector = storageReleaseConfig.installSelector;
       initArg;
       envPairs = Payments.sanitizeEnvPairs(storageVetKeyEnv<system>(vetKeyLevel));
       target = #Create({
@@ -892,16 +917,19 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     let creationId = switch (storageOrchestrator.createStorageRecord(creations, caller, options)) {
       case (#ok(id)) id;
       case (#err(#AlreadyInProgress)) return #err(#ActivationFailed("Storage creation already in progress"));
-      case (#err(#ReleaseNotFound)) return #err(#ActivationFailed("No release available"));
+      case (#err(#ReleaseNotFound)) return #err(#ActivationFailed("No storage release is ready for deployment"));
       case (#err(e)) return #err(#ActivationFailed(debug_show e));
     };
     emitCreationRecordChanged(creationId);
 
     // 2. Schedule charge + deploy on a separate message. User gets the id back
     //    within milliseconds regardless of how long the payment pipeline takes.
-    ignore Timer.setTimer<system>(#seconds 0, func() : async () {
-      await processPaymentAndStart<system>(caller, creationId, options);
-    });
+    ignore Timer.setTimer<system>(
+      #seconds 0,
+      func() : async () {
+        await processPaymentAndStart<system>(caller, creationId, options);
+      },
+    );
 
     #ok(creationId);
   };
@@ -1016,7 +1044,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// queue/timer state. Upgrades are reverted to Completed; initial creations
   /// become Failed and can then use the regular recoverFailedStorage flow.
   public shared ({ caller }) func recoverStuckCreation(
-    creationId : Nat,
+    creationId : Nat
   ) : async Result.Result<(), Text> {
     assertAdmin(caller);
     await StorageDeployerOrchestrator.recoverStuckCreation(
@@ -1031,7 +1059,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// exists but cannot be resumed with a plain install. Reinstalls the latest
   /// storage WASM, so completed storages and failed upgrades are rejected.
   public shared ({ caller }) func reinstallFailedStorageWasm(
-    creationId : Nat,
+    creationId : Nat
   ) : async Result.Result<(), Text> {
     assert not Principal.isAnonymous(caller);
 
@@ -1049,7 +1077,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// (`[]`) to get the caller's own licenses with defaults. Non-admins are
   /// pinned to their own `owner` regardless of filter.owner passed in.
   public query ({ caller }) func listLicenses(
-    options : ?StorageDeployerOrchestrator.ListLicensesOptions,
+    options : ?StorageDeployerOrchestrator.ListLicensesOptions
   ) : async StorageDeployerOrchestrator.GetLicensesResponse {
     assert not Principal.isAnonymous(caller);
     let opts = Option.get(options, StorageDeployerOrchestrator.DEFAULT_LIST_LICENSES_OPTIONS);
@@ -1135,7 +1163,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// diagnostics and recovery payload. Use `getCreationDetail` for a row's
   /// popover/details panel.
   public query ({ caller }) func listCreations(
-    options : ?StorageDeployerOrchestrator.ListCreationsOptions,
+    options : ?StorageDeployerOrchestrator.ListCreationsOptions
   ) : async StorageDeployerOrchestrator.GetCreationsResponse {
     assert not Principal.isAnonymous(caller);
     let opts = Option.get(options, StorageDeployerOrchestrator.DEFAULT_LIST_CREATIONS_OPTIONS);
@@ -1147,7 +1175,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// Full creation detail with timeline and diagnostics. Non-admin callers can
   /// only read their own records.
   public query ({ caller }) func getCreationDetail(
-    creationId : Nat,
+    creationId : Nat
   ) : async ?StorageDeployerOrchestrator.StorageCreationRecord {
     assert not Principal.isAnonymous(caller);
     switch (StorageDeployerOrchestrator.getCreationRecordById(creations, creationId)) {
@@ -1162,15 +1190,25 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
-  public shared ({ caller }) func upgradeStorage(
+  public shared ({ caller }) func startStorageUpgrade(
     canisterId : Principal,
+    releaseTag : Text,
+    observedState : StorageDeployerOrchestrator.StorageReleaseState,
   ) : async Result.Result<(), StorageDeployerOrchestrator.UpgradeStorageError> {
     assert not Principal.isAnonymous(caller);
-    StorageDeployerOrchestrator.upgradeStorage<system>(storageOrchestrator, creations, caller, canisterId, orchestratorCallbacks);
+    await StorageDeployerOrchestrator.startStorageUpgrade<system>(storageOrchestrator, creations, caller, canisterId, releaseTag, observedState, orchestratorCallbacks);
   };
 
-  public query func checkStorageUpdate(canisterId : Principal) : async ?StorageDeployerOrchestrator.UpdateInfo {
-    storageOrchestrator.checkStorageUpdate(creations, canisterId);
+  public shared ({ caller }) func prepareStorageRelease(releaseTag : Text) : async Result.Result<(), Text> {
+    assertAdmin(caller);
+    StorageDeployerOrchestrator.prepareStorageRelease<system>(storageOrchestrator, releaseTag, ?handleAssetDownloaded);
+  };
+
+  public query func getStorageUpgradePlan(
+    canisterId : Principal,
+    remoteState : StorageDeployerOrchestrator.StorageReleaseState,
+  ) : async Result.Result<StorageDeployerOrchestrator.StorageReleaseOptionsResult, StorageDeployerOrchestrator.UpgradeStorageError> {
+    StorageDeployerOrchestrator.getStorageUpgradePlan(storageOrchestrator, creations, canisterId, remoteState);
   };
 
   public shared ({ caller }) func startStorageDeployer() : async () {
@@ -1185,12 +1223,6 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public query func isStorageDeployerRunning() : async Bool {
     storageOrchestrator.isRunning();
-  };
-
-  /// Register the latest downloaded WASM hash as known.
-  public shared ({ caller }) func registerLatestWasmHash() : async () {
-    assertAdmin(caller);
-    syncLatestWasmHash();
   };
 
   /// Admin-only retry for a creation whose deferred ambassador payout
@@ -1220,19 +1252,13 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   ) : async () {
     let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(creations, caller) else return;
     emitBackendNotification(storageOwner, #lowCycles({ canisterId = caller; remaining = balance; estimatedDaysLeft = daysLeft; severity }));
-    backendEvents.emit(#cyclesAlert({
-      target = #storage({ accountOwner = storageOwner; canisterId = caller });
-      remaining = balance;
-      threshold = null;
-      estimatedDaysLeft = ?daysLeft;
-      severity;
-    }));
+    backendEvents.emit(#cyclesAlert({ target = #storage({ accountOwner = storageOwner; canisterId = caller }); remaining = balance; threshold = null; estimatedDaysLeft = ?daysLeft; severity }));
     // Trigger auto top-up if user has it enabled
     await processAutoTopUp(storageOwner, caller, balance, severity);
   };
 
   public shared ({ caller }) func ensureStorageCyclesForUpload(
-    request : EnsureStorageCyclesForUploadRequest,
+    request : EnsureStorageCyclesForUploadRequest
   ) : async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text> {
     let ?storageOwner = StorageDeployerOrchestrator.findOwnerByCanister(creations, caller) else {
       return #err("Unknown storage canister");
@@ -1270,13 +1296,13 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
-  public query func getReleasesFullStatus() : async StorageDeployerOrchestrator.ReleasesFullStatus {
-    storageOrchestrator.getReleasesFullStatus();
+  public query func getStorageReleaseAdminStatus() : async StorageDeployerOrchestrator.ReleasesFullStatus {
+    storageOrchestrator.getStorageReleaseAdminStatus();
   };
 
-  public shared ({ caller }) func refreshReleases() : async () {
+  public shared ({ caller }) func refreshStorageReleaseIndex() : async () {
     assertAdmin(caller);
-    await StorageDeployerOrchestrator.refreshReleases<system>(storageOrchestrator);
+    await StorageDeployerOrchestrator.refreshStorageReleaseIndex<system>(storageOrchestrator, ?handleAssetDownloaded);
   };
 
   // --- HTTP interface: ICPay webhook only ---

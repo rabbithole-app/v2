@@ -141,6 +141,30 @@ module {
     frontendUpdateAvailable : Bool;
   };
 
+  public type ChangelogItem = GitHubReleasesTypes.ChangelogItem;
+  public type ChangelogSection = GitHubReleasesTypes.ChangelogSection;
+  public type ReleaseNoteSection = GitHubReleasesTypes.ReleaseNoteSection;
+
+  public type StorageReleaseOption = {
+    tagName : Text;
+    version : Text;
+    changelogSummary : ?Text;
+    changelogSections : [ChangelogSection];
+    releaseNotesSummary : ?Text;
+    releaseNotesSections : [ReleaseNoteSection];
+    compatibleFrom : [Text];
+    disabled : Bool;
+    disabledReason : ?Text;
+    updateInfo : ?UpdateInfo;
+    wasmUpdateAvailable : Bool;
+    frontendUpdateAvailable : Bool;
+  };
+
+  public type StorageReleaseOptionsResult = {
+    options : [StorageReleaseOption];
+    stateInSync : Bool;
+  };
+
   /// Errors that can occur during storage upgrade
   public type UpgradeStorageError = {
     #NotFound;
@@ -148,7 +172,9 @@ module {
     #NotCompleted;
     #NoUpdateAvailable;
     #ReleaseNotReady;
+    #ReleaseNotCompatible;
     #AlreadyUpgrading;
+    #StorageStateDrift : Text;
   };
 
   // -- Creation Status --

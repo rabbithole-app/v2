@@ -10,14 +10,15 @@ import {
   lucideArrowUpCircle,
   lucideCheck,
   lucideCircleAlert,
-  lucideGlobe,
-  lucidePackage,
 } from '@ng-icons/lucide';
 
-import { buildUpgradeCopy, buildUpgradeSteps } from '@rabbithole/core';
+import {
+  buildUpgradeCopy,
+  buildUpgradeSteps,
+  StorageUpgradeReviewComponent,
+} from '@rabbithole/core/storage-runtime';
 import { type ProcessStep, ProcessStepListComponent } from '@rabbithole/ui/process-steps';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
-import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import {
   HlmDialogDescription,
@@ -34,7 +35,6 @@ import { UpdateCheckService } from '../../services';
   imports: [
     NgIcon,
     HlmIcon,
-    HlmBadge,
     HlmDialogHeader,
     HlmDialogFooter,
     HlmDialogTitle,
@@ -42,14 +42,13 @@ import { UpdateCheckService } from '../../services';
     ...HlmAlertImports,
     ...HlmButtonImports,
     ProcessStepListComponent,
+    StorageUpgradeReviewComponent,
   ],
   providers: [
     provideIcons({
       lucideArrowUpCircle,
       lucideCheck,
       lucideCircleAlert,
-      lucideGlobe,
-      lucidePackage,
     }),
   ],
   templateUrl: './upgrade-dialog.component.html',
@@ -61,10 +60,10 @@ export class UpgradeDialogComponent {
     const step = this.updateCheckService.upgradeStep();
     return step === 'preparing' || step === 'upgrading';
   });
-  readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateCheckService.updateInfo() ?? {}));
+  readonly upgradeCopy = computed(() => buildUpgradeCopy(this.updateCheckService.selectedUpdateInfo() ?? {}));
   readonly upgradeSteps = computed<ProcessStep[]>(() => {
     const currentStep = this.updateCheckService.upgradeStep();
-    const updateInfo = this.updateCheckService.updateInfo();
+    const updateInfo = this.updateCheckService.selectedUpdateInfo();
 
     if (currentStep === 'idle') {
       return [];
@@ -86,6 +85,10 @@ export class UpgradeDialogComponent {
 
   closeDialog(): void {
     this.#dialogRef.close();
+  }
+
+  selectRelease(releaseTag: string | null): void {
+    this.updateCheckService.selectReleaseTag(releaseTag);
   }
 
   startUpgrade(): void {

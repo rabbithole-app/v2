@@ -2,23 +2,101 @@ name: Release Storage
 
 on:
   push:
-    tags:
-      - 'storage-v*' # Trigger on tags like storage-v1.0.0
-  workflow_dispatch: # Manual trigger
+    branches:
+      - main
+    paths:
+      - 'apps/storage/**'
+      - 'libs/encrypted-storage/**'
+      - 'libs/motoko/encrypted-storage/**'
+      - 'apps/backend/src/EncryptedStorageCanister.mo'
+      - 'apps/backend/src/StorageDeployer/**'
+      - 'apps/backend/src/Subscriptions/**'
+      - 'apps/backend/src/KnownWasmHashes/**'
+      - 'apps/backend/mock/**'
+      - 'apps/backend/icp.yaml'
+      - 'apps/backend/mops.toml'
+      - 'apps/backend/mops.lock'
+      - 'apps/backend/scripts/build-storage-release-manifest.mjs'
+      - 'apps/backend/scripts/build-storage-release-wasm.sh'
+      - 'mops-patches/**'
+      - '.github/workflows/release-storage.yml'
+  workflow_dispatch:
+    inputs:
+      release_mode:
+        description: 'How to publish the generated release.'
+        required: true
+        default: draft
+        type: choice
+        options:
+          - draft
+          - rc
+          - stable
+          - dry-run
+      max_commits:
+        description: 'Optional changelog commit limit.'
+        required: false
+        type: string
+      release_notes_file:
+        description: 'Optional Markdown or JSON release notes file. Defaults to apps/backend/release-notes/<tag>.md/.json when present.'
+        required: false
+        type: string
 
 permissions:
   contents: write # Required to create releases
+
+concurrency:
+  group: storage-release
+  cancel-in-progress: false
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
+
+      - name: Resolve release mode
+        id: release_mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            mode="${{ inputs.release_mode || 'draft' }}"
+          else
+            mode="dry-run"
+          fi
+
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          case "$mode" in
+            draft)
+              echo "create_release=true" >> "$GITHUB_OUTPUT"
+              echo "draft=true" >> "$GITHUB_OUTPUT"
+              echo "prerelease=false" >> "$GITHUB_OUTPUT"
+              ;;
+            rc)
+              echo "create_release=true" >> "$GITHUB_OUTPUT"
+              echo "draft=false" >> "$GITHUB_OUTPUT"
+              echo "prerelease=true" >> "$GITHUB_OUTPUT"
+              ;;
+            stable)
+              echo "create_release=true" >> "$GITHUB_OUTPUT"
+              echo "draft=false" >> "$GITHUB_OUTPUT"
+              echo "prerelease=false" >> "$GITHUB_OUTPUT"
+              ;;
+            dry-run)
+              echo "create_release=false" >> "$GITHUB_OUTPUT"
+              echo "draft=true" >> "$GITHUB_OUTPUT"
+              echo "prerelease=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unknown release mode: $mode"
+              exit 1
+              ;;
+          esac
 
       # Install dependencies
       - run: npm ci --legacy-peer-deps
@@ -28,39 +106,9 @@ jobs:
         working-directory: apps/backend
         run: npm ci --legacy-peer-deps
 
-      # Setup DFX for Motoko compilation
-      - name: Setup DFX
-        uses: dfinity/setup-dfx@main
-        with:
-          dfx-version: latest
-
-      # Install mops (required for Motoko dependencies)
-      - name: Install mops
-        run: npm install -g ic-mops@1.12.0
-
-      # Import DFX identity from GitHub Secret for IC network deployment
-      - name: Import DFX Identity
-        working-directory: apps/backend
-        run: |
-          echo "${{ secrets.DFX_IDENTITY_PEM }}" > identity.pem
-          dfx identity import --storage-mode plaintext --force release-identity identity.pem || true
-          dfx identity use release-identity
-          rm -f identity.pem
-          echo "✅ Identity imported and activated"
-
-      # Verify identity and canister configuration
-      - name: Verify DFX configuration
-        working-directory: apps/backend
-        run: |
-          echo "Current identity: $(dfx identity whoami)"
-          echo "Principal: $(dfx identity get-principal)"
-          if [ -f canister_ids.json ]; then
-            echo "Canister IDs configuration:"
-            cat canister_ids.json
-          else
-            echo "⚠️  canister_ids.json not found"
-            exit 1
-          fi
+      # Install icp-cli + Motoko build tools
+      - name: Install ICP build tools
+        run: npm install -g @icp-sdk/icp-cli@0.3.1 @icp-sdk/ic-wasm ic-mops@2.13.2
 
       # Build encrypted-storage JS library
       - name: Build encrypted-storage library
@@ -71,44 +119,18 @@ jobs:
         run: npx nx build storage --configuration=production
 
       # Build EncryptedStorageCanister WASM
-      # NOTE: For local testing, use: docker compose exec backend dfx build encrypted-storage --network local
       - name: Build EncryptedStorageCanister WASM
-        working-directory: apps/backend
-        run: |
-          mops install
-          # Apply patches for mo:core compatibility (hex@1.0.2 Text.join argument order)
-          ../../mops-patches/apply.sh .
-          dfx build encrypted-storage --network ic
-
-      # Generate DID file
-      - name: Generate DID file
-        working-directory: apps/backend
-        run: |
-          dfx generate encrypted-storage --network ic
+        run: apps/backend/scripts/build-storage-release-wasm.sh --artifacts-dir release-artifacts
 
       # Calculate WASM SHA256 hash
       - name: Calculate WASM SHA256
         id: wasm_sha256
-        working-directory: apps/backend
         run: |
-          WASM_PATH=".dfx/ic/canisters/encrypted-storage/encrypted-storage.wasm"
+          WASM_PATH="apps/backend/.icp/cache/artifacts/encrypted-storage"
           if [ -f "$WASM_PATH" ]; then
             SHA256=$(sha256sum "$WASM_PATH" | cut -d' ' -f1)
             echo "sha256=$SHA256" >> $GITHUB_OUTPUT
             echo "WASM SHA256: $SHA256"
-          else
-            echo "❌ WASM file not found at $WASM_PATH"
-            exit 1
-          fi
-
-      # Create WASM gzip archive
-      - name: Create WASM gzip archive
-        working-directory: apps/backend
-        run: |
-          WASM_PATH=".dfx/ic/canisters/encrypted-storage/encrypted-storage.wasm"
-          if [ -f "$WASM_PATH" ]; then
-            gzip -c "$WASM_PATH" > ../../encrypted-storage.wasm.gz
-            echo "✅ Created encrypted-storage.wasm.gz"
           else
             echo "❌ WASM file not found at $WASM_PATH"
             exit 1
@@ -134,50 +156,66 @@ jobs:
       - name: Prepare release artifacts
         run: |
           mkdir -p release-artifacts
-          # WASM files (both raw and gzipped)
-          cp apps/backend/.dfx/ic/canisters/encrypted-storage/encrypted-storage.wasm release-artifacts/encrypted-storage.wasm
-          cp encrypted-storage.wasm.gz release-artifacts/encrypted-storage.wasm.gz
-          # DID file
-          cp apps/backend/src/declarations/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did || \
-          cp apps/backend/.dfx/ic/canisters/encrypted-storage/encrypted-storage.did release-artifacts/encrypted-storage.did
-          # Archives
+          cp apps/backend/.icp/cache/artifacts/encrypted-storage release-artifacts/encrypted-storage.wasm.gz
           cp storage-frontend.tar release-artifacts/
           cp encrypted-storage-lib.zip release-artifacts/
-          # Create checksums.txt
+
+      # Create machine-readable release manifest and GitHub release body
+      - name: Build storage release manifest
+        id: manifest
+        run: |
+          args=(
+            --artifacts-dir release-artifacts \
+            --frontend-dir dist/apps/storage/browser \
+            --output release-artifacts/storage-release.json \
+            --release-body storage-release-body.md \
+            --auto-version
+          )
+
+          if [ "${{ steps.release_mode.outputs.mode }}" = "rc" ]; then
+            args+=(--prerelease rc)
+          fi
+
+          if [ -n "${{ inputs.max_commits || '' }}" ]; then
+            args+=(--max-commits "${{ inputs.max_commits }}")
+          fi
+
+          if [ -n "${{ inputs.release_notes_file || '' }}" ]; then
+            args+=(--release-notes "${{ inputs.release_notes_file }}")
+          fi
+
+          node apps/backend/scripts/build-storage-release-manifest.mjs "${args[@]}"
+
+      # Create checksums.txt after manifest generation so it is included
+      - name: Create checksums
+        run: |
           cd release-artifacts
           sha256sum * > checksums.txt
           echo "✅ Prepared release artifacts"
 
+      - name: Write candidate summary
+        if: steps.release_mode.outputs.create_release != 'true'
+        run: cat storage-release-body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload candidate artifacts
+        if: steps.release_mode.outputs.create_release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-release-candidate-${{ github.sha }}
+          path: release-artifacts/*
+          if-no-files-found: error
+
       # Create GitHub Release
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        if: steps.release_mode.outputs.create_release == 'true'
+        uses: softprops/action-gh-release@v2
         with:
           files: release-artifacts/*
-          tag_name: ${{ github.ref_name }}
-          name: Storage Release ${{ github.ref_name }}
-          body: |
-            ## Storage Release ${{ github.ref_name }}
-
-            ### Artifacts:
-            - **encrypted-storage.wasm** - WASM canister module (uncompressed)
-            - **encrypted-storage.wasm.gz** - WASM canister module (gzip compressed, for backend download)
-            - **encrypted-storage.did** - Candid interface
-            - **storage-frontend.tar** - Frontend application (tar archive, no gzip for faster canister processing)
-            - **encrypted-storage-lib.zip** - JS library @rabbithole/encrypted-storage
-            - **checksums.txt** - SHA256 hashes of all artifacts
-
-            ### WASM SHA256:
-            ```
-            ${{ steps.wasm_sha256.outputs.sha256 }}
-            ```
-
-            ### Verification:
-            To verify the installed module matches:
-            ```bash
-            sha256sum encrypted-storage.wasm
-            # Should match the hash above
-            ```
-          draft: true
-          prerelease: false
+          tag_name: ${{ steps.manifest.outputs.tag_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.manifest.outputs.tag_name }}
+          body_path: storage-release-body.md
+          draft: ${{ steps.release_mode.outputs.draft }}
+          prerelease: ${{ steps.release_mode.outputs.prerelease == 'true' || contains(steps.manifest.outputs.version, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -33,15 +33,17 @@ const CREATE_NEW = { CreateNew: null } as const;
 
 const Icrc3Value = IDL.Rec();
 const AttributeMap = IDL.Vec(IDL.Tuple(IDL.Text, Icrc3Value));
-Icrc3Value.fill(IDL.Variant({
-  Array: IDL.Vec(Icrc3Value),
-  Blob: IDL.Vec(IDL.Nat8),
-  Bool: IDL.Bool,
-  Int: IDL.Int,
-  Map: AttributeMap,
-  Nat: IDL.Nat,
-  Text: IDL.Text,
-}));
+Icrc3Value.fill(
+  IDL.Variant({
+    Array: IDL.Vec(Icrc3Value),
+    Blob: IDL.Vec(IDL.Nat8),
+    Bool: IDL.Bool,
+    Int: IDL.Int,
+    Map: AttributeMap,
+    Nat: IDL.Nat,
+    Text: IDL.Text,
+  }),
+);
 
 type BackendFixture = CanisterFixture<RabbitholeActorService>;
 type StorageFixture = CanisterFixture<EncryptedStorageActorService>;
@@ -51,9 +53,10 @@ function encodeStorageInitArg(
 ): Uint8Array {
   const [InitArgsIDL] = initEncryptedStorage({ IDL });
   return new Uint8Array(
-    IDL.encode([InitArgsIDL], [
-      { owner, storageBackendType: [{OnChain: null}] },
-    ]),
+    IDL.encode(
+      [InitArgsIDL],
+      [{ owner, storageBackendType: [{ OnChain: null }] }],
+    ),
   );
 }
 
@@ -76,14 +79,22 @@ function encodeVerifiedEmailCallerInfo({
   nonce: Uint8Array;
   origin: string;
 }): Uint8Array {
-  return IDL.encode([Icrc3Value], [{
-    Map: [
-      ["implicit:nonce", { Blob: nonce }],
-      ["implicit:origin", { Text: origin }],
-      ["implicit:issued_at_timestamp_ns", { Nat: issuedAtNs }],
-      ["openid:https://accounts.google.com:verified_email", { Text: email }],
+  return IDL.encode(
+    [Icrc3Value],
+    [
+      {
+        Map: [
+          ["implicit:nonce", { Blob: nonce }],
+          ["implicit:origin", { Text: origin }],
+          ["implicit:issued_at_timestamp_ns", { Nat: issuedAtNs }],
+          [
+            "openid:https://accounts.google.com:verified_email",
+            { Text: email },
+          ],
+        ],
+      },
     ],
-  }]);
+  );
 }
 
 describe("Feature Gating", () => {
@@ -93,7 +104,9 @@ describe("Feature Gating", () => {
   let backendActor: Actor<RabbitholeActorService>;
   let storageActor: Actor<EncryptedStorageActorService>;
 
-  function unwrapStorageResult<T>(result: { ok: T } | { err: { message: string } }): T {
+  function unwrapStorageResult<T>(
+    result: { ok: T } | { err: { message: string } },
+  ): T {
     if ("err" in result) {
       throw new Error(result.err.message);
     }
@@ -101,11 +114,15 @@ describe("Feature Gating", () => {
     return result.ok;
   }
 
-  async function createStorageNode(args: Parameters<EncryptedStorageActorService["create"]>[0]) {
+  async function createStorageNode(
+    args: Parameters<EncryptedStorageActorService["create"]>[0],
+  ) {
     return unwrapStorageResult(await storageActor.create(args));
   }
 
-  async function beginUploadSession(args: Parameters<EncryptedStorageActorService["beginUploadSession"]>[0]) {
+  async function beginUploadSession(
+    args: Parameters<EncryptedStorageActorService["beginUploadSession"]>[0],
+  ) {
     return unwrapStorageResult(await storageActor.beginUploadSession(args));
   }
 
@@ -120,7 +137,8 @@ describe("Feature Gating", () => {
     await runHttpDownloaderQueueProcessor(
       manager.pic,
       async () =>
-        (await backendActor.getReleasesFullStatus()).hasDownloadedRelease,
+        (await backendActor.getStorageReleaseAdminStatus())
+          .hasDownloadedRelease,
     );
     await manager.pic.tick();
 
@@ -128,23 +146,22 @@ describe("Feature Gating", () => {
     let ready = false;
     for (let i = 0; i < 50 && !ready; i++) {
       await manager.pic.tick(20);
-      ready = (await backendActor.getReleasesFullStatus())
+      ready = (await backendActor.getStorageReleaseAdminStatus())
         .hasDeploymentReadyRelease;
     }
     expect(ready).toBe(true);
 
     // Deploy storage canister directly via PocketIC
     const initArg = encodeStorageInitArg(manager.ownerIdentity.getPrincipal());
-    storage = await manager.pic.setupCanister<EncryptedStorageActorService>(
-      {
-        wasm: STORAGE_WASM_PATH,
-        sender: manager.ownerIdentity.getPrincipal(),
-        idlFactory:
-          encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
-        environmentVariables: buildStorageEnvironmentVariables(backend.canisterId),
-        arg: initArg,
-      },
-    );
+    storage = await manager.pic.setupCanister<EncryptedStorageActorService>({
+      wasm: STORAGE_WASM_PATH,
+      sender: manager.ownerIdentity.getPrincipal(),
+      idlFactory: encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+      environmentVariables: buildStorageEnvironmentVariables(
+        backend.canisterId,
+      ),
+      arg: initArg,
+    });
     await manager.pic.tick();
 
     storageActor = storage.actor;
@@ -160,7 +177,12 @@ describe("Feature Gating", () => {
       initArg,
     );
     if ("err" in addResult) {
-      console.error("addStorage error:", JSON.stringify(addResult.err, (_k, v) => typeof v === 'bigint' ? v.toString() : v));
+      console.error(
+        "addStorage error:",
+        JSON.stringify(addResult.err, (_k, v) =>
+          typeof v === "bigint" ? v.toString() : v,
+        ),
+      );
     }
     expect(addResult).toHaveProperty("ok");
   }, 360_000);
@@ -182,13 +204,25 @@ describe("Feature Gating", () => {
   ): Promise<void> {
     for (let attempt = 0; attempt < 10; attempt++) {
       backendActor.setIdentity(identity);
-      const page = await backendActor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
+      const page = await backendActor.listNotifications({
+        afterId: [],
+        limit: 100n,
+        unreadOnly: false,
+      });
       if (predicate(page)) return;
       await processStorageAccessCallbacks();
     }
 
     backendActor.setIdentity(identity);
-    expect(predicate(await backendActor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false }))).toBe(true);
+    expect(
+      predicate(
+        await backendActor.listNotifications({
+          afterId: [],
+          limit: 100n,
+          unreadOnly: false,
+        }),
+      ),
+    ).toBe(true);
   }
 
   async function expectSharedWithMeStorage(
@@ -198,7 +232,8 @@ describe("Feature Gating", () => {
     for (let attempt = 0; attempt < 10; attempt++) {
       backendActor.setIdentity(identity);
       const exists = (await backendActor.listSharedWithMeStorages()).some(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       );
       if (exists === expected) return;
       await processStorageAccessCallbacks();
@@ -207,7 +242,8 @@ describe("Feature Gating", () => {
     backendActor.setIdentity(identity);
     expect(
       (await backendActor.listSharedWithMeStorages()).some(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       ),
     ).toBe(expected);
   }
@@ -234,7 +270,10 @@ describe("Feature Gating", () => {
         signer: II_BACKEND_CANISTER_ID,
       },
     });
-    const [finishResult] = IDL.decode([IdentityAttributesFinishResult], response);
+    const [finishResult] = IDL.decode(
+      [IdentityAttributesFinishResult],
+      response,
+    );
     expect(finishResult).toEqual({ ok: null });
 
     backendActor.setIdentity(identity);
@@ -264,7 +303,10 @@ describe("Feature Gating", () => {
         signer: II_BACKEND_CANISTER_ID,
       },
     });
-    const [finishResult] = IDL.decode([IdentityAttributesFinishResult], response);
+    const [finishResult] = IDL.decode(
+      [IdentityAttributesFinishResult],
+      response,
+    );
     expect(finishResult).toEqual({ ok: null });
 
     storageActor.setIdentity(identity);
@@ -279,7 +321,8 @@ describe("Feature Gating", () => {
         {
           ref: { principal: args.user },
           accessClass: { ordinary: null },
-          scope: args.entry.length > 0 ? { entry: args.entry[0]! } : { root: null },
+          scope:
+            args.entry.length > 0 ? { entry: args.entry[0]! } : { root: null },
           permission: args.permission,
           source: { directGrant: null },
           expiresAt: [],
@@ -289,14 +332,17 @@ describe("Feature Gating", () => {
   }
 
   async function revokeOrdinaryAccessGrant(args: {
-    entry: Parameters<EncryptedStorageActorService["hasStoragePermission"]>[0]["entry"];
+    entry: Parameters<
+      EncryptedStorageActorService["hasStoragePermission"]
+    >[0]["entry"];
     user: Principal;
   }): Promise<void> {
     await storageActor.revokeAccessBatch({
       items: [
         {
           principal: args.user,
-          scope: args.entry.length > 0 ? { entry: args.entry[0]! } : { root: null },
+          scope:
+            args.entry.length > 0 ? { entry: args.entry[0]! } : { root: null },
         },
       ],
     });
@@ -329,7 +375,9 @@ describe("Feature Gating", () => {
     await storageActor.refreshSubscription();
   }
 
-  async function setStorageControllers(controllers: Principal[]): Promise<void> {
+  async function setStorageControllers(
+    controllers: Principal[],
+  ): Promise<void> {
     await manager.pic.updateCanisterSettings({
       canisterId: storage.canisterId,
       sender: manager.ownerIdentity.getPrincipal(),
@@ -348,9 +396,7 @@ describe("Feature Gating", () => {
     test("getStatus returns backendId from initArgs", async () => {
       const status = await storageActor.getStatus();
       expect(status.backendId).toHaveLength(1);
-      expect(status.backendId[0]!.toText()).toBe(
-        backend.canisterId.toText(),
-      );
+      expect(status.backendId[0]!.toText()).toBe(backend.canisterId.toText());
     });
 
     test("getStatus returns initial values for new canister", async () => {
@@ -389,7 +435,9 @@ describe("Feature Gating", () => {
       expect(initial[0]!.revokedAt).toEqual([]);
 
       storageActor.setIdentity(userAlice);
-      await expect(storageActor.listOwnerEquivalentPrincipals()).rejects.toThrow();
+      await expect(
+        storageActor.listOwnerEquivalentPrincipals(),
+      ).rejects.toThrow();
 
       storageActor.setIdentity(manager.ownerIdentity);
       await expect(
@@ -410,7 +458,9 @@ describe("Feature Gating", () => {
       const registered = await storageActor.registerRecoveryController(
         userAlice.getPrincipal(),
       );
-      expect(registered.principal.toText()).toBe(userAlice.getPrincipal().toText());
+      expect(registered.principal.toText()).toBe(
+        userAlice.getPrincipal().toText(),
+      );
       expect(registered.previous).toEqual([]);
 
       const registeredStatus = await storageActor.getRecoveryStatus();
@@ -493,9 +543,7 @@ describe("Feature Gating", () => {
     test("cache returns consistent status on repeated calls", async () => {
       const status1 = await storageActor.getStatus();
       const status2 = await storageActor.getStatus();
-      expect(status1.subscriptionStatus).toEqual(
-        status2.subscriptionStatus,
-      );
+      expect(status1.subscriptionStatus).toEqual(status2.subscriptionStatus);
     });
   });
 
@@ -615,13 +663,13 @@ describe("Feature Gating", () => {
         }),
       ).toBe(false);
 
-      await waitForBackendNotification(
-        userBob,
-        (page) => page.data.some(
+      await waitForBackendNotification(userBob, (page) =>
+        page.data.some(
           (item) =>
             "storageInviteCreated" in item.payload &&
             item.payload.storageInviteCreated.grantId === pending.id &&
-            item.payload.storageInviteCreated.canisterId.toText() === storage.canisterId.toText(),
+            item.payload.storageInviteCreated.canisterId.toText() ===
+              storage.canisterId.toText(),
         ),
       );
 
@@ -632,13 +680,13 @@ describe("Feature Gating", () => {
       expect(grant.principal.toText()).toBe(userBob.getPrincipal().toText());
       expect(grant.accessClass).toEqual({ ordinary: null });
 
-      await waitForBackendNotification(
-        manager.ownerIdentity,
-        (page) => page.data.some(
+      await waitForBackendNotification(manager.ownerIdentity, (page) =>
+        page.data.some(
           (item) =>
             "storageInviteClaimed" in item.payload &&
             item.payload.storageInviteClaimed.grantId === pending.id &&
-            item.payload.storageInviteClaimed.principal.toText() === userBob.getPrincipal().toText(),
+            item.payload.storageInviteClaimed.principal.toText() ===
+              userBob.getPrincipal().toText(),
         ),
       );
 
@@ -665,10 +713,7 @@ describe("Feature Gating", () => {
 
       const pending = await storageActor.createPendingAccessGrant({
         ref: {
-          emailCommitment: emailCommitment(
-            storage.canisterId,
-            email,
-          ),
+          emailCommitment: emailCommitment(storage.canisterId, email),
         },
         accessClass: { ordinary: null },
         scope: { root: null },
@@ -703,7 +748,10 @@ describe("Feature Gating", () => {
           signer: II_BACKEND_CANISTER_ID,
         },
       });
-      const [finishResult] = IDL.decode([IdentityAttributesFinishResult], response);
+      const [finishResult] = IDL.decode(
+        [IdentityAttributesFinishResult],
+        response,
+      );
       expect(finishResult).toEqual({ ok: null });
       const result = await storageActor.claimVerifiedEmailAccess();
       expect(result).toEqual({ ok: null });
@@ -720,9 +768,8 @@ describe("Feature Gating", () => {
         ),
       ).toBe(true);
 
-      await waitForBackendNotification(
-        manager.ownerIdentity,
-        (page) => page.data.some(
+      await waitForBackendNotification(manager.ownerIdentity, (page) =>
+        page.data.some(
           (item) =>
             "storageInviteClaimed" in item.payload &&
             item.payload.storageInviteClaimed.grantId === pending.id &&
@@ -785,9 +832,8 @@ describe("Feature Gating", () => {
         }),
       ).toBe(true);
 
-      await waitForBackendNotification(
-        recipient,
-        (page) => page.data.some(
+      await waitForBackendNotification(recipient, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessGranted" in item.payload &&
             item.payload.storageAccessGranted.canisterId.toText() ===
@@ -813,9 +859,8 @@ describe("Feature Gating", () => {
         }),
       ).toBe(false);
 
-      await waitForBackendNotification(
-        recipient,
-        (page) => page.data.some(
+      await waitForBackendNotification(recipient, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessRevoked" in item.payload &&
             item.payload.storageAccessRevoked.canisterId.toText() ===
@@ -913,9 +958,8 @@ describe("Feature Gating", () => {
         permission: { Read: null },
       });
 
-      await waitForBackendNotification(
-        recipient,
-        (page) => page.data.some(
+      await waitForBackendNotification(recipient, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessGranted" in item.payload &&
             item.payload.storageAccessGranted.canisterId.toText() ===
@@ -926,12 +970,15 @@ describe("Feature Gating", () => {
       backendActor.setIdentity(recipient);
       const shared = await backendActor.listSharedWithMeStorages();
       const sharedRecord = shared.find(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       );
       expect(sharedRecord?.accountOwner.toText()).toBe(
         manager.ownerIdentity.getPrincipal().toText(),
       );
-      expect(sharedRecord?.activeAccessClasses).toContainEqual({ ordinary: null });
+      expect(sharedRecord?.activeAccessClasses).toContainEqual({
+        ordinary: null,
+      });
 
       storageActor.setIdentity(manager.ownerIdentity);
       await revokeOrdinaryAccessGrant({
@@ -939,9 +986,8 @@ describe("Feature Gating", () => {
         user: recipient.getPrincipal(),
       });
 
-      await waitForBackendNotification(
-        recipient,
-        (page) => page.data.some(
+      await waitForBackendNotification(recipient, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessRevoked" in item.payload &&
             item.payload.storageAccessRevoked.canisterId.toText() ===
@@ -952,7 +998,8 @@ describe("Feature Gating", () => {
       backendActor.setIdentity(recipient);
       expect(
         (await backendActor.listSharedWithMeStorages()).some(
-          (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+          (item) =>
+            item.storageCanisterId.toText() === storage.canisterId.toText(),
         ),
       ).toBe(false);
     });
@@ -985,7 +1032,9 @@ describe("Feature Gating", () => {
         ],
       });
       expect(created.principalGrants).toHaveLength(1);
-      expect(created.principalGrants[0]!.scope).toEqual({ keyId: originalDirectory.keyId });
+      expect(created.principalGrants[0]!.scope).toEqual({
+        keyId: originalDirectory.keyId,
+      });
 
       await storageActor.rename({
         entry: [DIRECTORY, "StableShare"],
@@ -1010,7 +1059,9 @@ describe("Feature Gating", () => {
       });
       expect(grants.scope).toEqual({ keyId: originalDirectory.keyId });
       expect(grants.principalGrants).toHaveLength(1);
-      expect(grants.principalGrants[0]!.grant.scope).toEqual({ keyId: originalDirectory.keyId });
+      expect(grants.principalGrants[0]!.grant.scope).toEqual({
+        keyId: originalDirectory.keyId,
+      });
       expect(grants.principalGrants[0]!.grant.principal.toText()).toBe(
         recipient.getPrincipal().toText(),
       );
@@ -1027,10 +1078,7 @@ describe("Feature Gating", () => {
       storageActor.setIdentity(manager.ownerIdentity);
       const pending = await storageActor.createPendingAccessGrant({
         ref: {
-          emailCommitment: emailCommitment(
-            storage.canisterId,
-            email,
-          ),
+          emailCommitment: emailCommitment(storage.canisterId, email),
         },
         accessClass: { ordinary: null },
         scope: { root: null },
@@ -1042,9 +1090,12 @@ describe("Feature Gating", () => {
       backendActor.setIdentity(recipient);
       const shared = await backendActor.listSharedWithMeStorages();
       const sharedRecord = shared.find(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       );
-      expect(sharedRecord?.activeAccessClasses).toContainEqual({ ordinary: null });
+      expect(sharedRecord?.activeAccessClasses).toContainEqual({
+        ordinary: null,
+      });
       expect(sharedRecord?.pendingGrantIds).not.toContain(pending.id);
     });
 
@@ -1057,10 +1108,7 @@ describe("Feature Gating", () => {
       storageActor.setIdentity(manager.ownerIdentity);
       const pending = await storageActor.createPendingAccessGrant({
         ref: {
-          emailCommitment: emailCommitment(
-            storage.canisterId,
-            email,
-          ),
+          emailCommitment: emailCommitment(storage.canisterId, email),
         },
         accessClass: { ordinary: null },
         scope: { root: null },
@@ -1072,7 +1120,8 @@ describe("Feature Gating", () => {
       backendActor.setIdentity(recipient);
       expect(
         (await backendActor.listSharedWithMeStorages()).some(
-          (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+          (item) =>
+            item.storageCanisterId.toText() === storage.canisterId.toText(),
         ),
       ).toBe(false);
 
@@ -1080,15 +1129,20 @@ describe("Feature Gating", () => {
 
       const shared = await backendActor.listSharedWithMeStorages();
       const sharedRecord = shared.find(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       );
-      expect(sharedRecord?.activeAccessClasses).toContainEqual({ ordinary: null });
+      expect(sharedRecord?.activeAccessClasses).toContainEqual({
+        ordinary: null,
+      });
       expect(sharedRecord?.pendingGrantIds).not.toContain(pending.id);
     });
 
     test("email invite can be claimed once per trusted origin", async () => {
       const storageClaimant = createIdentity("shared-with-me-storage-claimant");
-      const rabbitholeClaimant = createIdentity("shared-with-me-rabbithole-claimant");
+      const rabbitholeClaimant = createIdentity(
+        "shared-with-me-rabbithole-claimant",
+      );
       const email = "dual-origin-claim@example.com";
 
       await ensureOwnerProSubscription();
@@ -1105,11 +1159,12 @@ describe("Feature Gating", () => {
         expiresAt: [],
       });
 
-      expect(await syncStorageVerifiedEmail(storageClaimant, email)).toEqual({ ok: null });
+      expect(await syncStorageVerifiedEmail(storageClaimant, email)).toEqual({
+        ok: null,
+      });
 
-      await waitForBackendNotification(
-        manager.ownerIdentity,
-        (page) => page.data.some(
+      await waitForBackendNotification(manager.ownerIdentity, (page) =>
+        page.data.some(
           (item) =>
             "storageInviteClaimed" in item.payload &&
             item.payload.storageInviteClaimed.grantId === pending.id &&
@@ -1119,40 +1174,54 @@ describe("Feature Gating", () => {
       );
 
       backendActor.setIdentity(storageClaimant);
-      const storageClaimantShared = await backendActor.listSharedWithMeStorages();
+      const storageClaimantShared =
+        await backendActor.listSharedWithMeStorages();
       const storageClaimantRecord = storageClaimantShared.find(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       );
-      expect(storageClaimantRecord?.activeAccessClasses).toContainEqual({ ordinary: null });
+      expect(storageClaimantRecord?.activeAccessClasses).toContainEqual({
+        ordinary: null,
+      });
       expect(storageClaimantRecord?.pendingGrantIds).not.toContain(pending.id);
 
       await syncBackendVerifiedEmail(rabbitholeClaimant, email);
 
       backendActor.setIdentity(rabbitholeClaimant);
-      const rabbitholeClaimantShared = await backendActor.listSharedWithMeStorages();
+      const rabbitholeClaimantShared =
+        await backendActor.listSharedWithMeStorages();
       const rabbitholeClaimantRecord = rabbitholeClaimantShared.find(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       );
-      expect(rabbitholeClaimantRecord?.activeAccessClasses).toContainEqual({ ordinary: null });
-      expect(rabbitholeClaimantRecord?.pendingGrantIds).not.toContain(pending.id);
+      expect(rabbitholeClaimantRecord?.activeAccessClasses).toContainEqual({
+        ordinary: null,
+      });
+      expect(rabbitholeClaimantRecord?.pendingGrantIds).not.toContain(
+        pending.id,
+      );
 
       storageActor.setIdentity(manager.ownerIdentity);
       const grants = await storageActor.listAccessGrants({
         scope: [{ root: null }],
         mode: { exact: null },
       });
-      const grant = grants.pendingGrants.find((item) => item.grant.id === pending.id);
+      const grant = grants.pendingGrants.find(
+        (item) => item.grant.id === pending.id,
+      );
       expect(grant?.grant.emailClaimState.storage[0]?.principal.toText()).toBe(
         storageClaimant.getPrincipal().toText(),
       );
-      expect(grant?.grant.emailClaimState.rabbithole[0]?.principal.toText()).toBe(
-        rabbitholeClaimant.getPrincipal().toText(),
-      );
+      expect(
+        grant?.grant.emailClaimState.rabbithole[0]?.principal.toText(),
+      ).toBe(rabbitholeClaimant.getPrincipal().toText());
     });
 
     test("cancel pending email invite revokes already claimed principal grants", async () => {
       const storageClaimant = createIdentity("cancel-email-storage-claimant");
-      const rabbitholeClaimant = createIdentity("cancel-email-rabbithole-claimant");
+      const rabbitholeClaimant = createIdentity(
+        "cancel-email-rabbithole-claimant",
+      );
       const email = "cancel-claimed-email@example.com";
 
       await ensureOwnerProSubscription();
@@ -1169,7 +1238,9 @@ describe("Feature Gating", () => {
         expiresAt: [],
       });
 
-      expect(await syncStorageVerifiedEmail(storageClaimant, email)).toEqual({ ok: null });
+      expect(await syncStorageVerifiedEmail(storageClaimant, email)).toEqual({
+        ok: null,
+      });
       await syncBackendVerifiedEmail(rabbitholeClaimant, email);
       await expectSharedWithMeStorage(storageClaimant, true);
       await expectSharedWithMeStorage(rabbitholeClaimant, true);
@@ -1228,7 +1299,9 @@ describe("Feature Gating", () => {
         expiresAt: [],
       });
 
-      expect(await syncStorageVerifiedEmail(claimant, email)).toEqual({ ok: null });
+      expect(await syncStorageVerifiedEmail(claimant, email)).toEqual({
+        ok: null,
+      });
       await expectSharedWithMeStorage(claimant, true);
 
       storageActor.setIdentity(manager.ownerIdentity);
@@ -1399,12 +1472,15 @@ describe("Feature Gating", () => {
         emailCommitment: [],
         message: ["Need access for review"],
       });
-      expect(request.requester.toText()).toBe(requester.getPrincipal().toText());
+      expect(request.requester.toText()).toBe(
+        requester.getPrincipal().toText(),
+      );
       expect(request.status).toEqual({ pending: null });
 
       await expect(storageActor.listAccessRequests()).rejects.toThrow();
 
-      const requesterEventsBeforeDecision = await storageActor.listStorageEvents([], 100n);
+      const requesterEventsBeforeDecision =
+        await storageActor.listStorageEvents([], 100n);
       expect(
         requesterEventsBeforeDecision.some(
           (item) =>
@@ -1415,7 +1491,10 @@ describe("Feature Gating", () => {
       ).toBe(true);
 
       storageActor.setIdentity(userBob);
-      const unrelatedUserEvents = await storageActor.listStorageEvents([], 100n);
+      const unrelatedUserEvents = await storageActor.listStorageEvents(
+        [],
+        100n,
+      );
       expect(
         unrelatedUserEvents.some(
           (item) =>
@@ -1425,13 +1504,13 @@ describe("Feature Gating", () => {
         ),
       ).toBe(false);
 
-      await waitForBackendNotification(
-        manager.ownerIdentity,
-        (page) => page.data.some(
+      await waitForBackendNotification(manager.ownerIdentity, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessRequestCreated" in item.payload &&
             item.payload.storageAccessRequestCreated.requestId === request.id &&
-            item.payload.storageAccessRequestCreated.requester.toText() === requester.getPrincipal().toText(),
+            item.payload.storageAccessRequestCreated.requester.toText() ===
+              requester.getPrincipal().toText(),
         ),
       );
 
@@ -1454,18 +1533,21 @@ describe("Feature Gating", () => {
       });
       expect(resolved.status).toEqual({ rejected: null });
 
-      await waitForBackendNotification(
-        requester,
-        (page) => page.data.some(
+      await waitForBackendNotification(requester, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessRequestResolved" in item.payload &&
-            item.payload.storageAccessRequestResolved.requestId === request.id &&
+            item.payload.storageAccessRequestResolved.requestId ===
+              request.id &&
             "rejected" in item.payload.storageAccessRequestResolved.status,
         ),
       );
 
       storageActor.setIdentity(requester);
-      const requesterEventsAfterDecision = await storageActor.listStorageEvents([], 100n);
+      const requesterEventsAfterDecision = await storageActor.listStorageEvents(
+        [],
+        100n,
+      );
       expect(
         requesterEventsAfterDecision.some(
           (item) =>
@@ -1522,7 +1604,8 @@ describe("Feature Gating", () => {
             "access" in item.event &&
             "principalGrantCreated" in item.event.access &&
             "accessRequest" in item.event.access.principalGrantCreated.source &&
-            item.event.access.principalGrantCreated.source.accessRequest === request.id,
+            item.event.access.principalGrantCreated.source.accessRequest ===
+              request.id,
         ),
       ).toBe(true);
 
@@ -1534,7 +1617,8 @@ describe("Feature Gating", () => {
             "access" in item.event &&
             "principalGrantCreated" in item.event.access &&
             "accessRequest" in item.event.access.principalGrantCreated.source &&
-            item.event.access.principalGrantCreated.source.accessRequest === request.id,
+            item.event.access.principalGrantCreated.source.accessRequest ===
+              request.id,
         ),
       ).toBe(true);
       expect(
@@ -1546,24 +1630,29 @@ describe("Feature Gating", () => {
         ),
       ).toBe(true);
 
-      await waitForBackendNotification(
-        requester,
-        (page) => page.data.some(
+      await waitForBackendNotification(requester, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessRequestResolved" in item.payload &&
-            item.payload.storageAccessRequestResolved.requestId === request.id &&
+            item.payload.storageAccessRequestResolved.requestId ===
+              request.id &&
             "approved" in item.payload.storageAccessRequestResolved.status,
         ),
       );
 
       backendActor.setIdentity(requester);
-      const requesterNotifications = await backendActor.listNotifications({ afterId: [], limit: 100n, unreadOnly: false });
+      const requesterNotifications = await backendActor.listNotifications({
+        afterId: [],
+        limit: 100n,
+        unreadOnly: false,
+      });
       expect(
         requesterNotifications.data.some(
           (item) =>
             "storageAccessGranted" in item.payload &&
             "accessRequest" in item.payload.storageAccessGranted.source &&
-            item.payload.storageAccessGranted.source.accessRequest === request.id,
+            item.payload.storageAccessGranted.source.accessRequest ===
+              request.id,
         ),
       ).toBe(false);
 
@@ -1601,18 +1690,18 @@ describe("Feature Gating", () => {
           accessClass: { ordinary: null },
           scope: { root: null },
           permission: { Read: null },
-        source: { ordinaryInvite: 1n },
-        expiresAt: [],
-      }),
+          source: { ordinaryInvite: 1n },
+          expiresAt: [],
+        }),
       ).rejects.toThrow(/subscription|expired/i);
 
       await expect(
         storageActor.createDurableAccessGrant({
           principal: userBob.getPrincipal(),
           scope: { root: null },
-        permission: { Read: null },
-        source: { durablePolicy: 0n },
-      }),
+          permission: { Read: null },
+          source: { durablePolicy: 0n },
+        }),
       ).rejects.toThrow(/subscription|expired/i);
     });
 
@@ -1781,10 +1870,14 @@ describe("Feature Gating", () => {
       await manager.pic.tick(10);
       await storageActor.refreshSubscription();
 
-      const released = await storageActor.releaseDurableAccessPolicy({ policyId: policy.id });
+      const released = await storageActor.releaseDurableAccessPolicy({
+        policyId: policy.id,
+      });
       expect(released.policy.status).toEqual({ released: null });
       expect(released.principalGrants).toHaveLength(1);
-      expect(released.principalGrants[0]!.source).toEqual({ durablePolicy: policy.id });
+      expect(released.principalGrants[0]!.source).toEqual({
+        durablePolicy: policy.id,
+      });
 
       expect(
         await storageActor.hasStoragePermission({
@@ -1796,12 +1889,16 @@ describe("Feature Gating", () => {
 
       const events = await storageActor.listStorageEvents([], 100n);
       expect(
-        events.some((item) => "access" in item.event && "durablePolicyReleased" in item.event.access && item.event.access.durablePolicyReleased.policyId === policy.id),
+        events.some(
+          (item) =>
+            "access" in item.event &&
+            "durablePolicyReleased" in item.event.access &&
+            item.event.access.durablePolicyReleased.policyId === policy.id,
+        ),
       ).toBe(true);
 
-      await waitForBackendNotification(
-        recipient,
-        (page) => page.data.some(
+      await waitForBackendNotification(recipient, (page) =>
+        page.data.some(
           (item) =>
             "storageAccessGranted" in item.payload &&
             item.payload.storageAccessGranted.canisterId.toText() ===
@@ -1809,16 +1906,20 @@ describe("Feature Gating", () => {
             item.payload.storageAccessGranted.accessClass &&
             "durable" in item.payload.storageAccessGranted.accessClass &&
             "durablePolicy" in item.payload.storageAccessGranted.source &&
-            item.payload.storageAccessGranted.source.durablePolicy === policy.id,
+            item.payload.storageAccessGranted.source.durablePolicy ===
+              policy.id,
         ),
       );
 
       backendActor.setIdentity(recipient);
       const shared = await backendActor.listSharedWithMeStorages();
       const sharedRecord = shared.find(
-        (item) => item.storageCanisterId.toText() === storage.canisterId.toText(),
+        (item) =>
+          item.storageCanisterId.toText() === storage.canisterId.toText(),
       );
-      expect(sharedRecord?.activeAccessClasses).toContainEqual({ durable: null });
+      expect(sharedRecord?.activeAccessClasses).toContainEqual({
+        durable: null,
+      });
 
       storageActor.setIdentity(manager.ownerIdentity);
     });
@@ -1853,14 +1954,18 @@ describe("Feature Gating", () => {
       await manager.pic.tick(10);
 
       let processed = await storageActor.processDurableAccessPolicies();
-      expect(processed.find((item) => item.policy.id === policy.id)?.policy.status).toEqual({ grace: null });
+      expect(
+        processed.find((item) => item.policy.id === policy.id)?.policy.status,
+      ).toEqual({ grace: null });
 
       await storageActor.recordOwnerActivity({ origin: { storage: null } });
       await manager.pic.advanceTime(2 * 60 * 60 * 1000);
       await manager.pic.tick(10);
 
       processed = await storageActor.processDurableAccessPolicies();
-      expect(processed.find((item) => item.policy.id === policy.id)?.policy.status).toEqual({ armed: null });
+      expect(
+        processed.find((item) => item.policy.id === policy.id)?.policy.status,
+      ).toEqual({ armed: null });
       expect(
         await storageActor.hasStoragePermission({
           entry: [[DIRECTORY, "DurableInactivity"]],
@@ -1870,14 +1975,19 @@ describe("Feature Gating", () => {
       ).toBe(false);
 
       processed = await storageActor.processDurableAccessPolicies();
-      expect(processed.find((item) => item.policy.id === policy.id)?.policy.status).toEqual({ grace: null });
+      expect(
+        processed.find((item) => item.policy.id === policy.id)?.policy.status,
+      ).toEqual({ grace: null });
 
       let released: (typeof processed)[number] | undefined;
       for (let attempt = 0; attempt < 5 && released === undefined; attempt++) {
         await manager.pic.advanceTime(2 * 60 * 60 * 1000);
         await manager.pic.tick(10);
         processed = await storageActor.processDurableAccessPolicies();
-        released = processed.find((item) => item.policy.id === policy.id && "released" in item.policy.status);
+        released = processed.find(
+          (item) =>
+            item.policy.id === policy.id && "released" in item.policy.status,
+        );
       }
       expect(released?.policy.status).toEqual({ released: null });
       expect(released?.principalGrants).toHaveLength(1);
@@ -1932,12 +2042,16 @@ describe("Feature Gating", () => {
     });
 
     test("owner card metrics expose storage and cycle sidebar data", async () => {
-      const storageMetrics = unwrapStorageResult(await storageActor.getStorageCardMetrics());
+      const storageMetrics = unwrapStorageResult(
+        await storageActor.getStorageCardMetrics(),
+      );
       expect(storageMetrics).toHaveProperty("storedBytesUsed");
       expect(storageMetrics).toHaveProperty("storageBackendType");
       expect(storageMetrics).toHaveProperty("memoryInfo");
 
-      const cyclesMetrics = unwrapStorageResult(await storageActor.getCanisterCyclesCardMetrics());
+      const cyclesMetrics = unwrapStorageResult(
+        await storageActor.getCanisterCyclesCardMetrics(),
+      );
       expect(cyclesMetrics.balance).toBeGreaterThan(0n);
       expect(cyclesMetrics.safety.targetBalance).toBeGreaterThanOrEqual(
         cyclesMetrics.safety.minimumSafeBalance,
@@ -2023,7 +2137,9 @@ describe("Feature Gating", () => {
 
   describe("checkSubscription direct variants", () => {
     const CheckResultIDL = IDL.Variant({
-      active: IDL.Record({ plan: IDL.Variant({ Free: IDL.Null, Pro: IDL.Null }) }),
+      active: IDL.Record({
+        plan: IDL.Variant({ Free: IDL.Null, Pro: IDL.Null }),
+      }),
       licensed: IDL.Record({
         includedBytes: IDL.Nat,
         maxFileBytes: IDL.Nat,

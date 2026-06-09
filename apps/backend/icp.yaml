@@ -98,6 +98,10 @@ canisters:
         GITHUB_API_URL: 'http://mock-server:8080'
         GITHUB_OWNER: 'user'
         GITHUB_REPO: 'repo'
+        # Local development starts new storage canisters from the committed
+        # mock baseline. Local dev releases remain available as upgrade targets.
+        STORAGE_INSTALL_RELEASE_TAG: 'storage-v0.1.0'
+        STORAGE_UPDATE_RELEASE_SELECTOR: 'latest-prerelease'
         STORAGE_LICENSE_INCLUDED_BYTES: '1073741824' #1gb
         STORAGE_LICENSE_MAX_FILE_BYTES: '104857600' #100mb
         PUBLIC_ENV_NAME: 'DEV'
@@ -158,7 +162,7 @@ canisters:
     build:
       steps:
         - type: pre-built
-          url: https://github.com/dfinity/exchange-rate-canister/releases/download/2026.05.15/xrc.wasm.gz
+          url: https://github.com/dfinity/exchange-rate-canister/releases/download/2026.06.05/xrc.wasm.gz
     init_args: '(null)'
 
   - name: sol_rpc

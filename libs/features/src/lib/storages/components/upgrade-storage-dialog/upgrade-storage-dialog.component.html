@@ -34,62 +34,44 @@
 @switch (currentStep) {
   @case ('review') {
     <div class="mt-4 space-y-4">
-      <!-- Release version info -->
-      <div class="flex items-center gap-2 text-sm">
-        <span class="text-muted-foreground">Version:</span>
-        <span class="font-mono">{{ currentReleaseTag() }}</span>
-        <span class="text-muted-foreground">&rarr;</span>
-        <span class="font-mono font-medium">{{ availableReleaseTag() }}</span>
-      </div>
-
-      <!-- What will be updated -->
-      <div class="flex flex-wrap gap-2">
-        @if (updateInfo().wasmUpdateAvailable) {
-          <span hlmBadge variant="outline" class="text-xs">
-            <ng-icon hlmIcon name="lucidePackage" size="xs" />
-            WASM Module
-          </span>
+      <core-storage-upgrade-review
+        [canisterManagementHref]="canisterManagementHref()"
+        [currentReleaseTag]="currentReleaseTag()"
+        [releaseOptions]="releaseOptions()"
+        [releaseOptionsLoading]="releaseOptionsLoading()"
+        [selectedReleaseOption]="selectedReleaseOption()"
+        [selectedReleaseTag]="selectedReleaseTag()"
+        [selectedUpdateInfo]="selectedTargetUpdateInfo()"
+        selectId="rabbithole-storage-release-select"
+        (releaseTagChange)="selectRelease($event)"
+      >
+        @if (previousUpgradeError(); as prevError) {
+          <div
+            rbthStorageUpgradeReviewBeforePermissions
+            hlmAlert
+            variant="destructive"
+          >
+            <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+            <h4 hlmAlertTitle>Previous upgrade failed</h4>
+            <p hlmAlertDesc>{{ prevError }}</p>
+          </div>
         }
-        @if (updateInfo().frontendUpdateAvailable) {
-          <span hlmBadge variant="outline" class="text-xs">
-            <ng-icon hlmIcon name="lucideGlobe" size="xs" />
-            Frontend
-          </span>
-        }
-      </div>
-
-      @if (previousUpgradeError(); as prevError) {
-        <div hlmAlert variant="destructive">
-          <ng-icon hlmAlertIcon name="lucideCircleAlert" />
-          <h4 hlmAlertTitle>Previous upgrade failed</h4>
-          <p hlmAlertDesc>{{ prevError }}</p>
-        </div>
-      }
-
-      <div hlmAlert>
-        <ng-icon hlmAlertIcon name="lucideCircleAlert" />
-        <h4 hlmAlertTitle>Temporary permissions required</h4>
-        <p hlmAlertDesc>
-          The backend canister will be temporarily added as a controller of your storage
-          to install updates. It will be automatically removed after the upgrade completes.
-        </p>
-      </div>
+      </core-storage-upgrade-review>
     </div>
   }
 
   @case ('upgrading') {
     <div class="mt-4">
-      <rbth-process-step-list
-        [steps]="upgradeSteps()"
-        [showRetry]="false"
-      />
+      <rbth-process-step-list [steps]="upgradeSteps()" [showRetry]="false" />
     </div>
   }
 
   @case ('completed') {
     <div class="flex flex-col items-center text-center">
       <div class="flex justify-center">
-        <div class="mx-auto flex size-12 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-300">
+        <div
+          class="mx-auto flex size-12 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-300"
+        >
           <ng-icon hlmIcon name="lucideCheck" />
         </div>
       </div>
@@ -98,7 +80,9 @@
         <h2 class="text-balance text-lg font-semibold">
           Storage is up to date
         </h2>
-        <p class="mx-auto mt-2 max-w-[90%] text-pretty text-sm text-muted-foreground">
+        <p
+          class="mx-auto mt-2 max-w-[90%] text-pretty text-sm text-muted-foreground"
+        >
           {{ upgradeCopy().completedDescription }}
         </p>
       </div>
@@ -110,7 +94,10 @@
       <div hlmAlert variant="destructive">
         <ng-icon hlmAlertIcon name="lucideCircleAlert" />
         <h4 hlmAlertTitle>Upgrade Failed</h4>
-        <p hlmAlertDescription class="max-h-56 overflow-auto whitespace-pre-wrap break-words">
+        <p
+          hlmAlertDescription
+          class="max-h-56 overflow-auto whitespace-pre-wrap break-words"
+        >
           {{ errorMessage() }}
         </p>
       </div>
@@ -119,11 +106,18 @@
 }
 
 @if (currentStep !== 'upgrading') {
-  <hlm-dialog-footer class="mt-4" [class.sm:justify-center]="currentStep === 'completed'">
+  <hlm-dialog-footer
+    class="mt-4"
+    [class.sm:justify-center]="currentStep === 'completed'"
+  >
     @switch (currentStep) {
       @case ('review') {
         <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
-        <button hlmBtn (click)="startUpgrade()">
+        <button
+          hlmBtn
+          [disabled]="!selectedReleaseOption()?.updateInfo"
+          (click)="startUpgrade()"
+        >
           <ng-icon hlmIcon name="lucideArrowUpCircle" size="sm" />
           Start Upgrade
         </button>

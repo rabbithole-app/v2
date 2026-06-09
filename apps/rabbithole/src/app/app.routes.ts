@@ -1,5 +1,9 @@
 import { EnvironmentInjector, inject, runInInjectionContext } from '@angular/core';
-import { ActivatedRouteSnapshot, Route, RouterStateSnapshot } from '@angular/router';
+import {
+  ActivatedRouteSnapshot,
+  Route,
+  RouterStateSnapshot,
+} from '@angular/router';
 
 import {
   adminGuard,
@@ -292,6 +296,14 @@ export const appRoutes: Route[] = [
                 './core/components/storage-metrics-footer/storage-metrics-footer.component'
               ).then((m) => m.StorageMetricsFooterComponent),
             outlet: 'sidebarBottom',
+          },
+          {
+            path: '',
+            loadComponent: () =>
+              import('@rabbithole/core/storage-version-info').then(
+                (m) => m.StorageVersionInfoComponent,
+              ),
+            outlet: 'header',
           },
         ],
       },

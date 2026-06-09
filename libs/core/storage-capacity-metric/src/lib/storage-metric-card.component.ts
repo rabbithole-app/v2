@@ -22,6 +22,13 @@ import {
 } from '@ng-icons/lucide';
 import { cva } from 'class-variance-authority';
 
+import { formatBytes, UserSettingsDialogService } from '@rabbithole/core';
+import {
+  ENCRYPTED_STORAGE_CANISTER_ID,
+  injectEncryptedStorageActor,
+  provideEncryptedStorageActor,
+} from '@rabbithole/core/storage-runtime';
+import { FormatBytesPipe } from '@rabbithole/core/ui';
 import {
   RbthMetricCardComponent,
   RbthMetricCardContentDirective,
@@ -34,14 +41,6 @@ import { HlmHoverCardImports } from '@spartan-ng/helm/hover-card';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import {
-  injectEncryptedStorageActor,
-  provideEncryptedStorageActor,
-} from '../../injectors/storage-actor';
-import { ENCRYPTED_STORAGE_CANISTER_ID } from '../../tokens/encrypted-storage-canister';
-import { formatBytes } from '../../utils/format-bytes';
-import { UserSettingsDialogService } from '../account/user-settings-dialog/user-settings-dialog.service';
-import { FormatBytesPipe } from '../ui/file-upload/format-bytes.pipe';
 import { MetricLegendRowComponent } from './metric-legend-row.component';
 import { StorageCapacityMetricStateService } from './storage-capacity-metric-state.service';
 import {

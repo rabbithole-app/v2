@@ -7,9 +7,9 @@ import {
 } from "@angular/core";
 import { cva } from "class-variance-authority";
 
+import { ENCRYPTED_STORAGE_CANISTER_ID } from "@rabbithole/core/storage-canister-token";
 import { HlmSidebarService } from "@spartan-ng/helm/sidebar";
 
-import { ENCRYPTED_STORAGE_CANISTER_ID } from "../../tokens/encrypted-storage-canister";
 import { CanisterCyclesMetricCardComponent } from "./canister-cycles-metric-card.component";
 import { StorageMetricCardComponent } from "./storage-metric-card.component";
 
