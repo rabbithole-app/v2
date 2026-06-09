@@ -1,8 +1,8 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "2c7c9fe17b16e2d9421d47f48d04bc68484c209135e069a067d50970cd4976e5",
+  "mopsTomlDepsHash": "cce1eab36867321f2d842df71199bf234e5aabcab6fc0d9b78d085df3002d478",
   "deps": {
-    "caffeineai-object-storage": "0.1.1",
+    "caffeineai-object-storage": "1.0.0",
     "core": "2.5.0",
     "memory-region": "1.5.0",
     "base@0.14.13": "0.14.13",
@@ -118,14 +118,14 @@
     "tar": "https://github.com/christoph-dfinity/motoko-tar#9dcd0bd79fe26a81cdfa75b5c8104c68a4cd67d9"
   },
   "hashes": {
-    "caffeineai-object-storage@0.1.1": {
-      "caffeineai-object-storage@0.1.1/README.md": "50a3a9fae3d9d534cdb76ebab8e5b04bd9be85698c2f13f7753beba22e86941b",
-      "caffeineai-object-storage@0.1.1/src/Storage.mo": "e4b61a9c3400f7d38f9b239451c37d81719889cbbf23a5a45bbd166c437500f5",
-      "caffeineai-object-storage@0.1.1/mops.toml": "f404e8d9caa6e45a02aba750709bbcd07ce1bab76ecae1f5480e23f2400c2a1d",
-      "caffeineai-object-storage@0.1.1/rules/mixin-storage-included.toml": "d2ab392a7a2a07f1c23f77f9357f6d0967346bff30a4588b8b53736f3931f1d5",
-      "caffeineai-object-storage@0.1.1/rules/no-redeclare-caffeine-storage-refill.toml": "ef27548d981848d1e9940053aae9c31162d4c9352778c1c3a2de7476924da9f7",
-      "caffeineai-object-storage@0.1.1/rules/no-redeclare-caffeine-storage-gateway.toml": "8a232d3119adc5d29ff9cfeaea5ba4dedd96c6e7d9a6c1b544723bc666e923be",
-      "caffeineai-object-storage@0.1.1/src/Mixin.mo": "175c6b98672a83054fc08855062d1a7b7f2bd3713bf11a60d5319ac5afefe2b3"
+    "caffeineai-object-storage@1.0.0": {
+      "caffeineai-object-storage@1.0.0/rules/mixin-storage-included.toml": "d2ab392a7a2a07f1c23f77f9357f6d0967346bff30a4588b8b53736f3931f1d5",
+      "caffeineai-object-storage@1.0.0/mops.toml": "e94b3b6e92e0608fc94d50c4b9d7582bc11cead58900f6c20c45505d1e7f973a",
+      "caffeineai-object-storage@1.0.0/README.md": "cec7c399f7f9dee04709ba8e6610fe380e887ef667b9981082dac06eeb9c36fc",
+      "caffeineai-object-storage@1.0.0/src/Mixin.mo": "175c6b98672a83054fc08855062d1a7b7f2bd3713bf11a60d5319ac5afefe2b3",
+      "caffeineai-object-storage@1.0.0/rules/no-redeclare-caffeine-storage-refill.toml": "ef27548d981848d1e9940053aae9c31162d4c9352778c1c3a2de7476924da9f7",
+      "caffeineai-object-storage@1.0.0/src/Storage.mo": "e4b61a9c3400f7d38f9b239451c37d81719889cbbf23a5a45bbd166c437500f5",
+      "caffeineai-object-storage@1.0.0/rules/no-redeclare-caffeine-storage-gateway.toml": "8a232d3119adc5d29ff9cfeaea5ba4dedd96c6e7d9a6c1b544723bc666e923be"
     },
     "core@2.5.0": {
       "core@2.5.0/src/Blob.mo": "25d7c07e9786f11ceb8611a32a83b8491769580024054086e4548607a67afbe4",
