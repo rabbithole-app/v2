@@ -7,6 +7,12 @@
       "skillPath": "angular-developer/SKILL.md",
       "computedHash": "b7764c591c965d85f95f1d4f6d3620b6ab92a1b1fedbcdead7d59e946fc3fd2e"
     },
+    "article-writing": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/article-writing/SKILL.md",
+      "computedHash": "a527a9f0a6d47bb5006c5a112e34843c64cb9d5fba67d392aa380ae6d79476f1"
+    },
     "asset-canister": {
       "source": "dfinity/icskills",
       "sourceType": "github",
@@ -60,6 +66,18 @@
       "source": "dfinity/icskills",
       "sourceType": "github",
       "computedHash": "4b8f9ac545376886b6473084ae5de6c77edc4856c2da339f95d3a0b22528068d"
+    },
+    "deployment-patterns": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/deployment-patterns/SKILL.md",
+      "computedHash": "99f83de44e287fa486828d87e0f2083e1aee7ea47b8df5768ee9786c6cda57c4"
+    },
+    "docker-patterns": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/docker-patterns/SKILL.md",
+      "computedHash": "2750c564c7b600fbbfd44de2c693955c677c18c872d06019fa896ab770c69ed9"
     },
     "docs-writer": {
       "source": "google-gemini/gemini-cli",
@@ -192,6 +210,18 @@
       "sourceType": "github",
       "skillPath": "skills/link-workspace-packages/SKILL.md",
       "computedHash": "28a62513af1293c1ca064203a3d6e4dcdbd08f5be6e5ce9a16acc6176bef2ca4"
+    },
+    "market-research": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/market-research/SKILL.md",
+      "computedHash": "3a355a6ecccfe774773460d06ae3e60a57963996fe8f0d32b9a62d7ad5f71fa5"
+    },
+    "marketing-campaign": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/marketing-campaign/SKILL.md",
+      "computedHash": "45b67f3958ebd3ce4bcadaa4e3a8cb6c9e5c33e63cc5fedfac3e229e631a44b7"
     },
     "migrating-motoko": {
       "source": "dfinity/icskills",
