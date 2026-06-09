@@ -1,8 +1,6 @@
 ---
 title: Что даёт подписка Pro
 description: Какие возможности Rabbithole Pro добавляет к лицензии хранилища
-sidebar:
-  order: 6
 ---
 
 # Что даёт подписка Pro
@@ -83,6 +81,6 @@ Pro добавляет сервисные функции, но не делает
 ## Связанные страницы
 
 - [Оплата и циклы](/ru/how-it-works/payment)
-- [Совместный доступ](/ru/how-it-works/sharing/)
+- [Совместный доступ](/ru/how-it-works/sharing/index)
 - [Обновления хранилища](/ru/how-it-works/sovereignty/updates)
-- [Хранение данных](/ru/how-it-works/storage/)
+- [Хранение данных](/ru/how-it-works/storage/index)

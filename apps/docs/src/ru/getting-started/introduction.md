@@ -118,9 +118,9 @@ Rabbithole. Числа узлов относятся к сервису ключ�
 
 - [Основные понятия](/ru/getting-started/concepts) — канистры, principal,
   контроллеры, циклы и vetKeys
-- [Как работает шифрование](/ru/how-it-works/encryption) — пользовательская модель приватности
+- [Как работает шифрование](/ru/how-it-works/encryption/index) — пользовательская модель приватности
 - [Ключи и vetKeys](/ru/how-it-works/encryption/vetkeys) — Standard, High Replication и деривация ключей
-- [Суверенитет данных](/ru/how-it-works/sovereignty) — создание канистры, передача контроля, что если Rabbithole исчезнет
+- [Суверенитет данных](/ru/how-it-works/sovereignty/index) — создание канистры, передача контроля, что если Rabbithole исчезнет
 - [Модель доверия](/ru/how-it-works/trust-model) — модель угроз, чему нужно и не нужно доверять
 
 :::

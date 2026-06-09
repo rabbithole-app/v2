@@ -11,7 +11,7 @@ under your control outside the Rabbithole interface.
 ### Who controls my storage canister?
 In the completed flow, you do. Rabbithole is a temporary controller during setup
 or an approved update so it can install or retry the deployment, then removes
-itself during handoff. See [Data Sovereignty](/en/how-it-works/sovereignty) for
+itself during handoff. See [Data Sovereignty](/how-it-works/sovereignty/index) for
 details.
 
 ### Can I use my own frontend?
@@ -46,7 +46,7 @@ scenario.
 
 Pro adds capabilities on top of the license: encrypted uploads without base
 limits, shared access, and automatic cycle top-ups. See
-[What Pro gives you](/en/how-it-works/pro) for details.
+[What Pro gives you](/how-it-works/pro) for details.
 
 ### What file types are supported?
 All file types. Rabbithole stores binary file data, so the file format does not
@@ -91,7 +91,7 @@ The code is open source and available for community review. Formal audits are pl
 
 ### What encryption does Rabbithole use?
 AES-GCM with per-fragment encryption. Keys are derived through ICP's vetKeys
-threshold cryptography. See [Encryption](/en/how-it-works/encryption) for
+threshold cryptography. See [Encryption](/how-it-works/encryption/index) for
 details.
 
 ## Technical
@@ -99,7 +99,7 @@ details.
 These answers cover development, self-deployment, and direct canister access.
 
 ### Where can I learn the basic Internet Computer terms?
-The [Core concepts](/en/getting-started/concepts) page explains the Internet
+The [Core concepts](/getting-started/concepts) page explains the Internet
 Computer, canisters, principals, Internet Identity, controllers, and cycles in
 the Rabbithole context.
 

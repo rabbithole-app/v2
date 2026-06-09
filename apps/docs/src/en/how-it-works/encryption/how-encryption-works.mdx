@@ -1,8 +1,6 @@
 ---
 title: How encryption works
 description: How Rabbithole derives keys, encrypts chunks, and verifies data
-sidebar:
-  order: 2
 ---
 
 ## What this page covers
@@ -12,8 +10,8 @@ transport keys, chunk encryption, and the boundary between access control and
 cryptography.
 
 For the user-level explanation, start with
-[Encryption](/en/how-it-works/encryption). For the key-service choice, read
-[Keys and vetKeys](/en/how-it-works/encryption/vetkeys).
+[Encryption](/how-it-works/encryption/index). For the key-service choice, read
+[Keys and vetKeys](/how-it-works/encryption/vetkeys).
 
 ## Unique key for each file
 
@@ -110,7 +108,7 @@ That gives Rabbithole two separate checks:
 - encryption protects confidentiality;
 - integrity verification detects silent replacement or corruption.
 
-Read [File integrity](/en/how-it-works/storage/integrity) for the storage-side
+Read [File integrity](/how-it-works/storage/integrity) for the storage-side
 verification model.
 
 ## TEE support
@@ -135,4 +133,4 @@ Encryption narrows the trust surface, but it does not remove every assumption.
   same confidentiality guarantees as file contents.
 
 The broader assumptions are listed in the
-[Trust Model](/en/how-it-works/trust-model).
+[Trust Model](/how-it-works/trust-model).

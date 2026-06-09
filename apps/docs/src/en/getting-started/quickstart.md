@@ -26,8 +26,8 @@ upload.
 
 :::tip{title="Want to know more?"}
 
-Read [How Encryption Works](/en/how-it-works/encryption) to understand how
-files are protected, or [Data Sovereignty](/en/how-it-works/sovereignty) to
+Read [How Encryption Works](/how-it-works/encryption/index) to understand how
+files are protected, or [Data Sovereignty](/how-it-works/sovereignty/index) to
 learn what you control.
 
 :::

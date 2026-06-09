@@ -11,6 +11,11 @@
   },
   {
     "type": "file",
+    "name": "agent-resources",
+    "label": "Ресурсы для агентов"
+  },
+  {
+    "type": "file",
     "name": "faq",
     "label": "Вопросы и ответы"
   },

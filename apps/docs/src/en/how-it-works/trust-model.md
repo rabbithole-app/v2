@@ -1,8 +1,6 @@
 ---
 title: Trust Model
 description: What Rabbithole asks you to trust, and what encryption removes from the trust path
-sidebar:
-  order: 6
 ---
 
 ## What do you need to trust?

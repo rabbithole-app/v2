@@ -1,8 +1,6 @@
 ---
 title: How Rabbithole verifies your files
 description: How Rabbithole checks that a stored file has not been silently changed before opening it
-sidebar:
-  order: 5
 ---
 
 import { OverviewGroup, Steps } from '@rspress/core/theme';
@@ -16,7 +14,7 @@ When a file is stored outside your browser, two different questions appear:
 
 Encryption answers the first question. File verification answers the second.
 
-:::tip{title="What this means in practice"}
+:::tip What this means in practice
 
 If a file is silently replaced on the way to you, Rabbithole refuses to open it.
 You get a failed download or integrity error instead of a tampered file.
@@ -81,7 +79,7 @@ The browser recomputes the hash of the downloaded file and compares it with the 
 
 Only if they match does decryption continue.
 
-:::note{title="Why both steps matter"}
+:::note Why both steps matter
 
 Certification proves that the expected metadata really came from your canister.  
 Local verification proves that the downloaded encrypted file matches that metadata.
@@ -90,7 +88,7 @@ Local verification proves that the downloaded encrypted file matches that metada
 
 ## Technical details
 
-:::details{title="Certified metadata and local hashing"}
+:::details Certified metadata and local hashing
 
 ### Blob Storage path
 
@@ -136,15 +134,15 @@ With On-chain Storage there is no separate external delivery layer, so the verif
     items: [
       {
         text: 'How Blob Storage works',
-        link: '/en/how-it-works/storage/blob-storage',
+        link: '/how-it-works/storage/blob-storage',
       },
       {
         text: 'How On-chain Storage works',
-        link: '/en/how-it-works/storage/on-chain-storage',
+        link: '/how-it-works/storage/on-chain-storage',
       },
       {
         text: 'Trust Model',
-        link: '/en/how-it-works/trust-model',
+        link: '/how-it-works/trust-model',
       },
     ],
   }}

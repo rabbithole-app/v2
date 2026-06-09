@@ -1,8 +1,6 @@
 ---
 title: Encryption
 description: How Rabbithole protects file contents before they leave your browser
-sidebar:
-  order: 3
 ---
 
 import { OverviewGroup } from '@rspress/core/theme';
@@ -56,7 +54,7 @@ This is the main idea: Rabbithole is not asking you to trust a promise that the
 operator will not look. It moves the readable file out of the operator's path.
 There are still assumptions, especially around your browser, the served
 frontend, and the Internet Computer protocol. Those assumptions are listed in
-the [Trust Model](/en/how-it-works/trust-model).
+the [Trust Model](/how-it-works/trust-model).
 
 ## Where the key comes from
 
@@ -70,7 +68,7 @@ The important part: the key does not sit ready-made in the canister, and it is
 not handed to Rabbithole. The Internet Computer returns an encrypted response
 that only the browser making the request can open.
 
-Read [Keys and vetKeys](/en/how-it-works/encryption/vetkeys) if you want to
+Read [Keys and vetKeys](/how-it-works/encryption/vetkeys) if you want to
 understand how Standard differs from High Replication.
 
 ## Sharing does not re-encrypt the file
@@ -100,7 +98,7 @@ sequenceDiagram
     B->>B: Decrypts file in browser
 ```
 
-Read [Encrypted sharing](/en/how-it-works/sharing/encryption-in-shared-access)
+Read [Encrypted sharing](/how-it-works/sharing/encryption-in-shared-access)
 for the shared-access flow.
 
 ## Learn more
@@ -111,23 +109,23 @@ for the shared-access flow.
     items: [
       {
         text: 'Keys and vetKeys',
-        link: '/en/how-it-works/encryption/vetkeys',
+        link: '/how-it-works/encryption/vetkeys',
       },
       {
         text: 'How encryption works',
-        link: '/en/how-it-works/encryption/how-encryption-works',
+        link: '/how-it-works/encryption/how-encryption-works',
       },
       {
         text: 'Storage modes',
-        link: '/en/how-it-works/storage/',
+        link: '/how-it-works/storage/',
       },
       {
         text: 'Shared access',
-        link: '/en/how-it-works/sharing/',
+        link: '/how-it-works/sharing/',
       },
       {
         text: 'Trust Model',
-        link: '/en/how-it-works/trust-model',
+        link: '/how-it-works/trust-model',
       },
     ],
   }}

@@ -1,8 +1,6 @@
 ---
 title: Permission model
 description: Understand what View, Edit, and Manage mean for shared access
-sidebar:
-  order: 3
 ---
 
 import { Badge } from '@rspress/core/theme';
@@ -42,7 +40,7 @@ requests for encrypted files. The name after `/` is the canister permission.
 Blob Storage changes where file bytes live. It does not bypass permission checks
 in the storage canister.
 
-:::note{title="Shared access and Pro"}
+:::note Shared access and Pro
 
 Shared access and access management require the storage owner to have active Pro.
 Storage license keeps the owner's personal encrypted storage available, but it
@@ -81,7 +79,7 @@ flowchart LR
 If a person has access to a folder, they can access files inside that folder at
 the same permission level unless a stronger rule applies elsewhere.
 
-:::details{title="Technical view: key IDs and effective permissions"}
+:::details Technical view: key IDs and effective permissions
 
 Internally, the canister resolves folder and file entries to stable key IDs.
 Permission checks use those key IDs and walk up the parent chain to find the
@@ -104,7 +102,7 @@ is waiting for the recipient.
 When an email invite is claimed, pending access becomes active access for the
 recipient's principal.
 
-:::details{title="Technical view: grants"}
+:::details Technical view: grants
 
 The canister stores active access as a principal grant and waiting access as a
 pending grant. A pending email grant can later create a principal grant after
@@ -130,7 +128,7 @@ Standard access depends on the owner's Pro status. Durable access and recovery
 access cover sovereign scenarios: they can preserve access to permitted data
 even when the owner's Pro is not active.
 
-:::details{title="Durable access"}
+:::details Durable access
 
 Durable access is for emergency workflows. The owner defines in advance who
 receives access, which scope they receive, and which permission they receive if
@@ -157,7 +155,7 @@ sequenceDiagram
 
 :::
 
-:::details{title="Recovery access"}
+:::details Recovery access
 
 Recovery access covers the most conservative scenario: the owner must still be
 able to open the storage directly even if the main Rabbithole interface is
@@ -174,7 +172,7 @@ each application origin. Recovery access stores that storage-origin principal as
 a backup owner principal.
 
 Read more on the
-[Authentication](/en/how-it-works/authentication#why-one-user-can-have-different-principals)
+[Authentication](/how-it-works/authentication#why-one-user-can-have-different-principals)
 page.
 
 :::
@@ -218,6 +216,6 @@ back a copy that already left the system.
 
 These pages cover the systems that permissions depend on.
 
-- [Shared access overview](/en/how-it-works/sharing/)
-- [Email invites](/en/how-it-works/sharing/email-invites)
-- [Encrypted sharing](/en/how-it-works/sharing/encryption-in-shared-access)
+- [Shared access overview](/how-it-works/sharing/index)
+- [Email invites](/how-it-works/sharing/email-invites)
+- [Encrypted sharing](/how-it-works/sharing/encryption-in-shared-access)

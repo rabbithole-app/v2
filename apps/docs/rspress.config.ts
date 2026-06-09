@@ -1,9 +1,10 @@
+import { defineConfig } from '@rspress/core';
 import path from 'path';
 import mermaidPlugin from 'rspress-plugin-mermaid';
-import { defineConfig } from 'rspress/config';
 
 export default defineConfig({
   root: 'src',
+  llms: true,
   title: 'Rabbithole Docs',
   description: 'Decentralized encrypted file storage on the Internet Computer',
   logo: '/logo.svg',

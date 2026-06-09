@@ -1,8 +1,6 @@
 ---
 title: How On-chain Storage works
 description: How Rabbithole keeps encrypted files directly inside your personal canister
-sidebar:
-  order: 4
 ---
 
 import { OverviewGroup, Steps } from '@rspress/core/theme';
@@ -17,7 +15,7 @@ This mode is simpler to reason about, but it costs more. Every stored byte
 lives in canister memory and is paid for with cycles, so On-chain Storage is a
 better fit for small, high-value files.
 
-:::tip{title="Trade-off"}
+:::tip Trade-off
 
 You remove the external storage layer. In exchange, cost is higher, and cycle
 balance becomes part of normal storage operations.
@@ -124,7 +122,7 @@ about:
 
 ## Technical details
 
-:::details{title="Upload session"}
+:::details Upload session
 
 On-chain Storage does not write a large file directly into its final state.
 Upload runs through a session: the canister creates a temporary record, reserves
@@ -173,15 +171,15 @@ temporary resources.
     items: [
       {
         text: 'How Blob Storage works',
-        link: '/en/how-it-works/storage/blob-storage',
+        link: '/how-it-works/storage/blob-storage',
       },
       {
         text: 'How Rabbithole verifies your files',
-        link: '/en/how-it-works/storage/integrity',
+        link: '/how-it-works/storage/integrity',
       },
       {
         text: 'Payment & Cycles',
-        link: '/en/how-it-works/payment',
+        link: '/how-it-works/payment',
       },
     ],
   }}

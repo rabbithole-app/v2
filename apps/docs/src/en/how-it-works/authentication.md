@@ -1,8 +1,6 @@
 ---
 title: Authentication
 description: How Rabbithole signs you in, protects your privacy, and uses verified identity attributes
-sidebar:
-  order: 1
 ---
 
 Authentication in Rabbithole starts with Internet Identity and ends with a
@@ -73,7 +71,7 @@ Email is not your password, private key, or encryption key. Your account and
 file access are still controlled by your Internet Identity principal and the
 permissions stored in your canister.
 
-Read [Shared access](./sharing/) to see how verified email invites become
+Read [Shared access](./sharing/index) to see how verified email invites become
 storage-canister permissions.
 
 ## Preserve privacy by default
@@ -254,6 +252,6 @@ attributes.
 - [Internet Identity GitHub repository](https://github.com/dfinity/internet-identity)
 - [Internet Identity specification](https://docs.internetcomputer.org/reference/internet-identity-spec/)
 - [Identity Attributes design discussion](https://forum.dfinity.org/t/identity-attributes/64212)
-- [Shared access in Rabbithole](./sharing/)
+- [Shared access in Rabbithole](./sharing/index)
 
 :::

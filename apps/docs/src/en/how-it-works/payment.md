@@ -1,8 +1,6 @@
 ---
 title: Payment & Cycles
 description: How storage, uploads, and storage canister uptime are paid for
-sidebar:
-  order: 5
 ---
 
 # Payment & Cycles
@@ -12,7 +10,7 @@ Your storage runs in a separate Internet Computer canister. The canister needs
 process operations, and stay available.
 
 Think of cycles as prepaid fuel for the canister. Rabbithole can help with
-top-ups through [Pro](/en/how-it-works/pro), but the canister belongs to you,
+top-ups through [Pro](/how-it-works/pro), but the canister belongs to you,
 so you can also fund it directly with Internet Computer tools.
 
 ## What you pay for
@@ -43,7 +41,7 @@ is active, it adds:
 - shared access and access management.
 
 The full feature list is on the
-[What Pro gives you](/en/how-it-works/pro) page.
+[What Pro gives you](/how-it-works/pro) page.
 
 ## How automatic cycle top-ups work
 
@@ -69,7 +67,7 @@ The backend uses two sources in this order:
 
 1. **Included cycle balance**: 2 TC for you during the Pro period. This balance
    is shared across your storage canisters. The
-   [What Pro gives you](/en/how-it-works/pro) page explains it in more detail.
+   [What Pro gives you](/how-it-works/pro) page explains it in more detail.
 2. **Paid auto-top-up**: paid funding from your balance, used only after
    included funding is exhausted and you enable auto-top-up.
 

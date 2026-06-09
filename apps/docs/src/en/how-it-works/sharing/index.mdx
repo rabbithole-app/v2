@@ -1,8 +1,6 @@
 ---
 title: Shared access
 description: Share storages, folders, and files with people who use Rabbithole or join later
-sidebar:
-  order: 4
 ---
 
 import { OverviewGroup } from '@rspress/core/theme';
@@ -14,7 +12,7 @@ You can share with an existing Rabbithole user profile or with an email
 address. Email invites let you grant access before the recipient creates a
 Rabbithole account.
 
-Shared access is part of [Pro](/en/how-it-works/pro). A storage license keeps
+Shared access is part of [Pro](/how-it-works/pro). A storage license keeps
 the owner's personal encrypted storage available, but it does not replace active
 Pro for invites, access management, or invited users.
 
@@ -33,11 +31,11 @@ to find it.
 If a recipient with **Edit** access uploads a file, they use the owner's storage
 canister. The owner controls both visibility and storage resource usage.
 
-:::tip{title="Why email invites matter"}
+:::tip Why email invites matter
 
 You can share access with a future user. When that person later signs in with
 the same verified email from
-[Identity Attributes](/en/how-it-works/authentication#trust-verified-attributes), Rabbithole connects
+[Identity Attributes](/how-it-works/authentication#trust-verified-attributes), Rabbithole connects
 the invite to their account automatically.
 
 :::
@@ -68,7 +66,7 @@ sequenceDiagram
     Storage-->>Recipient: Return only allowed content
 ```
 
-:::details{title="Technical view: canisters, events, and the Shared with me list"}
+:::details Technical view: canisters, events, and the Shared with me list
 
 The storage canister makes the access decision. Rabbithole backend keeps a
 synchronized index so users can discover storages shared with them in the main
@@ -108,7 +106,7 @@ These terms appear on the deeper pages.
   canister.
 - **Principal**: the cryptographic account ID used for permission checks.
 - **Verified email**: an
-  [Identity Attribute](/en/how-it-works/authentication#trust-verified-attributes) proved by the
+  [Identity Attribute](/how-it-works/authentication#trust-verified-attributes) proved by the
   sign-in flow, not a free-form text field.
 - **Grant**: an access rule stored by the storage canister.
 - **Active Pro**: the state required for shared access and access management.
@@ -123,23 +121,23 @@ These terms appear on the deeper pages.
     items: [
       {
         text: 'Invite people by email',
-        link: '/en/how-it-works/sharing/email-invites',
+        link: '/how-it-works/sharing/email-invites',
       },
       {
         text: 'Permission model',
-        link: '/en/how-it-works/sharing/permissions',
+        link: '/how-it-works/sharing/permissions',
       },
       {
         text: 'Encrypted sharing',
-        link: '/en/how-it-works/sharing/encryption-in-shared-access',
+        link: '/how-it-works/sharing/encryption-in-shared-access',
       },
       {
         text: 'Authentication and identity attributes',
-        link: '/en/how-it-works/authentication#trust-verified-attributes',
+        link: '/how-it-works/authentication#trust-verified-attributes',
       },
       {
         text: 'What Pro gives you',
-        link: '/en/how-it-works/pro',
+        link: '/how-it-works/pro',
       },
     ],
   }}

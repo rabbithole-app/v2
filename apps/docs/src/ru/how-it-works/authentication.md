@@ -1,8 +1,6 @@
 ---
 title: Аутентификация
 description: Как Rabbithole выполняет вход, защищает приватность и использует проверенные Identity Attributes
-sidebar:
-  order: 1
 ---
 
 Аутентификация в Rabbithole начинается с Internet Identity и приводит к
@@ -79,7 +77,7 @@ Email не является вашим паролем, приватным клю
 Аккаунт и доступ к файлам по-прежнему контролируются вашим Internet Identity
 principal-идентификатором и разрешениями, сохранёнными в вашей канистре.
 
-Читайте [Совместный доступ](./sharing/), чтобы увидеть, как приглашение по
+Читайте [Совместный доступ](./sharing/index), чтобы увидеть, как приглашение по
 проверенному email превращается в права внутри канистры хранилища.
 
 ## Сохраняйте приватность по умолчанию
@@ -267,6 +265,6 @@ Attributes.
 - [Internet Identity GitHub repository](https://github.com/dfinity/internet-identity)
 - [Internet Identity specification](https://docs.internetcomputer.org/reference/internet-identity-spec/)
 - [Identity Attributes design discussion](https://forum.dfinity.org/t/identity-attributes/64212)
-- [Совместный доступ в Rabbithole](./sharing/)
+- [Совместный доступ в Rabbithole](./sharing/index)
 
 :::

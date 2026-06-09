@@ -1,8 +1,6 @@
 ---
 title: How Blob Storage works
 description: How Rabbithole stores encrypted files outside the canister and verifies them before opening
-sidebar:
-  order: 3
 ---
 
 import { OverviewGroup, Steps } from '@rspress/core/theme';
@@ -17,14 +15,14 @@ The storage layer sees only ciphertext. Blob Storage handles byte storage and
 delivery, while browser-side encryption protects file confidentiality before
 upload.
 
-:::tip{title="Trade-off"}
+:::tip Trade-off
 
 You pay less and handle large files more comfortably. In exchange, long-term
 byte availability depends on the Blob Storage lifecycle.
 
 :::
 
-:::note{title="Important distinction"}
+:::note Important distinction
 
 The external storage layer keeps the **file itself**. Your personal canister
 keeps the **trusted file record, access rules, and verification data**.
@@ -120,15 +118,15 @@ availability models differ.
     items: [
       {
         text: 'How Rabbithole verifies your files',
-        link: '/en/how-it-works/storage/integrity',
+        link: '/how-it-works/storage/integrity',
       },
       {
         text: 'How On-chain Storage works',
-        link: '/en/how-it-works/storage/on-chain-storage',
+        link: '/how-it-works/storage/on-chain-storage',
       },
       {
         text: 'Payment & Cycles',
-        link: '/en/how-it-works/payment',
+        link: '/how-it-works/payment',
       },
     ],
   }}

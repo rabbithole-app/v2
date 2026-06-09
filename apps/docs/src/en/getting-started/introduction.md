@@ -87,7 +87,7 @@ node can't open the safe by itself and never sees the full key.
 
 Standard and High Replication are Rabbithole's product names for two VetKey
 levels. The node counts belong to the key service, not to file copies. Read
-[Keys and vetKeys](/en/how-it-works/encryption/vetkeys) when you want that
+[Keys and vetKeys](/how-it-works/encryption/vetkeys) when you want that
 detail.
 
 ## How it compares
@@ -114,15 +114,15 @@ detail.
 
 Plaintext is not uploaded to the canister or Blob Storage. Rabbithole still
 relies on your browser, IC consensus, and correct code. The
-[Trust Model](/en/how-it-works/trust-model) page lists those assumptions.
+[Trust Model](/how-it-works/trust-model) page lists those assumptions.
 
 :::tip{title="Want to go deeper?"}
 
-- [Core concepts](/en/getting-started/concepts) — canisters, principals,
+- [Core concepts](/getting-started/concepts) — canisters, principals,
   controllers, cycles, and vetKeys
-- [How Encryption Works](/en/how-it-works/encryption) — the user-level privacy model
-- [Keys and vetKeys](/en/how-it-works/encryption/vetkeys) — Standard, High Replication, and key derivation
-- [Data Sovereignty](/en/how-it-works/sovereignty) — canister creation, controller transfer, what if Rabbithole disappears
-- [Trust Model](/en/how-it-works/trust-model) — threat model, what you do and don't need to trust
+- [How Encryption Works](/how-it-works/encryption/index) — the user-level privacy model
+- [Keys and vetKeys](/how-it-works/encryption/vetkeys) — Standard, High Replication, and key derivation
+- [Data Sovereignty](/how-it-works/sovereignty/index) — canister creation, controller transfer, what if Rabbithole disappears
+- [Trust Model](/how-it-works/trust-model) — threat model, what you do and don't need to trust
 
 :::

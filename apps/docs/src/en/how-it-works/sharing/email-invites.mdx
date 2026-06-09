@@ -1,8 +1,6 @@
 ---
 title: Email invites
 description: Share access with people before they create a Rabbithole account
-sidebar:
-  order: 2
 ---
 
 Email invites let you share access with a person before you know their
@@ -10,7 +8,7 @@ Internet Computer principal. You enter an email address, choose a permission,
 and Rabbithole keeps the invite waiting until the right person signs in.
 
 The email itself is not a password and not an encryption key. It is a verified
-[Identity Attribute](/en/how-it-works/authentication#trust-verified-attributes) that helps Rabbithole
+[Identity Attribute](/how-it-works/authentication#trust-verified-attributes) that helps Rabbithole
 connect an invite to the right principal.
 
 ## When to use an email invite
@@ -27,7 +25,7 @@ This is different from sharing with a principal. A principal works when the
 recipient already has an account. Email works when you only know the person by
 their address.
 
-:::note{title="Which emails are verified today"}
+:::note Which emails are verified today
 
 Internet Identity supports passkey sign-in, OpenID providers such as Google,
 Microsoft, and Apple, and SSO where it is available. For Rabbithole, a verified
@@ -80,7 +78,7 @@ The backend checks these facts before using the email:
 After those checks, Rabbithole can use the email to connect pending invites,
 support future notifications, and reduce repeated verification steps.
 
-:::details{title="Technical view: email commitments and pending grants"}
+:::details Technical view: email commitments and pending grants
 
 Rabbithole doesn't need to store a global plain email identifier for access
 matching. The frontend and canister calculate an email commitment from:
@@ -125,6 +123,6 @@ from the identity flow.
 
 Use these pages to understand the surrounding model.
 
-- [Authentication and identity attributes](/en/how-it-works/authentication#trust-verified-attributes)
-- [Permission model](/en/how-it-works/sharing/permissions)
-- [Encrypted sharing](/en/how-it-works/sharing/encryption-in-shared-access)
+- [Authentication and identity attributes](/how-it-works/authentication#trust-verified-attributes)
+- [Permission model](/how-it-works/sharing/permissions)
+- [Encrypted sharing](/how-it-works/sharing/encryption-in-shared-access)

@@ -1,8 +1,6 @@
 ---
 title: What Pro gives you
 description: Which Rabbithole Pro features are added on top of the storage license
-sidebar:
-  order: 6
 ---
 
 # What Pro gives you
@@ -14,7 +12,7 @@ ownership: the storage remains your Internet Computer canister.
 
 :::tip{title="Short version"}
 
-The [storage license](/en/how-it-works/payment#storage-license-and-pro) gives
+The [storage license](/how-it-works/payment#storage-license-and-pro) gives
 you base personal encrypted storage. Pro adds the parts Rabbithole operates for
 you: shared access, updates, automatic cycle top-ups, and 2 TC of included cycle
 balance per subscription period.
@@ -27,16 +25,16 @@ These features are available while Pro is active.
 
 | Feature | What changes |
 |---|---|
-| **Shared access** | You can share storages, folders, and files, manage permissions, handle access requests, and [invite by email](/en/how-it-works/sharing/email-invites) people who have not used Rabbithole yet. |
-| **[Storage updates](/en/how-it-works/sovereignty/updates)** | After you approve the update, Rabbithole can install a new storage code version or storage web interface. |
+| **Shared access** | You can share storages, folders, and files, manage permissions, handle access requests, and [invite by email](/how-it-works/sharing/email-invites) people who have not used Rabbithole yet. |
+| **[Storage updates](/how-it-works/sovereignty/updates)** | After you approve the update, Rabbithole can install a new storage code version or storage web interface. |
 | **Encrypted uploads without base limits** | Pro removes the base license limits for encrypted upload size and total encrypted storage. |
-| **[Automatic cycle top-ups](/en/how-it-works/payment#how-automatic-cycle-top-ups-work)** | If a storage needs cycles before an operation or when its balance drops, Rabbithole can top up the canister automatically. |
+| **[Automatic cycle top-ups](/how-it-works/payment#how-automatic-cycle-top-ups-work)** | If a storage needs cycles before an operation or when its balance drops, Rabbithole can top up the canister automatically. |
 | **2 TC included cycle balance** | Each Pro period includes up to 2 TC for automatic top-ups across your storage canisters. This limit is shared across your storages. |
 
 ## How automatic top-ups and 2 TC work together
 
 Internet Computer canisters need
-[cycles](/en/getting-started/concepts#cycles) to pay for compute, memory,
+[cycles](/getting-started/concepts#cycles) to pay for compute, memory,
 storage, and network operations. Pro enables automatic cycle top-ups for your
 storages and includes up to **2 TC** per subscription period.
 
@@ -46,7 +44,7 @@ current Pro period. If you have several storages, the shared limit is spent on
 the canisters that need cycles.
 
 Automatic top-up usually runs before an expensive operation, for example before
-a large [On-chain Storage](/en/how-it-works/storage/on-chain-storage) upload, or
+a large [On-chain Storage](/how-it-works/storage/on-chain-storage) upload, or
 when a canister approaches its safe cycle floor.
 
 2 TC means 2 trillion cycles. On the Internet Computer, **1 TC = 1 XDR**. Any
@@ -81,7 +79,7 @@ cycles, you top it up manually.
 
 ## Related pages
 
-- [Payment & Cycles](/en/how-it-works/payment)
-- [Shared access](/en/how-it-works/sharing/)
-- [Storage updates](/en/how-it-works/sovereignty/updates)
-- [Storage](/en/how-it-works/storage/)
+- [Payment & Cycles](/how-it-works/payment)
+- [Shared access](/how-it-works/sharing/index)
+- [Storage updates](/how-it-works/sovereignty/updates)
+- [Storage](/how-it-works/storage/index)
