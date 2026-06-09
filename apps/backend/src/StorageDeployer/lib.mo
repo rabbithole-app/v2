@@ -218,7 +218,7 @@ module StorageDeployerOrchestrator {
       var canisterId = null;
       region;
       var vetKeyName : ?Text = ?Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
-      var cashierCanisterId : ?Principal = ?Principal.fromText(Utils.envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
+      var cashierCanisterId : ?Principal = ?Principal.fromText(Utils.envText<system>(StorageEnvironment.CASHIER_PRINCIPAL, "xc7sj-uyaaa-aaaaf-qbrja-cai"));
       githubReleases = GitHubReleases.new({
         github = config.github;
         assets = config.assets;
@@ -263,7 +263,7 @@ module StorageDeployerOrchestrator {
 
   func refreshRuntimeConfig<system>(store : Store) {
     store.vetKeyName := ?Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
-    store.cashierCanisterId := ?Principal.fromText(Utils.envText<system>("PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", "xc7sj-uyaaa-aaaaf-qbrja-cai"));
+    store.cashierCanisterId := ?Principal.fromText(Utils.envText<system>(StorageEnvironment.CASHIER_PRINCIPAL, "xc7sj-uyaaa-aaaaf-qbrja-cai"));
   };
 
   /// Merge storage env vars derived from backend runtime config with caller-supplied custom pairs.

@@ -8,14 +8,12 @@ export const CASHIER_CANISTER_ID = Principal.fromText("xc7sj-uyaaa-aaaaf-qbrja-c
 export const II_BACKEND_CANISTER_ID = Principal.fromText("rdmx6-jaaaa-aaaaa-aaadq-cai");
 export const POCKETIC_THRESHOLD_KEY_NAME = "key_1";
 export const BACKEND_ENVIRONMENT_VARIABLES = [
-  { name: "PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID", value: CASHIER_CANISTER_ID.toText() },
+  { name: "CAFFFEINE_STORAGE_CASHIER_PRINCIPAL", value: CASHIER_CANISTER_ID.toText() },
   { name: "STORAGE_FRONTEND_ORIGINS", value: "http://localhost:4201" },
   { name: "trusted_attribute_signers", value: II_BACKEND_CANISTER_ID.toText() },
   { name: "frontend_origins", value: "http://localhost:4200" },
-  { name: "THRESHOLD_KEY_NAME", value: POCKETIC_THRESHOLD_KEY_NAME },
   { name: "GITHUB_API_URL", value: "http://mock-server:8080" },
-  { name: "GITHUB_OWNER", value: "user" },
-  { name: "GITHUB_REPO", value: "repo" },
+  { name: "GITHUB_REPOSITORY", value: "user/repo" },
 ];
 
 export function buildStorageEnvironmentVariables(

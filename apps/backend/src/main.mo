@@ -13,7 +13,6 @@ import Set "mo:core/Set";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
-import Runtime "mo:core/Runtime";
 
 import Liminal "mo:liminal";
 import LiminalApp "mo:liminal/App";
@@ -73,12 +72,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   transient let storageReleaseConfig = StorageReleaseConfig.fromEnv<system>();
 
   let storageOrchestrator : StorageDeployerOrchestrator.Store = StorageDeployerOrchestrator.new<system>({
-    github = {
-      apiUrl = Utils.envText<system>("GITHUB_API_URL", "https://api.github.com");
-      owner = Utils.envText<system>("GITHUB_OWNER", "rabbithole-app");
-      repo = Utils.envText<system>("GITHUB_REPO", "v2");
-      token = Runtime.envVar<system>("GITHUB_TOKEN");
-    };
+    github = storageReleaseConfig.github;
     assets = storageReleaseConfig.assets;
   });
   storageOrchestrator.canisterId := ?canisterId;

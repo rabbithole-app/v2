@@ -1,7 +1,9 @@
+import Iter "mo:core/Iter";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 
 import GitHubReleases "GitHubReleases";
+import Utils "../Utils/lib";
 
 module {
   let INSTALL_RELEASE_TAG_ENV = "STORAGE_INSTALL_RELEASE_TAG";
@@ -14,6 +16,7 @@ module {
   ];
 
   public type Config = {
+    github : GitHubReleases.GithubOptions;
     installSelector : GitHubReleases.ReleaseSelector;
     assets : [(GitHubReleases.ReleaseSelector, [GitHubReleases.GithubAsset])];
   };
@@ -22,9 +25,36 @@ module {
     let installSelector = parseInstallSelector(Runtime.envVar<system>(INSTALL_RELEASE_TAG_ENV));
     let updateSelector = parseUpdateSelector(Runtime.envVar<system>(UPDATE_RELEASE_SELECTOR_ENV));
     {
+      github = githubFromEnv<system>();
       installSelector;
       assets = assetConfig(installSelector, updateSelector);
     };
+  };
+
+  func githubFromEnv<system>() : GitHubReleases.GithubOptions {
+    let repository = repositoryFromEnv<system>();
+    {
+      apiUrl = Utils.envText<system>("GITHUB_API_URL", "https://api.github.com");
+      owner = repository.owner;
+      repo = repository.repo;
+      token = Runtime.envVar<system>("GITHUB_TOKEN");
+    };
+  };
+
+  func repositoryFromEnv<system>() : { owner : Text; repo : Text } {
+    let ?value = Runtime.envVar<system>("GITHUB_REPOSITORY") else {
+      Runtime.trap("Missing required environment variable: GITHUB_REPOSITORY");
+    };
+    let parts = Iter.toArray(Text.split(value, #char '/'));
+    if (parts.size() != 2) {
+      Runtime.trap("Unsupported GITHUB_REPOSITORY: expected owner/repo");
+    };
+    let owner = Text.trim(parts[0], #char ' ');
+    let repo = Text.trim(parts[1], #char ' ');
+    if (Text.size(owner) == 0 or Text.size(repo) == 0) {
+      Runtime.trap("Unsupported GITHUB_REPOSITORY: expected owner/repo");
+    };
+    { owner; repo };
   };
 
   func parseInstallSelector(tag : ?Text) : GitHubReleases.ReleaseSelector {
