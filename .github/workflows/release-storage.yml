@@ -16,6 +16,7 @@ on:
       - 'apps/backend/icp.yaml'
       - 'apps/backend/mops.toml'
       - 'apps/backend/mops.lock'
+      - 'apps/backend/release-notes/**'
       - 'apps/backend/scripts/build-storage-release-manifest.mjs'
       - 'apps/backend/scripts/build-storage-release-wasm.sh'
       - 'mops-patches/**'
@@ -192,6 +193,17 @@ jobs:
           cd release-artifacts
           sha256sum * > checksums.txt
           echo "✅ Prepared release artifacts"
+
+      - name: Delete existing draft release
+        if: steps.release_mode.outputs.create_release == 'true' && steps.release_mode.outputs.draft == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.manifest.outputs.tag_name }}
+        run: |
+          is_draft="$(gh release view "$TAG_NAME" --json isDraft --jq '.isDraft' 2>/dev/null || true)"
+          if [ "$is_draft" = "true" ]; then
+            gh release delete "$TAG_NAME" --yes
+          fi
 
       - name: Write candidate summary
         if: steps.release_mode.outputs.create_release != 'true'
