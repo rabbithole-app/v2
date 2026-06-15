@@ -1,0 +1,209 @@
+<div class="mx-auto max-w-5xl">
+  <div class="mb-10 text-center">
+    <span hlmBadge variant="secondary" class="mb-4">Comparison</span>
+    <h2
+      class="mx-auto mt-4 max-w-3xl text-3xl font-bold tracking-tight text-balance sm:text-4xl"
+    >
+      A cloud drive where the infrastructure belongs to you
+    </h2>
+    <p
+      class="mx-auto mt-4 max-w-2xl text-sm text-balance text-muted-foreground sm:text-base"
+    >
+      Each vault is implemented as a separate
+      <span
+        class="cursor-help rounded-sm border-b border-dashed border-muted-foreground/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        tabindex="0"
+        hlmTooltip="A canister is an Internet Computer smart-contract app with its own code, state, settings, and resource balance."
+        >canister</span
+      >: it serves its own frontend, keeps file records and access rules, and
+      checks access before keys are derived.
+    </p>
+  </div>
+
+  <div
+    class="pointer-events-auto overflow-x-auto rounded-xl border bg-background/80 shadow-sm"
+  >
+    <table hlmTable class="w-full min-w-[680px]">
+      <thead hlmTHead class="bg-muted/40">
+        <tr hlmTr class="border-b border-border/80">
+          <th
+            hlmTh
+            class="w-[28%] bg-transparent py-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs"
+          >
+            What matters
+          </th>
+          <th
+            hlmTh
+            class="w-[32%] py-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs"
+          >
+            Typical encrypted drive
+          </th>
+          <th
+            hlmTh
+            class="w-[40%] py-3 text-[11px] font-semibold uppercase tracking-wide text-foreground sm:text-xs"
+          >
+            Rabbithole
+          </th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @for (row of rows; track row.label) {
+          <tr hlmTr>
+            <td hlmTd class="bg-background align-middle font-medium">
+              <div class="flex items-center gap-2">
+                <ng-icon
+                  [name]="row.icon"
+                  size="14px"
+                  class="shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span>{{ row.label }}</span>
+              </div>
+            </td>
+            <td hlmTd class="align-middle text-sm text-muted-foreground">
+              {{ row.typical.label }}
+            </td>
+            <td hlmTd class="align-middle">
+              <div
+                class="flex items-start gap-2 text-sm font-medium text-foreground"
+              >
+                <ng-icon
+                  name="lucideCheck"
+                  class="mt-0.5 shrink-0 text-emerald-500"
+                  size="15px"
+                />
+                @if (row.rabbithole.hint === 'vetkeys') {
+                  <span>
+                    <hlm-hover-card>
+                      <span
+                        hlmHoverCardTrigger
+                        tabindex="0"
+                        class="cursor-help rounded-sm border-b border-dashed border-foreground/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        IC vetKeys
+                      </span>
+                      <hlm-hover-card-content
+                        *hlmHoverCardPortal
+                        class="w-80 max-w-[calc(100vw-2rem)] text-left"
+                      >
+                        <div class="space-y-2">
+                          <h4 class="text-sm font-semibold">IC vetKeys</h4>
+                          <p class="text-sm font-normal text-muted-foreground">
+                            vetKeys means verifiably encrypted threshold keys.
+                            In Rabbithole, they let the app request a file key
+                            only after access is allowed, instead of storing it.
+                            The network derives the key and encrypts it for your
+                            browser, so no node or canister sees the raw key.
+                          </p>
+                          <a
+                            hlmBtn
+                            variant="link"
+                            class="h-auto p-0 text-sm"
+                            href="https://docs.internetcomputer.org/concepts/vetkeys/"
+                            target="_blank"
+                            rel="noopener"
+                          >
+                            Read the IC docs
+                            <ng-icon name="lucideExternalLink" size="14px" />
+                          </a>
+                        </div>
+                      </hlm-hover-card-content>
+                    </hlm-hover-card>
+                    on demand
+                  </span>
+                } @else if (row.rabbithole.hint === 'direct-url') {
+                  <span>
+                    Own frontend at
+                    <hlm-hover-card>
+                      <span
+                        hlmHoverCardTrigger
+                        tabindex="0"
+                        class="cursor-help rounded-sm border-b border-dashed border-foreground/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        direct canister URL
+                      </span>
+                      <hlm-hover-card-content
+                        *hlmHoverCardPortal
+                        class="w-80 max-w-[calc(100vw-2rem)] text-left"
+                      >
+                        <div class="space-y-2">
+                          <h4 class="text-sm font-semibold">
+                            Direct canister URL
+                          </h4>
+                          <p class="text-sm font-normal text-muted-foreground">
+                            A canister can serve its own web interface directly.
+                            The URL can look like
+                            <code class="rounded bg-muted px-1 py-0.5 text-xs"
+                              >https://&lt;canister-id&gt;.icp0.io</code
+                            >.
+                          </p>
+                        </div>
+                      </hlm-hover-card-content>
+                    </hlm-hover-card>
+                  </span>
+                } @else if (row.rabbithole.hint === 'controller') {
+                  <span>
+                    You become the
+                    <hlm-hover-card>
+                      <span
+                        hlmHoverCardTrigger
+                        tabindex="0"
+                        class="cursor-help rounded-sm border-b border-dashed border-foreground/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                      >
+                        controller
+                      </span>
+                      <hlm-hover-card-content
+                        *hlmHoverCardPortal
+                        class="w-80 max-w-[calc(100vw-2rem)] text-left"
+                      >
+                        <div class="space-y-2">
+                          <h4 class="text-sm font-semibold">
+                            Canister controller
+                          </h4>
+                          <p class="text-sm font-normal text-muted-foreground">
+                            A controller can change canister settings, upgrade
+                            code, and manage the canister. After setup,
+                            Rabbithole hands controller rights to you and is not
+                            a permanent operator.
+                          </p>
+                        </div>
+                      </hlm-hover-card-content>
+                    </hlm-hover-card>
+                  </span>
+                } @else {
+                  <span>{{ row.rabbithole.label }}</span>
+                }
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <p class="mx-auto mt-6 max-w-3xl text-center text-sm text-muted-foreground">
+    Most encrypted drives protect files inside someone else's service.
+    Rabbithole gives each vault its own frontend, its own canister, and an
+    access boundary you control.
+  </p>
+
+  <div
+    class="pointer-events-auto mt-10 flex flex-wrap items-center justify-center gap-3"
+  >
+    <a
+      hlmBtn
+      variant="outline"
+      href="https://github.com/rabbithole-app/v2"
+      target="_blank"
+      rel="noopener"
+    >
+      <ng-icon name="lucideGithub" size="18px" />
+      Source Code
+      <ng-icon name="lucideExternalLink" size="14px" />
+    </a>
+    <span hlmBadge variant="outline" class="h-9 gap-2 px-4 text-sm">
+      <ng-icon name="lucideShieldCheck" size="16px" />
+      SHA-256 release hashes
+    </span>
+  </div>
+</div>

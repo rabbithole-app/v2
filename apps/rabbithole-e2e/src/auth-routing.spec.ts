@@ -55,12 +55,12 @@ test.describe('Unauthenticated routing', () => {
     await expect(ctaButton).toHaveAttribute('href', /\/login/);
   });
 
-  test('landing CTA shows "Create Storage" linking to /login', async ({
+  test('landing CTA shows "Create Vault" linking to /login', async ({
     page,
   }) => {
     await page.goto('/');
     const ctaButton = page.locator('app-landing-cta a', {
-      hasText: 'Create Storage',
+      hasText: 'Create Vault',
     });
     await expect(ctaButton).toBeVisible();
     await expect(ctaButton).toHaveAttribute('href', /\/login/);

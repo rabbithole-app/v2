@@ -9,9 +9,11 @@
         <!-- Step: Select payment method -->
         @case ('select') {
           <div class="space-y-1">
-            <p class="text-lg font-semibold">Pro Plan — {{ proPriceLabel }}/month</p>
+            <p class="text-lg font-semibold">Pro — {{ proPriceLabel }}/month</p>
             <p class="text-sm text-muted-foreground">
-              Covers all your storages. Cancel anytime.
+              Rabbithole Pro is an account subscription for all vaults under
+              your identity. Requires a Starter Vault and does not create a new
+              vault. Cancel anytime.
             </p>
           </div>
 
@@ -56,8 +58,7 @@
             </div>
             <p class="text-lg font-medium">You're now on Pro!</p>
             <p class="text-sm text-muted-foreground text-center">
-              All your storages are covered.
-              Encryption and sharing are now unlimited.
+              Your vaults now use Pro sharing and managed funding rules.
             </p>
             <button hlmBtn class="w-full" (click)="goToDashboard()">
               Go to Dashboard

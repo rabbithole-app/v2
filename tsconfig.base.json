@@ -180,9 +180,6 @@
       "@rabbithole/pages/profile": [
         "libs/pages/src/lib/profile/profile.component.ts"
       ],
-      "@rabbithole/pages/pricing": [
-        "libs/pages/src/lib/pricing/pricing.component.ts"
-      ],
       "@rabbithole/pages/wallet": [
         "libs/pages/src/lib/wallet/wallet-page.component.ts"
       ],

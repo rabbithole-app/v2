@@ -34,8 +34,9 @@ import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, time
 import {
   formatUsd,
   injectMainActor,
-  LICENSE_PRICE_USD,
   parseCanisterRejectError,
+  STARTER_VAULT_LIST_PRICE_USD,
+  STARTER_VAULT_PROMO_PRICE_USD,
   type StorageCreationStatus,
   StoragesService,
 } from '@rabbithole/core';
@@ -183,47 +184,48 @@ export class CreateStorageDialogComponent {
 
     return `Step ${completed + 1} of ${total}${active?.description ? ' — ' + active.description : ''}`;
   });
-  readonly licensePriceLabel = formatUsd(LICENSE_PRICE_USD);
-
+  readonly licensePriceLabel = formatUsd(STARTER_VAULT_PROMO_PRICE_USD);
   readonly #step = signal<WizardStep>('configure');
 
   readonly step = this.#step.asReadonly();
 
   readonly dialogTitle = computed(() => {
     switch (this.step()) {
-      case 'configure': return 'Create Storage';
+      case 'configure': return 'Create Vault';
       case 'creating':
         return this.creationStatus()?.type === 'Completed'
-          ? 'Create Storage'
-          : 'Deploying your storage canister';
+          ? 'Create Vault'
+          : 'Deploying your vault canister';
       case 'error': return 'Something Went Wrong';
       case 'payment': return `Pay from balance — ${this.licensePriceLabel}`;
     }
   });
+
   readonly highReplicationVetKeyAvailable = ENV_NAME !== 'DEV';
   readonly #vetKeyLevel = signal<VetKeyLevel>('standard');
-
   readonly effectiveVetKeyLevel = computed<VetKeyLevel>(() =>
     this.highReplicationVetKeyAvailable ? this.#vetKeyLevel() : 'standard',
   );
 
   readonly #errorMessage = signal<string | null>(null);
+
   readonly errorMessage = this.#errorMessage.asReadonly();
+  readonly highReplicationVetKeyOptionClass = computed(() =>
+    hlm(vetKeyOptionVariants({ disabled: !this.highReplicationVetKeyAvailable })),
+  );
 
   // ═══════════════════════════════════════════════════════════════
   // CONFIGURATION
   // ═══════════════════════════════════════════════════════════════
 
-  readonly highReplicationVetKeyOptionClass = computed(() =>
-    hlm(vetKeyOptionVariants({ disabled: !this.highReplicationVetKeyAvailable })),
-  );
   readonly isCompleted = computed(() =>
     this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
   );
-  readonly LICENSE_PRICE_USD = LICENSE_PRICE_USD;
-  readonly payFromBalanceLabel = `Pay ${formatUsd(LICENSE_PRICE_USD)} from balance`;
-
+  readonly payFromBalanceLabel = `Pay ${formatUsd(STARTER_VAULT_PROMO_PRICE_USD)} from balance`;
+  readonly requiredUsd = STARTER_VAULT_PROMO_PRICE_USD;
   readonly standardVetKeyOptionClass = hlm(vetKeyOptionVariants({ disabled: false }));
+
+  readonly starterListPriceLabel = formatUsd(STARTER_VAULT_LIST_PRICE_USD);
   readonly #storageBackend = signal<StorageBackendType>('BlobStorage');
   readonly storageBackend = this.#storageBackend.asReadonly();
   readonly vetKeyLevel = this.#vetKeyLevel.asReadonly();

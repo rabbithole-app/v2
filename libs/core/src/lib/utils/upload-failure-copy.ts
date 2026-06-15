@@ -54,7 +54,7 @@ export function getUploadFailureCopy(errorMessage?: string): UploadFailureCopy {
 
   if (normalized.includes('file exceeds included storage file limit')) {
     return {
-      title: 'File too large for included storage',
+      title: 'File too large for Starter Vault',
       description: 'Upgrade to Pro or choose a smaller file.',
       technicalDetails,
     };
@@ -65,7 +65,7 @@ export function getUploadFailureCopy(errorMessage?: string): UploadFailureCopy {
     normalized.includes('included encrypted storage limit reached')
   ) {
     return {
-      title: 'Included storage limit reached',
+      title: 'Starter Vault limit reached',
       description: 'Upgrade to Pro or choose a smaller file.',
       technicalDetails,
     };
@@ -81,7 +81,7 @@ export function getUploadFailureCopy(errorMessage?: string): UploadFailureCopy {
 
   if (normalized.includes('pro included storage funding is exhausted')) {
     return {
-      title: 'Included storage funding used',
+      title: 'Managed operations credit used',
       description: 'Enable paid auto top-up or top up this storage canister manually, then retry.',
       technicalDetails,
     };

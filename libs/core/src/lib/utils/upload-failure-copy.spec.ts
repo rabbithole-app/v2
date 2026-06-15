@@ -27,21 +27,21 @@ describe('getUploadFailureCopy', () => {
     });
   });
 
-  it('maps included storage limit errors to upgrade copy', () => {
+  it('maps included storage limit errors to Starter Vault upgrade copy', () => {
     expect(
       getUploadFailureCopy('[Internal] File size exceeds remaining included storage (68 MB remaining)'),
     ).toEqual({
-      title: 'Included storage limit reached',
+      title: 'Starter Vault limit reached',
       description: 'Upgrade to Pro or choose a smaller file.',
       technicalDetails: '[Internal] File size exceeds remaining included storage (68 MB remaining)',
     });
   });
 
-  it('maps included single-file limit errors to upgrade copy', () => {
+  it('maps included single-file limit errors to Starter Vault upgrade copy', () => {
     expect(
       getUploadFailureCopy('[Internal] File exceeds included storage file limit (100 MB max)'),
     ).toEqual({
-      title: 'File too large for included storage',
+      title: 'File too large for Starter Vault',
       description: 'Upgrade to Pro or choose a smaller file.',
       technicalDetails: '[Internal] File exceeds included storage file limit (100 MB max)',
     });
@@ -117,13 +117,13 @@ describe('getUploadFailureCopy', () => {
     });
   });
 
-  it('maps exhausted Pro included funding to paid top-up copy', () => {
+  it('maps exhausted managed operations credit to paid top-up copy', () => {
     expect(
       getUploadFailureCopy(
         '[InsufficientCycles] Insufficient storage canister cycles: Pro included storage funding is exhausted for the current period',
       ),
     ).toEqual({
-      title: 'Included storage funding used',
+      title: 'Managed operations credit used',
       description: 'Enable paid auto top-up or top up this storage canister manually, then retry.',
       technicalDetails:
         '[InsufficientCycles] Insufficient storage canister cycles: Pro included storage funding is exhausted for the current period',

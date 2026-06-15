@@ -1,5 +1,5 @@
 <!-- Image -->
-@if (imageSrc()) {
+@if (imageSrc(); as src) {
   <div
     class="pointer-events-none absolute z-0 overflow-hidden"
     [style.left.%]="leftPct"
@@ -9,9 +9,11 @@
     [style.border-radius]="'0 0 11px 11px'"
   >
     <img
-      [src]="imageSrc()"
+      [ngSrc]="src"
       alt=""
-      class="block size-full object-cover object-top"
+      fill
+      sizes="100vw"
+      class="object-cover object-top"
     />
   </div>
 }

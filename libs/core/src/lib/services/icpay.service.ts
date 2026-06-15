@@ -11,6 +11,10 @@ import { filter, firstValueFrom, map, of, timeout } from 'rxjs';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
+import {
+  PRO_MONTHLY_PRICE_USD,
+  STARTER_VAULT_PROMO_PRICE_USD,
+} from '../constants/pricing';
 import { injectHttpAgent } from '../injectors';
 import { ICPAY_CONFIG_TOKEN } from '../tokens/main';
 
@@ -37,7 +41,7 @@ export class IcpayService {
   #unsubscribers: (() => void)[] = [];
 
   /**
-   * Pay for a Storage License ($4.90).
+   * Pay for a Starter Vault at the current launch promo price.
    * Backend webhook expects: { purpose: "license", userId, storageBackendType, vetKeyLevel }
    */
   async payLicense(config: {
@@ -45,7 +49,7 @@ export class IcpayService {
     vetKeyLevel: string;
   }): Promise<PaymentResult> {
     const userId = this.#authService.identity().getPrincipal().toText();
-    return this.#pay(4.90, {
+    return this.#pay(STARTER_VAULT_PROMO_PRICE_USD, {
       purpose: 'license',
       userId,
       storageBackendType: config.storageBackendType,
@@ -54,12 +58,12 @@ export class IcpayService {
   }
 
   /**
-   * Pay for Pro subscription ($9.90/month).
+   * Pay for Pro subscription.
    * Backend webhook expects: { purpose: "pro_monthly", userId: "<principal>" }
    */
   async payProSubscription(): Promise<PaymentResult> {
     const userId = this.#authService.identity().getPrincipal().toText();
-    return this.#pay(9.90, { purpose: 'pro_monthly', userId });
+    return this.#pay(PRO_MONTHLY_PRICE_USD, { purpose: 'pro_monthly', userId });
   }
 
   reset(): void {

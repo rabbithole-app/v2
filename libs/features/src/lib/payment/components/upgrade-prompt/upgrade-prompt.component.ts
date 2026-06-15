@@ -27,20 +27,20 @@ export interface UpgradePromptContext {
 
 const FEATURE_CONFIG = {
   encrypt: {
-    title: 'Encryption requires Pro',
-    description: 'End-to-end encryption is a Pro feature. Upgrade to protect your files with VetKey encryption that only you can unlock.',
+    title: 'Pro required',
+    description: 'Upgrade to Pro for encrypted uploads beyond Starter Vault limits and managed operations credit across your vaults.',
   },
   share: {
     title: 'Sharing requires Pro',
-    description: 'File sharing is a Pro feature. Upgrade to share encrypted files with trusted people using granular permissions.',
+    description: 'Upgrade to use sharing for encrypted files, folders, and vaults.',
   },
   'storage-limit': {
-    title: 'Included storage limit reached',
-    description: 'Your included encrypted storage is full. Upgrade to Pro for managed funding and higher limits.',
+    title: 'Starter Vault limit reached',
+    description: 'Your starter encrypted storage is full. Upgrade to Pro to continue uploads while managed operations credit or your balance can fund them.',
   },
   'file-size-limit': {
-    title: 'File too large for included storage',
-    description: 'This file is larger than the included storage file limit. Upgrade to Pro for larger files and managed storage funding.',
+    title: 'File too large for Starter Vault',
+    description: 'This file is larger than the starter file limit. Upgrade to Pro for uploads beyond starter limits and managed funding.',
   },
 } as const;
 
@@ -68,19 +68,19 @@ const FEATURE_CONFIG = {
     <div class="py-4 space-y-2">
       <div class="flex items-center gap-2 text-sm">
         <ng-icon name="lucideShield" hlmIcon size="sm" class="text-primary" />
-        Unlimited E2E encryption
+        Encrypted uploads beyond starter limits
       </div>
       <div class="flex items-center gap-2 text-sm">
         <ng-icon name="lucideShield" hlmIcon size="sm" class="text-primary" />
-        File sharing with permissions
+        Sharing
       </div>
       <div class="flex items-center gap-2 text-sm">
         <ng-icon name="lucideShield" hlmIcon size="sm" class="text-primary" />
-        Covers all your storages
+        2 TC managed operations credit per period
       </div>
 
       <p class="text-sm text-muted-foreground pt-2">
-        $9.90/month · Cancel anytime
+        Pro · $9.90/month · Applies to all vaults under your identity
       </p>
     </div>
 

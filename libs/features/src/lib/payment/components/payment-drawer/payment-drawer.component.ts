@@ -76,7 +76,7 @@ export class PaymentDrawerComponent {
   readonly purpose = input<'resubscribe' | 'subscribe'>('subscribe');
   readonly payFromBalanceLabel = computed(() =>
     this.purpose() === 'resubscribe'
-      ? `Resubscribe ${this.proPriceLabel}/mo from balance`
+      ? `Resubscribe to Pro - ${this.proPriceLabel}/mo from balance`
       : `Pay ${this.proPriceLabel}/mo from balance`,
   );
 

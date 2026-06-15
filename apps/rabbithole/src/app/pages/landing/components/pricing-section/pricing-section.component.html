@@ -1,0 +1,184 @@
+<section id="pricing" class="scroll-mt-24 px-4 py-16">
+  <div class="mx-auto max-w-5xl space-y-10">
+    <div class="text-center space-y-3">
+      <span hlmBadge variant="secondary">Pricing</span>
+      <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">
+        Start with a vault you own.
+      </h2>
+      <p class="mx-auto max-w-2xl text-muted-foreground">
+        Pay once to create a personal encrypted canister. Add Pro when you want
+        Rabbithole to handle sharing, updates, and managed top-ups across every
+        vault powered by
+        <span
+          class="cursor-help rounded-sm border-b border-dashed border-muted-foreground/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          tabindex="0"
+          hlmTooltip="Cycles are the Internet Computer fuel used for storage, compute, and availability."
+        >cycles</span
+        >.
+      </p>
+    </div>
+
+    <rbth-frame>
+      <div class="grid gap-1 md:grid-cols-[1.14fr_0.86fr]">
+        <section rbthFramePanel class="flex flex-col p-6 sm:p-7">
+          <div class="space-y-1">
+            <h3 class="text-xl font-medium leading-normal">Starter Vault</h3>
+            <p class="text-sm text-muted-foreground">Required to create storage</p>
+          </div>
+          <div class="mt-6 space-y-4">
+            <div>
+              <p class="text-sm text-muted-foreground">
+                <span class="line-through">{{ starterListPriceLabel }}</span>
+                <span
+                  class="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                >
+                  Launch promo
+                </span>
+              </p>
+              <p class="text-3xl font-bold">
+                {{ starterPromoPriceLabel }}
+                <span class="text-base font-normal text-muted-foreground">
+                  one-time per vault
+                </span>
+              </p>
+            </div>
+
+            <ul class="space-y-2 text-sm">
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Personal canister on the Internet Computer
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Browser-side encryption before upload
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                You become the controller after setup
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                {{ storageIncludedLabel }} encrypted storage included
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Files up to {{ storageMaxFileLabel }}
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Initial cycle balance included
+              </li>
+            </ul>
+            <p class="text-xs text-muted-foreground">
+              Includes {{ starterInitialCyclesLabel }} to get your vault running.
+            </p>
+          </div>
+          <div class="mt-auto pt-6">
+            <a
+              rbthRainbowBtn
+              size="lg"
+              class="w-full"
+              [routerLink]="starterCtaLink()"
+            >
+              <ng-icon name="lucidePlus" size="18" />
+              {{ licenseCta() }}
+            </a>
+          </div>
+        </section>
+
+        <section
+          class="flex flex-col rounded-xl border-2 border-dashed border-border/80 bg-transparent p-5 sm:p-6"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 space-y-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-lg font-medium leading-normal">Pro</h3>
+                <ng-icon
+                  name="lucideStar"
+                  hlmIcon
+                  size="sm"
+                  color="var(--color-amber-500)"
+                />
+                <span hlmBadge variant="outline" class="bg-white">Add-on</span>
+              </div>
+              <p class="text-sm text-muted-foreground">
+                Account subscription for every vault you own
+              </p>
+            </div>
+            <a
+              hlmBtn
+              variant="ghost"
+              size="icon-sm"
+              href="https://docs.rabbithole.app/how-it-works/pro"
+              target="_blank"
+              rel="noopener"
+              aria-label="What Rabbithole Pro includes"
+              title="What Rabbithole Pro includes"
+              hlmTooltip="What Rabbithole Pro includes"
+              class="-mr-1 -mt-1 shrink-0 text-muted-foreground"
+            >
+              <ng-icon name="lucideCircleHelp" size="16" />
+            </a>
+          </div>
+          <div class="mt-5 space-y-3.5">
+            <p class="text-3xl font-bold">
+              {{ proPriceLabel }}
+              <span class="text-base font-normal text-muted-foreground">/month</span>
+            </p>
+
+            <p class="text-sm text-muted-foreground">Adds managed service features:</p>
+
+            <ul class="space-y-1.5 text-sm">
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Share vaults, folders, and files
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Manage permissions and email invites
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Larger encrypted uploads while Pro is active
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Automatic cycle top-ups
+              </li>
+              <li class="flex items-center gap-2">
+                <ng-icon name="lucideCheck" hlmIcon size="sm" class="text-green-600" />
+                Managed storage code and frontend updates
+              </li>
+            </ul>
+
+            <div hlmAlert class="border-primary/25 bg-background/80 py-2.5">
+              <ng-icon hlmAlertIcon name="lucideCircleHelp" class="text-primary" />
+              <h4 hlmAlertTitle>Managed operations credit</h4>
+              <p hlmAlertDescription>
+                Includes up to {{ proManagedCreditLabel }} per Pro period for
+                automatic top-ups. Used across vaults that need cycles.
+              </p>
+            </div>
+
+            <p class="text-xs font-medium text-muted-foreground">
+              Pro does not create a vault. It extends vaults you already own.
+            </p>
+          </div>
+          <div class="mt-5">
+            <button
+              rbthRainbowBtn
+              variant="outline"
+              size="lg"
+              class="w-full"
+              [disabled]="proDisabled()"
+              (click)="openProUpgrade()"
+            >
+              <ng-icon name="lucideStar" size="18" />
+              {{ proCta() }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </rbth-frame>
+  </div>
+</section>

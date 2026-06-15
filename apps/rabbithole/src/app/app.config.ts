@@ -39,6 +39,7 @@ import {
   provideIcAuthSignOutHandler,
   provideReferralCapture,
   provideRegistration,
+  STORAGE_LICENSE_LIMITS_TOKEN,
 } from '@rabbithole/core/app-runtime';
 
 import { environment } from '../environments/environment';
@@ -119,6 +120,10 @@ export const appConfig: ApplicationConfig = {
     {
       provide: ICPAY_CONFIG_TOKEN,
       useValue: environment.icpay,
+    },
+    {
+      provide: STORAGE_LICENSE_LIMITS_TOKEN,
+      useValue: environment.storageLicenseLimits,
     },
     {
       provide: MULTI_CHAIN_RPC_CONFIG_TOKEN,

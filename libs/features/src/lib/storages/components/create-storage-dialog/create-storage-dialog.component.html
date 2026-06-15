@@ -7,10 +7,11 @@
     <p hlmDialogDescription>
       @switch (currentStep) {
         @case ('configure') {
-          Choose storage settings before paying for your license.
+          Choose storage settings before paying for your vault.
         }
         @case ('payment') {
-          Storage License — {{ licensePriceLabel }}. Personal encrypted storage with backend-managed included limits.
+          Vault setup — {{ licensePriceLabel }} launch promo
+          <span class="line-through">{{ starterListPriceLabel }}</span>. Personal encrypted storage with backend-managed included limits.
         }
         @case ('creating') {
           {{ creationProgressLabel() }}
@@ -141,7 +142,7 @@
         <!-- ═══ STEP 2: PAYMENT ═══ -->
         @case ('payment') {
           <core-wallet-balance-panel
-            [requiredUsd]="LICENSE_PRICE_USD"
+            [requiredUsd]="requiredUsd"
           />
         }
 
@@ -157,10 +158,10 @@
 
               <div class="mt-4 text-center">
                 <h2 class="text-balance text-lg font-semibold">
-                  Storage is ready
+                  Vault is ready
                 </h2>
                 <p class="mx-auto mt-2 max-w-[90%] text-pretty text-sm text-muted-foreground">
-                  Your encrypted storage canister has been created and is ready for files.
+                  Your encrypted vault canister has been created and is ready for files.
                 </p>
               </div>
 
@@ -226,7 +227,7 @@
       <hlm-dialog-footer class="mt-4 sm:justify-center">
         <button hlmBtn variant="outline" (click)="createAnother()">
           <ng-icon hlmIcon name="lucidePlus" size="sm" />
-          Create Another
+          Create Another Vault
         </button>
         <button hlmBtn (click)="viewStorage()">
           <ng-icon hlmIcon name="lucideExternalLink" size="sm" />

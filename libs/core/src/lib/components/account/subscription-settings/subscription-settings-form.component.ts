@@ -52,8 +52,8 @@ export class SubscriptionSettingsFormComponent {
   readonly isExpired = this.#subscriptionService.isExpired;
   readonly activationDescription = computed(() =>
     this.isExpired()
-      ? 'Resume Pro to restore sharing, larger encrypted uploads, and managed funding.'
-      : 'Activate Pro for larger encrypted uploads, sharing, and managed funding.',
+      ? 'Resume Pro to restore sharing, uploads beyond starter limits, and managed funding.'
+      : 'Activate Pro for sharing, uploads beyond starter limits, and managed funding.',
   );
 
   readonly activationLabel = computed(() =>
@@ -74,7 +74,7 @@ export class SubscriptionSettingsFormComponent {
     }).format(new Date(expiresAt));
   });
   readonly planDescription =
-    'Your plan includes shared access, approved updates, automatic cycle top-ups, and 2 TC per period.';
+    'Your plan includes sharing, approved updates, automatic cycle top-ups, and 2 TC of managed operations credit per period.';
   readonly proPriceLabel = formatUsd(PRO_MONTHLY_PRICE_USD);
 
   async onAutoRenewChange(enabled: boolean): Promise<void> {

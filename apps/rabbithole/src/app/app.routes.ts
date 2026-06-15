@@ -38,13 +38,6 @@ export const appRoutes: Route[] = [
         canActivate: [loginGuard],
       },
       {
-        path: 'pricing',
-        loadComponent: () =>
-          import('@rabbithole/pages/pricing').then(
-            (m) => m.PricingComponent,
-          ),
-      },
-      {
         path: 'delegation',
         loadComponent: () =>
           import('./pages/delegation/delegation.component').then(

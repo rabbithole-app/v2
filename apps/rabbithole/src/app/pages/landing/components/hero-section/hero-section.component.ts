@@ -1,3 +1,4 @@
+import { NgOptimizedImage } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -18,7 +19,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 
 @Component({
   selector: 'app-landing-hero',
-  imports: [NgIcon, RouterLink, ...HlmButtonImports, RbthRainbowButton],
+  imports: [NgIcon, NgOptimizedImage, RouterLink, ...HlmButtonImports, RbthRainbowButton],
   providers: [provideIcons({ lucideBookOpen, lucideLayoutDashboard, lucideLogIn })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -30,15 +31,14 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
       <!-- Text -->
       <div class="flex-1 text-center lg:text-left">
         <p class="mb-3 text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground sm:text-sm">
-          Encrypted file storage
+          Sovereign encrypted vault on the Internet Computer
         </p>
         <h1 class="text-[clamp(2.5rem,8vw,4.5rem)] font-black uppercase leading-[0.9] tracking-tight">
           Rabbithole
         </h1>
         <p class="mt-5 max-w-md text-lg text-muted-foreground max-lg:mx-auto">
           No passwords. No master keys.
-          Files are encrypted in your browser and protected by cryptography,
-          not cloud promises.
+          Files are encrypted in your browser and protected by cryptography, not cloud promises.
         </p>
         <div class="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
           <a rbthRainbowBtn size="lg" [routerLink]="ctaLink()">
@@ -62,8 +62,12 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
       <!-- Canister -->
       <div class="flex-shrink-0 lg:-mr-12">
         <img
-          src="/canister.png"
+          ngSrc="/canister.png"
           alt="Your personal encrypted canister"
+          width="1200"
+          height="1200"
+          priority
+          sizes="(max-width: 639px) 70vw, (max-width: 1023px) 50vw, 55vw"
           class="h-auto w-[260px] sm:w-[380px] lg:w-[560px] xl:w-[680px]"
         />
       </div>

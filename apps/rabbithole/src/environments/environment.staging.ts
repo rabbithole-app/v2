@@ -9,6 +9,8 @@ import {
   ICPAY_API_URL,
   ICPAY_PUBLISHABLE_KEY,
   SOL_RPC_URL,
+  STORAGE_LICENSE_INCLUDED_BYTES,
+  STORAGE_LICENSE_MAX_FILE_BYTES,
 } from '@rabbithole/core/app-runtime';
 
 export const environment = {
@@ -26,6 +28,10 @@ export const environment = {
   backendCanisterId: BACKEND_CANISTER_ID,
   blobStorageGatewayUrl: BLOB_STORAGE_GATEWAY_URL,
   blobStorageCashierCanisterId: BLOB_STORAGE_CASHIER_CANISTER_ID,
+  storageLicenseLimits: {
+    includedBytes: STORAGE_LICENSE_INCLUDED_BYTES,
+    maxFileBytes: STORAGE_LICENSE_MAX_FILE_BYTES,
+  },
   icpay: {
     publishableKey: ICPAY_PUBLISHABLE_KEY,
     apiUrl: ICPAY_API_URL,

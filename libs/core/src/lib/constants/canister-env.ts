@@ -19,6 +19,8 @@ declare module '@icp-sdk/core/agent/canister-env' {
     readonly PUBLIC_ICPAY_API_URL: string;
     readonly PUBLIC_ICPAY_PUBLISHABLE_KEY: string;
     readonly PUBLIC_SOL_RPC_URL: string;
+    readonly PUBLIC_STORAGE_LICENSE_INCLUDED_BYTES: string;
+    readonly PUBLIC_STORAGE_LICENSE_MAX_FILE_BYTES: string;
   }
 }
 
@@ -63,6 +65,14 @@ export const EVM_RPC_URL = getOptional('PUBLIC_EVM_RPC_URL') ?? '';
 export const SOL_RPC_URL = getOptional('PUBLIC_SOL_RPC_URL') ?? '';
 export const ICPAY_PUBLISHABLE_KEY = getOptional('PUBLIC_ICPAY_PUBLISHABLE_KEY') ?? '';
 export const ICPAY_API_URL = getOptional('PUBLIC_ICPAY_API_URL') ?? '';
+export const DEFAULT_STORAGE_LICENSE_INCLUDED_BYTES = 5_368_709_120n;
+export const DEFAULT_STORAGE_LICENSE_MAX_FILE_BYTES = 2_147_483_648n;
+export const STORAGE_LICENSE_INCLUDED_BYTES =
+  getOptionalNat('PUBLIC_STORAGE_LICENSE_INCLUDED_BYTES') ??
+  DEFAULT_STORAGE_LICENSE_INCLUDED_BYTES;
+export const STORAGE_LICENSE_MAX_FILE_BYTES =
+  getOptionalNat('PUBLIC_STORAGE_LICENSE_MAX_FILE_BYTES') ??
+  DEFAULT_STORAGE_LICENSE_MAX_FILE_BYTES;
 
 export const INTERNET_IDENTITY_BACKEND_CANISTER_ID = getOptional('PUBLIC_CANISTER_ID:internet_identity_backend');
 export const INTERNET_IDENTITY_FRONTEND_CANISTER_ID = getOptional('PUBLIC_CANISTER_ID:internet_identity_frontend');
@@ -71,3 +81,17 @@ export const SOL_RPC_CANISTER_ID = getOptional('PUBLIC_CANISTER_ID:sol_rpc');
 export const EVM_RPC_CANISTER_ID = getOptional('PUBLIC_CANISTER_ID:evm_rpc');
 
 export const IC_ROOT_KEY: Uint8Array | undefined = env?.IC_ROOT_KEY;
+
+function getOptionalNat(
+  key: keyof NonNullable<typeof env>,
+): bigint | undefined {
+  const value = getOptional(key);
+  if (!value) return undefined;
+
+  try {
+    const parsed = BigInt(value);
+    return parsed >= 0n ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}

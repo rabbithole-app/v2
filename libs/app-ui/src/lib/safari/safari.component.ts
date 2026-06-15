@@ -1,3 +1,4 @@
+import { NgOptimizedImage } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import type { ClassValue } from 'clsx';
 
@@ -17,6 +18,7 @@ const HEIGHT_PCT = (SCREEN_HEIGHT / SAFARI_HEIGHT) * 100;
 
 @Component({
   selector: 'rbth-safari',
+  imports: [NgOptimizedImage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class]': 'computedClass()',

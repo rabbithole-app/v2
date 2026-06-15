@@ -2,119 +2,106 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideCheck,
+  lucideCircleCheck,
+  lucideDatabase,
   lucideExternalLink,
   lucideGithub,
-  lucideMinus,
+  lucideGlobe,
+  lucideKeyRound,
+  lucideSettings,
   lucideShieldCheck,
-  lucideX,
 } from '@ng-icons/lucide';
 
 import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmHoverCardImports } from '@spartan-ng/helm/hover-card';
 import { HlmTableImports } from '@spartan-ng/helm/table';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-type CellValue = 'no' | 'partial' | 'yes';
+type CellHint = 'controller' | 'direct-url' | 'vetkeys';
+
+interface CompCell {
+  readonly hint?: CellHint;
+  readonly label: string;
+}
 
 interface CompRow {
-  readonly google: CellValue;
+  readonly icon: string;
   readonly label: string;
-  readonly proton: CellValue;
-  readonly rabbithole: CellValue;
-  readonly tresorit: CellValue;
+  readonly rabbithole: CompCell;
+  readonly typical: CompCell;
 }
 
 @Component({
   selector: 'app-landing-comparison',
-  imports: [NgIcon, HlmBadge, ...HlmButtonImports, ...HlmTableImports],
+  imports: [
+    NgIcon,
+    HlmBadge,
+    ...HlmButtonImports,
+    ...HlmHoverCardImports,
+    ...HlmTableImports,
+    ...HlmTooltipImports,
+  ],
   providers: [
-    provideIcons({ lucideCheck, lucideX, lucideMinus, lucideGithub, lucideShieldCheck, lucideExternalLink }),
+    provideIcons({
+      lucideCheck,
+      lucideCircleCheck,
+      lucideDatabase,
+      lucideGithub,
+      lucideGlobe,
+      lucideKeyRound,
+      lucideSettings,
+      lucideShieldCheck,
+      lucideExternalLink,
+    }),
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    class: 'block py-16 px-6',
+    class: 'block px-6 py-16',
   },
-  template: `
-    <div class="mx-auto max-w-4xl">
-      <div class="mb-12 text-center">
-        <span hlmBadge variant="secondary" class="mb-4">Comparison</span>
-        <h2 class="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-          How Rabbithole compares
-        </h2>
-      </div>
-
-      <div class="pointer-events-auto overflow-x-auto">
-        <table hlmTable class="w-full">
-          <thead>
-            <tr hlmTr>
-              <th hlmTh class="w-[200px]"></th>
-              <th hlmTh class="text-center font-bold text-primary text-xs sm:text-sm">Rabbithole</th>
-              <th hlmTh class="text-center text-xs sm:text-sm">Google Drive</th>
-              <th hlmTh class="text-center text-xs sm:text-sm">Tresorit</th>
-              <th hlmTh class="text-center text-xs sm:text-sm">ProtonDrive</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of rows; track row.label) {
-              <tr hlmTr>
-                <td hlmTd class="font-medium">{{ row.label }}</td>
-                <td hlmTd class="text-center">
-                  <ng-icon [name]="icon(row.rabbithole)" [class]="colorClass(row.rabbithole)" size="18" />
-                </td>
-                <td hlmTd class="text-center">
-                  <ng-icon [name]="icon(row.google)" [class]="colorClass(row.google)" size="18" />
-                </td>
-                <td hlmTd class="text-center">
-                  <ng-icon [name]="icon(row.tresorit)" [class]="colorClass(row.tresorit)" size="18" />
-                </td>
-                <td hlmTd class="text-center">
-                  <ng-icon [name]="icon(row.proton)" [class]="colorClass(row.proton)" size="18" />
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Social proof — integrated -->
-      <div class="pointer-events-auto mt-10 flex flex-wrap items-center justify-center gap-3">
-        <a
-          hlmBtn
-          variant="outline"
-          href="https://github.com/rabbithole-app/v2"
-          target="_blank"
-          rel="noopener"
-        >
-          <ng-icon name="lucideGithub" size="18" />
-          Source Code
-          <ng-icon name="lucideExternalLink" size="14" />
-        </a>
-        <span hlmBadge variant="outline" class="h-9 gap-2 px-4 text-sm">
-          <ng-icon name="lucideShieldCheck" size="16" />
-          WASM verified via SHA-256
-        </span>
-      </div>
-    </div>
-  `,
+  templateUrl: './comparison-section.component.html',
 })
 export class ComparisonSectionComponent {
   readonly rows: CompRow[] = [
-    { label: 'End-to-end encrypted', rabbithole: 'yes', google: 'no', tresorit: 'yes', proton: 'yes' },
-    { label: 'Zero-knowledge', rabbithole: 'yes', google: 'no', tresorit: 'yes', proton: 'yes' },
-    { label: 'No passwords needed', rabbithole: 'yes', google: 'no', tresorit: 'no', proton: 'no' },
-    { label: 'Decentralized', rabbithole: 'yes', google: 'no', tresorit: 'no', proton: 'no' },
-    { label: 'You own infrastructure', rabbithole: 'yes', google: 'no', tresorit: 'no', proton: 'no' },
-    { label: 'Open source', rabbithole: 'yes', google: 'no', tresorit: 'no', proton: 'partial' },
+    {
+      icon: 'lucideDatabase',
+      label: 'Infrastructure owner',
+      typical: cell('Provider-operated service'),
+      rabbithole: cell('A canister you control'),
+    },
+    {
+      icon: 'lucideGlobe',
+      label: 'Frontend access',
+      typical: cell('Provider app or domain'),
+      rabbithole: cell('Own frontend at direct canister URL', 'direct-url'),
+    },
+    {
+      icon: 'lucideShieldCheck',
+      label: 'Access decision',
+      typical: cell('Account or service layer'),
+      rabbithole: cell('Checked by the same canister'),
+    },
+    {
+      icon: 'lucideKeyRound',
+      label: 'File keys',
+      typical: cell('Password or app-managed keys'),
+      rabbithole: cell('IC vetKeys on demand', 'vetkeys'),
+    },
+    {
+      icon: 'lucideSettings',
+      label: 'Admin control',
+      typical: cell('Provider remains operator'),
+      rabbithole: cell('You become the controller', 'controller'),
+    },
+    {
+      icon: 'lucideCircleCheck',
+      label: 'Verification',
+      typical: cell('Provider/app dependent'),
+      rabbithole: cell('Open source, hashes, certified state'),
+    },
   ];
+}
 
-  colorClass(value: CellValue): string {
-    return value === 'yes'
-      ? 'text-emerald-500'
-      : value === 'partial'
-        ? 'text-amber-500'
-        : 'text-muted-foreground/40';
-  }
-
-  icon(value: CellValue): string {
-    return value === 'yes' ? 'lucideCheck' : value === 'partial' ? 'lucideMinus' : 'lucideX';
-  }
+function cell(label: string, hint?: CellHint): CompCell {
+  return { hint, label };
 }

@@ -37,10 +37,10 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
     <div class="mx-auto max-w-6xl">
       <div class="mb-8 text-center">
         <span hlmBadge variant="secondary" class="mb-4">Why Rabbithole</span>
-        <h2 class="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+        <h2 class="mt-4 text-3xl font-bold tracking-tight text-balance sm:text-4xl">
           Math-based security, not promises
         </h2>
-        <p class="mx-auto mt-4 max-w-2xl text-muted-foreground">
+        <p class="mx-auto mt-4 max-w-2xl text-balance text-muted-foreground">
           Traditional cloud storage asks you to trust a company.
           Rabbithole replaces that trust with cryptography.
         </p>
@@ -57,7 +57,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
               <!-- Text -->
               <div class="flex-1">
                 <h3 class="text-lg font-semibold">{{ f.title }}</h3>
-                <p class="mt-1 text-sm text-muted-foreground">{{ f.description }}</p>
+                <p class="mt-1 text-sm text-balance text-muted-foreground">{{ f.description }}</p>
                 <a
                   hlmBtn
                   variant="link"

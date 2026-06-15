@@ -15,6 +15,7 @@ export * from '../tokens/backend-features';
 export * from '../tokens/encrypted-storage-canister';
 export * from '../tokens/main';
 export * from '../tokens/main-canister';
+export * from '../tokens/storage-license-limits';
 export * from '../utils/canister-origin';
 export * from '../utils/parse-canister-reject-error';
 export * from '../utils/principal';

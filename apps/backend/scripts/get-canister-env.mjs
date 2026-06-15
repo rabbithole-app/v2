@@ -18,11 +18,17 @@ import YAML from 'yaml';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = resolve(__dirname, '..');
 const ICP_YAML_PATH = resolve(BACKEND_DIR, 'icp.yaml');
+const BACKEND_CANISTER_NAME = 'rabbithole-backend';
 const FRONTEND_CANISTER_NAME = 'rabbithole-frontend';
 
+const BACKEND_PUBLIC_ENV_MAPPINGS = {
+  STORAGE_LICENSE_INCLUDED_BYTES: 'PUBLIC_STORAGE_LICENSE_INCLUDED_BYTES',
+  STORAGE_LICENSE_MAX_FILE_BYTES: 'PUBLIC_STORAGE_LICENSE_MAX_FILE_BYTES',
+};
+
 const CANISTERS = [
-  'rabbithole-backend',
-  'rabbithole-frontend',
+  BACKEND_CANISTER_NAME,
+  FRONTEND_CANISTER_NAME,
   'internet_identity_backend',
   'internet_identity_frontend',
   'xrc',
@@ -46,8 +52,11 @@ export function getCanisterEnv(env = 'local') {
     envVars[`PUBLIC_CANISTER_ID:${name}`] = id;
   }
 
-  const frontendEnv = readFrontendEnvironment(env);
-  for (const [key, value] of Object.entries(frontendEnv)) {
+  const publicEnv = {
+    ...readBackendPublicEnvironment(env),
+    ...readFrontendEnvironment(env),
+  };
+  for (const [key, value] of Object.entries(publicEnv)) {
     envVars[key] = value;
   }
 
@@ -65,19 +74,6 @@ export function getCanisterEnv(env = 'local') {
   };
 }
 
-function readFrontendEnvironment(env) {
-  const config = YAML.parse(readFileSync(ICP_YAML_PATH, 'utf8'));
-  const frontendCanister = findNamed(config.canisters, FRONTEND_CANISTER_NAME);
-  const base = frontendCanister?.settings?.environment_variables ?? {};
-  const environment = findNamed(config.environments, env);
-  const override = environment?.settings?.[FRONTEND_CANISTER_NAME]?.environment_variables ?? {};
-  return { ...base, ...override };
-}
-
-function findNamed(items, name) {
-  return items?.find(item => item && typeof item === 'object' && item.name === name);
-}
-
 function canisterId(name, env) {
   try {
     return icp(`canister status ${name} -e ${env} -i`);
@@ -86,12 +82,70 @@ function canisterId(name, env) {
   }
 }
 
+function environmentVariablesToRecord(items) {
+  const result = {};
+
+  for (const item of items ?? []) {
+    if (
+      item &&
+      typeof item.name === 'string' &&
+      typeof item.value === 'string'
+    ) {
+      result[item.name] = item.value;
+    }
+  }
+
+  return result;
+}
+
+function findNamed(items, name) {
+  return items?.find(
+    (item) => item && typeof item === 'object' && item.name === name,
+  );
+}
+
 function icp(args) {
   return execSync(`icp ${args}`, {
     cwd: BACKEND_DIR,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
+}
+
+function readBackendPublicEnvironment(env) {
+  try {
+    const status = JSON.parse(
+      icp(`canister status ${BACKEND_CANISTER_NAME} -e ${env} --json`),
+    );
+    const backendEnv = environmentVariablesToRecord(
+      status?.settings?.environment_variables,
+    );
+    const publicEnv = {};
+
+    for (const [backendName, publicName] of Object.entries(
+      BACKEND_PUBLIC_ENV_MAPPINGS,
+    )) {
+      const value = backendEnv[backendName];
+      if (typeof value === 'string' && value.length > 0) {
+        publicEnv[publicName] = value;
+      }
+    }
+
+    return publicEnv;
+  } catch {
+    return {};
+  }
+}
+
+function readFrontendEnvironment(env) {
+  const config = YAML.parse(readFileSync(ICP_YAML_PATH, 'utf8'));
+  const frontendCanister = findNamed(config.canisters, FRONTEND_CANISTER_NAME);
+  const base = frontendCanister?.settings?.environment_variables ?? {};
+  const environment = findNamed(config.environments, env);
+  const override =
+    environment?.settings?.[FRONTEND_CANISTER_NAME]?.environment_variables ??
+    {};
+  return { ...base, ...override };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

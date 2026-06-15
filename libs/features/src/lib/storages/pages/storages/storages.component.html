@@ -20,7 +20,7 @@
       [routerLink]="['/dashboard', { outlets: { dialog: 'create-storage' } }]"
     >
       <ng-icon hlmIcon name="lucidePlus" size="sm" />
-      Create Storage
+      Create Vault
     </button>
   </div>
 </ng-template>
@@ -51,9 +51,9 @@
       <div hlmEmptyMedia variant="icon">
         <hlm-spinner />
       </div>
-      <div hlmEmptyTitle>Loading storages</div>
+      <div hlmEmptyTitle>Loading vaults</div>
       <div hlmEmptyDescription>
-        Fetching your storages from the backend...
+        Fetching your vaults from the backend...
       </div>
     </div>
   </div>
@@ -63,9 +63,9 @@
       <div hlmEmptyMedia variant="icon">
         <ng-icon name="lucideInbox" />
       </div>
-      <div hlmEmptyTitle>No storages found</div>
+      <div hlmEmptyTitle>No vaults found</div>
       <div hlmEmptyDescription>
-        Create a new encrypted storage canister to get started.
+        Create a new encrypted vault canister to get started.
       </div>
     </div>
   </div>
