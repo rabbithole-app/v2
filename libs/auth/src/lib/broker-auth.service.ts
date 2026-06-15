@@ -57,7 +57,7 @@ export class BrokerAuthService {
 
   async requestAttributes(params: {
     keys: string[];
-    nonce: Uint8Array | Promise<Uint8Array>;
+    nonce: Promise<Uint8Array> | Uint8Array;
   }): Promise<SignedAttributes> {
     const { client } = this.#state();
     assertClient(client);

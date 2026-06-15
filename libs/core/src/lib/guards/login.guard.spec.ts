@@ -77,11 +77,11 @@ describe('loginGuard', () => {
     });
   });
 
-  it('should activate if user is autentificated with DelegationIdentity', async () => {
+  it('should redirect if user is authenticated with DelegationIdentity', async () => {
     const identity = await factoryDelegationIdentity();
     vi.spyOn(mockAuthServiceValue, 'isAuthenticated').mockReturnValue(true);
     vi.spyOn(mockAuthServiceValue, 'identity').mockReturnValue(identity);
-    TestBed.configureTestingModule({
+    const module = TestBed.configureTestingModule({
       providers: [provideMockAuthService(mockAuthServiceValue)],
     });
 
@@ -89,11 +89,16 @@ describe('loginGuard', () => {
     const route: ActivatedRouteSnapshot = { queryParams: {} } as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state: RouterStateSnapshot = { url: '/' } as any;
+    const router = module.inject(Router);
 
     testScheduler.run(({ expectObservable }) => {
       const result = executeGuard(route, state) as Observable<GuardResult>;
       const expected = '(a|)';
-      expectObservable(result).toBe(expected, { a: true });
+      expectObservable(result).toBe(expected, {
+        a: new RedirectCommand(router.parseUrl('/dashboard'), {
+          replaceUrl: true,
+        }),
+      });
     });
   });
 
@@ -120,4 +125,3 @@ describe('loginGuard', () => {
     });
   });
 });
-

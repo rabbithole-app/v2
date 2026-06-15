@@ -5,7 +5,6 @@ import {
   RedirectCommand,
   Router,
 } from '@angular/router';
-import { DelegationIdentity } from '@icp-sdk/core/identity';
 import { filter, map } from 'rxjs/operators';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
@@ -21,10 +20,7 @@ export const loginGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
         route.queryParams['redirectUrl'] ?? '/dashboard',
       );
       const isAuthenticated = authService.isAuthenticated();
-      if (
-        isAuthenticated &&
-        !(authService.identity() instanceof DelegationIdentity)
-      ) {
+      if (isAuthenticated) {
         // do not add "login?redirectUrl=<path>" to the history
         return new RedirectCommand(redirectUrl, { replaceUrl: true });
       }

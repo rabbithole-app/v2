@@ -235,6 +235,55 @@ async function ensureRegistered({
   }
 }
 
+async function finishIdentityAttributesSignIn({
+  actor,
+  authConfig,
+  authEvent,
+  authService,
+  canisterId,
+  httpAgentOptions,
+}: {
+  actor: ActorSubclass<RabbitholeActorService>;
+  authConfig: AuthConfig;
+  authEvent: AuthSessionEvent;
+  authService: IAuthService;
+  canisterId: Principal;
+  httpAgentOptions: Omit<HttpAgentOptions, 'identity'>;
+}): Promise<boolean> {
+  if (
+    !authEvent.openIdProvider &&
+    !authEvent.openIdIssuer &&
+    !authEvent.ssoDomain
+  ) {
+    return false;
+  }
+
+  try {
+    const keys = attributeKeys(authEvent);
+    const signedAttributes =
+      authEvent.identityAttributes ??
+      (await requestSignedIdentityAttributesAfterSignIn({
+        actor,
+        authEvent,
+        authService,
+        keys,
+      }));
+
+    if (!signedAttributes) return false;
+
+    return await submitSignedIdentityAttributes({
+      actor,
+      authConfig,
+      authService,
+      canisterId,
+      httpAgentOptions,
+      signedAttributes,
+    });
+  } catch {
+    return false;
+  }
+}
+
 async function getAuthenticatedActor(
   actor: ActorSubclass<RabbitholeActorService>,
 ): Promise<ActorSubclass<RabbitholeActorService> | null> {
@@ -349,55 +398,6 @@ async function submitSignedIdentityAttributes({
     return true;
   } catch (error) {
     console.warn('Identity attributes finish failed:', error);
-    return false;
-  }
-}
-
-async function finishIdentityAttributesSignIn({
-  actor,
-  authConfig,
-  authEvent,
-  authService,
-  canisterId,
-  httpAgentOptions,
-}: {
-  actor: ActorSubclass<RabbitholeActorService>;
-  authConfig: AuthConfig;
-  authEvent: AuthSessionEvent;
-  authService: IAuthService;
-  canisterId: Principal;
-  httpAgentOptions: Omit<HttpAgentOptions, 'identity'>;
-}): Promise<boolean> {
-  if (
-    !authEvent.openIdProvider &&
-    !authEvent.openIdIssuer &&
-    !authEvent.ssoDomain
-  ) {
-    return false;
-  }
-
-  try {
-    const keys = attributeKeys(authEvent);
-    const signedAttributes =
-      authEvent.identityAttributes ??
-      (await requestSignedIdentityAttributesAfterSignIn({
-        actor,
-        authEvent,
-        authService,
-        keys,
-      }));
-
-    if (!signedAttributes) return false;
-
-    return await submitSignedIdentityAttributes({
-      actor,
-      authConfig,
-      authService,
-      canisterId,
-      httpAgentOptions,
-      signedAttributes,
-    });
-  } catch {
     return false;
   }
 }
