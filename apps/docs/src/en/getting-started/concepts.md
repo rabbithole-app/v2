@@ -16,10 +16,10 @@ For the canonical IC wording, see the
 
 The [Internet Computer](https://internetcomputer.org/) is a decentralized
 network for running applications directly on-chain. Unlike blockchains that are
-mainly used as settlement layers, the Internet Computer can host backend logic,
-state, and web-facing canisters in the same environment.
+mainly used as settlement layers, the Internet Computer can host application
+logic, state, and web-facing canisters in the same environment.
 
-Rabbithole uses it across the product: the main frontend, the main backend
+Rabbithole uses it across the product: the main frontend, the main application
 canister, the storage canisters created for users, and holding or moving user
 funds from other networks through
 [Chain Fusion](https://docs.internetcomputer.org/concepts/chain-fusion/).
@@ -30,9 +30,9 @@ A [canister](https://docs.internetcomputer.org/concepts/canisters/) is the
 Internet Computer's smart-contract unit. It bundles code and state, runs on the
 network, and can be reached over the Internet.
 
-In the Rabbithole architecture, the main backend is a canister. Each user
-storage is also a canister. A storage canister keeps file records, permissions,
-and, depending on the storage mode, file bytes.
+In the Rabbithole architecture, the main application logic runs in a canister.
+Each user storage is also a canister. A storage canister keeps file records,
+permissions, and, depending on the storage mode, file bytes.
 
 ## Principal
 

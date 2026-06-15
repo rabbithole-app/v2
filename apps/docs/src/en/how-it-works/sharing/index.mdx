@@ -12,9 +12,10 @@ You can share with an existing Rabbithole user profile or with an email
 address. Email invites let you grant access before the recipient creates a
 Rabbithole account.
 
-Shared access is part of [Pro](/how-it-works/pro). A storage license keeps
-the owner's personal encrypted storage available, but it does not replace active
-Pro for invites, access management, or invited users.
+Shared access is part of [Pro](/how-it-works/pro). Starter Vault keeps
+the owner's personal encrypted storage available within issued limits, but it
+does not replace active Pro for invites, access management, or invited
+users.
 
 ## What this means in practice
 
@@ -68,9 +69,9 @@ sequenceDiagram
 
 :::details Technical view: canisters, events, and the Shared with me list
 
-The storage canister makes the access decision. Rabbithole backend keeps a
-synchronized index so users can discover storages shared with them in the main
-app.
+The storage canister makes the access decision. The Rabbithole application
+canister keeps a synchronized index so users can discover storages shared with
+them in the main app.
 
 ```mermaid
 sequenceDiagram
@@ -78,7 +79,7 @@ sequenceDiagram
     participant O as Owner
     participant UI as Rabbithole or storage app
     participant S as Storage canister
-    participant API as Rabbithole backend
+    participant API as Rabbithole application canister
     participant R as Recipient
 
     O->>UI: Share storage, folder, or file
@@ -92,9 +93,9 @@ sequenceDiagram
     S->>S: Check permission before each protected operation
 ```
 
-If the backend index is unavailable, the storage canister still owns the
-permission decision. The index improves discovery and notifications; it doesn't
-replace canister checks.
+If the application-canister index is unavailable, the storage canister still
+owns the permission decision. The index improves discovery and notifications;
+it doesn't replace canister checks.
 
 :::
 
@@ -109,7 +110,8 @@ These terms appear on the deeper pages.
   [Identity Attribute](/how-it-works/authentication#trust-verified-attributes) proved by the
   sign-in flow, not a free-form text field.
 - **Grant**: an access rule stored by the storage canister.
-- **Active Pro**: the state required for shared access and access management.
+- **Active Pro**: the state required for shared access and access
+  management.
 - **vetKey**: a cryptographic key derived on demand after the canister checks
   access.
 
@@ -136,7 +138,7 @@ These terms appear on the deeper pages.
         link: '/how-it-works/authentication#trust-verified-attributes',
       },
       {
-        text: 'What Pro gives you',
+        text: 'What Rabbithole Pro gives you',
         link: '/how-it-works/pro',
       },
     ],

@@ -9,9 +9,10 @@ description: Terms and conditions for using Rabbithole
 
 ## Overview
 
-Rabbithole is a decentralized encrypted file storage service built on the Internet Computer blockchain. By using Rabbithole, you agree to these terms.
+Rabbithole provides a sovereign encrypted vault service on the Internet
+Computer. By using Rabbithole, you agree to these terms.
 
-## Your storage canister
+## Your vault canister
 
 When you create storage, a smart contract (canister) is deployed on the
 Internet Computer. After setup completes successfully:
@@ -44,7 +45,7 @@ for what you store.
 
 ## Payments
 
-- Storage creation requires a one-time setup payment. It covers canister
+- Starter Vault creation requires a one-time setup payment. It covers canister
   creation, the initial cycles balance, deployment operations, and related
   infrastructure costs.
 - Payments are non-refundable once the canister is deployed

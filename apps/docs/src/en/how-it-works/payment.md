@@ -9,51 +9,57 @@ Your storage runs in a separate Internet Computer canister. The canister needs
 [cycles](https://docs.internetcomputer.org/concepts/cycles/) to store data,
 process operations, and stay available.
 
-Think of cycles as prepaid fuel for the canister. Rabbithole can help with
-top-ups through [Pro](/how-it-works/pro), but the canister belongs to you,
-so you can also fund it directly with Internet Computer tools.
+Think of cycles as prepaid fuel for the storage canister. Rabbithole can help
+with top-ups through [Rabbithole Pro](/how-it-works/pro), but the storage
+belongs to you, so you can also fund the canister directly with Internet
+Computer tools.
 
 ## What you pay for
 
 Payment in Rabbithole is not one subscription doing everything. There is the
-one-time storage setup, the license for a base amount of encrypted data, and the
-cycles that keep the canister running.
+one-time Starter Vault setup, the Rabbithole Pro account subscription, and the
+cycles that keep each storage canister running.
 
 | What | When it is paid | What it gives you |
 |---|---|---|
-| **Storage creation** | Once | The storage canister, initial cycle balance, storage app installation, and storage license. |
-| **Rabbithole Pro** | Per subscription period | Shared access, storage updates, encrypted uploads without base license limits, automatic cycle top-ups, and 2 TC of included cycle balance. |
-| **Cycles** | As they are spent | Canister work: uploads, file operations, storage, vetKey derivation, and storage availability. |
+| **Starter Vault** | Once | A starter vault on the Internet Computer: the storage canister, initial cycle balance, storage app installation, and starter encrypted storage limits. |
+| **Rabbithole Pro** | Per subscription period | Account subscription for all vaults under your identity. It adds sharing, storage updates, encrypted uploads beyond starter limits while the subscription is active, automatic cycle top-ups, and 2 TC of managed operations credit. |
+| **Cycles** | As they are spent | Storage canister work: uploads, downloads, file operations, storage, vetKey derivation, and availability. |
 
-## Storage license and Pro
+## Starter Vault and Rabbithole Pro
 
-The storage license is the baseline. It is issued when storage is created, and
-it still applies if Pro expires or is canceled. You can keep using personal
-encrypted storage within the license limits: included storage and maximum file
-size.
+Starter Vault is the baseline. It is issued when storage is created, and it
+still applies if Rabbithole Pro expires or is canceled. You can keep using
+personal encrypted storage within the starter limits: included storage and
+maximum file size.
 
-Pro adds features that run through Rabbithole on top of that license. While Pro
-is active, it adds:
+Rabbithole Pro adds service features that run through Rabbithole on top of that
+baseline. While Pro is active, it adds:
 
-- encrypted uploads without the base license limits;
-- automatic cycle top-ups, where Rabbithole tops up the canister when needed;
+- encrypted uploads beyond starter limits, when managed credit or your balance
+  can fund the operation;
+- automatic cycle top-ups, where Rabbithole tops up the storage canister when
+  needed;
 - storage code and frontend asset updates after your approval;
-- shared access and access management.
+- sharing and access management.
 
 The full feature list is on the
-[What Pro gives you](/how-it-works/pro) page.
+[What Rabbithole Pro gives you](/how-it-works/pro) page.
 
 ## How automatic cycle top-ups work
 
-Automatic top-ups are operation-driven, not calendar-driven. Before expensive
-operations, such as a large On-chain Storage upload, the canister checks its
-balance. If you have active Pro, it can request a top-up from the Rabbithole
-backend.
+Automatic top-ups are operation-driven, not calendar-driven. If you have an
+active Pro subscription, Rabbithole can automatically top up the storage
+canister before an expensive operation, such as a large On-chain Storage
+upload.
+
+Technically, the storage canister checks its cycle balance and requests a
+top-up from the Rabbithole service canister.
 
 ```mermaid
 flowchart TD
-    S["Storage canister<br/>needs cycles"] --> B["Rabbithole backend"]
-    B --> I{"Included<br/>Pro balance left?"}
+    S["Storage canister<br/>needs cycles"] --> B["Rabbithole service<br/>canister"]
+    B --> I{"Managed operations<br/>credit left?"}
     I -->|Yes| P["Use up to 2 TC<br/>per Pro period"]
     I -->|No| A{"Paid auto-top-up<br/>enabled?"}
     A -->|Yes| U["Charge your<br/>balance"]
@@ -63,16 +69,19 @@ flowchart TD
     CMC --> S
 ```
 
-The backend uses two sources in this order:
+For automatic top-ups, Rabbithole uses two sources in this order:
 
-1. **Included cycle balance**: 2 TC for you during the Pro period. This balance
-   is shared across your storage canisters. The
-   [What Pro gives you](/how-it-works/pro) page explains it in more detail.
+1. **Managed operations credit**: 2 TC for you during the Pro period.
+   This credit is shared across all your vaults: Rabbithole spends it on the
+   canisters that need cycles. The
+   [What Rabbithole Pro gives you](/how-it-works/pro) page explains it in more
+   detail.
 2. **Paid auto-top-up**: paid funding from your balance, used only after
-   included funding is exhausted and you enable auto-top-up.
+   managed operations credit is exhausted and you enable auto-top-up.
 
-Without active Pro, the rule is simpler: the upload continues if the canister
-already has enough cycles. If it does not, you top it up manually.
+Without an active Pro subscription, the rule is simpler: the upload continues if
+the storage canister already has enough cycles. If it does not, you top up the
+canister manually.
 
 ## Supported tokens
 
@@ -87,7 +96,7 @@ payment.
 | Solana            | SOL, USDC, USDT            |
 
 Your balance is used for Pro period renewal and, if you enable auto-top-up, for
-paid auto-top-up after included funding is exhausted.
+paid auto-top-up after managed operations credit is exhausted.
 
 ## What cycles pay for
 
@@ -119,8 +128,8 @@ The card separates the cycle balance into practical zones:
   work.
 
 Use **Top up** when the balance approaches the safe floor or before a large
-On-chain Storage upload. With active Pro, Rabbithole can top up the canister for
-you. Without Pro, use manual top-up.
+On-chain Storage upload. With active Pro, Rabbithole can top up the
+canister for you. Without Pro, use manual top-up.
 
 :::details{title="How the card is calculated"}
 
@@ -148,8 +157,8 @@ several large uploads are in progress.
 
 ## Self-managed funding
 
-You do not need Pro to keep the storage alive. The canister belongs to you, so
-you can top it up directly.
+You do not need Pro to keep the storage alive. The canister belongs to
+you, so you can top it up directly.
 
 Available options:
 
@@ -160,7 +169,7 @@ Available options:
 
 :::tip{title="Your canister, your choice"}
 
-Rabbithole Pro removes some operational work. The canister itself remains a
+Pro removes some operational work. The canister itself remains a
 standard Internet Computer smart contract that you can manage with IC tooling.
 
 :::
@@ -182,9 +191,9 @@ permanently.
 
 :::note{title="Monitor the balance before it gets low"}
 
-Active Pro reduces operational work because Rabbithole can top up the canister
-when needed. If you do not use Pro, set up monitoring or check the balance
-regularly, especially for On-chain Storage.
+Active Pro reduces operational work because Rabbithole can top up the
+canister when needed. If you do not use Pro, set up monitoring or check
+the balance regularly, especially for On-chain Storage.
 
 :::
 
@@ -220,7 +229,7 @@ and changes with the XDR/USD rate.
 ```mermaid
 sequenceDiagram
     participant S as Storage canister
-    participant B as Rabbithole backend
+    participant B as Rabbithole service canister
     participant T as Treasury / balances
     participant CMC as Cycles Minting Canister
 
@@ -232,11 +241,11 @@ sequenceDiagram
     CMC-->>S: Cycles added
 ```
 
-The storage canister does not mint cycles itself. It asks the backend for a
-top-up, and the backend buys cycles through the Cycles Minting Canister. If the
-CMC returns an ambiguous status, the operation goes into an administrative
-recovery queue. This is an operational recovery mechanism, not a normal user
-action.
+The storage canister does not mint cycles itself. It asks the Rabbithole
+service canister for a top-up, and that canister buys cycles through the Cycles
+Minting Canister. If the CMC returns an ambiguous status, the operation goes
+into an administrative recovery queue. This is an operational recovery
+mechanism, not a normal user action.
 
 ### Cashier flow (Blob Storage)
 

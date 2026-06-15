@@ -40,7 +40,8 @@ sequenceDiagram
 ## Separate authentication from attributes
 
 Your **principal** is enough to authenticate you. Rabbithole doesn't need an
-email address to know which account is calling the backend.
+email address to know which account signed in. It uses your Internet Computer
+principal for that.
 
 Some sign-in flows can also share **verified identity attributes**, such as
 email or name. These attributes are separate from authentication.
@@ -69,7 +70,7 @@ build with principals alone.
 
 Email is not your password, private key, or encryption key. Your account and
 file access are still controlled by your Internet Identity principal and the
-permissions stored in your canister.
+permissions stored in your storage.
 
 Read [Shared access](./sharing/index) to see how verified email invites become
 storage-canister permissions.
@@ -100,7 +101,7 @@ Rabbithole, and Rabbithole issues a target-scoped delegation to the storage app
 session. The storage app can call these canisters.
 
 - Your storage canister
-- The Rabbithole backend
+- The Rabbithole application canister
 - The IC management canister, when needed for canister operations
 
 This keeps the user experience simple. You don't need a separate account just
@@ -145,7 +146,7 @@ to their canister.
 
 An ordinary form field is only a claim. A verified identity attribute is
 different: it is signed or certified by the Internet Identity flow and submitted
-to Rabbithole in a way the backend can verify.
+to Rabbithole in a way the application canister can verify.
 
 Rabbithole verifies the attribute payload before storing it.
 
@@ -217,17 +218,17 @@ The target scope limits where the delegated session can be used.
 
 When attributes are available, the browser receives signed attributes from
 Internet Identity with a one-time nonce. It then performs the finish call using
-an identity that carries those attributes. The backend checks the signature,
-nonce, origin, time, and caller, then stores the verified attributes for the
-principal. Storage invite claiming stays separate and only uses the verified
-email after sign-in.
+an identity that carries those attributes. The application canister checks the
+signature, nonce, origin, time, and caller, then stores the verified attributes
+for the principal. Storage invite claiming stays separate and only uses the
+verified email after sign-in.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant B as Browser
     participant II as id.ai / Internet Identity
-    participant API as Rabbithole backend
+    participant API as Rabbithole application canister
 
     B->>API: _internet_identity_sign_in_start()
     API-->>B: one-time nonce
@@ -240,8 +241,8 @@ sequenceDiagram
     API->>API: Claim storage invites for verified email
 ```
 
-The backend rejects stale, unsigned, reused, wrong-origin, or wrong-signer
-payloads before it stores attributes.
+The application canister rejects stale, unsigned, reused, wrong-origin, or
+wrong-signer payloads before it stores attributes.
 
 ### Further reading
 

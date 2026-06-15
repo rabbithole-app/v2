@@ -3,10 +3,5 @@
     "text": "Docs",
     "link": "/getting-started/introduction",
     "activeMatch": "^/(getting-started|how-it-works|faq|legal)"
-  },
-  {
-    "text": "Agent resources",
-    "link": "/agent-resources",
-    "activeMatch": "^/agent-resources"
   }
 ]

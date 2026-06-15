@@ -30,7 +30,7 @@ their address.
 Internet Identity supports passkey sign-in, OpenID providers such as Google,
 Microsoft, and Apple, and SSO where it is available. For Rabbithole, a verified
 email is an attribute that comes from a supported Internet Identity flow and
-passes backend verification in Rabbithole.
+passes verification in the Rabbithole application canister.
 
 Typing any email address and verifying it through a Rabbithole confirmation
 email is not implemented yet. That can become a separate profile setting later,
@@ -64,9 +64,9 @@ It doesn't trust a profile field that anyone can type.
 ## Why Rabbithole can trust the email
 
 A verified email is different from text typed into a form. Rabbithole accepts
-it only after the backend verifies the identity payload.
+it only after the application canister verifies the identity payload.
 
-The backend checks these facts before using the email:
+The application canister checks these facts before using the email:
 
 1. The payload comes from the trusted Internet Identity signer.
 2. The signed-in principal is the same principal that owns the attributes.
@@ -96,7 +96,7 @@ sequenceDiagram
     participant O as Owner
     participant UI as Share dialog
     participant S as Storage canister
-    participant API as Rabbithole backend
+    participant API as Rabbithole application canister
     participant R as Recipient
 
     O->>UI: Enter email and permission
@@ -112,10 +112,10 @@ sequenceDiagram
     S->>S: Create principal access grant
 ```
 
-The storage canister accepts backend attestation only from the trusted
-Rabbithole backend configured for that storage. A direct storage app session
-can also claim matching email grants after it receives verified attributes
-from the identity flow.
+The storage canister accepts application-canister attestation only from the
+trusted Rabbithole application canister configured for that storage. A direct
+storage app session can also claim matching email grants after it receives
+verified attributes from the identity flow.
 
 :::
 

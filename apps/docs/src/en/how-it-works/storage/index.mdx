@@ -5,21 +5,21 @@ description: Choose where Rabbithole keeps the encrypted copy of your files
 
 import { Badge, OverviewGroup } from '@rspress/core/theme';
 
-## Storage mode, license, and Pro are separate
+## Storage mode, Starter Vault, and Pro are separate
 
 Rabbithole uses several related concepts in the storage flow. They control
 different parts of the product:
 
 - **Storage mode** decides where file bytes live.
-- **Storage license** defines the base encrypted storage limits.
-- **Pro** adds extra features for storage you already created.
+- **Starter Vault** defines the starter encrypted storage limits.
+- **Pro** adds service features for storage you already created.
 
 Storage mode does not replace encryption or access control. File contents are
 encrypted in the browser before upload, and in both modes the storage canister
 keeps ownership, access rules, and trusted file records.
 
 The full subscription feature list is on the
-[What Pro gives you](/how-it-works/pro) page.
+[What Rabbithole Pro gives you](/how-it-works/pro) page.
 
 :::tip Short version
 
@@ -89,7 +89,7 @@ access keep the same meaning.
   records.
 - Encrypted files are encrypted in the browser before upload.
 - The canister checks permissions before file operations and key derivation.
-- Storage license and Pro decide which encrypted uploads are allowed.
+- Starter Vault and Pro decide which encrypted uploads are allowed.
 - Integrity verification remains part of the storage path.
 
 ## What happens if Rabbithole is unavailable?
@@ -131,7 +131,7 @@ manage service operations, but it does not become the data owner.
         link: '/how-it-works/payment',
       },
       {
-        text: 'What Pro gives you',
+        text: 'What Rabbithole Pro gives you',
         link: '/how-it-works/pro',
       },
     ],

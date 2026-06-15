@@ -1,25 +1,27 @@
 ---
 title: Introduction
-description: Decentralized encrypted file storage you control
+description: Sovereign encrypted vault on the Internet Computer
 ---
 
-# Rabbithole — encrypted, decentralized file storage you control
+# Rabbithole — Sovereign encrypted vault on the Internet Computer
 
-Rabbithole is file storage for people who want a familiar cloud drive without a
-central owner that must be trusted with files, access rules, and encryption
-keys.
+Rabbithole is a sovereign encrypted vault for people who want a familiar cloud
+drive without a central owner that must be trusted with files, access rules, and
+encryption keys.
 
-In a traditional cloud product, your files, backend logic, interface, and access
-rules live inside the operator's infrastructure. Rabbithole works differently:
-it creates separate storage for your account on the
+In a traditional cloud product, your files, application logic, interface, and
+access rules live inside the operator's infrastructure. Rabbithole works
+differently:
+it creates a separate vault for your account on the
 [Internet Computer](https://internetcomputer.org/), with its own web interface,
 code, state, and access rules.
 
 The Internet Computer matters here because it is not just a blockchain label.
-It is a network where the application can run as a whole: frontend, backend,
-state, and user storage do not need to be moved into a traditional cloud
+It is a network where the application can run as a whole: frontend, application
+logic, state, and user storage do not need to be moved into a traditional cloud
 account. That lets Rabbithole create more than a row in a company database: it
-creates a separate storage canister and hands control of it to you.
+creates a separate vault, implemented as an Internet Computer canister, and
+hands control of it to you.
 
 You can think of a
 [canister](https://docs.internetcomputer.org/concepts/canisters/) as a
@@ -28,7 +30,7 @@ Rabbithole, that canister keeps file records, permissions, and, depending on the
 storage mode, the file bytes themselves.
 
 The file is encrypted directly in your browser before upload. Plaintext data is
-not sent to the storage backend, and keys are not derived from a password or
+not sent to the storage canister, and keys are not derived from a password or
 stored by Rabbithole as a master key. The technical pages explain
 [vetKeys](https://docs.internetcomputer.org/concepts/vetkeys/) and storage modes
 later; the starting point is simpler: storage control and cryptography are built
@@ -55,7 +57,7 @@ flowchart LR
 
 1. You sign in with [Internet Identity](https://id.ai), without creating
    a Rabbithole password.
-2. Rabbithole creates an independent storage canister for your account.
+2. Rabbithole creates an independent vault for your account.
 3. You upload files through the app.
 4. Your browser encrypts the file before upload.
 5. When you download it, the browser verifies and decrypts the file locally.
@@ -63,14 +65,13 @@ flowchart LR
 ## The core idea
 
 Most cloud storage products ask you to trust an operator's promise: that it will
-protect the backend, enforce permissions correctly, keep the service alive, and
-not expose your files or keys. Rabbithole tries to move more of that trust into
-architecture.
+protect its infrastructure, enforce permissions correctly, keep the service
+alive, and not expose your files or keys. Rabbithole tries to move more of that
+trust into architecture.
 
-Storage ownership is expressed through canister control. Access rules live with
-the storage canister. Files are encrypted in your browser, and key derivation is
-handled by the network instead of a password-derived master key stored by
-Rabbithole.
+Vault ownership is expressed through canister control. Access rules live with
+your vault. Files are encrypted in your browser, and key derivation is handled
+by the network instead of a password-derived master key stored by Rabbithole.
 
 The result is not magic, and it does not remove every assumption. Your browser,
 the Internet Computer protocol, and Rabbithole's code still matter. But the

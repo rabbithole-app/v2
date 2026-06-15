@@ -25,37 +25,40 @@ With Blob Storage, your canister keeps the file record and verification data,
 but blob availability depends on Blob Storage funding and retention. You can top
 up cycles directly without going through Rabbithole.
 
-If Pro expires, storage falls back to the storage license issued during storage
-creation. The owner keeps personal encrypted storage within the license limits,
-but automatic cycle top-ups and shared access require active Pro.
+If Pro expires, your vault falls back to the Starter Vault limits issued during
+vault creation. The owner keeps personal encrypted storage within those
+limits, but automatic cycle top-ups and sharing require active Pro.
 
 ## General
 
 These are short answers about the product model and everyday limits.
 
 ### What is Rabbithole?
-A decentralized file storage app built on the Internet Computer, designed around
-end-to-end encryption and personal canister ownership.
+Rabbithole is a sovereign encrypted vault on the Internet Computer. It is
+designed around browser-side encryption, personal canister ownership, and
+service features that help you operate the vault without giving Rabbithole a
+master key.
 
 ### How much does it cost?
-You pay a fixed setup price to create your storage. This covers canister
-creation, the initial cycles balance, deployment operations, storage license,
-and the infrastructure needed to complete the handoff. The storage license
-defines included encrypted storage and the maximum file size for the base
-scenario.
+You pay a fixed setup price to create a Starter Vault. This covers canister
+creation, the initial cycles balance, deployment operations, and the
+infrastructure needed to complete the handoff. Starter Vault includes personal
+encrypted storage within issued starter limits.
 
-Pro adds capabilities on top of the license: encrypted uploads without base
-limits, shared access, and automatic cycle top-ups. See
-[What Pro gives you](/how-it-works/pro) for details.
+Rabbithole Pro adds capabilities on top of that baseline: uploads beyond
+starter limits while Pro is active, sharing, automatic cycle top-ups, and 2 TC
+of managed operations credit. See
+[What Rabbithole Pro gives you](/how-it-works/pro) for details.
 
 ### What file types are supported?
 All file types. Rabbithole stores binary file data, so the file format does not
 matter.
 
 ### Is there a file size limit?
-For encrypted uploads, the limit depends on storage license or active Pro. The
-license defines included encrypted storage and the maximum file size. Active
-Pro, among other things, removes those base license limits.
+For encrypted uploads, the limit depends on Starter Vault limits or active Pro.
+Starter Vault defines starter encrypted storage and the maximum file
+size. Active Pro lets uploads continue beyond those starter limits while
+managed credit or your balance can fund the operation.
 
 Rabbithole does not add a separate technical file-size limit. Upload and
 encryption work in fragments, so the browser does not need to keep the whole
@@ -66,8 +69,9 @@ deployed, as well as the cycle balance.
 
 ### Why does upload sometimes show Waiting for cycles?
 This is an On-chain Storage upload waiting for a safe cycle buffer. If the owner
-has active Pro, Rabbithole can top up the canister and continue the same upload
-session. Without Pro, the owner needs to top up the canister manually.
+has active Pro, Rabbithole can top up the canister and continue the same
+upload session. Without Pro, the owner needs to top up the canister
+manually.
 
 ## Security
 

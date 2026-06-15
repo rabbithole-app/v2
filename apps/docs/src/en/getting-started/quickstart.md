@@ -7,11 +7,11 @@ description: Start using Rabbithole in minutes
 
 1. Visit [rabbithole.app](https://rabbithole.app)
 2. Click **Login** and authenticate with [Internet Identity](https://id.ai)
-3. **Create your storage** — pay a fixed setup fee. Rabbithole deploys your
-   personal canister on the blockchain in about a minute.
-4. Start working with your storage:
+3. **Create your vault** — pay the fixed Starter Vault setup fee. Rabbithole
+   deploys your personal canister on the Internet Computer in about a minute.
+4. Start working with your vault:
 
-After your storage is ready, you can:
+After your vault is ready, you can:
 
 - Upload and download files.
 - Organize files into folders.

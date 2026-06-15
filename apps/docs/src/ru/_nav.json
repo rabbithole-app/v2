@@ -3,10 +3,5 @@
     "text": "Документация",
     "link": "/getting-started/introduction",
     "activeMatch": "^/ru/(getting-started|how-it-works|faq|legal)"
-  },
-  {
-    "text": "Ресурсы для агентов",
-    "link": "/agent-resources",
-    "activeMatch": "^/ru/agent-resources"
   }
 ]
