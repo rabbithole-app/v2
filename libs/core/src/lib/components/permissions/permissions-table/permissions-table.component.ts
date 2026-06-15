@@ -87,7 +87,7 @@ const statusFilterFn: FilterFn<StoragePermissionItem> = (
 };
 
 @Component({
-  selector: 'core-permissions-table',
+  selector: 'rbth-core-permissions-table',
   imports: [
     FlexRenderDirective,
     FormsModule,

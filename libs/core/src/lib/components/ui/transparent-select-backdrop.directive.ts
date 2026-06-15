@@ -3,7 +3,7 @@ import { Directive } from '@angular/core';
 import { setTransparentDialogBackdrop } from './transparent-dialog-backdrop';
 
 @Directive({
-  selector: '[coreTransparentSelectBackdrop]',
+  selector: '[rbthCoreTransparentSelectBackdrop]',
 })
 export class CoreTransparentSelectBackdropDirective {
   constructor() {

@@ -42,7 +42,7 @@ import { getUploadFailureCopy } from '../../../utils/upload-failure-copy';
 import { FileIconPipe, FormatBytesPipe, FormatRangeBytesPipe } from '../../ui';
 
 @Component({
-  selector: 'core-upload-item',
+  selector: 'rbth-core-upload-item',
   imports: [
     HlmSpinner,
     NgIcon,

@@ -16,28 +16,28 @@ import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmItem, HlmItemImports } from '@spartan-ng/helm/item';
 
 @Directive({
-  selector: 'ng-template[coreAccessTargetItemActions]',
+  selector: 'ng-template[rbthCoreAccessTargetItemActions]',
 })
 export class AccessTargetItemActionsDirective {
   readonly templateRef = inject<TemplateRef<unknown>>(TemplateRef);
 }
 
 @Directive({
-  selector: 'ng-template[coreAccessTargetItemDescription]',
+  selector: 'ng-template[rbthCoreAccessTargetItemDescription]',
 })
 export class AccessTargetItemDescriptionDirective {
   readonly templateRef = inject<TemplateRef<unknown>>(TemplateRef);
 }
 
 @Directive({
-  selector: 'ng-template[coreAccessTargetItemTitle]',
+  selector: 'ng-template[rbthCoreAccessTargetItemTitle]',
 })
 export class AccessTargetItemTitleDirective {
   readonly templateRef = inject<TemplateRef<unknown>>(TemplateRef);
 }
 
 @Component({
-  selector: 'core-access-target-item',
+  selector: 'rbth-core-access-target-item',
   imports: [
     HlmAvatarImports,
     HlmIcon,

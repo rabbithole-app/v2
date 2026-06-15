@@ -19,7 +19,7 @@ export default [
         'error',
         {
           type: 'element',
-          prefix: 'page',
+          prefix: 'rbth-page',
           style: 'kebab-case',
         },
       ],

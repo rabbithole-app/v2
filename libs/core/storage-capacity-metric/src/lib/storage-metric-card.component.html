@@ -121,21 +121,21 @@
 
       @if (detailsExpanded()) {
         <div class="mt-4 flex flex-col gap-2">
-          <core-metric-legend-row
+          <rbth-core-metric-legend-row
             kind="file"
             label="Files"
             [value]="snapshot().fileBytes | formatBytes"
           />
 
           @if (snapshot().storageBackend === 'OnChain') {
-            <core-metric-legend-row
+            <rbth-core-metric-legend-row
               kind="stable"
               label="Stable memory"
               [value]="snapshot().stableMemoryBytes | formatBytes"
             />
           }
 
-          <core-metric-legend-row
+          <rbth-core-metric-legend-row
             kind="capacity"
             label="Capacity"
             [value]="snapshot().limitLabel"

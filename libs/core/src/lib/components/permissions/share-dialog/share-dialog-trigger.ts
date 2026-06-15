@@ -5,7 +5,7 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { ShareDialogComponent } from './share-dialog.component';
 
 @Directive({
-  selector: '[coreShareDialogTrigger]',
+  selector: '[rbthCoreShareDialogTrigger]',
   host: {
     '(click)': 'handleClick()',
   },

@@ -39,7 +39,7 @@
                   <div hlmField>
                     <div hlmFieldLabel>Thumbnail storage</div>
                     <hlm-select
-                      coreTransparentSelectBackdrop
+                      rbthCoreTransparentSelectBackdrop
                       [value]="directoryPolicyDraft().thumbnailStoragePolicy"
                       [disabled]="!canEditDirectoryPolicy(item) || directoryPolicySaving()"
                       (valueChange)="setThumbnailStoragePolicy($any($event))"

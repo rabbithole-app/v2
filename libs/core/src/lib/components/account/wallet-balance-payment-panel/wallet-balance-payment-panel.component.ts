@@ -28,7 +28,7 @@ import { WalletSummaryHeaderComponent } from '../wallet-summary-header/wallet-su
 import { injectWalletBalanceContext } from '../wallet/wallet-balance-context';
 
 @Component({
-  selector: 'core-wallet-balance-payment-panel',
+  selector: 'rbth-core-wallet-balance-payment-panel',
   imports: [
     NgIcon,
     HlmIcon,

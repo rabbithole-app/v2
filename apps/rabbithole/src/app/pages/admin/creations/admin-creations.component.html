@@ -1,4 +1,4 @@
-<ng-template rbthPageHeaderContext>
+<ng-template rbthCorePageHeaderContext>
   <span
     hlmBadge
     [variant]="_deployerRunning.value() ? 'default' : 'secondary'"
@@ -7,7 +7,7 @@
   </span>
 </ng-template>
 
-<ng-template rbthPageHeaderActions>
+<ng-template rbthCorePageHeaderActions>
   <button
     hlmBtn
     variant="outline"
@@ -34,17 +34,17 @@
     let-setValues="setValues"
     let-values="values"
   >
-    <core-user-target-combobox
+    <rbth-core-user-target-combobox
       class="block w-72 [&_hlm-combobox-chips]:h-8 [&_hlm-combobox-chips]:min-h-8 [&_hlm-combobox-chips]:flex-nowrap [&_hlm-combobox-chips]:overflow-hidden [&_hlm-combobox-chips]:rounded-none [&_hlm-combobox-chips]:border-s-0 [&_hlm-combobox-chips]:py-1"
       [allowTypedEmail]="false"
       placeholder="Search owner"
       [value]="_userTargets(values)"
       (valueChange)="setValues($event)"
     >
-      <ng-template coreUserTargetComboboxValue let-selected>
+      <ng-template rbthCoreUserTargetComboboxValue let-selected>
         {{ _userTargetSummary(selected) }}
       </ng-template>
-    </core-user-target-combobox>
+    </rbth-core-user-target-combobox>
   </ng-template>
 
   <div rbthDataTableFilterActions class="flex items-center gap-2">

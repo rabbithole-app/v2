@@ -1,5 +1,5 @@
     @if (canEdit) {
-      <core-edit-permission-form
+      <rbth-core-edit-permission-form
         [principal]="principal"
         [permission]="permission"
         (accessGrantsChange)="edit.emit($event)"
@@ -9,12 +9,12 @@
           variant="ghost"
           size="icon"
           hlmTooltip="Edit permission"
-          coreEditPermissionFormTrigger
+          rbthCoreEditPermissionFormTrigger
         >
           <ng-icon hlmIcon name="lucideUserPen" size="sm" />
           <span class="sr-only">Edit</span>
         </button>
-      </core-edit-permission-form>
+      </rbth-core-edit-permission-form>
     }
     <hlm-alert-dialog>
       <button

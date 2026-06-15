@@ -74,19 +74,23 @@
           <div class="min-h-44"></div>
         }
         @case ('subscription') {
-          <core-subscription-settings-form
+          <rbth-core-subscription-settings-form
             (activatePro)="openSubscriptionUpgrade()"
           />
         }
         @case ('wallet') {
           <div class="space-y-5">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <core-wallet-summary-header size="md" />
+              <rbth-core-wallet-summary-header size="md" />
 
               <div class="flex flex-wrap items-center gap-3">
-                <label class="flex items-center gap-3 text-sm">
+                <label
+                  for="user-settings-hide-zero-balances"
+                  class="flex items-center gap-3 text-sm"
+                >
                   <span class="text-muted-foreground">Hide zero balances</span>
                   <hlm-switch
+                    id="user-settings-hide-zero-balances"
                     [checked]="hideZeroBalances()"
                     (checkedChange)="toggleHideZeroBalances($event)"
                   />
@@ -104,11 +108,11 @@
               </div>
             </div>
 
-            <core-wallet-networks-view />
+            <rbth-core-wallet-networks-view />
           </div>
         }
         @case ('subscriptionUpgrade') {
-          <core-pro-upgrade-flow
+          <rbth-core-pro-upgrade-flow
             [source]="upgradeSource()"
             (cancelled)="handleUpgradeCancelled()"
             (completed)="handleUpgradeCompleted($event)"

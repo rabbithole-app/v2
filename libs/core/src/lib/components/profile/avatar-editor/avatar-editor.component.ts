@@ -32,7 +32,7 @@ import {
 } from '../avatar-crop-dialog/avatar-crop-dialog.component';
 
 @Component({
-  selector: 'core-avatar-editor',
+  selector: 'rbth-core-avatar-editor',
   standalone: true,
   imports: [
     HlmAvatar,

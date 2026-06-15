@@ -81,7 +81,7 @@ const NETWORK_DEFINITIONS: NetworkDefinition[] = [
 ];
 
 @Component({
-  selector: 'core-wallet-networks-view',
+  selector: 'rbth-core-wallet-networks-view',
   imports: [
     NgIcon,
     HlmBadge,

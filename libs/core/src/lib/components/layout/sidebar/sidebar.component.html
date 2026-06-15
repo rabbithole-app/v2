@@ -1,8 +1,8 @@
 <hlm-sidebar collapsible="icon" variant="inset">
   @if (sidebarHeaderSlot()) {
-    <ng-content select="[coreSidebarHeader]" />
+    <ng-content select="[rbthCoreSidebarHeader]" />
   } @else {
-    <core-sidebar-header />
+    <rbth-core-sidebar-header />
   }
   <div hlmSidebarContent class="gap-0">
     <ng-content select="[sidebarTop]" />
@@ -59,14 +59,14 @@
   <div hlmSidebarFooter>
     <ng-content select="[sidebarBottom]" />
     <router-outlet name="sidebarBottom" />
-    <core-account-menu />
+    <rbth-core-account-menu />
   </div>
   <button hlmSidebarRail>
     <span class="sr-only">Toggle sidebar</span>
   </button>
 </hlm-sidebar>
 <main hlmSidebarInset class="min-w-0 overflow-hidden">
-  <core-expired-banner />
+  <rbth-core-expired-banner />
   <router-outlet name="banner" />
   <div class="flex min-w-0 flex-1 flex-col">
     <header class="bg-card sticky top-0 z-50 h-14 border-b">
@@ -97,7 +97,7 @@
           @if (headerActionsTemplate(); as actionsTemplate) {
             <ng-container [ngTemplateOutlet]="actionsTemplate" />
           }
-          <core-notification-bell />
+          <rbth-core-notification-bell />
         </div>
       </div>
     </header>

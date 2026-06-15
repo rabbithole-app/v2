@@ -1,8 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { Principal } from '@icp-sdk/core/principal';
-import { formatDistanceToNowStrict } from 'date-fns';
 import { toast } from '@spartan-ng/brain/sonner';
+import { formatDistanceToNowStrict } from 'date-fns';
 
 import {
   AvatarService,
@@ -26,19 +26,18 @@ type AccessProfile = {
 
 @Injectable()
 export class AccessRequestsStore {
-  readonly #avatarService = inject(AvatarService);
   readonly requests = signal<StorageAccessRequest[]>([]);
   readonly approvedCount = computed(() =>
     this.requests().filter((request) => 'approved' in request.status).length,
   );
   readonly busyIds = signal<Set<bigint>>(new Set());
-
   readonly closedCount = computed(() =>
     this.requests().filter(
       (request) =>
         'rejected' in request.status || 'cancelled' in request.status,
     ).length,
   );
+
   readonly errorMessage = signal<string | null>(null);
   readonly loading = signal(false);
   readonly pendingCount = computed(() =>
@@ -52,8 +51,9 @@ export class AccessRequestsStore {
     }),
   );
   readonly tree = signal<TreeNode[]>([]);
-
   readonly treeLoading = signal(false);
+
+  readonly #avatarService = inject(AvatarService);
 
   readonly #datePipe = inject(DatePipe);
 

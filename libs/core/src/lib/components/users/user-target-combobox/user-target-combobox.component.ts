@@ -61,7 +61,7 @@ type UserTargetMatch = 'emailExact' | 'principalExact' | 'profile';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Directive({
-  selector: 'ng-template[coreUserTargetComboboxValue]',
+  selector: 'ng-template[rbthCoreUserTargetComboboxValue]',
 })
 export class UserTargetComboboxValueDirective {
   readonly templateRef =
@@ -69,7 +69,7 @@ export class UserTargetComboboxValueDirective {
 }
 
 @Directive({
-  selector: 'ng-template[coreUserTargetComboboxOption]',
+  selector: 'ng-template[rbthCoreUserTargetComboboxOption]',
 })
 export class UserTargetComboboxOptionDirective {
   readonly templateRef =
@@ -77,7 +77,7 @@ export class UserTargetComboboxOptionDirective {
 }
 
 @Component({
-  selector: 'core-user-target-combobox',
+  selector: 'rbth-core-user-target-combobox',
   imports: [
     CoreTransparentComboboxBackdropDirective,
     HlmAvatarImports,

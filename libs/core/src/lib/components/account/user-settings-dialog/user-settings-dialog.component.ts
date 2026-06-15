@@ -45,7 +45,7 @@ import type {
 type UserSettingsDialogView = UserSettingsDialogSection | 'subscriptionUpgrade';
 
 @Component({
-  selector: 'core-user-settings-dialog',
+  selector: 'rbth-core-user-settings-dialog',
   imports: [
     HlmButton,
     HlmDialogHeader,

@@ -8,7 +8,7 @@ import { StorageCapacityMetricComponent } from "@rabbithole/core/storage-capacit
 @Component({
   selector: "app-storage-metrics-footer",
   template: `
-    <core-storage-capacity-metric
+    <rbth-core-storage-capacity-metric
       [canisterId]="canisterId()"
       placement="footer"
     />

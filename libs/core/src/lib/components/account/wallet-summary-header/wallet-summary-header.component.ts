@@ -15,7 +15,7 @@ import { calculatePaymentEligibility } from '../../../utils/payment-eligibility'
 import { injectWalletBalanceContext } from '../wallet/wallet-balance-context';
 
 @Component({
-  selector: 'core-wallet-summary-header',
+  selector: 'rbth-core-wallet-summary-header',
   imports: [NgIcon, HlmIcon, HlmSpinner],
   providers: [provideIcons({ lucideCircleAlert, lucideCircleCheck })],
   host: { class: 'block' },

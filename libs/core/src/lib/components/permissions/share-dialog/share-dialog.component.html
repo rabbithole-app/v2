@@ -51,7 +51,7 @@
         <div hlmFieldGroup class="gap-5">
           <div hlmField class="gap-2">
             <div hlmFieldTitle>People</div>
-            <core-user-target-combobox
+            <rbth-core-user-target-combobox
               class="block w-full"
               placeholder="Search user, principal, or email"
               [value]="selectedTargets()"
@@ -65,14 +65,14 @@
 
               <div class="space-y-2">
                 @for (target of selectedTargets(); track targetKey(target)) {
-                  <core-access-target-item
+                  <rbth-core-access-target-item
                     variant="outline"
                     size="sm"
                     [avatarSrc]="targetAvatarSrc(target)"
                     [iconName]="targetIcon(target)"
                     [title]="targetIdentityTitle(target)"
                   >
-                    <ng-template coreAccessTargetItemDescription>
+                    <ng-template rbthCoreAccessTargetItemDescription>
                       @if (targetPrincipalId(target); as principalId) {
                         <rbth-copy-to-clipboard
                           [content]="principalId"
@@ -86,7 +86,7 @@
                       }
                     </ng-template>
 
-                    <ng-template coreAccessTargetItemActions>
+                    <ng-template rbthCoreAccessTargetItemActions>
                       @if (target.kind === 'email') {
                         <span
                           hlmBadge
@@ -129,7 +129,7 @@
                         </brn-popover>
                       }
                       <hlm-select
-                        coreTransparentSelectBackdrop
+                        rbthCoreTransparentSelectBackdrop
                         class="w-32 shrink-0"
                         [ngModel]="targetPermission(target)"
                         (ngModelChange)="setTargetPermission(target, $event)"
@@ -146,7 +146,7 @@
                         </hlm-select-content>
                       </hlm-select>
                     </ng-template>
-                  </core-access-target-item>
+                  </rbth-core-access-target-item>
                 }
               </div>
             </div>
@@ -208,14 +208,14 @@
                 <div class="space-y-2">
                   @for (item of accessList(); track item.grantId ?? item.user) {
                     @let profile = accessProfile(item);
-                    <core-access-target-item
+                    <rbth-core-access-target-item
                       variant="outline"
                       size="sm"
                       [avatarSrc]="profile?.avatarSrc"
                       [iconName]="accessTargetIcon(item)"
                       [title]="accessTargetTitle(item)"
                     >
-                      <ng-template coreAccessTargetItemDescription>
+                      <ng-template rbthCoreAccessTargetItemDescription>
                         @if (item.targetKind === 'principal') {
                           <rbth-copy-to-clipboard
                             [content]="item.user"
@@ -253,7 +253,7 @@
                         }
                       </ng-template>
 
-                      <ng-template coreAccessTargetItemActions>
+                      <ng-template rbthCoreAccessTargetItemActions>
                         @if (item.status === 'pending') {
                           <span
                             hlmBadge
@@ -301,7 +301,7 @@
                           </button>
                         }
                       </ng-template>
-                    </core-access-target-item>
+                    </rbth-core-access-target-item>
                   }
                 </div>
               </div>

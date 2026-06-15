@@ -24,7 +24,7 @@
 @switch (currentStep) {
   @case ('idle') {
     <div class="mt-4 space-y-4">
-      <core-storage-upgrade-review
+      <rbth-core-storage-upgrade-review
         [currentReleaseTag]="updateCheckService.currentReleaseTag()"
         [releaseOptions]="updateCheckService.releaseOptions()"
         [releaseOptionsLoading]="updateCheckService.releaseOptionsLoading()"
@@ -44,7 +44,7 @@
           </p>
         </div>
         }
-      </core-storage-upgrade-review>
+      </rbth-core-storage-upgrade-review>
     </div>
   }
 

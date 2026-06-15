@@ -26,12 +26,12 @@ import { StorageSwitcherComponent } from '../../core/components/storage-switcher
     StorageSwitcherComponent,
     AdministrationNavigationComponent,
   ],
-  template: `<core-sidebar-layout>
-    <app-storage-header-switcher coreSidebarHeader />
+  template: `<rbth-core-sidebar-layout>
+    <app-storage-header-switcher rbthCoreSidebarHeader />
     <app-storage-switcher sidebarTop />
     <app-administration-navigation sidebarAfter />
     <router-outlet />
-  </core-sidebar-layout>
+  </rbth-core-sidebar-layout>
   <router-outlet name="dialog" />`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

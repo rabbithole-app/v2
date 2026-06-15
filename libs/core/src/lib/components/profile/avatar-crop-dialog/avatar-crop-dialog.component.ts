@@ -54,7 +54,7 @@ export type AvatarCropDialogResult =
     };
 
 @Component({
-  selector: 'core-avatar-crop-dialog',
+  selector: 'rbth-core-avatar-crop-dialog',
   standalone: true,
   templateUrl: './avatar-crop-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

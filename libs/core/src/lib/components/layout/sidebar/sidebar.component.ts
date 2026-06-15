@@ -37,7 +37,7 @@ import { PageHeaderRouteData, PageHeaderService } from './page-header.service';
 import { SidebarHeaderSlotDirective } from './sidebar-header-slot.directive';
 
 @Component({
-  selector: 'core-sidebar-layout',
+  selector: 'rbth-core-sidebar-layout',
   imports: [
     ...HlmSidebarImports,
     ...HlmTooltipImports,

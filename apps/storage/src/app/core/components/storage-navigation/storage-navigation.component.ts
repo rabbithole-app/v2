@@ -21,7 +21,7 @@ import {
   selector: 'app-storage-navigation',
   template: `<div hlmSidebarGroupLabel>Storage</div>
     <div hlmSidebarGroupContent>
-      <core-navigation [data]="data()" />
+      <rbth-core-navigation [data]="data()" />
     </div> `,
   imports: [
     NavigationComponent,

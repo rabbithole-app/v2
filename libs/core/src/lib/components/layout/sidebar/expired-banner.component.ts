@@ -14,7 +14,7 @@ import { BACKEND_FEATURES_ENABLED_TOKEN } from '../../../tokens';
 import { UserSettingsDialogService } from '../../account/user-settings-dialog/user-settings-dialog.service';
 
 @Component({
-  selector: 'core-expired-banner',
+  selector: 'rbth-core-expired-banner',
   imports: [HlmButton, HlmIcon, NgIcon],
   providers: [provideIcons({ lucideInfo })],
   template: `

@@ -32,7 +32,7 @@ const metricCardsShellVariants = cva("flex flex-col gap-2", {
 });
 
 @Component({
-  selector: "core-storage-capacity-metric",
+  selector: "rbth-core-storage-capacity-metric",
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./storage-capacity-metric.component.html",
   imports: [CanisterCyclesMetricCardComponent, StorageMetricCardComponent],

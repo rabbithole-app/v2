@@ -18,8 +18,8 @@ export type StorageReleaseOption = {
   frontendUpdateAvailable: boolean;
   releaseNotesSections: StorageReleaseNoteSection[];
   releaseNotesSummary?: string;
-  tagName: string;
   releaseUrl: string;
+  tagName: string;
   updateInfo?: UpdateInfo;
   version: string;
   wasmUpdateAvailable: boolean;

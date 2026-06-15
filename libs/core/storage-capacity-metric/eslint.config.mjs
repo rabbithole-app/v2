@@ -14,7 +14,7 @@ export default [
         'error',
         {
           type: 'attribute',
-          prefix: 'core',
+          prefix: 'rbthCore',
           style: 'camelCase',
         },
       ],
@@ -22,7 +22,7 @@ export default [
         'error',
         {
           type: 'element',
-          prefix: 'core',
+          prefix: 'rbth-core',
           style: 'kebab-case',
         },
       ],

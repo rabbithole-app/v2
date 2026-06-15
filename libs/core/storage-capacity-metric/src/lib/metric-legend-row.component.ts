@@ -26,7 +26,7 @@ export type MetricLegendKind = NonNullable<
 >;
 
 @Component({
-  selector: 'core-metric-legend-row',
+  selector: 'rbth-core-metric-legend-row',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div

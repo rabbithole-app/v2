@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { HlmSidebarHeader } from '@spartan-ng/helm/sidebar';
 
 @Component({
-  selector: 'core-sidebar-header',
+  selector: 'rbth-core-sidebar-header',
   imports: [RouterLink],
   templateUrl: './sidebar-header.component.html',
   hostDirectives: [HlmSidebarHeader],

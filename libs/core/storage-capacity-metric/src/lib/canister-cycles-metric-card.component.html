@@ -153,25 +153,25 @@
 
         @if (detailsExpanded()) {
           <div class="mt-3 flex flex-col gap-2">
-            <core-metric-legend-row
+            <rbth-core-metric-legend-row
               kind="freeze"
               label="Freeze"
               [value]="formatCycles(snapshot().currentFreezingReserve)"
             />
 
-            <core-metric-legend-row
+            <rbth-core-metric-legend-row
               kind="safeFloor"
               label="Safe floor"
               [value]="formatCycles(cycleSafeFloorBalance())"
             />
 
-            <core-metric-legend-row
+            <rbth-core-metric-legend-row
               kind="target"
               label="Target"
               [value]="formatCycles(cycleTargetBalance())"
             />
 
-            <core-metric-legend-row
+            <rbth-core-metric-legend-row
               kind="headroom"
               label="Headroom"
               [value]="formatCycles(availableCycleBalance())"
@@ -180,7 +180,7 @@
 
           @if (includedFundingStatus(); as funding) {
             <div class="mt-4 border-t border-border pt-3">
-              <core-metric-legend-row
+              <rbth-core-metric-legend-row
                 kind="included"
                 label="Included top-up"
                 [value]="
@@ -289,7 +289,7 @@
           </div>
         </div>
 
-        <core-wallet-balance-panel [requiredUsd]="topUpEstimatedUsd()" />
+        <rbth-core-wallet-balance-panel [requiredUsd]="topUpEstimatedUsd()" />
 
         @if (topUpDisabledReason(); as reason) {
           <p class="text-sm text-muted-foreground">{{ reason }}</p>

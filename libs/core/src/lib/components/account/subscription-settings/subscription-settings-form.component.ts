@@ -27,7 +27,7 @@ import { formatUsd } from '../../../utils/format-number';
 import { SpendingPriorityListComponent } from './spending-priority-list.component';
 
 @Component({
-  selector: 'core-subscription-settings-form',
+  selector: 'rbth-core-subscription-settings-form',
   imports: [
     ...HlmFieldImports,
     RbthFrameComponent,

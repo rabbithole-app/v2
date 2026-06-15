@@ -30,7 +30,7 @@ import type { UpdateInfo } from '../../types/storage.types';
 import type { StorageReleaseOption } from '../../utils/storage-release-options';
 
 @Component({
-  selector: 'core-storage-upgrade-review',
+  selector: 'rbth-core-storage-upgrade-review',
   imports: [
     NgIcon,
     NgScrollbarModule,

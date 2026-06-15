@@ -67,7 +67,7 @@ const refreshIconVariants = cva('', {
 });
 
 @Component({
-  selector: 'core-storage-metric-card',
+  selector: 'rbth-core-storage-metric-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'contents',

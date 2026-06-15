@@ -9,7 +9,7 @@
         <h2 rbthDrawerTitle class="flex-none">Upload</h2>
         @if (showStorageSwitcher()) {
           <hlm-select
-            coreTransparentSelectBackdrop
+            rbthCoreTransparentSelectBackdrop
             [value]="selectedStorageId()"
             (valueChange)="selectStorage($any($event))"
           >
@@ -29,9 +29,9 @@
     </rbth-drawer-header>
     <div class="flex-1 overflow-y-auto space-y-6">
       <div class="px-4">
-        <core-file-upload-dropzone (added)="upload($event)">
+        <rbth-core-file-upload-dropzone (added)="upload($event)">
           <button
-            coreFileUploadDropzoneAction
+            rbthCoreFileUploadDropzoneAction
             hlmBtn
             variant="outline"
             (click)="fileListService.openDirectoryDialog()"
@@ -39,19 +39,19 @@
             <ng-icon hlmIcon size="sm" name="lucideFolderUp" />
             Upload directory
           </button>
-        </core-file-upload-dropzone>
+        </rbth-core-file-upload-dropzone>
       </div>
       @if (activeItems().length) {
         <h3 rbthDrawerSeparator>Active</h3>
-        <core-upload-drawer-list [items]="activeItems()" />
+        <rbth-core-upload-drawer-list [items]="activeItems()" />
       }
       @if (completedItems().length) {
         <h3 rbthDrawerSeparator>Completed</h3>
-        <core-upload-drawer-list [items]="completedItems()" />
+        <rbth-core-upload-drawer-list [items]="completedItems()" />
       }
       @if (failedItems().length) {
         <h3 rbthDrawerSeparator>Failed</h3>
-        <core-upload-drawer-list [items]="failedItems()" />
+        <rbth-core-upload-drawer-list [items]="failedItems()" />
       }
     </div>
   </rbth-drawer-content>

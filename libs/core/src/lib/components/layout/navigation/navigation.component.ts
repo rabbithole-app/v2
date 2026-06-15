@@ -26,7 +26,7 @@ export type NavItem = {
 };
 
 @Component({
-  selector: 'core-navigation',
+  selector: 'rbth-core-navigation',
   imports: [
     RouterLink,
     RouterLinkActive,

@@ -39,7 +39,7 @@ export const dropzoneVariants = cva(
 );
 
 @Component({
-  selector: 'core-file-upload-dropzone',
+  selector: 'rbth-core-file-upload-dropzone',
   imports: [
     ...HlmButtonImports,
     ...HlmEmptyImports,

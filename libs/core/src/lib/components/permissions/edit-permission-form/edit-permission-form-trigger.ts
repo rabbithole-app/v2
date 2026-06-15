@@ -5,7 +5,7 @@ import { HlmButton } from '@spartan-ng/helm/button';
 import { EditPermissionFormComponent } from './edit-permission-form';
 
 @Directive({
-  selector: '[coreEditPermissionFormTrigger]',
+  selector: '[rbthCoreEditPermissionFormTrigger]',
   host: {
     '(click)': 'handleClick()',
   },

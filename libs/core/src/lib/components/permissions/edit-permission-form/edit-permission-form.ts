@@ -37,7 +37,7 @@ import {
 } from '../../users/user-target-combobox/user-target-combobox.component';
 
 @Component({
-  selector: 'core-edit-permission-form',
+  selector: 'rbth-core-edit-permission-form',
   templateUrl: './edit-permission-form.html',
   imports: [
     BrnDialogContent,

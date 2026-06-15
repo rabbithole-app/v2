@@ -119,7 +119,7 @@ type CyclesMetricResourceParams = {
 };
 
 @Component({
-  selector: 'core-canister-cycles-metric-card',
+  selector: 'rbth-core-canister-cycles-metric-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'contents',

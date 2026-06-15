@@ -52,7 +52,7 @@ import { formatICP } from '../../../utils/format-icp';
 type NotificationFilter = 'all' | 'backend' | 'storage' | 'unread';
 
 @Component({
-  selector: 'core-notification-bell',
+  selector: 'rbth-core-notification-bell',
   imports: [
     HlmBadge,
     HlmAvatarBadge,

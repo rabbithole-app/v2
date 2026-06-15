@@ -12,9 +12,9 @@ import { SidebarLayoutComponent } from '@rabbithole/core';
 @Component({
   selector: 'rbth-page-dashboard',
   imports: [SidebarLayoutComponent, RouterOutlet],
-  template: `<core-sidebar-layout>
+  template: `<rbth-core-sidebar-layout>
     <router-outlet />
-  </core-sidebar-layout>`,
+  </rbth-core-sidebar-layout>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {

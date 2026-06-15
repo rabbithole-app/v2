@@ -21,8 +21,6 @@ export type SharedStorageOwnerProfile = {
 @Injectable()
 export class SharedWithMeStore {
   readonly #actor = injectMainActor();
-  readonly #avatarService = inject(AvatarService);
-
   readonly sharedStoragesResource = resource({
     params: () => ({ actor: this.#actor() }),
     loader: async ({ params: { actor } }) =>
@@ -37,12 +35,14 @@ export class SharedWithMeStore {
   });
 
   readonly isLoading = this.sharedStoragesResource.isLoading;
+
   isOpenBlocked = isSharedStorageOpenBlocked;
   readonly sharedStorages = computed(() =>
     this.sharedStoragesResource.hasValue()
       ? this.sharedStoragesResource.value()
       : [],
   );
+  readonly #avatarService = inject(AvatarService);
   readonly #ownerPrincipals = computed(() => [
     ...new Map(
       this.sharedStorages().map((storage) => [

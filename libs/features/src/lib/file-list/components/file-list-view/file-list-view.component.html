@@ -1,4 +1,4 @@
-<ng-template rbthPageHeaderActions>
+<ng-template rbthCorePageHeaderActions>
   @if (canWrite()) {
     <rbth-feat-file-list-upload-drawer />
   }
@@ -75,7 +75,7 @@
 </ng-template>
 
 <rbth-feat-properties-drawer [items]="propertiesDrawerItems()" />
-<core-share-dialog
+<rbth-core-share-dialog
   [scopeLabel]="shareDialogScopeLabel()"
   [scopeKind]="shareDialogScopeKind()"
   [itemCount]="shareDialogItems().length"

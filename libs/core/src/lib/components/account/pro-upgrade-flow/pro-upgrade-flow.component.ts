@@ -35,7 +35,7 @@ import { WalletBalancePanelComponent } from '../wallet-balance-panel/wallet-bala
 type ProUpgradeState = 'error' | 'processing' | 'ready' | 'success';
 
 @Component({
-  selector: 'core-pro-upgrade-flow',
+  selector: 'rbth-core-pro-upgrade-flow',
   host: {
     class: 'flex min-h-0 flex-1 flex-col',
   },

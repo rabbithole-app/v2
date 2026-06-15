@@ -3,7 +3,7 @@ import { DestroyRef, Directive, inject, TemplateRef } from '@angular/core';
 import { PageHeaderService } from './page-header.service';
 
 @Directive({
-  selector: 'ng-template[rbthPageHeaderActions]',
+  selector: 'ng-template[rbthCorePageHeaderActions]',
 })
 export class PageHeaderActionsDirective {
   readonly #destroyRef = inject(DestroyRef);
@@ -17,7 +17,7 @@ export class PageHeaderActionsDirective {
 }
 
 @Directive({
-  selector: 'ng-template[rbthPageHeaderContext]',
+  selector: 'ng-template[rbthCorePageHeaderContext]',
 })
 export class PageHeaderContextDirective {
   readonly #destroyRef = inject(DestroyRef);

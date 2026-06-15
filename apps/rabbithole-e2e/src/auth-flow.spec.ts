@@ -22,7 +22,7 @@ test.describe('Authenticated routing', () => {
 
   test('/dashboard renders sidebar layout', async ({ page }) => {
     await page.goto('/dashboard');
-    await expect(page.locator('core-sidebar-layout')).toBeVisible({
+    await expect(page.locator('rbth-core-sidebar-layout')).toBeVisible({
       timeout: 15000,
     });
   });
@@ -30,7 +30,7 @@ test.describe('Authenticated routing', () => {
   test('/dashboard/profile renders profile page', async ({ page }) => {
     await page.goto('/dashboard/profile');
     await page.waitForURL(/\/dashboard\/profile/);
-    await expect(page.locator('core-sidebar-layout')).toBeVisible({
+    await expect(page.locator('rbth-core-sidebar-layout')).toBeVisible({
       timeout: 15000,
     });
   });

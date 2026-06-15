@@ -1,11 +1,11 @@
 @if (effectiveCanisterId(); as canisterId) {
   <div [class]="shellClass()">
-    <core-storage-metric-card
+    <rbth-core-storage-metric-card
       [canisterId]="canisterId"
       [compact]="compactMetrics()"
       [subscriptionCtaEnabled]="subscriptionCtaEnabled()"
     />
-    <core-canister-cycles-metric-card
+    <rbth-core-canister-cycles-metric-card
       [canisterId]="canisterId"
       [compact]="compactMetrics()"
     />

@@ -136,7 +136,7 @@
         </header>
         <div rbthFramePanel>
           @if (walletMeta) {
-            <core-wallet-networks-view
+            <rbth-core-wallet-networks-view
               [canGenerateAddresses]="false"
               [hideZeroBalances]="false"
             />
@@ -158,7 +158,7 @@
         </header>
         <div rbthFramePanel class="space-y-4">
           @if (walletMeta) {
-            <core-wallet-summary-header size="md" />
+            <rbth-core-wallet-summary-header size="md" />
             <div>
               <div class="text-sm text-muted-foreground">Auto renew</div>
               <div class="font-medium">

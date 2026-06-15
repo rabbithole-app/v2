@@ -78,7 +78,7 @@ type AccessProfile = {
 };
 
 @Component({
-  selector: 'core-share-dialog',
+  selector: 'rbth-core-share-dialog',
   templateUrl: './share-dialog.component.html',
   imports: [
     BrnDialogContent,

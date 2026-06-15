@@ -6,16 +6,16 @@
     (input)="_filterChanged($event)"
   />
   <div class="flex items-center gap-2">
-    <core-share-dialog
+    <rbth-core-share-dialog
       [scopeLabel]="scopeLabel()"
       [scopeKind]="scopeKind()"
       [itemCount]="itemCount()"
       (accessGrantsChange)="createAccessGrants.emit($event)"
     >
-      <button variant="outline" coreShareDialogTrigger>
+      <button variant="outline" rbthCoreShareDialogTrigger>
         <ng-icon hlmIcon name="lucideUserPlus" size="sm" />Share
       </button>
-    </core-share-dialog>
+    </rbth-core-share-dialog>
     <button
       hlmBtn
       variant="outline"

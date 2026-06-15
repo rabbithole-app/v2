@@ -11,7 +11,7 @@ export interface RadarData {
 }
 
 @Component({
-  selector: 'core-radar-chart',
+  selector: 'rbth-core-radar-chart',
   imports: [],
   templateUrl: './radar-chart.component.html',
   styleUrl: './radar-chart.component.css',

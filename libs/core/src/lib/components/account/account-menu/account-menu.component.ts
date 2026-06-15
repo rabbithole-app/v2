@@ -37,7 +37,7 @@ import { UserSettingsDialogService } from '../user-settings-dialog/user-settings
 import type { UserSettingsDialogSection } from '../user-settings-dialog/user-settings-dialog.types';
 
 @Component({
-  selector: 'core-account-menu',
+  selector: 'rbth-core-account-menu',
   imports: [
     ...HlmSidebarImports,
     HlmAvatarImports,

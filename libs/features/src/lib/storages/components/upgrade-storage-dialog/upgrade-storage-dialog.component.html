@@ -34,7 +34,7 @@
 @switch (currentStep) {
   @case ('review') {
     <div class="mt-4 space-y-4">
-      <core-storage-upgrade-review
+      <rbth-core-storage-upgrade-review
         [canisterManagementHref]="canisterManagementHref()"
         [currentReleaseTag]="currentReleaseTag()"
         [releaseOptions]="releaseOptions()"
@@ -56,7 +56,7 @@
             <p hlmAlertDesc>{{ prevError }}</p>
           </div>
         }
-      </core-storage-upgrade-review>
+      </rbth-core-storage-upgrade-review>
     </div>
   }
 

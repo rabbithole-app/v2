@@ -18,7 +18,7 @@ export * from '../tokens/encrypted-storage-canister';
 export * from '../tokens/upload';
 export * from '../types/upload';
 export * from '../types/worker';
-export * from '../utils/time';
 export * from '../utils/storage-init-args';
+export * from '../utils/time';
 export * from './access-requests-capability.service';
 export * from './access-requests.guard';

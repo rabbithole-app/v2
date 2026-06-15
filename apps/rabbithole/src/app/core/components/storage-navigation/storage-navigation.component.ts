@@ -41,7 +41,7 @@ const EMPTY_ACCESS_REQUESTS_CAPABILITY: AccessRequestsCapability = {
   selector: "app-storage-navigation",
   template: `<div hlmSidebarGroupLabel>Current storage</div>
     <div hlmSidebarGroupContent>
-      <core-navigation [data]="data()" [exact]="'/dashboard/' + canisterId()" />
+      <rbth-core-navigation [data]="data()" [exact]="'/dashboard/' + canisterId()" />
     </div> `,
   imports: [
     NavigationComponent,

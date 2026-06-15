@@ -47,7 +47,7 @@ interface PriorityToken {
 type TokenKey = keyof typeof TOKEN_META;
 
 @Component({
-  selector: 'core-spending-priority-list',
+  selector: 'rbth-core-spending-priority-list',
   imports: [
     CdkDrag,
     CdkDragHandle,

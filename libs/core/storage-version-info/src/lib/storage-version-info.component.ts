@@ -47,7 +47,7 @@ type StorageReleaseStateDto = Awaited<
 >;
 
 @Component({
-  selector: 'core-storage-version-info',
+  selector: 'rbth-core-storage-version-info',
   imports: [
     DatePipe,
     NgIcon,

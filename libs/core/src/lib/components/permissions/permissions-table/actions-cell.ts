@@ -40,7 +40,7 @@ import { EditPermissionFormComponent } from '../edit-permission-form/edit-permis
 import { EditPermissionFormTriggerDirective } from '../edit-permission-form/edit-permission-form-trigger';
 
 @Component({
-  selector: 'core-actions-cell',
+  selector: 'rbth-core-actions-cell',
   imports: [
     HlmButton,
     NgIcon,

@@ -92,7 +92,7 @@
 <div class="flex items-center justify-end gap-3">
   @if (table.getRowCount() > 0) {
       <hlm-select
-        coreTransparentSelectBackdrop
+        rbthCoreTransparentSelectBackdrop
         [ngModel]="table.getState().pagination.pageSize"
         (ngModelChange)="table.setPageSize($event); table.resetPageIndex()"
       >

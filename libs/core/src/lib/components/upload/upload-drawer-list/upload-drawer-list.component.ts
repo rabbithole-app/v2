@@ -10,10 +10,10 @@ import { FileUploadWithStatus, UploadFile } from '../../../types';
 import { CoreUploadItemComponent } from '../upload-item/upload-item.component';
 
 @Component({
-  selector: 'core-upload-drawer-list',
+  selector: 'rbth-core-upload-drawer-list',
   imports: [CoreUploadItemComponent],
   template: `@for (item of items(); track item.id) {
-    <core-upload-item
+    <rbth-core-upload-item
       [data]="item"
       (removeUpload)="handleRemove(item.id)"
       (cancelUpload)="handleCancel(item.id)"

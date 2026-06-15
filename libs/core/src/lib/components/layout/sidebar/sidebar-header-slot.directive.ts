@@ -1,6 +1,6 @@
 import { Directive } from '@angular/core';
 
 @Directive({
-  selector: '[coreSidebarHeader]',
+  selector: '[rbthCoreSidebarHeader]',
 })
 export class SidebarHeaderSlotDirective {}

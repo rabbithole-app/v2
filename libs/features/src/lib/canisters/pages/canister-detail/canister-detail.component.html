@@ -1,11 +1,11 @@
 @if (canisterStatus(); as status) {
-  <ng-template rbthPageHeaderContext>
+  <ng-template rbthCorePageHeaderContext>
     <div
       hlmButtonGroup
       class="[&>hlm-select>hlm-select-trigger>button]:rounded-r-none"
     >
       <hlm-select
-        coreTransparentSelectBackdrop
+        rbthCoreTransparentSelectBackdrop
         [value]="currentCanisterId()"
         (valueChange)="_onCanisterChange($event)"
       >
@@ -36,7 +36,7 @@
     </div>
   </ng-template>
 
-  <ng-template rbthPageHeaderActions>
+  <ng-template rbthCorePageHeaderActions>
     @if (isController()) {
       <rbth-feat-canisters-wasm-install>
         <rbth-feat-canisters-frontend-upload-drawer>
