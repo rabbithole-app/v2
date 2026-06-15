@@ -23,25 +23,18 @@ export const appRoutes: Route[] = [
         pathMatch: 'full',
       },
       {
-        path: '',
-        loadComponent: () =>
-          import('./app.component').then((m) => m.AppComponent),
-        children: [
-          {
-            path: 'drive',
-            loadChildren: () =>
-              import('@rabbithole/features/file-list').then(
-                (m) => m.fileListRoutes,
-              ),
-          },
-          {
-            path: 'access-requests',
-            loadChildren: () =>
-              import('@rabbithole/features/file-list').then(
-                (m) => m.accessRequestsRoutes,
-              ),
-          },
-        ],
+        path: 'drive',
+        loadChildren: () =>
+          import('@rabbithole/features/file-list').then(
+            (m) => m.fileListRoutes,
+          ),
+      },
+      {
+        path: 'access-requests',
+        loadChildren: () =>
+          import('@rabbithole/features/file-list').then(
+            (m) => m.accessRequestsRoutes,
+          ),
       },
       {
         path: '',

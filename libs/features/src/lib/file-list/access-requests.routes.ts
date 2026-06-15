@@ -1,6 +1,9 @@
 import { Route } from '@angular/router';
 
-import { accessRequestsCanActivate } from '@rabbithole/core/storage-runtime';
+import {
+  accessRequestsCanActivate,
+  provideEncryptedStorage,
+} from '@rabbithole/core/storage-runtime';
 
 import {
   accessRequestsResolver,
@@ -19,6 +22,7 @@ export const accessRequestsRoutes: Route[] = [
       },
     },
     canActivate: [accessRequestsCanActivate],
+    providers: [provideEncryptedStorage()],
     resolve: {
       accessRequests: accessRequestsResolver,
     },
