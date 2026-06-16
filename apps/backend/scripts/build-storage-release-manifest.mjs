@@ -1008,7 +1008,7 @@ function renderReleaseBody(manifest, releaseBodyMarkdown, repoUrl, changelogRang
   lines.push('');
   lines.push('```sh');
   lines.push(`git checkout ${manifest.commit}`);
-  lines.push('npm install -g @icp-sdk/icp-cli@0.3.1 @icp-sdk/ic-wasm ic-mops@2.13.2');
+  lines.push('npm install -g @icp-sdk/icp-cli@1.0.0 @icp-sdk/ic-wasm ic-mops@2.14.1');
   lines.push(`${VERIFY_WASM_SCRIPT}`);
   lines.push('shasum -a 256 apps/backend/.icp/cache/artifacts/encrypted-storage');
   lines.push('```');
