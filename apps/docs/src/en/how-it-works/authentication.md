@@ -117,7 +117,7 @@ For Rabbithole, this matters in two scenarios:
 
 - Signing in through `rabbithole.app` gives the principal for the main
   Rabbithole app.
-- Signing in directly through `<your-storage>.icp0.io` gives a different
+- Signing in directly through `<your-storage>.icp.net` gives a different
   principal because it is a different application origin.
 
 In the normal flow, the storage still sees the main-app principal: the storage

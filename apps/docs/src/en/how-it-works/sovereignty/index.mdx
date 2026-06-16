@@ -31,7 +31,7 @@ You control these parts of your storage:
 
 - **Canister settings**: your principal manages controllers and upgrades.
 - **Direct access**: your canister serves its own frontend at
-  `https://<canister-id>.icp0.io`.
+  `https://<canister-id>.icp.net`.
 - **Cycle funding**: you can keep the storage running through automatic cycle
   top-ups in Pro or by funding the canister directly with Internet Computer
   tooling.
@@ -78,7 +78,7 @@ flowchart TB
     end
     subgraph S4["Result: Your storage"]
         OWN --> A1[rabbithole.app]
-        OWN --> A2["https://&lt;canister-id&gt;.icp0.io"]
+        OWN --> A2["https://&lt;canister-id&gt;.icp.net"]
     end
     style S1 fill:#e0f2fe,stroke:#0284c7
     style S2 fill:#fef3c7,stroke:#d97706
@@ -121,7 +121,7 @@ flowchart LR
     subgraph GONE["Rabbithole is unavailable"]
         direction LR
         U2[You] -.->|rabbithole.app| X[Unavailable]
-        U2 ==>|"direct: canister-id.icp0.io"| C2[Your canister]
+        U2 ==>|"direct: canister-id.icp.net"| C2[Your canister]
     end
     style NORMAL fill:#dcfce7,stroke:#16a34a
     style GONE fill:#fef3c7,stroke:#d97706

@@ -32,7 +32,7 @@ Rabbithole помогает создать хранилище и остаётс�
 
 - **Настройки канистры**: ваш principal управляет контроллерами и обновлениями.
 - **Прямой доступ**: канистра обслуживает собственный фронтенд по адресу
-  `https://<canister-id>.icp0.io`.
+  `https://<canister-id>.icp.net`.
 - **Финансирование циклов**: вы можете поддерживать работу хранилища через
   автопополнение циклов в Pro или пополнять канистру напрямую через
   инструменты Internet Computer.
@@ -81,7 +81,7 @@ flowchart TB
     end
     subgraph S4["Результат: Ваше хранилище"]
         OWN --> A1[rabbithole.app]
-        OWN --> A2["https://&lt;canister-id&gt;.icp0.io"]
+        OWN --> A2["https://&lt;canister-id&gt;.icp.net"]
     end
     style S1 fill:#e0f2fe,stroke:#0284c7
     style S2 fill:#fef3c7,stroke:#d97706
@@ -124,7 +124,7 @@ flowchart LR
     subgraph GONE["Rabbithole недоступен"]
         direction LR
         U2[Вы] -.->|rabbithole.app| X[Недоступен]
-        U2 ==>|"напрямую: canister-id.icp0.io"| C2[Ваша канистра]
+        U2 ==>|"напрямую: canister-id.icp.net"| C2[Ваша канистра]
     end
     style NORMAL fill:#dcfce7,stroke:#16a34a
     style GONE fill:#fef3c7,stroke:#d97706
