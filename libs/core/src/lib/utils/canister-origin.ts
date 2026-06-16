@@ -5,7 +5,7 @@ export function canisterOrigin(canisterId: string, host: string): string {
     return `${url.protocol}//${canisterId}.localhost${url.port ? `:${url.port}` : ''}`;
   }
 
-  return `https://${canisterId}.icp0.io`;
+  return `https://${canisterId}.icp.net`;
 }
 
 export function canisterUrl(canisterId: string, host: string, pathname = ''): string {

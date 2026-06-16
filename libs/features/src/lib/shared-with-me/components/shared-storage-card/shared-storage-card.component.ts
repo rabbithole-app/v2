@@ -85,7 +85,7 @@ export class SharedStorageCardComponent {
       return `${STORAGE_DEV_FRONTEND_ORIGIN}/?canisterId=${encodeURIComponent(id)}`;
     }
 
-    return `https://${id}.icp0.io`;
+    return `https://${id}.icp.net`;
   });
   readonly canOpen = computed(
     () =>

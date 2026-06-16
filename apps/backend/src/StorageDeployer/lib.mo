@@ -262,6 +262,32 @@ module StorageDeployerOrchestrator {
     null;
   };
 
+  func appendOrigin(origins : Text, origin : Text) : Text {
+    if (Text.equal(origins, "")) origin else origins # "," # origin;
+  };
+
+  /// Child storage canisters validate II attributes through their own
+  /// `frontend_origins`. `STORAGE_FRONTEND_ORIGINS` is a backend-only
+  /// extra list for standalone storage frontends such as local :4201.
+  func buildStorageFrontendOrigins<system>(storageCanisterId : ?Principal) : ?Text {
+    var origins = "";
+
+    switch (Runtime.envVar<system>(StorageEnvironment.STORAGE_FRONTEND_ORIGINS)) {
+      case (?value) origins := appendOrigin(origins, value);
+      case null {};
+    };
+    switch (storageCanisterId) {
+      case (?value) {
+        let canisterId = Principal.toText(value);
+        origins := appendOrigin(origins, "https://" # canisterId # ".icp.net");
+        origins := appendOrigin(origins, "https://" # canisterId # ".icp0.io");
+      };
+      case null {};
+    };
+
+    if (Text.equal(origins, "")) null else ?origins;
+  };
+
   func refreshRuntimeConfig<system>(store : Store) {
     let releaseConfig = StorageReleaseConfig.fromEnv<system>();
     GitHubReleases.configure(store.githubReleases, {
@@ -317,12 +343,9 @@ module StorageDeployerOrchestrator {
     };
     Set.add(set, compareEnvPairByName, { name = StorageEnvironment.TRUSTED_ATTRIBUTE_SIGNERS; value = trustedAttributeSigners });
 
-    switch (Runtime.envVar<system>(StorageEnvironment.STORAGE_FRONTEND_ORIGINS)) {
+    switch (buildStorageFrontendOrigins<system>(storageCanisterId)) {
       case (?value) Set.add(set, compareEnvPairByName, { name = StorageEnvironment.FRONTEND_ORIGINS; value });
-      case null switch (storageCanisterId) {
-        case (?value) Set.add(set, compareEnvPairByName, { name = StorageEnvironment.FRONTEND_ORIGINS; value = "https://" # Principal.toText(value) # ".icp0.io" });
-        case null {};
-      };
+      case null {};
     };
 
     switch (custom) {

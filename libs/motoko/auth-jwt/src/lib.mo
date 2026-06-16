@@ -104,7 +104,7 @@ module AuthJWT {
         ("sub", #string(Principal.toText(caller))),
         ("iat", #number(#int(now / 1_000_000_000))),
         ("exp", #number(#int((now + ACCESS_TOKEN_EXPIRY_NANOS) / 1_000_000_000))),
-        ("iss", #string("https://" # Principal.toText(self.canisterId) # ".icp0.io")),
+        ("iss", #string("https://" # Principal.toText(self.canisterId) # ".icp.net")),
         ("jti", #number(#int(self.id))),
       ];
     };

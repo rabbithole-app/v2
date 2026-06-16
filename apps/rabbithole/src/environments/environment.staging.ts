@@ -16,7 +16,7 @@ import {
 export const environment = {
   identityProviderUrl: 'https://id.ai/authorize',
   identitySignerCanisterId: 'rdmx6-jaaaa-aaaaa-aaadq-cai',
-  appUrl: `https://${FRONTEND_CANISTER_ID}.icp0.io`,
+  appUrl: `https://${FRONTEND_CANISTER_ID}.icp.net`,
   appName: 'Rabbithole',
   openIdProviders: ['google', 'apple', 'microsoft'] as const,
   httpAgentHost: HTTP_AGENT_HOST,

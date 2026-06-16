@@ -100,11 +100,12 @@ module {
 
     let path = url.path.original;
     let domain = url.host.original;
-    let location = if (Text.contains(domain, #text("ic0.app"))) {
-      "https://" # Principal.toText(canisterId) # ".ic0.app" # path;
+    let gatewayDomain = if (Text.contains(domain, #text("icp0.io"))) {
+      "icp0.io"
     } else {
-      "https://" # Principal.toText(canisterId) # ".icp0.io" # path;
+      "icp.net"
     };
+    let location = "https://" # Principal.toText(canisterId) # "." # gatewayDomain # path;
 
     return {
       status_code = 308; // Permanent Redirect

@@ -78,7 +78,7 @@ export class AdminUserOverviewComponent {
     const canisterId = this._canisterIdText(creation);
     if (!canisterId) return null;
 
-    const domain = this.#isProduction ? 'icp0.io' : 'localhost';
+    const domain = this.#isProduction ? 'icp.net' : 'localhost';
     return `https://${canisterId}.${domain}`;
   }
 

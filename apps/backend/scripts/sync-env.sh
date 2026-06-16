@@ -12,12 +12,12 @@ case "$environment" in
   staging)
     trusted_attribute_signers="$mainnet_ii_signer"
     frontend_canister_id="$(icp canister status rabbithole-frontend -e staging -i)"
-    frontend_origins="https://${frontend_canister_id}.icp0.io,https://${frontend_canister_id}.ic0.app"
+    frontend_origins="https://${frontend_canister_id}.icp.net,https://${frontend_canister_id}.icp0.io"
     ;;
   ic)
     trusted_attribute_signers="$mainnet_ii_signer"
     frontend_canister_id="$(icp canister status rabbithole-frontend -e ic -i)"
-    frontend_origins="https://rabbithole.app,https://${frontend_canister_id}.icp0.io,https://${frontend_canister_id}.ic0.app"
+    frontend_origins="https://rabbithole.app,https://${frontend_canister_id}.icp.net,https://${frontend_canister_id}.icp0.io"
     ;;
   *)
     echo "Usage: scripts/sync-env.sh [local|staging|ic]" >&2

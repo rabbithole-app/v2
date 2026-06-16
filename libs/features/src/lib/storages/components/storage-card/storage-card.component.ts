@@ -163,7 +163,7 @@ export class StorageCardComponent {
     const canisterId = this.canisterIdText();
     if (!canisterId) return null;
 
-    const domain = this.#isProduction ? 'icp0.io' : 'localhost';
+    const domain = this.#isProduction ? 'icp.net' : 'localhost';
     return `https://${canisterId}.${domain}`;
   });
   readonly errorMessage = computed<string | null>(() => {
