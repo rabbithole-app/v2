@@ -1,0 +1,64 @@
+(variant {
+  v1 = record {
+    icpaySecretKey = null : opt blob;
+    treasury = opt record {
+      chains = opt vec {
+    variant {
+      Evm = record {
+        networkId = "base";
+        chainId = 8453;
+        evmRpcCanisterId = "7hfb6-caaaa-aaaar-qadga-cai";
+        rpcUrls = vec {};
+        assets = vec {
+          record {
+            symbol = "ETH";
+            decimals = 18 : nat8;
+            tokenId = variant { BaseETH };
+            locator = variant { Native }
+          };
+          record {
+            symbol = "USDC";
+            decimals = 6 : nat8;
+            tokenId = variant { BaseUSDC };
+            locator = variant { Contract = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" }
+          };
+          record {
+            symbol = "USDT";
+            decimals = 6 : nat8;
+            tokenId = variant { BaseUSDT };
+            locator = variant { Contract = "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2" }
+          }
+        }
+      }
+    };
+    variant {
+      Solana = record {
+        networkId = "mainnet";
+        solRpcCanisterId = "tghme-zyaaa-aaaar-qarca-cai";
+        rpcUrl = null : opt text;
+        assets = vec {
+          record {
+            symbol = "SOL";
+            decimals = 9 : nat8;
+            tokenId = variant { SOL };
+            locator = variant { Native }
+          };
+          record {
+            symbol = "USDC";
+            decimals = 6 : nat8;
+            tokenId = variant { SolUSDC };
+            locator = variant { Mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" }
+          };
+          record {
+            symbol = "USDT";
+            decimals = 6 : nat8;
+            tokenId = variant { SolUSDT };
+            locator = variant { Mint = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" }
+          }
+        }
+      }
+    }
+      }
+    }
+  }
+})

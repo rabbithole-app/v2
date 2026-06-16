@@ -6,10 +6,10 @@
 //   1. `moc --idl` produces a .did text file
 //   2. `icp-bindgen --actor-disabled` emits classic Candid bindings
 //      (.did.js + .did.d.ts) into libs/declarations/src/<outDir>/
-//   3. If init-args/<name>.did exists, `didc encode` produces
-//      init-args/<name>.bin using the freshly generated .did for type
-//      context. icp-cli text-encoding cannot resolve partial variant label
-//      sets correctly, so init args with variants MUST be pre-encoded.
+//   3. If init-args/<name>.did or init-args/<name>.<env>.did exists, `didc
+//      encode` produces the matching .bin using the freshly generated .did
+//      for type context. icp-cli text-encoding cannot resolve partial variant
+//      label sets correctly, so init args with variants MUST be pre-encoded.
 
 import { execFileSync, execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -27,10 +27,10 @@ const DECLARATIONS_SRC = resolve(MONOREPO_ROOT, 'libs', 'declarations', 'src');
 // deploy environment, but its wasm is needed for tests + mock-server, and its
 // bindings are consumed by both backend tests and the frontend.
 //
-// `initArgsType`: when set, re-encodes init-args/<name>.did (text form) into
-// init-args/<name>.bin using `didc encode` against the fresh .did — this is
-// how icp.yaml's `init_args: { path: ..., format: hex }` stays in sync with
-// the canister's current InitArgs shape.
+// `initArgsType`: when set, re-encodes init-args/<name>.did and
+// init-args/<name>.<env>.did text forms into matching .bin files using
+// `didc encode` against the fresh .did. This keeps icp.yaml's default args
+// and deploy scripts' environment-specific args in sync with InitArgs.
 const CANISTERS = [
   { name: 'rabbithole-backend', mainFile: 'src/main.mo', outDir: 'backend', initArgsType: 'InitArgs' },
   { name: 'encrypted-storage', mainFile: 'src/EncryptedStorageCanister.mo', outDir: 'encrypted-storage' },
@@ -44,13 +44,12 @@ function encodePrebuiltInitArgs({ defs, input, output, type }) {
   console.log(`[generate-declarations] wrote ${output}`);
 }
 
-async function fileExists(p) {
-  try {
-    await fs.access(p);
-    return true;
-  } catch {
-    return false;
-  }
+async function initArgTextPaths(name) {
+  const entries = await fs.readdir(INIT_ARGS_DIR);
+  return entries
+    .filter(entry => entry === `${name}.did` || (entry.startsWith(`${name}.`) && entry.endsWith('.did')))
+    .sort()
+    .map(entry => join(INIT_ARGS_DIR, entry));
 }
 
 async function generate({ name, mainFile, outDir, initArgsType }) {
@@ -80,10 +79,9 @@ async function generate({ name, mainFile, outDir, initArgsType }) {
 
   // 4. Encode init args if a text form exists.
   if (initArgsType) {
-    const textPath = join(INIT_ARGS_DIR, `${name}.did`);
-    if (await fileExists(textPath)) {
-      const binPath = join(INIT_ARGS_DIR, `${name}.bin`);
+    for (const textPath of await initArgTextPaths(name)) {
       const text = await fs.readFile(textPath, 'utf8');
+      const binPath = textPath.replace(/\.did$/, '.bin');
       const tmpText = join(tmpDir, 'args.did');
       await fs.writeFile(tmpText, text);
       // didc writes hex to stdout; pipe to file.

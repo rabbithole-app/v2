@@ -37,7 +37,10 @@ const TOPOLOGY_FILE = path.join(BACKEND_DIR, '.icp-state', 'topology.json');
 const LOCAL_IDS_FILE = path.join(BACKEND_DIR, '.icp', 'data', 'mappings', 'local.ids.json');
 const LOCAL_NETWORK_YAML = path.join(BACKEND_DIR, 'networks', 'local.yaml');
 const II_FRONTEND_ARGS = path.join(BACKEND_DIR, 'init-args', 'internet_identity_frontend.did');
-const BACKEND_ARGS = path.join(BACKEND_DIR, 'init-args', 'rabbithole-backend.did');
+const BACKEND_ARG_PATHS = [
+  path.join(BACKEND_DIR, 'init-args', 'rabbithole-backend.did'),
+  path.join(BACKEND_DIR, 'init-args', 'rabbithole-backend.local.did'),
+];
 
 const SYSTEM_PINNED = ['xrc'];
 const FIDUCIARY_PINNED = ['sol_rpc', 'evm_rpc'];
@@ -151,13 +154,15 @@ async function main() {
 
   const evmRpcId = canisterId('evm_rpc');
   const solRpcId = canisterId('sol_rpc');
-  const backendArgs = await fs.readFile(BACKEND_ARGS, 'utf8');
-  const patchedBackendArgs = backendArgs
-    .replace(/evmRpcCanisterId = "[^"]+"/, `evmRpcCanisterId = "${evmRpcId}"`)
-    .replace(/solRpcCanisterId = "[^"]+"/, `solRpcCanisterId = "${solRpcId}"`);
-  if (patchedBackendArgs !== backendArgs) {
-    await fs.writeFile(BACKEND_ARGS, patchedBackendArgs);
-    console.log(`[bootstrap] init-args/rabbithole-backend.did: evm_rpc → ${evmRpcId}, sol_rpc → ${solRpcId}`);
+  for (const backendArgsPath of BACKEND_ARG_PATHS) {
+    const backendArgs = await fs.readFile(backendArgsPath, 'utf8');
+    const patchedBackendArgs = backendArgs
+      .replace(/evmRpcCanisterId = "[^"]+"/, `evmRpcCanisterId = "${evmRpcId}"`)
+      .replace(/solRpcCanisterId = "[^"]+"/, `solRpcCanisterId = "${solRpcId}"`);
+    if (patchedBackendArgs !== backendArgs) {
+      await fs.writeFile(backendArgsPath, patchedBackendArgs);
+      console.log(`[bootstrap] ${path.relative(BACKEND_DIR, backendArgsPath)}: evm_rpc → ${evmRpcId}, sol_rpc → ${solRpcId}`);
+    }
   }
 
   if (!canisterExists('internet_identity_backend')) {
