@@ -108,11 +108,11 @@ canisters:
 
   - name: rabbithole-frontend
     recipe:
-      type: '@dfinity/asset-canister@v2.1.0'
+      type: '@dfinity/asset-canister@v2.2.1'
       configuration:
-        dir: ../../dist/apps/rabbithole/browser
+        dir: tmp/rabbithole/browser
         build:
-          - sh -c 'cd ../.. && npx nx build rabbithole'
+          - sh -c 'cd ../.. && npx nx build rabbithole && rm -rf apps/backend/tmp/rabbithole/browser && mkdir -p apps/backend/tmp/rabbithole && cp -R dist/apps/rabbithole/browser apps/backend/tmp/rabbithole/browser'
     settings:
       environment_variables:
         PUBLIC_ENV_NAME: 'DEV'

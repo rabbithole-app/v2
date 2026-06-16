@@ -4,7 +4,10 @@ dist/
 
 # dependencies
 node_modules/
-.dfx
+
+# icp-cli ephemeral state
+.icp/cache/
+.icp/data/mappings/local.ids.json
 
 # logs
 npm-debug.log*

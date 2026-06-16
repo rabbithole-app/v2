@@ -154,6 +154,19 @@
         "command": "node apps/backend/scripts/act-release-storage.mjs",
         "parallel": false
       }
+    },
+    "deploy-rabbithole": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/backend",
+        "commands": [
+          "node scripts/generate-declarations.mjs",
+          "icp deploy -e local rabbithole-backend --mode upgrade --args-file ./init-args/rabbithole-backend.local.bin --args-format hex --yes",
+          "icp deploy -e local rabbithole-frontend --mode upgrade --yes",
+          "bash scripts/sync-env.sh local"
+        ],
+        "parallel": false
+      }
     }
   }
 }

@@ -1,0 +1,102 @@
+name: Deploy Rabbithole
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Canisters to deploy
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - backend
+          - frontend
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rabbithole-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: tree:0
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install backend dependencies
+        working-directory: apps/backend
+        run: npm ci --legacy-peer-deps
+
+      - name: Install ICP build tools
+        run: npm install -g @icp-sdk/icp-cli@1.0.0 @icp-sdk/ic-wasm ic-mops@2.14.1
+
+      - name: Install didc
+        run: cargo install didc --version 0.5.4
+
+      - name: Import ICP identity
+        env:
+          ICP_DEPLOY_IDENTITY_PEM: ${{ secrets.ICP_DEPLOY_IDENTITY_PEM }}
+        run: |
+          if [ -z "$ICP_DEPLOY_IDENTITY_PEM" ]; then
+            echo "Missing ICP_DEPLOY_IDENTITY_PEM secret."
+            exit 1
+          fi
+
+          identity_file="$(mktemp)"
+          printf '%s' "$ICP_DEPLOY_IDENTITY_PEM" > "$identity_file"
+          icp identity import --storage plaintext --from-pem "$identity_file" rabbithole-mainnet-deployer
+          icp identity default rabbithole-mainnet-deployer
+          rm -f "$identity_file"
+          icp identity principal
+
+      - name: Generate declarations and init args
+        run: npx nx run backend:generate-declarations --skip-nx-cache --outputStyle=static
+
+      - name: Configure backend release token
+        if: ${{ inputs.target == 'backend' || inputs.target == 'both' }}
+        working-directory: apps/backend
+        env:
+          STORAGE_RELEASES_GITHUB_TOKEN: ${{ secrets.STORAGE_RELEASES_GITHUB_TOKEN }}
+        run: |
+          if [ -n "$STORAGE_RELEASES_GITHUB_TOKEN" ]; then
+            icp canister settings update rabbithole-backend -e ic \
+              --add-environment-variable "GITHUB_TOKEN=${STORAGE_RELEASES_GITHUB_TOKEN}" \
+              -f
+          else
+            icp canister settings update rabbithole-backend -e ic \
+              --remove-environment-variable GITHUB_TOKEN \
+              -f
+          fi
+
+      - name: Deploy backend
+        if: ${{ inputs.target == 'backend' || inputs.target == 'both' }}
+        working-directory: apps/backend
+        run: |
+          icp deploy -e ic rabbithole-backend --mode auto --args-file ./init-args/rabbithole-backend.ic.bin --args-format hex --yes
+
+      - name: Deploy frontend
+        if: ${{ inputs.target == 'frontend' || inputs.target == 'both' }}
+        working-directory: apps/backend
+        run: |
+          icp deploy -e ic rabbithole-frontend --mode auto --yes
+
+      - name: Sync backend environment
+        if: ${{ inputs.target == 'backend' || inputs.target == 'both' }}
+        working-directory: apps/backend
+        run: |
+          bash scripts/sync-env.sh ic

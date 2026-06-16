@@ -22,20 +22,25 @@ jobs:
         working-directory: apps/docs
         run: npm ci
 
-      - name: Setup DFX
-        uses: dfinity/setup-dfx@main
-        with:
-          dfx-version: latest
+      - name: Install ICP build tools
+        run: npm install -g @icp-sdk/icp-cli@1.0.0 @icp-sdk/ic-wasm
 
-      - name: Import DFX Identity
+      - name: Import ICP identity
+        env:
+          ICP_DEPLOY_IDENTITY_PEM: ${{ secrets.ICP_DEPLOY_IDENTITY_PEM }}
         run: |
-          echo "${{ secrets.DFX_IDENTITY_PEM }}" > identity.pem
-          dfx identity import --storage-mode plaintext --force docs-deployer identity.pem || true
-          dfx identity use docs-deployer
-          rm -f identity.pem
+          if [ -z "$ICP_DEPLOY_IDENTITY_PEM" ]; then
+            echo "Missing ICP_DEPLOY_IDENTITY_PEM secret."
+            exit 1
+          fi
+
+          identity_file="$(mktemp)"
+          printf '%s' "$ICP_DEPLOY_IDENTITY_PEM" > "$identity_file"
+          icp identity import --storage plaintext --from-pem "$identity_file" rabbithole-mainnet-deployer
+          icp identity default rabbithole-mainnet-deployer
+          rm -f "$identity_file"
+          icp identity principal
 
       - name: Deploy to IC
         working-directory: apps/docs
-        env:
-          DFX_WARNING: -mainnet_plaintext_identity
-        run: dfx deploy docs --network ic --yes
+        run: icp deploy -e ic docs --mode upgrade --yes

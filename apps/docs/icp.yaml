@@ -1,0 +1,14 @@
+canisters:
+  - name: docs
+    recipe:
+      type: '@dfinity/asset-canister@v2.2.1'
+      configuration:
+        dir: doc_build
+        build:
+          - npm run build
+
+environments:
+  - name: ic
+    network: ic
+    canisters:
+      - docs
