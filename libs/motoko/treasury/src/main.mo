@@ -19,7 +19,7 @@ shared ({ caller = installer }) persistent actor class TreasuryCanister(initArgs
   let admin : Principal = installer;
 
   var versionedStore = Treasury.initStableStore(initArgs);
-  versionedStore := Treasury.upgradeStableStore(versionedStore);
+  versionedStore := Treasury.upgradeStableStore(versionedStore, { chains = null });
   transient let treasury = Treasury.fromVersion(versionedStore, canisterId);
 
   // ---- Admin methods ----

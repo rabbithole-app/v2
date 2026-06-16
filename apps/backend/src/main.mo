@@ -60,6 +60,13 @@ import Utils "Utils/lib";
 
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
+  transient let backendInitArgs = switch (initArgs) {
+    case (#v1(args)) args;
+  };
+  transient let treasuryChainsPatch = switch (backendInitArgs.treasury) {
+    case (?treasury) treasury.chains;
+    case null null;
+  };
 
   // --- Database ---
 
@@ -178,7 +185,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     {
       canisterId;
       thresholdKeyName = backendThresholdKeyName;
-      chains = initArgs.chains;
+      chains = treasuryChainsPatch;
     },
     { assertAdmin },
   );
@@ -387,7 +394,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
 
   include PaymentsMixin(
-    initArgs.icpaySecretKey,
+    backendInitArgs.icpaySecretKey,
     { assertAdmin },
     {
       events = backendEvents;

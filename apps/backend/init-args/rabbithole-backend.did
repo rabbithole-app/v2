@@ -1,6 +1,8 @@
-(record {
-  icpaySecretKey = null : opt blob;
-  chains = vec {
+(variant {
+  v1 = record {
+    icpaySecretKey = null : opt blob;
+    treasury = opt record {
+      chains = opt vec {
     variant {
       Evm = record {
         networkId = "base-sepolia";
@@ -54,6 +56,8 @@
             locator = variant { Mint = "11111111111111111111111111111111" }
           }
         }
+      }
+    }
       }
     }
   }

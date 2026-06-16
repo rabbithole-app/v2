@@ -24,6 +24,7 @@ import Licenses "Licenses";
 import StorageDeployer "StorageDeployer";
 import StorageEnvironment "../StorageEnvironment";
 import StorageCanisterOps "StorageCanisterOps";
+import StorageReleaseConfig "StorageReleaseConfig";
 import StorageReleasePlanner "StorageReleasePlanner";
 import StorageReleaseRuntime "StorageReleaseRuntime";
 import WasmInstaller "WasmInstaller";
@@ -262,6 +263,11 @@ module StorageDeployerOrchestrator {
   };
 
   func refreshRuntimeConfig<system>(store : Store) {
+    let releaseConfig = StorageReleaseConfig.fromEnv<system>();
+    GitHubReleases.configure(store.githubReleases, {
+      github = releaseConfig.github;
+      assets = releaseConfig.assets;
+    });
     store.vetKeyName := ?Utils.envText<system>("THRESHOLD_KEY_NAME", "key_1");
     store.cashierCanisterId := ?Principal.fromText(Utils.envText<system>(StorageEnvironment.CASHIER_PRINCIPAL, "xc7sj-uyaaa-aaaaf-qbrja-cai"));
   };
@@ -408,6 +414,7 @@ module StorageDeployerOrchestrator {
       func() : async () {
         // Reset retry count for daily check to allow fresh retry attempts
         self.fetchRetryCount := 0;
+        refreshRuntimeConfig<system>(self);
         await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, callbacks.onAssetDownloaded);
       },
     );
@@ -447,6 +454,7 @@ module StorageDeployerOrchestrator {
 
   /// Queue downloads for a concrete release tag already present in `store.releases`.
   public func prepareStorageRelease<system>(self : Store, releaseTag : Text, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : Result.Result<(), Text> {
+    refreshRuntimeConfig<system>(self);
     StorageReleaseRuntime.prepareStorageRelease<system>(self, releaseTag, onAssetDownloaded);
   };
 
@@ -1849,6 +1857,7 @@ module StorageDeployerOrchestrator {
     observedState : StorageReleaseState,
     callbacks : OrchestratorCallbacks,
   ) : async Result.Result<(), UpgradeStorageError> {
+    refreshRuntimeConfig<system>(self);
     await startStorageUpgradeTo<system>(self, creations, caller, canisterId, releaseTag, observedState, callbacks);
   };
 
@@ -2063,6 +2072,7 @@ module StorageDeployerOrchestrator {
 
   /// Manually trigger a refresh of releases (for debugging/recovery)
   public func refreshStorageReleaseIndex<system>(self : Store, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
+    refreshRuntimeConfig<system>(self);
     await StorageReleaseRuntime.refreshStorageReleaseIndex<system>(self, onAssetDownloaded);
   };
 

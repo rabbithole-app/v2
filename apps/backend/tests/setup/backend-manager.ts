@@ -276,8 +276,10 @@ export class BackendManager extends BaseManager {
         wasm: RABBITHOLE_BACKEND_WASM_PATH,
         environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
         arg: IDL.encode(initBackend({ IDL }), [{
-          icpaySecretKey: [],
-          chains: config?.chains ?? [],
+          v1: {
+            icpaySecretKey: [],
+            treasury: [{ chains: [config?.chains ?? []] }],
+          },
         }]),
       });
 
@@ -355,8 +357,10 @@ export class BackendManager extends BaseManager {
       canisterId: fixture.canisterId,
       wasm: RABBITHOLE_BACKEND_WASM_PATH,
       arg: IDL.encode(initBackend({ IDL }), [{
-        icpaySecretKey: [],
-        chains: [],
+        v1: {
+          icpaySecretKey: [],
+          treasury: [],
+        },
       }]),
       upgradeModeOptions: {
         skip_pre_upgrade: [],

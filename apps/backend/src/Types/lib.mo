@@ -29,7 +29,17 @@ module {
   };
 
   public type InitArgs = {
+    #v1 : InitArgsV1;
+  };
+
+  public type InitArgsV1 = {
     icpaySecretKey : ?Blob;
-    chains : [ChainConfig];
+    treasury : ?TreasuryInitArgsV1;
+  };
+
+  public type TreasuryInitArgsV1 = {
+    /// `null` preserves the already persisted treasury chain configuration on
+    /// upgrade. `?chains` replaces it explicitly.
+    chains : ?[ChainConfig];
   };
 };

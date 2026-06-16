@@ -268,8 +268,8 @@ describe("mock storage release scripts", () => {
       }
 
       const manifest = await readJson(join(releaseAssetsDir, "storage-release.json"));
-      for (const [kind, artifact] of Object.entries(manifest.artifacts)) {
-        const metadata = artifact as { name: string; sha256: string; size: number };
+      for (const kind of ["wasm", "frontend", "did", "stableSignature"] as const) {
+        const metadata = manifest.artifacts[kind] as { name: string; sha256: string; size: number };
         const artifactPath = join(releaseAssetsDir, metadata.name);
         const actualDigest = await sha256File(artifactPath);
         const actualSize = (await stat(artifactPath)).size;

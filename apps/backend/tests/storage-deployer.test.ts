@@ -90,6 +90,8 @@ type CheckSubscriptionResult =
 
 const TEST_SHA256_HEX =
   "0000000000000000000000000000000000000000000000000000000000000000";
+const BASELINE_STORAGE_RELEASE_TAG = "storage-v0.1.0";
+const BASELINE_STORAGE_RELEASE_VERSION = "0.1.0";
 
 async function drainTreasuryIcpBelowCmcFunding(
   manager: BackendManager,
@@ -518,6 +520,32 @@ async function waitForReleasesReady(
   console.log("✓ Releases downloaded and extracted successfully");
 }
 
+async function restoreBaselineReleaseIndex(
+  manager: BackendManager,
+  backendFixture: CanisterFixture<RabbitholeActorService>,
+): Promise<void> {
+  backendFixture.actor.setIdentity(manager.ownerIdentity);
+
+  await manager.pic.advanceTime(86_400_000);
+  await runHttpDownloaderQueueProcessor(
+    manager.pic,
+    async () => {
+      const status = await backendFixture.actor.getStorageReleaseAdminStatus();
+      const tags = status.releases.map((release) => release.tagName);
+      const baselineRelease = status.releases.find(
+        (release) => release.tagName === BASELINE_STORAGE_RELEASE_TAG,
+      );
+      return (
+        tags.length === 1 &&
+        tags[0] === BASELINE_STORAGE_RELEASE_TAG &&
+        baselineRelease?.isDeploymentReady === true
+      );
+    },
+    undefined,
+    { maxAttempts: 80, releaseTags: [BASELINE_STORAGE_RELEASE_TAG] },
+  );
+}
+
 describe("StorageDeployer", () => {
   let manager: BackendManager;
   let backendFixture: CanisterFixture<RabbitholeActorService>;
@@ -687,7 +715,9 @@ describe("StorageDeployer", () => {
             canisterId,
           );
         const releaseState = await storageActor.getStorageReleaseState();
-        expect(fromNullable(releaseState.releaseTag)).toBe("v0.1.0-test");
+        expect(fromNullable(releaseState.releaseTag)).toBe(
+          BASELINE_STORAGE_RELEASE_TAG,
+        );
         expect(fromNullable(releaseState.wasmHash)).toBeDefined();
         expect(fromNullable(releaseState.frontendAssetTreeHash)).toBeDefined();
       }
@@ -1074,7 +1104,9 @@ describe("StorageDeployer", () => {
         canisterId,
         e2eTestIdentity,
       );
-      expect(fromNullable(baselineState.releaseTag)).toBe("v0.1.0-test");
+      expect(fromNullable(baselineState.releaseTag)).toBe(
+        BASELINE_STORAGE_RELEASE_TAG,
+      );
       const baselineWasmHash = fromNullable(baselineState.wasmHash);
       expect(baselineWasmHash).toBeDefined();
       if (!baselineWasmHash) return;
@@ -1120,7 +1152,9 @@ describe("StorageDeployer", () => {
           manifest: (tag) =>
             storageReleaseManifest(
               tag,
-              tag === incompatibleReleaseTag ? [] : ["0.1.0-test"],
+              tag === incompatibleReleaseTag
+                ? []
+                : [BASELINE_STORAGE_RELEASE_VERSION],
               baselineWasmHashHex,
             ),
         },
@@ -1226,7 +1260,9 @@ describe("StorageDeployer", () => {
           manifest: (tag) =>
             storageReleaseManifest(
               tag,
-              tag === incompatibleReleaseTag ? [] : ["0.1.0-test"],
+              tag === incompatibleReleaseTag
+                ? []
+                : [BASELINE_STORAGE_RELEASE_VERSION],
               baselineWasmHashHex,
             ),
         },
@@ -1388,37 +1424,39 @@ describe("StorageDeployer", () => {
   );
 
   test("should allow getStorageUpgradePlan from any caller with observed state", async () => {
-    const e2eTestIdentity = createIdentity("e2eStorageTestUser");
-    backendFixture.actor.setIdentity(e2eTestIdentity);
+    try {
+      const e2eTestIdentity = createIdentity("e2eStorageTestUser");
+      backendFixture.actor.setIdentity(e2eTestIdentity);
 
-    const storages = await backendFixture.actor.listStorages();
-    const completedStorage = storages.find((s) => "Completed" in s.status);
-    expect(completedStorage).toBeDefined();
-    if (!completedStorage) return;
+      const storages = await backendFixture.actor.listStorages();
+      const completedStorage = storages.find((s) => "Completed" in s.status);
+      expect(completedStorage).toBeDefined();
+      if (!completedStorage) return;
 
-    const canisterId = fromNullable(completedStorage.canisterId);
-    expect(canisterId).toBeDefined();
-    if (!canisterId) return;
+      const canisterId = fromNullable(completedStorage.canisterId);
+      expect(canisterId).toBeDefined();
+      if (!canisterId) return;
 
-    // Call from anonymous/other user
-    const anonymousIdentity = createIdentity("anonymousUpgradeChecker");
-    backendFixture.actor.setIdentity(anonymousIdentity);
+      // Call from anonymous/other user
+      const anonymousIdentity = createIdentity("anonymousUpgradeChecker");
+      backendFixture.actor.setIdentity(anonymousIdentity);
 
-    const observedState = await getStorageReleaseState(
-      manager,
-      canisterId,
-      e2eTestIdentity,
-    );
-    const plan = await backendFixture.actor.getStorageUpgradePlan(
-      canisterId,
-      observedState,
-    );
-    expect(plan).toHaveProperty("ok");
-    if ("ok" in plan) {
-      expect(plan.ok.options.length).toBeGreaterThan(0);
+      const observedState = await getStorageReleaseState(
+        manager,
+        canisterId,
+        e2eTestIdentity,
+      );
+      const plan = await backendFixture.actor.getStorageUpgradePlan(
+        canisterId,
+        observedState,
+      );
+      expect(plan).toHaveProperty("ok");
+      if ("ok" in plan) {
+        expect(plan.ok.options.length).toBeGreaterThan(0);
+      }
+    } finally {
+      await restoreBaselineReleaseIndex(manager, backendFixture);
     }
-
-    backendFixture.actor.setIdentity(manager.ownerIdentity);
   });
 
   test(

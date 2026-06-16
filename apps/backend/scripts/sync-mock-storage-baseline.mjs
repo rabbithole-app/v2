@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -42,11 +42,16 @@ async function fetchJson(url, token) {
 }
 
 async function downloadAsset(asset, targetPath, token) {
-  const url = asset.browser_download_url ?? asset.url;
+  const useAssetApi = typeof asset.url === 'string' && asset.url.length > 0;
+  const url = useAssetApi ? asset.url : asset.browser_download_url;
+  if (!url) {
+    throw new Error(`Release asset ${asset.name} has no download URL`);
+  }
+
   const response = await fetch(url, {
-    headers: asset.browser_download_url
-      ? headers(token)
-      : { ...headers(token), Accept: 'application/octet-stream' },
+    headers: useAssetApi
+      ? { ...headers(token), Accept: 'application/octet-stream' }
+      : headers(token),
   });
 
   if (!response.ok) {
@@ -75,10 +80,11 @@ function validateManifestArtifacts(releaseDirPath) {
   if (!existsSync(manifestPath)) return;
 
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  const artifacts = manifest.artifacts ?? {};
-
-  for (const [kind, artifact] of Object.entries(artifacts)) {
+  const mirroredAssets = new Set(REQUIRED_STORAGE_ASSETS);
+  for (const [kind, artifact] of Object.entries(manifest.artifacts ?? {})) {
     if (!artifact?.name || !artifact?.sha256) continue;
+    if (!mirroredAssets.has(artifact.name)) continue;
+
     const artifactPath = join(releaseDirPath, artifact.name);
     if (!existsSync(artifactPath)) {
       throw new Error(`Manifest ${kind} artifact is missing: ${artifact.name}`);
@@ -88,6 +94,22 @@ function validateManifestArtifacts(releaseDirPath) {
     if (actual !== artifact.sha256) {
       throw new Error(`Manifest hash mismatch for ${artifact.name}: expected ${artifact.sha256}, got ${actual}`);
     }
+  }
+}
+
+async function downloadReleaseAssetByName(release, releaseDirPath, name, token) {
+  const asset = releaseAssetByName(release, name);
+  if (!asset) {
+    throw new Error(`Release ${release.tag_name} is missing required asset ${name}`);
+  }
+  await downloadAsset(asset, join(releaseDirPath, name), token);
+}
+
+function pruneUnmirroredAssets(releaseDirPath) {
+  const mirroredAssets = new Set(REQUIRED_STORAGE_ASSETS);
+  for (const entry of readdirSync(releaseDirPath, { withFileTypes: true })) {
+    if (!entry.isFile() || mirroredAssets.has(entry.name)) continue;
+    rmSync(join(releaseDirPath, entry.name), { force: true });
   }
 }
 
@@ -109,12 +131,9 @@ async function main() {
   ensureDir(releaseDirPath);
 
   for (const name of REQUIRED_STORAGE_ASSETS) {
-    const asset = releaseAssetByName(release, name);
-    if (!asset) {
-      throw new Error(`Release ${tagName} is missing required asset ${name}`);
-    }
-    await downloadAsset(asset, join(releaseDirPath, name), token);
+    await downloadReleaseAssetByName(release, releaseDirPath, name, token);
   }
+  pruneUnmirroredAssets(releaseDirPath);
 
   assertRequiredAssets(releaseDirPath);
   validateManifestArtifacts(releaseDirPath);

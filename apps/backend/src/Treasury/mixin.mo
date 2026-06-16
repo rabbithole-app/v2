@@ -12,7 +12,7 @@ mixin(
   config : {
     canisterId : Principal;
     thresholdKeyName : Types.ThresholdKeyName;
-    chains : [Types.ChainConfig];
+    chains : ?[Types.ChainConfig];
   },
   admin : { assertAdmin : (Principal) -> () },
 ) {
@@ -21,10 +21,15 @@ mixin(
   // in the treasury library) instead of being keyed by an admin principal.
   var treasuryStableStore = Treasury.initStableStore({
     thresholdKeyName = config.thresholdKeyName;
-    chains = config.chains;
+    chains = switch (config.chains) {
+      case (?chains) chains;
+      case null [];
+    };
     distributionConfig = null; // uses defaults (85/15/0)
   });
-  treasuryStableStore := Treasury.upgradeStableStore(treasuryStableStore);
+  treasuryStableStore := Treasury.upgradeStableStore(treasuryStableStore, {
+    chains = config.chains;
+  });
 
   // Transient treasury instance — reconstructed on upgrade
   transient let treasury = Treasury.fromVersion(treasuryStableStore, config.canisterId);

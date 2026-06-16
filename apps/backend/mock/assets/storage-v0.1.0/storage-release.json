@@ -2,28 +2,33 @@
   "schemaVersion": 1,
   "version": "0.1.0",
   "tagName": "storage-v0.1.0",
-  "commit": "c8925f258a0a9e0e0e5c55b10135ff314c4c24c8",
-  "frontendAssetTreeHash": "2c224aa13aca062908fd79aa0b6d4d82ff1d157641df63fecc3d3ef3d7560da4",
+  "commit": "4db53683f8e58c41201aa2eb34f0ce70cb130edf",
+  "frontendAssetTreeHash": "41b315dd7aba7613b6adde5b73aa487ee71824ca5b17569237b535120de0299f",
   "artifacts": {
     "wasm": {
       "name": "encrypted-storage.wasm.gz",
-      "size": 825461,
-      "sha256": "e473e5f53cd7c88a278aaa1e6f02550de9708a505f92249e3fe47645a81620e2"
+      "size": 821804,
+      "sha256": "b7b4a51b1faedd033ad6802171560f90aa92cb7d72898c45f4589725ce645b35"
     },
     "frontend": {
       "name": "storage-frontend.tar",
-      "size": 7190016,
-      "sha256": "324169fbaa32a1cc11dd128d748d5876dede3d0dd8fca60788d0a8ea3e16cb29"
+      "size": 7188480,
+      "sha256": "a047c42972eee0c0d595cafc00b587a56e1b2fcdb1b434142e55b9ada3a169d3"
     },
     "did": {
       "name": "encrypted-storage.did",
-      "size": 31467,
-      "sha256": "5bb17d2412add03e9417d25abf27e88def9e68d2fc999a6f091964ef588ebcd1"
+      "size": 31603,
+      "sha256": "993edb0d2d3e12388c913b65282e9f4fcb2838428d48fbd7889c373078c02ab8"
     },
     "stableSignature": {
       "name": "encrypted-storage.most",
       "size": 48991,
       "sha256": "151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914"
+    },
+    "jsLibrary": {
+      "name": "encrypted-storage-lib.zip",
+      "size": 305610,
+      "sha256": "36ebb66ff51aa642c6b35636691ac938316906abb012d37c920a0a2ea8071b90"
     }
   },
   "upgrade": {
@@ -31,8 +36,8 @@
     "compatibleFrom": []
   },
   "releaseNotes": {
-    "source": "generated",
-    "summary": "Storage maintenance release.",
+    "source": "manual",
+    "summary": "Initial release.",
     "sections": []
   }
 }

@@ -7,8 +7,8 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/motoko",
-        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/treasury && dfx canister create --all && dfx build treasury'",
+        "cwd": "libs/motoko/treasury",
+        "command": "icp build",
         "parallel": false
       }
     },
@@ -18,13 +18,14 @@
         "cwd": "libs/motoko/treasury",
         "command": "vitest",
         "parallel": false
-      }
+      },
+      "dependsOn": ["build"]
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/motoko",
-        "command": "docker compose exec -T replica bash -lc 'cd /workspace/libs/treasury && npx lintoko'",
+        "cwd": "libs/motoko/treasury",
+        "command": "mops lint",
         "parallel": false
       }
     }

@@ -41,8 +41,10 @@ export async function createPic(): Promise<
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
     environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
     arg: IDL.encode(initBackend({ IDL }), [{
-      icpaySecretKey: [],
-      chains: [],
+      v1: {
+        icpaySecretKey: [],
+        treasury: [{ chains: [[]] }],
+      },
     }]),
   });
   await pic.tick();
@@ -64,8 +66,10 @@ export async function createPicWithWebhook(): Promise<
     idlFactory: rabbitholeIdlFactory as unknown as IDL.InterfaceFactory,
     environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
     arg: IDL.encode(initBackend({ IDL }), [{
-      icpaySecretKey: [Array.from(secretBytes)],
-      chains: [],
+      v1: {
+        icpaySecretKey: [Array.from(secretBytes)],
+        treasury: [{ chains: [[]] }],
+      },
     }]),
   });
   await pic.tick();

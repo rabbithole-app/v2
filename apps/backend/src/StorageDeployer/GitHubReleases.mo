@@ -64,9 +64,9 @@ module {
 
   /// GitHub releases store containing release data and download state
   public type Store = {
-    github : GithubOptions;
+    var github : GithubOptions;
     releases : Set.Set<Types.Release>;
-    assets : [(ReleaseSelector, [GithubAsset])]; // (release selector, (storage wasm asset, storage frontend asset))
+    var assets : [(ReleaseSelector, [GithubAsset])]; // (release selector, (storage wasm asset, storage frontend asset))
     downloaderStore : HttpDownloader.Store;
   };
 
@@ -125,14 +125,21 @@ module {
   /// ```
   public func new({ github; assets; region } : Types.Options) : Store {
     {
-      github;
+      var github = github;
       releases = Set.empty();
       downloaderStore = HttpDownloader.new({
         httpHeaders = getHeaders(github.token) |> Set.values(_) |> Iter.toArray(_);
         region;
       });
-      assets;
+      var assets = assets;
     };
+  };
+
+  public func configure(store : Store, { github; assets } : { github : GithubOptions; assets : [(ReleaseSelector, [GithubAsset])] }) {
+    store.github := github;
+    store.assets := assets;
+    Set.clear(store.downloaderStore.httpHeaders);
+    Set.addAll(store.downloaderStore.httpHeaders, compareHeaders, Set.values(getHeaders(github.token)));
   };
 
   /// Fetch releases from GitHub API and start downloading configured assets

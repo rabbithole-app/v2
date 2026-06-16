@@ -7,6 +7,7 @@ import type { RabbitholeActorService } from "@rabbithole/declarations";
 
 import { BackendManager } from "./setup/backend-manager";
 import { E8S_PER_ICP, ONE_TRILLION_CYCLES } from "./setup/constants";
+import { runHttpDownloaderQueueProcessor } from "./setup/github-outcalls";
 
 /**
  * Fixed treasury subaccount — mirrors `Const.treasurySubaccount()` in
@@ -19,6 +20,27 @@ const TREASURY_SUBACCOUNT: Uint8Array = new Uint8Array([
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0,
 ]);
+
+async function waitForStorageReleaseReady(
+  manager: BackendManager,
+  backendFixture: CanisterFixture<RabbitholeActorService>,
+): Promise<void> {
+  await runHttpDownloaderQueueProcessor(
+    manager.pic,
+    async () =>
+      (await backendFixture.actor.getStorageReleaseAdminStatus())
+        .hasDownloadedRelease,
+  );
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    await manager.pic.tick(20);
+    const status = await backendFixture.actor.getStorageReleaseAdminStatus();
+    if (status.hasDeploymentReadyRelease) return;
+  }
+
+  const status = await backendFixture.actor.getStorageReleaseAdminStatus();
+  expect(status.hasDeploymentReadyRelease).toBe(true);
+}
 
 describe("Backend self-topup from treasury", () => {
   let manager: BackendManager;
@@ -88,6 +110,8 @@ describe("Backend self-topup from treasury", () => {
     // nothing to do. This test verifies a user-facing purchase completes
     // without any error leaking from the opportunistic self-topup trigger.
     const identity = createIdentity("self-topup-purchase-trigger");
+
+    await waitForStorageReleaseReady(manager, backendFixture);
 
     backendFixture.actor.setIdentity(identity);
     await backendFixture.actor.ensureUser([]);

@@ -1,0 +1,30 @@
+environments:
+  - name: local
+    network: local
+    canisters:
+      - treasury
+      - sol_rpc
+      - evm_rpc
+
+canisters:
+  - name: treasury
+    recipe:
+      type: "@dfinity/motoko@v4.1.0"
+      configuration:
+        main: src/main.mo
+        compress: true
+    init_args: '(record { thresholdKeyName = "key_1"; chains = vec {}; distributionConfig = null })'
+
+  - name: sol_rpc
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/dfinity/sol-rpc-canister/releases/download/sol_rpc_canister-v1.3.0/sol_rpc_canister.wasm.gz
+    init_args: '(record {})'
+
+  - name: evm_rpc
+    build:
+      steps:
+        - type: pre-built
+          url: https://github.com/dfinity/evm-rpc-canister/releases/download/evm_rpc-v2.8.0/evm_rpc.wasm.gz
+    init_args: '(record {})'

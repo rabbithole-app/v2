@@ -197,8 +197,10 @@ describe("Integration: deposit + wallet + settings", () => {
       environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
       arg: IDL.encode(initBackend({ IDL }), [
         {
-          icpaySecretKey: [],
-          chains: [],
+          v1: {
+            icpaySecretKey: [],
+            treasury: [{ chains: [[]] }],
+          },
         },
       ]),
     });
@@ -288,8 +290,10 @@ describe.skipIf(!ICPAY_ENABLED)(
         environmentVariables: BACKEND_ENVIRONMENT_VARIABLES,
         arg: IDL.encode(initBackend({ IDL }), [
           {
-            icpaySecretKey: [Array.from(secretBytes)],
-            chains: [],
+            v1: {
+              icpaySecretKey: [Array.from(secretBytes)],
+              treasury: [{ chains: [[]] }],
+            },
           },
         ]),
       });

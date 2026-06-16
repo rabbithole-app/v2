@@ -27,6 +27,7 @@ import Types "Types";
 
 module Treasury {
   public type StableStore = Migrations.VersionedStableStore;
+  public type UpgradeOptions = Migrations.UpgradeOptions;
 
   // ---- Init / Upgrade / FromVersion ----
 
@@ -63,8 +64,8 @@ module Treasury {
     });
   };
 
-  public func upgradeStableStore(store : StableStore) : StableStore {
-    Migrations.upgrade(store);
+  public func upgradeStableStore(store : StableStore, options : UpgradeOptions) : StableStore {
+    Migrations.upgrade(store, options);
   };
 
   public type Treasury = {

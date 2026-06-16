@@ -49,10 +49,14 @@ export const idlFactory = ({ IDL }) => {
     'Evm' : EvmChainConfig,
     'Solana' : SolanaChainConfig,
   });
-  const InitArgs = IDL.Record({
-    'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'chains' : IDL.Vec(ChainConfig),
+  const TreasuryInitArgsV1 = IDL.Record({
+    'chains' : IDL.Opt(IDL.Vec(ChainConfig)),
   });
+  const InitArgsV1 = IDL.Record({
+    'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'treasury' : IDL.Opt(TreasuryInitArgsV1),
+  });
+  const InitArgs = IDL.Variant({ 'v1' : InitArgsV1 });
   const ImmutableObjectStorageCreateCertificateResult = IDL.Record({
     'method' : IDL.Text,
     'blob_hash' : IDL.Text,
@@ -1476,10 +1480,14 @@ export const init = ({ IDL }) => {
     'Evm' : EvmChainConfig,
     'Solana' : SolanaChainConfig,
   });
-  const InitArgs = IDL.Record({
-    'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
-    'chains' : IDL.Vec(ChainConfig),
+  const TreasuryInitArgsV1 = IDL.Record({
+    'chains' : IDL.Opt(IDL.Vec(ChainConfig)),
   });
+  const InitArgsV1 = IDL.Record({
+    'icpaySecretKey' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'treasury' : IDL.Opt(TreasuryInitArgsV1),
+  });
+  const InitArgs = IDL.Variant({ 'v1' : InitArgsV1 });
   
   return [InitArgs];
 };

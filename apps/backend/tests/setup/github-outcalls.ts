@@ -12,6 +12,7 @@ const MOCK_RELEASE_TAG = "storage-v0.1.0";
 const MOCK_WASM_ASSET_NAME = "encrypted-storage.wasm.gz";
 const MOCK_FRONTEND_ASSET_NAME = "storage-frontend.tar";
 const MOCK_MANIFEST_ASSET_NAME = "storage-release.json";
+const MOCK_DID_ASSET_NAME = "encrypted-storage.did";
 const MOCK_STABLE_SIGNATURE_ASSET_NAME = "encrypted-storage.most";
 const TAR_BLOCK_BYTES = 512;
 const MOCK_RELEASE_CREATED_AT = new Date("2024-01-01T00:00:00.000Z");
@@ -44,6 +45,7 @@ const CONTENT_TYPES: [string, string][] = [
 const defaultAssets = {
   wasm: loadFileContent(STORAGE_WASM_PATH),
   frontend: loadFileContent(STORAGE_FRONTEND_ARCHIVE_PATH),
+  did: new TextEncoder().encode("service : {}\n"),
   stableSignature: new TextEncoder().encode("// test stable signature\n"),
 };
 
@@ -54,6 +56,7 @@ export const frontendV2Content = loadFileContent(STORAGE_FRONTEND_V2_ARCHIVE_PAT
  * Asset provider interface - allows overriding any asset content
  */
 export type AssetProvider = {
+  did: Uint8Array;
   frontend: Uint8Array;
   manifest: Uint8Array | ((tag: string) => Uint8Array);
   stableSignature: Uint8Array;
@@ -90,12 +93,14 @@ export async function runHttpDownloaderQueueProcessor(
   const effectiveAssets = {
     wasm: assets?.wasm ?? defaultAssets.wasm,
     frontend: assets?.frontend ?? defaultAssets.frontend,
+    did: assets?.did ?? defaultAssets.did,
     manifest: assets?.manifest,
     stableSignature: assets?.stableSignature ?? defaultAssets.stableSignature,
   };
 
   const wasmAsset = buildAssetMeta(MOCK_WASM_ASSET_NAME, effectiveAssets.wasm, 'application/gzip');
   const frontendAsset = buildAssetMeta(MOCK_FRONTEND_ASSET_NAME, effectiveAssets.frontend, 'application/x-tar');
+  const didAsset = buildAssetMeta(MOCK_DID_ASSET_NAME, effectiveAssets.did, 'text/plain');
   const stableSignatureAsset = buildAssetMeta(MOCK_STABLE_SIGNATURE_ASSET_NAME, effectiveAssets.stableSignature, 'text/plain');
   const manifestForTag = (tag: string) => {
     if (typeof effectiveAssets.manifest === "function") {
@@ -104,7 +109,7 @@ export async function runHttpDownloaderQueueProcessor(
     return effectiveAssets.manifest ?? buildManifestContent(wasmAsset, frontendAsset, stableSignatureAsset, tag);
   };
 
-  const assetsMeta: AssetMeta[] = [wasmAsset, frontendAsset, stableSignatureAsset];
+  const assetsMeta: AssetMeta[] = [wasmAsset, frontendAsset, didAsset, stableSignatureAsset];
 
   let attempts = 0;
   while (true) {

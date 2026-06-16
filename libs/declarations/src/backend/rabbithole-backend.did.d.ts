@@ -300,9 +300,10 @@ export interface ImmutableObjectStorageRefillResult {
   'success' : [] | [boolean],
   'topped_up_amount' : [] | [bigint],
 }
-export interface InitArgs {
+export type InitArgs = { 'v1' : InitArgsV1 };
+export interface InitArgsV1 {
   'icpaySecretKey' : [] | [Uint8Array],
-  'chains' : Array<ChainConfig>,
+  'treasury' : [] | [TreasuryInitArgsV1],
 }
 export interface KnownWasmHash {
   'hash' : Uint8Array,
@@ -1264,6 +1265,7 @@ export interface TransferRecord {
   'amount' : bigint,
   'evmAddress' : [] | [string],
 }
+export interface TreasuryInitArgsV1 { 'chains' : [] | [Array<ChainConfig>] }
 export interface UpdateInfo {
   'currentWasmHash' : [] | [Uint8Array],
   'wasmUpdateAvailable' : boolean,

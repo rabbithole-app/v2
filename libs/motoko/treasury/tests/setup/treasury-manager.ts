@@ -53,38 +53,20 @@ export const TREASURY_SUBACCOUNT: Uint8Array = new Uint8Array([
   0, 0, 0, 0, 0, 0, 0,
 ]);
 
-const TREASURY_WASM_PATH = resolve(
+const POCKETIC_THRESHOLD_KEY_NAME = "key_1";
+
+const ICP_ARTIFACTS_DIR = resolve(
   import.meta.dirname,
   "..",
   "..",
-  ".dfx",
-  "local",
-  "canisters",
-  "treasury",
-  "treasury.wasm",
+  ".icp",
+  "cache",
+  "artifacts",
 );
 
-const EVM_RPC_WASM_PATH = resolve(
-  import.meta.dirname,
-  "..",
-  "..",
-  ".dfx",
-  "local",
-  "canisters",
-  "evm_rpc",
-  "evm_rpc.wasm.gz",
-);
-
-const SOL_RPC_WASM_PATH = resolve(
-  import.meta.dirname,
-  "..",
-  "..",
-  ".dfx",
-  "local",
-  "canisters",
-  "sol_rpc",
-  "sol_rpc.wasm.gz",
-);
+const TREASURY_WASM_PATH = resolve(ICP_ARTIFACTS_DIR, "treasury");
+const EVM_RPC_WASM_PATH = resolve(ICP_ARTIFACTS_DIR, "evm_rpc");
+const SOL_RPC_WASM_PATH = resolve(ICP_ARTIFACTS_DIR, "sol_rpc");
 
 // ---- Base Sepolia testnet constants ----
 
@@ -181,7 +163,7 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          thresholdKeyName: "dfx_test_key",
+          thresholdKeyName: POCKETIC_THRESHOLD_KEY_NAME,
           chains: [],
           distributionConfig: [],
         },
@@ -258,7 +240,7 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          thresholdKeyName: "dfx_test_key",
+          thresholdKeyName: POCKETIC_THRESHOLD_KEY_NAME,
           chains: [],
           distributionConfig: [],
         },
@@ -311,7 +293,7 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          thresholdKeyName: "dfx_test_key",
+          thresholdKeyName: POCKETIC_THRESHOLD_KEY_NAME,
           chains: [baseChainConfig(evmRpcFixture.canisterId.toText())],
           distributionConfig: DEFAULT_DISTRIBUTION_CONFIG,
         },
@@ -372,7 +354,7 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          thresholdKeyName: "dfx_test_key",
+          thresholdKeyName: POCKETIC_THRESHOLD_KEY_NAME,
           chains: [
             baseChainConfig(evmRpcFixture.canisterId.toText()),
             solanaDevnetChainConfig(solRpcCanisterId.toText()),
@@ -425,7 +407,7 @@ export class TreasuryManager extends BaseManager {
       wasm: TREASURY_WASM_PATH,
       arg: IDL.encode(treasuryInit({ IDL }), [
         {
-          thresholdKeyName: "dfx_test_key",
+          thresholdKeyName: POCKETIC_THRESHOLD_KEY_NAME,
           chains: [solanaDevnetChainConfig(solRpcCanisterId.toText())],
           distributionConfig: DEFAULT_DISTRIBUTION_CONFIG,
         },
