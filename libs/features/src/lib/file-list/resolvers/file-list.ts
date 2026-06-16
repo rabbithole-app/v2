@@ -8,9 +8,10 @@ import { fromNullable } from '@dfinity/utils';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
-  createEncryptedStorageCanisterProviderFromSnapshot,
   injectEncryptedStorage,
+  injectEncryptedStorageCanisterIdFromRouteContext,
   provideEncryptedStorage,
+  provideEncryptedStorageCanisterId,
 } from '@rabbithole/core/storage-runtime';
 import {
   StorageAccessRequest,
@@ -33,11 +34,12 @@ export const fileListResolver: ResolveFn<FileListResolverData> = (
   const segments = route.url.map((segment) => segment.path);
   const authService = inject(AUTH_SERVICE);
   const injector = inject(Injector);
+  const canisterId = injectEncryptedStorageCanisterIdFromRouteContext(route);
 
   return runInInjectionContext(
     Injector.create({
       providers: [
-        createEncryptedStorageCanisterProviderFromSnapshot(route),
+        provideEncryptedStorageCanisterId(canisterId),
         provideEncryptedStorage(),
       ],
       parent: injector,

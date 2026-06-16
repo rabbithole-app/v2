@@ -4,7 +4,7 @@ import { toast } from '@spartan-ng/brain/sonner';
 
 import type { UserSettings } from '@rabbithole/declarations/backend';
 
-import { injectMainActor } from '../injectors';
+import { injectMainActor } from '../injectors/main-actor';
 import { parseCanisterRejectError } from '../utils';
 
 @Injectable({ providedIn: 'root' })

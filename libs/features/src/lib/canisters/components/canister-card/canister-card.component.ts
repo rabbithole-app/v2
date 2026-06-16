@@ -12,9 +12,9 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideDatabase, lucideEye, lucideTrash2 } from '@ng-icons/lucide';
 
 import {
-  ENCRYPTED_STORAGE_CANISTER_ID,
   formatBytes,
   formatTCycles,
+  provideEncryptedStorageCanisterId,
 } from '@rabbithole/core';
 import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -41,7 +41,7 @@ import { DeleteCanisterDialogComponent } from '../delete-canister-dialog/delete-
     NgIcon,
     HlmIcon,
     CoreCanisterStatusComponent,
-    ],
+  ],
   providers: [provideIcons({ lucideDatabase, lucideEye, lucideTrash2 })],
   templateUrl: './canister-card.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,16 +55,9 @@ export class CanisterCardComponent {
   #parentInjector = inject(Injector);
   #icManagementService = computed(() => {
     const canisterIdValue = this.canisterId();
-    const principal =
-      typeof canisterIdValue === 'string'
-        ? Principal.fromText(canisterIdValue)
-        : canisterIdValue;
     const childInjector = Injector.create({
       providers: [
-        {
-          provide: ENCRYPTED_STORAGE_CANISTER_ID,
-          useValue: principal,
-        },
+        provideEncryptedStorageCanisterId(canisterIdValue),
         ICManagementService,
       ],
       parent: this.#parentInjector,

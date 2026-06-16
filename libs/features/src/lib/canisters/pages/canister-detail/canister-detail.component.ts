@@ -29,8 +29,8 @@ import {
 } from '@rabbithole/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
-  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   IAssetUploadService,
+  provideEncryptedStorageCanisterIdFromRouteParam,
   UPLOAD_ASSETS_SERVICE_PROVIDERS,
   UPLOAD_SERVICE_TOKEN,
 } from '@rabbithole/core/storage-runtime';
@@ -82,7 +82,7 @@ import { ICManagementService } from '../../services';
     WasmInstallTriggerDirective,
   ],
   providers: [
-    ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
+    provideEncryptedStorageCanisterIdFromRouteParam(),
     UPLOAD_ASSETS_SERVICE_PROVIDERS,
     ICManagementService,
     provideIcons({

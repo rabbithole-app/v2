@@ -1,0 +1,13 @@
+{
+  "name": "core-storage-canister-status",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/core/storage-canister-status/src",
+  "prefix": "core",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

@@ -4,16 +4,13 @@ import {
   Component,
   computed,
   inject,
-  Injector,
   input,
   linkedSignal,
   resource,
-  runInInjectionContext,
   signal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronDown,
@@ -114,7 +111,6 @@ const refreshIconVariants = cva('', {
 });
 
 type CyclesMetricResourceParams = {
-  canisterId: string | null;
   forceRefresh: boolean;
 };
 
@@ -154,26 +150,27 @@ type CyclesMetricResourceParams = {
       lucideRefreshCw,
       lucideZap,
     }),
+    provideEncryptedStorageActor(),
   ],
 })
 export class CanisterCyclesMetricCardComponent {
-  readonly canisterId = input<string | null>(null);
+  readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  readonly canisterId = this.#canisterId.toText();
   readonly #refreshNonce = signal(0);
-
   readonly #metrics = resource({
     params: (): CyclesMetricResourceParams => ({
-      canisterId: this.canisterId(),
       forceRefresh: this.#refreshNonce() > 0,
     }),
     loader: ({ params }) => this.#load(params),
     defaultValue: EMPTY_CANISTER_CYCLES_METRIC_SNAPSHOT,
   });
+
   readonly snapshot = linkedSignal<
     MetricSnapshotSource<CanisterCyclesMetricSnapshot>,
     CanisterCyclesMetricSnapshot
   >({
     source: computed(() => ({
-      canisterId: this.canisterId(),
+      canisterId: this.canisterId,
       value: this.#metrics.value() ?? EMPTY_CANISTER_CYCLES_METRIC_SNAPSHOT,
     })),
     computation: (source, previous) =>
@@ -202,7 +199,6 @@ export class CanisterCyclesMetricCardComponent {
     () => this.storageFundingStatus()?.managedFundingEligible ?? false,
   );
   readonly paidAutoTopUpInFlight = signal(false);
-
   readonly #settingsService = inject(SettingsService);
 
   readonly canTogglePaidAutoTopUp = computed(
@@ -211,6 +207,7 @@ export class CanisterCyclesMetricCardComponent {
       this.#settingsService.settings() !== null &&
       !this.paidAutoTopUpInFlight(),
   );
+
   readonly #fb = inject(FormBuilder);
   readonly topUpAmountControl = this.#fb.nonNullable.control(1, {
     validators: [Validators.required, Validators.min(0.1)],
@@ -231,13 +228,13 @@ export class CanisterCyclesMetricCardComponent {
 
     return (Number(this.topUpCycles()) / Number(cyclesPerIcp)) * icpUsd;
   });
-
   readonly topUpEligibility = computed(() =>
     calculatePaymentEligibility(
       this.#balanceService.balances(),
       this.topUpEstimatedUsd(),
     ),
   );
+
   readonly topUpInFlight = signal(false);
   readonly canTopUp = computed(
     () =>
@@ -263,10 +260,10 @@ export class CanisterCyclesMetricCardComponent {
     const target = this.cycleSafeFloorBalance();
     return target > snapshot.cycleBalance ? target - snapshot.cycleBalance : 0n;
   });
-
   readonly cycleFreezeLeft = computed(() =>
     this.#cycleBalancePosition(this.snapshot().currentFreezingReserve),
   );
+
   readonly cycleFreezeWidth = computed(() =>
     this.#width(this.snapshot().currentFreezingReserve, this.cycleScale()),
   );
@@ -368,9 +365,7 @@ export class CanisterCyclesMetricCardComponent {
       `Safe floor: ${this.formatCycles(this.cycleSafeFloorBalance())} covers freezing reserve, active upload work, vetKey derivation, commit, and margin.`,
   );
   readonly showCard = computed(
-    () =>
-      this.canisterId() !== null &&
-      (this.loading() || this.snapshot().canViewCycleMetrics),
+    () => this.loading() || this.snapshot().canViewCycleMetrics,
   );
   readonly targetTooltip = computed(
     () =>
@@ -392,7 +387,7 @@ export class CanisterCyclesMetricCardComponent {
     }
     return null;
   });
-  readonly #injector = inject(Injector);
+  readonly #actor = injectEncryptedStorageActor();
   readonly #mainActor = injectMainActor();
 
   formatCycles(value: bigint): string {
@@ -440,13 +435,11 @@ export class CanisterCyclesMetricCardComponent {
 
   async submitTopUp(): Promise<void> {
     if (!this.canTopUp()) return;
-    const canisterId = this.canisterId();
-    if (!canisterId) return;
 
     this.topUpInFlight.set(true);
     try {
       const result = await this.#mainActor().topUpFromBalance(
-        Principal.fromText(canisterId),
+        this.#canisterId,
         this.topUpCycles(),
       );
 
@@ -477,39 +470,34 @@ export class CanisterCyclesMetricCardComponent {
   }
 
   async #load({
-    canisterId,
     forceRefresh,
   }: CyclesMetricResourceParams): Promise<CanisterCyclesMetricSnapshot> {
-    if (!canisterId) return EMPTY_CANISTER_CYCLES_METRIC_SNAPSHOT;
+    const actor = this.#actor();
+    let cyclesMetrics = storageResultOk(
+      forceRefresh
+        ? await actor.refreshCanisterCyclesCardMetrics()
+        : await actor.getCanisterCyclesCardMetrics(),
+    );
 
-    return this.#withStorageActor(canisterId, async () => {
-      const actor = injectEncryptedStorageActor();
-      let cyclesMetrics = storageResultOk(
-        forceRefresh
-          ? await actor().refreshCanisterCyclesCardMetrics()
-          : await actor().getCanisterCyclesCardMetrics(),
-      );
-
-      if (!cyclesMetrics && forceRefresh) {
-        try {
-          cyclesMetrics = storageResultOk(
-            await actor().getCanisterCyclesCardMetrics(),
-          );
-        } catch {
-          // Keep the refresh failure as an unavailable card.
-        }
+    if (!cyclesMetrics && forceRefresh) {
+      try {
+        cyclesMetrics = storageResultOk(
+          await actor.getCanisterCyclesCardMetrics(),
+        );
+      } catch {
+        // Keep the refresh failure as an unavailable card.
       }
+    }
 
-      if (!cyclesMetrics) return EMPTY_CANISTER_CYCLES_METRIC_SNAPSHOT;
+    if (!cyclesMetrics) return EMPTY_CANISTER_CYCLES_METRIC_SNAPSHOT;
 
-      return {
-        canViewCycleMetrics: true,
-        cycleBalance: cyclesMetrics.balance,
-        currentFreezingReserve: cyclesMetrics.safety.currentFreezingReserve,
-        minimumSafeBalance: cyclesMetrics.safety.minimumSafeBalance,
-        requiredBalance: cyclesMetrics.safety.targetBalance,
-      };
-    });
+    return {
+      canViewCycleMetrics: true,
+      cycleBalance: cyclesMetrics.balance,
+      currentFreezingReserve: cyclesMetrics.safety.currentFreezingReserve,
+      minimumSafeBalance: cyclesMetrics.safety.minimumSafeBalance,
+      requiredBalance: cyclesMetrics.safety.targetBalance,
+    };
   }
 
   #width(value: bigint, total: bigint): string {
@@ -517,27 +505,6 @@ export class CanisterCyclesMetricCardComponent {
     const clamped = value > total ? total : value;
     const basisPoints = Number((clamped * 10_000n) / total);
     return `${basisPoints / 100}%`;
-  }
-
-  async #withStorageActor<T>(
-    canisterId: string,
-    run: () => Promise<T>,
-  ): Promise<T> {
-    const storagePrincipal = Principal.fromText(canisterId);
-
-    return runInInjectionContext(
-      Injector.create({
-        providers: [
-          {
-            provide: ENCRYPTED_STORAGE_CANISTER_ID,
-            useValue: storagePrincipal,
-          },
-          provideEncryptedStorageActor(),
-        ],
-        parent: this.#injector,
-      }),
-      run,
-    );
   }
 }
 

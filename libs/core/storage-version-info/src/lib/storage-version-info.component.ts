@@ -16,9 +16,9 @@ import {
 } from '@ng-icons/lucide';
 import { bytesToHex } from '@noble/hashes/utils';
 
+import { injectStorageCanisterStatus } from '@rabbithole/core/storage-canister-status';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
-  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   type EncryptedStorageActor,
   injectEncryptedStorageActor,
   provideEncryptedStorageActor,
@@ -60,7 +60,6 @@ type StorageReleaseStateDto = Awaited<
     ...HlmTooltipImports,
   ],
   providers: [
-    ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
     provideEncryptedStorageActor(),
     provideIcons({ lucideChevronsDownUp, lucideChevronsUpDown, lucideInfo }),
   ],
@@ -71,14 +70,23 @@ type StorageReleaseStateDto = Awaited<
 export class StorageVersionInfoComponent {
   readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   readonly canisterId = this.#canisterId.toText();
+  readonly canViewVersionInfo =
+    injectStorageCanisterStatus().isCurrentUserController;
   readonly #actor = injectEncryptedStorageActor();
   readonly releaseState = resource({
-    params: () => ({ actor: this.#actor(), canisterId: this.canisterId }),
-    loader: async ({ params }) =>
-      toInstalledStorageReleaseState(
+    params: () => ({
+      actor: this.#actor(),
+      canisterId: this.canisterId,
+      canView: this.canViewVersionInfo(),
+    }),
+    loader: async ({ params }) => {
+      if (!params.canView) return null;
+
+      return toInstalledStorageReleaseState(
         await params.actor.getStorageReleaseState(),
         params.canisterId,
-      ),
+      );
+    },
   });
 
   readonly releaseInfo = computed(() =>

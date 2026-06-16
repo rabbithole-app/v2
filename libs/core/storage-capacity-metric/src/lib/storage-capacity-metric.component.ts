@@ -7,6 +7,7 @@ import {
 } from "@angular/core";
 import { cva } from "class-variance-authority";
 
+import { injectStorageCanisterStatus } from "@rabbithole/core/storage-canister-status";
 import { ENCRYPTED_STORAGE_CANISTER_ID } from "@rabbithole/core/storage-canister-token";
 import { HlmSidebarService } from "@spartan-ng/helm/sidebar";
 
@@ -38,19 +39,16 @@ const metricCardsShellVariants = cva("flex flex-col gap-2", {
   imports: [CanisterCyclesMetricCardComponent, StorageMetricCardComponent],
 })
 export class StorageCapacityMetricComponent {
-  readonly canisterId = input<string | null>(null);
+  readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  readonly canisterId = this.#canisterId.toText();
+  readonly canViewMetrics =
+    injectStorageCanisterStatus().isCurrentUserController;
+
   readonly #sidebarService = inject(HlmSidebarService);
   readonly compactMetrics = computed(
     () =>
       this.#sidebarService.state() === "collapsed" &&
       !this.#sidebarService.isMobile(),
-  );
-
-  readonly #providedCanisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
-    optional: true,
-  });
-  readonly effectiveCanisterId = computed(
-    () => this.canisterId() ?? this.#providedCanisterId?.toText() ?? null,
   );
 
   readonly placement = input<StorageCapacityMetricPlacement>("content");

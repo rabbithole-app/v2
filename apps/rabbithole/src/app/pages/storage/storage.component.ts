@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 import {
-  ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
   PermissionsService,
   provideEncryptedStorage,
+  provideEncryptedStorageCanisterIdFromRouteParam,
   provideUploadFilesService,
 } from '@rabbithole/core/storage-runtime';
 
@@ -15,7 +15,7 @@ import {
   host: { class: 'contents' },
   imports: [RouterOutlet],
   providers: [
-    ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER,
+    provideEncryptedStorageCanisterIdFromRouteParam(),
     provideEncryptedStorage(),
     provideUploadFilesService(),
     PermissionsService,

@@ -8,6 +8,7 @@ import {
 import {
   PreloadAllModules,
   provideRouter,
+  RouteReuseStrategy,
   withComponentInputBinding,
   withPreloading,
 } from '@angular/router';
@@ -45,6 +46,7 @@ import {
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { APP_DERIVATION_ORIGIN } from './core/constants';
+import { StorageRouteReuseStrategy } from './core/route-reuse/storage-route-reuse.strategy';
 import { isCustomDomain } from './core/utils/custom-domain';
 
 export const provideAuthService = (): Provider => ({
@@ -75,6 +77,7 @@ export const appConfig: ApplicationConfig = {
     provideIcAuthSignOutHandler(),
     provideRegistration(),
     provideCoreWorker(),
+    { provide: RouteReuseStrategy, useClass: StorageRouteReuseStrategy },
     provideRouter(
       appRoutes,
       withComponentInputBinding(),

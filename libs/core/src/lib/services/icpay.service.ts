@@ -15,7 +15,7 @@ import {
   PRO_MONTHLY_PRICE_USD,
   STARTER_VAULT_PROMO_PRICE_USD,
 } from '../constants/pricing';
-import { injectHttpAgent } from '../injectors';
+import { injectHttpAgent } from '../injectors/http-agent';
 import { ICPAY_CONFIG_TOKEN } from '../tokens/main';
 
 export interface PaymentResult {

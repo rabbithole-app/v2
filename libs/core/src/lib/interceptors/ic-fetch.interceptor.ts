@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { FetchInterceptor } from '@mswjs/interceptors/fetch';
 
-import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors';
+import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors/http-agent';
 
 /**
  * Service for intercepting fetch requests to Internet Computer canisters.

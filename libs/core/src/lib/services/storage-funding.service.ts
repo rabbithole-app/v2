@@ -3,7 +3,7 @@ import { Actor } from '@icp-sdk/core/agent';
 
 import type { StorageFundingStatus } from '@rabbithole/declarations/backend';
 
-import { injectMainActor } from '../injectors';
+import { injectMainActor } from '../injectors/main-actor';
 
 @Injectable({ providedIn: 'root' })
 export class StorageFundingService {

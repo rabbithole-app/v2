@@ -1,25 +1,13 @@
-import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
-import { toSignal } from "@angular/core/rxjs-interop";
-import { ActivatedRoute } from "@angular/router";
-import { map } from "rxjs/operators";
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 
-import { StorageCapacityMetricComponent } from "@rabbithole/core/storage-capacity-metric";
+import { StorageCapacityMetricComponent } from '@rabbithole/core/storage-capacity-metric';
+import { provideEncryptedStorageCanisterIdFromRouteParam } from '@rabbithole/core/storage-runtime';
 
 @Component({
-  selector: "app-storage-metrics-footer",
-  template: `
-    <rbth-core-storage-capacity-metric
-      [canisterId]="canisterId()"
-      placement="footer"
-    />
-  `,
+  selector: 'app-storage-metrics-footer',
+  template: `<rbth-core-storage-capacity-metric placement="footer" />`,
   imports: [StorageCapacityMetricComponent],
+  providers: [provideEncryptedStorageCanisterIdFromRouteParam()],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StorageMetricsFooterComponent {
-  readonly #route = inject(ActivatedRoute);
-  readonly canisterId = toSignal(
-    this.#route.paramMap.pipe(map((params) => params.get("id"))),
-    { initialValue: this.#route.snapshot.paramMap.get("id") },
-  );
-}
+export class StorageMetricsFooterComponent {}

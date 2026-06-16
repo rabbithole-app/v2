@@ -7,7 +7,8 @@ import {
   YHash,
 } from '@rabbithole/encrypted-storage';
 
-import { injectHttpAgent, injectMainActor } from '../injectors';
+import { injectHttpAgent } from '../injectors/http-agent';
+import { injectMainActor } from '../injectors/main-actor';
 import { BLOB_STORAGE_CONFIG_TOKEN, MAIN_CANISTER_ID_TOKEN } from '../tokens';
 
 const BLOB_STORAGE_GATEWAY_VERSION = 'v1';

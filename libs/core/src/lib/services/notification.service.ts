@@ -43,7 +43,8 @@ import {
   type StoredStorageEvent,
 } from '@rabbithole/declarations/encrypted-storage';
 
-import { injectHttpAgent, injectMainActor } from '../injectors';
+import { injectHttpAgent } from '../injectors/http-agent';
+import { injectMainActor } from '../injectors/main-actor';
 import { ENCRYPTED_STORAGE_CANISTER_ID } from '../tokens';
 import { parseCanisterRejectError } from '../utils';
 

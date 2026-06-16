@@ -1,4 +1,4 @@
-@if (releaseState.isLoading()) {
+@if (canViewVersionInfo() && releaseState.isLoading()) {
   <button
     type="button"
     hlmBtn
@@ -10,7 +10,7 @@
   >
     <hlm-spinner class="text-sm" />
   </button>
-} @else {
+} @else if (canViewVersionInfo()) {
   <hlm-hover-card>
     <button
       type="button"

@@ -6,7 +6,10 @@ import {
 } from '@angular/router';
 
 import { provideEncryptedStorage } from '../injectors/encrypted-storage';
-import { createEncryptedStorageCanisterProviderFromSnapshot } from '../tokens/encrypted-storage-canister';
+import {
+  injectEncryptedStorageCanisterIdFromRouteContext,
+  provideEncryptedStorageCanisterId,
+} from '../tokens/encrypted-storage-canister';
 import { AccessRequestsCapabilityService } from './access-requests-capability.service';
 
 export const accessRequestsCanActivate: CanActivateFn = async (route, state) => {
@@ -14,10 +17,12 @@ export const accessRequestsCanActivate: CanActivateFn = async (route, state) => 
   const router = inject(Router);
 
   try {
+    const canisterId = injectEncryptedStorageCanisterIdFromRouteContext(route);
+
     return await runInInjectionContext(
       Injector.create({
         providers: [
-          createEncryptedStorageCanisterProviderFromSnapshot(route),
+          provideEncryptedStorageCanisterId(canisterId),
           provideEncryptedStorage(),
           AccessRequestsCapabilityService,
         ],

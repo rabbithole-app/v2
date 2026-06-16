@@ -5,7 +5,8 @@ import { Principal } from '@icp-sdk/core/principal';
 import type { TokenId } from '@rabbithole/declarations/backend';
 
 import { LEDGER_CANISTER_ID } from '../constants';
-import { HTTP_AGENT_OPTIONS_TOKEN, injectMainActor } from '../injectors';
+import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors/http-agent';
+import { injectMainActor } from '../injectors/main-actor';
 import {
   BACKEND_FEATURES_ENABLED_TOKEN,
   MAIN_CANISTER_ID_TOKEN,

@@ -34,13 +34,13 @@ import {
 
 import { IS_PRODUCTION_TOKEN } from '@rabbithole/core';
 import {
-  ENCRYPTED_STORAGE_CANISTER_ID,
   getStorageCanisterId,
   getStorageDisplayStatus,
   hasBlockedStorageReleaseOption,
   hasInstallableStorageReleaseOption,
   injectStorageReleaseOptionsLoader,
   type LoadStorageReleaseOptions,
+  provideEncryptedStorageCanisterId,
   type StorageCreationStatus,
   type StorageDisplayStatus,
   type StorageInfo,
@@ -263,12 +263,7 @@ export class StorageCardComponent {
     const dialogRef = this.#dialogService.open(UpgradeStorageDialogComponent, {
       contentClass: 'min-w-[500px] sm:max-w-[600px]',
       context: { storage: this.storage() },
-      providers: [
-        {
-          provide: ENCRYPTED_STORAGE_CANISTER_ID,
-          useValue: canisterId,
-        },
-      ],
+      providers: [provideEncryptedStorageCanisterId(canisterId)],
     });
 
     dialogRef.closed$.subscribe(() => {

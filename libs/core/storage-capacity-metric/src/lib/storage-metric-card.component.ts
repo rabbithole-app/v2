@@ -4,14 +4,11 @@ import {
   Component,
   computed,
   inject,
-  Injector,
   input,
   linkedSignal,
   resource,
-  runInInjectionContext,
   signal,
 } from '@angular/core';
-import { Principal } from '@icp-sdk/core/principal';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideChevronDown,
@@ -53,7 +50,6 @@ import {
 } from './storage-capacity-metric.types';
 
 type StorageMetricResourceParams = {
-  canisterId: string | null;
   forceRefresh: boolean;
 };
 
@@ -96,29 +92,29 @@ const refreshIconVariants = cva('', {
       lucideRefreshCw,
       lucideStar,
     }),
+    provideEncryptedStorageActor(),
   ],
 })
 export class StorageMetricCardComponent {
-  readonly canisterId = input<string | null>(null);
+  readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  readonly canisterId = this.#canisterId.toText();
   readonly compact = input(false);
   readonly #metricState = inject(StorageCapacityMetricStateService);
   readonly detailsExpanded = this.#metricState.storageExpanded;
   readonly #refreshNonce = signal(0);
   readonly #metrics = resource({
     params: (): StorageMetricResourceParams => ({
-      canisterId: this.canisterId(),
       forceRefresh: this.#refreshNonce() > 0,
     }),
     loader: ({ params }) => this.#load(params),
     defaultValue: EMPTY_STORAGE_METRIC_SNAPSHOT,
   });
-
   readonly snapshot = linkedSignal<
     MetricSnapshotSource<StorageMetricSnapshot>,
     StorageMetricSnapshot
   >({
     source: computed(() => ({
-      canisterId: this.canisterId(),
+      canisterId: this.canisterId,
       value: this.#metrics.value() ?? EMPTY_STORAGE_METRIC_SNAPSHOT,
     })),
     computation: (source, previous) =>
@@ -130,6 +126,7 @@ export class StorageMetricCardComponent {
         previous,
       }),
   });
+
   readonly totalBytes = computed(() => {
     const snapshot = this.snapshot();
     return (
@@ -140,21 +137,19 @@ export class StorageMetricCardComponent {
   readonly filesWidth = computed(() =>
     this.#width(this.snapshot().fileBytes, this.totalBytes()),
   );
-
   readonly loading = computed(() => this.#metrics.isLoading());
+
   readonly refreshIconClass = computed(() =>
     refreshIconVariants({ loading: this.loading() }),
   );
   readonly showCard = computed(
-    () =>
-      this.canisterId() !== null &&
-      (this.loading() || this.snapshot().canViewStorageMetrics),
+    () => this.loading() || this.snapshot().canViewStorageMetrics,
   );
   readonly stableWidth = computed(() =>
     this.#width(this.snapshot().stableMemoryBytes, this.totalBytes()),
   );
   readonly subscriptionCtaEnabled = input(true);
-  readonly #injector = inject(Injector);
+  readonly #actor = injectEncryptedStorageActor();
   readonly #settingsDialogService = inject(UserSettingsDialogService);
 
   openSubscriptionAction(): void {
@@ -175,87 +170,80 @@ export class StorageMetricCardComponent {
   }
 
   async #load({
-    canisterId,
     forceRefresh,
   }: StorageMetricResourceParams): Promise<StorageMetricSnapshot> {
-    if (!canisterId) return EMPTY_STORAGE_METRIC_SNAPSHOT;
+    const actor = this.#actor();
+    let storageMetrics = storageResultOk(
+      forceRefresh
+        ? await actor.refreshStorageCardMetrics()
+        : await actor.getStorageCardMetrics(),
+    );
 
-    return this.#withStorageActor(canisterId, async () => {
-      const actor = injectEncryptedStorageActor();
-      let storageMetrics = storageResultOk(
-        forceRefresh
-          ? await actor().refreshStorageCardMetrics()
-          : await actor().getStorageCardMetrics(),
-      );
-
-      if (!storageMetrics && forceRefresh) {
-        try {
-          storageMetrics = storageResultOk(
-            await actor().getStorageCardMetrics(),
-          );
-        } catch {
-          // Keep the refresh failure as an unavailable card.
-        }
+    if (!storageMetrics && forceRefresh) {
+      try {
+        storageMetrics = storageResultOk(await actor.getStorageCardMetrics());
+      } catch {
+        // Keep the refresh failure as an unavailable card.
       }
+    }
 
-      if (storageMetrics?.subscriptionStatus.length === 0) {
-        try {
-          storageMetrics =
-            storageResultOk(await actor().refreshStorageCardMetrics()) ??
-            storageMetrics;
-        } catch {
-          // Shared users cannot force-refresh owner subscription metadata.
-        }
+    if (storageMetrics?.subscriptionStatus.length === 0) {
+      try {
+        storageMetrics =
+          storageResultOk(await actor.refreshStorageCardMetrics()) ??
+          storageMetrics;
+      } catch {
+        // Shared users cannot force-refresh owner subscription metadata.
       }
+    }
 
-      if (storageMetrics) {
-        const storageBackend: StorageBackendLabel =
-          'OnChain' in storageMetrics.storageBackendType
-            ? 'OnChain'
-            : 'BlobStorage';
-        if (
-          !forceRefresh &&
-          storageBackend === 'OnChain' &&
-          onChainRuntimeStableMemoryBytes(storageMetrics) <
-            storageMetrics.storedBytesUsed
-        ) {
-          try {
-            storageMetrics =
-              storageResultOk(await actor().refreshStorageCardMetrics()) ??
-              storageMetrics;
-          } catch {
-            // Keep the cached query snapshot if runtime refresh is unavailable.
-          }
-        }
-      }
-
-      if (!storageMetrics) return EMPTY_STORAGE_METRIC_SNAPSHOT;
-
+    if (storageMetrics) {
       const storageBackend: StorageBackendLabel =
         'OnChain' in storageMetrics.storageBackendType
           ? 'OnChain'
           : 'BlobStorage';
-      const license = licensedLimits(storageMetrics.subscriptionStatus);
-      const fileBytes = storageMetrics.storedBytesUsed;
-      const stableMemoryBytes =
-        storageBackend === 'OnChain'
-          ? onChainStableMemoryBytes(storageMetrics, fileBytes)
-          : fileBytes;
+      if (
+        !forceRefresh &&
+        storageBackend === 'OnChain' &&
+        onChainRuntimeStableMemoryBytes(storageMetrics) <
+          storageMetrics.storedBytesUsed
+      ) {
+        try {
+          storageMetrics =
+            storageResultOk(await actor.refreshStorageCardMetrics()) ??
+            storageMetrics;
+        } catch {
+          // Keep the cached query snapshot if runtime refresh is unavailable.
+        }
+      }
+    }
 
-      return {
-        canViewStorageMetrics: true,
-        fileBytes,
-        limitBytes: license?.includedBytes ?? null,
-        limitLabel: storageLimitLabel(
-          storageMetrics.subscriptionStatus,
-          license?.includedBytes ?? null,
-        ),
-        maxFileBytes: license?.maxFileBytes ?? null,
-        stableMemoryBytes,
-        storageBackend,
-        isPro: isPro(storageMetrics.subscriptionStatus),
-      };
-    });
+    if (!storageMetrics) return EMPTY_STORAGE_METRIC_SNAPSHOT;
+
+    const storageBackend: StorageBackendLabel =
+      'OnChain' in storageMetrics.storageBackendType
+        ? 'OnChain'
+        : 'BlobStorage';
+    const license = licensedLimits(storageMetrics.subscriptionStatus);
+    const fileBytes = storageMetrics.storedBytesUsed;
+    const stableMemoryBytes =
+      storageBackend === 'OnChain'
+        ? onChainStableMemoryBytes(storageMetrics, fileBytes)
+        : fileBytes;
+
+    return {
+      canViewStorageMetrics: true,
+      fileBytes,
+      limitBytes: license?.includedBytes ?? null,
+      limitLabel: storageLimitLabel(
+        storageMetrics.subscriptionStatus,
+        license?.includedBytes ?? null,
+      ),
+      maxFileBytes: license?.maxFileBytes ?? null,
+      stableMemoryBytes,
+      storageBackend,
+      isPro: isPro(storageMetrics.subscriptionStatus),
+    };
   }
 
   #width(value: bigint, total: bigint): string {
@@ -263,27 +251,6 @@ export class StorageMetricCardComponent {
     const clamped = value > total ? total : value;
     const basisPoints = Number((clamped * 10_000n) / total);
     return `${basisPoints / 100}%`;
-  }
-
-  async #withStorageActor<T>(
-    canisterId: string,
-    run: () => Promise<T>,
-  ): Promise<T> {
-    const storagePrincipal = Principal.fromText(canisterId);
-
-    return runInInjectionContext(
-      Injector.create({
-        providers: [
-          {
-            provide: ENCRYPTED_STORAGE_CANISTER_ID,
-            useValue: storagePrincipal,
-          },
-          provideEncryptedStorageActor(),
-        ],
-        parent: this.#injector,
-      }),
-      run,
-    );
   }
 }
 

@@ -1,4 +1,4 @@
-import { inject, InjectionToken, Provider } from '@angular/core';
+import { type FactoryProvider, inject, InjectionToken } from '@angular/core';
 import { ActivatedRoute, ActivatedRouteSnapshot } from '@angular/router';
 import { Principal } from '@icp-sdk/core/principal';
 
@@ -10,69 +10,73 @@ export const ENCRYPTED_STORAGE_URL_TOKEN = new InjectionToken<string>(
   'ENCRYPTED_STORAGE_URL_TOKEN',
 );
 
-export const ENCRYPTED_STORAGE_FROM_ACTIVATED_ROUTE_PROVIDER = {
-  provide: ENCRYPTED_STORAGE_CANISTER_ID,
-  useFactory: () => {
-    const providedCanisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
-      optional: true,
-      skipSelf: true,
-    });
+export type EncryptedStorageCanisterIdSource = Principal | string;
 
-    if (providedCanisterId) {
-      return providedCanisterId;
-    }
-
-    const route = inject(ActivatedRoute);
-    const canisterId =
-      findCanisterIdInParentChain(route.snapshot) ??
-      findCanisterIdInRouteTree(route.snapshot.root);
-
-    if (!canisterId) {
-      throw new Error('Canister ID parameter is required');
-    }
-
-    return Principal.fromText(canisterId);
-  },
-};
-
-/**
- * Creates a provider for ENCRYPTED_STORAGE_CANISTER_ID from ActivatedRouteSnapshot.
- * Used in resolvers where ActivatedRoute is not available.
- */
-export function createEncryptedStorageCanisterProviderFromSnapshot(
+export function encryptedStorageCanisterIdFromRouteSnapshot(
   route: ActivatedRouteSnapshot,
-): Provider {
-  const providedCanisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
+  paramName = 'id',
+): Principal {
+  const canisterId =
+    findCanisterIdInParentChain(route, paramName) ??
+    findCanisterIdInRouteTree(route.root, paramName);
+
+  if (!canisterId) {
+    throw new Error(`Route parameter "${paramName}" is required`);
+  }
+
+  return Principal.fromText(canisterId);
+}
+
+export function injectEncryptedStorageCanisterIdFromRouteContext(
+  route: ActivatedRouteSnapshot,
+  paramName = 'id',
+): Principal {
+  const canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID, {
     optional: true,
   });
 
-  if (providedCanisterId) {
-    return {
-      provide: ENCRYPTED_STORAGE_CANISTER_ID,
-      useValue: providedCanisterId,
-    };
-  }
+  return canisterId ?? encryptedStorageCanisterIdFromRouteSnapshot(route, paramName);
+}
 
-  const canisterId =
-    findCanisterIdInParentChain(route) ?? findCanisterIdInRouteTree(route.root);
-
-  if (!canisterId) {
-    throw new Error('Canister ID parameter is required');
-  }
-
+export function provideEncryptedStorageCanisterId(
+  source: EncryptedStorageCanisterIdSource,
+): FactoryProvider {
   return {
     provide: ENCRYPTED_STORAGE_CANISTER_ID,
-    useValue: Principal.fromText(canisterId),
+    useFactory: () => resolveCanisterId(source),
+  };
+}
+
+export function provideEncryptedStorageCanisterIdFromFactory(
+  factory: () => EncryptedStorageCanisterIdSource,
+): FactoryProvider {
+  return {
+    provide: ENCRYPTED_STORAGE_CANISTER_ID,
+    useFactory: () => resolveCanisterId(factory()),
+  };
+}
+
+export function provideEncryptedStorageCanisterIdFromRouteParam(
+  paramName = 'id',
+): FactoryProvider {
+  return {
+    provide: ENCRYPTED_STORAGE_CANISTER_ID,
+    useFactory: () =>
+      encryptedStorageCanisterIdFromRouteSnapshot(
+        inject(ActivatedRoute).snapshot,
+        paramName,
+      ),
   };
 }
 
 function findCanisterIdInParentChain(
   route: ActivatedRouteSnapshot,
+  paramName: string,
 ): string | null {
   let currentRoute: ActivatedRouteSnapshot | null = route;
 
   while (currentRoute) {
-    const canisterId = currentRoute.paramMap.get('id');
+    const canisterId = currentRoute.paramMap.get(paramName);
     if (canisterId) return canisterId;
     currentRoute = currentRoute.parent;
   }
@@ -82,14 +86,23 @@ function findCanisterIdInParentChain(
 
 function findCanisterIdInRouteTree(
   route: ActivatedRouteSnapshot,
+  paramName: string,
 ): string | null {
-  const canisterId = route.paramMap.get('id');
+  const canisterId = route.paramMap.get(paramName);
   if (canisterId) return canisterId;
 
   for (const child of route.children) {
-    const childCanisterId = findCanisterIdInRouteTree(child);
+    const childCanisterId = findCanisterIdInRouteTree(child, paramName);
     if (childCanisterId) return childCanisterId;
   }
 
   return null;
+}
+
+function resolveCanisterId(
+  source: EncryptedStorageCanisterIdSource,
+): Principal {
+  if (Principal.isPrincipal(source)) return source;
+
+  return Principal.fromText(source);
 }

@@ -9,7 +9,6 @@ import {
 } from "@angular/core";
 import { toSignal } from "@angular/core/rxjs-interop";
 import { ActivatedRoute } from "@angular/router";
-import { Principal } from "@icp-sdk/core/principal";
 import { provideIcons } from "@ng-icons/core";
 import {
   lucideClipboardList,
@@ -23,8 +22,8 @@ import { NavigationComponent, NavItem } from "@rabbithole/core";
 import {
   type AccessRequestsCapability,
   AccessRequestsCapabilityService,
-  ENCRYPTED_STORAGE_CANISTER_ID,
   provideEncryptedStorage,
+  provideEncryptedStorageCanisterId,
 } from "@rabbithole/core/storage-runtime";
 import {
   HlmSidebarGroup,
@@ -117,10 +116,7 @@ export class StorageNavigationComponent {
       return await runInInjectionContext(
         Injector.create({
           providers: [
-            {
-              provide: ENCRYPTED_STORAGE_CANISTER_ID,
-              useValue: Principal.fromText(canisterId),
-            },
+            provideEncryptedStorageCanisterId(canisterId),
             provideEncryptedStorage(),
             AccessRequestsCapabilityService,
           ],

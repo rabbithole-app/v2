@@ -1,6 +1,6 @@
 import { Injectable, resource } from '@angular/core';
 
-import { injectCyclesMintingCanister } from '../injectors';
+import { injectCyclesMintingCanister } from '../injectors/cycles-minting-canister';
 
 const NUMBER_XDR_PER_ONE_ICP = 10_000;
 

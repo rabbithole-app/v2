@@ -2,9 +2,10 @@ import { inject, Injector, runInInjectionContext } from '@angular/core';
 import { ResolveFn } from '@angular/router';
 
 import {
-  createEncryptedStorageCanisterProviderFromSnapshot,
   injectEncryptedStorage,
+  injectEncryptedStorageCanisterIdFromRouteContext,
   provideEncryptedStorage,
+  provideEncryptedStorageCanisterId,
 } from '@rabbithole/core/storage-runtime';
 import type {
   StorageAccessRequest,
@@ -15,11 +16,12 @@ export const accessRequestsResolver: ResolveFn<StorageAccessRequest[]> = async (
   route,
 ) => {
   const injector = inject(Injector);
+  const canisterId = injectEncryptedStorageCanisterIdFromRouteContext(route);
 
   return runInInjectionContext(
     Injector.create({
       providers: [
-        createEncryptedStorageCanisterProviderFromSnapshot(route),
+        provideEncryptedStorageCanisterId(canisterId),
         provideEncryptedStorage(),
       ],
       parent: injector,
@@ -42,10 +44,11 @@ export const accessRequestTreeResolver: ResolveFn<TreeNode[]> = async (route) =>
   if (!request || !('pending' in request.status)) return [];
 
   const injector = inject(Injector);
+  const canisterId = injectEncryptedStorageCanisterIdFromRouteContext(route);
   return runInInjectionContext(
     Injector.create({
       providers: [
-        createEncryptedStorageCanisterProviderFromSnapshot(route),
+        provideEncryptedStorageCanisterId(canisterId),
         provideEncryptedStorage(),
       ],
       parent: injector,

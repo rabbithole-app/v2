@@ -64,8 +64,8 @@ export const appRoutes: Route[] = [
         path: '',
         loadComponent: () =>
           import(
-            './core/components/update-banner/update-banner.component'
-          ).then((m) => m.UpdateBannerComponent),
+            './core/components/update-banner/update-banner-outlet.component'
+          ).then((m) => m.UpdateBannerOutletComponent),
         outlet: 'banner',
       },
     ],

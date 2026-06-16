@@ -238,67 +238,76 @@ export const appRoutes: Route[] = [
       {
         path: ':id',
         canMatch: [storageViewGuard],
-        children: [
-          {
-            path: '',
-            redirectTo: 'drive',
-            pathMatch: 'full',
-          },
-          {
-            path: '',
-            loadComponent: () =>
-              import('./pages/storage/storage.component').then(
-                (m) => m.StorageComponent,
-              ),
-            children: [
+        loadChildren: () =>
+          import('@rabbithole/core/storage-canister-status').then(
+            ({ provideStorageCanisterStatusFromRouteParam }) => [
               {
-                path: 'drive',
-                loadChildren: () =>
-                  import('@rabbithole/features/file-list').then(
-                    (m) => m.fileListRoutes,
-                  ),
-              },
-              {
-                path: 'access-requests',
-                loadChildren: () =>
-                  import('@rabbithole/features/file-list').then(
-                    (m) => m.accessRequestsRoutes,
-                  ),
-              },
-              {
-                path: 'canister',
-                loadChildren: () =>
-                  import('@rabbithole/features/canisters').then(
-                    (m) => m.canisterDetailRoutes,
-                  ),
+                path: '',
+                providers: [provideStorageCanisterStatusFromRouteParam()],
+                children: [
+                  {
+                    path: '',
+                    redirectTo: 'drive',
+                    pathMatch: 'full',
+                  },
+                  {
+                    path: '',
+                    loadComponent: () =>
+                      import('./pages/storage/storage.component').then(
+                        (m) => m.StorageComponent,
+                      ),
+                    children: [
+                      {
+                        path: 'drive',
+                        loadChildren: () =>
+                          import('@rabbithole/features/file-list').then(
+                            (m) => m.fileListRoutes,
+                          ),
+                      },
+                      {
+                        path: 'access-requests',
+                        loadChildren: () =>
+                          import('@rabbithole/features/file-list').then(
+                            (m) => m.accessRequestsRoutes,
+                          ),
+                      },
+                      {
+                        path: 'canister',
+                        loadChildren: () =>
+                          import('@rabbithole/features/canisters').then(
+                            (m) => m.canisterDetailRoutes,
+                          ),
+                      },
+                    ],
+                  },
+                  {
+                    path: '',
+                    loadComponent: () =>
+                      import(
+                        './core/components/storage-navigation/storage-navigation.component'
+                      ).then((m) => m.StorageNavigationComponent),
+                    outlet: 'sidebar',
+                  },
+                  {
+                    path: '',
+                    loadComponent: () =>
+                      import(
+                        './core/components/storage-metrics-footer/storage-metrics-footer.component'
+                      ).then((m) => m.StorageMetricsFooterComponent),
+                    outlet: 'sidebarBottom',
+                  },
+                  {
+                    path: '',
+                    loadComponent: () =>
+                      import(
+                        './core/components/storage-version-info-outlet/storage-version-info-outlet.component'
+                      ).then((m) => m.StorageVersionInfoOutletComponent),
+                    outlet: 'header',
+                  },
+                ],
               },
             ],
-          },
-          {
-            path: '',
-            loadComponent: () =>
-              import(
-                './core/components/storage-navigation/storage-navigation.component'
-              ).then((m) => m.StorageNavigationComponent),
-            outlet: 'sidebar',
-          },
-          {
-            path: '',
-            loadComponent: () =>
-              import(
-                './core/components/storage-metrics-footer/storage-metrics-footer.component'
-              ).then((m) => m.StorageMetricsFooterComponent),
-            outlet: 'sidebarBottom',
-          },
-          {
-            path: '',
-            loadComponent: () =>
-              import('@rabbithole/core/storage-version-info').then(
-                (m) => m.StorageVersionInfoComponent,
-              ),
-            outlet: 'header',
-          },
-        ],
+          ),
       },
     ],
   },

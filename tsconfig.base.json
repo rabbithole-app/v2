@@ -48,6 +48,9 @@
       "@rabbithole/core/storage-canister-token": [
         "libs/core/src/lib/tokens/encrypted-storage-canister.ts"
       ],
+      "@rabbithole/core/storage-canister-status": [
+        "libs/core/storage-canister-status/src/index.ts"
+      ],
       "@rabbithole/core/wallet": [
         "libs/core/src/lib/components/account/wallet/index.ts"
       ],

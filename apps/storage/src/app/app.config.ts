@@ -31,7 +31,6 @@ import {
   BLOB_STORAGE_CONFIG_TOKEN,
   canisterOrigin,
   ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN,
-  ENCRYPTED_STORAGE_CANISTER_ID,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
   IC_ROOT_KEY,
@@ -41,7 +40,9 @@ import {
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
   principalFromConfig,
   provideCoreWorker,
+  provideEncryptedStorageCanisterIdFromFactory,
 } from '@rabbithole/core/app-runtime';
+import { provideStorageCanisterStatus } from '@rabbithole/core/storage-canister-status';
 
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
@@ -104,10 +105,10 @@ export const appConfig: ApplicationConfig = {
     provideCoreWorker(),
     provideStorageRuntimeConfig(),
     { provide: AUTH_CONFIG, useFactory: storageAuthConfig },
-    {
-      provide: ENCRYPTED_STORAGE_CANISTER_ID,
-      useFactory: () => injectStorageRuntimeConfig().canisterId,
-    },
+    provideEncryptedStorageCanisterIdFromFactory(
+      () => injectStorageRuntimeConfig().canisterId,
+    ),
+    provideStorageCanisterStatus(),
     {
       provide: ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN,
       useFactory: () => injectStorageRuntimeConfig().storageBackendType,

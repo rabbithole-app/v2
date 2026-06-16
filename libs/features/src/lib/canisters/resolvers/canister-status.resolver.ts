@@ -1,11 +1,10 @@
 import { inject, Injector } from '@angular/core';
 import { ActivatedRouteSnapshot, RedirectCommand, ResolveFn, Router } from '@angular/router';
-import { Principal } from '@icp-sdk/core/principal';
 import { catchError, of } from 'rxjs';
 
 import {
   CanisterDataInfo,
-  ENCRYPTED_STORAGE_CANISTER_ID,
+  provideEncryptedStorageCanisterId,
   resourceToObservable,
 } from '@rabbithole/core';
 
@@ -34,10 +33,7 @@ export const canisterStatusResolver: ResolveFn<
   const injector = inject(Injector);
   const childInjector = Injector.create({
     providers: [
-      {
-        provide: ENCRYPTED_STORAGE_CANISTER_ID,
-        useValue: Principal.fromText(canisterId),
-      },
+      provideEncryptedStorageCanisterId(canisterId),
       ICManagementService,
     ],
     parent: injector,

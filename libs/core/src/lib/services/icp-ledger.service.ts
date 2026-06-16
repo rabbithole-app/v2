@@ -9,7 +9,7 @@ import { Principal } from '@icp-sdk/core/principal';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 
-import { injectLedgerActorWithAllowances } from '../injectors';
+import { injectLedgerActorWithAllowances } from '../injectors/ledger-actor-with-allowances';
 import { injectLedgerCanister } from '../injectors/ledger-canister';
 import { LedgerService, TransferParams } from '../tokens';
 import { isPrincipal, timeInNanosToDate } from '../utils';
