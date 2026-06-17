@@ -33,6 +33,7 @@ function loadCanisterEnv(): CanisterEnv | null {
 }
 
 const canisterEnv = loadCanisterEnv();
+const environmentReplacement = getEnvironmentReplacement();
 
 function createRsdoctorPlugin(): RsdoctorRspackPlugin {
   return new RsdoctorRspackPlugin({
@@ -44,6 +45,23 @@ function createRsdoctorPlugin(): RsdoctorRspackPlugin {
       },
     },
   });
+}
+
+function getEnvironmentReplacement(): string | undefined {
+  const configurationMode = process.env['NGRS_CONFIG'] ??
+    (process.env['WEBPACK_SERVE'] ? 'development' : 'production');
+  const configurationModes = configurationMode.split(',').map(mode => mode.trim());
+
+  for (const mode of [...configurationModes].reverse()) {
+    if (mode === 'production') {
+      return resolve(__dirname, './src/environments/environment.prod.ts');
+    }
+    if (mode === 'staging') {
+      return resolve(__dirname, './src/environments/environment.staging.ts');
+    }
+  }
+
+  return undefined;
 }
 
 export default createConfig(
@@ -128,6 +146,14 @@ export default createConfig(
             ? JSON.stringify(canisterEnv.envVars)
             : 'undefined',
         }),
+        ...(environmentReplacement
+          ? [
+              new rspack.NormalModuleReplacementPlugin(
+                /(?:^|[/\\])environments[/\\]environment$/,
+                environmentReplacement,
+              ),
+            ]
+          : []),
       ],
     },
   },
