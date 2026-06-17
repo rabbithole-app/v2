@@ -52,6 +52,13 @@ jobs:
           chmod +x "$HOME/.local/bin/didc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Install Motoko dependencies
+        working-directory: apps/backend
+        run: |
+          mops toolchain init || echo "Mops toolchain already initialized."
+          mops install || echo "WARNING: mops install reported errors (integrity check?). Continuing..."
+          ../../mops-patches/apply.sh .
+
       - name: Import ICP identity
         env:
           ICP_DEPLOY_IDENTITY_PEM: ${{ secrets.ICP_DEPLOY_IDENTITY_PEM }}
