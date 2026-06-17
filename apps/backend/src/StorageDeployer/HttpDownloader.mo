@@ -9,7 +9,6 @@ import Iter "mo:core/Iter";
 import Error "mo:core/Error";
 import Option "mo:core/Option";
 import Array "mo:core/Array";
-import Debug "mo:core/Debug";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import IC "mo:ic";
@@ -37,6 +36,18 @@ module {
 
   func compareDownloads(a : DownloadState, b : DownloadState) : Order.Order = Text.compare(a.key, b.key);
 
+  func replaceHeader(headers : Set.Set<IC.HttpHeader>, header : IC.HttpHeader) {
+    Set.remove(headers, compareHeaders, header);
+    Set.add(headers, compareHeaders, header);
+  };
+
+  func redactUrl(url : Text) : Text {
+    switch (Text.split(url, #char '?').next()) {
+      case (?value) value;
+      case null url;
+    };
+  };
+
   // -- Public Functions --
 
   /// Create a new HTTP downloader store
@@ -50,22 +61,17 @@ module {
     };
   };
 
-  /// Add a default HTTP header to all requests
-  public func addHeader(store : Store, header : IC.HttpHeader) : () {
-    ignore Set.insert(store.httpHeaders, compareHeaders, header);
-  };
-
   /// Add a file to the download queue
   public func add(store : Store, args : AddDownloadArgs) {
     if (has(store, args.key)) return;
     var offset : Nat = 0;
     let chunkStatuses = Map.empty<Nat, ChunkStatus>();
     let headers = Set.clone(store.httpHeaders);
-    Set.add(headers, compareHeaders, { name = "Accept"; value = "application/octet-stream" });
+    replaceHeader(headers, { name = "Accept"; value = "application/octet-stream" });
     while (offset < args.size) {
       let rangeEnd = Nat.min(offset + MAX_CHUNK_SIZE - 1, args.size - 1);
       let rangeHeader = "bytes=" # Nat.toText(offset) # "-" # Nat.toText(rangeEnd);
-      Set.add(headers, compareHeaders, { name = "Range"; value = rangeHeader });
+      replaceHeader(headers, { name = "Range"; value = rangeHeader });
       let request : IC.HttpRequestArgs = {
         url = args.url;
         max_response_bytes = null;
@@ -193,15 +199,14 @@ module {
                 };
               };
             } else if (response.status < 200 or response.status >= 300) {
-              Debug.print("[download " # key # "] chunk " # Nat.toText(chunkId) # " HTTP status " # Nat.toText(response.status));
-              break exit(#Error("HTTP request failed with status " # Nat.toText(response.status)), null);
+              let url = redactUrl(request.url);
+              break exit(#Error("HTTP request failed with status " # Nat.toText(response.status) # " at " # url), null);
             };
 
             let contentSize = response.body.size();
             let chunkAddress = MemoryRegion.addBlob(store.region, response.body);
             (#Downloaded(chunkAddress, contentSize), null);
           } catch (error) {
-            Debug.print("[download " # key # "] chunk " # Nat.toText(chunkId) # " attempt " # Nat.toText(attempts + 1) # " failed: " # Error.message(error));
             if (attempts < MAX_HTTP_REQUEST_ATTEMPTS) {
               let nextRequest = ?#Back({
                 request;

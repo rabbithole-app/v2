@@ -421,12 +421,12 @@ module StorageDeployerOrchestrator {
   public func start<system>(self : Store, creations : Creations.Creations, callbacks : StartCallbacks) : async () {
     if (self.running) return;
 
-    // Env-derived values are stable fields in Store; refresh them on start so
-    // upgrades pick up the current canister environment.
-    refreshRuntimeConfig<system>(self);
-
     // Reset transient state (meaningless after canister upgrade)
     resetTransientState(self, creations);
+
+    // Env-derived values are stable fields in Store; refresh them after
+    // transient reset so downloader headers are rebuilt from current env.
+    refreshRuntimeConfig<system>(self);
 
     self.running := true;
 

@@ -11,6 +11,7 @@ import Iter "mo:core/Iter";
 import Option "mo:core/Option";
 import List "mo:core/List";
 import Int "mo:core/Int";
+import Debug "mo:core/Debug";
 
 import IC "mo:ic";
 import Hex "mo:hex";
@@ -106,6 +107,35 @@ module {
     };
   };
 
+  func responseBodySummary(body : Blob) : Text {
+    if (body.size() > 2048) {
+      return "<" # Nat.toText(body.size()) # " bytes>";
+    };
+
+    switch (Text.decodeUtf8(body)) {
+      case (?text) {
+        var result = "";
+        var lastWasSpace = false;
+        for (char in text.chars()) {
+          switch (char) {
+            case ('\n' or '\r' or '\t') {
+              if (not lastWasSpace) {
+                result #= " ";
+                lastWasSpace := true;
+              };
+            };
+            case _ {
+              result #= Text.fromChar(char);
+              lastWasSpace := false;
+            };
+          };
+        };
+        result;
+      };
+      case null "<non-utf8 " # Nat.toText(body.size()) # " bytes>";
+    };
+  };
+
   // -- Public Functions --
 
   /// Create a new GitHub releases store
@@ -166,12 +196,17 @@ module {
 
       // Check status code
       if (response.status < 200 or response.status >= 300) {
-        return #err("GitHub API returned status " # Nat.toText(response.status));
+        let body = responseBodySummary(response.body);
+        Debug.print("[github releases] list failed status=" # Nat.toText(response.status) # " body=" # body);
+        return #err("GitHub API returned status " # Nat.toText(response.status) # ": " # body);
       };
 
       let releases = switch (Parser.parseReleasesBody(response.body)) {
         case (#ok(releases)) releases;
-        case (#err(message)) return #err(message);
+        case (#err(message)) {
+          Debug.print("[github releases] parse failed: " # message);
+          return #err(message);
+        };
       };
 
       // Replace releases with fresh data from GitHub API
@@ -210,6 +245,7 @@ module {
 
       #ok({ releases; invalidated = Vector.toArray(invalidated) });
     } catch (error) {
+      Debug.print("[github releases] list request failed: " # Error.message(error));
       #err("HTTP request failed: " # Error.message(error));
     };
   };
@@ -886,6 +922,7 @@ module {
 
   func getHeaders(githubToken : ?Text) : Set.Set<IC.HttpHeader> {
     let headers = Set.empty<IC.HttpHeader>();
+    Set.add(headers, compareHeaders, { name = "User-Agent"; value = "rabbithole-storage-deployer" });
     Set.add(headers, compareHeaders, { name = "Accept"; value = "application/vnd.github+json" });
     Set.add(headers, compareHeaders, { name = "X-GitHub-Api-Version"; value = "2022-11-28" });
     switch (githubToken) {
