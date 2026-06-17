@@ -46,7 +46,11 @@ jobs:
         run: npm install -g @icp-sdk/icp-cli@1.0.0 @icp-sdk/ic-wasm ic-mops@2.14.1
 
       - name: Install didc
-        run: cargo install didc --version 0.5.4
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/didc" https://github.com/dfinity/candid/releases/download/2025-12-18/didc-linux64
+          chmod +x "$HOME/.local/bin/didc"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Import ICP identity
         env:
