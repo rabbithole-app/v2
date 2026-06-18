@@ -176,7 +176,7 @@ module {
   ///
   /// Returns releases and a list of invalidated assets (assets whose hash changed).
   /// The caller should handle invalidation (e.g., clear extracted frontend files).
-  public func listReleases(store : Store) : async Result.Result<ListReleasesResult, Text> {
+  public func listReleases(store : Store, transform : ?IC.Transform) : async Result.Result<ListReleasesResult, Text> {
     let url = store.github.apiUrl # "/repos/" # store.github.owner # "/" # store.github.repo # "/releases";
     let headers = getHeaders(store.github.token) |> Set.values(_) |> Iter.toArray(_);
 
@@ -187,8 +187,8 @@ module {
       headers;
       body = null;
       method = #get;
-      transform = null;
-      is_replicated = null;
+      transform;
+      is_replicated = ?true;
     };
 
     try {
@@ -225,7 +225,12 @@ module {
       for (release in releases.vals()) {
         for (asset in assets.vals()) {
           switch (asset) {
-            case (#StorageReleaseManifest(assetName)) queueAssetDownload(store, release, assetName, #StorageReleaseManifest, invalidated);
+            case (#StorageReleaseManifest(assetName)) {
+              switch (queueAssetDownload(store, release, assetName, #StorageReleaseManifest, invalidated)) {
+                case (#ok) {};
+                case (#err(message)) return #err(message);
+              };
+            };
             case _ {};
           };
         };
@@ -236,7 +241,10 @@ module {
           case (?release) {
             for (asset in selectedAssets.vals()) {
               let (assetName, assetKind) = configuredAssetNameAndKind(asset);
-              queueAssetDownload(store, release, assetName, assetKind, invalidated);
+              switch (queueAssetDownload(store, release, assetName, assetKind, invalidated)) {
+                case (#ok) {};
+                case (#err(message)) return #err(message);
+              };
             };
           };
           case null {};
@@ -260,7 +268,10 @@ module {
 
     for (asset in configuredAssets(store).vals()) {
       let (assetName, assetKind) = configuredAssetNameAndKind(asset);
-      queueAssetDownload(store, release, assetName, assetKind, invalidated);
+      switch (queueAssetDownload(store, release, assetName, assetKind, invalidated)) {
+        case (#ok) {};
+        case (#err(message)) return #err(message);
+      };
     };
 
     #ok(Vector.toArray(invalidated));
@@ -746,7 +757,7 @@ module {
     };
   };
 
-  func queueAssetDownload(store : Store, release : Types.Release, assetName : Text, assetKind : Types.GithubAssetKind, invalidated : Vector.Vector<InvalidatedAsset>) {
+  func queueAssetDownload(store : Store, release : Types.Release, assetName : Text, assetKind : Types.GithubAssetKind, invalidated : Vector.Vector<InvalidatedAsset>) : Result.Result<(), Text> {
     let key = release.tagName # "/" # assetName;
 
     let newAssetInfo = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName);
@@ -756,14 +767,20 @@ module {
         if (HttpDownloader.hasFailedChunks(existingDownload)) {
           Vector.add(invalidated, { key; kind = assetKind });
           HttpDownloader.remove(store.downloaderStore, key);
-          ignore downloadAsset(store, release.tagName, assetName);
+          switch (downloadAsset(store, release.tagName, assetName)) {
+            case (#ok) {};
+            case (#err(message)) return #err(message);
+          };
         } else {
           switch (existingDownload.sha256, newAsset.sha256) {
             case (?oldHash, ?newHash) {
               if (oldHash != newHash) {
                 Vector.add(invalidated, { key; kind = assetKind });
                 HttpDownloader.remove(store.downloaderStore, key);
-                ignore downloadAsset(store, release.tagName, assetName);
+                switch (downloadAsset(store, release.tagName, assetName)) {
+                  case (#ok) {};
+                  case (#err(message)) return #err(message);
+                };
               };
             };
             case (null, _) {};
@@ -772,10 +789,14 @@ module {
         };
       };
       case (null, ?_) {
-        ignore downloadAsset(store, release.tagName, assetName);
+        switch (downloadAsset(store, release.tagName, assetName)) {
+          case (#ok) {};
+          case (#err(message)) return #err(message);
+        };
       };
       case (_, null) {};
     };
+    #ok;
   };
 
   func getReleaseManifest(store : Store, release : Types.Release, configuredAssets : [Types.GithubAsset]) : (?Types.StorageReleaseManifest, ?Text) {
@@ -916,7 +937,9 @@ module {
     let ?asset = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName) else return #err("Asset not found: " # assetName);
 
     let key = tagName # "/" # assetName;
-    HttpDownloader.add(store.downloaderStore, { key; name = asset.name; contentType = asset.contentType; size = asset.size; sha256 = asset.sha256; url = asset.url });
+    let ?sha256 = asset.sha256 else return #err("Missing SHA-256 digest for release asset: " # key);
+
+    HttpDownloader.add(store.downloaderStore, { key; name = asset.name; contentType = asset.contentType; size = asset.size; sha256 = ?sha256; url = asset.url });
     #ok(());
   };
 

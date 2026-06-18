@@ -283,6 +283,12 @@ export interface GetSubscriptionsResponse {
   'instructions' : bigint,
 }
 export type Header = [string, string];
+export interface HttpHeader { 'value' : string, 'name' : string }
+export interface HttpRequestResult {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<HttpHeader>,
+}
 export type IdentityAttributesSyncError = { 'expired' : null } |
   { 'malformedPayload' : null } |
   { 'verifiedEmailRequired' : null } |
@@ -860,6 +866,10 @@ export interface Rabbithole {
   >,
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'topUpFromBalance' : ActorMethod<[Principal, bigint], Result>,
+  'transformGitHubReleaseResponse' : ActorMethod<
+    [TransformArg],
+    HttpRequestResult
+  >,
   'triggerAutoRenewals' : ActorMethod<[], undefined>,
   'triggerExpireOverdue' : ActorMethod<[], Array<Principal>>,
   'triggerSelfTopUp' : ActorMethod<[], undefined>,
@@ -1264,6 +1274,10 @@ export interface TransferRecord {
   'txHash' : [] | [string],
   'amount' : bigint,
   'evmAddress' : [] | [string],
+}
+export interface TransformArg {
+  'context' : Uint8Array,
+  'response' : HttpRequestResult,
 }
 export interface TreasuryInitArgsV1 { 'chains' : [] | [Array<ChainConfig>] }
 export interface UpdateInfo {

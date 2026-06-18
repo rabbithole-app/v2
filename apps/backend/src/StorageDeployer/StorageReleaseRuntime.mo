@@ -9,6 +9,8 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 
+import IC "mo:ic";
+
 import FrontendInstaller "FrontendInstaller";
 import GitHubReleases "GitHubReleases";
 import HttpDownloader "HttpDownloader";
@@ -17,6 +19,7 @@ import Types "Types";
 module StorageReleaseRuntime {
   public type ExtractionStatus = GitHubReleases.ExtractionStatus;
   public type ReleasesFullStatus = GitHubReleases.ReleasesFullStatus;
+  public type ReleaseListTransform = ?IC.Transform;
 
   type Store = {
     region : MemoryRegion.MemoryRegion;
@@ -90,11 +93,11 @@ module StorageReleaseRuntime {
     };
   };
 
-  public func checkAndDownloadReleases<system>(store : Store, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
+  public func checkAndDownloadReleases<system>(store : Store, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
     cancelTimer(store.retryTimerId);
     store.retryTimerId := null;
 
-    switch (await GitHubReleases.listReleases(store.githubReleases)) {
+    switch (await GitHubReleases.listReleases(store.githubReleases, transform)) {
       case (#ok({ invalidated })) {
         store.fetchRetryCount := 0;
         store.lastFetchError := null;
@@ -117,7 +120,7 @@ module StorageReleaseRuntime {
             #seconds delaySeconds,
             func() : async () {
               if (store.running) {
-                await checkAndDownloadReleases<system>(store, onAssetDownloaded);
+                await checkAndDownloadReleases<system>(store, transform, onAssetDownloaded);
               };
             },
           );
@@ -161,7 +164,7 @@ module StorageReleaseRuntime {
     GitHubReleases.getFullStatus(store.githubReleases, createExtractionInfoProvider(store));
   };
 
-  public func refreshStorageReleaseIndex<system>(store : Store, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
+  public func refreshStorageReleaseIndex<system>(store : Store, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
     if (not store.running) return;
 
     store.fetchRetryCount := 0;
@@ -170,7 +173,7 @@ module StorageReleaseRuntime {
     cancelTimer(store.retryTimerId);
     store.retryTimerId := null;
 
-    await checkAndDownloadReleases<system>(store, onAssetDownloaded);
+    await checkAndDownloadReleases<system>(store, transform, onAssetDownloaded);
   };
 
   public func getDownloadedWasmHashes(store : Store) : [(Blob, Text)] {

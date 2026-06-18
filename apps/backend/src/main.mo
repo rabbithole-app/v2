@@ -19,6 +19,7 @@ import LiminalApp "mo:liminal/App";
 import CORSMiddleware "mo:liminal/Middleware/CORS";
 import ZenDB "mo:zendb";
 import StorageTypes "mo:encrypted-storage/Types";
+import IC "mo:ic";
 
 import TreasuryTypes "mo:treasury/Types";
 import TreasuryConst "mo:treasury/Const";
@@ -835,12 +836,20 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
+  public query func transformGitHubReleaseResponse(args : IC.TransformArg) : async IC.HttpRequestResult {
+    { args.response with headers = [] };
+  };
+
   orchestratorCallbacks := {
     orchestratorCallbacks with
     onAssetDownloaded = ?handleAssetDownloaded;
   };
 
   transient let startCallbacks : StorageDeployerOrchestrator.StartCallbacks = {
+    releaseListTransform = ?{
+      function = transformGitHubReleaseResponse;
+      context = Blob.fromArray([]);
+    };
     onAssetDownloaded = ?handleAssetDownloaded;
     orchestrator = orchestratorCallbacks;
   };
@@ -1306,7 +1315,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public shared ({ caller }) func refreshStorageReleaseIndex() : async () {
     assertAdmin(caller);
-    await StorageDeployerOrchestrator.refreshStorageReleaseIndex<system>(storageOrchestrator, ?handleAssetDownloaded);
+    await StorageDeployerOrchestrator.refreshStorageReleaseIndex<system>(storageOrchestrator, startCallbacks.releaseListTransform, ?handleAssetDownloaded);
   };
 
   // --- HTTP interface: ICPay webhook only ---

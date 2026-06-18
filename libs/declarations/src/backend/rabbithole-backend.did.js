@@ -1140,6 +1140,16 @@ export const idlFactory = ({ IDL }) => {
     'ok' : IDL.Record({ 'cyclesAdded' : IDL.Nat }),
     'err' : IDL.Text,
   });
+  const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const HttpRequestResult = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(HttpHeader),
+  });
+  const TransformArg = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : HttpRequestResult,
+  });
   const UpdateProfileArgs = IDL.Record({ 'displayName' : IDL.Opt(IDL.Text) });
   const WithdrawDestination = IDL.Variant({
     'IC' : IDL.Record({
@@ -1426,6 +1436,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'stopStorageDeployer' : IDL.Func([], [], []),
     'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result], []),
+    'transformGitHubReleaseResponse' : IDL.Func(
+        [TransformArg],
+        [HttpRequestResult],
+        ['query'],
+      ),
     'triggerAutoRenewals' : IDL.Func([], [], []),
     'triggerExpireOverdue' : IDL.Func([], [IDL.Vec(IDL.Principal)], []),
     'triggerSelfTopUp' : IDL.Func([], [], []),

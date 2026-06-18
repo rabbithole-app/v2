@@ -79,7 +79,7 @@ module {
         body = null;
         method = #get;
         transform = null;
-        is_replicated = null;
+        is_replicated = ?false;
       };
       let chunkId = store.nextChunkId;
       store.nextChunkId += 1;

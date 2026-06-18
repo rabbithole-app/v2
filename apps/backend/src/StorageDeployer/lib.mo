@@ -58,8 +58,10 @@ module StorageDeployerOrchestrator {
   public type DeleteStorageError = Types.DeleteStorageError;
   public type AddStorageError = Types.AddStorageError;
   public type DownloadDetails = HttpDownloader.DownloadDetails;
+  public type ReleaseListTransform = StorageReleaseRuntime.ReleaseListTransform;
 
   public type StartCallbacks = {
+    releaseListTransform : ReleaseListTransform;
     onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ());
     /// Callbacks attached to orchestrator async work (task queue).
     /// `bindLicense` fires when a canister is minted and a license is
@@ -431,14 +433,14 @@ module StorageDeployerOrchestrator {
     self.running := true;
 
     // 1. Start release check
-    await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, callbacks.onAssetDownloaded);
+    await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, callbacks.releaseListTransform, callbacks.onAssetDownloaded);
     self.githubTimerId := ?Timer.recurringTimer<system>(
       #days 1,
       func() : async () {
         // Reset retry count for daily check to allow fresh retry attempts
         self.fetchRetryCount := 0;
         refreshRuntimeConfig<system>(self);
-        await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, callbacks.onAssetDownloaded);
+        await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, callbacks.releaseListTransform, callbacks.onAssetDownloaded);
       },
     );
 
@@ -2094,9 +2096,9 @@ module StorageDeployerOrchestrator {
   };
 
   /// Manually trigger a refresh of releases (for debugging/recovery)
-  public func refreshStorageReleaseIndex<system>(self : Store, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
+  public func refreshStorageReleaseIndex<system>(self : Store, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
     refreshRuntimeConfig<system>(self);
-    await StorageReleaseRuntime.refreshStorageReleaseIndex<system>(self, onAssetDownloaded);
+    await StorageReleaseRuntime.refreshStorageReleaseIndex<system>(self, transform, onAssetDownloaded);
   };
 
   /// Get hashes of all downloaded storage WASM releases.
