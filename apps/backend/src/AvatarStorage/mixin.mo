@@ -9,6 +9,7 @@ import Prim "mo:prim";
 import CaffeineStorage "mo:caffeineai-object-storage/Storage";
 import ZenDB "mo:zendb";
 
+import BlobStorageCashier "../BlobStorage/CashierAccount";
 import Users "../Users/lib";
 
 mixin(
@@ -18,12 +19,16 @@ mixin(
   let avatarUploadReservations : Map.Map<Principal, Users.AvatarUploadReservation> = Map.empty();
   let avatarDrafts : Map.Map<Principal, Users.AvatarRef> = Map.empty();
   transient let avatarObjectStorageState : CaffeineStorage.State = CaffeineStorage.new();
+  transient let avatarObjectStorageCashier : BlobStorageCashier.Store = BlobStorageCashier.new(avatarObjectStorageState);
   transient let avatarUsers = Users.Users(db, avatarUploadReservations, avatarDrafts);
 
   public shared ({ caller }) func prepareAvatarUpload(args : Users.PrepareAvatarUploadArgs) : async Users.PrepareAvatarUploadResult {
     assert not Principal.isAnonymous(caller);
     switch (avatarUsers.prepareAvatarUpload(caller, args)) {
-      case (#ok(result)) result;
+      case (#ok(result)) {
+        await ensureAvatarBlobStorageCashierActivated();
+        result;
+      };
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -48,18 +53,29 @@ mixin(
 
   // --- Caffeine Blob Storage protocol for backend-owned avatars ---
 
-  type ImmutableObjectStorageRefillInformation = {
-    proposed_top_up_amount : ?Nat;
-  };
+  type ImmutableObjectStorageRefillInformation = BlobStorageCashier.RefillInformation;
 
-  type ImmutableObjectStorageRefillResult = {
-    success : ?Bool;
-    topped_up_amount : ?Nat;
-  };
+  type ImmutableObjectStorageRefillResult = BlobStorageCashier.RefillResult;
 
   type ImmutableObjectStorageCreateCertificateResult = {
     method : Text;
     blob_hash : Text;
+  };
+
+  func ensureAvatarBlobStorageCashierActivated() : async () {
+    await BlobStorageCashier.ensureActivated(avatarObjectStorageCashier);
+  };
+
+  func grantAvatarBlobStorageCashierFullAccess(delegate : Principal) : async () {
+    await BlobStorageCashier.grantFullAccess(avatarObjectStorageCashier, delegate);
+  };
+
+  func revokeAvatarBlobStorageCashierFullAccess(delegate : Principal) : async () {
+    await BlobStorageCashier.revokeFullAccess(delegate);
+  };
+
+  func syncAvatarBlobStorageCashierFullAccessDelegates(delegates : [Principal]) : async () {
+    await BlobStorageCashier.syncExactFullAccessDelegates(avatarObjectStorageCashier, delegates);
   };
 
   public shared ({ caller }) func _immutableObjectStorageCreateCertificate(blobHash : Text) : async ImmutableObjectStorageCreateCertificateResult {
@@ -108,6 +124,6 @@ mixin(
     if (cashier != caller) {
       Runtime.trap("Unauthorized access");
     };
-    await CaffeineStorage.refillCashier(avatarObjectStorageState, cashier, refillInformation);
+    await BlobStorageCashier.refill(avatarObjectStorageCashier, refillInformation);
   };
 };

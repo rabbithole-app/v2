@@ -11,6 +11,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucidePencil, lucideTrash } from '@ng-icons/lucide';
 import { BrnDialogRef } from '@spartan-ng/brain/dialog';
 import { toast } from '@spartan-ng/brain/sonner';
+import { cva } from 'class-variance-authority';
 import { match, P } from 'ts-pattern';
 
 import type { AvatarRef } from '@rabbithole/declarations/backend';
@@ -22,6 +23,7 @@ import {
 import { HlmButton } from '@spartan-ng/helm/button';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
+import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { AvatarService } from '../../../services/avatar.service';
@@ -30,6 +32,37 @@ import {
   AvatarCropDialogComponent,
   type AvatarCropDialogResult,
 } from '../avatar-crop-dialog/avatar-crop-dialog.component';
+
+const avatarScrimVariants = cva(
+  'absolute inset-0 rounded-full bg-black/50 transition-opacity duration-300 ease-in-out',
+  {
+    variants: {
+      visible: {
+        false: 'pointer-events-none opacity-0',
+        true: 'opacity-100',
+      },
+    },
+  },
+);
+
+const avatarCenterLayerVariants = cva(
+  'absolute inset-0 z-10 flex items-center justify-center transition-opacity duration-300',
+  {
+    variants: {
+      gap: {
+        false: '',
+        true: 'gap-2',
+      },
+      visible: {
+        false: 'pointer-events-none opacity-0',
+        true: 'pointer-events-auto opacity-100',
+      },
+    },
+    defaultVariants: {
+      gap: false,
+    },
+  },
+);
 
 @Component({
   selector: 'rbth-core-avatar-editor',
@@ -40,6 +73,7 @@ import {
     HlmAvatarImage,
     HlmButton,
     HlmIcon,
+    HlmSpinner,
     NgIcon,
     ...HlmTooltipImports,
   ],
@@ -66,6 +100,16 @@ export class AvatarEditorComponent {
   #isHovered = signal(false);
   readonly showControls = computed(
     () => this.#isHovered() && !this.disabledState(),
+  );
+  readonly showScrim = computed(() => this.#isHovered() && !this.disabled());
+  readonly scrimClass = computed(() =>
+    avatarScrimVariants({ visible: this.showScrim() }),
+  );
+  readonly controlsLayerClass = computed(() =>
+    avatarCenterLayerVariants({
+      gap: true,
+      visible: this.showControls() || this.saving(),
+    }),
   );
 
   readonly #fsAccessService = inject(FileSystemAccessService);
@@ -157,9 +201,9 @@ export class AvatarEditorComponent {
     } catch (error) {
       const message = this.#errorMessage(error);
       console.error('Failed to save avatar', error);
-      toast.dismiss(id);
       toast.error('Failed to save avatar', {
         description: message,
+        id,
         duration: 10_000,
       });
     } finally {

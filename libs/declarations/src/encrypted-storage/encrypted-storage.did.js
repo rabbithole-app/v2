@@ -1243,6 +1243,7 @@ export const idlFactory = ({ IDL }) => {
     'set_asset_properties' : IDL.Func([SetAssetPropertiesArguments], [], []),
     'showTree' : IDL.Func([IDL.Opt(Entry)], [IDL.Text], ['query']),
     'store' : IDL.Func([StoreArgs], [], []),
+    'syncBlobStorageCashierOwnerEquivalentAccess' : IDL.Func([], [], []),
     'takeRecoveryOwnership' : IDL.Func([], [OwnerEquivalentPrincipal], []),
     'take_ownership' : IDL.Func([], [], []),
     'unset_asset_content' : IDL.Func([UnsetAssetContentArguments], [], []),

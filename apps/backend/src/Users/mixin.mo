@@ -11,11 +11,16 @@ import ZenDB "mo:zendb";
 
 mixin (
   installer : Principal,
-  db : ZenDB.Database,
-  avatarUploadReservations : Map.Map<Principal, Users.AvatarUploadReservation>,
-  avatarDrafts : Map.Map<Principal, Users.AvatarRef>,
+  store : {
+    db : ZenDB.Database;
+    avatarUploadReservations : Map.Map<Principal, Users.AvatarUploadReservation>;
+    avatarDrafts : Map.Map<Principal, Users.AvatarRef>;
+  },
+  deps : {
+    onAdminChanged : ({ #Grant : Principal; #Revoke : Principal }) -> async ();
+  },
 ) {
-  transient let users = Users.Users(db, avatarUploadReservations, avatarDrafts);
+  transient let users = Users.Users(store.db, store.avatarUploadReservations, store.avatarDrafts);
 
   // Bootstrap: the deployer principal (installer) becomes the first admin.
   // Creating a User record here guarantees `isAdmin(installer)` is true before
@@ -152,6 +157,7 @@ mixin (
     if (Principal.equal(caller, target) and role != #admin) {
       throw Error.reject("cannot self-demote from admin");
     };
+    let wasAdmin = users.isAdmin(target);
     if (not users.setRole(target, role)) {
       switch (role) {
         case (#admin) {
@@ -161,6 +167,19 @@ mixin (
           };
         };
         case _ throw Error.reject("user not found");
+      };
+    };
+    let isAdmin = users.isAdmin(target);
+    if (wasAdmin != isAdmin) {
+      let change : { #Grant : Principal; #Revoke : Principal } = if (isAdmin) #Grant(target) else #Revoke(target);
+      try {
+        await deps.onAdminChanged(change);
+      } catch (error) {
+        let action = switch (change) {
+          case (#Grant(_)) "grant";
+          case (#Revoke(_)) "revoke";
+        };
+        Debug.print("Failed to " # action # " Blob Storage Cashier admin delegation for " # Principal.toText(target) # ": " # Error.message(error));
       };
     };
   };

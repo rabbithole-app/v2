@@ -545,6 +545,7 @@ export interface EncryptedStorageCanister {
   >,
   'showTree' : ActorMethod<[[] | [Entry]], string>,
   'store' : ActorMethod<[StoreArgs], undefined>,
+  'syncBlobStorageCashierOwnerEquivalentAccess' : ActorMethod<[], undefined>,
   'takeRecoveryOwnership' : ActorMethod<[], OwnerEquivalentPrincipal>,
   'take_ownership' : ActorMethod<[], undefined>,
   'unset_asset_content' : ActorMethod<[UnsetAssetContentArguments], undefined>,

@@ -414,7 +414,8 @@ describe("User profiles", () => {
     expect(profile.username).toBe(args.username);
   });
 
-  test("avatar upload prepare and commit stores profile avatarRef", async () => {
+  // Requires a Caffeine Blob Storage Cashier canister, which backend PocketIC tests do not deploy.
+  test.skip("avatar upload prepare and commit stores profile avatarRef", async () => {
     actor.setIdentity(userAlice);
     await actor.ensureUser([]);
 

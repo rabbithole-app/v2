@@ -1,6 +1,7 @@
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Cycles "mo:core/Cycles";
+import Debug "mo:core/Debug";
 import Error "mo:core/Error";
 import Nat "mo:core/Nat";
 import Order "mo:core/Order";
@@ -29,6 +30,7 @@ import EncryptedStorageClass "mo:encrypted-storage/Class";
 import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
 import Const "mo:encrypted-storage/Const";
 import T "mo:encrypted-storage/Types";
+import BlobStorageCashier "BlobStorage/CashierAccount";
 import SubscriptionGate "SubscriptionGate";
 import HttpAssetsMixin "HttpAssetsMixin";
 import IdentityVerification "IdentityVerification/lib";
@@ -1085,9 +1087,18 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     if (not (await isCurrentController(caller))) {
       throw Error.reject("caller is not a controller");
     };
+    let previousRecoveryOwner = currentRecoveryOwnerForCashierSync();
     switch (es.takeRecoveryOwnership(caller)) {
       case (#ok(record)) {
         await drainStorageAccessChangedQueue();
+        try {
+          await revokePreviousRecoveryOwnerCashierAccess(previousRecoveryOwner, record);
+          if (es.getStorageBackendType() == #BlobStorage) {
+            await BlobStorageCashier.grantFullAccess(blobStorageCashier, record.principal);
+          };
+        } catch (error) {
+          Debug.print("Failed to sync Blob Storage Cashier recovery owner activation: " # Error.message(error));
+        };
         record;
       };
       case (#err(message)) throw Error.reject(message);
@@ -1104,9 +1115,18 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     if (not (await isCurrentController(principal))) {
       throw Error.reject("principal is not a controller");
     };
+    let previousRecoveryOwner = currentRecoveryOwnerForCashierSync();
     switch (es.activateRecoveryOwnership(caller, principal)) {
       case (#ok(record)) {
         await drainStorageAccessChangedQueue();
+        try {
+          await revokePreviousRecoveryOwnerCashierAccess(previousRecoveryOwner, record);
+          if (es.getStorageBackendType() == #BlobStorage) {
+            await BlobStorageCashier.grantFullAccess(blobStorageCashier, record.principal);
+          };
+        } catch (error) {
+          Debug.print("Failed to sync Blob Storage Cashier recovery owner activation: " # Error.message(error));
+        };
         record;
       };
       case (#err(message)) throw Error.reject(message);
@@ -1121,7 +1141,16 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       throw Error.reject("principal is still a controller; remove controller first");
     };
     switch (es.removeRecoveryOwner(caller, principal)) {
-      case (#ok) { await drainStorageAccessChangedQueue() };
+      case (#ok) {
+        await drainStorageAccessChangedQueue();
+        try {
+          if (es.getStorageBackendType() == #BlobStorage) {
+            await BlobStorageCashier.revokeFullAccess(principal);
+          };
+        } catch (error) {
+          Debug.print("Failed to sync Blob Storage Cashier recovery owner removal: " # Error.message(error));
+        };
+      };
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -1481,10 +1510,51 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   // _immutableObjectStorageConfirmBlobDeletion, _immutableObjectStorageUpdateGatewayPrincipals,
   // _immutableObjectStorageRefillCashier
   include MixinObjectStorage();
+  transient let blobStorageCashier : BlobStorageCashier.Store = BlobStorageCashier.new(_immutableObjectStorageState);
+
+  func syncBlobStorageCashierOwnerEquivalentAccessInternal() : async () {
+    if (es.getStorageBackendType() == #OnChain) return;
+    switch (es.listOwnerEquivalentPrincipals(owner)) {
+      case (#ok(records)) {
+        await BlobStorageCashier.syncExactFullAccessDelegates(
+          blobStorageCashier,
+          Array.map<T.OwnerEquivalentPrincipal, Principal>(records, func(record) = record.principal),
+        );
+      };
+      case (#err(message)) Runtime.trap("failed to list owner-equivalent principals: " # message);
+    };
+  };
+
+  func revokePreviousRecoveryOwnerCashierAccess(previous : ?T.OwnerEquivalentPrincipal, current : T.OwnerEquivalentPrincipal) : async () {
+    if (es.getStorageBackendType() == #OnChain) return;
+    switch (previous) {
+      case (?record) if (not Principal.equal(record.principal, current.principal)) {
+        await BlobStorageCashier.revokeFullAccess(record.principal);
+      };
+      case _ {};
+    };
+  };
+
+  func currentRecoveryOwnerForCashierSync() : ?T.OwnerEquivalentPrincipal {
+    switch (es.getRecoveryStatus(owner)) {
+      case (#ok(status)) status.recoveryOwner;
+      case (#err(message)) Runtime.trap("failed to read recovery owner status: " # message);
+    };
+  };
+
+  public shared ({ caller }) func syncBlobStorageCashierOwnerEquivalentAccess() : async () {
+    if (not es.isOwnerEquivalent(caller)) {
+      throw Error.reject("caller is not owner-equivalent");
+    };
+    await syncBlobStorageCashierOwnerEquivalentAccessInternal();
+  };
 
   public shared ({ caller }) func preflightCaffeineUpload(args : T.PreflightCaffeineUploadArgs) : async T.StorageResult<()> {
     switch (await* es.preflightCaffeineUpload(caller, args)) {
-      case (#ok _) #ok;
+      case (#ok _) {
+        await syncBlobStorageCashierOwnerEquivalentAccessInternal();
+        #ok;
+      };
       case (#err message) #err(storageError(message));
     };
   };

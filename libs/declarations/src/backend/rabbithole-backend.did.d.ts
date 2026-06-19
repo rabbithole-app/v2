@@ -663,6 +663,7 @@ export interface Rabbithole {
   >,
   'adminListUsers' : ActorMethod<[AdminUserListOptions], AdminUsersPage>,
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
+  'adminSyncBlobStorageCashierAdminAccess' : ActorMethod<[], undefined>,
   'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
   'checkSubscription' : ActorMethod<[Uint8Array], SubscriptionCheckResult>,
   'claimVerifiedEmailAccess' : ActorMethod<[], IdentityAttributesSyncResult>,

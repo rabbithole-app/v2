@@ -111,7 +111,29 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // guard is backed by `user.role == #admin` rather than a separate set.
 
   include AvatarStorageMixin(canisterId, db);
-  include UsersMixin(installer, db, avatarUploadReservations, avatarDrafts);
+
+  include UsersMixin(
+    installer,
+    {
+      db;
+      avatarUploadReservations;
+      avatarDrafts;
+    },
+    {
+      onAdminChanged = func(change : { #Grant : Principal; #Revoke : Principal }) : async () {
+        switch (change) {
+          case (#Grant(target)) await grantAvatarBlobStorageCashierFullAccess(target);
+          case (#Revoke(target)) await revokeAvatarBlobStorageCashierFullAccess(target);
+        };
+      };
+    },
+  );
+
+  public shared ({ caller }) func adminSyncBlobStorageCashierAdminAccess() : async () {
+    assertAdmin(caller);
+    await syncAvatarBlobStorageCashierFullAccessDelegates(users.listByRole(#admin));
+  };
+
   include IdentityVerificationMixin({
     onVerifiedAttributes = func(caller : Principal, attrs : IdentityVerification.VerifiedIdentityAttributes) : Result.Result<(), IdentityVerification.IdentityAttributesSyncError> {
       BackendIdentityHandler.onVerifiedAttributes(
