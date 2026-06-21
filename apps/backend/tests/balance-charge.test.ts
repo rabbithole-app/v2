@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import type { RabbitholeActorService } from '@rabbithole/declarations';
 
 import { ONE_TRILLION_CYCLES } from './setup/constants.ts';
-import { createPic, userAlice } from './setup/helpers.ts';
+import { createPic, ownerIdentity, userAlice } from './setup/helpers.ts';
 
 describe('Balance & Charge', () => {
   let pic: PocketIc;
@@ -86,5 +86,19 @@ describe('Balance & Charge', () => {
     actor.setIdentity(userAlice);
     const fakeHash = new Uint8Array(32);
     await expect(actor.adminRegisterWasmHash(fakeHash, 'test')).rejects.toThrow();
+  });
+
+  test('adminRebuildKnownWasmHashesFromDownloadedReleases: removes stale manual hashes', async () => {
+    actor.setIdentity(ownerIdentity);
+    const staleHash = Uint8Array.from({ length: 32 }, (_, index) => index);
+
+    await actor.adminRegisterWasmHash(staleHash, 'storage-v0.0.0/encrypted-storage.wasm.gz');
+    await expect(actor.isKnownWasmHash(staleHash)).resolves.toBe(true);
+
+    const rebuiltCount =
+      await actor.adminRebuildKnownWasmHashesFromDownloadedReleases();
+
+    expect(rebuiltCount).toBe(0n);
+    await expect(actor.isKnownWasmHash(staleHash)).resolves.toBe(false);
   });
 });

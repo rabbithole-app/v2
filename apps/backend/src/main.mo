@@ -882,6 +882,11 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
+  public shared ({ caller }) func adminRebuildKnownWasmHashesFromDownloadedReleases() : async Nat {
+    assertAdmin(caller);
+    replaceKnownWasmHashes(storageOrchestrator.getDownloadedWasmHashes());
+  };
+
   // --- System lifecycle ---
 
   system func preupgrade() {

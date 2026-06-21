@@ -24,6 +24,16 @@ mixin(
     });
   };
 
+  /// Replace the trusted WASM hash index from a canonical source.
+  /// Available to the composing actor for repair/rebuild flows.
+  func replaceKnownWasmHashes(entries : [(Blob, Text)]) : Nat {
+    Map.clear(knownHashes);
+    for ((hash, releaseTag) in entries.vals()) {
+      registerWasmHash(hash, releaseTag);
+    };
+    entries.size();
+  };
+
   /// Check if a WASM hash is known. Available to other mixins.
   func isKnownWasm(hash : Blob) : Bool {
     Map.containsKey(knownHashes, Blob.compare, hash);

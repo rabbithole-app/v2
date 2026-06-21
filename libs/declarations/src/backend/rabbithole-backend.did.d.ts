@@ -662,6 +662,7 @@ export interface Rabbithole {
     }
   >,
   'adminListUsers' : ActorMethod<[AdminUserListOptions], AdminUsersPage>,
+  'adminRebuildKnownWasmHashesFromDownloadedReleases' : ActorMethod<[], bigint>,
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
   'adminSyncBlobStorageCashierAdminAccess' : ActorMethod<[], undefined>,
   'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
@@ -712,6 +713,11 @@ export interface Rabbithole {
   >,
   'getSettings' : ActorMethod<[], UserSettings>,
   'getSolAddress' : ActorMethod<[], [] | [string]>,
+  /**
+   * / Admin-only recovery for non-terminal creations that lost their transient
+   * / queue/timer state. Upgrades are reverted to Completed; initial creations
+   * / become Failed and can then use the regular recoverFailedStorage flow.
+   */
   'getStorageFundingStatus' : ActorMethod<[], StorageFundingStatus>,
   'getStorageReleaseAdminStatus' : ActorMethod<[], ReleasesFullStatus>,
   'getStorageUpgradePlan' : ActorMethod<

@@ -1226,6 +1226,11 @@ export const idlFactory = ({ IDL }) => {
         [AdminUsersPage],
         ['query'],
       ),
+    'adminRebuildKnownWasmHashesFromDownloadedReleases' : IDL.Func(
+        [],
+        [IDL.Nat],
+        [],
+      ),
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'adminSyncBlobStorageCashierAdminAccess' : IDL.Func([], [], []),
     'applyReferralCode' : IDL.Func([IDL.Text], [ApplyReferralCodeResult], []),

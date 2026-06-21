@@ -78,22 +78,6 @@ jobs:
       - name: Generate declarations and init args
         run: npx nx run backend:generate-declarations --skip-nx-cache --outputStyle=static
 
-      - name: Configure backend release token
-        if: ${{ inputs.target == 'backend' || inputs.target == 'both' }}
-        working-directory: apps/backend
-        env:
-          STORAGE_RELEASES_GITHUB_TOKEN: ${{ secrets.STORAGE_RELEASES_GITHUB_TOKEN }}
-        run: |
-          if [ -n "$STORAGE_RELEASES_GITHUB_TOKEN" ]; then
-            icp canister settings update rabbithole-backend -e ic \
-              --add-environment-variable "GITHUB_TOKEN=${STORAGE_RELEASES_GITHUB_TOKEN}" \
-              -f
-          else
-            icp canister settings update rabbithole-backend -e ic \
-              --remove-environment-variable GITHUB_TOKEN \
-              -f
-          fi
-
       - name: Deploy backend
         if: ${{ inputs.target == 'backend' || inputs.target == 'both' }}
         working-directory: apps/backend
@@ -111,3 +95,20 @@ jobs:
         working-directory: apps/backend
         run: |
           bash scripts/sync-env.sh ic
+
+      - name: Restore private backend release token and refresh releases
+        if: ${{ (inputs.target == 'backend' || inputs.target == 'both') && github.event.repository.private }}
+        working-directory: apps/backend
+        env:
+          STORAGE_RELEASES_GITHUB_TOKEN: ${{ secrets.STORAGE_RELEASES_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$STORAGE_RELEASES_GITHUB_TOKEN" ]; then
+            echo "Missing STORAGE_RELEASES_GITHUB_TOKEN secret for private release repository."
+            exit 1
+          fi
+
+          icp canister settings update rabbithole-backend -e ic \
+            --add-environment-variable "GITHUB_TOKEN=${STORAGE_RELEASES_GITHUB_TOKEN}" \
+            -f
+
+          icp canister call rabbithole-backend refreshStorageReleaseIndex '()' -e ic --output candid
