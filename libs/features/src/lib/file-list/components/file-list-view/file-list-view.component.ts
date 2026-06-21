@@ -18,7 +18,10 @@ import {
   lucideFolderOpen,
   lucideFolderPlus,
   lucideFolderUp,
+  lucideShare2,
+  lucideStar,
   lucideUpload,
+  lucideUsers,
 } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { intersectionWith } from 'remeda';
@@ -29,6 +32,7 @@ import {
   PageHeaderActionsDirective,
   ProFeatureGateService,
   ShareDialogComponent,
+  type AccessScopeKind,
 } from '@rabbithole/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
@@ -40,6 +44,7 @@ import {
   Entry,
   RevokeStorageAccessGrants,
   StorageAccessRequest,
+  StorageAccessScope,
 } from '@rabbithole/encrypted-storage';
 import { HlmContextMenuImports } from '@spartan-ng/helm/context-menu';
 import { HlmDialogService } from '@spartan-ng/helm/dialog';
@@ -62,6 +67,12 @@ import {
   RequestAccessDialogResult,
 } from '../request-access-dialog/request-access-dialog.component';
 import { UploadDrawerComponent } from '../upload-drawer/upload-drawer.component';
+
+type ShareDialogScope = {
+  itemCount: number;
+  kind: AccessScopeKind;
+  label: string;
+};
 
 @Component({
   selector: 'rbth-feat-file-list-view',
@@ -90,6 +101,9 @@ import { UploadDrawerComponent } from '../upload-drawer/upload-drawer.component'
       lucideUpload,
       lucideFolderUp,
       lucideFolderOpen,
+      lucideShare2,
+      lucideStar,
+      lucideUsers,
     }),
   ],
 })
@@ -102,6 +116,7 @@ export class FileListViewComponent {
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
   fileListService = inject(FileListService);
   canWrite = this.fileListService.canWrite;
+  canManage = this.fileListService.canManage;
   #route = inject(ActivatedRoute);
   items = toSignal(
     this.#route.data.pipe(
@@ -122,22 +137,35 @@ export class FileListViewComponent {
     ),
     { requireSync: true },
   );
-  noAccess = computed(() =>
-    !this.fileListService.items.isLoading() &&
-    this.fileListService.directoryPermission() === null &&
-    this.items().length === 0,
+  noAccess = computed(
+    () =>
+      !this.fileListService.items.isLoading() &&
+      this.fileListService.directoryPermission() === null &&
+      this.items().length === 0,
   );
   propertiesDrawerItems = signal<NodeItem[]>([]);
   #permissionsService = inject(PermissionsService);
   shareAccessList = this.#permissionsService.permitted;
   shareAccessListLoading = this.#permissionsService.permittedLoading;
   shareDialogItems = signal<NodeItem[]>([]);
+  shareDialogScope = signal<ShareDialogScope | null>(null);
+  shareDialogItemCount = computed(() => {
+    const scope = this.shareDialogScope();
+    return scope ? scope.itemCount : this.shareDialogItems().length;
+  });
+  shareDialogAccessList = computed(() =>
+    this.shareDialogItemCount() === 1 ? this.shareAccessList() : [],
+  );
   shareDialogScopeKind = computed(() => {
+    const scope = this.shareDialogScope();
+    if (scope) return scope.kind;
     const items = this.shareDialogItems();
     if (items.length !== 1) return 'batch';
     return items[0]!.type === 'directory' ? 'directory' : 'file';
   });
   shareDialogScopeLabel = computed(() => {
+    const scope = this.shareDialogScope();
+    if (scope) return scope.label;
     const items = this.shareDialogItems();
     if (items.length === 0) return 'Selected item';
     if (items.length > 1) return `${items.length} selected items`;
@@ -169,6 +197,9 @@ export class FileListViewComponent {
       .subscribe((parentPath) =>
         this.fileListService.setParentPath(parentPath),
       );
+    this.#permissionsService.accessChanges$
+      .pipe(takeUntilDestroyed(this.#destroyRef))
+      .subscribe(() => this.fileListService.reload());
   }
 
   async _handleCancelAccessRequest(request: StorageAccessRequest) {
@@ -190,7 +221,7 @@ export class FileListViewComponent {
     }
   }
 
-  _handleColor({ id, color }: { color: DirectoryColor; id: bigint; }) {
+  _handleColor({ id, color }: { color: DirectoryColor; id: bigint }) {
     this.fileListService.updateColor(id, color);
   }
 
@@ -202,26 +233,6 @@ export class FileListViewComponent {
     this.fileListService.download(selected);
   }
 
-  async _handleMakePublic(selected: bigint[]) {
-    const items = this.#resolveItems(selected);
-    if (items.length === 0) return;
-
-    await this.#proFeatureGate.run('share', () => {
-      this.#permissionsService.createAccessGrants({
-        items: items.map((item) => ({
-          entry: this.#itemEntry(item),
-          target: { principal: '2vxsx-fae' },
-          permission: 'Read',
-        })),
-      });
-      toast.success(
-        items.length === 1
-          ? `"${items[0].name}" is now public`
-          : `${items.length} items are now public`,
-      );
-    });
-  }
-
   async _handleManageAccess(selected: bigint[]) {
     const items = this.#resolveItems(selected);
     if (items.length === 0) return;
@@ -231,19 +242,37 @@ export class FileListViewComponent {
     );
   }
 
+  async _handleCurrentDirectoryManageAccess() {
+    await this.#proFeatureGate.run('share', () =>
+      this.#openCurrentDirectoryShareDialog('manage'),
+    );
+  }
+
+  async _handleCurrentDirectoryShare() {
+    await this.#proFeatureGate.run('share', () =>
+      this.#openCurrentDirectoryShareDialog('share'),
+    );
+  }
+
   _handleMove(selected: bigint[]) {
     const items = this.#resolveItems(selected);
     const excludePaths = items
       .filter((i) => i.type === 'directory')
       .map((i) => (i.parentPath ? `${i.parentPath}/${i.name}` : i.name));
-    const currentParentPaths = [...new Set(items.map((i) => i.parentPath ?? null))];
+    const currentParentPaths = [
+      ...new Set(items.map((i) => i.parentPath ?? null)),
+    ];
     const dialogRef = this.#dialogService.open(MoveDialogComponent, {
       contentClass: 'min-w-[420px]',
-      context: { encryptedStorage: this.#encryptedStorage(), excludePaths, currentParentPaths },
+      context: {
+        encryptedStorage: this.#encryptedStorage(),
+        excludePaths,
+        currentParentPaths,
+      },
     });
     dialogRef.closed$
       .pipe(
-        filter((v): v is Entry | null => v !== undefined),
+        filter((v): v is StorageAccessScope => v !== undefined),
         switchMap((target) =>
           from(this.fileListService.moveItems(selected, target ?? undefined)),
         ),
@@ -358,6 +387,11 @@ export class FileListViewComponent {
   }
 
   _handleShareAccessGrants(args: CreateStorageAccessGrants) {
+    if (this.shareDialogScope()) {
+      this.#permissionsService.createAccessGrants(args);
+      return;
+    }
+
     const items = this.shareDialogItems();
     if (items.length === 0) return;
     const expanded = items.flatMap((item) => {
@@ -378,14 +412,24 @@ export class FileListViewComponent {
   }
 
   #itemEntry(item: NodeItem): Entry {
-    return [
-      item.type === 'file' ? 'File' : 'Directory',
-      this.#itemPath(item),
-    ];
+    return [item.type === 'file' ? 'File' : 'Directory', this.#itemPath(item)];
   }
 
   #itemPath(item: NodeItem): string {
     return item.parentPath ? `${item.parentPath}/${item.name}` : item.name;
+  }
+
+  #currentDirectoryEntry(): StorageAccessScope {
+    const parentPath = this.fileListService.state().parentPath;
+    return parentPath ? ['Directory', parentPath] : null;
+  }
+
+  #currentDirectoryScopeKind(): AccessScopeKind {
+    return this.fileListService.state().parentPath ? 'directory' : 'storage';
+  }
+
+  #currentDirectoryScopeLabel(): string {
+    return this.fileListService.state().parentPath ?? this.canisterId.toText();
   }
 
   #openPropertiesDrawer(items: NodeItem[]) {
@@ -395,13 +439,26 @@ export class FileListViewComponent {
   }
 
   #openShareDialog(items: NodeItem[], tab: 'manage' | 'share') {
+    this.shareDialogScope.set(null);
     if (items.length === 1) {
       this.#permissionsService.setEntry(this.#itemEntry(items[0]!));
       this.#permissionsService.loadPermitted();
     } else {
-      this.#permissionsService.setEntry(null);
+      this.#permissionsService.setEntry(undefined);
     }
     this.shareDialogItems.set(items);
+    this.shareDialog()?.open(tab);
+  }
+
+  #openCurrentDirectoryShareDialog(tab: 'manage' | 'share') {
+    this.#permissionsService.setEntry(this.#currentDirectoryEntry());
+    this.#permissionsService.loadPermitted();
+    this.shareDialogItems.set([]);
+    this.shareDialogScope.set({
+      itemCount: 1,
+      kind: this.#currentDirectoryScopeKind(),
+      label: this.#currentDirectoryScopeLabel(),
+    });
     this.shareDialog()?.open(tab);
   }
 

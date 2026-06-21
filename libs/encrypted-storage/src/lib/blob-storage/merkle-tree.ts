@@ -92,6 +92,15 @@ export class YHash {
     return YHash.fromBytes(DOMAIN_SEPARATOR_FOR_NODES, concat(leftBytes, rightBytes));
   }
 
+  /** Decode a "sha256:<64 hex chars>" string into a YHash. */
+  static fromShaString(hash: string): YHash {
+    const match = /^sha256:([0-9a-f]{64})$/i.exec(hash);
+    if (!match) {
+      throw new Error(`Invalid SHA-256 hash: ${hash}`);
+    }
+    return YHash.fromHex(match[1]);
+  }
+
   /** "sha256:<64 hex chars>" */
   toShaString(): string {
     return `${SHA256_PREFIX}${this.toHex()}`;
@@ -186,6 +195,45 @@ export class BlobHashTree {
 // -------------------------------------------------------------------
 // Verification
 // -------------------------------------------------------------------
+
+/**
+ * Verify a blob-tree JSON document before trusting its per-chunk hashes.
+ *
+ * The gateway can return the blob tree independently of the blob bytes. We
+ * rebuild the tree from the advertised chunk hashes and the certified on-chain
+ * metadata, then compare it with the certified blob hash. Only then can callers
+ * safely verify and decrypt each downloaded chunk independently.
+ */
+export async function verifiedBlobTreeChunkHashes(
+  blobTree: BlobHashTreeJSON,
+  blobHash: string,
+  contentType: string,
+  size: number,
+  chunkSize = 1_048_576,
+): Promise<string[] | null> {
+  if (blobTree.tree_type !== 'DSBMTWH') return null;
+  if (!Array.isArray(blobTree.chunk_hashes)) return null;
+  if (blobTree.tree?.hash !== blobHash) return null;
+
+  const expectedChunkCount = Math.max(1, Math.ceil(size / chunkSize));
+  if (blobTree.chunk_hashes.length !== expectedChunkCount) return null;
+
+  let chunkHashes: YHash[];
+  try {
+    chunkHashes = blobTree.chunk_hashes.map((hash) => YHash.fromShaString(hash));
+  } catch {
+    return null;
+  }
+
+  const tree = await BlobHashTree.build(chunkHashes, {
+    'Content-Type': contentType,
+    'Content-Length': size.toString(),
+  });
+
+  if (tree.tree.hash.toShaString() !== blobHash) return null;
+
+  return chunkHashes.map((hash) => hash.toShaString());
+}
 
 /**
  * Verify the integrity of a blob downloaded from the storage gateway.

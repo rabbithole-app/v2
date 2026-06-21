@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { BlobHashTree, verifyBlobIntegrity, YHash } from './merkle-tree';
+import {
+  BlobHashTree,
+  verifiedBlobTreeChunkHashes,
+  verifyBlobIntegrity,
+  YHash,
+} from './merkle-tree';
 
 describe('YHash', () => {
   it('should create from 32 bytes', () => {
@@ -256,5 +261,45 @@ describe('verifyBlobIntegrity', () => {
     tampered[35] = 0xff;
     const resultTampered = await verifyBlobIntegrity(tampered, expectedHash, contentType, chunkSize);
     expect(resultTampered).toBe(false);
+  });
+});
+
+describe('verifiedBlobTreeChunkHashes', () => {
+  it('returns chunk hashes when the tree matches trusted metadata', async () => {
+    const data = new Uint8Array([1, 2, 3]);
+    const chunkHash = await YHash.fromChunk(data);
+    const tree = await BlobHashTree.build([chunkHash], {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': data.byteLength.toString(),
+    });
+
+    await expect(
+      verifiedBlobTreeChunkHashes(
+        tree.toJSON(),
+        tree.tree.hash.toShaString(),
+        'application/octet-stream',
+        data.byteLength,
+      ),
+    ).resolves.toEqual([chunkHash.toShaString()]);
+  });
+
+  it('rejects chunk hashes that do not rebuild the trusted root', async () => {
+    const data = new Uint8Array([1, 2, 3]);
+    const chunkHash = await YHash.fromChunk(data);
+    const tree = await BlobHashTree.build([chunkHash], {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': data.byteLength.toString(),
+    });
+    const json = tree.toJSON();
+    json.chunk_hashes = ['sha256:' + 'ff'.repeat(32)];
+
+    await expect(
+      verifiedBlobTreeChunkHashes(
+        json,
+        tree.tree.hash.toShaString(),
+        'application/octet-stream',
+        data.byteLength,
+      ),
+    ).resolves.toBeNull();
   });
 });

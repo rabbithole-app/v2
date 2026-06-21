@@ -103,26 +103,8 @@
       @case (uploadState.FAILED) {
         {{ failureCopy()?.title ?? 'Upload failed' }}
       }
-      @case (uploadState.COMPLETED) {
-        Completed
-      }
-      @case (uploadState.NOT_STARTED) {
-        Pending...
-      }
-      @case (uploadState.INITIALIZING) {
-        Initializing...
-      }
-      @case (uploadState.REQUESTING_VETKD) {
-        Requesting vetKeys...
-      }
-      @case (uploadState.FINALIZING) {
-        Finalizing...
-      }
-      @case (uploadState.WAITING_FOR_FUNDING) {
-        Waiting for cycles...
-      }
       @default {
-        Uploading...
+        {{ statusLabel() }}
       }
     }
   </span>
@@ -138,6 +120,9 @@
       <ng-container [ngTemplateOutlet]="cancelButton" />
     }
     @case (uploadState.INITIALIZING) {
+      <ng-container [ngTemplateOutlet]="cancelButton" />
+    }
+    @case (uploadState.PREPARING) {
       <ng-container [ngTemplateOutlet]="cancelButton" />
     }
     @case (uploadState.IN_PROGRESS) {

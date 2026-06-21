@@ -89,7 +89,7 @@ canisters:
         GITHUB_REPOSITORY: 'user/repo'
         # Local development starts new storage canisters from the committed
         # mock baseline. Local dev releases remain available as upgrade targets.
-        STORAGE_INSTALL_RELEASE_TAG: 'storage-v0.1.0'
+        STORAGE_INSTALL_RELEASE_TAG: 'storage-v0.2.0'
         STORAGE_UPDATE_RELEASE_SELECTOR: 'latest-prerelease'
         STORAGE_LICENSE_INCLUDED_BYTES: '1073741824' #1gb
         STORAGE_LICENSE_MAX_FILE_BYTES: '104857600' #100mb

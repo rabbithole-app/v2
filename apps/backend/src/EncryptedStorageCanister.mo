@@ -38,6 +38,7 @@ import IdentityVerificationMixin "IdentityVerification/mixin";
 import IdentityAttributes "mo:identity-attributes";
 import StorageIdentityHandler "IdentityVerification/StorageHandler";
 import StorageAccessClient "StorageAccessBridge/StorageClient";
+import StorageEnvironment "StorageEnvironment";
 import Utils "Utils/lib";
 
 shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
@@ -162,6 +163,10 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     activeUploadedBytes : Nat;
   };
 
+  type StorageFundingBackend = actor {
+    ensureStorageCyclesForUpload : (EnsureStorageCyclesForUploadRequest) -> async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text>;
+  };
+
   public type StorageCardMetrics = {
     subscriptionStatus : ?T.SubscriptionStatus;
     storedBytesUsed : Nat;
@@ -264,6 +269,8 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   func classifyStorageError(message : Text) : T.StorageErrorCode {
     if (Text.startsWith(message, #text "permission denied:")) return #PermissionDenied;
     if (Text.startsWith(message, #text "Upload funding is pending:")) return #FundingPending;
+    if (message == STORAGE_FUNDING_IN_PROGRESS_ERROR) return #FundingPending;
+    if (Text.contains(message, #text "top-up is already in progress")) return #FundingPending;
     if (Text.startsWith(message, #text "Manual OnChain funding required:")) return #InsufficientCycles;
     if (Text.startsWith(message, #text "Insufficient storage canister cycles:")) return #InsufficientCycles;
     if (Text.contains(message, #text "not found")) return #NotFound;
@@ -282,6 +289,10 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       code = classifyStorageError(message);
       message;
     };
+  };
+
+  func caffeineUploadReservationKey(caller : Principal, entry : T.Entry) : BlobStorageCashier.UploadReservationKey {
+    Principal.toText(caller) # "\nFile\n" # entry.1;
   };
 
   func ownerMetricsAccessError(caller : Principal) : ?T.StorageError {
@@ -541,9 +552,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
 
     let ?bid = storage.backendId else return;
-    let backend : actor {
-      ensureStorageCyclesForUpload : (EnsureStorageCyclesForUploadRequest) -> async Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text>;
-    } = actor (Principal.toText(bid));
+    let backend : StorageFundingBackend = actor (Principal.toText(bid));
     lastUploadFundingRequestAt := ?now;
     uploadFundingInFlight := true;
 
@@ -606,6 +615,66 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         case _ false;
       };
       case null false;
+    };
+  };
+
+  func blobStorageCashierFundingMessage(plan : BlobStorageCashier.UploadFundingPlan) : Text {
+    "Insufficient storage canister cycles for Blob Storage Cashier target " #
+    Nat.toText(plan.targetBalance) #
+    ": need storage balance " #
+    Nat.toText(plan.requiredCanisterBalance) #
+    " cycles before Cashier top-up, current balance is " #
+    Nat.toText(plan.canisterBalance) #
+    " cycles.";
+  };
+
+  func requestStorageCyclesForBlobStorageCashierIfNeeded(plan : BlobStorageCashier.UploadFundingPlan) : async Result.Result<(), Text> {
+    if (plan.canisterTopUpNeeded == 0) return #ok;
+
+    if (plan.declaredUploadBytes > uploadFundingRequestedBytes) {
+      uploadFundingRequestedBytes := plan.declaredUploadBytes;
+    };
+    if (plan.requiredCanisterBalance > uploadFundingRequestedTargetBalance) {
+      uploadFundingRequestedTargetBalance := plan.requiredCanisterBalance;
+    };
+
+    if (not hasManagedStorageFunding()) {
+      lastUploadFundingError := ?blobStorageCashierFundingMessage(plan);
+      return #err(blobStorageCashierFundingMessage(plan));
+    };
+    if (uploadFundingInFlight) return #err(STORAGE_FUNDING_IN_PROGRESS_ERROR);
+
+    let ?bid = storage.backendId else return #err("backendId not set — cannot request storage funding");
+    let backend : StorageFundingBackend = actor (Principal.toText(bid));
+    let request : EnsureStorageCyclesForUploadRequest = {
+      currentBalance = plan.canisterBalance;
+      requiredBalance = plan.requiredCanisterBalance;
+      postWriteFreezingReserve = plan.reservedCanisterCycles;
+      projectedCapacityBytes = 0;
+      remainingUploadBytes = plan.declaredUploadBytes;
+      activeUploadedBytes = 0;
+    };
+
+    lastUploadFundingRequestAt := ?Time.now();
+    uploadFundingInFlight := true;
+    let result : Result.Result<{ cyclesAdded : ?Nat; requiredBalance : Nat }, Text> = try {
+      await backend.ensureStorageCyclesForUpload(request);
+    } catch (error) {
+      #err(Error.message(error));
+    } finally {
+      uploadFundingInFlight := false;
+    };
+
+    switch (result) {
+      case (#ok _) {
+        lastUploadFundingCompletedAt := ?Time.now();
+        lastUploadFundingError := null;
+        #ok;
+      };
+      case (#err message) {
+        lastUploadFundingError := ?message;
+        #err(message);
+      };
     };
   };
 
@@ -813,11 +882,16 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       case (?value) Json.str(value);
       case null Json.nullable();
     };
+    let blobStorageCashierCanisterId = switch (Runtime.envVar<system>(StorageEnvironment.CASHIER_PRINCIPAL)) {
+      case (?value) Json.str(value);
+      case null Json.nullable();
+    };
     let infoJson = Json.obj([
       ("canisterId", Json.str(Principal.toText(canisterId))),
       ("rabbitholeBackendCanisterId", rabbitholeBackendCanisterId),
       ("rabbitholeFrontendCanisterId", rabbitholeFrontendCanisterId),
       ("internetIdentityFrontendCanisterId", internetIdentityFrontendCanisterId),
+      ("blobStorageCashierCanisterId", blobStorageCashierCanisterId),
       ("storageBackendType", Json.str(storageBackendType)),
     ]);
     let jsonText = Json.stringify(infoJson, null);
@@ -839,11 +913,11 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   transient let app = Liminal.App({
     middleware = [
       CORSMiddleware.default(),
-      AssetsMiddleware.new({
-        store = assetStore;
-      }),
       EncryptedStorageMiddleware.new({
         store = storage;
+      }),
+      AssetsMiddleware.new({
+        store = assetStore;
       }),
     ];
     errorSerializer = Liminal.defaultJsonErrorSerializer;
@@ -1094,7 +1168,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         try {
           await revokePreviousRecoveryOwnerCashierAccess(previousRecoveryOwner, record);
           if (es.getStorageBackendType() == #BlobStorage) {
-            await BlobStorageCashier.grantFullAccess(blobStorageCashier, record.principal);
+            await blobStorageCashier.grantFullAccess(record.principal);
           };
         } catch (error) {
           Debug.print("Failed to sync Blob Storage Cashier recovery owner activation: " # Error.message(error));
@@ -1122,7 +1196,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         try {
           await revokePreviousRecoveryOwnerCashierAccess(previousRecoveryOwner, record);
           if (es.getStorageBackendType() == #BlobStorage) {
-            await BlobStorageCashier.grantFullAccess(blobStorageCashier, record.principal);
+            await blobStorageCashier.grantFullAccess(record.principal);
           };
         } catch (error) {
           Debug.print("Failed to sync Blob Storage Cashier recovery owner activation: " # Error.message(error));
@@ -1145,7 +1219,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         await drainStorageAccessChangedQueue();
         try {
           if (es.getStorageBackendType() == #BlobStorage) {
-            await BlobStorageCashier.revokeFullAccess(principal);
+            await blobStorageCashier.revokeFullAccess(principal);
           };
         } catch (error) {
           Debug.print("Failed to sync Blob Storage Cashier recovery owner removal: " # Error.message(error));
@@ -1510,14 +1584,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   // _immutableObjectStorageConfirmBlobDeletion, _immutableObjectStorageUpdateGatewayPrincipals,
   // _immutableObjectStorageRefillCashier
   include MixinObjectStorage();
-  transient let blobStorageCashier : BlobStorageCashier.Store = BlobStorageCashier.new(_immutableObjectStorageState);
+  transient let blobStorageCashier = BlobStorageCashier.Store(_immutableObjectStorageState);
 
   func syncBlobStorageCashierOwnerEquivalentAccessInternal() : async () {
     if (es.getStorageBackendType() == #OnChain) return;
     switch (es.listOwnerEquivalentPrincipals(owner)) {
       case (#ok(records)) {
-        await BlobStorageCashier.syncExactFullAccessDelegates(
-          blobStorageCashier,
+        await blobStorageCashier.syncExactFullAccessDelegates(
           Array.map<T.OwnerEquivalentPrincipal, Principal>(records, func(record) = record.principal),
         );
       };
@@ -1529,7 +1602,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     if (es.getStorageBackendType() == #OnChain) return;
     switch (previous) {
       case (?record) if (not Principal.equal(record.principal, current.principal)) {
-        await BlobStorageCashier.revokeFullAccess(record.principal);
+        await blobStorageCashier.revokeFullAccess(record.principal);
       };
       case _ {};
     };
@@ -1549,20 +1622,100 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     await syncBlobStorageCashierOwnerEquivalentAccessInternal();
   };
 
+  public shared ({ caller }) func ensureBlobStorageCashierReady() : async () {
+    if (not es.isOwnerEquivalent(caller) and not Principal.isController(caller)) {
+      throw Error.reject("caller is not authorized to initialize Blob Storage Cashier");
+    };
+    if (es.getStorageBackendType() == #OnChain) {
+      return;
+    };
+    await syncBlobStorageCashierOwnerEquivalentAccessInternal();
+    await blobStorageCashier.ensureBootstrapBalance();
+  };
+
   public shared ({ caller }) func preflightCaffeineUpload(args : T.PreflightCaffeineUploadArgs) : async T.StorageResult<()> {
     switch (await* es.preflightCaffeineUpload(caller, args)) {
       case (#ok _) {
-        await syncBlobStorageCashierOwnerEquivalentAccessInternal();
+        let reservations = [{
+          key = caffeineUploadReservationKey(caller, args.entry);
+          declaredUploadBytes = args.size;
+        }];
+        switch (await reserveBlobStorageCashierUploadBatch(reservations)) {
+          case (#ok _) {};
+          case (#err err) return #err(err);
+        };
         #ok;
       };
-      case (#err message) #err(storageError(message));
+      case (#err message) {
+        #err(storageError(message));
+      };
     };
   };
 
+  func reserveBlobStorageCashierUploadBatch(requests : [BlobStorageCashier.UploadReservationRequest]) : async T.StorageResult<()> {
+    let plan = try {
+      await blobStorageCashier.planUploadBatch(requests);
+    } catch (error) {
+      return #err(storageError("Blob Storage Cashier funding plan failed: " # Error.message(error)));
+    };
+    switch (await requestStorageCyclesForBlobStorageCashierIfNeeded(plan)) {
+      case (#ok) {};
+      case (#err message) return #err(storageError(message));
+    };
+    try {
+      await blobStorageCashier.reserveUploadBatch(requests);
+      #ok;
+    } catch (error) {
+      #err(storageError(Error.message(error)));
+    };
+  };
+
+  public shared ({ caller }) func preflightCaffeineUploadBatch(args : [T.PreflightCaffeineUploadArgs]) : async T.StorageResult<()> {
+    var reservations : [BlobStorageCashier.UploadReservationRequest] = [];
+    for (item in args.vals()) {
+      switch (es.create(caller, {
+        entry = item.entry;
+        createMode = #GetOrCreate;
+      })) {
+        case (#ok _) {};
+        case (#err message) {
+          return #err(storageError(message));
+        };
+      };
+      switch (await* es.preflightCaffeineUpload(caller, item)) {
+        case (#ok _) {
+          reservations := Array.concat(reservations, [{
+            key = caffeineUploadReservationKey(caller, item.entry);
+            declaredUploadBytes = item.size;
+          }]);
+        };
+        case (#err message) {
+          return #err(storageError(message));
+        };
+      };
+    };
+    switch (await reserveBlobStorageCashierUploadBatch(reservations)) {
+      case (#ok _) {};
+      case (#err err) return #err(err);
+    };
+    #ok;
+  };
+
   public shared ({ caller }) func commitCaffeineUpload(args : T.CommitCaffeineUploadArgs) : async T.StorageResult<()> {
-    switch (await* es.commitCaffeineUpload(caller, args)) {
-      case (#ok _) { reportLowCyclesIfNeeded<system>(); #ok };
-      case (#err message) #err(storageError(message));
+    let reservationKey = caffeineUploadReservationKey(caller, args.entry);
+    let result = try {
+      await* es.commitCaffeineUpload(caller, args);
+    } finally {
+      blobStorageCashier.releaseUploadReservation(reservationKey);
+    };
+    switch (result) {
+      case (#ok _) {
+        reportLowCyclesIfNeeded<system>();
+        #ok;
+      };
+      case (#err message) {
+        #err(storageError(message));
+      };
     };
   };
 
@@ -1604,16 +1757,25 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   public shared ({ caller }) func prepareThumbnailUpload(args : T.PrepareThumbnailUploadArguments) : async T.PrepareThumbnailUploadResult {
     assert not Principal.isAnonymous(caller);
     switch (es.prepareThumbnailUpload(caller, args)) {
-      case (#ok result) result;
-      case (#err message) throw Error.reject(message);
+      case (#ok result) {
+        result;
+      };
+      case (#err message) {
+        throw Error.reject(message);
+      };
     };
   };
 
   public shared ({ caller }) func commitThumbnailUpload(args : T.CommitThumbnailUploadArguments) : async T.NodeDetails {
     assert not Principal.isAnonymous(caller);
-    switch (es.commitThumbnailUpload(caller, args)) {
-      case (#ok node) node;
-      case (#err message) throw Error.reject(message);
+    let result = es.commitThumbnailUpload(caller, args);
+    switch (result) {
+      case (#ok node) {
+        node;
+      };
+      case (#err message) {
+        throw Error.reject(message);
+      };
     };
   };
 

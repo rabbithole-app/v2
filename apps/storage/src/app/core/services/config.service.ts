@@ -13,6 +13,8 @@ export type StorageRuntimeConfig = {
   appName: string;
   appUrl: string;
   backendCanisterId: string;
+  blobStorageCashierCanisterId: string;
+  blobStorageGatewayUrl: string;
   canisterId: Principal;
   envName: string;
   evmRpcUrl: string;
@@ -27,6 +29,8 @@ export type StorageRuntimeConfig = {
 };
 
 type StorageInfoJson = {
+  blobStorageCashierCanisterId?: string;
+  blobStorageGatewayUrl?: string;
   canisterId: string;
   internetIdentityFrontendCanisterId?: string;
   rabbitholeBackendCanisterId?: string;
@@ -103,6 +107,8 @@ export class ConfigService {
   #fromEnvironment(canisterId: Principal): StorageRuntimeConfig {
     return this.#buildConfig({
       backendCanisterId: environment.backendCanisterId,
+      blobStorageCashierCanisterId: environment.blobStorageCashierCanisterId,
+      blobStorageGatewayUrl: environment.blobStorageGatewayUrl,
       canisterId,
       envName: environment.envName,
       evmRpcUrl: environment.evmRpcUrl,
@@ -148,6 +154,10 @@ export class ConfigService {
     return this.#buildConfig({
       appUrl,
       backendCanisterId: info.rabbitholeBackendCanisterId || environment.backendCanisterId,
+      blobStorageCashierCanisterId:
+        info.blobStorageCashierCanisterId || environment.blobStorageCashierCanisterId,
+      blobStorageGatewayUrl:
+        info.blobStorageGatewayUrl || environment.blobStorageGatewayUrl,
       canisterId,
       envName,
       evmRpcUrl: environment.evmRpcUrl,

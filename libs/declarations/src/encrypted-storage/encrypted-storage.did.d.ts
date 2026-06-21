@@ -419,6 +419,7 @@ export interface EncryptedStorageCanister {
   'delete' : ActorMethod<[DeleteArguments], undefined>,
   'delete_asset' : ActorMethod<[DeleteAssetArguments], undefined>,
   'delete_batch' : ActorMethod<[DeleteBatchArguments], undefined>,
+  'ensureBlobStorageCashierReady' : ActorMethod<[], undefined>,
   'finishUploadSession' : ActorMethod<
     [FinishUploadSessionArguments],
     StorageResult_1
@@ -481,6 +482,10 @@ export interface EncryptedStorageCanister {
   'move' : ActorMethod<[MoveArguments], undefined>,
   'preflightCaffeineUpload' : ActorMethod<
     [PreflightCaffeineUploadArgs],
+    StorageResult_1
+  >,
+  'preflightCaffeineUploadBatch' : ActorMethod<
+    [Array<PreflightCaffeineUploadArgs>],
     StorageResult_1
   >,
   'prepareThumbnailUpload' : ActorMethod<

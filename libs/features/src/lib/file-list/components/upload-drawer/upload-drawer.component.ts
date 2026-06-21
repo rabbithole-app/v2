@@ -41,6 +41,19 @@ import { HlmSelectImports } from '@spartan-ng/helm/select';
 
 import { FileListService } from '../../services';
 
+type BatchUploadService = {
+  addMany(items: UploadInput[]): Promise<void>;
+};
+
+type UploadInput = {
+  file: File;
+  path?: string;
+};
+
+function hasAddMany(service: unknown): service is BatchUploadService {
+  return typeof (service as Partial<BatchUploadService>).addMany === 'function';
+}
+
 @Component({
   selector: 'rbth-feat-file-list-upload-drawer',
   imports: [
@@ -88,7 +101,9 @@ export class UploadDrawerComponent {
         UploadState.INITIALIZING,
         UploadState.NOT_STARTED,
         UploadState.PAUSED,
+        UploadState.PREPARING,
         UploadState.REQUESTING_VETKD,
+        UploadState.WAITING_FOR_FUNDING,
       ].includes(status),
     ),
   );
@@ -107,15 +122,22 @@ export class UploadDrawerComponent {
   #uploadService = inject(UPLOAD_SERVICE_TOKEN);
 
   constructor() {
-    this.fileListService.files$.pipe(takeUntilDestroyed()).subscribe((item) => {
-      const parentPath = this.fileListService.state().parentPath;
-      const filePath = parentPath
-        ? item.parentPath
-          ? `${parentPath}/${item.parentPath}`
-          : parentPath
-        : item.parentPath;
-      this.#uploadService.add({ file: item.file, path: filePath });
-    });
+    this.fileListService.fileBatches$
+      .pipe(takeUntilDestroyed())
+      .subscribe((items) => {
+        const parentPath = this.fileListService.state().parentPath;
+        this.#addFiles(items.map((item) => {
+          const filePath = parentPath
+            ? item.parentPath
+              ? `${parentPath}/${item.parentPath}`
+              : parentPath
+            : item.parentPath;
+          return {
+            file: item.file,
+            ...(filePath && { path: filePath }),
+          };
+        }));
+      });
     this.fileListService.directories$
       .pipe(takeUntilDestroyed())
       .subscribe((dirPath) => {
@@ -143,11 +165,17 @@ export class UploadDrawerComponent {
       files = Array.from(files);
     }
     const parentPath = this.fileListService.state().parentPath;
-    for (const file of files) {
-      this.#uploadService.add({
-        file,
-        ...(parentPath && { path: parentPath }),
-      });
+    await this.#addFiles(files.map((file) => ({
+      file,
+      ...(parentPath && { path: parentPath }),
+    })));
+  }
+
+  async #addFiles(items: UploadInput[]) {
+    if (hasAddMany(this.#uploadService)) {
+      await this.#uploadService.addMany(items);
+      return;
     }
+    await Promise.all(items.map((item) => this.#uploadService.add(item)));
   }
 }

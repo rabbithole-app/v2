@@ -6,9 +6,9 @@ import { map, mergeMap, mergeWith, Subject } from 'rxjs';
 import {
   CreateStorageAccessGrant,
   CreateStorageAccessGrants,
-  Entry,
   RevokeStorageAccessGrant,
   RevokeStorageAccessGrants,
+  StorageAccessScope,
   StoragePermissionItem,
 } from '@rabbithole/encrypted-storage';
 
@@ -16,13 +16,13 @@ import { injectEncryptedStorage } from '../injectors/encrypted-storage';
 import { parseCanisterRejectError } from '../utils';
 
 type State = {
-  entry: Entry | null;
+  entry: StorageAccessScope | undefined;
   permitted: StoragePermissionItem[];
   permittedLoading: boolean;
 };
 
 const INITIAL_VALUE: State = {
-  entry: null,
+  entry: undefined,
   permitted: [],
   permittedLoading: false,
 };
@@ -30,6 +30,8 @@ const INITIAL_VALUE: State = {
 @Injectable()
 export class PermissionsService {
   encryptedStorage = injectEncryptedStorage();
+  #accessChanges = new Subject<void>();
+  accessChanges$ = this.#accessChanges.asObservable();
   #state = signal(INITIAL_VALUE);
   permitted = computed(() => this.#state().permitted);
   permittedLoading = computed(() => this.#state().permittedLoading);
@@ -39,9 +41,11 @@ export class PermissionsService {
   #revokeAccessGrants = new Subject<RevokeStorageAccessGrants>();
 
   constructor() {
-    const cancelPending$ = this.#cancelPendingAccessGrant.asObservable().pipe(
-      mergeMap((grantId) => this.#cancelPendingAccessGrantHandler(grantId)),
-    );
+    const cancelPending$ = this.#cancelPendingAccessGrant
+      .asObservable()
+      .pipe(
+        mergeMap((grantId) => this.#cancelPendingAccessGrantHandler(grantId)),
+      );
     const revoke$ = this.#revokeAccessGrants.asObservable().pipe(
       map((args) => this.#addEntryToItems(args)),
       mergeMap((args) => this.#revokeAccessGrantsHandler(args)),
@@ -55,6 +59,7 @@ export class PermissionsService {
       .subscribe((success) => {
         if (success) {
           this.loadPermitted();
+          this.#accessChanges.next();
         }
       });
   }
@@ -70,18 +75,26 @@ export class PermissionsService {
   async loadPermitted() {
     const encryptedStorage = this.encryptedStorage();
     const { entry } = this.#state();
-    if (!entry) {
+    if (entry === undefined) {
       return;
     }
     this.#state.update((s) => ({ ...s, permittedLoading: true }));
     try {
-      const items = await encryptedStorage.listAccessGrants(entry || undefined);
-      this.#state.update((s) => ({ ...s, permitted: items, permittedLoading: false }));
+      const items = await encryptedStorage.listAccessGrants(entry);
+      this.#state.update((s) => ({
+        ...s,
+        permitted: items,
+        permittedLoading: false,
+      }));
     } catch (err) {
       const errorMessage =
         parseCanisterRejectError(err) ?? 'Access list failed to load';
       toast.error(errorMessage);
-      this.#state.update((s) => ({ ...s, permitted: [], permittedLoading: false }));
+      this.#state.update((s) => ({
+        ...s,
+        permitted: [],
+        permittedLoading: false,
+      }));
     }
   }
 
@@ -89,21 +102,23 @@ export class PermissionsService {
     this.#revokeAccessGrants.next(args);
   }
 
-  setEntry(entry: Entry | null) {
+  setEntry(entry: StorageAccessScope | undefined) {
     this.#state.update((state) => ({ ...state, entry, permitted: [] }));
   }
 
-
-  #addEntryToItems<T extends CreateStorageAccessGrant | RevokeStorageAccessGrant>(
-    args: { items: T[] },
-  ): { items: T[] } {
+  #addEntryToItems<
+    T extends CreateStorageAccessGrant | RevokeStorageAccessGrant,
+  >(args: { items: T[] }): { items: T[] } {
     const { entry } = this.state();
 
     return {
-      items: args.items.map((item) => ({
-        ...item,
-        entry: item.entry ?? entry ?? undefined,
-      })),
+      items: args.items.map((item) => {
+        const scopedItem = { ...item };
+        if (scopedItem.entry === undefined && entry !== undefined) {
+          scopedItem.entry = entry;
+        }
+        return scopedItem;
+      }),
     };
   }
 

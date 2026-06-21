@@ -1853,6 +1853,7 @@ module StorageDeployerOrchestrator {
         r with releaseTag = targetReleaseTag;
         isUpgrade = true;
         upgradeIncludesFrontend = needsFrontend;
+        lastUpgradeError = null;
       },
     );
 

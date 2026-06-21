@@ -7,6 +7,7 @@ interface BlobRecord {
   owner: string;
   projectId: string;
   totalSize: number;
+  tree: BlobTreePayload['blob_tree'];
   uploadedChunks: Map<number, Uint8Array>;
 }
 
@@ -27,6 +28,7 @@ export class MockBlobGateway {
   readonly #blobs = new Map<string, BlobRecord>();
 
   readonly #tampered = new Set<string>();
+  readonly #tamperedChunks = new Map<string, Set<number>>();
 
   async fetch(input: Request | URL | string, init?: RequestInit): Promise<Response> {
     const requestUrl =
@@ -38,6 +40,10 @@ export class MockBlobGateway {
 
     if (method === 'PUT' && requestUrl.pathname === '/v1/blob-tree/') {
       return this.#handleBlobTree(init?.body);
+    }
+
+    if (method === 'GET' && requestUrl.pathname === '/v1/blob-tree/') {
+      return this.#handleBlobTreeDownload(requestUrl);
     }
 
     if (method === 'PUT' && requestUrl.pathname === '/v1/chunk/') {
@@ -57,11 +63,18 @@ export class MockBlobGateway {
 
   reset(): void {
     this.#tampered.clear();
+    this.#tamperedChunks.clear();
     this.#blobs.clear();
   }
 
   tamperDownload(blobHash: string): void {
     this.#tampered.add(blobHash);
+  }
+
+  tamperDownloadChunk(blobHash: string, chunkIndex: number): void {
+    const chunks = this.#tamperedChunks.get(blobHash) ?? new Set<number>();
+    chunks.add(chunkIndex);
+    this.#tamperedChunks.set(blobHash, chunks);
   }
 
   #handleBlobDownload(requestUrl: URL): Response {
@@ -75,7 +88,7 @@ export class MockBlobGateway {
       return new Response('Unknown blob hash', { status: 404 });
     }
 
-    const bytes = concatChunks(record.uploadedChunks);
+    const bytes = concatChunks(record.uploadedChunks, this.#tamperedChunks.get(blobHash));
     const payload = this.#tampered.has(blobHash) ? tamper(bytes) : bytes;
 
     return new Response(uint8ArrayToArrayBuffer(payload), {
@@ -93,11 +106,26 @@ export class MockBlobGateway {
       headers: body.blob_tree.headers,
       owner: body.owner,
       projectId: body.project_id,
+      tree: body.blob_tree,
       totalSize: body.num_blob_bytes,
       uploadedChunks: new Map(),
     });
 
     return new Response(null, { status: 200 });
+  }
+
+  #handleBlobTreeDownload(requestUrl: URL): Response {
+    const blobHash = requestUrl.searchParams.get('blob_hash');
+    if (!blobHash) {
+      return new Response('Missing blob_hash', { status: 400 });
+    }
+
+    const record = this.#blobs.get(blobHash);
+    if (!record) {
+      return new Response('Unknown blob hash', { status: 404 });
+    }
+
+    return Response.json(record.tree);
   }
 
   async #handleChunk(
@@ -146,15 +174,16 @@ async function bodyToUint8Array(bodyInit: BodyInit | null | undefined): Promise<
   throw new Error(`Unsupported mock gateway body type: ${typeof bodyInit}`);
 }
 
-function concatChunks(chunks: Map<number, Uint8Array>): Uint8Array {
+function concatChunks(chunks: Map<number, Uint8Array>, tamperedChunks?: Set<number>): Uint8Array {
   const ordered = [...chunks.entries()].sort(([a], [b]) => a - b);
   const total = ordered.reduce((sum, [, value]) => sum + value.byteLength, 0);
   const combined = new Uint8Array(total);
 
   let offset = 0;
-  for (const [, chunk] of ordered) {
-    combined.set(chunk, offset);
-    offset += chunk.byteLength;
+  for (const [index, chunk] of ordered) {
+    const bytes = tamperedChunks?.has(index) ? tamper(chunk) : chunk;
+    combined.set(bytes, offset);
+    offset += bytes.byteLength;
   }
 
   return combined;

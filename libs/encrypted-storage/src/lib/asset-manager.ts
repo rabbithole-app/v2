@@ -1,7 +1,6 @@
 import { ActorSubclass } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { sha256 } from '@noble/hashes/sha2';
-import { Store } from '@tanstack/store';
 
 import {
   EncryptedStorageActorService,
@@ -176,20 +175,19 @@ export class AssetManager {
       config?.path ?? '',
       config?.fileName ?? readable.fileName,
     ].join('/');
-    const store = new Store<Progress>(
-      { status: UploadState.NOT_STARTED },
-      { onUpdate: () => config?.onProgress?.(store.state) },
-    );
+    const setProgress = (progress: Progress) => {
+      config?.onProgress?.(progress);
+    };
 
     // Check abort signal before starting upload
     if (config?.signal?.aborted) {
-      store.setState({ status: UploadState.CANCELED });
+      setProgress({ status: UploadState.CANCELED });
       throw new Error('Upload aborted');
     }
 
     // If asset is small enough upload in one request else upload in chunks (batch)
     if (readable.length <= this._maxSingleFileSize) {
-      store.setState({
+      setProgress({
         status: UploadState.IN_PROGRESS,
         current: 0,
         total: readable.length,
@@ -211,7 +209,7 @@ export class AssetManager {
           await readable.close();
         }
       }, config?.signal);
-      store.setState({
+      setProgress({
         status: UploadState.IN_PROGRESS,
         current: readable.length,
         total: readable.length,

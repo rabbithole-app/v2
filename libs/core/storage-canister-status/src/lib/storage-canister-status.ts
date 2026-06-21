@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRouteSnapshot, NavigationEnd, Router } from '@angular/router';
+import { fromNullable, uint8ArrayToHexString } from '@dfinity/utils';
 import {
   IcManagementCanister,
   type IcManagementDid,
@@ -29,6 +30,7 @@ export interface StorageCanisterSettings {
   controllers: Principal[];
   freezingThreshold: bigint;
   memoryAllocation: bigint;
+  moduleHash?: string;
   reservedCyclesLimit: bigint;
   wasmMemoryLimit: bigint;
 }
@@ -84,7 +86,7 @@ function createStorageCanisterStatus(canisterId: Signal<Principal | null>) {
           agent: params.agent,
         }).canisterStatus({ canisterId: params.canisterId });
 
-        return toStorageCanisterSettings(status.settings);
+        return toStorageCanisterSettings(status);
       } catch {
         return null;
       }
@@ -151,13 +153,17 @@ function injectRouteStorageCanisterId(
 }
 
 function toStorageCanisterSettings(
-  settings: IcManagementDid.canister_status_result['settings'],
+  status: IcManagementDid.canister_status_result,
 ): StorageCanisterSettings {
+  const moduleHash = fromNullable(status.module_hash);
+  const { settings } = status;
+
   return {
     computeAllocation: settings.compute_allocation,
     controllers: settings.controllers,
     freezingThreshold: settings.freezing_threshold,
     memoryAllocation: settings.memory_allocation,
+    ...(moduleHash ? { moduleHash: uint8ArrayToHexString(moduleHash) } : {}),
     reservedCyclesLimit: settings.reserved_cycles_limit,
     wasmMemoryLimit: settings.wasm_memory_limit,
   };

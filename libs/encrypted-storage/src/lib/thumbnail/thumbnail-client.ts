@@ -41,6 +41,7 @@ type ThumbnailClientConfig = {
     fileId: Uint8Array,
   ) => Promise<DerivedKeyMaterial>;
   origin: string;
+  runBlobStoragePreflight?: <T>(operation: () => Promise<T>) => Promise<T>;
 };
 
 export class ThumbnailClient {
@@ -48,17 +49,20 @@ export class ThumbnailClient {
   readonly #blobStorageClient?: BlobStorageGatewayClient;
   readonly #getDerivedKeyMaterial: ThumbnailClientConfig['getDerivedKeyMaterial'];
   readonly #origin: string;
+  readonly #runBlobStoragePreflight: NonNullable<ThumbnailClientConfig['runBlobStoragePreflight']>;
 
   constructor({
     actor,
     blobStorageClient,
     getDerivedKeyMaterial,
     origin,
+    runBlobStoragePreflight = (operation) => operation(),
   }: ThumbnailClientConfig) {
     this.#actor = actor;
     this.#blobStorageClient = blobStorageClient;
     this.#getDerivedKeyMaterial = getDerivedKeyMaterial;
     this.#origin = origin;
+    this.#runBlobStoragePreflight = runBlobStoragePreflight;
   }
 
   async getUrl(thumbnailRef: ThumbnailRef): Promise<string> {
@@ -67,9 +71,10 @@ export class ThumbnailClient {
 
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(
-        `Thumbnail download failed: ${response.status} ${response.statusText}`,
-      );
+      throw new Error(await gatewayResponseErrorMessage(
+        'Thumbnail download failed',
+        response,
+      ));
     }
 
     const encryptedBytes = new Uint8Array(await response.arrayBuffer());
@@ -100,11 +105,13 @@ export class ThumbnailClient {
   async rewrap(entry: Entry, thumbnailRef: ThumbnailRef): Promise<boolean> {
     const currentEncryption = this.#encryption(thumbnailRef);
 
-    const prepared = await this.#actor.prepareThumbnailUpload({
-      entry: toEntryRaw(entry),
-      contentType: this.#contentType(thumbnailRef),
-      size: this.#size(thumbnailRef),
-    });
+    const prepared = await this.#runBlobStoragePreflight(() =>
+      this.#actor.prepareThumbnailUpload({
+        entry: toEntryRaw(entry),
+        contentType: this.#contentType(thumbnailRef),
+        size: this.#size(thumbnailRef),
+      }),
+    );
     if (!storageBackendsEqual(this.#storageBackend(thumbnailRef), prepared.storageBackend)) {
       return false;
     }
@@ -135,11 +142,13 @@ export class ThumbnailClient {
     const buffer = await blob.arrayBuffer();
     const content = arrayBufferToUint8Array(buffer);
     const contentType = blob.type || 'image/jpeg';
-    const prepared = await this.#actor.prepareThumbnailUpload({
-      entry: toEntryRaw(entry),
-      contentType,
-      size: BigInt(content.byteLength),
-    });
+    const prepared = await this.#runBlobStoragePreflight(() =>
+      this.#actor.prepareThumbnailUpload({
+        entry: toEntryRaw(entry),
+        contentType,
+        size: BigInt(content.byteLength),
+      }),
+    );
     const thumbnail = await this.#prepareContent(
       content,
       prepared.encryption,
@@ -359,6 +368,21 @@ export class ThumbnailClient {
       algorithm: THUMBNAIL_ENCRYPTION_ALGORITHM,
     };
   }
+}
+
+async function gatewayResponseErrorMessage(
+  prefix: string,
+  response: Response,
+): Promise<string> {
+  let body = '';
+  try {
+    body = await response.text();
+  } catch {
+    body = '';
+  }
+
+  const status = `${response.status} ${response.statusText}`.trim();
+  return body ? `${prefix}: ${status} - ${body}` : `${prefix}: ${status}`;
 }
 
 function keyIdsEqual(

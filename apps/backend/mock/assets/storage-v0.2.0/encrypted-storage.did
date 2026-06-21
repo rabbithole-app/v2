@@ -1,0 +1,1242 @@
+type _ImmutableObjectStorageRefillResult =
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _ImmutableObjectStorageRefillInformation = record {
+                                                  proposed_top_up_amount:
+                                                   opt nat;};
+type _ImmutableObjectStorageCreateCertificateResult =
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type VetKeyVerificationKey = blob;
+type VetKey = blob;
+type UploadSessionStatus =
+ record {
+   batchId: BatchId;
+   chunkIds: vec ChunkId;
+   declaredUploadBytes: nat;
+   expiresAt: Time;
+   owner: principal;
+   uploadedBytes: nat;
+ };
+type UploadMemoryProjection =
+ record {
+   projectedAllocatedBytes: nat;
+   projectedCapacityBytes: nat;
+   projectedCapacityDeltaBytes: nat;
+ };
+type UploadCycleCostEstimate =
+ record {
+   commit: nat;
+   commitMetadata: nat;
+   operation: nat;
+   remainingHashInstructions: nat;
+   remainingWrite: nat;
+   vetKeyDerivation: nat;
+ };
+type UpdateDirectoryPolicyArguments =
+ record {
+   entry: Entry;
+   thumbnailStoragePolicy: opt ThumbnailStoragePolicy;
+ };
+type UpdateArguments =
+ variant {
+   Directory:
+    record {
+      metadata: record {color: opt DirectoryColor;};
+      path: text;
+    };
+   File:
+    record {
+      metadata:
+       record {
+         chunkIds: vec ChunkId;
+         contentType: text;
+         sha256: opt blob;
+       };
+      path: text;
+    };
+ };
+type UnsetAssetContentArguments =
+ record {
+   content_encoding: text;
+   key: Key;
+ };
+type TreeNode =
+ record {
+   children: opt vec TreeNode;
+   name: text;
+ };
+type TransportKey = blob;
+type Time = int;
+type ThumbnailStoragePolicy =
+ variant {
+   BlobStorage;
+   Inherit;
+   OnChain;
+ };
+type ThumbnailRef =
+ variant {
+   BlobStorage:
+    record {
+      blobId: blob;
+      contentType: text;
+      encryption: ThumbnailEncryptionRef;
+      rootHash: text;
+      sha256: opt blob;
+      size: nat;
+    };
+   OnChain:
+    record {
+      contentType: text;
+      encryption: ThumbnailEncryptionRef;
+      key: text;
+      sha256: opt blob;
+      size: nat;
+    };
+ };
+type ThumbnailEncryptionRequirement = record {scopeKeyId: KeyId;};
+type ThumbnailEncryptionRef =
+ record {
+   algorithm: text;
+   blobIv: blob;
+   scopeKeyId: KeyId;
+   wrappedKey: blob;
+ };
+type SubscriptionStatus =
+ variant {
+   active: record {plan: Plan;};
+   expired;
+   free;
+   invalidWasm;
+   licensed: record {
+               includedBytes: nat;
+               maxFileBytes: nat;
+             };
+   unknownCanister;
+ };
+type StreamingToken = blob;
+type StreamingStrategy = variant {Callback: CallbackStreamingStrategy;};
+type StreamingCallbackResponse =
+ record {
+   body: blob;
+   token: opt StreamingToken;
+ };
+type StreamingCallback = func (StreamingToken) ->
+                          (StreamingCallbackResponse) query;
+type StoredStorageEvent =
+ record {
+   correlationId: opt text;
+   event: StorageEvent;
+   id: nat;
+   timestamp: Time;
+   visibleTo: vec principal;
+ };
+type StoreArgs =
+ record {
+   content: blob;
+   content_encoding: text;
+   content_type: text;
+   is_aliased: opt bool;
+   key: Key;
+   sha256: opt blob;
+ };
+type StorageStatus =
+ record {
+   backendId: opt principal;
+   cycleBalance: nat;
+   storageBackendType: StorageBackend;
+   storedBytesUsed: nat;
+   subscriptionStatus: opt SubscriptionStatus;
+ };
+type StorageResult_6 =
+ variant {
+   err: StorageError;
+   ok: AppendUploadChunkResponse;
+ };
+type StorageResult_5 =
+ variant {
+   err: StorageError;
+   ok: BeginUploadSessionResponse;
+ };
+type StorageResult_4 =
+ variant {
+   err: StorageError;
+   ok: UploadSessionStatus;
+ };
+type StorageResult_3 =
+ variant {
+   err: StorageError;
+   ok: CanisterCyclesCardMetrics;
+ };
+type StorageResult_2 =
+ variant {
+   err: StorageError;
+   ok: StorageCardMetrics;
+ };
+type StorageResult_1 =
+ variant {
+   err: StorageError;
+   ok;
+ };
+type StorageResult =
+ variant {
+   err: StorageError;
+   ok: NodeDetails;
+ };
+type StorageReleaseStateInput =
+ record {
+   frontendAssetTreeHash: opt blob;
+   manifestHash: opt blob;
+   releaseTag: text;
+   wasmHash: opt blob;
+ };
+type StorageReleaseState =
+ record {
+   frontendAssetTreeHash: opt blob;
+   installedAt: opt Time;
+   manifestHash: opt blob;
+   releaseTag: opt text;
+   schemaVersion: nat;
+   wasmHash: opt blob;
+ };
+type StorageEvent = variant {access: StorageAccessEvent;};
+type StorageErrorCode =
+ variant {
+   Conflict;
+   FundingPending;
+   InsufficientCycles;
+   Internal;
+   NotFound;
+   PermissionDenied;
+   QuotaExceeded;
+   Validation;
+ };
+type StorageError =
+ record {
+   code: StorageErrorCode;
+   message: text;
+ };
+type StorageCardMetrics =
+ record {
+   backendId: opt principal;
+   memoryInfo: MemoryInfo;
+   runtimeMemoryBytes: opt nat;
+   runtimeStableMemoryBytes: opt nat;
+   storageBackendType: StorageBackend;
+   storedBytesUsed: nat;
+   subscriptionStatus: opt SubscriptionStatus;
+ };
+type StorageBackend =
+ variant {
+   BlobStorage;
+   OnChain;
+ };
+type StorageAccessEvent =
+ variant {
+   accessRequestCancelled: record {
+                             requestId: nat;
+                             requester: principal;
+                           };
+   accessRequestCreated: record {
+                           requestId: nat;
+                           requester: principal;
+                         };
+   accessRequestResolved:
+    record {
+      requestId: nat;
+      requester: principal;
+      status: AccessRequestStatus;
+    };
+   durablePolicyCancelled: record {policyId: nat;};
+   durablePolicyCreated:
+    record {
+      policyId: nat;
+      status: DurablePolicyStatus;
+      trigger: DurablePolicyTrigger;
+    };
+   durablePolicyGraceStarted: record {policyId: nat;};
+   durablePolicyMatured: record {policyId: nat;};
+   durablePolicyReleased: record {policyId: nat;};
+   ownerActivityRecorded:
+    record {
+      origin: OwnerActivityOrigin;
+      "principal": principal;
+      role: OwnerActivityRole;
+    };
+   pendingGrantCancelled: record {
+                            grantId: nat;
+                            ref: AccessRef;
+                          };
+   pendingGrantClaimed:
+    record {
+      accessClass: AccessClass;
+      claimOrigin: opt EmailClaimOrigin;
+      emailClaimState: opt EmailClaimState;
+      grantId: nat;
+      "principal": principal;
+      source: AccessSource;
+    };
+   pendingGrantCreated:
+    record {
+      accessClass: AccessClass;
+      grantId: nat;
+      ref: AccessRef;
+      source: AccessSource;
+    };
+   principalGrantCreated:
+    record {
+      accessClass: AccessClass;
+      grantId: opt nat;
+      "principal": principal;
+      source: AccessSource;
+    };
+   principalGrantRevoked:
+    record {
+      accessClass: opt AccessClass;
+      "principal": principal;
+    };
+   recoveryControllerCleared: record {"principal": principal;};
+   recoveryControllerRegistered:
+    record {
+      previous: opt principal;
+      "principal": principal;
+    };
+   recoveryOwnerAdded: record {"principal": principal;};
+   recoveryOwnerRemoved: record {"principal": principal;};
+ };
+type SharingInfo = record {sharedWith: nat;};
+type SetAssetPropertiesArguments =
+ record {
+   allow_raw_access: opt opt bool;
+   headers: opt opt vec Header;
+   is_aliased: opt opt bool;
+   key: Key;
+   max_age: opt opt nat64;
+ };
+type SetAssetContentArguments =
+ record {
+   chunk_ids: vec ChunkId;
+   content_encoding: text;
+   key: Key;
+   sha256: opt blob;
+ };
+type RuntimeMemoryMetrics =
+ record {
+   memoryInfo: MemoryInfo;
+   runtimeMemoryBytes: opt nat;
+   runtimeStableMemoryBytes: opt nat;
+ };
+type RevokePermission =
+ record {
+   of_principal: principal;
+   permission: Permission;
+ };
+type RevokeAccessBatchResult = record {revoked: vec RevokeAccessBatchItem;};
+type RevokeAccessBatchItem =
+ record {
+   "principal": principal;
+   scope: AccessScope;
+ };
+type RevokeAccessBatchArguments = record {items: vec RevokeAccessBatchItem;};
+type Result_1 =
+ variant {
+   err: Error;
+   ok;
+ };
+type Result =
+ variant {
+   err: text;
+   ok: text;
+ };
+type RestoreVersionArguments =
+ record {
+   entry: Entry;
+   version: nat;
+ };
+type ResolveAccessRequestArguments =
+ record {
+   decision: AccessRequestDecision;
+   requestId: nat;
+ };
+type RenameArguments =
+ record {
+   entry: Entry;
+   newName: text;
+ };
+type ReleaseDurableAccessPolicyArguments = record {policyId: nat;};
+type RegisterRecoveryControllerResult =
+ record {
+   previous: opt principal;
+   "principal": principal;
+ };
+type RecoveryStatus =
+ record {
+   recoveryController: opt principal;
+   recoveryOwner: opt OwnerEquivalentPrincipal;
+ };
+type RecordOwnerActivityArguments = record {origin: OwnerActivityOrigin;};
+type RawUpdateHttpResponse =
+ record {
+   body: blob;
+   headers: vec Header;
+   status_code: nat16;
+   streaming_strategy: opt StreamingStrategy;
+ };
+type RawUpdateHttpRequest =
+ record {
+   body: blob;
+   headers: vec Header;
+   method: text;
+   url: text;
+ };
+type RawQueryHttpResponse =
+ record {
+   body: blob;
+   headers: vec Header;
+   status_code: nat16;
+   streaming_strategy: opt StreamingStrategy;
+   upgrade: opt bool;
+ };
+type RawQueryHttpRequest =
+ record {
+   body: blob;
+   certificate_version: opt nat16;
+   headers: vec Header;
+   method: text;
+   url: text;
+ };
+type PrincipalAccessGrant =
+ record {
+   accessClass: AccessClass;
+   createdAt: Time;
+   createdBy: principal;
+   id: nat;
+   permission: Permission__1;
+   "principal": principal;
+   revokedAt: opt Time;
+   scope: AccessScope;
+   source: AccessSource;
+ };
+type PrepareThumbnailUploadResult =
+ record {
+   contentType: text;
+   encryption: ThumbnailEncryptionRequirement;
+   size: nat;
+   storageBackend: StorageBackend;
+ };
+type PrepareThumbnailUploadArguments =
+ record {
+   contentType: text;
+   entry: Entry;
+   size: nat;
+ };
+type PreflightCaffeineUploadArgs =
+ record {
+   entry: Entry;
+   size: nat;
+ };
+type Plan =
+ variant {
+   Free;
+   License;
+   Pro;
+ };
+type Permission__1 =
+ variant {
+   Read;
+   ReadWrite;
+   ReadWriteManage;
+ };
+type Permission =
+ variant {
+   Commit;
+   Manage;
+   Prepare;
+ };
+type PendingAccessGrant =
+ record {
+   accessClass: AccessClass;
+   cancelledAt: opt Time;
+   claimedAt: opt Time;
+   claimedBy: opt principal;
+   createdAt: Time;
+   createdBy: principal;
+   emailClaimState: EmailClaimState;
+   expiresAt: opt Time;
+   id: nat;
+   permission: Permission__1;
+   ref: AccessRef;
+   scope: AccessScope;
+   source: AccessSource;
+ };
+type OwnerEquivalentPrincipal =
+ record {
+   addedAt: Time;
+   addedBy: principal;
+   controllerRecoveryEnabled: bool;
+   kind: variant {
+           accountOwner;
+           recoveryOwner;
+         };
+   "principal": principal;
+   revokedAt: opt Time;
+   rootPermissionBeforeRecovery: opt Permission__1;
+ };
+type OwnerActivityState =
+ record {
+   lastOwnerActivityAt: Time;
+   lastOwnerActivityBy: principal;
+   records: vec OwnerActivityRecord;
+ };
+type OwnerActivityRole =
+ variant {
+   accountOwner;
+   recoveryOwner;
+ };
+type OwnerActivityRecord =
+ record {
+   lastSeenAt: Time;
+   origin: OwnerActivityOrigin;
+   "principal": principal;
+   role: OwnerActivityRole;
+ };
+type OwnerActivityOrigin =
+ variant {
+   backend;
+   rabbithole;
+   storage;
+ };
+type Owner = principal;
+type NodeDetails =
+ record {
+   callerPermission: opt Permission__1;
+   createdAt: Time;
+   id: nat64;
+   keyId: KeyId;
+   metadata: variant {
+               Directory: DirectoryMetadata;
+               File: FileMetadata;
+             };
+   modifiedAt: opt Time;
+   name: text;
+   parentId: opt nat64;
+   sharing: opt SharingInfo;
+ };
+type MoveArguments =
+ record {
+   entry: Entry;
+   target: opt Entry;
+ };
+type MemoryInfo =
+ record {
+   allocated: nat;
+   capacity: nat;
+   deallocated: nat;
+   pages: nat;
+   size: nat;
+ };
+type ListedPrincipalAccessGrant =
+ record {
+   grant: PrincipalAccessGrant;
+   inheritedFrom: opt AccessScope;
+ };
+type ListedPendingAccessGrant =
+ record {
+   grant: PendingAccessGrant;
+   inheritedFrom: opt AccessScope;
+ };
+type ListVersionsArguments = record {entry: Entry;};
+type ListResponse =
+ record {
+   directoryPermission: opt Permission__1;
+   entries: vec NodeDetails;
+ };
+type ListPermitted = record {permission: Permission;};
+type ListAccessGrantsArguments =
+ record {
+   mode: AccessGrantListMode;
+   scope: opt AccessScope;
+ };
+type LastUploadCommitMetrics =
+ record {
+   bytes: nat;
+   chunkCount: nat;
+   hashInstructionCycles: nat;
+   hashRoundCount: nat;
+ };
+type KeyName = blob;
+type KeyId__2 =
+ record {
+   principal;
+   blob;
+ };
+type KeyId =
+ record {
+   Owner;
+   KeyName;
+ };
+type Key = text;
+type IdentityAttributesSyncResult =
+ variant {
+   err: IdentityAttributesSyncError;
+   ok;
+ };
+type IdentityAttributesSyncError =
+ variant {
+   attributesNotFound;
+   expired;
+   malformedPayload;
+   verifiedEmailRequired;
+ };
+type Header =
+ record {
+   text;
+   text;
+ };
+type HasPermissionArguments =
+ record {
+   entry: opt Entry;
+   permission: Permission__1;
+   user: principal;
+ };
+type GrantPermission =
+ record {
+   permission: Permission;
+   to_principal: principal;
+ };
+type GetChunkArguments =
+ record {
+   chunkIndex: nat;
+   entry: Entry;
+   version: opt nat;
+ };
+type GetChunkArgs =
+ record {
+   content_encoding: text;
+   index: nat;
+   key: Key;
+   sha256: opt blob;
+ };
+type GetArgs =
+ record {
+   accept_encodings: vec text;
+   key: Key;
+ };
+type FinishUploadSessionArguments =
+ record {
+   batchId: BatchId;
+   contentType: text;
+   sha256: opt blob;
+ };
+type FileVersionDetails =
+ record {
+   contentType: text;
+   createdAt: Time;
+   index: nat;
+   sha256: opt blob;
+   size: nat;
+   storageBackend: StorageBackend;
+ };
+type FileMetadata =
+ record {
+   chunkCount: nat;
+   contentType: text;
+   currentVersion: nat;
+   sha256: opt blob;
+   size: nat;
+   storageBackend: StorageBackend;
+   thumbnailRef: opt ThumbnailRef;
+   versionCount: nat;
+ };
+type Error =
+ variant {
+   AmbiguousAttribute: record {
+                         field: text;
+                         sources: vec text;
+                       };
+   FrontendOriginMismatch: record {
+                             expected: vec text;
+                             got: text;
+                           };
+   FrontendOriginsNotConfigured;
+   MalformedCandid;
+   MissingField: text;
+   MixedSsoSources: record {
+                      otherKeys: vec text;
+                      ssoKeys: vec text;
+                    };
+   NoAttributes;
+   Stale: record {ageNs: nat;};
+   UnknownNonce;
+   UntrustedSsoSource: record {domain: text;};
+ };
+type Entry =
+ record {
+   variant {
+     Directory;
+     File;
+   };
+   text;
+ };
+type EncryptedStorageCanister =
+ service {
+   _immutableObjectStorageBlobsAreLive: (hashes: vec blob) ->
+    (vec bool) query;
+   _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
+   _immutableObjectStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+   _immutableObjectStorageCreateCertificate: (blobHash: text) ->
+    (_ImmutableObjectStorageCreateCertificateResult);
+   _immutableObjectStorageRefillCashier: (refillInformation:
+    opt _ImmutableObjectStorageRefillInformation) ->
+    (_ImmutableObjectStorageRefillResult);
+   _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
+   _internet_identity_sign_in_finish: () -> (Result_1);
+   _internet_identity_sign_in_start: () -> (blob);
+   abortUploadSession: (args: record {batchId: BatchId;}) ->
+    (StorageResult_1);
+   activateRecoveryOwnership: ("principal": principal) ->
+    (OwnerEquivalentPrincipal);
+   addRecoveryOwner: ("principal": principal, options:
+    AddRecoveryOwnerOptions) -> (OwnerEquivalentPrincipal);
+   api_version: () -> (nat16) query;
+   appendUploadChunk: (args: AppendUploadChunkArguments) -> (StorageResult_6);
+   beginUploadSession: (args: BeginUploadSessionArguments) ->
+    (StorageResult_5);
+   cancelAccessRequest: (args: CancelAccessRequestArguments) ->
+    (AccessRequest);
+   cancelDurableAccessPolicy: (args: CancelDurableAccessPolicyArguments) ->
+    (DurableAccessPolicy);
+   cancelPendingAccessGrant: (args: CancelPendingAccessGrantArguments) ->
+    (PendingAccessGrant);
+   certified_tree: (args: record {}) -> (CertifiedTree);
+   claimPendingAccessByBackendAttestation: (args:
+    ClaimPendingAccessByBackendAttestationArguments) ->
+    (vec PrincipalAccessGrant);
+   claimPendingAccessGrant: (args: ClaimPendingAccessGrantArguments) ->
+    (PrincipalAccessGrant);
+   claimVerifiedEmailAccess: () -> (IdentityAttributesSyncResult);
+   clear: (args: ClearArguments) -> ();
+   clearRecoveryController: () -> (principal);
+   clearStorage: () -> ();
+   commitCaffeineUpload: (args: CommitCaffeineUploadArgs) ->
+    (StorageResult_1);
+   commitThumbnailUpload: (args: CommitThumbnailUploadArguments) ->
+    (NodeDetails);
+   commit_batch: (args: CommitBatchArguments) -> ();
+   commit_proposed_batch: (args: CommitProposedBatchArguments) -> ();
+   compute_evidence: (args: ComputeEvidenceArguments) -> (opt blob);
+   configure: (args: ConfigureArguments) -> ();
+   create: (args: CreateArguments) -> (StorageResult);
+   createAccessBatch: (args: CreateAccessBatchArguments) ->
+    (CreateAccessBatchResult);
+   createDurableAccessGrant: (args: CreateDurableAccessGrantArguments) ->
+    (PrincipalAccessGrant);
+   createDurableAccessPolicy: (args: CreateDurableAccessPolicyArguments) ->
+    (DurableAccessPolicy);
+   createPendingAccessGrant: (args: CreatePendingAccessGrantArguments) ->
+    (PendingAccessGrant);
+   create_asset: (args: CreateAssetArguments) -> ();
+   create_batch: (args: record {}) -> (CreateBatchResponse);
+   create_chunk: (args: CreateChunkArguments) -> (CreateChunkResponse);
+   create_chunks: (args: CreateChunksArguments) -> (CreateChunksResponse);
+   delete: (args: DeleteArguments) -> ();
+   delete_asset: (args: DeleteAssetArguments) -> ();
+   delete_batch: (args: DeleteBatchArguments) -> ();
+   finishUploadSession: (args: FinishUploadSessionArguments) ->
+    (StorageResult_1);
+   fsTree: () -> (vec TreeNode) query;
+   get: (args: GetArgs) -> (EncodedAsset) query;
+   getCanisterCyclesCardMetrics: () -> (StorageResult_3) query;
+   getCycleBalance: () -> (nat) query;
+   getEncryptedVetkey: (keyId: KeyId, transportKey: TransportKey) -> (VetKey);
+   getMyAccessRequest: () -> (opt AccessRequest) query;
+   getOwnerActivityState: () -> (OwnerActivityState) query;
+   getRecoveryStatus: () -> (RecoveryStatus) query;
+   getStatus: () -> (StorageStatus) query;
+   getStorageBackendType: () -> (StorageBackend) query;
+   getStorageCardMetrics: () -> (StorageResult_2) query;
+   getStorageChunk: (args: GetChunkArguments) -> (ChunkContent) query;
+   getStorageEventsUnreadCount: () -> (nat) query;
+   getStorageReleaseState: () -> (StorageReleaseState) query;
+   getUploadSession: (args: record {batchId: BatchId;}) ->
+    (StorageResult_4) query;
+   getVetkeyVerificationKey: () -> (VetKeyVerificationKey);
+   get_chunk: (args: GetChunkArgs) -> (ChunkContent) query;
+   get_configuration: () -> (ConfigurationResponse);
+   grant_permission: (args: GrantPermission) -> ();
+   hasStoragePermission: (args: HasPermissionArguments) -> (bool) query;
+   http_request: (request: RawQueryHttpRequest) ->
+    (RawQueryHttpResponse) query;
+   http_request_streaming_callback: (token: StreamingToken) ->
+    (StreamingCallbackResponse) query;
+   http_request_update: (request: RawUpdateHttpRequest) ->
+    (RawUpdateHttpResponse);
+   invalidateSubscriptionCache: () -> ();
+   list: (args: record {}) -> (vec AssetDetails) query;
+   listAccessGrants: (args: ListAccessGrantsArguments) ->
+    (AccessGrantList) query;
+   listAccessRequests: () -> (vec AccessRequest) query;
+   listDurableAccessPolicies: () -> (vec DurableAccessPolicy) query;
+   listLatestStorageEvents: (limit: nat) -> (vec StoredStorageEvent) query;
+   listOwnerEquivalentPrincipals: () -> (vec OwnerEquivalentPrincipal) query;
+   listPendingAccessGrants: () -> (vec PendingAccessGrant) query;
+   listStorage: (entry: opt Entry) -> (ListResponse) query;
+   listStorageEvents: (afterId: opt nat, limit: nat) ->
+    (vec StoredStorageEvent) query;
+   listStorageVersions: (args: ListVersionsArguments) ->
+    (vec FileVersionDetails) query;
+   list_permitted: (args: ListPermitted) -> (vec principal);
+   markAllVisibleStorageEventsRead: () -> ();
+   markStorageEventsRead: (upToEventId: nat) -> ();
+   move: (args: MoveArguments) -> ();
+   preflightCaffeineUpload: (args: PreflightCaffeineUploadArgs) ->
+    (StorageResult_1);
+   prepareThumbnailUpload: (args: PrepareThumbnailUploadArguments) ->
+    (PrepareThumbnailUploadResult);
+   processDurableAccessPolicies: () -> (vec DurablePolicyProcessResult);
+   propose_commit_batch: (args: CommitBatchArguments) -> ();
+   recordOwnerActivity: (args: RecordOwnerActivityArguments) ->
+    (OwnerActivityRecord);
+   refreshCanisterCyclesCardMetrics: () -> (StorageResult_3);
+   refreshStorageCardMetrics: () -> (StorageResult_2);
+   refreshSubscription: () -> ();
+   registerRecoveryController: ("principal": principal) ->
+    (RegisterRecoveryControllerResult);
+   releaseDurableAccessPolicy: (args: ReleaseDurableAccessPolicyArguments) ->
+    (DurablePolicyProcessResult);
+   removeRecoveryOwner: ("principal": principal) -> ();
+   rename: (args: RenameArguments) -> ();
+   requestAccess: (args: CreateAccessRequestArguments) -> (AccessRequest);
+   resolveAccessRequest: (args: ResolveAccessRequestArguments) ->
+    (AccessRequest);
+   restoreStorageVersion: (args: RestoreVersionArguments) -> ();
+   revokeAccessBatch: (args: RevokeAccessBatchArguments) ->
+    (RevokeAccessBatchResult);
+   revoke_permission: (args: RevokePermission) -> ();
+   rewrapThumbnail: (args:
+    record {
+      entry: Entry;
+      thumbnailRef: ThumbnailRef;
+    }) -> (NodeDetails);
+   saveThumbnail: (args:
+    record {
+      entry: Entry;
+      thumbnail:
+       record {
+         content: blob;
+         contentType: text;
+         encryption: ThumbnailEncryptionRef;
+       };
+    }) -> (NodeDetails);
+   setStorageReleaseState: (args: StorageReleaseStateInput) -> ();
+   set_asset_content: (args: SetAssetContentArguments) -> ();
+   set_asset_properties: (args: SetAssetPropertiesArguments) -> ();
+   showTree: (entry: opt Entry) -> (text) query;
+   store: (args: StoreArgs) -> ();
+   syncBlobStorageCashierOwnerEquivalentAccess: () -> ();
+   takeRecoveryOwnership: () -> (OwnerEquivalentPrincipal);
+   take_ownership: () -> ();
+   unset_asset_content: (args: UnsetAssetContentArguments) -> ();
+   update: (args: UpdateArguments) -> (StorageResult_1);
+   updateDirectoryPolicy: (args: UpdateDirectoryPolicyArguments) ->
+    (StorageResult);
+   validate_commit_proposed_batch: (args: CommitProposedBatchArguments) ->
+    (Result);
+   validate_configure: (args: ConfigureArguments) -> (Result);
+   validate_grant_permission: (args: GrantPermission) -> (Result);
+   validate_revoke_permission: (args: RevokePermission) -> (Result);
+   validate_take_ownership: () -> (Result);
+ };
+type EncodedAsset =
+ record {
+   content: blob;
+   content_encoding: text;
+   content_type: text;
+   sha256: opt blob;
+   total_length: nat;
+ };
+type EmailCommitment = blob;
+type EmailClaimState =
+ record {
+   rabbithole: opt EmailClaim;
+   storage: opt EmailClaim;
+ };
+type EmailClaimOrigin =
+ variant {
+   rabbithole;
+   storage;
+ };
+type EmailClaim =
+ record {
+   claimedAt: Time;
+   origin: EmailClaimOrigin;
+   "principal": principal;
+   principalGrantId: nat;
+ };
+type DurablePolicyTrigger =
+ variant {
+   date: record {releaseAt: Time;};
+   inactivity: record {
+                 gracePeriodNs: opt nat;
+                 inactiveForNs: nat;
+               };
+   manualRelease;
+ };
+type DurablePolicyStatus =
+ variant {
+   armed;
+   cancelled;
+   grace;
+   matured;
+   released;
+ };
+type DurablePolicyProcessResult =
+ record {
+   pendingGrants: vec PendingAccessGrant;
+   policy: DurableAccessPolicy;
+   principalGrants: vec PrincipalAccessGrant;
+ };
+type DurablePolicyGrantTemplate =
+ record {
+   permission: Permission__1;
+   scope: AccessScope;
+ };
+type DurableAccessPolicy =
+ record {
+   cancelledAt: opt Time;
+   createdAt: Time;
+   createdBy: principal;
+   graceStartedAt: opt Time;
+   grants: vec DurablePolicyGrantTemplate;
+   id: nat;
+   maturedAt: opt Time;
+   pendingGrantIds: vec nat;
+   principalGrantIds: vec nat;
+   proVerifiedAt: Time;
+   recipients: vec AccessRef;
+   releasedAt: opt Time;
+   status: DurablePolicyStatus;
+   trigger: DurablePolicyTrigger;
+ };
+type DirectoryMetadata =
+ record {
+   color: opt DirectoryColor;
+   defaultThumbnailStorageBackend: StorageBackend;
+   thumbnailStoragePolicy: ThumbnailStoragePolicy;
+ };
+type DirectoryColor =
+ variant {
+   blue;
+   gray;
+   green;
+   orange;
+   pink;
+   purple;
+   yellow;
+ };
+type DeleteBatchArguments = record {batch_id: BatchId;};
+type DeleteAssetArguments = record {key: Key;};
+type DeleteArguments =
+ record {
+   entry: Entry;
+   recursive: bool;
+ };
+type CycleSafetyEnvelope =
+ record {
+   currentFreezingReserve: nat;
+   minimumSafeBalance: nat;
+   operationFloorBalance: nat;
+   postWriteFreezingReserve: nat;
+   targetBalance: nat;
+ };
+type CreatePendingAccessGrantArguments =
+ record {
+   accessClass: AccessClass;
+   expiresAt: opt Time;
+   permission: Permission__1;
+   ref: AccessRef;
+   scope: AccessScope;
+   source: AccessSource;
+ };
+type CreateMode =
+ variant {
+   CreateNew;
+   GetOrCreate;
+ };
+type CreateDurableAccessPolicyArguments =
+ record {
+   grants: vec DurablePolicyGrantTemplate;
+   recipients: vec AccessRef;
+   trigger: DurablePolicyTrigger;
+ };
+type CreateDurableAccessGrantArguments =
+ record {
+   permission: Permission__1;
+   "principal": principal;
+   scope: AccessScope;
+   source: AccessSource;
+ };
+type CreateChunksResponse = record {chunk_ids: vec ChunkId;};
+type CreateChunksArguments =
+ record {
+   batch_id: BatchId;
+   content: vec blob;
+ };
+type CreateChunkResponse = record {chunk_id: nat;};
+type CreateChunkArguments =
+ record {
+   batch_id: BatchId;
+   content: blob;
+ };
+type CreateBatchResponse = record {batch_id: BatchId;};
+type CreateAssetArguments =
+ record {
+   allow_raw_access: opt bool;
+   content_type: text;
+   enable_aliasing: opt bool;
+   headers: opt vec Header;
+   key: Key;
+   max_age: opt nat64;
+ };
+type CreateArguments =
+ record {
+   createMode: CreateMode;
+   entry: Entry;
+ };
+type CreateAccessRequestArguments =
+ record {
+   emailCommitment: opt EmailCommitment;
+   message: opt text;
+ };
+type CreateAccessBatchResult =
+ record {
+   cancelledPendingGrants: vec PendingAccessGrant;
+   pendingGrants: vec PendingAccessGrant;
+   principalGrants: vec PrincipalAccessGrant;
+   revokedPrincipalGrants: vec PrincipalAccessGrant;
+ };
+type CreateAccessBatchItem =
+ record {
+   accessClass: AccessClass;
+   expiresAt: opt Time;
+   permission: Permission__1;
+   ref: AccessRef;
+   scope: AccessScope;
+   source: AccessSource;
+ };
+type CreateAccessBatchArguments = record {items: vec CreateAccessBatchItem;};
+type ConfigureArguments =
+ record {
+   max_batches: opt opt nat64;
+   max_bytes: opt opt nat64;
+   max_chunks: opt opt nat64;
+ };
+type ConfigurationResponse =
+ record {
+   max_batches: opt nat64;
+   max_bytes: opt nat64;
+   max_chunks: opt nat64;
+ };
+type ComputeEvidenceArguments =
+ record {
+   batch_id: BatchId;
+   max_iterations: opt nat16;
+ };
+type CommitThumbnailUploadArguments =
+ record {
+   contentType: text;
+   encryption: ThumbnailEncryptionRef;
+   entry: Entry;
+   rootHash: text;
+   sha256: blob;
+   size: nat;
+ };
+type CommitProposedBatchArguments =
+ record {
+   batch_id: BatchId;
+   evidence: blob;
+ };
+type CommitCaffeineUploadArgs =
+ record {
+   contentType: text;
+   entry: Entry;
+   rootHash: text;
+   sha256: blob;
+   size: nat;
+ };
+type CommitBatchArguments =
+ record {
+   batch_id: BatchId;
+   operations: vec BatchOperationKind;
+ };
+type ClearArguments = record {};
+type ClaimPendingAccessGrantArguments = record {grantId: nat;};
+type ClaimPendingAccessByBackendAttestationArguments =
+ record {
+   emailCommitments: vec EmailCommitment;
+   "principal": principal;
+ };
+type ChunkId = nat;
+type ChunkContent = record {content: blob;};
+type CertifiedTree =
+ record {
+   certificate: blob;
+   tree: blob;
+ };
+type CanisterCyclesFundingState =
+ record {
+   inFlight: bool;
+   lastCompletedAt: opt Time;
+   lastError: opt text;
+   lastRequestedAt: opt Time;
+   requestedBytes: nat;
+   requestedTargetBalance: nat;
+ };
+type CanisterCyclesCardMetrics =
+ record {
+   activity: ActiveUploadProjection;
+   balance: nat;
+   cost: UploadCycleCostEstimate;
+   freezingThresholdSeconds: nat;
+   funding: CanisterCyclesFundingState;
+   lastCommit: opt LastUploadCommitMetrics;
+   memory: UploadMemoryProjection;
+   runtimeMemory: RuntimeMemoryMetrics;
+   safety: CycleSafetyEnvelope;
+ };
+type CancelPendingAccessGrantArguments = record {grantId: nat;};
+type CancelDurableAccessPolicyArguments = record {policyId: nat;};
+type CancelAccessRequestArguments = record {requestId: nat;};
+type CallbackStreamingStrategy =
+ record {
+   callback: StreamingCallback;
+   token: StreamingToken;
+ };
+type BeginUploadSessionResponse =
+ record {
+   batchId: BatchId;
+   node: NodeDetails;
+ };
+type BeginUploadSessionArguments =
+ record {
+   createMode: CreateMode;
+   declaredUploadBytes: opt nat;
+   entry: Entry;
+   expectedChunkCount: opt nat;
+   totalSize: nat;
+ };
+type BatchOperationKind =
+ variant {
+   Clear: ClearArguments;
+   CreateAsset: CreateAssetArguments;
+   DeleteAsset: DeleteAssetArguments;
+   SetAssetContent: SetAssetContentArguments;
+   SetAssetProperties: SetAssetPropertiesArguments;
+   UnsetAssetContent: UnsetAssetContentArguments;
+ };
+type BatchId = nat;
+type AssetEncodingDetails =
+ record {
+   content_encoding: text;
+   length: nat;
+   modified: Time;
+   sha256: opt blob;
+ };
+type AssetDetails =
+ record {
+   content_type: text;
+   encodings: vec AssetEncodingDetails;
+   key: Key;
+ };
+type AppendUploadChunkResponse = record {chunkId: nat;};
+type AppendUploadChunkArguments =
+ record {
+   batchId: BatchId;
+   chunkIndex: opt nat;
+   content: blob;
+ };
+type AddRecoveryOwnerOptions = record {controllerRecovery: bool;};
+type ActiveUploadProjection =
+ record {
+   remainingBytes: nat;
+   remainingChunkCount: nat;
+   reservationBytes: nat;
+   sessionCount: nat;
+   uploadedBytes: nat;
+   uploadedChunkCount: nat;
+ };
+type AccessSource =
+ variant {
+   accessRequest: nat;
+   directGrant;
+   durablePolicy: nat;
+   ordinaryInvite: nat;
+   recoverySetup;
+ };
+type AccessScope =
+ variant {
+   entry: Entry;
+   keyId: KeyId__2;
+   root;
+ };
+type AccessRequestStatus =
+ variant {
+   approved;
+   cancelled;
+   pending;
+   rejected;
+ };
+type AccessRequestDecision =
+ variant {
+   approved: record {
+               permission: Permission__1;
+               scope: AccessScope;
+             };
+   rejected;
+ };
+type AccessRequest =
+ record {
+   createdAt: Time;
+   decidedAt: opt Time;
+   decidedBy: opt principal;
+   emailCommitment: opt EmailCommitment;
+   id: nat;
+   message: opt text;
+   requester: principal;
+   status: AccessRequestStatus;
+ };
+type AccessRef =
+ variant {
+   email: record {
+            email: text;
+            emailCommitment: EmailCommitment;
+          };
+   emailCommitment: EmailCommitment;
+   "principal": principal;
+ };
+type AccessGrantListMode =
+ variant {
+   effective;
+   exact;
+ };
+type AccessGrantList =
+ record {
+   mode: AccessGrantListMode;
+   pendingGrants: vec ListedPendingAccessGrant;
+   principalGrants: vec ListedPrincipalAccessGrant;
+   scope: AccessScope;
+ };
+type AccessClass =
+ variant {
+   durable;
+   ordinary;
+   ownerEquivalent;
+ };
+service : (initArgs: record {
+                       owner: principal;
+                       storageBackendType: opt StorageBackend;
+                     }) -> EncryptedStorageCanister

@@ -23,6 +23,7 @@ const calculateOverallProgress = (files: FileUploadWithStatus[]) => {
         case UploadState.FAILED:
         case UploadState.INITIALIZING:
         case UploadState.NOT_STARTED:
+        case UploadState.PREPARING:
         case UploadState.REQUESTING_VETKD:
           total += value.file.size;
           break;

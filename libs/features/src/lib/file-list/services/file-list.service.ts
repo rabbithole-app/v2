@@ -1,17 +1,17 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
 import { toast } from '@spartan-ng/brain/sonner';
-import { AsyncQueuer, AsyncQueuerState } from '@tanstack/pacer';
+import { AsyncQueuer, AsyncQueuerState } from '@tanstack/pacer/async-queuer';
 import { intersectionWith, partition } from 'remeda';
 import { map, mergeAll, Subject } from 'rxjs';
 import { match, P } from 'ts-pattern';
 
 import {
-    DownloadService,
-    FileSystemAccessService,
-    FileSystemDirectoryItem,
-    FileSystemFileItem,
-    formatBytes,
-    injectCoreWorker,
+  DownloadService,
+  FileSystemAccessService,
+  FileSystemDirectoryItem,
+  FileSystemFileItem,
+  formatBytes,
+  injectCoreWorker,
 } from '@rabbithole/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
@@ -25,11 +25,7 @@ import type {
   StorageThumbnailStoragePolicy,
 } from '@rabbithole/encrypted-storage';
 
-import {
-  isFile,
-  NodeItem,
-  ThumbnailStoragePolicy,
-} from '../types';
+import { isFile, NodeItem, ThumbnailStoragePolicy } from '../types';
 import { convertToNodeItem, toWorkerThumbnailRef } from '../utils';
 
 type State = {
@@ -90,6 +86,7 @@ export class FileListService {
     const perm = this.directoryPermission();
     return perm === 'ReadWrite' || perm === 'ReadWriteManage';
   });
+  canManage = computed(() => this.directoryPermission() === 'ReadWriteManage');
   #directories = new Subject<FileSystemDirectoryItem[]>();
   directories$ = this.#directories.asObservable().pipe(
     mergeAll(),
@@ -99,6 +96,7 @@ export class FileListService {
   );
   encryptedStorage = injectEncryptedStorage();
   #files = new Subject<FileSystemFileItem[]>();
+  fileBatches$ = this.#files.asObservable();
   files$ = this.#files.asObservable().pipe(mergeAll());
   #parentPath = computed(() => this.#state().parentPath);
   items = resource<
@@ -113,7 +111,8 @@ export class FileListService {
       const { entries, directoryPermission } = await encryptedStorage.list(
         path ? ['Directory', path] : undefined,
       );
-      const permRaw = directoryPermission.length > 0 ? directoryPermission[0] : null;
+      const permRaw =
+        directoryPermission.length > 0 ? directoryPermission[0] : null;
       this.#state.update((s) => ({
         ...s,
         directoryPermission: permRaw
@@ -218,8 +217,8 @@ export class FileListService {
       const pad = (n: number) => String(n).padStart(2, '0');
       const archiveName = `archive-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.zip`;
 
-      const fileSizes = fileItems.map((item) =>
-        Number(item.size) - AES_GCM_OVERHEAD * item.chunkCount,
+      const fileSizes = fileItems.map(
+        (item) => Number(item.size) - AES_GCM_OVERHEAD * item.chunkCount,
       );
       const totalSize = fileSizes.reduce((a, b) => a + b, 0);
       const toastId = toast.loading(
@@ -241,7 +240,10 @@ export class FileListService {
               contentType: item.contentType,
               totalChunks: item.chunkCount,
               fileSize: fileSizes[i],
-              keyId: [item.keyId[0].toText(), Array.from(item.keyId[1])] as [string, number[]],
+              keyId: [item.keyId[0].toText(), Array.from(item.keyId[1])] as [
+                string,
+                number[],
+              ],
               storageBackend: item.storageBackend,
             };
           }),

@@ -1071,6 +1071,7 @@ export const idlFactory = ({ IDL }) => {
     'delete' : IDL.Func([DeleteArguments], [], []),
     'delete_asset' : IDL.Func([DeleteAssetArguments], [], []),
     'delete_batch' : IDL.Func([DeleteBatchArguments], [], []),
+    'ensureBlobStorageCashierReady' : IDL.Func([], [], []),
     'finishUploadSession' : IDL.Func(
         [FinishUploadSessionArguments],
         [StorageResult_1],
@@ -1168,6 +1169,11 @@ export const idlFactory = ({ IDL }) => {
     'move' : IDL.Func([MoveArguments], [], []),
     'preflightCaffeineUpload' : IDL.Func(
         [PreflightCaffeineUploadArgs],
+        [StorageResult_1],
+        [],
+      ),
+    'preflightCaffeineUploadBatch' : IDL.Func(
+        [IDL.Vec(PreflightCaffeineUploadArgs)],
         [StorageResult_1],
         [],
       ),

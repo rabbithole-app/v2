@@ -7,10 +7,9 @@ import {
 import { Actor, ActorSubclass, HttpAgent } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { sha256 } from '@noble/hashes/sha2';
-import { Derived, Store } from '@tanstack/store';
+import { Store } from '@tanstack/store';
 import { get, set } from 'idb-keyval';
 import mime from 'mime/lite';
-import { isMatching, P } from 'ts-pattern';
 
 import {
   CreateAccessBatchArguments,
@@ -25,14 +24,13 @@ import {
   ThumbnailRef,
 } from '@rabbithole/declarations/encrypted-storage';
 
-import { createBlobUploadSpool } from './blob-storage/blob-upload-spool';
-import {
-  AES_GCM_OVERHEAD,
-  CAFFEINE_CHUNK_SIZE,
-  CAFFEINE_PLAINTEXT_CHUNK_SIZE,
-} from './blob-storage/constants';
+import { AES_GCM_OVERHEAD } from './blob-storage/constants';
+import { downloadBlobStorageStream } from './blob-storage/download';
 import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
-import { BlobHashTree, verifyBlobIntegrity, YHash } from './blob-storage/merkle-tree';
+import {
+  blobStorageDeclaredUploadBytes,
+  uploadBlobStorageFile,
+} from './blob-storage/upload';
 import { isReadable, Readable } from './readable/readable';
 import { ReadableBlob } from './readable/readableBlob';
 import { ReadableBytes } from './readable/readableBytes';
@@ -48,6 +46,7 @@ import {
   ResolveStorageAccessRequest,
   RevokeStorageAccessGrant,
   RevokeStorageAccessGrants,
+  StorageAccessScope,
   StorageAccessGrantListMode,
   type StorageClaimedPrincipal,
   StoragePendingAccessGrant,
@@ -73,6 +72,9 @@ import { verifyIcCertificate } from './utils/verify-ic-certificate';
 const ONCHAIN_FUNDING_RETRY_DELAY_MS = 2_000;
 const ONCHAIN_FUNDING_MAX_RETRIES = 90;
 const ONCHAIN_CHUNK_UPLOAD_WINDOW = 16;
+const BLOB_STORAGE_CASHIER_RETRY_BASE_DELAY_MS = 500;
+const BLOB_STORAGE_CASHIER_RETRY_MAX_DELAY_MS = 8_000;
+const BLOB_STORAGE_CASHIER_MAX_RETRIES = 5;
 
 type UploadFundingRetryCallback = (info: {
   attempt: number;
@@ -138,6 +140,8 @@ export class EncryptedStorage {
       getDerivedKeyMaterial: (fileOwner, fileId) =>
         this.#getDerivedKeyMaterialOrFetchIfNeeded(fileOwner, fileId),
       origin: this.#origin,
+      runBlobStoragePreflight: (operation) =>
+        this.#withBlobStorageCashierRetry(operation),
     });
   }
 
@@ -213,44 +217,14 @@ export class EncryptedStorage {
 
       const info = await this.#fetchCertifiedBlobInfo(options.keyId);
 
-      if (options.signal?.aborted) throw new Error('Download aborted');
-
-      const url = this.#blobStorageClient.getDownloadUrl(info.blobHash);
-      const response = await fetch(url, { signal: options.signal });
-      if (!response.ok) {
-        throw new Error(`Blob storage download failed: ${response.status} ${response.statusText}`);
-      }
-
-      const allBytes = new Uint8Array(await response.arrayBuffer());
-
-      // Verify Merkle root against the on-chain hash before decryption
-      const isValid = await verifyBlobIntegrity(
-        allBytes,
-        info.blobHash,
-        info.contentType,
-        CAFFEINE_CHUNK_SIZE,
-      );
-      if (!isValid) {
-        throw new Error(
-          'Blob integrity verification failed: downloaded data does not match on-chain hash',
-        );
-      }
-
-      const encChunkSize = CAFFEINE_CHUNK_SIZE;
-      const totalChunks = Math.max(1, Math.ceil(allBytes.byteLength / encChunkSize));
-
-      for (let i = 0; i < totalChunks; i++) {
-        if (options.signal?.aborted) throw new Error('Download aborted');
-
-        const start = i * encChunkSize;
-        const end = Math.min(start + encChunkSize, allBytes.byteLength);
-        const chunkBytes = allBytes.slice(start, end);
-
-        const decrypted = await derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator);
-        yield Uint8Array.from(decrypted);
-
-        options.onProgress?.(i + 1, totalChunks);
-      }
+      yield* downloadBlobStorageStream({
+        client: this.#blobStorageClient,
+        decryptChunk: (chunkBytes) =>
+          derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator),
+        info,
+        onProgress: options.onProgress,
+        signal: options.signal,
+      });
       return;
     }
 
@@ -394,7 +368,7 @@ export class EncryptedStorage {
   }
 
   async listAccessGrants(
-    entry?: Entry,
+    entry?: StorageAccessScope,
     mode: StorageAccessGrantListMode = 'exact',
   ): Promise<StoragePermissionItem[]> {
     const result = await this.#actor.listAccessGrants({
@@ -436,6 +410,27 @@ export class EncryptedStorage {
       entry: toEntryRaw(entry),
       target: toOptionalEntryRaw(target),
     });
+  }
+
+  async preflightBlobStorageUploads(
+    files: Array<{ entry: Entry; sourceSize: number }>,
+    config?: { signal?: AbortSignal },
+  ): Promise<void> {
+    if (files.length === 0) return;
+
+    const backend = await this.getStorageBackend();
+    if (!('BlobStorage' in backend) || !this.#blobStorageClient) return;
+
+    await this.#withBlobStorageCashierRetry(
+      async () =>
+        unwrapStorageResult(await this.#actor.preflightCaffeineUploadBatch(
+          files.map(({ entry, sourceSize }) => ({
+            entry: toEntryRaw(entry),
+            size: BigInt(blobStorageDeclaredUploadBytes(sourceSize)),
+          })),
+        )),
+      config?.signal,
+    );
   }
 
   async refreshSubscription() {
@@ -517,17 +512,15 @@ export class EncryptedStorage {
     const sourceSize = readable.length;
     const key = [config.path ?? '', config.fileName].join('/');
     const entry: EntryRaw = [{ File: null }, key];
-
-    const store = new Derived({
-      fn: () => this.#progress.state[key],
-      deps: [this.#progress],
-    });
-
-    const unmount = store.mount();
-
-    if (isMatching({ onProgress: P.instanceOf(Function) }, config)) {
-      store.subscribe((state) => config.onProgress(state.currentVal));
-    }
+    const onProgress = config.onProgress;
+    const progressSubscription = onProgress
+      ? this.#progress.subscribe((progress) => {
+        const entryProgress = progress[key];
+        if (entryProgress) {
+          onProgress(entryProgress);
+        }
+      })
+      : undefined;
 
     this.#sha256[key] = sha256.create();
     this.#progress.setState((state) => ({
@@ -548,128 +541,6 @@ export class EncryptedStorage {
       const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
 
       let derivedKeyMaterial: Awaited<ReturnType<typeof this.getDerivedKeyMaterial>>;
-
-      // ── BlobStorage upload flow ──
-      // Chunks go directly to the blob storage gateway, not through the canister.
-      if ('BlobStorage' in backend && this.#blobStorageClient) {
-        const details = await this.#limit(
-          async () =>
-            unwrapStorageResult(await this.#actor.create({
-              entry,
-              createMode: { GetOrCreate: null },
-            })),
-          config.signal,
-        );
-        const chunkSize = CAFFEINE_PLAINTEXT_CHUNK_SIZE;
-        const chunkCount = Math.max(1, Math.ceil(sourceSize / chunkSize));
-        const declaredUploadBytes =
-          BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD);
-
-        unwrapStorageResult(await this.#actor.preflightCaffeineUpload({
-          entry,
-          size: declaredUploadBytes,
-        }));
-
-        this.#progress.setState((state) => ({
-          ...state,
-          [key]: { status: UploadState.REQUESTING_VETKD },
-        }));
-
-        derivedKeyMaterial =
-          await this.#getDerivedKeyMaterialOrFetchIfNeeded(
-            details.keyId[0],
-            Uint8Array.from(details.keyId[1]),
-          );
-
-        const spool = createBlobUploadSpool(chunkCount);
-        try {
-          const chunkHashes: YHash[] = [];
-          const contentHash = sha256.create();
-          let totalEncryptedSize = 0;
-
-          // Step 1: encrypt chunks, hash them, and spool ciphertext outside RAM.
-          for (let i = 0; i < chunkCount; i++) {
-            if (config.signal?.aborted) throw new Error('Upload aborted');
-            const plain = await readable.slice(
-              i * chunkSize,
-              Math.min((i + 1) * chunkSize, sourceSize),
-            );
-            const encrypted = await derivedKeyMaterial.encryptMessage(plain, domainSeparator);
-            contentHash.update(encrypted);
-            totalEncryptedSize += encrypted.byteLength;
-            chunkHashes.push(await YHash.fromChunk(encrypted));
-            await spool.writeChunk(i, encrypted);
-          }
-
-          // Step 2: Build Merkle tree
-          const blobTree = await BlobHashTree.build(chunkHashes, {
-            'Content-Type': config.contentType,
-            'Content-Length': totalEncryptedSize.toString(),
-          });
-          const rootHash = blobTree.tree.hash.toShaString();
-
-          // Step 3: Get IC certificate from canister
-          this.#progress.setState((state) => ({
-            ...state,
-            [key]: { status: UploadState.FINALIZING },
-          }));
-          const certificate = await this.#blobStorageClient.createCertificate(rootHash);
-
-          // Step 4: Upload blob tree to gateway
-          await this.#blobStorageClient.uploadBlobTree({
-            blobTree,
-            certificate,
-            totalSize: totalEncryptedSize,
-          });
-
-          // Step 5: Upload chunks to gateway in parallel from the spool.
-          this.#progress.setState((state) => ({
-            ...state,
-            [key]: { status: UploadState.IN_PROGRESS, current: 0, total: sourceSize },
-          }));
-          await this.#blobStorageClient.uploadChunkSource(
-            spool,
-            chunkHashes,
-            rootHash,
-            (completedChunks, totalChunks) => {
-              const current = Math.round((completedChunks / totalChunks) * sourceSize);
-              this.#progress.setState((state) => ({
-                ...state,
-                [key]: { status: UploadState.IN_PROGRESS, current, total: sourceSize },
-              }));
-            },
-          );
-
-          // Step 6: Commit metadata on-chain
-          this.#progress.setState((state) => ({
-            ...state,
-            [key]: { status: UploadState.FINALIZING },
-          }));
-          unwrapStorageResult(await this.#actor.commitCaffeineUpload({
-            entry,
-            sha256: new Uint8Array(contentHash.digest()),
-            rootHash,
-            contentType: config.contentType,
-            size: BigInt(totalEncryptedSize),
-          }));
-
-          return;
-        } finally {
-          await spool.clear();
-        }
-      }
-
-      // ── Inline (on-chain) upload flow ──
-      const chunkCount = Math.max(1, Math.ceil(sourceSize / this.#maxChunkSize));
-      const declaredUploadBytes =
-        BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD);
-      const uploadController = new AbortController();
-      const abortUpload = () => uploadController.abort(config.signal?.reason);
-      if (config.signal?.aborted) {
-        abortUpload();
-      } else {
-        config.signal?.addEventListener('abort', abortUpload, { once: true });
-      }
       const currentUploadBytes = () => {
         const progress = this.#progress.state[key];
         return progress?.status === UploadState.IN_PROGRESS ||
@@ -692,6 +563,102 @@ export class EncryptedStorage {
           }));
         };
 
+      // ── BlobStorage upload flow ──
+      // Chunks go directly to the blob storage gateway, not through the canister.
+      if ('BlobStorage' in backend && this.#blobStorageClient) {
+        const details = await this.#limit(
+          async () =>
+            unwrapStorageResult(await this.#actor.create({
+              entry,
+              createMode: { GetOrCreate: null },
+            })),
+          config.signal,
+        );
+        const declaredUploadBytes = blobStorageDeclaredUploadBytes(sourceSize);
+
+        if (config.blobStoragePreflight) {
+          this.#progress.setState((state) => ({
+            ...state,
+            [key]: {
+              status: UploadState.WAITING_FOR_FUNDING,
+              current: 0,
+              total: sourceSize,
+              message: 'Blob Storage batch setup',
+            },
+          }));
+          await config.blobStoragePreflight;
+          if (config.signal?.aborted) {
+            throw new Error('Upload aborted');
+          }
+        } else {
+          await this.#withBlobStorageCashierRetry(
+            async () => unwrapStorageResult(await this.#actor.preflightCaffeineUpload({
+              entry,
+              size: declaredUploadBytes,
+            })),
+            config.signal,
+            setUploadFundingPending(() => 0),
+          );
+        }
+
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.REQUESTING_VETKD },
+        }));
+
+        derivedKeyMaterial =
+          await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+            details.keyId[0],
+            Uint8Array.from(details.keyId[1]),
+          );
+
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.PREPARING },
+        }));
+
+        const upload = await uploadBlobStorageFile({
+          client: this.#blobStorageClient,
+          contentType: config.contentType,
+          encryptChunk: (plain) => derivedKeyMaterial.encryptMessage(plain, domainSeparator),
+          onProgress: (completedChunks, totalChunks) => {
+            const current = Math.round((completedChunks / totalChunks) * sourceSize);
+            this.#progress.setState((state) => ({
+              ...state,
+              [key]: { status: UploadState.IN_PROGRESS, current, total: sourceSize },
+            }));
+          },
+          readable,
+          signal: config.signal,
+          sourceSize,
+        });
+
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.FINALIZING },
+        }));
+        unwrapStorageResult(await this.#actor.commitCaffeineUpload({
+          entry,
+          sha256: upload.sha256,
+          rootHash: upload.rootHash,
+          contentType: config.contentType,
+          size: BigInt(upload.size),
+        }));
+
+        return;
+      }
+
+      // ── Inline (on-chain) upload flow ──
+      const chunkCount = Math.max(1, Math.ceil(sourceSize / this.#maxChunkSize));
+      const declaredUploadBytes =
+        BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD);
+      const uploadController = new AbortController();
+      const abortUpload = () => uploadController.abort(config.signal?.reason);
+      if (config.signal?.aborted) {
+        abortUpload();
+      } else {
+        config.signal?.addEventListener('abort', abortUpload, { once: true });
+      }
       let batchId: bigint | undefined;
       try {
         const batch = await this.#withUploadFundingRetry(
@@ -812,7 +779,7 @@ export class EncryptedStorage {
       if (readableOpened) {
         await readable.close();
       }
-      unmount();
+      progressSubscription?.unsubscribe();
     }
   }
 
@@ -1115,6 +1082,40 @@ export class EncryptedStorage {
     };
   }
 
+  async #withBlobStorageCashierRetry<T>(
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+    onFundingRetry?: UploadFundingRetryCallback,
+  ): Promise<T> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= BLOB_STORAGE_CASHIER_MAX_RETRIES; attempt++) {
+      if (signal?.aborted) throw new Error('Upload aborted');
+
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        if (
+          !isBlobStorageCashierRetryable(error) ||
+          attempt === BLOB_STORAGE_CASHIER_MAX_RETRIES
+        ) {
+          throw error;
+        }
+
+        const delay = blobStorageCashierRetryDelay(attempt);
+        onFundingRetry?.({
+          attempt: attempt + 1,
+          error,
+          retryAt: Date.now() + delay,
+        });
+        await abortableDelay(delay, signal);
+      }
+    }
+
+    throw lastError;
+  }
+
   async #withUploadFundingRetry<T>(
     operation: () => Promise<T>,
     signal?: AbortSignal,
@@ -1165,8 +1166,26 @@ async function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+function blobStorageCashierRetryDelay(attempt: number): number {
+  const exponentialDelay = Math.min(
+    BLOB_STORAGE_CASHIER_RETRY_BASE_DELAY_MS * 2 ** attempt,
+    BLOB_STORAGE_CASHIER_RETRY_MAX_DELAY_MS,
+  );
+  const jitter = Math.floor(Math.random() * Math.min(250, exponentialDelay * 0.25));
+  return exponentialDelay + jitter;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isBlobStorageCashierRetryable(error: unknown): boolean {
+  const normalized = errorMessage(error).toLowerCase();
+  return normalized.includes('could not perform self call') ||
+    normalized.includes('could not perform remote call') ||
+    normalized.includes('blob storage cashier top-up is already in progress') ||
+    normalized.includes('storage funding is already in progress') ||
+    normalized.includes('auto top-up is already in progress');
 }
 
 function isTerminalFundingError(message: string): boolean {

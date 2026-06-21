@@ -2,6 +2,8 @@ import { Actor } from '@icp-sdk/core/agent';
 import { Principal } from '@icp-sdk/core/principal';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ThumbnailRef } from '@rabbithole/declarations/encrypted-storage';
+
 const vetkeyMocks = vi.hoisted(() => {
   const encryptMessage = vi.fn(async (bytes: Uint8Array) => {
     const encrypted = new Uint8Array(bytes.byteLength + 28);
@@ -60,6 +62,7 @@ import {
 import { BlobHashTree, YHash } from './blob-storage/merkle-tree';
 import { MockBlobGateway } from './blob-storage/mock-gateway';
 import { EncryptedStorage } from './encrypted-storage';
+import { type Progress, UploadState } from './types';
 
 describe('EncryptedStorage BlobStorage integration', () => {
   const keyId: [Principal, Uint8Array] = [
@@ -77,6 +80,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
     getVetkeyVerificationKey: ReturnType<typeof vi.fn>;
     http_request: ReturnType<typeof vi.fn>;
     preflightCaffeineUpload: ReturnType<typeof vi.fn>;
+    preflightCaffeineUploadBatch: ReturnType<typeof vi.fn>;
   };
   let agentMock: {
     call: ReturnType<typeof vi.fn>;
@@ -99,6 +103,7 @@ describe('EncryptedStorage BlobStorage integration', () => {
       getStorageBackendType: vi.fn(async () => ({ BlobStorage: null })),
       getVetkeyVerificationKey: vi.fn(async () => new Uint8Array([2])),
       preflightCaffeineUpload: vi.fn(async () => undefined),
+      preflightCaffeineUploadBatch: vi.fn(async () => undefined),
       commitCaffeineUpload: vi.fn(async () => undefined),
       http_request: vi.fn(async () => {
         const commit = actorMock.commitCaffeineUpload.mock.calls.at(-1)?.[0];
@@ -205,6 +210,157 @@ describe('EncryptedStorage BlobStorage integration', () => {
     expect(actorMock.commitCaffeineUpload).not.toHaveBeenCalled();
   });
 
+  it('retries transient BlobStorage Cashier self-call failures during preflight', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    actorMock.preflightCaffeineUpload
+      .mockResolvedValueOnce({
+        err: {
+          message: 'Blob Storage Cashier top-up failed: could not perform self call',
+        },
+      })
+      .mockResolvedValueOnce(undefined);
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const progress: Progress[] = [];
+
+    await storage.store([
+      new TextEncoder().encode('retry after cashier backpressure'),
+      {
+        fileName: 'cashier-retry.txt',
+        onProgress: (state) => progress.push(state),
+      },
+    ]);
+
+    expect(actorMock.preflightCaffeineUpload).toHaveBeenCalledTimes(2);
+    expect(progress.some((state) => state.status === UploadState.WAITING_FOR_FUNDING)).toBe(true);
+    expect(actorMock.commitCaffeineUpload).toHaveBeenCalledOnce();
+  });
+
+  it('retries transient BlobStorage remote-call failures during preflight', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    actorMock.preflightCaffeineUpload
+      .mockResolvedValueOnce({
+        err: {
+          message: 'Blob Storage Cashier top-up failed: could not perform remote call',
+        },
+      })
+      .mockResolvedValueOnce(undefined);
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+
+    await storage.store([
+      new TextEncoder().encode('retry after cashier remote call'),
+      { fileName: 'cashier-remote-retry.txt' },
+    ]);
+
+    expect(actorMock.preflightCaffeineUpload).toHaveBeenCalledTimes(2);
+    expect(actorMock.commitCaffeineUpload).toHaveBeenCalledOnce();
+  });
+
+  it('retries while BlobStorage Cashier top-up is already in progress', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    actorMock.preflightCaffeineUpload
+      .mockResolvedValueOnce({
+        err: {
+          message: 'Blob Storage Cashier top-up failed: Blob Storage Cashier top-up is already in progress',
+        },
+      })
+      .mockResolvedValueOnce(undefined);
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+
+    await storage.store([
+      new TextEncoder().encode('retry after cashier top-up guard'),
+      { fileName: 'cashier-guard-retry.txt' },
+    ]);
+
+    expect(actorMock.preflightCaffeineUpload).toHaveBeenCalledTimes(2);
+    expect(actorMock.commitCaffeineUpload).toHaveBeenCalledOnce();
+  });
+
+  it('retries while BlobStorage storage funding is already in progress', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    actorMock.preflightCaffeineUpload
+      .mockResolvedValueOnce({
+        err: {
+          code: { FundingPending: null },
+          message: 'Storage funding is already in progress',
+        },
+      })
+      .mockResolvedValueOnce(undefined);
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const progress: Progress[] = [];
+
+    await storage.store([
+      new TextEncoder().encode('retry after storage funding guard'),
+      {
+        fileName: 'storage-funding-guard-retry.txt',
+        onProgress: (state) => progress.push(state),
+      },
+    ]);
+
+    expect(actorMock.preflightCaffeineUpload).toHaveBeenCalledTimes(2);
+    expect(progress.some((state) => state.status === UploadState.WAITING_FOR_FUNDING)).toBe(true);
+    expect(actorMock.commitCaffeineUpload).toHaveBeenCalledOnce();
+  });
+
+  it('uses one shared BlobStorage preflight for files in the same upload group', async () => {
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const first = new TextEncoder().encode('one');
+    const second = new TextEncoder().encode('two files');
+    const blobStoragePreflight = storage.preflightBlobStorageUploads([
+      { entry: ['File', 'batch-one.txt'], sourceSize: first.byteLength },
+      { entry: ['File', 'batch-two.txt'], sourceSize: second.byteLength },
+    ]);
+
+    await Promise.all([
+      storage.store([first, {
+        fileName: 'batch-one.txt',
+        blobStoragePreflight,
+      }]),
+      storage.store([second, {
+        fileName: 'batch-two.txt',
+        blobStoragePreflight,
+      }]),
+    ]);
+
+    expect(actorMock.preflightCaffeineUpload).not.toHaveBeenCalled();
+    expect(actorMock.preflightCaffeineUploadBatch).toHaveBeenCalledOnce();
+    expect(actorMock.preflightCaffeineUploadBatch.mock.calls[0][0]).toEqual([
+      {
+        entry: [{ File: null }, 'batch-one.txt'],
+        size: BigInt(first.byteLength + AES_GCM_OVERHEAD),
+      },
+      {
+        entry: [{ File: null }, 'batch-two.txt'],
+        size: BigInt(second.byteLength + AES_GCM_OVERHEAD),
+      },
+    ]);
+    expect(actorMock.commitCaffeineUpload).toHaveBeenCalledTimes(2);
+  });
+
   it('uploads multi-chunk encrypted blobs through a bounded readable source', async () => {
     const storage = new EncryptedStorage({
       canisterId,
@@ -237,6 +393,36 @@ describe('EncryptedStorage BlobStorage integration', () => {
     expect(Number(commitArgs.size)).toBe(bytes.byteLength + 2 * AES_GCM_OVERHEAD);
   });
 
+  it('reports preparing between vetKey request and gateway upload', async () => {
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const progress: Progress[] = [];
+
+    await storage.store([
+      new TextEncoder().encode('Blob progress state order'),
+      {
+        fileName: 'progress.txt',
+        contentType: 'text/plain',
+        onProgress: (state) => progress.push(state),
+      },
+    ]);
+
+    const statuses = progress.map((state) => state.status);
+    const requestingVetkeysIndex = statuses.indexOf(UploadState.REQUESTING_VETKD);
+    const preparingIndex = statuses.indexOf(UploadState.PREPARING);
+    const uploadingIndex = statuses.indexOf(UploadState.IN_PROGRESS);
+    const finalizingIndex = statuses.indexOf(UploadState.FINALIZING);
+
+    expect(requestingVetkeysIndex).toBeGreaterThanOrEqual(0);
+    expect(preparingIndex).toBeGreaterThan(requestingVetkeysIndex);
+    expect(uploadingIndex).toBeGreaterThan(preparingIndex);
+    expect(finalizingIndex).toBeGreaterThan(uploadingIndex);
+  });
+
   it('downloads blob bytes through certified metadata + gateway flow', async () => {
     const storage = new EncryptedStorage({
       canisterId,
@@ -264,6 +450,110 @@ describe('EncryptedStorage BlobStorage integration', () => {
       Buffer.from(bytes),
     );
     expect(actorMock.http_request).toHaveBeenCalledOnce();
+  });
+
+  it('reports BlobStorage download progress while reading gateway bytes', async () => {
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const bytes = new Uint8Array(CAFFEINE_PLAINTEXT_CHUNK_SIZE + 29);
+    bytes.fill(3);
+
+    await storage.store([bytes, {
+      fileName: 'download-progress.bin',
+      contentType: 'application/octet-stream',
+    }]);
+
+    const events: string[] = [];
+    for await (const chunk of storage.downloadStream(['File', 'download-progress.bin'], {
+      storageBackend: 'BlobStorage',
+      keyId,
+      totalChunks: 2,
+      onProgress: (chunkIndex, totalChunks) => events.push(`progress:${chunkIndex}/${totalChunks}`),
+    })) {
+      expect(chunk.byteLength).toBeGreaterThan(0);
+      events.push('chunk');
+    }
+
+    expect(events[0]).toMatch(/^progress:/);
+    const firstChunkIndex = events.indexOf('chunk');
+    expect(firstChunkIndex).toBeGreaterThan(0);
+    expect(events).toEqual([
+      'progress:1/2',
+      'chunk',
+      'progress:2/2',
+      'chunk',
+    ]);
+  });
+
+  it('includes gateway response body when thumbnail download fails', async () => {
+    const gatewayError = 'Owner does not have sufficient balance: aaaaa-aa';
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      new Response(gatewayError, {
+        status: 403,
+        statusText: 'Forbidden',
+      })));
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const thumbnailRef: ThumbnailRef = {
+      BlobStorage: {
+        rootHash: 'sha256:' + 'aa'.repeat(32),
+        blobId: new Uint8Array(),
+        sha256: [],
+        contentType: 'image/jpeg',
+        size: 1n,
+        encryption: {
+          algorithm: 'AES-GCM-256+vetkey-wrap-v1',
+          wrappedKey: new Uint8Array(),
+          blobIv: new Uint8Array(12),
+          scopeKeyId: keyId,
+        },
+      },
+    };
+
+    await expect(storage.getThumbnailUrl(thumbnailRef)).rejects.toThrow(
+      `Thumbnail download failed: 403 Forbidden - ${gatewayError}`,
+    );
+  });
+
+  it('streams verified BlobStorage chunks before a later tampered chunk fails', async () => {
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const bytes = new Uint8Array(CAFFEINE_PLAINTEXT_CHUNK_SIZE + 37);
+    bytes.fill(5);
+
+    await storage.store([bytes, {
+      fileName: 'stream-before-tamper.bin',
+      contentType: 'application/octet-stream',
+    }]);
+
+    const { rootHash } = actorMock.commitCaffeineUpload.mock.calls[0][0];
+    gateway.tamperDownloadChunk(rootHash, 1);
+
+    const iterator = storage.downloadStream(['File', 'stream-before-tamper.bin'], {
+      storageBackend: 'BlobStorage',
+      keyId,
+      totalChunks: 2,
+    })[Symbol.asyncIterator]();
+
+    const first = await iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value).toHaveLength(CAFFEINE_PLAINTEXT_CHUNK_SIZE);
+
+    await expect(iterator.next()).rejects.toThrow(
+      'Blob integrity verification failed: chunk 1 does not match blob tree',
+    );
   });
 
   it('fails download when gateway blob is tampered', async () => {

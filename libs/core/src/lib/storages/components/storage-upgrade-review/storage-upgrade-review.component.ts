@@ -15,7 +15,6 @@ import {
   lucidePackage,
   lucideShieldCheck,
 } from '@ng-icons/lucide';
-import { NgScrollbarModule } from 'ngx-scrollbar';
 
 import { RbthTransparentSelectBackdropDirective } from '@rabbithole/ui/data-table-filter';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
@@ -23,7 +22,6 @@ import { HlmBadge } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmItemImports } from '@spartan-ng/helm/item';
-import { HlmScrollAreaImports } from '@spartan-ng/helm/scroll-area';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
 
 import type { UpdateInfo } from '../../types/storage.types';
@@ -33,14 +31,12 @@ import type { StorageReleaseOption } from '../../utils/storage-release-options';
   selector: 'rbth-core-storage-upgrade-review',
   imports: [
     NgIcon,
-    NgScrollbarModule,
     HlmBadge,
     HlmIcon,
     RbthTransparentSelectBackdropDirective,
     ...HlmAlertImports,
     ...HlmButtonImports,
     ...HlmItemImports,
-    ...HlmScrollAreaImports,
     ...HlmSelectImports,
   ],
   providers: [

@@ -9,4 +9,5 @@ export enum UploadState {
   CANCELED,
   FINALIZING,
   WAITING_FOR_FUNDING,
+  PREPARING,
 }

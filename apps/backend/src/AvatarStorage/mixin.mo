@@ -19,14 +19,14 @@ mixin(
   let avatarUploadReservations : Map.Map<Principal, Users.AvatarUploadReservation> = Map.empty();
   let avatarDrafts : Map.Map<Principal, Users.AvatarRef> = Map.empty();
   transient let avatarObjectStorageState : CaffeineStorage.State = CaffeineStorage.new();
-  transient let avatarObjectStorageCashier : BlobStorageCashier.Store = BlobStorageCashier.new(avatarObjectStorageState);
+  transient let avatarObjectStorageCashier = BlobStorageCashier.Store(avatarObjectStorageState);
   transient let avatarUsers = Users.Users(db, avatarUploadReservations, avatarDrafts);
 
   public shared ({ caller }) func prepareAvatarUpload(args : Users.PrepareAvatarUploadArgs) : async Users.PrepareAvatarUploadResult {
     assert not Principal.isAnonymous(caller);
     switch (avatarUsers.prepareAvatarUpload(caller, args)) {
       case (#ok(result)) {
-        await ensureAvatarBlobStorageCashierActivated();
+        await avatarObjectStorageCashier.ensureBootstrapBalance();
         result;
       };
       case (#err(message)) throw Error.reject(message);
@@ -60,22 +60,6 @@ mixin(
   type ImmutableObjectStorageCreateCertificateResult = {
     method : Text;
     blob_hash : Text;
-  };
-
-  func ensureAvatarBlobStorageCashierActivated() : async () {
-    await BlobStorageCashier.ensureActivated(avatarObjectStorageCashier);
-  };
-
-  func grantAvatarBlobStorageCashierFullAccess(delegate : Principal) : async () {
-    await BlobStorageCashier.grantFullAccess(avatarObjectStorageCashier, delegate);
-  };
-
-  func revokeAvatarBlobStorageCashierFullAccess(delegate : Principal) : async () {
-    await BlobStorageCashier.revokeFullAccess(delegate);
-  };
-
-  func syncAvatarBlobStorageCashierFullAccessDelegates(delegates : [Principal]) : async () {
-    await BlobStorageCashier.syncExactFullAccessDelegates(avatarObjectStorageCashier, delegates);
   };
 
   public shared ({ caller }) func _immutableObjectStorageCreateCertificate(blobHash : Text) : async ImmutableObjectStorageCreateCertificateResult {
@@ -124,6 +108,6 @@ mixin(
     if (cashier != caller) {
       Runtime.trap("Unauthorized access");
     };
-    await BlobStorageCashier.refill(avatarObjectStorageCashier, refillInformation);
+    await avatarObjectStorageCashier.refill(refillInformation);
   };
 };

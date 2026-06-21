@@ -15,14 +15,13 @@ import type { HttpAgent } from '@icp-sdk/core/agent';
 import { isV4ResponseBody } from '@icp-sdk/core/agent';
 import { IDL } from '@icp-sdk/core/candid';
 
-import type { BlobHashTree, YHash } from './merkle-tree';
+import type { BlobHashTree, BlobHashTreeJSON, YHash } from './merkle-tree';
 
 const GATEWAY_VERSION = 'v1';
 const MAX_CONCURRENT_UPLOADS = 10;
 const DEFAULT_MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 30_000;
-const DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_BUCKET_NAME = 'default-bucket';
 const DEFAULT_PROJECT_ID = '0000000-0000-0000-0000-00000000000';
 
@@ -46,7 +45,7 @@ export interface BlobStorageGatewayClientConfig {
   maxRetries?: number;
   /** Caffeine project ID. Defaults to zeroed UUID for standalone usage. */
   projectId?: string;
-  /** Per-request gateway fetch timeout. Defaults to 10 seconds. */
+  /** Optional per-request gateway fetch timeout. Disabled by default. */
   requestTimeoutMs?: number;
 }
 
@@ -57,7 +56,7 @@ export class BlobStorageGatewayClient {
   readonly #gatewayUrl: string;
   readonly #maxRetries: number;
   readonly #projectId: string;
-  readonly #requestTimeoutMs: number;
+  readonly #requestTimeoutMs?: number;
 
   constructor(config: BlobStorageGatewayClientConfig) {
     this.#agent = config.agent;
@@ -65,8 +64,7 @@ export class BlobStorageGatewayClient {
     this.#gatewayUrl = config.gatewayUrl;
     this.#bucketName = config.bucketName ?? DEFAULT_BUCKET_NAME;
     this.#projectId = config.projectId ?? DEFAULT_PROJECT_ID;
-    this.#requestTimeoutMs =
-      config.requestTimeoutMs ?? DEFAULT_GATEWAY_REQUEST_TIMEOUT_MS;
+    this.#requestTimeoutMs = config.requestTimeoutMs;
     this.#maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   }
 
@@ -90,6 +88,39 @@ export class BlobStorageGatewayClient {
     );
   }
 
+  /** Fetch the stored blob tree metadata for a blob. */
+  async getBlobTree(blobHash: string, signal?: AbortSignal): Promise<BlobHashTreeJSON> {
+    const queryParams = new URLSearchParams({
+      blob_hash: blobHash,
+      owner_id: this.#canisterId,
+      project_id: this.#projectId,
+    });
+    const url = `${this.#gatewayUrl}/${GATEWAY_VERSION}/blob-tree/?${queryParams}`;
+
+    return withRetry(async () => {
+      const response = await fetchGateway(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            'X-Caffeine-Project-ID': this.#projectId,
+          },
+        },
+        {
+          signal,
+          timeoutMs: this.#requestTimeoutMs,
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throwHttpError(`Failed to fetch blob tree: ${response.status} ${response.statusText} - ${errorText}`, response.status);
+      }
+
+      return await response.json() as BlobHashTreeJSON;
+    }, { maxRetries: this.#maxRetries });
+  }
+
   /** Construct a download URL for a blob on the storage gateway. */
   getDownloadUrl(blobHash: string): string {
     return `${this.#gatewayUrl}/${GATEWAY_VERSION}/blob/?blob_hash=${encodeURIComponent(blobHash)}&owner_id=${encodeURIComponent(this.#canisterId)}&project_id=${encodeURIComponent(this.#projectId)}`;
@@ -99,6 +130,7 @@ export class BlobStorageGatewayClient {
   async uploadBlobTree(params: {
     blobTree: BlobHashTree;
     certificate: Uint8Array;
+    signal?: AbortSignal;
     totalSize: number;
   }): Promise<void> {
     const treeJSON = params.blobTree.toJSON();
@@ -116,7 +148,7 @@ export class BlobStorageGatewayClient {
     });
 
     await withRetry(async () => {
-      const response = await fetchWithTimeout(
+      const response = await fetchGateway(
         url,
         {
           method: 'PUT',
@@ -126,7 +158,10 @@ export class BlobStorageGatewayClient {
           },
           body,
         },
-        this.#requestTimeoutMs,
+        {
+          signal: params.signal,
+          timeoutMs: this.#requestTimeoutMs,
+        },
       );
 
       if (!response.ok) {
@@ -142,6 +177,7 @@ export class BlobStorageGatewayClient {
     chunkBytes: Uint8Array;
     chunkHash: string;
     chunkIndex: number;
+    signal?: AbortSignal;
   }): Promise<{ isComplete: boolean }> {
     const queryParams = new URLSearchParams({
       owner_id: this.#canisterId,
@@ -154,7 +190,7 @@ export class BlobStorageGatewayClient {
     const url = `${this.#gatewayUrl}/${GATEWAY_VERSION}/chunk/?${queryParams}`;
 
     return withRetry(async () => {
-      const response = await fetchWithTimeout(
+      const response = await fetchGateway(
         url,
         {
           method: 'PUT',
@@ -164,7 +200,10 @@ export class BlobStorageGatewayClient {
           },
           body: params.chunkBytes as unknown as BodyInit,
         },
-        this.#requestTimeoutMs,
+        {
+          signal: params.signal,
+          timeoutMs: this.#requestTimeoutMs,
+        },
       );
 
       if (!response.ok) {
@@ -187,6 +226,7 @@ export class BlobStorageGatewayClient {
     chunkHashes: YHash[],
     blobHash: string,
     onProgress?: (completedChunks: number, totalChunks: number) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
     await this.uploadChunkSource(
       {
@@ -196,6 +236,7 @@ export class BlobStorageGatewayClient {
       chunkHashes,
       blobHash,
       onProgress,
+      signal,
     );
   }
 
@@ -208,17 +249,20 @@ export class BlobStorageGatewayClient {
     chunkHashes: YHash[],
     blobHash: string,
     onProgress?: (completedChunks: number, totalChunks: number) => void,
+    signal?: AbortSignal,
   ): Promise<void> {
     let completedChunks = 0;
     const total = chunkSource.chunkCount;
 
     const uploadSingle = async (index: number) => {
+      if (signal?.aborted) throw new Error('Upload aborted');
       const chunkBytes = await chunkSource.getChunk(index);
       await this.uploadChunk({
         chunkBytes,
         blobHash,
         chunkHash: chunkHashes[index].toShaString(),
         chunkIndex: index,
+        signal,
       });
       await chunkSource.releaseChunk?.(index);
       completedChunks++;
@@ -239,13 +283,30 @@ export class BlobStorageGatewayClient {
 // Retry logic (from @caffeineai/object-storage reference)
 // -------------------------------------------------------------------
 
-async function fetchWithTimeout(
+async function fetchGateway(
   url: string,
   init: RequestInit,
-  timeoutMs: number,
+  options?: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  },
 ): Promise<Response> {
+  if (options?.timeoutMs === undefined) {
+    return await fetch(url, {
+      ...init,
+      signal: options?.signal,
+    });
+  }
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs);
+  const abort = () => controller.abort(options.signal?.reason);
+
+  if (options.signal?.aborted) {
+    abort();
+  } else {
+    options.signal?.addEventListener('abort', abort, { once: true });
+  }
 
   try {
     return await fetch(url, {
@@ -253,9 +314,9 @@ async function fetchWithTimeout(
       signal: controller.signal,
     });
   } catch (error) {
-    if (controller.signal.aborted) {
+    if (controller.signal.aborted && !options.signal?.aborted) {
       const timeoutError = new Error(
-        `Blob Storage gateway request timed out after ${timeoutMs} ms`,
+        `Blob Storage gateway request timed out after ${options.timeoutMs} ms`,
       );
       (timeoutError as { cause?: unknown } & Error).cause = error;
       throw timeoutError;
@@ -263,10 +324,18 @@ async function fetchWithTimeout(
     throw error;
   } finally {
     clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', abort);
   }
 }
 
 function isRetriableError(error: unknown): boolean {
+  if (
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.message.toLowerCase().includes('aborted'))
+  ) {
+    return false;
+  }
+
   const status = (error as { response?: { status?: number } })?.response?.status;
   if (status !== undefined) {
     if (status === 408 || status === 429) return true;

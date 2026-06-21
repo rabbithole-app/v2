@@ -33,6 +33,7 @@ import { linkedQueryParam } from 'ngxtension/linked-query-param';
 import { AUTH_CONFIG, AUTH_SERVICE, AuthSignInOptions } from '@rabbithole/auth';
 import {
   AvatarService,
+  CYCLES_MINTING_CANISTER_ID,
   injectMainActor,
   principalFromConfig,
   ProfileService,
@@ -56,12 +57,15 @@ import { environment } from '../../../environments/environment';
 
 const DELEGATION_POPUP_CLOSE_DELAY_MS = 2000;
 const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
+const CYCLES_MINTING_CANISTER = Principal.fromText(
+  CYCLES_MINTING_CANISTER_ID,
+);
 
 @Component({
   selector: 'app-delegation',
   imports: [
     CopyToClipboardComponent,
-      ...HlmAlertImports,
+    ...HlmAlertImports,
     HlmAvatarImports,
     HlmIcon,
     RbthFrameComponent,
@@ -88,7 +92,8 @@ const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
   ],
   templateUrl: './delegation.component.html',
   host: {
-    class: 'relative z-10 flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-4 py-12',
+    class:
+      'relative z-10 flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-4 py-12',
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -159,6 +164,7 @@ export class DelegationComponent {
     return [
       backendCanisterId,
       MANAGEMENT_CANISTER_ID,
+      CYCLES_MINTING_CANISTER,
       ...(storageCanisterId ? [storageCanisterId] : []),
     ];
   });
@@ -209,7 +215,9 @@ export class DelegationComponent {
     const identity = this.#authService.identity();
     if (!(identity instanceof DelegationIdentity)) {
       this.delegationSent.set(false);
-      console.error('Cannot issue storage delegation without a broker delegation identity.');
+      console.error(
+        'Cannot issue storage delegation without a broker delegation identity.',
+      );
       return;
     }
 

@@ -1,0 +1,1464 @@
+// Version: 1.0.0
+type AccessClass__441286812 = {#durable; #ordinary; #ownerEquivalent};
+type AccessClass__858344779 = AccessClass__441286812;
+type AccessRef__806145201 =
+  {
+    #email : {email : Text; emailCommitment : EmailCommitment__959255768};
+    #emailCommitment : EmailCommitment__959255768;
+    #principal : Principal
+  };
+type AccessRequestStatus__676051105 =
+  {#approved; #cancelled; #pending; #rejected};
+type AccessRequestStatus__894682076 = AccessRequestStatus__676051105;
+type AccessRequest__326593393 =
+  {
+    createdAt : Time__688418391;
+    decidedAt : ?Time__688418391;
+    decidedBy : ?Principal;
+    emailCommitment : ?EmailCommitment__959255768;
+    id : Nat;
+    message : ?Text;
+    requester : Principal;
+    status : AccessRequestStatus__676051105
+  };
+type AccessRights__309270436 = AccessRights__541816939;
+type AccessRights__541816939 = {#Read; #ReadWrite; #ReadWriteManage};
+type AccessScope__233280712 =
+  {#entry : Entry__660971563; #keyId : KeyId__595194856; #root};
+type AccessSource__780949223 =
+  {
+    #accessRequest : Nat;
+    #directGrant;
+    #durablePolicy : Nat;
+    #ordinaryInvite : Nat;
+    #recoverySetup
+  };
+type AccessSource__944961388 = AccessSource__780949223;
+type AssetEncoding__191351608 =
+  {
+    var certified : Bool;
+    var content_pointer : SizedPointer__304776323;
+    var modified : Time__934163199;
+    var sha256 : Blob;
+    var total_length : Nat
+  };
+type AssetEncoding__300024814 =
+  {
+    var certified : Bool;
+    var content_pointer : SizedPointer__489726092;
+    var modified : Time__171707794;
+    var sha256 : Blob;
+    var total_length : Nat
+  };
+type AssetEncoding__367917556 =
+  {
+    var certified : Bool;
+    var content_chunks : [Blob];
+    var content_chunks_prefix_sum : [Nat];
+    var modified : Time__786623093;
+    var sha256 : Blob;
+    var total_length : Nat
+  };
+type AssetEncoding__461025377 =
+  {
+    var certified : Bool;
+    var content_chunks : Vector__829235413<Blob>;
+    var modified : Time__868344019;
+    var sha256 : Blob;
+    var total_length : Nat
+  };
+type AssetEncoding__886529896 =
+  {
+    var certified : Bool;
+    var content_chunks : [[Nat8]];
+    var content_chunks_prefix_sum : [Nat];
+    var modified : Time__293467431;
+    var sha256 : Blob;
+    var total_length : Nat
+  };
+type AssetEncoding__99020940 =
+  {
+    var certified : Bool;
+    var content_pointer : SizedPointer__460139987;
+    var modified : Time__937404610;
+    var sha256 : Blob;
+    var total_length : Nat
+  };
+type Asset__360512352 =
+  {
+    var allow_raw_access : ?Bool;
+    var content_type : Text;
+    encodings : Map__585000359<Text, AssetEncoding__99020940>;
+    headers : Map__585000359<Text, Text>;
+    var is_aliased : ?Bool;
+    var last_certified_encoding : ?Text;
+    var max_age : ?Nat64
+  };
+type Asset__389573022 =
+  {
+    var allow_raw_access : ?Bool;
+    var content_type : Text;
+    encodings : Map__963703356<Text, AssetEncoding__367917556>;
+    headers : Map__963703356<Text, Text>;
+    var is_aliased : ?Bool;
+    var last_certified_encoding : ?Text;
+    var max_age : ?Nat64
+  };
+type Asset__502192592 =
+  {
+    var allow_raw_access : ?Bool;
+    var content_type : Text;
+    encodings : Map__119062048<Text, AssetEncoding__886529896>;
+    headers : Map__119062048<Text, Text>;
+    var is_aliased : ?Bool;
+    var last_certified_encoding : ?Text;
+    var max_age : ?Nat64
+  };
+type Asset__563752029 =
+  {
+    var allow_raw_access : ?Bool;
+    var content_type : Text;
+    encodings : Map__741665563<Text, AssetEncoding__461025377>;
+    headers : Map__741665563<Text, Text>;
+    var is_aliased : ?Bool;
+    var max_age : ?Nat64
+  };
+type Asset__691612182 =
+  {
+    var allow_raw_access : ?Bool;
+    var content_type : Text;
+    encodings : Map__5222804<Text, AssetEncoding__191351608>;
+    headers : Map__5222804<Text, Text>;
+    var is_aliased : ?Bool;
+    var last_certified_encoding : ?Text;
+    var max_age : ?Nat64
+  };
+type Asset__704720838 =
+  {
+    var allow_raw_access : ?Bool;
+    var content_type : Text;
+    encodings : Map__277575309<Text, AssetEncoding__300024814>;
+    headers : Map__277575309<Text, Text>;
+    var is_aliased : ?Bool;
+    var last_certified_encoding : ?Text;
+    var max_age : ?Nat64
+  };
+type BatchId__1038169779 = Nat;
+type BatchId__372378926 = Nat;
+type BatchId__388511869 = Nat;
+type BatchId__580583955 = Nat;
+type BatchId__658900428 = Nat;
+type BatchId__692425865 = Nat;
+type BatchId__884276788 = Nat;
+type BatchOperationKind__182064623 =
+  {
+    #Clear : ClearArguments__882497504;
+    #CreateAsset : CreateAssetArguments__460603350;
+    #DeleteAsset : DeleteAssetArguments__143184776;
+    #SetAssetContent : SetAssetContentArguments__894491973;
+    #SetAssetProperties : SetAssetPropertiesArguments__993301525;
+    #UnsetAssetContent : UnsetAssetContentArguments__1017663137
+  };
+type BatchOperationKind__253914564 =
+  {
+    #Clear : ClearArguments__905030476;
+    #CreateAsset : CreateAssetArguments__176366261;
+    #DeleteAsset : DeleteAssetArguments__703748404;
+    #SetAssetContent : SetAssetContentArguments__131566991;
+    #SetAssetProperties : SetAssetPropertiesArguments__782384624;
+    #UnsetAssetContent : UnsetAssetContentArguments__565568360
+  };
+type BatchOperationKind__257110307 =
+  {
+    #Clear : ClearArguments__515658297;
+    #CreateAsset : CreateAssetArguments__184929976;
+    #DeleteAsset : DeleteAssetArguments__92446183;
+    #SetAssetContent : SetAssetContentArguments__5083473;
+    #SetAssetProperties : SetAssetPropertiesArguments__640832319;
+    #UnsetAssetContent : UnsetAssetContentArguments__1020139276
+  };
+type BatchOperationKind__338993151 =
+  {
+    #Clear : ClearArguments__559827786;
+    #CreateAsset : CreateAssetArguments__459102675;
+    #DeleteAsset : DeleteAssetArguments__915215972;
+    #SetAssetContent : SetAssetContentArguments__554691527;
+    #SetAssetProperties : SetAssetPropertiesArguments__61337798;
+    #UnsetAssetContent : UnsetAssetContentArguments__700136022
+  };
+type BatchOperationKind__340321535 =
+  {
+    #Clear : ClearArguments__670732820;
+    #CreateAsset : CreateAssetArguments__261501654;
+    #DeleteAsset : DeleteAssetArguments__983226034;
+    #SetAssetContent : SetAssetContentArguments__13022323;
+    #SetAssetProperties : SetAssetPropertiesArguments__882431217;
+    #UnsetAssetContent : UnsetAssetContentArguments__566138103
+  };
+type BatchOperationKind__815081695 =
+  {
+    #Clear : ClearArguments__998698;
+    #CreateAsset : CreateAssetArguments__837138725;
+    #DeleteAsset : DeleteAssetArguments__435467994;
+    #SetAssetContent : SetAssetContentArguments__681915629;
+    #SetAssetProperties : SetAssetPropertiesArguments__990420311;
+    #UnsetAssetContent : UnsetAssetContentArguments__62762230
+  };
+type Batch__223408454 =
+  {
+    chunk_ids : Vector__985631301<ChunkId__402541065>;
+    var commit_batch_arguments : ?CommitBatchArguments__165882790;
+    var evidence_computation : ?EvidenceComputation__934468053;
+    var expires_at : Time__937404610;
+    var total_bytes : Nat
+  };
+type Batch__264223883 =
+  {
+    chunk_ids : Vector__985631301<ChunkId__1015970603>;
+    var commit_batch_arguments : ?CommitBatchArguments__725948577;
+    var evidence_computation : ?EvidenceComputation__223076040;
+    var expires_at : Time__786623093;
+    var total_bytes : Nat
+  };
+type Batch__60641373 =
+  {
+    chunk_ids : Vector__985631301<ChunkId__526432353>;
+    var commit_batch_arguments : ?CommitBatchArguments__158042044;
+    var evidence_computation : ?EvidenceComputation__971481558;
+    var expires_at : Time__171707794;
+    var total_bytes : Nat
+  };
+type Batch__623147 =
+  {
+    chunk_ids : Vector__985631301<ChunkId__278478019>;
+    var commit_batch_arguments : ?CommitBatchArguments__96410366;
+    var evidence_computation : ?EvidenceComputation__554744621;
+    var expires_at : Time__934163199;
+    var total_bytes : Nat
+  };
+type Batch__766621866 =
+  {
+    chunkIds : Vector__342968512<ChunkId__444890830>;
+    chunkIdsByIndex : [var ?ChunkId__444890830];
+    declaredTotalBytes : Nat;
+    expectedChunkCount : Nat;
+    var expiresAt : Time__688418391;
+    var hashInstructions : Nat;
+    var hashState : StaticSha256__991582920;
+    var hashedBytes : Nat;
+    var hashedChunkCount : Nat;
+    var nextHashChunkIndex : Nat;
+    owner : Principal;
+    var totalBytes : Nat
+  };
+type Batch__839297605 =
+  {
+    var chunk_content_total_size : Nat;
+    var commit_batch_arguments : ?CommitBatchArguments__269011868;
+    var evidence_computation : ?EvidenceComputation__819544670;
+    var expires_at : Time__868344019
+  };
+type Batch__903028767 =
+  {
+    chunk_ids : Vector__985631301<ChunkId__823460631>;
+    var commit_batch_arguments : ?CommitBatchArguments__1047240153;
+    var evidence_computation : ?EvidenceComputation__745350584;
+    var expires_at : Time__293467431;
+    var total_bytes : Nat
+  };
+type Branch__187687365<K, V> =
+  (nats : [var Nat], parent : [var ?Branch__187687365<K, V>],
+   keys : [var ?K], children : [var ?Node__1049340821<K, V>],
+   max : [var ?(K, V)]);
+type Branch__693075160<K, V> =
+  (nats : [var Nat], parent : [var ?Branch__693075160<K, V>],
+   keys : [var ?K], children : [var ?Node__519412156<K, V>],
+   max : [var ?(K, V)]);
+type CertifiedAssets__128969438 = StableStore__1038099049;
+type CertifiedAssets__350796196 = StableStore__1038099049;
+type CertifiedAssets__947232077 = StableStore__1038099049;
+type ChunkId__1015970603 = Nat;
+type ChunkId__278478019 = Nat;
+type ChunkId__402541065 = Nat;
+type ChunkId__444890830 = Nat;
+type ChunkId__526432353 = Nat;
+type ChunkId__823460631 = Nat;
+type ChunkId__838700966 = Nat;
+type Chunk__578967033 = {batch_id : BatchId__388511869; content : Blob};
+type ClearArguments__515658297 = {};
+type ClearArguments__559827786 = {};
+type ClearArguments__670732820 = {};
+type ClearArguments__882497504 = {};
+type ClearArguments__905030476 = {};
+type ClearArguments__998698 = {};
+type CommitBatchArguments__1047240153 =
+  {
+    batch_id : BatchId__884276788;
+    operations : [BatchOperationKind__815081695]
+  };
+type CommitBatchArguments__158042044 =
+  {
+    batch_id : BatchId__372378926;
+    operations : [BatchOperationKind__338993151]
+  };
+type CommitBatchArguments__165882790 =
+  {
+    batch_id : BatchId__1038169779;
+    operations : [BatchOperationKind__257110307]
+  };
+type CommitBatchArguments__269011868 =
+  {
+    batch_id : BatchId__388511869;
+    operations : [BatchOperationKind__340321535]
+  };
+type CommitBatchArguments__725948577 =
+  {
+    batch_id : BatchId__580583955;
+    operations : [BatchOperationKind__182064623]
+  };
+type CommitBatchArguments__96410366 =
+  {
+    batch_id : BatchId__692425865;
+    operations : [BatchOperationKind__253914564]
+  };
+type Configuration__146810592 =
+  {var max_batches : ?Nat64; var max_bytes : ?Nat64; var max_chunks : ?Nat64};
+type Configuration__154057787 =
+  {var max_batches : ?Nat64; var max_bytes : ?Nat64; var max_chunks : ?Nat64};
+type Configuration__375164613 =
+  {var max_batches : ?Nat64; var max_bytes : ?Nat64; var max_chunks : ?Nat64};
+type Configuration__420294761 =
+  {var max_batches : ?Nat64; var max_bytes : ?Nat64; var max_chunks : ?Nat64};
+type Configuration__578343386 =
+  {var max_batches : ?Nat64; var max_bytes : ?Nat64; var max_chunks : ?Nat64};
+type Configuration__950030461 =
+  {var maxBatches : ?Nat64; var maxBytes : ?Nat64; var maxChunks : ?Nat64};
+type Configuration__985635679 =
+  {var max_batches : ?Nat64; var max_bytes : ?Nat64; var max_chunks : ?Nat64};
+type ContentRef__911298168 =
+  {
+    #BlobStorage : {blobId : Blob; size : Nat};
+    #OnChain : SizedPointer__492281187
+  };
+type CorrelationId__902661563 = Text;
+type CreateAssetArguments__176366261 =
+  {
+    allow_raw_access : ?Bool;
+    content_type : Text;
+    enable_aliasing : ?Bool;
+    headers : ?[Header__812575884];
+    key : Key__115393779;
+    max_age : ?Nat64
+  };
+type CreateAssetArguments__184929976 =
+  {
+    allow_raw_access : ?Bool;
+    content_type : Text;
+    enable_aliasing : ?Bool;
+    headers : ?[Header__294785360];
+    key : Key__421561766;
+    max_age : ?Nat64
+  };
+type CreateAssetArguments__261501654 =
+  {
+    allow_raw_access : ?Bool;
+    content_type : Text;
+    enable_aliasing : ?Bool;
+    headers : ?[Header__199765800];
+    key : Key__446470443;
+    max_age : ?Nat64
+  };
+type CreateAssetArguments__459102675 =
+  {
+    allow_raw_access : ?Bool;
+    content_type : Text;
+    enable_aliasing : ?Bool;
+    headers : ?[Header__804103735];
+    key : Key__653048086;
+    max_age : ?Nat64
+  };
+type CreateAssetArguments__460603350 =
+  {
+    allow_raw_access : ?Bool;
+    content_type : Text;
+    enable_aliasing : ?Bool;
+    headers : ?[Header__606654697];
+    key : Key__384427362;
+    max_age : ?Nat64
+  };
+type CreateAssetArguments__837138725 =
+  {
+    allow_raw_access : ?Bool;
+    content_type : Text;
+    enable_aliasing : ?Bool;
+    headers : ?[Header__871621577];
+    key : Key__292598047;
+    max_age : ?Nat64
+  };
+type CurrentMemoryRegion__211818865 = MemoryRegionV1__671198960;
+type CurrentMemoryRegion__66923225 = MemoryRegionV1__288728257;
+type CycleAlertLevel__259846905 = {#critical; #warning};
+type Data__80296667<K, V> =
+  {var count : Nat__1040412405; kvs : [var ?(K, V)]};
+type DeleteAssetArguments__143184776 = {key : Key__384427362};
+type DeleteAssetArguments__435467994 = {key : Key__292598047};
+type DeleteAssetArguments__703748404 = {key : Key__115393779};
+type DeleteAssetArguments__915215972 = {key : Key__653048086};
+type DeleteAssetArguments__92446183 = {key : Key__421561766};
+type DeleteAssetArguments__983226034 = {key : Key__446470443};
+type DirectoryColor__106128965 =
+  {#blue; #gray; #green; #orange; #pink; #purple; #yellow};
+type DirectoryMetadataStore__724588407 =
+  {
+    var color : ?DirectoryColor__106128965;
+    var defaultThumbnailStorageBackend : StorageBackend__9715443;
+    var thumbnailStoragePolicy : ThumbnailStoragePolicy__322624818
+  };
+type Directory__131165810 =
+  Map__277575309<Text, HierarchicalAssets__973512633>;
+type Directory__617814113 =
+  Map__585000359<Text, HierarchicalAssets__392424796>;
+type Directory__693534183 =
+  Map__5222804<Text, HierarchicalAssets__1055427746>;
+type DurableAccessPolicy__684229478 =
+  {
+    cancelledAt : ?Time__688418391;
+    createdAt : Time__688418391;
+    createdBy : Principal;
+    graceStartedAt : ?Time__688418391;
+    grants : [DurablePolicyGrantTemplate__767344710];
+    id : Nat;
+    maturedAt : ?Time__688418391;
+    pendingGrantIds : [Nat];
+    principalGrantIds : [Nat];
+    proVerifiedAt : Time__688418391;
+    recipients : [AccessRef__806145201];
+    releasedAt : ?Time__688418391;
+    status : DurablePolicyStatus__427174297;
+    trigger : DurablePolicyTrigger__755927958
+  };
+type DurablePolicyGrantTemplate__767344710 =
+  {permission : Permission__343158963; scope : AccessScope__233280712};
+type DurablePolicyStatus__427174297 =
+  {#armed; #cancelled; #grace; #matured; #released};
+type DurablePolicyStatus__99295939 = DurablePolicyStatus__427174297;
+type DurablePolicyTrigger__755927958 =
+  {
+    #date : {releaseAt : Time__688418391};
+    #inactivity : {gracePeriodNs : ?Nat; inactiveForNs : Nat};
+    #manualRelease
+  };
+type DurablePolicyTrigger__803957064 = DurablePolicyTrigger__755927958;
+type EmailClaimOrigin__197809550 = EmailClaimOrigin__875699708;
+type EmailClaimOrigin__875699708 = {#rabbithole; #storage};
+type EmailClaimState__1023956463 = EmailClaimState__765308887;
+type EmailClaimState__765308887 =
+  {rabbithole : ?EmailClaim__195987362; storage : ?EmailClaim__195987362};
+type EmailClaim__195987362 =
+  {
+    claimedAt : Time__688418391;
+    origin : EmailClaimOrigin__875699708;
+    principal : Principal;
+    principalGrantId : Nat
+  };
+type EmailCommitment__959255768 = Blob;
+type EndpointRecord__879139950 =
+  {
+    hash : Blob;
+    is_fallback_path : Bool;
+    method : Text;
+    no_certification : Bool;
+    no_request_certification : Bool;
+    query_params : [(Text, Text)];
+    request_headers : [Header__199765800];
+    response_headers : [Header__199765800];
+    status : Nat16;
+    url : Text
+  };
+type EndpointRecord__938466629 = EndpointRecord__879139950;
+type EndpointsMap__833150611 =
+  Map__1019588635<Blob, Vector__966065046<Metadata__83425139>>;
+type Entry__660971563 = ({#Directory; #File}, Text);
+type Envelope__428630401 = Envelope__950426692;
+type Envelope__950426692 = StorageAccessChanged__16960090;
+type EvidenceComputation__223076040 =
+  {
+    #Computed : Blob;
+    #NextChunkIndex : NextChunkIndex__156415046;
+    #NextOperation : NextOperation__550397387
+  };
+type EvidenceComputation__554744621 =
+  {
+    #Computed : Blob;
+    #NextChunkIndex : NextChunkIndex__103224411;
+    #NextOperation : NextOperation__897943413
+  };
+type EvidenceComputation__745350584 =
+  {
+    #Computed : Blob;
+    #NextChunkIndex : NextChunkIndex__747998726;
+    #NextOperation : NextOperation__785940180
+  };
+type EvidenceComputation__819544670 =
+  {
+    #Computed : Blob;
+    #NextChunkIndex : NextChunkIndex__1007580456;
+    #NextOperation : NextOperation__637000331
+  };
+type EvidenceComputation__934468053 =
+  {
+    #Computed : Blob;
+    #NextChunkIndex : NextChunkIndex__185807529;
+    #NextOperation : NextOperation__881238474
+  };
+type EvidenceComputation__971481558 =
+  {
+    #Computed : Blob;
+    #NextChunkIndex : NextChunkIndex__313511701;
+    #NextOperation : NextOperation__207421851
+  };
+type FileMetadataStore__185758493 =
+  {
+    var currentVersion : Nat;
+    var locked : Bool;
+    var maxVersions : ?Nat;
+    var nextVersionId : Nat;
+    var thumbnailRef : ?ThumbnailRef__49959790;
+    versions : Map__222667396<Nat, FileVersion__271351035>
+  };
+type FileSystemStore__491281670 =
+  {
+    nodes : Map__714078229<NodeKey__522615548, NodeStore__101538774>;
+    region : MemoryRegion__184287347;
+    rootPermissions : PermissionMap__631129255;
+    tid : Store__1019868334
+  };
+type FileSystem__1037799010 =
+  {
+    certs : CertifiedAssets__947232077;
+    region : MemoryRegion__547383546;
+    root : Directory__131165810
+  };
+type FileSystem__131343986 =
+  {
+    certs : CertifiedAssets__128969438;
+    region : MemoryRegion__1005292892;
+    root : Directory__693534183
+  };
+type FileSystem__750261061 =
+  {
+    certs : CertifiedAssets__350796196;
+    region : MemoryRegion__735462361;
+    root : Directory__617814113
+  };
+type FileVersion__271351035 =
+  {
+    chunks : [ContentRef__911298168];
+    contentType : Text;
+    createdAt : Time__688418391;
+    sha256 : ?Blob;
+    size : Nat
+  };
+type FreeMemoryV1__499254004 = MaxBpTree__206817037<Nat, Nat>;
+type FreeMemoryV1__589152223 = MaxBpTree__234161830<Nat, Nat>;
+type Hash__118213947 = Blob;
+type Header__199765800 = (Text, Text);
+type Header__294785360 = (Text, Text);
+type Header__606654697 = (Text, Text);
+type Header__804103735 = (Text, Text);
+type Header__812575884 = (Text, Text);
+type Header__871621577 = (Text, Text);
+type HierarchicalAssets__1055427746 =
+  {
+    #Asset : Asset__691612182;
+    #Directory : Map__5222804<Text, HierarchicalAssets__1055427746>
+  };
+type HierarchicalAssets__392424796 =
+  {
+    #Asset : Asset__360512352;
+    #Directory : Map__585000359<Text, HierarchicalAssets__392424796>
+  };
+type HierarchicalAssets__973512633 =
+  {
+    #Asset : Asset__704720838;
+    #Directory : Map__277575309<Text, HierarchicalAssets__973512633>
+  };
+type Int__616954475 = Int;
+type Int__837511138 = Int__616954475;
+type Internal__41346355<K, V> =
+  {children : [var ?Node__1000929467<K, V>]; data : Data__80296667<K, V>};
+type IntervalLength__163078499 = Nat;
+type Interval__878782851 =
+  {len : IntervalLength__163078499; prefix : Prefix__1012404610};
+type KeyId__378940330 = (Owner__363752830, KeyName__775973031);
+type KeyId__595194856 = (Principal, Blob);
+type KeyName__775973031 = Blob;
+type Key__115393779 = Text;
+type Key__292598047 = Text;
+type Key__384427362 = Text;
+type Key__421561766 = Text;
+type Key__446470443 = Text;
+type Key__653048086 = Text;
+type Key__688476832 = Blob;
+type LabeledTree__635685729 =
+  {#leaf : Leaf__942280788; #subtree : OT__959610089};
+type Leaf__573191812<K, V> =
+  (nats : [var Nat], parent : [var ?Branch__187687365<K, V>],
+   adjacent_nodes : [var ?Leaf__573191812<K, V>], kvs : [var ?(K, V)],
+   max : [var ?(K, V)]);
+type Leaf__677153095<K, V> =
+  (nats : [var Nat], parent : [var ?Branch__693075160<K, V>],
+   adjacent_nodes : [var ?Leaf__677153095<K, V>], kvs : [var ?(K, V)],
+   max : [var ?(K, V)]);
+type Leaf__712614010<K, V> = {data : Data__80296667<K, V>};
+type Leaf__942280788 =
+  {leaf_hash : Hash__118213947; value : Value__103857721};
+type Map__1019588635<K, V> = Map__714078229<K, V>;
+type Map__119062048<K, V> = Map__714078229<K, V>;
+type Map__222667396<K, V> = Map__912772452<K, V>;
+type Map__277575309<K, V> = Map__714078229<K, V>;
+type Map__5222804<K, V> = Map__714078229<K, V>;
+type Map__585000359<K, V> = Map__714078229<K, V>;
+type Map__709709801<K, V> =
+  {var root : Node__1000929467<K, V>; var size : Nat__1040412405};
+type Map__714078229<K, V> = Map__741714040<K, V>;
+type Map__741665563<K, V> = Map__714078229<K, V>;
+type Map__741714040<K, V> =
+  [var ?(keys : [var ?K], values : [var ?V], indexes : [var Nat],
+         bounds : [var Nat32])];
+type Map__912772452<K, V> = Map__709709801<K, V>;
+type Map__963703356<K, V> = Map__714078229<K, V>;
+type MaxBpTree__206817037<K, V> = MaxBpTree__516326031<K, V>;
+type MaxBpTree__234161830<K, V> = MaxBpTree__578320783<K, V>;
+type MaxBpTree__516326031<K, V> =
+  {
+    var next_id : Nat;
+    order : Nat;
+    var root : Node__1049340821<K, V>;
+    var size : Nat
+  };
+type MaxBpTree__578320783<K, V> =
+  {
+    var next_id : Nat;
+    order : Nat;
+    var root : Node__519412156<K, V>;
+    var size : Nat
+  };
+type MemoryRegionV1__288728257 =
+  {
+    var deallocated : Nat;
+    var free_memory : FreeMemoryV1__499254004;
+    var pages : Nat;
+    region : Region;
+    var size : Nat
+  };
+type MemoryRegionV1__671198960 =
+  {
+    var deallocated : Nat;
+    var free_memory : FreeMemoryV1__589152223;
+    var pages : Nat;
+    region : Region;
+    var size : Nat
+  };
+type MemoryRegion__1005292892 = MemoryRegion__536933513;
+type MemoryRegion__184287347 = CurrentMemoryRegion__211818865;
+type MemoryRegion__536933513 = CurrentMemoryRegion__66923225;
+type MemoryRegion__547383546 = MemoryRegion__536933513;
+type MemoryRegion__735462361 = MemoryRegion__536933513;
+type MetadataMap__537899786 =
+  Map__1019588635<Text, SplitMetadataEndpoints__1032926053>;
+type Metadata__83425139 =
+  {
+    encoded_expr_path : Blob;
+    endpoint : EndpointRecord__938466629;
+    full_expr_path : [Blob];
+    ic_certificate_expression : Text
+  };
+type Nat__1040412405 = Nat__920180692;
+type Nat__920180692 = Nat;
+type NextChunkIndex__1007580456 =
+  {
+    chunk_index : Nat;
+    hasher : StaticSha256__965629815;
+    operation_index : Nat
+  };
+type NextChunkIndex__103224411 =
+  {
+    chunk_index : Nat;
+    hasher_state : StaticSha256__965629815;
+    operation_index : Nat
+  };
+type NextChunkIndex__156415046 =
+  {
+    chunk_index : Nat;
+    hasher_state : StaticSha256__965629815;
+    operation_index : Nat
+  };
+type NextChunkIndex__185807529 =
+  {
+    chunk_index : Nat;
+    hasher_state : StaticSha256__965629815;
+    operation_index : Nat
+  };
+type NextChunkIndex__313511701 =
+  {
+    chunk_index : Nat;
+    hasher_state : StaticSha256__965629815;
+    operation_index : Nat
+  };
+type NextChunkIndex__747998726 =
+  {
+    chunk_index : Nat;
+    hasher_state : StaticSha256__965629815;
+    operation_index : Nat
+  };
+type NextOperation__207421851 =
+  {hasher_state : StaticSha256__965629815; operation_index : Nat};
+type NextOperation__550397387 =
+  {hasher_state : StaticSha256__965629815; operation_index : Nat};
+type NextOperation__637000331 =
+  {hasher : StaticSha256__965629815; operation_index : Nat};
+type NextOperation__785940180 =
+  {hasher_state : StaticSha256__965629815; operation_index : Nat};
+type NextOperation__881238474 =
+  {hasher_state : StaticSha256__965629815; operation_index : Nat};
+type NextOperation__897943413 =
+  {hasher_state : StaticSha256__965629815; operation_index : Nat};
+type NodeKey__522615548 = ({#Directory; #File}, ?Nat64, Text);
+type NodeMetadataStore__787245721 =
+  {
+    #Directory : DirectoryMetadataStore__724588407;
+    #File : FileMetadataStore__185758493
+  };
+type NodeStore__101538774 =
+  {
+    createdAt : Time__688418391;
+    id : Nat64;
+    keyId : KeyId__378940330;
+    metadata : NodeMetadataStore__787245721;
+    var modifiedAt : ?Time__688418391;
+    var name : Text;
+    var parentId : ?Nat64;
+    permissions : PermissionMap__631129255
+  };
+type Node__1000929467<K, V> =
+  {#internal : Internal__41346355<K, V>; #leaf : Leaf__712614010<K, V>};
+type Node__1049340821<K, V> =
+  {#branch : Branch__187687365<K, V>; #leaf : Leaf__573191812<K, V>};
+type Node__519412156<K, V> =
+  {#branch : Branch__693075160<K, V>; #leaf : Leaf__677153095<K, V>};
+type OT__959610089 = ?T__371227266;
+type OwnerActivityOrigin__519721900 = {#backend; #rabbithole; #storage};
+type OwnerActivityOrigin__891689819 = OwnerActivityOrigin__519721900;
+type OwnerActivityRecord__947865508 =
+  {
+    lastSeenAt : Time__688418391;
+    origin : OwnerActivityOrigin__519721900;
+    principal : Principal;
+    role : OwnerActivityRole__389243552
+  };
+type OwnerActivityRole__389243552 = {#accountOwner; #recoveryOwner};
+type OwnerActivityRole__644584214 = OwnerActivityRole__389243552;
+type OwnerEquivalentPrincipal__241616258 =
+  {
+    addedAt : Time__688418391;
+    addedBy : Principal;
+    controllerRecoveryEnabled : Bool;
+    kind : {#accountOwner; #recoveryOwner};
+    principal : Principal;
+    revokedAt : ?Time__688418391;
+    rootPermissionBeforeRecovery : ?Permission__343158963
+  };
+type Owner__363752830 = Principal;
+type PendingAccessGrant__1047445589 =
+  {
+    accessClass : AccessClass__441286812;
+    cancelledAt : ?Time__688418391;
+    claimedAt : ?Time__688418391;
+    claimedBy : ?Principal;
+    createdAt : Time__688418391;
+    createdBy : Principal;
+    emailClaimState : EmailClaimState__765308887;
+    expiresAt : ?Time__688418391;
+    id : Nat;
+    permission : Permission__343158963;
+    ref : AccessRef__806145201;
+    scope : AccessScope__233280712;
+    source : AccessSource__780949223
+  };
+type PermissionMap__631129255 =
+  Map__714078229<Principal, Permission__263704963>;
+type Permission__263704963 = AccessRights__309270436;
+type Permission__343158963 = AccessRights__309270436;
+type Permissions__1063090592 =
+  {
+    commit_principals : Set__11707523<Principal>;
+    manage_permissions_principals : Set__11707523<Principal>;
+    prepare_principals : Set__11707523<Principal>
+  };
+type Permissions__474281678 =
+  {
+    commit_principals : Set__474512162<Principal>;
+    manage_permissions_principals : Set__474512162<Principal>;
+    prepare_principals : Set__474512162<Principal>
+  };
+type Permissions__861783924 =
+  {
+    commit_principals : Set__986457920<Principal>;
+    manage_permissions_principals : Set__986457920<Principal>;
+    prepare_principals : Set__986457920<Principal>
+  };
+type Plan__379545511 = {#Free; #License; #Pro};
+type Prefix__1012404610 = [Nat8];
+type Prefix__102346302 = [Nat8];
+type PrincipalAccessGrant__92824139 =
+  {
+    accessClass : AccessClass__441286812;
+    createdAt : Time__688418391;
+    createdBy : Principal;
+    id : Nat;
+    permission : Permission__343158963;
+    principal : Principal;
+    revokedAt : ?Time__688418391;
+    scope : AccessScope__233280712;
+    source : AccessSource__780949223
+  };
+type ReadState__404715511 = {readCursors : Map__714078229<Principal, Nat>};
+type SetAssetContentArguments__13022323 =
+  {
+    chunk_ids : [ChunkId__838700966];
+    content_encoding : Text;
+    key : Key__446470443;
+    sha256 : ?Blob
+  };
+type SetAssetContentArguments__131566991 =
+  {
+    chunk_ids : [ChunkId__278478019];
+    content_encoding : Text;
+    key : Key__115393779;
+    sha256 : ?Blob
+  };
+type SetAssetContentArguments__5083473 =
+  {
+    chunk_ids : [ChunkId__402541065];
+    content_encoding : Text;
+    key : Key__421561766;
+    sha256 : ?Blob
+  };
+type SetAssetContentArguments__554691527 =
+  {
+    chunk_ids : [ChunkId__526432353];
+    content_encoding : Text;
+    key : Key__653048086;
+    sha256 : ?Blob
+  };
+type SetAssetContentArguments__681915629 =
+  {
+    chunk_ids : [ChunkId__823460631];
+    content_encoding : Text;
+    key : Key__292598047;
+    sha256 : ?Blob
+  };
+type SetAssetContentArguments__894491973 =
+  {
+    chunk_ids : [ChunkId__1015970603];
+    content_encoding : Text;
+    key : Key__384427362;
+    sha256 : ?Blob
+  };
+type SetAssetPropertiesArguments__61337798 =
+  {
+    allow_raw_access : ??Bool;
+    headers : ??[Header__804103735];
+    is_aliased : ??Bool;
+    key : Key__653048086;
+    max_age : ??Nat64
+  };
+type SetAssetPropertiesArguments__640832319 =
+  {
+    allow_raw_access : ??Bool;
+    headers : ??[Header__294785360];
+    is_aliased : ??Bool;
+    key : Key__421561766;
+    max_age : ??Nat64
+  };
+type SetAssetPropertiesArguments__782384624 =
+  {
+    allow_raw_access : ??Bool;
+    headers : ??[Header__812575884];
+    is_aliased : ??Bool;
+    key : Key__115393779;
+    max_age : ??Nat64
+  };
+type SetAssetPropertiesArguments__882431217 =
+  {
+    allow_raw_access : ??Bool;
+    headers : ??[Header__199765800];
+    is_aliased : ??Bool;
+    key : Key__446470443;
+    max_age : ??Nat64
+  };
+type SetAssetPropertiesArguments__990420311 =
+  {
+    allow_raw_access : ??Bool;
+    headers : ??[Header__871621577];
+    is_aliased : ??Bool;
+    key : Key__292598047;
+    max_age : ??Nat64
+  };
+type SetAssetPropertiesArguments__993301525 =
+  {
+    allow_raw_access : ??Bool;
+    headers : ??[Header__606654697];
+    is_aliased : ??Bool;
+    key : Key__384427362;
+    max_age : ??Nat64
+  };
+type Set__11707523<V> = Set__483445189<V>;
+type Set__333020939<V> = Set__483445189<V>;
+type Set__417722533<K> =
+  [var ?(keys : [var ?K], indexes : [var Nat], bounds : [var Nat32])];
+type Set__474512162<V> = Set__483445189<V>;
+type Set__483445189<K> = Set__417722533<K>;
+type Set__766004623<V> = Set__483445189<V>;
+type Set__777644735<V> = Set__483445189<V>;
+type Set__986457920<V> = Set__483445189<V>;
+type SizedPointer__304776323 = (Nat, Nat);
+type SizedPointer__460139987 = (Nat, Nat);
+type SizedPointer__489726092 = (Nat, Nat);
+type SizedPointer__492281187 = (Nat, Nat);
+type SplitMetadataEndpoints__1032926053 =
+  {
+    endpoints : EndpointsMap__833150611;
+    fallback_endpoints : EndpointsMap__833150611
+  };
+type StableStore__1017802319 =
+  {
+    access : Store__1025425604;
+    var backendId : ?Principal;
+    var cachedIdleBurnPerDay : ?Nat;
+    var cachedModuleHash : ?Blob;
+    canisterId : Principal;
+    certs : StableStore__1038099049;
+    domainSeparatorBytes : Blob;
+    fs : FileSystemStore__491281670;
+    var lastCycleAlertAt : Time__688418391;
+    var lastCycleAlertLevel : ?CycleAlertLevel__259846905;
+    region : MemoryRegion__184287347;
+    staging : Map__714078229<NodeKey__522615548, StagingEntry__107179809>;
+    storageBackendType : StorageBackend__9715443;
+    storageEventReadState : ReadState__404715511;
+    storageEvents : Store__422936405;
+    var storedBytesUsed : Nat;
+    var streamingCallback : ?StreamingCallback__673406315;
+    var subscriptionCache : ?SubscriptionCache__512281343;
+    upload : UploadStore__742135918;
+    vetKdKeyId : VetKdKeyid__485245058
+  };
+type StableStore__1038099049 =
+  {metadata_map : MetadataMap__537899786; var tree : Tree__655256501};
+type StableStore__156939200 =
+  {
+    var canister_id : Principal;
+    fs : FileSystem__1037799010;
+    permissions : Permissions__861783924;
+    shared_region : MemoryRegion__547383546;
+    var streaming_callback : ?StreamingCallback__942411031;
+    upload : Upload__63236540
+  };
+type StableStore__16837248 =
+  {
+    var canister_id : Principal;
+    fs : FileSystem__750261061;
+    permissions : Permissions__474281678;
+    shared_region : MemoryRegion__735462361;
+    var streaming_callback : ?StreamingCallback__16564142;
+    upload : Upload__573518075
+  };
+type StableStore__274570108 =
+  {
+    assets : Map__963703356<Key__384427362, Asset__389573022>;
+    batches : Map__963703356<BatchId__580583955, Batch__264223883>;
+    var canister_id : Principal;
+    certificate_store : StableStore__1038099049;
+    chunks : Map__963703356<ChunkId__1015970603, StoredChunk__894833069>;
+    commit_principals : Set__766004623<Principal>;
+    configuration : Configuration__420294761;
+    copy_on_write_batches :
+      Map__963703356<BatchId__580583955, [(Text, ?Asset__389573022)]>;
+    manage_permissions_principals : Set__766004623<Principal>;
+    var next_batch_id : BatchId__580583955;
+    var next_chunk_id : ChunkId__1015970603;
+    prepare_principals : Set__766004623<Principal>;
+    var streaming_callback : ?StreamingCallback__837348909
+  };
+type StableStore__560144507 = StableStore__1038099049;
+type StableStore__594888907 =
+  {
+    assets : Map__119062048<Key__292598047, Asset__502192592>;
+    batches : Map__119062048<BatchId__884276788, Batch__903028767>;
+    var canister_id : Principal;
+    certificate_store : StableStore__1038099049;
+    chunks : Map__119062048<ChunkId__823460631, StoredChunk__249298921>;
+    commit_principals : Set__333020939<Principal>;
+    configuration : Configuration__578343386;
+    copy_on_write_batches :
+      Map__119062048<BatchId__884276788, [(Text, ?Asset__502192592)]>;
+    manage_permissions_principals : Set__333020939<Principal>;
+    var next_batch_id : BatchId__884276788;
+    var next_chunk_id : ChunkId__823460631;
+    prepare_principals : Set__333020939<Principal>;
+    var streaming_callback : ?StreamingCallback__393587992
+  };
+type StableStore__827709075 =
+  {
+    assets : Map__741665563<Key__446470443, Asset__563752029>;
+    batches : Map__741665563<BatchId__388511869, Batch__839297605>;
+    var canister_id : ?Principal;
+    certificate_store : StableStore__560144507;
+    chunks : Map__741665563<ChunkId__838700966, Chunk__578967033>;
+    commit_principals : Set__777644735<Principal>;
+    configuration : Configuration__985635679;
+    manage_permissions_principals : Set__777644735<Principal>;
+    var next_batch_id : BatchId__388511869;
+    var next_chunk_id : ChunkId__838700966;
+    prepare_principals : Set__777644735<Principal>;
+    var streaming_callback : ?StreamingCallback__864714357
+  };
+type StagingEntry__107179809 =
+  {
+    var batchId : ?BatchId__658900428;
+    createdAt : Time__688418391;
+    node : NodeStore__101538774
+  };
+type StaticSha256__965629815 =
+  {
+    digest : [Nat8];
+    high : Bool;
+    i_block : Nat32;
+    i_msg : Nat8;
+    msg : [Nat16];
+    sh : [Nat16];
+    sl : [Nat16];
+    word : Nat16
+  };
+type StaticSha256__991582920 =
+  {
+    digest : [Nat8];
+    high : Bool;
+    i_block : Nat32;
+    i_msg : Nat8;
+    msg : [Nat16];
+    sh : [Nat16];
+    sl : [Nat16];
+    word : Nat16
+  };
+type StorageAccessChanged__16960090 =
+  {
+    accountOwner : Principal;
+    correlationId : ?CorrelationId__902661563;
+    event : StorageAccessLifecycleEvent__318577652;
+    storageCanisterId : Principal;
+    storageEventId : Nat
+  };
+type StorageAccessEvent__56488794 =
+  {
+    #accessRequestCancelled : {requestId : Nat; requester : Principal};
+    #accessRequestCreated : {requestId : Nat; requester : Principal};
+    #accessRequestResolved :
+      {
+        requestId : Nat;
+        requester : Principal;
+        status : AccessRequestStatus__676051105
+      };
+    #durablePolicyCancelled : {policyId : Nat};
+    #durablePolicyCreated :
+      {
+        policyId : Nat;
+        status : DurablePolicyStatus__427174297;
+        trigger : DurablePolicyTrigger__755927958
+      };
+    #durablePolicyGraceStarted : {policyId : Nat};
+    #durablePolicyMatured : {policyId : Nat};
+    #durablePolicyReleased : {policyId : Nat};
+    #ownerActivityRecorded :
+      {
+        origin : OwnerActivityOrigin__519721900;
+        principal : Principal;
+        role : OwnerActivityRole__389243552
+      };
+    #pendingGrantCancelled : {grantId : Nat; ref : AccessRef__806145201};
+    #pendingGrantClaimed :
+      {
+        accessClass : AccessClass__441286812;
+        claimOrigin : ?EmailClaimOrigin__875699708;
+        emailClaimState : ?EmailClaimState__765308887;
+        grantId : Nat;
+        principal : Principal;
+        source : AccessSource__780949223
+      };
+    #pendingGrantCreated :
+      {
+        accessClass : AccessClass__441286812;
+        grantId : Nat;
+        ref : AccessRef__806145201;
+        source : AccessSource__780949223
+      };
+    #principalGrantCreated :
+      {
+        accessClass : AccessClass__441286812;
+        grantId : ?Nat;
+        principal : Principal;
+        source : AccessSource__780949223
+      };
+    #principalGrantRevoked :
+      {accessClass : ?AccessClass__441286812; principal : Principal};
+    #recoveryControllerCleared : {principal : Principal};
+    #recoveryControllerRegistered :
+      {previous : ?Principal; principal : Principal};
+    #recoveryOwnerAdded : {principal : Principal};
+    #recoveryOwnerRemoved : {principal : Principal}
+  };
+type StorageAccessLifecycleEvent__318577652 =
+  {
+    #accessRequestCancelled : {requestId : Nat; requester : Principal};
+    #accessRequestCreated : {requestId : Nat; requester : Principal};
+    #accessRequestResolved :
+      {
+        requestId : Nat;
+        requester : Principal;
+        status : AccessRequestStatus__894682076
+      };
+    #durablePolicyCancelled : {policyId : Nat};
+    #durablePolicyCreated :
+      {
+        policyId : Nat;
+        status : DurablePolicyStatus__99295939;
+        trigger : DurablePolicyTrigger__803957064
+      };
+    #durablePolicyGraceStarted : {policyId : Nat};
+    #durablePolicyMatured : {policyId : Nat};
+    #durablePolicyReleased : {policyId : Nat};
+    #ownerActivityRecorded :
+      {
+        origin : OwnerActivityOrigin__891689819;
+        principal : Principal;
+        role : OwnerActivityRole__644584214
+      };
+    #pendingGrantCancelled :
+      {emailCommitment : ?Blob; grantId : Nat; recipient : ?Principal};
+    #pendingGrantClaimed :
+      {
+        accessClass : AccessClass__858344779;
+        claimOrigin : ?EmailClaimOrigin__197809550;
+        emailClaimState : ?EmailClaimState__1023956463;
+        grantId : Nat;
+        principal : Principal;
+        source : AccessSource__944961388
+      };
+    #pendingGrantCreated :
+      {
+        accessClass : AccessClass__858344779;
+        emailCommitment : ?Blob;
+        grantId : Nat;
+        recipient : ?Principal;
+        source : AccessSource__944961388
+      };
+    #principalGrantCreated :
+      {
+        accessClass : AccessClass__858344779;
+        grantId : ?Nat;
+        principal : Principal;
+        source : AccessSource__944961388
+      };
+    #principalGrantRevoked :
+      {accessClass : ?AccessClass__858344779; principal : Principal};
+    #recoveryControllerCleared : {principal : Principal};
+    #recoveryControllerRegistered :
+      {previous : ?Principal; principal : Principal};
+    #recoveryOwnerAdded : {principal : Principal};
+    #recoveryOwnerRemoved : {principal : Principal}
+  };
+type StorageBackend__9715443 = {#BlobStorage; #OnChain};
+type StorageEvent__919539343 = {#access : StorageAccessEvent__56488794};
+type StorageReleaseState__390246427 =
+  {
+    frontendAssetTreeHash : ?Blob;
+    installedAt : ?Time__688418391;
+    manifestHash : ?Blob;
+    releaseTag : ?Text;
+    schemaVersion : Nat;
+    wasmHash : ?Blob
+  };
+type Store__1019868334 = {var clockId : Nat; var lastTime : Nat};
+type Store__1025425604 =
+  {
+    accessRequests : Map__714078229<Nat, AccessRequest__326593393>;
+    durablePolicies : Map__714078229<Nat, DurableAccessPolicy__684229478>;
+    var lastOwnerActivityAt : Time__688418391;
+    var lastOwnerActivityBy : Principal;
+    var nextAccessRequestId : Nat;
+    var nextDurablePolicyId : Nat;
+    var nextGrantId : Nat;
+    ownerActivityRecords :
+      Map__714078229<Principal, OwnerActivityRecord__947865508>;
+    ownerEquivalentPrincipals :
+      Map__714078229<Principal, OwnerEquivalentPrincipal__241616258>;
+    pendingGrants : Map__714078229<Nat, PendingAccessGrant__1047445589>;
+    principalGrants : Map__714078229<Nat, PrincipalAccessGrant__92824139>;
+    var recoveryController : ?Principal
+  };
+type Store__422936405 =
+  {
+    events : Map__714078229<Nat, StoredStorageEvent__86676367>;
+    var nextEventId : Nat
+  };
+type StoredChunk__249298921 =
+  {batch_id : BatchId__884276788; content : [Nat8]};
+type StoredChunk__321276854 =
+  {batch_id : BatchId__372378926; pointer : SizedPointer__489726092};
+type StoredChunk__556745375 =
+  {batch_id : BatchId__692425865; pointer : SizedPointer__304776323};
+type StoredChunk__603357213 =
+  {
+    batchId : BatchId__658900428;
+    chunkIndex : Nat;
+    pointer : SizedPointer__492281187
+  };
+type StoredChunk__74522056 =
+  {batch_id : BatchId__1038169779; pointer : SizedPointer__460139987};
+type StoredChunk__894833069 = {batch_id : BatchId__580583955; content : Blob};
+type StoredStorageEvent__86676367 =
+  {
+    correlationId : ?Text;
+    event : StorageEvent__919539343;
+    id : Nat;
+    timestamp : Time__688418391;
+    visibleTo : [Principal]
+  };
+type StreamingCallbackResponse__229102861 =
+  {body : Blob; token : ?StreamingToken__342648725};
+type StreamingCallbackResponse__495793180 =
+  {body : Blob; token : ?StreamingToken__137052273};
+type StreamingCallbackResponse__760017910 =
+  {body : Blob; token : ?StreamingToken__83828531};
+type StreamingCallbackResponse__816198981 =
+  {body : Blob; token : ?StreamingToken__640159840};
+type StreamingCallbackResponse__841598656 =
+  {body : Blob; token : ?StreamingToken__761133299};
+type StreamingCallbackResponse__880466580 =
+  {body : Blob; token : ?StreamingToken__918939272};
+type StreamingCallbackResponse__911114771 =
+  {body : Blob; token : ?StreamingToken__257603609};
+type StreamingCallback__16564142 =
+  shared query StreamingToken__257603609 ->
+    async StreamingCallbackResponse__911114771;
+type StreamingCallback__393587992 =
+  shared query StreamingToken__137052273 ->
+    async StreamingCallbackResponse__495793180;
+type StreamingCallback__556296461 =
+  shared query StreamingToken__761133299 ->
+    async StreamingCallbackResponse__841598656;
+type StreamingCallback__673406315 =
+  shared query StreamingToken__918939272 ->
+    async StreamingCallbackResponse__880466580;
+type StreamingCallback__837348909 =
+  shared query StreamingToken__83828531 ->
+    async StreamingCallbackResponse__760017910;
+type StreamingCallback__864714357 =
+  shared query StreamingToken__640159840 ->
+    async ?StreamingCallbackResponse__816198981;
+type StreamingCallback__942411031 =
+  shared query StreamingToken__342648725 ->
+    async StreamingCallbackResponse__229102861;
+type StreamingToken__137052273 =
+  {
+    content_encoding : Text;
+    index : Nat;
+    key : Key__292598047;
+    sha256 : ?Blob
+  };
+type StreamingToken__257603609 = Blob;
+type StreamingToken__342648725 =
+  {
+    content_encoding : Text;
+    index : Nat;
+    key : Key__653048086;
+    sha256 : ?Blob
+  };
+type StreamingToken__640159840 = Blob;
+type StreamingToken__761133299 = Blob;
+type StreamingToken__83828531 =
+  {
+    content_encoding : Text;
+    index : Nat;
+    key : Key__384427362;
+    sha256 : ?Blob
+  };
+type StreamingToken__918939272 = Blob;
+type SubscriptionCache__512281343 =
+  {checkedAt : Time__688418391; status : SubscriptionStatus__207404530};
+type SubscriptionStatus__207404530 =
+  {
+    #active : {plan : Plan__379545511};
+    #expired;
+    #free;
+    #invalidWasm;
+    #licensed : {includedBytes : Nat; maxFileBytes : Nat};
+    #unknownCanister
+  };
+type T__371227266 =
+  {
+    #fork :
+      {
+        hash : Hash__118213947;
+        interval : Interval__878782851;
+        left : T__371227266;
+        right : T__371227266
+      };
+    #prefix :
+      {
+        here : LabeledTree__635685729;
+        key : Key__688476832;
+        labeled_hash : Hash__118213947;
+        prefix : Prefix__102346302;
+        rest : OT__959610089;
+        tree_hash : Hash__118213947
+      }
+  };
+type ThumbnailEncryptionRef__980292006 =
+  {
+    algorithm : Text;
+    blobIv : Blob;
+    scopeKeyId : KeyId__378940330;
+    wrappedKey : Blob
+  };
+type ThumbnailRef__49959790 =
+  {
+    #BlobStorage :
+      {
+        blobId : Blob;
+        contentType : Text;
+        encryption : ThumbnailEncryptionRef__980292006;
+        rootHash : Text;
+        sha256 : ?Blob;
+        size : Nat
+      };
+    #OnChain :
+      {
+        contentType : Text;
+        encryption : ThumbnailEncryptionRef__980292006;
+        key : Text;
+        sha256 : ?Blob;
+        size : Nat
+      }
+  };
+type ThumbnailStoragePolicy__322624818 = {#BlobStorage; #Inherit; #OnChain};
+type Time__171707794 = Time__38388344;
+type Time__293467431 = Time__38388344;
+type Time__298180599 = Int__837511138;
+type Time__38388344 = Int;
+type Time__688418391 = Time__298180599;
+type Time__786623093 = Time__38388344;
+type Time__868344019 = Time__38388344;
+type Time__934163199 = Time__38388344;
+type Time__937404610 = Time__38388344;
+type Tree__655256501 = LabeledTree__635685729;
+type UnsetAssetContentArguments__1017663137 =
+  {content_encoding : Text; key : Key__384427362};
+type UnsetAssetContentArguments__1020139276 =
+  {content_encoding : Text; key : Key__421561766};
+type UnsetAssetContentArguments__565568360 =
+  {content_encoding : Text; key : Key__115393779};
+type UnsetAssetContentArguments__566138103 =
+  {content_encoding : Text; key : Key__446470443};
+type UnsetAssetContentArguments__62762230 =
+  {content_encoding : Text; key : Key__292598047};
+type UnsetAssetContentArguments__700136022 =
+  {content_encoding : Text; key : Key__653048086};
+type UploadStore__742135918 =
+  {
+    batches : Map__714078229<BatchId__658900428, Batch__766621866>;
+    chunks : Map__714078229<ChunkId__444890830, StoredChunk__603357213>;
+    configuration : Configuration__950030461;
+    var nextBatchId : BatchId__658900428;
+    var nextChunkId : ChunkId__444890830;
+    region : MemoryRegion__184287347
+  };
+type Upload__204124249 =
+  {
+    batches : Map__5222804<BatchId__692425865, Batch__623147>;
+    chunks : Map__5222804<ChunkId__278478019, StoredChunk__556745375>;
+    configuration : Configuration__375164613;
+    var next_batch_id : BatchId__692425865;
+    var next_chunk_id : ChunkId__278478019;
+    region : MemoryRegion__1005292892
+  };
+type Upload__573518075 =
+  {
+    batches : Map__585000359<BatchId__1038169779, Batch__223408454>;
+    chunks : Map__585000359<ChunkId__402541065, StoredChunk__74522056>;
+    configuration : Configuration__146810592;
+    var next_batch_id : BatchId__1038169779;
+    var next_chunk_id : ChunkId__402541065;
+    region : MemoryRegion__735462361
+  };
+type Upload__63236540 =
+  {
+    batches : Map__277575309<BatchId__372378926, Batch__60641373>;
+    chunks : Map__277575309<ChunkId__526432353, StoredChunk__321276854>;
+    configuration : Configuration__154057787;
+    var next_batch_id : BatchId__372378926;
+    var next_chunk_id : ChunkId__526432353;
+    region : MemoryRegion__547383546
+  };
+type Value__103857721 = Blob;
+type Vector__342968512<X> =
+  {var data_blocks : [var [var ?X]]; var i_block : Nat; var i_element : Nat};
+type Vector__829235413<A> = Vector__985631301<A>;
+type Vector__966065046<A> = Vector__342968512<A>;
+type Vector__985631301<X> =
+  {var data_blocks : [var [var ?X]]; var i_block : Nat; var i_element : Nat};
+type VetKdKeyid__485245058 = {curve : {#bls12_381_g2}; name : Text};
+actor {
+  stable GIB_BYTES : Nat;
+  stable IC_INGRESS_BYTE_RECEPTION_CYCLES : Nat;
+  stable IC_INGRESS_MESSAGE_RECEPTION_CYCLES : Nat;
+  stable IC_UPDATE_MESSAGE_EXECUTION_CYCLES : Nat;
+  stable PAGE_BYTES : Nat;
+  stable SECONDS_PER_DAY : Nat;
+  stable STORAGE_COST_CYCLES_PER_GIB_SECOND_13_NODE : Nat;
+  stable STORAGE_FREEZING_THRESHOLD_SECONDS_FALLBACK : Nat;
+  stable STORAGE_FUNDING_IN_PROGRESS_ERROR : Text;
+  stable STORAGE_ONCHAIN_COMMIT_METADATA_CYCLES_PER_CHUNK : Nat;
+  stable STORAGE_ONCHAIN_HASH_INSTRUCTION_CYCLES_PER_BYTE : Nat;
+  stable STORAGE_ONCHAIN_STABLE_WRITE_EXECUTION_CYCLES_PER_BYTE : Nat;
+  stable STORAGE_ONCHAIN_UPLOAD_FUNDING_COOLDOWN : Int;
+  stable STORAGE_ONCHAIN_UPLOAD_OPERATION_MARGIN_CYCLES : Nat;
+  stable STORAGE_ONCHAIN_UPLOAD_TARGET_FLOOR_CYCLES : Nat;
+  stable STORAGE_VETKD_DERIVE_KEY_MARGIN_CYCLES : Nat;
+  stable STORAGE_VETKD_DERIVE_PRODUCTION_KEY_CYCLES : Nat;
+  stable STORAGE_VETKD_DERIVE_TEST_KEY_CYCLES : Nat;
+  stable var assetStableData :
+    {
+      #v0 : StableStore__827709075;
+      #v0_1_0 : StableStore__594888907;
+      #v0_2_0 : StableStore__274570108;
+      #v0_3_0 : StableStore__156939200;
+      #v1_0_0 : StableStore__16837248
+    };
+  stable canisterId : Principal;
+  stable httpAssetsState :
+    {
+      var canister_id : Principal;
+      fs : FileSystem__131343986;
+      permissions : Permissions__1063090592;
+      shared_region : MemoryRegion__1005292892;
+      var streaming_callback : ?StreamingCallback__556296461;
+      upload : Upload__204124249
+    };
+  stable owner : Principal;
+  stable var pendingStorageAccessEnvelopes : [Envelope__428630401];
+  stable var storageReleaseState : ?StorageReleaseState__390246427;
+  stable var versionedStorage : {#v1 : StableStore__1017802319}
+};

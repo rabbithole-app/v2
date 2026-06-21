@@ -31,6 +31,7 @@
   </hlm-dialog-header>
 }
 
+<div class="no-scrollbar -mx-1 max-h-[min(68vh,720px)] overflow-y-auto px-1">
 @switch (currentStep) {
   @case ('review') {
     <div class="mt-4 space-y-4">
@@ -104,6 +105,7 @@
     </div>
   }
 }
+</div>
 
 @if (currentStep !== 'upgrading') {
   <hlm-dialog-footer

@@ -31,6 +31,7 @@ export enum UploadState {
   CANCELED,
   FINALIZING,
   WAITING_FOR_FUNDING,
+  PREPARING,
 }
 
 /**
@@ -74,7 +75,7 @@ export type ContentEncoding =
   | 'identity';
 
 export type CreateStorageAccessGrant = {
-  entry?: Entry;
+  entry?: StorageAccessScope;
   permission: StoragePermission;
   target: StorageAccessTarget;
 };
@@ -99,6 +100,8 @@ export type EncryptedStorageStoreConfig = Omit<StoreConfig, 'contentEncoding'>;
 
 export type Entry = [ExtractVariantKeys<EntryKind>, string];
 
+export type StorageAccessScope = Entry | null;
+
 export type EntryKind = EntryRaw[0];
 
 export type Permission = ExtractVariantKeys<PermissionRaw>;
@@ -107,20 +110,28 @@ export type Permission = ExtractVariantKeys<PermissionRaw>;
  * Upload progress in bytes
  */
 export type Progress =
-  | { current: number; message?: string; retryAt?: number; status: UploadState.WAITING_FOR_FUNDING; total: number }
+  | {
+      current: number;
+      message?: string;
+      retryAt?: number;
+      status: UploadState.WAITING_FOR_FUNDING;
+      total: number;
+    }
   | { current: number; status: UploadState.IN_PROGRESS; total: number }
   | { errorMessage: string; status: UploadState.FAILED }
   | {
       status: Exclude<
         UploadState,
-        UploadState.FAILED | UploadState.IN_PROGRESS | UploadState.WAITING_FOR_FUNDING
+        | UploadState.FAILED
+        | UploadState.IN_PROGRESS
+        | UploadState.WAITING_FOR_FUNDING
       >;
     };
 
 export type ResolveStorageAccessRequest =
   | {
       decision: 'approved';
-      entry?: Entry;
+      entry?: StorageAccessScope;
       permission: StoragePermission;
       requestId: bigint;
     }
@@ -130,7 +141,7 @@ export type ResolveStorageAccessRequest =
     };
 
 export type RevokeStorageAccessGrant = {
-  entry?: Entry;
+  entry?: StorageAccessScope;
   principal: Principal | string;
 };
 
@@ -138,7 +149,8 @@ export type RevokeStorageAccessGrants = {
   items: RevokeStorageAccessGrant[];
 };
 
-export type StorageAccessGrantListMode = ExtractVariantKeys<AccessGrantListModeRaw>;
+export type StorageAccessGrantListMode =
+  ExtractVariantKeys<AccessGrantListModeRaw>;
 
 export type StorageAccessRequest = AccessRequestRaw;
 
@@ -215,6 +227,10 @@ export type StoreBytesArgs = [
  */
 export type StoreConfig = {
   /**
+   * Internal Blob Storage setup shared by files added in the same upload group.
+   */
+  blobStoragePreflight?: Promise<void>;
+  /**
    * Content encoding
    * @default 'identity'
    */
@@ -277,6 +293,8 @@ export function toOptionalEntryRaw(entry?: Entry): [] | [EntryRaw] {
   return entry ? [toEntryRaw(entry)] : [];
 }
 
-export function toStoragePermission(permission: StoragePermission): StoragePermissionRaw {
+export function toStoragePermission(
+  permission: StoragePermission,
+): StoragePermissionRaw {
   return { [permission]: null } as StoragePermissionRaw;
 }

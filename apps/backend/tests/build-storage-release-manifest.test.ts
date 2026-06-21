@@ -89,8 +89,9 @@ describe("build-storage-release-manifest", () => {
 
   test("computes frontend asset tree hash from the frontend directory", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "storage-release-manifest-"));
-    const artifactsDir = join(tempDir, "artifacts");
-    const frontendDir = join(tempDir, "frontend");
+    const repoDir = join(tempDir, "repo");
+    const artifactsDir = join(repoDir, "artifacts");
+    const frontendDir = join(repoDir, "frontend");
     const nestedAssetsDir = join(frontendDir, "assets");
     const outputPath = join(artifactsDir, "storage-release.json");
     const bodyPath = join(tempDir, "release-body.md");
@@ -112,8 +113,13 @@ describe("build-storage-release-manifest", () => {
     await writeFile(join(frontendDir, "._index.html"), "ignored");
     await writeFile(join(nestedAssetsDir, "._app.js"), "ignored");
 
-    execFileSync(process.execPath, [
-      scriptPath,
+    git(repoDir, ["init"]);
+    git(repoDir, ["config", "user.email", "test@example.com"]);
+    git(repoDir, ["config", "user.name", "Storage Release Test"]);
+    git(repoDir, ["add", "."]);
+    git(repoDir, ["commit", "-m", "chore(storage): prepare storage release fixture"]);
+
+    runManifest(repoDir, [
       "--version", "9.9.9",
       "--artifacts-dir", artifactsDir,
       "--frontend-dir", frontendDir,
@@ -121,10 +127,7 @@ describe("build-storage-release-manifest", () => {
       "--release-body", bodyPath,
       "--compatible-from", "0.0.1",
       "--max-commits", "1",
-    ], {
-      cwd: repoRoot,
-      stdio: "pipe",
-    });
+    ]);
 
     const manifest = JSON.parse(await readFile(outputPath, "utf8"));
     const releaseBody = await readFile(bodyPath, "utf8");

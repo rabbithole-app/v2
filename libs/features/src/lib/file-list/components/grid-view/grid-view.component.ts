@@ -23,7 +23,6 @@ import {
   lucideFolderPlus,
   lucideFolderTree,
   lucideFolderUp,
-  lucideGlobe,
   lucideInfo,
   lucidePencil,
   lucideShare2,
@@ -76,7 +75,6 @@ const GRID_CELL_COLUMN_GAP = 16;
       lucideFolderTree,
       lucideInfo,
       lucideUsers,
-      lucideGlobe,
     }),
   ],
   hostDirectives: [
@@ -125,11 +123,10 @@ export class GridViewComponent implements OnDestroy {
       R.chunk(this.state().columns),
     ),
   );
-  color = output<{ color: DirectoryColor; id: bigint; }>();
+  color = output<{ color: DirectoryColor; id: bigint }>();
   delete = output<bigint[]>();
   download = output<bigint[]>();
   folderColorControl = new FormControl<DirectoryColor>('blue');
-  makePublic = output<bigint[]>();
   manageAccess = output<bigint[]>();
   move = output<bigint[]>();
   properties = output<NodeItem>();
@@ -270,7 +267,9 @@ export class GridViewComponent implements OnDestroy {
         }
 
         if (item.type === 'directory') {
-          this.folderColorControl.setValue(item.color ?? 'blue', { emitEvent: false });
+          this.folderColorControl.setValue(item.color ?? 'blue', {
+            emitEvent: false,
+          });
         }
 
         break;
@@ -339,7 +338,6 @@ export class GridViewComponent implements OnDestroy {
         }));
       }
     }
-
   }
 
   _handleItemDblClick(_event: MouseEvent, item: NodeItem) {
@@ -503,12 +501,19 @@ export class GridViewComponent implements OnDestroy {
     const everyFile = items.every(({ type }) => type === 'file');
     const someDirectory = items.some(({ type }) => type === 'directory');
     const someFile = items.some(({ type }) => type === 'file');
-    const canWrite = items.every(({ callerPermission: p }) =>
-      p === 'ReadWrite' || p === 'ReadWriteManage',
+    const canWrite = items.every(
+      ({ callerPermission: p }) => p === 'ReadWrite' || p === 'ReadWriteManage',
     );
-    const canManage = items.every(({ callerPermission: p }) =>
-      p === 'ReadWriteManage',
+    const canManage = items.every(
+      ({ callerPermission: p }) => p === 'ReadWriteManage',
     );
-    return { everyDirectory, everyFile, someDirectory, someFile, canWrite, canManage };
+    return {
+      everyDirectory,
+      everyFile,
+      someDirectory,
+      someFile,
+      canWrite,
+      canManage,
+    };
   }
 }

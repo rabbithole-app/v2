@@ -69,15 +69,16 @@ type StorageReleaseStateDto = Awaited<
 })
 export class StorageVersionInfoComponent {
   readonly #canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
+  readonly #canisterStatus = injectStorageCanisterStatus();
   readonly canisterId = this.#canisterId.toText();
-  readonly canViewVersionInfo =
-    injectStorageCanisterStatus().isCurrentUserController;
+  readonly canViewVersionInfo = this.#canisterStatus.isCurrentUserController;
   readonly #actor = injectEncryptedStorageActor();
   readonly releaseState = resource({
     params: () => ({
       actor: this.#actor(),
       canisterId: this.canisterId,
       canView: this.canViewVersionInfo(),
+      liveWasmHash: this.#canisterStatus.settings()?.moduleHash,
     }),
     loader: async ({ params }) => {
       if (!params.canView) return null;
@@ -85,6 +86,7 @@ export class StorageVersionInfoComponent {
       return toInstalledStorageReleaseState(
         await params.actor.getStorageReleaseState(),
         params.canisterId,
+        params.liveWasmHash,
       );
     },
   });
@@ -122,14 +124,25 @@ function optionalHashHex(value: [] | [Uint8Array]): string | undefined {
 function toInstalledStorageReleaseState(
   state: StorageReleaseStateDto,
   canisterId: string,
+  liveWasmHash?: string,
 ): InstalledStorageReleaseState {
+  const recordedReleaseTag = fromNullable(state.releaseTag);
+  const recordedWasmHash = optionalHashHex(state.wasmHash);
+  const wasmHash = liveWasmHash ?? recordedWasmHash;
+  const frontendAssetTreeHash = optionalHashHex(state.frontendAssetTreeHash);
+  const wasmDrifted =
+    liveWasmHash !== undefined &&
+    recordedWasmHash !== undefined &&
+    liveWasmHash !== recordedWasmHash;
+  const releaseTag = wasmDrifted ? undefined : recordedReleaseTag;
+
   return {
     canisterId,
-    frontendAssetTreeHash: optionalHashHex(state.frontendAssetTreeHash),
-    installedAt: optionalDate(state.installedAt),
-    manifestHash: optionalHashHex(state.manifestHash),
-    releaseTag: fromNullable(state.releaseTag),
+    frontendAssetTreeHash,
+    installedAt: wasmDrifted ? undefined : optionalDate(state.installedAt),
+    manifestHash: wasmDrifted ? undefined : optionalHashHex(state.manifestHash),
+    releaseTag,
     schemaVersion: state.schemaVersion,
-    wasmHash: optionalHashHex(state.wasmHash),
+    wasmHash,
   };
 }

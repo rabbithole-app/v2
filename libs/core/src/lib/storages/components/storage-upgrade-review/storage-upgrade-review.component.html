@@ -90,25 +90,23 @@
           }
 
           @if (selectedReleaseNotesSections().length > 0) {
-            <ng-scrollbar hlm class="h-48 pr-3" appearance="compact">
-              <div scrollViewport class="space-y-3 pr-3">
-                @for (
-                  section of selectedReleaseNotesSections();
-                  track section.title
-                ) {
-                  <section class="space-y-1">
-                    <h5 class="font-medium text-foreground">
-                      {{ section.title }}
-                    </h5>
-                    <ul class="list-disc space-y-1 pl-4 text-muted-foreground">
-                      @for (item of section.items; track item) {
-                        <li>{{ item }}</li>
-                      }
-                    </ul>
-                  </section>
-                }
-              </div>
-            </ng-scrollbar>
+            <div class="max-h-48 space-y-3 overflow-y-auto pr-3">
+              @for (
+                section of selectedReleaseNotesSections();
+                track section.title
+              ) {
+                <section class="space-y-1">
+                  <h5 class="font-medium text-foreground">
+                    {{ section.title }}
+                  </h5>
+                  <ul class="list-disc space-y-1 pl-4 text-muted-foreground">
+                    @for (item of section.items; track item) {
+                      <li>{{ item }}</li>
+                    }
+                  </ul>
+                </section>
+              }
+            </div>
           }
 
           @if (selectedReleaseOption()?.releaseUrl; as releaseUrl) {

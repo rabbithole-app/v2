@@ -35,6 +35,7 @@ export const environment = {
   production: false,
   scheme: 'rabbithole',
   backendCanisterId: BACKEND_CANISTER_ID,
-  blobStorageGatewayUrl: BLOB_STORAGE_GATEWAY_URL,
-  blobStorageCashierCanisterId: BLOB_STORAGE_CASHIER_CANISTER_ID,
+  blobStorageGatewayUrl: BLOB_STORAGE_GATEWAY_URL || 'https://blob.caffeine.ai',
+  blobStorageCashierCanisterId:
+    BLOB_STORAGE_CASHIER_CANISTER_ID || 'xc7sj-uyaaa-aaaaf-qbrja-cai',
 };

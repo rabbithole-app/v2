@@ -29,7 +29,6 @@ import {
 import { BrnDialogContent } from '@spartan-ng/brain/dialog';
 import { BrnPopoverImports } from '@spartan-ng/brain/popover';
 import { BrnSelectImports } from '@spartan-ng/brain/select';
-import { BrnTabsImports } from '@spartan-ng/brain/tabs';
 
 import type {
   CreateStorageAccessGrants,
@@ -53,7 +52,7 @@ import { HlmFieldImports } from '@spartan-ng/helm/field';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmPopoverImports } from '@spartan-ng/helm/popover';
 import { HlmSelectImports } from '@spartan-ng/helm/select';
-import { HlmTabsImports } from '@spartan-ng/helm/tabs';
+import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
 import { injectMainActor } from '../../../injectors/main-actor';
@@ -69,7 +68,7 @@ import {
   AccessTargetItemDescriptionDirective,
 } from '../access-target-item/access-target-item.component';
 
-export type AccessScopeKind = 'batch' | 'directory' | 'file';
+export type AccessScopeKind = 'batch' | 'directory' | 'file' | 'storage';
 
 type AccessProfile = {
   avatarSrc?: string;
@@ -84,7 +83,6 @@ type AccessProfile = {
     BrnDialogContent,
     BrnPopoverImports,
     BrnSelectImports,
-    BrnTabsImports,
     CopyToClipboardComponent,
     CoreTransparentSelectBackdropDirective,
     FormsModule,
@@ -101,7 +99,7 @@ type AccessProfile = {
     HlmIcon,
     HlmPopoverImports,
     HlmSelectImports,
-    HlmTabsImports,
+    ...HlmSidebarImports,
     ...HlmTooltipImports,
     NgIcon,
     AccessTargetItemActionsDirective,
@@ -132,6 +130,14 @@ export class ShareDialogComponent {
   readonly accessList = input<StoragePermissionItem[]>([]);
   readonly accessListLoading = input(false);
   readonly activeTab = signal<'manage' | 'share'>('share');
+  readonly activeTitle = computed(() =>
+    this.activeTab() === 'manage' ? 'Manage access' : 'Share access',
+  );
+  readonly activeDescription = computed(() =>
+    this.activeTab() === 'manage'
+      ? 'Review people and invites already attached to this item.'
+      : 'Invite people and choose what they can do.',
+  );
   readonly cancelPendingAccessGrant = output<bigint>();
   readonly selectedTargets = signal<UserTarget[]>([]);
   readonly canSubmit = computed(
@@ -197,10 +203,12 @@ export class ShareDialogComponent {
   readonly scopeKind = input<AccessScopeKind>('file');
   readonly scopeBadgeIcon = computed(() => {
     if (this.isBatchScope() || this.scopeKind() === 'batch') return 'lucideFiles';
+    if (this.scopeKind() === 'storage') return 'lucideDatabase';
     return this.scopeKind() === 'directory' ? 'lucideFolder' : 'lucideFile';
   });
   readonly scopeBadgeLabel = computed(() => {
     if (this.isBatchScope() || this.scopeKind() === 'batch') return 'Selection';
+    if (this.scopeKind() === 'storage') return 'Storage';
     return this.scopeKind() === 'directory' ? 'Folder' : 'File';
   });
   readonly scopeLabel = input('Selected item');

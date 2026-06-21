@@ -1,6 +1,7 @@
 export * from '../components/layout/navigation/navigation.component';
 export * from '../constants/auth';
 export * from '../constants/canister-env';
+export { CYCLES_MINTING_CANISTER_ID } from '../constants/nns-canisters';
 export * from '../guards/admin.guard';
 export * from '../guards/dashboard.guard';
 export * from '../guards/login.guard';

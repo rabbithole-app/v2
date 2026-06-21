@@ -30,6 +30,11 @@ const EMPTY_STATE: UploadServiceState = {
   completedCount: 0,
 };
 
+type UploadInput = {
+  file: File;
+  path?: string;
+};
+
 @Injectable()
 export class UploadFilesService implements IUploadService {
   canisterId = inject(ENCRYPTED_STORAGE_CANISTER_ID);
@@ -49,18 +54,24 @@ export class UploadFilesService implements IUploadService {
   #authService = inject(AUTH_SERVICE);
   #coreWorkerService = injectCoreWorker();
 
-  async add(item: {
-    file: File;
-    path?: string;
-  }) {
-    const id = crypto.randomUUID();
-    // Add file to registry with initial parameters
+  async add(item: UploadInput) {
+    await this.addMany([item]);
+  }
+
+  async addMany(items: UploadInput[]) {
+    if (items.length === 0) return;
+
     const storageId = this.#canisterIdText();
-    this.#registry.addUpload(storageId, {
+    const pendingItems = items.map((item) => ({
       ...item,
-      id,
-      status: UploadState.NOT_STARTED,
-    });
+      id: crypto.randomUUID(),
+    }));
+    for (const item of pendingItems) {
+      this.#registry.addUpload(storageId, {
+        ...item,
+        status: UploadState.NOT_STARTED,
+      });
+    }
 
     const principalId = this.#authService.principalId();
     let hasWritePermission = false;
@@ -79,45 +90,61 @@ export class UploadFilesService implements IUploadService {
     }
 
     if (!hasWritePermission) {
-      this.#registry.updateUpload({
-        id,
-        status: UploadState.FAILED,
-        errorMessage: NO_UPLOAD_PERMISSION_MESSAGE,
-      });
+      for (const item of pendingItems) {
+        this.#registry.updateUpload({
+          id: item.id,
+          status: UploadState.FAILED,
+          errorMessage: NO_UPLOAD_PERMISSION_MESSAGE,
+        });
+      }
       return;
     }
 
-    const payload: UploadFile = {
-      id,
-      storageId,
-      file: item.file,
-      config: {
-        fileName: item.file.name,
-        contentType: item.file.type,
-      },
-    };
+    const payloads = pendingItems.map((item): UploadFile => {
+      const payload: UploadFile = {
+        id: item.id,
+        storageId,
+        file: item.file,
+        config: {
+          fileName: item.file.name,
+          contentType: item.file.type,
+        },
+      };
 
-    // If the file is an image, create an offscreenCanvas
-    if (isPhotonSupportedMimeType(item.file.type)) {
-      payload.offscreenCanvas = new OffscreenCanvas(
-        MAX_THUMBNAIL_WIDTH,
-        MAX_THUMBNAIL_HEIGHT,
-      );
-    }
+      if (isPhotonSupportedMimeType(item.file.type)) {
+        payload.offscreenCanvas = new OffscreenCanvas(
+          MAX_THUMBNAIL_WIDTH,
+          MAX_THUMBNAIL_HEIGHT,
+        );
+      }
 
-    // Add path if present
-    if (item.path) {
-      payload.config.path = item.path;
-    }
+      if (item.path) {
+        payload.config.path = item.path;
+      }
 
-    // Send message to coreWorker. File is structured-cloned so upload can stream slices in the worker.
-    if (payload.offscreenCanvas) {
+      return payload;
+    });
+    const transfer = payloads
+      .map(({ offscreenCanvas }) => offscreenCanvas)
+      .filter((value): value is OffscreenCanvas => value !== undefined)
+      .map((value) => value as Transferable);
+
+    if (payloads.length === 1) {
       this.#coreWorkerService.postMessage(
-        { action: 'upload:add-file', payload },
-        { transfer: [payload.offscreenCanvas as Transferable] },
+        { action: 'upload:add-file', payload: payloads[0] },
+        transfer.length ? { transfer } : undefined,
       );
     } else {
-      this.#coreWorkerService.postMessage({ action: 'upload:add-file', payload });
+      this.#coreWorkerService.postMessage(
+        {
+          action: 'upload:add-files',
+          payload: {
+            groupId: crypto.randomUUID(),
+            files: payloads,
+          },
+        },
+        transfer.length ? { transfer } : undefined,
+      );
     }
   }
 

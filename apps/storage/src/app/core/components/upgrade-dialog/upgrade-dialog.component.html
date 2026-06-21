@@ -21,6 +21,7 @@
   </hlm-dialog-header>
 }
 
+<div class="no-scrollbar -mx-1 max-h-[min(68vh,720px)] overflow-y-auto px-1">
 @switch (currentStep) {
   @case ('idle') {
     <div class="mt-4 space-y-4">
@@ -100,6 +101,7 @@
     </div>
   }
 }
+</div>
 
 @if (!isInProgress()) {
   <hlm-dialog-footer class="mt-4" [class.sm:justify-center]="currentStep === 'completed'">

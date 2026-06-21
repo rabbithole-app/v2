@@ -16,7 +16,12 @@
     (requestAccess)="_handleRequestAccess()"
   />
 } @else if (items().length === 0) {
-  <div hlmEmpty class="min-h-[400px]" [hlmContextMenuTrigger]="emptyAreaContextMenu" [disabled]="!canWrite()">
+  <div
+    hlmEmpty
+    class="min-h-[400px]"
+    [hlmContextMenuTrigger]="emptyAreaContextMenu"
+    [disabled]="!(canWrite() || canManage())"
+  >
     <div hlmEmptyHeader>
       <div hlmEmptyMedia variant="icon">
         <ng-icon name="lucideFolderOpen" />
@@ -34,13 +39,12 @@
 } @else {
   <rbth-feat-file-list-grid-view
     [hlmContextMenuTrigger]="emptyAreaContextMenu"
-    [disabled]="!canWrite()"
+    [disabled]="!(canWrite() || canManage())"
     [items]="items()"
     (color)="_handleColor($event)"
     (delete)="_handleDelete($event)"
     (download)="_handleDownload($event)"
     (manageAccess)="_handleManageAccess($event)"
-    (makePublic)="_handleMakePublic($event)"
     (move)="_handleMove($event)"
     (rename)="_handleRename($event)"
     (properties)="_handleProperties($event)"
@@ -50,25 +54,61 @@
 }
 
 <ng-template #emptyAreaContextMenu>
-  @if (canWrite()) {
+  @if (canWrite() || canManage()) {
     <hlm-dropdown-menu class="w-52">
       <hlm-dropdown-menu-group>
-        <button hlmDropdownMenuItem (click)="_handleNewFolder()">
-          <ng-icon hlm name="lucideFolderPlus" hlmMenuIcon />
-          New folder
-        </button>
-        <hlm-dropdown-menu-separator />
-        <button hlmDropdownMenuItem (click)="fileListService.openFileDialog()">
-          <ng-icon hlm name="lucideUpload" hlmMenuIcon />
-          Upload files
-        </button>
-        <button
-          hlmDropdownMenuItem
-          (click)="fileListService.openDirectoryDialog()"
-        >
-          <ng-icon hlm name="lucideFolderUp" hlmMenuIcon />
-          Upload directory
-        </button>
+        @if (canWrite()) {
+          <button hlmDropdownMenuItem (click)="_handleNewFolder()">
+            <ng-icon hlm name="lucideFolderPlus" hlmMenuIcon />
+            New folder
+          </button>
+        }
+        @if (canManage()) {
+          <button hlmDropdownMenuItem (click)="_handleCurrentDirectoryShare()">
+            <ng-icon hlm name="lucideShare2" hlmMenuIcon />
+            Share
+            <hlm-dropdown-menu-shortcut class="inline-flex items-center">
+              <ng-icon
+                name="lucideStar"
+                class="text-primary"
+                size="14px"
+                aria-label="Pro"
+              />
+            </hlm-dropdown-menu-shortcut>
+          </button>
+          <button
+            hlmDropdownMenuItem
+            (click)="_handleCurrentDirectoryManageAccess()"
+          >
+            <ng-icon hlm name="lucideUsers" hlmMenuIcon />
+            Manage access
+            <hlm-dropdown-menu-shortcut class="inline-flex items-center">
+              <ng-icon
+                name="lucideStar"
+                class="text-primary"
+                size="14px"
+                aria-label="Pro"
+              />
+            </hlm-dropdown-menu-shortcut>
+          </button>
+        }
+        @if (canWrite()) {
+          <hlm-dropdown-menu-separator />
+          <button
+            hlmDropdownMenuItem
+            (click)="fileListService.openFileDialog()"
+          >
+            <ng-icon hlm name="lucideUpload" hlmMenuIcon />
+            Upload files
+          </button>
+          <button
+            hlmDropdownMenuItem
+            (click)="fileListService.openDirectoryDialog()"
+          >
+            <ng-icon hlm name="lucideFolderUp" hlmMenuIcon />
+            Upload directory
+          </button>
+        }
       </hlm-dropdown-menu-group>
     </hlm-dropdown-menu>
   }
@@ -78,8 +118,8 @@
 <rbth-core-share-dialog
   [scopeLabel]="shareDialogScopeLabel()"
   [scopeKind]="shareDialogScopeKind()"
-  [itemCount]="shareDialogItems().length"
-  [accessList]="shareDialogItems().length === 1 ? shareAccessList() : []"
+  [itemCount]="shareDialogItemCount()"
+  [accessList]="shareDialogAccessList()"
   [accessListLoading]="shareAccessListLoading()"
   (accessGrantsChange)="_handleShareAccessGrants($event)"
   (cancelPendingAccessGrant)="_handleShareCancelPendingAccessGrant($event)"

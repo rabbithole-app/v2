@@ -19,7 +19,7 @@
   @let everyFile = state().everyFile;
   @let canWrite = state().canWrite;
   @let canManage = state().canManage;
-  <hlm-dropdown-menu class="w-48">
+  <hlm-dropdown-menu class="w-54">
     @if (everyDirectory && canWrite) {
       <hlm-dropdown-menu-group>
         <div hlmField class="p-2">
@@ -43,7 +43,10 @@
           <ng-icon hlm name="lucidePencil" hlmMenuIcon />
           Rename
         </button>
-        <button hlmDropdownMenuItem (click)="_handleItemAction('move', selected)">
+        <button
+          hlmDropdownMenuItem
+          (click)="_handleItemAction('move', selected)"
+        >
           <ng-icon hlm name="lucideFolderTree" hlmMenuIcon />
           @if (selected.length > 1) {
             Move ({{ selected.length }})
@@ -66,10 +69,7 @@
         </button>
       }
       @if (canManage) {
-        <button
-          hlmDropdownMenuItem
-          (click)="share.emit(selected)"
-        >
+        <button hlmDropdownMenuItem (click)="share.emit(selected)">
           <ng-icon hlm name="lucideShare2" hlmMenuIcon />
           @if (selected.length > 1) {
             Share ({{ selected.length }})
@@ -77,23 +77,15 @@
             Share
           }
           <hlm-dropdown-menu-shortcut class="inline-flex items-center">
-            <ng-icon name="lucideStar" class="text-primary" size="14px" aria-label="Pro" />
+            <ng-icon
+              name="lucideStar"
+              class="text-primary"
+              size="14px"
+              aria-label="Pro"
+            />
           </hlm-dropdown-menu-shortcut>
         </button>
-        <button
-          hlmDropdownMenuItem
-          (click)="makePublic.emit(selected)"
-        >
-          <ng-icon hlm name="lucideGlobe" hlmMenuIcon />
-          Make Public
-          <hlm-dropdown-menu-shortcut class="inline-flex items-center">
-            <ng-icon name="lucideStar" class="text-primary" size="14px" aria-label="Pro" />
-          </hlm-dropdown-menu-shortcut>
-        </button>
-        <button
-          hlmDropdownMenuItem
-          (click)="manageAccess.emit(selected)"
-        >
+        <button hlmDropdownMenuItem (click)="manageAccess.emit(selected)">
           <ng-icon hlm name="lucideUsers" hlmMenuIcon />
           @if (selected.length > 1) {
             Manage access ({{ selected.length }})
@@ -101,7 +93,12 @@
             Manage access
           }
           <hlm-dropdown-menu-shortcut class="inline-flex items-center">
-            <ng-icon name="lucideStar" class="text-primary" size="14px" aria-label="Pro" />
+            <ng-icon
+              name="lucideStar"
+              class="text-primary"
+              size="14px"
+              aria-label="Pro"
+            />
           </hlm-dropdown-menu-shortcut>
         </button>
       }

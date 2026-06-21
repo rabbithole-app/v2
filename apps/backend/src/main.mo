@@ -122,8 +122,8 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     {
       onAdminChanged = func(change : { #Grant : Principal; #Revoke : Principal }) : async () {
         switch (change) {
-          case (#Grant(target)) await grantAvatarBlobStorageCashierFullAccess(target);
-          case (#Revoke(target)) await revokeAvatarBlobStorageCashierFullAccess(target);
+          case (#Grant(target)) await avatarObjectStorageCashier.grantFullAccess(target);
+          case (#Revoke(target)) await avatarObjectStorageCashier.revokeFullAccess(target);
         };
       };
     },
@@ -131,7 +131,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public shared ({ caller }) func adminSyncBlobStorageCashierAdminAccess() : async () {
     assertAdmin(caller);
-    await syncAvatarBlobStorageCashierFullAccessDelegates(users.listByRole(#admin));
+    await avatarObjectStorageCashier.syncExactFullAccessDelegates(users.listByRole(#admin));
   };
 
   include IdentityVerificationMixin({

@@ -105,12 +105,14 @@ export class CoreUploadItemComponent {
   progress = computed(() => {
     const data = this.data();
 
-    return data.status === UploadState.IN_PROGRESS ||
+    if (
+      data.status === UploadState.IN_PROGRESS ||
       data.status === UploadState.WAITING_FOR_FUNDING
-      ? Math.round((data.current / data.total) * 100)
-      : data.status === UploadState.FINALIZING
-        ? 100
-        : null;
+    ) {
+      return uploadProgressPercent(data.current, data.total);
+    }
+
+    return data.status === UploadState.FINALIZING ? 100 : null;
   });
   removeUpload = output();
   retryUpload = output();
@@ -120,9 +122,62 @@ export class CoreUploadItemComponent {
       UploadState.IN_PROGRESS,
       UploadState.INITIALIZING,
       UploadState.NOT_STARTED,
+      UploadState.PREPARING,
       UploadState.REQUESTING_VETKD,
       UploadState.WAITING_FOR_FUNDING,
     ].includes(this.data().status),
   );
+  statusLabel = computed(() => uploadStatusText(this.data()));
   readonly uploadState = UploadState;
+}
+
+function uploadProgressPercent(current: number, total: number): number {
+  if (total <= 0) return 0;
+
+  return Math.min(100, Math.max(0, Math.round((current / total) * 100)));
+}
+
+function uploadStatusText(data: FileUploadWithStatus): string {
+  switch (data.status) {
+    case UploadState.COMPLETED:
+      return 'Completed';
+    case UploadState.FAILED:
+      return 'Upload failed';
+    case UploadState.FINALIZING:
+      return 'Finalizing...';
+    case UploadState.INITIALIZING:
+      return 'Initializing...';
+    case UploadState.NOT_STARTED:
+      return 'Pending...';
+    case UploadState.PREPARING:
+      return 'Preparing...';
+    case UploadState.REQUESTING_VETKD:
+      return 'Requesting vetKeys...';
+    case UploadState.WAITING_FOR_FUNDING:
+      return waitingForFundingStatusText(data.message);
+    default:
+      return 'Uploading...';
+  }
+}
+
+function waitingForFundingStatusText(message = ''): string {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes('top-up is already in progress') ||
+    normalized.includes('could not perform self call') ||
+    normalized.includes('storage funding is already in progress') ||
+    normalized.includes('auto top-up is already in progress')
+  ) {
+    return 'Storage update...';
+  }
+
+  if (
+    normalized.includes('blob storage') ||
+    normalized.includes('cashier')
+  ) {
+    return 'Storage setup...';
+  }
+
+  return 'Waiting for cycles...';
 }

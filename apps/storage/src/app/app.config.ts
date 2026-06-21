@@ -30,6 +30,7 @@ import {
   BACKEND_FEATURES_ENABLED_TOKEN,
   BLOB_STORAGE_CONFIG_TOKEN,
   canisterOrigin,
+  CYCLES_MINTING_CANISTER_ID,
   ENCRYPTED_STORAGE_BACKEND_TYPE_TOKEN,
   FileSystemAccessService,
   HTTP_AGENT_OPTIONS_TOKEN,
@@ -44,13 +45,16 @@ import {
 } from '@rabbithole/core/app-runtime';
 import { provideStorageCanisterStatus } from '@rabbithole/core/storage-canister-status';
 
-import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
 import { ConfigService } from './core/services/config.service';
 
 const MANAGEMENT_CANISTER_ID = principalFromConfig(
   'aaaaa-aa',
   'IC management canister',
+);
+const CYCLES_MINTING_CANISTER = principalFromConfig(
+  CYCLES_MINTING_CANISTER_ID,
+  'Cycles minting canister',
 );
 
 export const provideAuthService = (): Provider => ({
@@ -77,6 +81,7 @@ function storageAuthConfig(): AuthConfig {
         'storage.runtimeConfig.backendCanisterId',
       ),
       MANAGEMENT_CANISTER_ID,
+      CYCLES_MINTING_CANISTER,
     ],
     loginOptions: {
       identityProvider: runtimeConfig.identityProviderUrl,
@@ -115,9 +120,12 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: BLOB_STORAGE_CONFIG_TOKEN,
-      useValue: {
-        gatewayUrl: environment.blobStorageGatewayUrl,
-        cashierCanisterId: environment.blobStorageCashierCanisterId,
+      useFactory: () => {
+        const runtimeConfig = injectStorageRuntimeConfig();
+        return {
+          gatewayUrl: runtimeConfig.blobStorageGatewayUrl,
+          cashierCanisterId: runtimeConfig.blobStorageCashierCanisterId,
+        };
       },
     },
     {
@@ -144,7 +152,10 @@ export const appConfig: ApplicationConfig = {
       provide: MAIN_BACKEND_URL_TOKEN,
       useFactory: () => {
         const runtimeConfig = injectStorageRuntimeConfig();
-        return canisterOrigin(runtimeConfig.backendCanisterId, runtimeConfig.httpAgentHost);
+        return canisterOrigin(
+          runtimeConfig.backendCanisterId,
+          runtimeConfig.httpAgentHost,
+        );
       },
     },
     {

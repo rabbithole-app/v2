@@ -43,8 +43,14 @@ export const uploadFileSchema = uploadSchema.and(
   type({
     file: 'object',
     'offscreenCanvas?': 'object',
+    'uploadGroupId?': uploadIdSchema,
   }),
 );
+
+export const uploadFileBatchSchema = type({
+  groupId: uploadIdSchema,
+  files: uploadFileSchema.array().atLeastLength(1),
+});
 
 export const downloadRequestSchema = type({
   id: uploadIdSchema,
@@ -175,6 +181,7 @@ export type CoreWorkerActionsIn = Prettify<
     'thumbnail:rewrap': { payload: ThumbnailRewrapRequest };
     'upload:add-asset': { payload: UploadAsset };
     'upload:add-file': { payload: UploadFile };
+    'upload:add-files': { payload: UploadFileBatch };
     'upload:cancel': { payload: Pick<UploadFile, 'id'> };
     'upload:remove': { payload: Pick<UploadFile, 'id'> };
     'upload:retry': { payload: Pick<UploadFile, 'id'> };
@@ -234,6 +241,8 @@ export type PrincipalString = typeof principalSchema.infer;
 
 export type ThumbnailRewrapRequest =
   typeof thumbnailRewrapRequestSchema.infer;
+
+export type UploadFileBatch = typeof uploadFileBatchSchema.infer;
 
 export const imageCropSchema = type({
   id: uploadIdSchema,

@@ -55,6 +55,33 @@ describe('BlobStorageGatewayClient', () => {
     });
   });
 
+  describe('getBlobTree', () => {
+    it('fetches GET /v1/blob-tree/ with the blob hash and owner', async () => {
+      const body = {
+        tree_type: 'DSBMTWH',
+        tree: { hash: 'sha256:' + 'aa'.repeat(32), left: null, right: null },
+        chunk_hashes: ['sha256:' + 'bb'.repeat(32)],
+        headers: ['Content-Length: 1'],
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => body,
+      });
+      const { client } = createClient();
+
+      const result = await client.getBlobTree(body.tree.hash);
+
+      expect(result).toBe(body);
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toContain(`${GATEWAY_URL}/v1/blob-tree/`);
+      expect(url).toContain(`blob_hash=${encodeURIComponent(body.tree.hash)}`);
+      expect(url).toContain(`owner_id=${encodeURIComponent(CANISTER_ID)}`);
+      expect(url).toContain(`project_id=${encodeURIComponent(DEFAULT_PROJECT_ID)}`);
+      expect(options.method).toBe('GET');
+      expect(options.headers['X-Caffeine-Project-ID']).toBe(DEFAULT_PROJECT_ID);
+    });
+  });
+
   describe('createCertificate', () => {
     it('calls agent.call with correct method and extracts certificate', async () => {
       const certificate = new Uint8Array([10, 20, 30]);
@@ -121,6 +148,40 @@ describe('BlobStorageGatewayClient', () => {
       expect(body.owner).toBe(CANISTER_ID);
       expect(body.project_id).toBe(DEFAULT_PROJECT_ID);
       expect(body.auth.OwnerEgressSignature).toEqual([5, 6, 7]);
+    });
+
+    it('does not apply a synthetic timeout signal by default', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      const { client } = createClient();
+
+      const chunkHash = await YHash.fromChunk(new Uint8Array([1]));
+      const blobTree = await BlobHashTree.build([chunkHash]);
+
+      await client.uploadBlobTree({
+        blobTree,
+        certificate: new Uint8Array([1]),
+        totalSize: 1,
+      });
+
+      expect(mockFetch.mock.calls[0][1].signal).toBeUndefined();
+    });
+
+    it('passes the caller abort signal to gateway fetch', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      const { client } = createClient();
+      const controller = new AbortController();
+
+      const chunkHash = await YHash.fromChunk(new Uint8Array([1]));
+      const blobTree = await BlobHashTree.build([chunkHash]);
+
+      await client.uploadBlobTree({
+        blobTree,
+        certificate: new Uint8Array([1]),
+        signal: controller.signal,
+        totalSize: 1,
+      });
+
+      expect(mockFetch.mock.calls[0][1].signal).toBe(controller.signal);
     });
 
     it('throws on non-ok response', async () => {

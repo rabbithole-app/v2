@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "version": "0.2.0",
+  "tagName": "storage-v0.2.0",
+  "commit": "de37a10fdabeaf1a2fc54ddebf2beec523f03a60",
+  "frontendAssetTreeHash": "dfe4f2fc3e6751d5ab463d00a4e282fffe5b2b0ff5b24cdf0748777956aea3dd",
+  "artifacts": {
+    "wasm": {
+      "name": "encrypted-storage.wasm.gz",
+      "size": 863252,
+      "sha256": "31baf7d213645161bfeb05cccff0b3a5bf8a5bfb385578038b71d04ac3f85aac"
+    },
+    "frontend": {
+      "name": "storage-frontend.tar",
+      "size": 7188480,
+      "sha256": "a2c59ffc92d2a42c01f874d640dbf490b2e5a0491af492953db5aea29a9d505b"
+    },
+    "did": {
+      "name": "encrypted-storage.did",
+      "size": 31661,
+      "sha256": "293efb665aa6dd4b10cc7337117b131670373cfc762f308c5ef047fc0878f9e1"
+    },
+    "stableSignature": {
+      "name": "encrypted-storage.most",
+      "size": 48991,
+      "sha256": "151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914"
+    },
+    "jsLibrary": {
+      "name": "encrypted-storage-lib.zip",
+      "size": 305610,
+      "sha256": "2f847ab50469351023bcb46d08bd0bd48358777ec037c0f11f0bab105b499cd5"
+    }
+  },
+  "upgrade": {
+    "argStrategy": "reuseInstallArgV1",
+    "compatibleFrom": []
+  },
+  "releaseNotes": {
+    "source": "generated",
+    "summary": "Storage release with 1 feature, 2 fixes.",
+    "sections": [
+      {
+        "title": "Features",
+        "items": [
+          "Manage Blob Storage Cashier access."
+        ]
+      },
+      {
+        "title": "Fixes",
+        "items": [
+          "Verify storage release downloads.",
+          "Restore storage release downloads."
+        ]
+      }
+    ]
+  }
+}

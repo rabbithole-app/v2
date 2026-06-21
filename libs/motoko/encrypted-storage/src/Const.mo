@@ -4,7 +4,7 @@ module {
   public let ONCHAIN_UPLOAD_CHUNK_SIZE : Nat = 1_900_000;
   public let ENCRYPTED_CHUNK_OVERHEAD_BYTES : Nat = 28;
   public let ONCHAIN_UPLOAD_MAX_STORED_CHUNK_SIZE : Nat = 1_900_028;
-  public let BATCH_EXPIRY_DURATION : Nat = 345_600_000_000; // 4 days
+  public let BATCH_EXPIRY_DURATION : Nat = 86_400_000_000_000; // 1 day (ns)
 
   // Subscription cache
   public let SUBSCRIPTION_CACHE_TTL : Nat = 86_400_000_000_000; // 24 hours (ns)
