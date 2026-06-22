@@ -1,7 +1,6 @@
 import { computed, inject, Injectable, resource } from '@angular/core';
 import { createInjectionToken } from 'ngxtension/create-injection-token';
 
-import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
   EncryptedStorage,
 } from '@rabbithole/encrypted-storage';
@@ -19,9 +18,6 @@ import {
 } from '../types';
 import { isPhotonSupportedMimeType } from '../utils';
 import { UploadRegistryService } from './upload-registry.service';
-
-const NO_UPLOAD_PERMISSION_MESSAGE =
-  'No ReadWrite permission for this storage. Ask the storage owner to grant ReadWrite access, then retry.';
 
 const EMPTY_STATE: UploadServiceState = {
   overallProgress: 0,
@@ -51,7 +47,6 @@ export class UploadFilesService implements IUploadService {
   state = computed<UploadServiceState>(
     () => this.#registry.getStorageState(this.#canisterIdText()) ?? EMPTY_STATE,
   );
-  #authService = inject(AUTH_SERVICE);
   #coreWorkerService = injectCoreWorker();
 
   async add(item: UploadInput) {
@@ -71,33 +66,6 @@ export class UploadFilesService implements IUploadService {
         ...item,
         status: UploadState.NOT_STARTED,
       });
-    }
-
-    const principalId = this.#authService.principalId();
-    let hasWritePermission = false;
-
-    try {
-      hasWritePermission = await this.encryptedStorage().hasPermission({
-        user: principalId,
-        permission: 'ReadWrite',
-      });
-    } catch (error) {
-      console.error('[upload:preflight] permission query failed', {
-        storageId,
-        principalId,
-        error,
-      });
-    }
-
-    if (!hasWritePermission) {
-      for (const item of pendingItems) {
-        this.#registry.updateUpload({
-          id: item.id,
-          status: UploadState.FAILED,
-          errorMessage: NO_UPLOAD_PERMISSION_MESSAGE,
-        });
-      }
-      return;
     }
 
     const payloads = pendingItems.map((item): UploadFile => {
