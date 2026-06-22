@@ -57,6 +57,11 @@ module Permissions {
     " access for " # scopeLabel(findBy);
   };
 
+  func parentScopeOf((_, path) : T.Entry) : T.FindBy {
+    let parentPath = Path.dirname(Path.normalize(path));
+    if (Text.equal(parentPath, "")) #root else #entry(#Directory, parentPath);
+  };
+
   func getPermissionsWithKeyId(fs : T.FileSystemStore, findBy : T.FindBy) : Result.Result<(T.PermissionMap, ?T.KeyId), Text> {
     switch (findBy) {
       case (#keyId keyId) {
@@ -85,6 +90,13 @@ module Permissions {
 
   public func getMaxPermission(fs : T.FileSystemStore, user : Principal, findBy : T.FindBy, lastPermission : ?T.Permission) : ?T.Permission {
     getUserMaxPermission(fs, user, findBy, lastPermission, findBy == #root);
+  };
+
+  func hasPermissionAtLeast(fs : T.FileSystemStore, user : Principal, findBy : T.FindBy, required : T.Permission) : Bool {
+    switch (getMaxPermission(fs, user, findBy, null)) {
+      case (?permission) not Order.isLess(permissionCompare(permission, required));
+      case null false;
+    };
   };
 
   func getUserMaxPermission(fs : T.FileSystemStore, user : Principal, findBy : T.FindBy, lastPermission : ?T.Permission, root : Bool) : ?T.Permission {
@@ -266,6 +278,27 @@ module Permissions {
       case null {};
     };
     #err(permissionDenied(user, findBy, #ReadWrite));
+  };
+
+  /// Ensures that a user can structurally modify an entry itself.
+  /// ReadWrite on an entry allows modifying its contents; deleting, moving, or
+  /// renaming that entry requires ReadWrite access to its parent or
+  /// ReadWriteManage access to the entry itself.
+  public func ensureUserCanModifyEntryStructure(fs : T.FileSystemStore, user : Principal, entry : T.Entry, action : Text) : Result.Result<(), Text> {
+    let parentScope = parentScopeOf(entry);
+    if (
+      hasPermissionAtLeast(fs, user, parentScope, #ReadWrite) or
+      hasPermissionAtLeast(fs, user, #entry(entry), #ReadWriteManage)
+    ) {
+      return #ok;
+    };
+
+    #err(
+      "permission denied: caller " # Principal.toText(user) #
+      " requires ReadWrite access for " # scopeLabel(parentScope) #
+      " or ReadWriteManage access for " # entryLabel(entry) #
+      " to " # action
+    );
   };
 
   /// Ensures that a user has permission to view user rights for a vetKey.

@@ -1845,7 +1845,7 @@ module EncryptedFileStorage {
   ///
   /// To delete a non-empty directory, it must be called with the argument `recursive = true`
   public func delete(self : T.StableStore, caller : Principal, args : T.DeleteArguments) : Result.Result<(), Text> {
-    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+    switch (Permissions.ensureUserCanModifyEntryStructure(self.fs, caller, args.entry, "delete")) {
       case (#ok _) {};
       case (#err message) return #err message;
     };
@@ -2093,7 +2093,7 @@ module EncryptedFileStorage {
       case (?entry) #entry(entry);
       case null #root;
     };
-    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry)), Permissions.ensureUserCanWrite(self.fs, caller, target)) {
+    switch (Permissions.ensureUserCanModifyEntryStructure(self.fs, caller, args.entry, "move"), Permissions.ensureUserCanWrite(self.fs, caller, target)) {
       case (#ok _, #ok _) {};
       case (#err message, #ok _) return #err("Source error: " # message);
       case (_, #err message) return #err("Target error: " # message);
@@ -2104,7 +2104,7 @@ module EncryptedFileStorage {
 
   /// Renames an entry (file or directory) without moving it
   public func rename(self : T.StableStore, caller : Principal, args : T.RenameArguments) : Result.Result<(), Text> {
-    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+    switch (Permissions.ensureUserCanModifyEntryStructure(self.fs, caller, args.entry, "rename")) {
       case (#ok _) {};
       case (#err message) return #err message;
     };

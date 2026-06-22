@@ -19,6 +19,7 @@
   @let everyFile = state().everyFile;
   @let canWrite = state().canWrite;
   @let canManage = state().canManage;
+  @let canModifyStructure = state().canModifyStructure;
   <hlm-dropdown-menu class="w-54">
     @if (everyDirectory && canWrite) {
       <hlm-dropdown-menu-group>
@@ -34,7 +35,7 @@
       <hlm-dropdown-menu-separator />
     }
     <hlm-dropdown-menu-group>
-      @if (canWrite) {
+      @if (canModifyStructure) {
         <button
           hlmDropdownMenuItem
           (click)="_handleItemAction('rename', selected)"
@@ -110,7 +111,7 @@
         <ng-icon hlm name="lucideInfo" hlmMenuIcon />
         Properties
       </button>
-      @if (canWrite) {
+      @if (canModifyStructure) {
         <hlm-dropdown-menu-separator />
         <button
           hlmDropdownMenuItem

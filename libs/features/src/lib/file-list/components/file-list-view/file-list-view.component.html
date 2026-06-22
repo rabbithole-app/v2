@@ -40,6 +40,7 @@
   <rbth-feat-file-list-grid-view
     [hlmContextMenuTrigger]="emptyAreaContextMenu"
     [disabled]="!(canWrite() || canManage())"
+    [canWriteCurrentDirectory]="canWrite()"
     [items]="items()"
     (color)="_handleColor($event)"
     (delete)="_handleDelete($event)"

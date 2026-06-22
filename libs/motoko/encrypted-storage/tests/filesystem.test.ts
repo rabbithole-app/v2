@@ -290,6 +290,112 @@ describe('FileSystem', () => {
     });
   });
 
+  describe('shared scope structural permissions', () => {
+    beforeEach(async () => {
+      await actor.create({
+        entry: [DIRECTORY, 'Shared/team/archive'],
+        createMode: CREATE_NEW,
+      });
+      await actor.create({
+        entry: [DIRECTORY, 'Destination'],
+        createMode: CREATE_NEW,
+      });
+      await actor.create({
+        entry: [FILE, 'Shared/team/draft.txt'],
+        createMode: CREATE_NEW,
+      });
+      await grantPermission({
+        entry: [[DIRECTORY, 'Shared/team']],
+        user: aliceIdentity.getPrincipal(),
+        permission: READ_WRITE,
+      });
+      await grantPermission({
+        entry: [[DIRECTORY, 'Destination']],
+        user: aliceIdentity.getPrincipal(),
+        permission: READ_WRITE,
+      });
+    });
+
+    test('ReadWrite collaborator can delete children inside shared directory', async () => {
+      actor.setIdentity(aliceIdentity);
+      await actor.delete({
+        entry: [FILE, 'Shared/team/draft.txt'],
+        recursive: false,
+      });
+
+      const { entries } = await actor.list([[DIRECTORY, 'Shared/team']]);
+      expect(entries.map((entry) => entry.name)).not.toContain('draft.txt');
+    });
+
+    test('ReadWrite collaborator cannot delete shared directory itself', async () => {
+      actor.setIdentity(aliceIdentity);
+      await expect(
+        actor.delete({
+          entry: [DIRECTORY, 'Shared/team'],
+          recursive: true,
+        }),
+      ).rejects.toThrow(/requires ReadWrite access for directory 'Shared'/);
+
+      actor.setIdentity(ownerIdentity);
+      const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+      expect(entries.map((entry) => entry.name)).toContain('team');
+    });
+
+    test('ReadWrite collaborator can rename children inside shared directory', async () => {
+      actor.setIdentity(aliceIdentity);
+      await actor.rename({
+        entry: [FILE, 'Shared/team/draft.txt'],
+        newName: 'final.txt',
+      });
+
+      const { entries } = await actor.list([[DIRECTORY, 'Shared/team']]);
+      expect(entries.map((entry) => entry.name)).toContain('final.txt');
+    });
+
+    test('ReadWrite collaborator cannot rename shared directory itself', async () => {
+      actor.setIdentity(aliceIdentity);
+      await expect(
+        actor.rename({
+          entry: [DIRECTORY, 'Shared/team'],
+          newName: 'renamed-team',
+        }),
+      ).rejects.toThrow(/requires ReadWrite access for directory 'Shared'/);
+
+      actor.setIdentity(ownerIdentity);
+      const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+      expect(entries.map((entry) => entry.name)).toContain('team');
+    });
+
+    test('ReadWrite collaborator can move children inside shared directory', async () => {
+      actor.setIdentity(aliceIdentity);
+      await actor.move({
+        entry: [FILE, 'Shared/team/draft.txt'],
+        target: [[DIRECTORY, 'Shared/team/archive']],
+      });
+
+      const { entries } = await actor.list([
+        [DIRECTORY, 'Shared/team/archive'],
+      ]);
+      expect(entries.map((entry) => entry.name)).toContain('draft.txt');
+    });
+
+    test('ReadWrite collaborator cannot move shared directory itself', async () => {
+      actor.setIdentity(aliceIdentity);
+      await expect(
+        actor.move({
+          entry: [DIRECTORY, 'Shared/team'],
+          target: [[DIRECTORY, 'Destination']],
+        }),
+      ).rejects.toThrow(
+        /Source error: permission denied: caller .* requires ReadWrite access for directory 'Shared'/,
+      );
+
+      actor.setIdentity(ownerIdentity);
+      const { entries } = await actor.list([[DIRECTORY, 'Shared']]);
+      expect(entries.map((entry) => entry.name)).toContain('team');
+    });
+  });
+
   describe('move', () => {
     beforeEach(async () => {
       await actor.create({
