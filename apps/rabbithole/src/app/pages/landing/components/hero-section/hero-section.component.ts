@@ -11,16 +11,25 @@ import {
   lucideBookOpen,
   lucideLayoutDashboard,
   lucideLogIn,
+  lucidePlay,
 } from '@ng-icons/lucide';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import { RbthRainbowButton } from '@rabbithole/ui/rainbow-button';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
 
 @Component({
   selector: 'app-landing-hero',
   imports: [NgIcon, NgOptimizedImage, RouterLink, ...HlmButtonImports, RbthRainbowButton],
-  providers: [provideIcons({ lucideBookOpen, lucideLayoutDashboard, lucideLogIn })],
+  providers: [
+    provideIcons({
+      lucideBookOpen,
+      lucideLayoutDashboard,
+      lucideLogIn,
+      lucidePlay,
+    }),
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'block',
@@ -40,11 +49,21 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
           No passwords. No master keys.
           Files are encrypted in your browser and protected by cryptography, not cloud promises.
         </p>
-        <div class="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
+        <div class="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
           <a rbthRainbowBtn size="lg" [routerLink]="ctaLink()">
             <ng-icon [name]="ctaIcon()" size="18" />
             {{ ctaText() }}
           </a>
+          <button
+            rbthRainbowBtn
+            variant="outline"
+            size="lg"
+            type="button"
+            (click)="openDemoVideo()"
+          >
+            <ng-icon name="lucidePlay" size="18" />
+            Watch Demo
+          </button>
           <a
             hlmBtn
             variant="outline"
@@ -76,6 +95,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 })
 export class HeroSectionComponent {
   readonly #authService = inject(AUTH_SERVICE);
+
   readonly ctaIcon = computed(() =>
     this.#authService.isAuthenticated() ? 'lucideLayoutDashboard' : 'lucideLogIn',
   );
@@ -85,4 +105,19 @@ export class HeroSectionComponent {
   readonly ctaText = computed(() =>
     this.#authService.isAuthenticated() ? 'Open Dashboard' : 'Open App',
   );
+
+  readonly #dialogService = inject(HlmDialogService);
+
+  async openDemoVideo(): Promise<void> {
+    const { DemoVideoDialogComponent } = await import(
+      './demo-video-dialog.component'
+    );
+
+    this.#dialogService.open(DemoVideoDialogComponent, {
+      ariaDescribedBy: 'rabbithole-demo-video-description',
+      ariaLabelledBy: 'rabbithole-demo-video-title',
+      contentClass:
+        'w-[min(92vw,calc((100dvh-4rem)*16/9),1200px)] max-w-none gap-0 overflow-hidden border-0 bg-black p-2 text-white shadow-2xl sm:max-w-none sm:p-3 [&>button]:z-20 [&>button]:text-white [&>button:hover]:bg-white/10 [&>button:hover]:text-white',
+    });
+  }
 }
