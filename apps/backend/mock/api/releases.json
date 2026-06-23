@@ -1,71 +1,71 @@
 [
   {
-    "url": "http://mock-server:8080/repos/mock/releases/releases/341999218",
+    "url": "http://mock-server:8080/repos/mock/releases/releases/343123101",
     "html_url": "http://mock-server:8080/releases/tag/storage-v0.2.0",
-    "id": 341999218,
+    "id": 343123101,
     "tag_name": "storage-v0.2.0",
     "name": "storage-v0.2.0",
-    "body": "This is storage release [storage-v0.2.0](https://github.com/rabbithole-app/v2/releases/tag/storage-v0.2.0) for commit [de37a10fdabeaf1a2fc54ddebf2beec523f03a60](https://github.com/rabbithole-app/v2/commit/de37a10fdabeaf1a2fc54ddebf2beec523f03a60).\n\n## What's Changed\n\nStorage release with 1 feature, 2 fixes.\n\n### Features\n\n- Manage Blob Storage Cashier access. ([de37a10](https://github.com/rabbithole-app/v2/commit/de37a10fdabeaf1a2fc54ddebf2beec523f03a60))\n\n### Fixes\n\n- Verify storage release downloads. ([10e4076](https://github.com/rabbithole-app/v2/commit/10e40763fdb5e2bdeeff2253f489da66995af641))\n- Restore storage release downloads. ([aa2a61f](https://github.com/rabbithole-app/v2/commit/aa2a61f49a93bf2eaf248cb39c7ca26299265ef2))\n\n**Full Changelog**: https://github.com/rabbithole-app/v2/compare/storage-v0.1.2...storage-v0.2.0\n\n## Upgrade Compatibility\n\n- Version: `0.2.0`\n- Commit: `de37a10fdabeaf1a2fc54ddebf2beec523f03a60`\n- Argument strategy: `reuseInstallArgV1`\n- Compatible from: `none declared`\n- Frontend asset tree: `sha256:dfe4f2fc3e6751d5ab463d00a4e282fffe5b2b0ff5b24cdf0748777956aea3dd`\n\n## Artifacts\n\n| File | Size | SHA256 |\n| --- | ---: | --- |\n| [encrypted-storage.wasm.gz](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage.wasm.gz) | 863252 bytes | `31baf7d213645161bfeb05cccff0b3a5bf8a5bfb385578038b71d04ac3f85aac` |\n| [storage-frontend.tar](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/storage-frontend.tar) | 7188480 bytes | `a2c59ffc92d2a42c01f874d640dbf490b2e5a0491af492953db5aea29a9d505b` |\n| [encrypted-storage.did](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage.did) | 31661 bytes | `293efb665aa6dd4b10cc7337117b131670373cfc762f308c5ef047fc0878f9e1` |\n| [encrypted-storage.most](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage.most) | 48991 bytes | `151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914` |\n| [encrypted-storage-lib.zip](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage-lib.zip) | 305610 bytes | `2f847ab50469351023bcb46d08bd0bd48358777ec037c0f11f0bab105b499cd5` |\n\n## Wasm Verification\n\nTo rebuild the storage WASM module and verify its hash, run:\n\n```sh\ngit checkout de37a10fdabeaf1a2fc54ddebf2beec523f03a60\nnpm install -g @icp-sdk/icp-cli@1.0.0 @icp-sdk/ic-wasm ic-mops@2.14.1\napps/backend/scripts/build-storage-release-wasm.sh\nshasum -a 256 apps/backend/.icp/cache/artifacts/encrypted-storage\n```\n\nExpected storage WASM sha256: `31baf7d213645161bfeb05cccff0b3a5bf8a5bfb385578038b71d04ac3f85aac`\n\nThe machine-readable release contract is attached as `storage-release.json`.\n",
+    "body": "This is storage release [storage-v0.2.0](https://github.com/rabbithole-app/v2/releases/tag/storage-v0.2.0) for commit [ff81f99bb1c07e842df29e08f8db34ad08929ae2](https://github.com/rabbithole-app/v2/commit/ff81f99bb1c07e842df29e08f8db34ad08929ae2).\n\n## What's Changed\n\nStorage release with 1 feature, 2 fixes.\n\n### Features\n\n- Add landing demo video. ([5708194](https://github.com/rabbithole-app/v2/commit/5708194f65c884e4cd45dfb6485182a018983f49))\n\n### Fixes\n\n- Require manage access for shared roots. ([ff81f99](https://github.com/rabbithole-app/v2/commit/ff81f99bb1c07e842df29e08f8db34ad08929ae2))\n- Allow folder-level uploads. ([bf42594](https://github.com/rabbithole-app/v2/commit/bf42594cef8d182ec7fbdb6e01ee22f10c29a3f1))\n\n**Full Changelog**: https://github.com/rabbithole-app/v2/compare/storage-v0.1.0...storage-v0.2.0\n\n## Upgrade Compatibility\n\n- Version: `0.2.0`\n- Commit: `ff81f99bb1c07e842df29e08f8db34ad08929ae2`\n- Argument strategy: `reuseInstallArgV1`\n- Compatible from: `none declared`\n- Frontend asset tree: `sha256:7a893b8627b94a1b908029e72576513e9b9dfd32ad749bf286beb044ea6d0b1b`\n\n## Artifacts\n\n| File | Size | SHA256 |\n| --- | ---: | --- |\n| [encrypted-storage.wasm.gz](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage.wasm.gz) | 887523 bytes | `88e60217892d7aa3f3bb5b8399d090c6e35e157900c4da454addab5e8589cb51` |\n| [storage-frontend.tar](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/storage-frontend.tar) | 7147520 bytes | `1ea0b1b6c728b93c9fad7cf63bdd825243d78cf227d90e64065e0321a7560671` |\n| [encrypted-storage.did](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage.did) | 31804 bytes | `713781af8567fa2c5e947156127d56e4dbdb7fc9be5d482d90044fae8018fb9e` |\n| [encrypted-storage.most](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage.most) | 48991 bytes | `151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914` |\n| [encrypted-storage-lib.zip](https://github.com/rabbithole-app/v2/releases/download/storage-v0.2.0/encrypted-storage-lib.zip) | 342540 bytes | `58edb5d371796cd5260b38d9526bcb95426c91fc71cd6f8fbdb1c7d477d30feb` |\n\n## Wasm Verification\n\nTo rebuild the storage WASM module and verify its hash, run:\n\n```sh\ngit checkout ff81f99bb1c07e842df29e08f8db34ad08929ae2\nnpm install -g @icp-sdk/icp-cli@1.0.0 @icp-sdk/ic-wasm ic-mops@2.14.1\napps/backend/scripts/build-storage-release-wasm.sh\nshasum -a 256 apps/backend/.icp/cache/artifacts/encrypted-storage\n```\n\nExpected storage WASM sha256: `88e60217892d7aa3f3bb5b8399d090c6e35e157900c4da454addab5e8589cb51`\n\nThe machine-readable release contract is attached as `storage-release.json`.\n",
     "draft": false,
     "prerelease": false,
     "immutable": false,
-    "created_at": "2026-06-19T14:58:32Z",
-    "published_at": "2026-06-19T14:58:32Z",
+    "created_at": "2026-06-22T19:36:16Z",
+    "published_at": "2026-06-22T19:36:16Z",
     "assets": [
       {
         "url": "http://mock-server:8080/assets/storage-v0.2.0/encrypted-storage.wasm.gz",
-        "id": 34199921801,
+        "id": 34312310101,
         "name": "encrypted-storage.wasm.gz",
         "label": "",
         "content_type": "application/gzip",
-        "size": 863252,
-        "created_at": "2026-06-19T14:58:32Z",
-        "updated_at": "2026-06-19T14:58:32Z",
-        "digest": "sha256:31baf7d213645161bfeb05cccff0b3a5bf8a5bfb385578038b71d04ac3f85aac"
+        "size": 887523,
+        "created_at": "2026-06-22T19:36:16Z",
+        "updated_at": "2026-06-22T19:36:16Z",
+        "digest": "sha256:88e60217892d7aa3f3bb5b8399d090c6e35e157900c4da454addab5e8589cb51"
       },
       {
         "url": "http://mock-server:8080/assets/storage-v0.2.0/encrypted-storage.did",
-        "id": 34199921802,
+        "id": 34312310102,
         "name": "encrypted-storage.did",
         "label": "",
         "content_type": "text/plain",
-        "size": 31661,
-        "created_at": "2026-06-19T14:58:32Z",
-        "updated_at": "2026-06-19T14:58:32Z",
-        "digest": "sha256:293efb665aa6dd4b10cc7337117b131670373cfc762f308c5ef047fc0878f9e1"
+        "size": 31804,
+        "created_at": "2026-06-22T19:36:16Z",
+        "updated_at": "2026-06-22T19:36:16Z",
+        "digest": "sha256:713781af8567fa2c5e947156127d56e4dbdb7fc9be5d482d90044fae8018fb9e"
       },
       {
         "url": "http://mock-server:8080/assets/storage-v0.2.0/encrypted-storage.most",
-        "id": 34199921803,
+        "id": 34312310103,
         "name": "encrypted-storage.most",
         "label": "",
         "content_type": "text/plain",
         "size": 48991,
-        "created_at": "2026-06-19T14:58:32Z",
-        "updated_at": "2026-06-19T14:58:32Z",
+        "created_at": "2026-06-22T19:36:16Z",
+        "updated_at": "2026-06-22T19:36:16Z",
         "digest": "sha256:151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914"
       },
       {
         "url": "http://mock-server:8080/assets/storage-v0.2.0/storage-frontend.tar",
-        "id": 34199921804,
+        "id": 34312310104,
         "name": "storage-frontend.tar",
         "label": "",
         "content_type": "application/x-tar",
-        "size": 7188480,
-        "created_at": "2026-06-19T14:58:32Z",
-        "updated_at": "2026-06-19T14:58:32Z",
-        "digest": "sha256:a2c59ffc92d2a42c01f874d640dbf490b2e5a0491af492953db5aea29a9d505b"
+        "size": 7147520,
+        "created_at": "2026-06-22T19:36:16Z",
+        "updated_at": "2026-06-22T19:36:16Z",
+        "digest": "sha256:1ea0b1b6c728b93c9fad7cf63bdd825243d78cf227d90e64065e0321a7560671"
       },
       {
         "url": "http://mock-server:8080/assets/storage-v0.2.0/storage-release.json",
-        "id": 34199921805,
+        "id": 34312310105,
         "name": "storage-release.json",
         "label": "",
         "content_type": "application/json",
-        "size": 1609,
-        "created_at": "2026-06-19T14:58:32Z",
-        "updated_at": "2026-06-19T14:58:32Z",
-        "digest": "sha256:9af0903b8005a6b99d1830be1cf74eb17761871ab11b28258cce3af0a01a7cfc"
+        "size": 1596,
+        "created_at": "2026-06-22T19:36:16Z",
+        "updated_at": "2026-06-22T19:36:16Z",
+        "digest": "sha256:ac0c66b7324a95734edbc960f52d5da2e96748af54a81ab5de136a5981bc8214"
       }
     ]
   }
