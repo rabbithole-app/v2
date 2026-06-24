@@ -1,0 +1,57 @@
+--- a/.mops/certified-assets@0.6.0/src/Stable.mo
++++ b/.mops/certified-assets@0.6.0/src/Stable.mo
+@@ -542,40 +542,25 @@
+
+     };
+
+-    public func get_all_fallback_paths_between_urls(init_start_path : Text, init_end_path : Text) : [Text] {
+-        let (start_path, end_path) = if (init_start_path.size() < init_end_path.size()) {
+-            (init_start_path, init_end_path);
+-        } else {
+-            (init_end_path, init_start_path);
+-        };
++    public func get_all_fallback_paths_between_urls(start_path : Text, end_path : Text) : [Text] {
++        let parts = Iter.toArray(Text.tokens(start_path, #text("/")));
++        let all_paths_between = Buffer.Buffer<Text>(parts.size());
+
+-        let ?difference = Text.stripStart(end_path, #text(start_path)) else return [];
+-        let differing_paths = Iter.toArray(Text.tokens(difference, #text("/")));
++        if (parts.size() == 0) {
++            return [];
++        };
+
+-        var curr = start_path;
+-        var i = 0;
+-        var j = 0;
+-
+-        let all_paths_between = Buffer.Buffer<Text>(8);
++        var i = parts.size();
++        label candidates while (i > 0) {
++            let prefix = Text.join("/", Itertools.fromArraySlice(parts, 0, i));
++            let candidate = "/" # prefix # "/index.html";
+
+-        label building_paths while (Text.startsWith(end_path, #text(curr))) {
+-            if (i == 0 and Text.endsWith(curr, #text("/"))) {
+-                i += 1;
+-                continue building_paths;
+-            };
+-
+-            if (i % 2 == 0) {
+-                curr #= "/";
+-            } else {
+-                curr #= differing_paths[j];
+-                j += 1;
++            if (candidate == end_path) {
++                break candidates;
+             };
+-
+-            if (curr == end_path) break building_paths;
+
+-            all_paths_between.add(curr);
+-
+-            i += 1;
++            all_paths_between.add(candidate);
++            i -= 1;
+         };
+
+         Buffer.toArray(all_paths_between);
