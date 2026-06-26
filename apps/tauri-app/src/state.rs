@@ -1,6 +1,7 @@
 //! Application state shared across Tauri commands.
 
 use ic_agent::Agent;
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 use ic_auth_client::NativeAuthClient;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -16,11 +17,10 @@ pub struct IcConfig {
 
 impl IcConfig {
     /// Production config (mainnet).
-    /// TODO: update backend_canister_id after mainnet deployment.
     fn production() -> Self {
         Self {
             ic_url: "https://icp-api.io".to_string(),
-            backend_canister_id: candid::Principal::from_text("uxrrr-q7777-77774-qaaaq-cai")
+            backend_canister_id: candid::Principal::from_text("dkymu-iaaaa-aaaae-agwaa-cai")
                 .expect("invalid prod backend canister id"),
             is_local: false,
             ii_bridge_url: "https://rabbithole.app/ii-bridge".to_string(),
@@ -72,6 +72,7 @@ impl Default for IcConfig {
             Ok("production") => Self::production(),
             Ok("staging") => Self::staging(),
             Ok("development") => Self::development(),
+            _ if cfg!(any(target_os = "ios", target_os = "android")) => Self::production(),
             _ if cfg!(debug_assertions) => Self::development(),
             _ => Self::production(),
         }
@@ -80,6 +81,7 @@ impl Default for IcConfig {
 
 /// Inner state behind Arc for sharing across async tasks.
 struct AppStateInner {
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     auth_client: RwLock<Option<NativeAuthClient>>,
     agent: RwLock<Option<Arc<Agent>>>,
     config: RwLock<IcConfig>,
@@ -94,12 +96,14 @@ pub struct AppState(Arc<AppStateInner>);
 impl AppState {
     pub fn new(config: IcConfig) -> Self {
         Self(Arc::new(AppStateInner {
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             auth_client: RwLock::new(None),
             agent: RwLock::new(None),
             config: RwLock::new(config),
         }))
     }
 
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     pub fn auth_client(&self) -> &RwLock<Option<NativeAuthClient>> {
         &self.0.auth_client
     }
@@ -113,6 +117,7 @@ impl AppState {
     }
 
     /// Build an IC Agent from the current auth client identity.
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     pub async fn build_agent(&self) -> Result<Arc<Agent>, String> {
         let config = self.0.config.read().await;
         let auth_client_lock = self.0.auth_client.read().await;
@@ -149,6 +154,12 @@ impl AppState {
         let agent = Arc::new(agent);
         *self.0.agent.write().await = Some(agent.clone());
         Ok(agent)
+    }
+
+    /// Mobile frontend uses JS-held delegated identity instead of Rust native auth.
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    pub async fn build_agent(&self) -> Result<Arc<Agent>, String> {
+        Err("Rust native auth is desktop-only; mobile uses JS delegation flow".to_string())
     }
 
     /// Get the current agent, building one if needed.

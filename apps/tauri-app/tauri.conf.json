@@ -41,7 +41,10 @@
   },
   "plugins": {
     "deep-link": {
-      "mobile": [{ "host": "mphmm-iqaaa-aaaap-anwyq-cai.icp.net" }],
+      "mobile": [
+        { "scheme": ["rabbithole"], "appLink": false },
+        { "host": "mphmm-iqaaa-aaaap-anwyq-cai.icp.net" }
+      ],
       "desktop": {
         "schemes": ["rabbithole"]
       }

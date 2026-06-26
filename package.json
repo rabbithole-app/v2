@@ -7,7 +7,7 @@
     "lint": "nx run-many -t lint -p rabbithole storage app-ui auth core app-utils encrypted-storage pages features utils encrypted-storage-mo auth-jwt-mo",
     "build:frontend": "nx run-many -t build -p rabbithole storage",
     "build:frontend-rsdoctor": "RSDOCTOR=1 nx run-many -t build -p rabbithole storage",
-    "tauri": "nx run tauri-app:tauri",
+    "tauri": "cd apps/tauri-app && tauri",
     "tauri:dev": "nx serve tauri-app",
     "tauri:build": "nx build tauri-app",
     "test": "nx run-many -t test -p rabbithole app-ui auth core app-utils encrypted-storage-mo auth-jwt-mo"
@@ -151,7 +151,8 @@
     "typescript-eslint": "^8.55.0",
     "vite": "^7.3.1",
     "vite-tsconfig-paths": "^6.0.4",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "webpack-merge": "^5.8.0"
   },
   "overrides": {
     "@icp-sdk/core": "$@icp-sdk/core",

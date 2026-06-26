@@ -25,7 +25,6 @@ tauri-plugin-window-state = "2.4.1"
 
 # IC Agent & Auth
 ic-agent = { version = "0.45", features = ["pem"] }
-ic-auth-client = { version = "0.5.0-beta.0", default-features = false, features = ["native", "keyring", "pem"] }
 candid = "0.10"
 
 # VetKeys crypto
@@ -56,10 +55,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # MIME type detection
 mime_guess = "2"
 
-# Keyring access & crypto (same versions as ic-auth-client uses)
-keyring = "3"
 hex = "0.4"
 ed25519-dalek = "2"
 
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
+ic-auth-client = { version = "0.5.0-beta.0", default-features = false, features = ["native", "keyring", "pem"] }
+keyring = "3"
 tauri-plugin-single-instance = { version = "2.4.0", features = ["deep-link"] }

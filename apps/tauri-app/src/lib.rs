@@ -1,10 +1,13 @@
-mod auth;
 mod backend;
-mod bridge;
 mod commands;
 mod state;
 mod storage;
 mod vetkey;
+
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+mod auth;
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+mod bridge;
 
 use state::{AppState, IcConfig};
 use tauri::Manager;
@@ -31,9 +34,11 @@ pub fn run() {
         show_window(app);
     }));
 
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    let builder = builder.plugin(tauri_plugin_window_state::Builder::new().build());
+
     builder
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -59,16 +64,19 @@ pub fn run() {
                 window.open_devtools();
             }
 
-            // Initialize auth client on startup to restore session from keyring
-            let state = app.state::<AppState>();
-            let state_clone = state.inner().clone();
-            tauri::async_runtime::spawn(async move {
-                match auth::init_auth_client(&state_clone).await {
-                    Ok(true) => tracing::info!("Session restored from keyring"),
-                    Ok(false) => tracing::info!("No stored session, user needs to sign in"),
-                    Err(e) => tracing::warn!("Failed to init auth client: {}", e),
-                }
-            });
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            {
+                // Initialize auth client on startup to restore session from keyring
+                let state = app.state::<AppState>();
+                let state_clone = state.inner().clone();
+                tauri::async_runtime::spawn(async move {
+                    match auth::init_auth_client(&state_clone).await {
+                        Ok(true) => tracing::info!("Session restored from keyring"),
+                        Ok(false) => tracing::info!("No stored session, user needs to sign in"),
+                        Err(e) => tracing::warn!("Failed to init auth client: {}", e),
+                    }
+                });
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

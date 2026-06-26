@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   resource,
   signal,
@@ -56,6 +57,7 @@ import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { environment } from '../../../environments/environment';
 
 const DELEGATION_POPUP_CLOSE_DELAY_MS = 2000;
+const DELEGATION_DEEP_LINK_TIMEOUT_MS = 5000;
 const MANAGEMENT_CANISTER_ID = Principal.fromText('aaaaa-aa');
 const CYCLES_MINTING_CANISTER = Principal.fromText(
   CYCLES_MINTING_CANISTER_ID,
@@ -124,6 +126,10 @@ export class DelegationComponent {
   });
   readonly signInError = signal<string | null>(null);
   readonly signingIn = signal(false);
+  autoDelegate = linkedQueryParam('autoDelegate', {
+    parse: (value) => value === '1' || value === 'true',
+    stringify: (value) => (value ? '1' : null),
+  });
   signInIcon = computed(() => {
     if (this.openIdIssuer()) return 'hugeDeveloper';
     if (this.openIdProvider() === 'google') return 'hugeGoogle';
@@ -200,6 +206,18 @@ export class DelegationComponent {
   });
   #authConfig = inject(AUTH_CONFIG);
 
+  constructor() {
+    effect(() => {
+      if (!this.autoDelegate()) return;
+      if (!this.publicKey()) return;
+      if (!this.isAuthenticated()) return;
+      if (this.delegationSent()) return;
+      if (window.opener && !window.opener.closed) return;
+
+      void this.delegateFromBrokerSession();
+    });
+  }
+
   cancel() {
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage({ type: 'DELEGATION_CANCELLED' }, '*');
@@ -211,33 +229,39 @@ export class DelegationComponent {
     const publicKey = this.publicKey();
     if (!publicKey) return;
     this.delegationSent.set(true);
+    this.signInError.set(null);
 
-    const identity = this.#authService.identity();
-    if (!(identity instanceof DelegationIdentity)) {
-      this.delegationSent.set(false);
-      console.error(
-        'Cannot issue storage delegation without a broker delegation identity.',
+    try {
+      const identity = this.#authService.identity();
+      if (!(identity instanceof DelegationIdentity)) {
+        throw new Error(
+          'Cannot issue storage delegation without a broker delegation identity.',
+        );
+      }
+
+      const maxTimeToLive =
+        this.#authConfig.loginOptions?.maxTimeToLive ??
+        BigInt(8 * 60 * 60 * 1000 * 1000 * 1000);
+      const expiration = new Date(
+        Date.now() + Number(maxTimeToLive / 1_000_000n),
       );
-      return;
+      const delegationChain = await DelegationChain.create(
+        identity as SignIdentity,
+        publicKey,
+        expiration,
+        {
+          previous: identity.getDelegation(),
+          targets: this.targets(),
+        },
+      );
+
+      this.handleDelegate(delegationChain);
+    } catch (error) {
+      this.delegationSent.set(false);
+      this.signInError.set(
+        error instanceof Error ? error.message : 'Failed to prepare delegation',
+      );
     }
-
-    const maxTimeToLive =
-      this.#authConfig.loginOptions?.maxTimeToLive ??
-      BigInt(8 * 60 * 60 * 1000 * 1000 * 1000);
-    const expiration = new Date(
-      Date.now() + Number(maxTimeToLive / 1_000_000n),
-    );
-    const delegationChain = await DelegationChain.create(
-      identity as SignIdentity,
-      publicKey,
-      expiration,
-      {
-        previous: identity.getDelegation(),
-        targets: this.targets(),
-      },
-    );
-
-    this.handleDelegate(delegationChain);
   }
 
   handleDelegate(delegationChain: DelegationChain) {
@@ -257,11 +281,22 @@ export class DelegationComponent {
     } else {
       // If no parent window, use deep link (for tauri application)
       const json = JSON.stringify(delegationChain.toJSON());
-      window.open(
-        `${
-          environment.scheme
-        }://internetIdentityCallback?delegationChain=${encodeURIComponent(json)}`,
+      const deepLink = `${
+        environment.scheme
+      }://internetIdentityCallback?delegationChain=${encodeURIComponent(json)}`;
+
+      window.location.assign(
+        deepLink,
       );
+
+      window.setTimeout(() => {
+        if (document.visibilityState !== 'visible') return;
+
+        this.delegationSent.set(false);
+        this.signInError.set(
+          'Rabbithole did not reopen. Return to the app and try again.',
+        );
+      }, DELEGATION_DEEP_LINK_TIMEOUT_MS);
     }
   }
 

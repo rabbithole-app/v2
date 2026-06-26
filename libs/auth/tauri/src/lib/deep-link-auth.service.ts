@@ -11,11 +11,10 @@ import { AnonymousIdentity, SignIdentity } from '@icp-sdk/core/agent';
 import {
   DelegationChain,
   DelegationIdentity,
-  Ed25519KeyIdentity,
   JsonnableDelegationChain,
 } from '@icp-sdk/core/identity';
 import { bytesToHex } from '@noble/hashes/utils';
-import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
+import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { map } from 'rxjs/operators';
 
@@ -26,7 +25,15 @@ import {
   waitDelegationExpired,
 } from '@rabbithole/auth';
 
-import { createAuthClient, loadIdentity, saveDelegationChain } from './utils';
+import {
+  clearDelegationChain,
+  createAuthClient,
+  isDelegationChainValid,
+  loadDelegationChain,
+  loadIdentity,
+  loadOrCreateIdentity,
+  saveDelegationChain,
+} from './utils';
 
 export type AuthClientInstance = AuthClient;
 export type AuthClientSignOutOptions = Parameters<
@@ -72,15 +79,17 @@ export class TauriDeepLinkAuthService implements IAuthService {
   }
 
   async signIn() {
-    // AuthClient has generated and saved Ed25519KeyIdentity in the storage
-    const identity = (await loadIdentity()) as Ed25519KeyIdentity;
+    const identity = await loadOrCreateIdentity();
     const publicKey = bytesToHex(identity.getPublicKey().toDer());
-    const url = `${this.#authConfig.appUrl}${
-      this.#authConfig.delegationPath
-    }?sessionPublicKey=${publicKey}`;
+    const url = new URL(
+      this.#authConfig.delegationPath,
+      this.#authConfig.appUrl,
+    );
+    url.searchParams.set('sessionPublicKey', publicKey);
+    url.searchParams.set('autoDelegate', '1');
 
-    // Here we open a browser and continue on the website
-    await openUrl(url);
+    // Here we open a browser and continue on the website.
+    await openDelegationUrl(url);
   }
 
   signOut(options?: AuthClientSignOutOptions) {
@@ -88,46 +97,76 @@ export class TauriDeepLinkAuthService implements IAuthService {
     this.#state.update((state) => ({
       ...state,
       delegationChain: null,
+      identity: new AnonymousIdentity(),
       isAuthenticated: false,
     }));
 
     assertClient(client);
 
-    return client.signOut(options);
+    return client.signOut(options).then(() => clearDelegationChain());
   }
 
   async #initState() {
     const client = await createAuthClient();
-    const identity = await client.getIdentity();
-    const isAuthenticated = client.isAuthenticated();
+    const sessionIdentity = await loadIdentity();
+    const savedDelegationChain = sessionIdentity
+      ? await loadDelegationChain(this.#requiredDelegationTargets())
+      : null;
+    const identity = sessionIdentity && savedDelegationChain
+      ? DelegationIdentity.fromDelegation(sessionIdentity, savedDelegationChain)
+      : (sessionIdentity ?? new AnonymousIdentity());
 
     this.#state.update((state) => ({
       ...state,
       client,
+      delegationChain: savedDelegationChain,
       identity,
-      isAuthenticated,
+      isAuthenticated: !!savedDelegationChain,
       ready: true,
     }));
 
-    const unlistenFn = await onOpenUrl((urls) =>
-      this.#parseDelegationFromUrl(urls[0]),
-    );
+    const unlistenFn = await onOpenUrl((urls) => {
+      void this.#parseDelegationFromUrl(urls[0]).catch(console.error);
+    });
     this.#destroyRef.onDestroy(() => unlistenFn());
+
+    const startUrls = await getCurrent();
+    const startUrl = startUrls?.[0];
+    if (startUrl) {
+      await this.#parseDelegationFromUrl(startUrl).catch(console.error);
+    }
   }
 
   async #parseDelegationFromUrl(url: string) {
-    const identity = (await loadIdentity()) as Ed25519KeyIdentity;
+    const identity = await loadIdentity();
 
-    // Get JSON from deep link query param
-    const encodedDelegationChain = url.replace(
-      `${this.#authConfig.scheme}://internetIdentityCallback?delegationChain=`,
-      '',
-    );
-    const json: JsonnableDelegationChain = JSON.parse(
-      decodeURIComponent(encodedDelegationChain),
-    );
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== `${this.#authConfig.scheme}:`) {
+      return;
+    }
+
+    if (!identity) {
+      throw new Error('Deep link callback has no saved session identity.');
+    }
+
+    const encodedDelegationChain =
+      parsedUrl.searchParams.get('delegationChain');
+    if (!encodedDelegationChain) {
+      throw new Error('Deep link callback is missing delegationChain.');
+    }
+
+    const json: JsonnableDelegationChain = JSON.parse(encodedDelegationChain);
 
     const delegationChain: DelegationChain = DelegationChain.fromJSON(json);
+    if (
+      !isDelegationChainValid(
+        delegationChain,
+        this.#requiredDelegationTargets(),
+      )
+    ) {
+      await clearDelegationChain();
+      throw new Error('Deep link callback contains an invalid delegation.');
+    }
 
     // Here we create an identity with the delegation chain we received from the website
     const internetIdentity = DelegationIdentity.fromDelegation(
@@ -140,8 +179,35 @@ export class TauriDeepLinkAuthService implements IAuthService {
       delegationChain,
       identity: internetIdentity,
       isAuthenticated: true,
+      ready: true,
     }));
 
     await saveDelegationChain(delegationChain);
   }
+
+  #requiredDelegationTargets() {
+    return this.#authConfig.delegationTargets ?? [];
+  }
+}
+
+async function openDelegationUrl(url: URL) {
+  const href = url.toString();
+
+  try {
+    await openUrl(href);
+    return;
+  } catch (defaultBrowserError) {
+    try {
+      await openUrl(href, 'inAppBrowser');
+      return;
+    } catch (inAppBrowserError) {
+      throw new Error(
+        `Failed to open delegation URL. Default browser: ${formatError(defaultBrowserError)}. In-app browser: ${formatError(inAppBrowserError)}`,
+      );
+    }
+  }
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -13,5 +13,7 @@
                 </array>
             </dict>
         </array>
+        <key>NSLocalNetworkUsageDescription</key>
+        <string>Rabbithole uses the local network in development to connect to the frontend dev server.</string>
     </dict>
 </plist>

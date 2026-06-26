@@ -19,8 +19,10 @@
     {
       "identifier": "opener:allow-open-url",
       "allow": [
-        { "url": "https://github.com/*" },
-        { "url": "https://internetcomputer.org/*" }
+        { "url": "http://*", "app": true },
+        { "url": "https://*", "app": true },
+        { "url": "mailto:*", "app": true },
+        { "url": "tel:*", "app": true }
       ]
     },
     "deep-link:default"

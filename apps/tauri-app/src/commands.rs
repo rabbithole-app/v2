@@ -1,9 +1,13 @@
 //! Tauri commands exposed to the Angular frontend via IPC.
 
-use crate::{auth, backend, bridge, state::AppState, storage};
+use crate::{backend, state::AppState, storage};
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+use crate::{auth, bridge};
 use candid::Principal;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, State};
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+use tauri::{Emitter, Manager};
 
 // ---------------------------------------------------------------------------
 // Auth commands
@@ -16,6 +20,7 @@ pub struct AuthStatusPayload {
 }
 
 /// Check if the user is authenticated (restored session from keyring).
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
 pub async fn auth_status(state: State<'_, AppState>) -> Result<AuthStatusPayload, String> {
     // Ensure auth client is initialized (lazy init if setup() hasn't finished or failed)
@@ -48,8 +53,18 @@ pub async fn auth_status(state: State<'_, AppState>) -> Result<AuthStatusPayload
     }
 }
 
+#[cfg(any(target_os = "ios", target_os = "android"))]
+#[tauri::command]
+pub async fn auth_status(_state: State<'_, AppState>) -> Result<AuthStatusPayload, String> {
+    Ok(AuthStatusPayload {
+        is_authenticated: false,
+        principal: None,
+    })
+}
+
 /// Start the login flow. Opens the system browser to ii-bridge.
 /// Emits "auth-success" or "auth-error" events when complete.
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
 pub async fn sign_in(
     app: AppHandle,
@@ -104,18 +119,41 @@ pub async fn sign_in(
     Ok(())
 }
 
+#[cfg(any(target_os = "ios", target_os = "android"))]
+#[tauri::command]
+pub async fn sign_in(
+    _app: AppHandle,
+    _state: State<'_, AppState>,
+) -> Result<(), String> {
+    Err("Rust native auth is desktop-only; mobile uses JS delegation flow".to_string())
+}
+
 /// Logout and clear credentials.
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
 pub async fn sign_out(state: State<'_, AppState>) -> Result<(), String> {
     auth::logout(&state).await;
     Ok(())
 }
 
+#[cfg(any(target_os = "ios", target_os = "android"))]
+#[tauri::command]
+pub async fn sign_out(_state: State<'_, AppState>) -> Result<(), String> {
+    Ok(())
+}
+
 /// Get delegation chain and identity key in JS-compatible format.
 /// Angular uses this to create DelegationIdentity for its own HttpAgent.
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
 pub async fn get_delegation_chain() -> Result<bridge::AuthBridgeData, String> {
     bridge::read_auth_data_from_keyring()
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+#[tauri::command]
+pub async fn get_delegation_chain() -> Result<(), String> {
+    Err("Rust native auth is desktop-only; mobile uses JS delegation flow".to_string())
 }
 
 // ---------------------------------------------------------------------------

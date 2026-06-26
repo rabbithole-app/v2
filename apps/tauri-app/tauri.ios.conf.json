@@ -1,0 +1,8 @@
+{
+  "build": {
+    "beforeBuildCommand": "cd /Users/khalik/Documents/projects/nx-rabbithole && NX_DAEMON=false npx nx build mobile --skip-nx-cache",
+    "beforeDevCommand": "cd /Users/khalik/Documents/projects/nx-rabbithole && NX_DAEMON=false npx nx serve mobile --host=127.0.0.1 --port=4202",
+    "frontendDist": "../../dist/apps/mobile/browser",
+    "devUrl": "http://127.0.0.1:4202"
+  }
+}
