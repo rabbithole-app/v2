@@ -150,6 +150,19 @@ module EvmRpc {
     block : ?BlockTag;
   };
 
+  public type FeeHistoryArgs = {
+    blockCount : Nat;
+    newestBlock : BlockTag;
+    rewardPercentiles : ?[Nat8];
+  };
+
+  public type FeeHistory = {
+    reward : [[Nat]];
+    gasUsedRatio : [Float];
+    oldestBlock : Nat;
+    baseFeePerGas : [Nat];
+  };
+
   public type GetTransactionCountArgs = {
     address : Text;
     block : BlockTag;
@@ -201,6 +214,7 @@ module EvmRpc {
   // ---- Result types ----
 
   public type CallResult = { #Ok : Text; #Err : RpcError };
+  public type FeeHistoryResult = { #Ok : FeeHistory; #Err : RpcError };
   public type GetTransactionCountResult = { #Ok : Nat; #Err : RpcError };
 
   public type SendRawTransactionStatus = {
@@ -216,6 +230,11 @@ module EvmRpc {
   public type MultiCallResult = {
     #Consistent : CallResult;
     #Inconsistent : [(RpcService, CallResult)];
+  };
+
+  public type MultiFeeHistoryResult = {
+    #Consistent : FeeHistoryResult;
+    #Inconsistent : [(RpcService, FeeHistoryResult)];
   };
 
   public type MultiGetTransactionCountResult = {
@@ -247,6 +266,7 @@ module EvmRpc {
 
   type EvmRpcCanister = actor {
     eth_call : (RpcServices, ?RpcConfig, CallArgs) -> async MultiCallResult;
+    eth_feeHistory : (RpcServices, ?RpcConfig, FeeHistoryArgs) -> async MultiFeeHistoryResult;
     eth_getTransactionCount : (RpcServices, ?RpcConfig, GetTransactionCountArgs) -> async MultiGetTransactionCountResult;
     eth_sendRawTransaction : (RpcServices, ?RpcConfig, Text) -> async MultiSendRawTransactionResult;
     eth_getTransactionReceipt : (RpcServices, ?RpcConfig, Text) -> async MultiGetTransactionReceiptResult;
@@ -255,6 +275,7 @@ module EvmRpc {
   // ---- Constants ----
 
   let EVM_RPC_CYCLES : Nat = 2_000_000_000;
+  let FEE_HISTORY_ATTEMPTS : Nat = 3;
 
   // ---- Factory functions (call once per canister, store result) ----
 
@@ -269,6 +290,11 @@ module EvmRpc {
   };
 
   // ---- Public API ----
+
+  public type EvmFeeEstimate = {
+    maxFeePerGas : Nat;
+    maxPriorityFeePerGas : Nat;
+  };
 
   /// Derive an ETH address + public key from a Principal using threshold ECDSA.
   /// Returns (address, publicKey).
@@ -327,6 +353,42 @@ module EvmRpc {
       case (#Consistent(#Err(err))) #err("getNonce error: " # rpcErrorToText(err));
       case (#Inconsistent(_)) #err("getNonce: inconsistent RPC results");
     };
+  };
+
+  /// Estimate EIP-1559 fee caps from eth_feeHistory.
+  public func getFeeEstimate(
+    evmRpcCanisterId : Text,
+    rpcServices : RpcServices,
+  ) : async* Result.Result<EvmFeeEstimate, Text> {
+    let evmRpc : EvmRpcCanister = actor (evmRpcCanisterId);
+    var attempt : Nat = 0;
+    var lastError = "feeHistory failed";
+
+    while (attempt < FEE_HISTORY_ATTEMPTS) {
+      attempt += 1;
+      let result = await (with cycles = EVM_RPC_CYCLES) evmRpc.eth_feeHistory(
+        rpcServices,
+        null,
+        {
+          blockCount = 1;
+          newestBlock = #Latest;
+          rewardPercentiles = ?[50];
+        },
+      );
+
+      switch (result) {
+        case (#Consistent(#Ok(history))) return feeEstimateFromHistory(history);
+        case (#Consistent(#Err(err))) {
+          lastError := "feeHistory error: " # rpcErrorToText(err);
+          if (not isRetryableRpcError(err)) {
+            return #err(lastError);
+          };
+        };
+        case (#Inconsistent(_)) return #err("feeHistory: inconsistent RPC results");
+      };
+    };
+
+    #err(lastError # " after " # debug_show (FEE_HISTORY_ATTEMPTS) # " attempts");
   };
 
   /// Send a signed ERC-20 transfer transaction.
@@ -572,6 +634,30 @@ module EvmRpc {
     });
     let calldata = Iter.concat(selector.vals(), padded.vals());
     BaseX.toHex(calldata, { isUpper = false; prefix = #single("0x") });
+  };
+
+  func feeEstimateFromHistory(history : FeeHistory) : Result.Result<EvmFeeEstimate, Text> {
+    let baseFeeCount = history.baseFeePerGas.size();
+    if (baseFeeCount == 0) {
+      return #err("feeHistory returned no baseFeePerGas values");
+    };
+    if (history.reward.size() == 0 or history.reward[0].size() == 0) {
+      return #err("feeHistory returned no priority fee reward values");
+    };
+
+    let baseFeePerGas = history.baseFeePerGas[baseFeeCount - 1];
+    let maxPriorityFeePerGas = history.reward[0][0];
+    #ok({
+      maxFeePerGas = baseFeePerGas + maxPriorityFeePerGas;
+      maxPriorityFeePerGas;
+    });
+  };
+
+  func isRetryableRpcError(err : RpcError) : Bool {
+    switch (err) {
+      case (#HttpOutcallError(#IcError({ code = #SysTransient; message = _ }))) true;
+      case _ false;
+    };
   };
 
   func rpcErrorToText(err : RpcError) : Text {

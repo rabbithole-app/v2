@@ -8,6 +8,21 @@
   <div class="flex min-h-48 items-center justify-center">
     <hlm-spinner class="text-2xl" />
   </div>
+} @else if (activeView() === 'withdraw') {
+  @if (withdrawToken(); as token) {
+    <rbth-core-wallet-withdraw-panel
+      [token]="token"
+      [tokens]="withdrawTokenOptions()"
+      (cancelled)="backToOverview()"
+      (completed)="handleWithdrawCompleted()"
+    />
+  } @else {
+    <div
+      class="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+    >
+      Withdrawal asset is not selected.
+    </div>
+  }
 } @else {
   <hlm-tabs [tab]="activeTab()" class="w-full">
     <hlm-tabs-list class="w-fit max-w-full">
@@ -22,146 +37,347 @@
       }
     </hlm-tabs-list>
 
-  @for (network of networks(); track network.id) {
-    <div [hlmTabsContent]="network.id" class="mt-4">
-      <ng-template hlmTabsContentLazy>
-        <div class="space-y-4">
-          @if (network.address; as address) {
-            <div hlmField>
-              <div hlmFieldContent class="gap-3">
-                <div hlmFieldTitle>{{ network.addressLabel }}</div>
-                <rbth-copy-to-clipboard
-                  [content]="address"
-                  class="w-full max-w-full overflow-hidden rounded-2xl bg-muted px-4 py-3 [&>[data-slot=copy-content]]:truncate [&>[data-slot=copy-content]]:text-sm"
-                >
-                  {{ address }}
-                </rbth-copy-to-clipboard>
-                <div class="flex flex-wrap gap-2">
-                  @for (token of network.acceptedAssets; track token) {
-                    <span hlmBadge variant="outline">{{ token }}</span>
+    @for (network of networks(); track network.id) {
+      <div [hlmTabsContent]="network.id" class="mt-4">
+        <ng-template hlmTabsContentLazy>
+          <div class="space-y-4">
+            @if (network.id === 'ic') {
+              @if (network.address; as accountId) {
+                <div class="space-y-4">
+                  <div hlmField class="w-fit max-w-full">
+                    <div hlmFieldContent class="gap-2">
+                      <div class="flex w-full flex-wrap items-center gap-2">
+                        <span hlmFieldLabel>Account ID</span>
+                        <span class="flex flex-wrap gap-1">
+                          <span hlmBadge variant="outline">ICP</span>
+                        </span>
+                      </div>
+                      <rbth-copy-to-clipboard
+                        [content]="accountId"
+                        class="overflow-hidden rounded-2xl bg-muted px-4 py-3 [&>[data-slot=copy-content]]:truncate [&>[data-slot=copy-content]]:text-sm"
+                      >
+                        {{ accountId }}
+                      </rbth-copy-to-clipboard>
+                      <p hlmFieldDescription class="text-xs">
+                        Managed Rabbithole account. Use when the sender requires
+                        an Account ID.
+                      </p>
+                    </div>
+                  </div>
+
+                  @if (principalId(); as principal) {
+                    <div hlmField class="w-fit max-w-full">
+                      <div hlmFieldContent class="gap-2">
+                        <div class="flex w-full flex-wrap items-center gap-2">
+                          <span hlmFieldLabel>Principal ID</span>
+                          <span class="flex flex-wrap gap-1">
+                            @for (
+                              token of network.acceptedAssets;
+                              track token
+                            ) {
+                              <span hlmBadge variant="outline">{{
+                                token
+                              }}</span>
+                            }
+                          </span>
+                        </div>
+                        <rbth-copy-to-clipboard
+                          [content]="principal"
+                          class="overflow-hidden rounded-2xl bg-muted px-4 py-3 [&>[data-slot=copy-content]]:truncate [&>[data-slot=copy-content]]:text-sm"
+                        >
+                          {{ principal }}
+                        </rbth-copy-to-clipboard>
+                        <p hlmFieldDescription class="text-xs">
+                          User-owned deposit identity. Funds appear on your
+                          Principal until moved into Rabbithole.
+                        </p>
+                      </div>
+                    </div>
                   }
                 </div>
-                <p hlmFieldDescription class="text-xs">
-                  {{ network.note }}
+              } @else {
+                <div
+                  hlmEmpty
+                  class="rounded-2xl border border-dashed bg-background/50 py-8"
+                >
+                  <div hlmEmptyHeader>
+                    <div hlmEmptyMedia variant="icon">
+                      <hlm-spinner />
+                    </div>
+                    <div hlmEmptyTitle>Loading Internet Computer account</div>
+                    <div hlmEmptyDescription>
+                      {{ network.emptyDescription }}
+                    </div>
+                  </div>
+                </div>
+              }
+            } @else if (network.address; as address) {
+              <div hlmField class="w-fit max-w-full">
+                <div hlmFieldContent class="gap-2">
+                  <div class="flex w-full flex-wrap items-center gap-2">
+                    <span hlmFieldLabel>{{ network.addressLabel }}</span>
+                    <span class="flex flex-wrap gap-1">
+                      @for (token of network.acceptedAssets; track token) {
+                        <span hlmBadge variant="outline">{{ token }}</span>
+                      }
+                    </span>
+                  </div>
+                  <rbth-copy-to-clipboard
+                    [content]="address"
+                    class="overflow-hidden rounded-2xl bg-muted px-4 py-3 [&>[data-slot=copy-content]]:truncate [&>[data-slot=copy-content]]:text-sm"
+                  >
+                    {{ address }}
+                  </rbth-copy-to-clipboard>
+                  <p hlmFieldDescription class="text-xs">
+                    {{ network.note }}
+                  </p>
+                </div>
+              </div>
+            } @else {
+              <div hlmItem variant="outline">
+                <div hlmItemMedia variant="icon">
+                  <ng-icon hlm name="lucideWallet" size="sm" />
+                </div>
+                <div hlmItemContent>
+                  <div hlmItemTitle>No {{ network.title }} wallet yet</div>
+                  <p hlmItemDescription>{{ network.emptyDescription }}</p>
+                </div>
+                @if (canGenerateAddresses()) {
+                  <div hlmItemActions>
+                    <button
+                      hlmBtn
+                      size="sm"
+                      [disabled]="isGenerating(network.id)"
+                      (click)="generateAddress(network.id)"
+                    >
+                      @if (isGenerating(network.id)) {
+                        <hlm-spinner class="size-4" />
+                        Generating...
+                      } @else {
+                        {{ network.generateLabel }}
+                      }
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (network.address && network.id !== 'ic') {
+              <div hlmAlert>
+                <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+                <p hlmAlertDescription>
+                  {{ networkWarning(network.id) }}
                 </p>
               </div>
-            </div>
-          } @else if (network.id === 'ic') {
-            <div
-              hlmEmpty
-              class="rounded-2xl border border-dashed bg-background/50 py-8"
-            >
-              <div hlmEmptyHeader>
-                <div hlmEmptyMedia variant="icon">
-                  <hlm-spinner />
+            }
+
+            <div class="space-y-3">
+              <p class="text-sm font-medium">Assets</p>
+
+              @if (network.balances.length > 0) {
+                <div class="overflow-x-auto">
+                  <table hlmTable class="w-full table-fixed">
+                    <thead hlmTHead>
+                      <tr hlmTr>
+                        <th hlmTh class="w-20">Asset</th>
+                        @if (
+                          network.id === 'ic' && showPrincipalDepositAccount()
+                        ) {
+                          <th hlmTh class="text-right">On your Principal</th>
+                          <th hlmTh class="text-right">Rabbithole balance</th>
+                          <th hlmTh class="w-24 text-right">Actions</th>
+                        } @else {
+                          <th hlmTh class="text-right">Balance</th>
+                          <th hlmTh class="w-16 text-right">Actions</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody hlmTBody>
+                      @for (token of network.balances; track token.label) {
+                        <tr hlmTr>
+                          <td
+                            hlmTd
+                            class="w-20 truncate font-mono text-sm font-medium"
+                          >
+                            {{ token.label }}
+                          </td>
+                          @if (
+                            network.id === 'ic' && showPrincipalDepositAccount()
+                          ) {
+                            <td
+                              hlmTd
+                              class="text-right font-mono text-muted-foreground"
+                            >
+                              <div>
+                                {{
+                                  formatBalance(
+                                    principalBalance(token),
+                                    token.decimals
+                                  )
+                                }}
+                              </div>
+                              @if (
+                                showUsdValue(token, principalUsdValue(token))
+                              ) {
+                                <div class="text-xs text-muted-foreground/80">
+                                  {{ formatUsd(principalUsdValue(token)) }}
+                                </div>
+                              }
+                            </td>
+                            <td
+                              hlmTd
+                              class="text-right font-mono text-muted-foreground"
+                            >
+                              <div>
+                                {{
+                                  formatBalance(token.balance, token.decimals)
+                                }}
+                              </div>
+                              @if (showUsdValue(token, token.usdValue)) {
+                                <div class="text-xs text-muted-foreground/80">
+                                  {{ formatUsd(token.usdValue) }}
+                                </div>
+                              }
+                            </td>
+                            <td hlmTd class="w-24 text-right">
+                              <div class="flex justify-end gap-1">
+                                @if (canMovePrincipalBalance(token)) {
+                                  <button
+                                    hlmBtn
+                                    class="size-7! px-0!"
+                                    size="icon"
+                                    variant="ghost"
+                                    [disabled]="isMoving(token)"
+                                    [hlmTooltip]="
+                                      isMoving(token)
+                                        ? 'Moving...'
+                                        : 'Move to Rabbithole'
+                                    "
+                                    [attr.aria-label]="
+                                      'Move ' + token.label + ' to Rabbithole'
+                                    "
+                                    (click)="movePrincipalBalance(token)"
+                                  >
+                                    @if (isMoving(token)) {
+                                      <hlm-spinner class="size-4" />
+                                    } @else {
+                                      <ng-icon
+                                        hlm
+                                        size="sm"
+                                        name="lucideArrowRightToLine"
+                                        aria-hidden="true"
+                                      />
+                                    }
+                                  </button>
+                                }
+                                @if (canWithdrawBalance(token)) {
+                                  <button
+                                    hlmBtn
+                                    class="size-7! px-0!"
+                                    size="icon"
+                                    variant="ghost"
+                                    hlmTooltip="Withdraw"
+                                    [attr.aria-label]="
+                                      'Withdraw ' + token.label
+                                    "
+                                    (click)="openWithdraw(token)"
+                                  >
+                                    <ng-icon
+                                      hlm
+                                      size="sm"
+                                      name="lucideArrowLeftFromLine"
+                                      aria-hidden="true"
+                                    />
+                                  </button>
+                                }
+                              </div>
+                            </td>
+                          } @else {
+                            <td
+                              hlmTd
+                              class="text-right font-mono text-muted-foreground"
+                            >
+                              <div>
+                                {{
+                                  formatBalance(token.balance, token.decimals)
+                                }}
+                              </div>
+                              @if (showUsdValue(token, token.usdValue)) {
+                                <div class="text-xs text-muted-foreground/80">
+                                  {{ formatUsd(token.usdValue) }}
+                                </div>
+                              }
+                            </td>
+                            <td hlmTd class="w-16 text-right">
+                              @if (canWithdrawBalance(token)) {
+                                <button
+                                  hlmBtn
+                                  class="size-7! px-0!"
+                                  size="icon"
+                                  variant="ghost"
+                                  hlmTooltip="Withdraw"
+                                  [attr.aria-label]="'Withdraw ' + token.label"
+                                  (click)="openWithdraw(token)"
+                                >
+                                  <ng-icon
+                                    hlm
+                                    size="sm"
+                                    name="lucideArrowLeftFromLine"
+                                    aria-hidden="true"
+                                  />
+                                </button>
+                              }
+                            </td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                    <tfoot hlmTFoot>
+                      <tr hlmTr>
+                        <td hlmTd>Total</td>
+                        @if (
+                          network.id === 'ic' && showPrincipalDepositAccount()
+                        ) {
+                          <td hlmTd class="text-right">
+                            {{ formatUsd(network.principalTotalUsd) }}
+                          </td>
+                          <td hlmTd class="text-right">
+                            {{ formatUsd(network.totalUsd) }}
+                          </td>
+                          <td hlmTd></td>
+                        } @else {
+                          <td hlmTd class="text-right">
+                            {{ formatUsd(network.totalUsd) }}
+                          </td>
+                          <td hlmTd></td>
+                        }
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-                <div hlmEmptyTitle>Loading IC account</div>
-                <div hlmEmptyDescription>{{ network.emptyDescription }}</div>
-              </div>
-            </div>
-          } @else {
-            <div hlmItem variant="outline">
-              <div hlmItemMedia variant="icon">
-                <ng-icon hlm name="lucideWallet" size="sm" />
-              </div>
-              <div hlmItemContent>
-                <div hlmItemTitle>No {{ network.title }} wallet yet</div>
-                <p hlmItemDescription>{{ network.emptyDescription }}</p>
-              </div>
-              @if (canGenerateAddresses()) {
-                <div hlmItemActions>
-                  <button
-                    hlmBtn
-                    size="sm"
-                    [disabled]="isGenerating(network.id)"
-                    (click)="generateAddress(network.id)"
-                  >
-                    @if (isGenerating(network.id)) {
-                      <hlm-spinner class="size-4" />
-                      Generating...
-                    } @else {
-                      {{ network.generateLabel }}
-                    }
-                  </button>
+              } @else {
+                <div hlmEmpty class="border border-dashed">
+                  <div hlmEmptyHeader>
+                    <div hlmEmptyMedia variant="icon">
+                      <ng-icon hlm name="lucideCoins" size="sm" />
+                    </div>
+                    <div hlmEmptyTitle>No assets yet</div>
+                    <div hlmEmptyDescription>
+                      @if (hideZero()) {
+                        Zero balances are hidden. Deposit supported assets to
+                        fund this wallet.
+                      } @else {
+                        This network is ready for deposits, but nothing has
+                        arrived yet.
+                      }
+                    </div>
+                  </div>
                 </div>
               }
             </div>
-          }
-
-          @if (network.address) {
-            <div
-              hlmAlert
-              class="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-50"
-            >
-              <ng-icon hlmAlertIcon name="lucideCircleAlert" />
-              <p hlmAlertDescription>
-                {{ networkWarning(network.id) }}
-              </p>
-            </div>
-          }
-
-          <div class="space-y-3">
-            <p class="text-sm font-medium">Assets</p>
-
-            @if (network.balances.length > 0) {
-              <table hlmTable class="w-full">
-                <thead hlmTHead>
-                  <tr hlmTr>
-                    <th hlmTh>Asset</th>
-                    <th hlmTh class="text-right">Balance</th>
-                    <th hlmTh class="text-right">Value</th>
-                  </tr>
-                </thead>
-                <tbody hlmTBody>
-                  @for (token of network.balances; track token.label) {
-                    <tr hlmTr>
-                      <td hlmTd class="font-mono text-sm font-medium">
-                        {{ token.label }}
-                      </td>
-                      <td
-                        hlmTd
-                        class="text-right font-mono text-muted-foreground"
-                      >
-                        {{ formatBalance(token.balance, token.decimals) }}
-                      </td>
-                      <td hlmTd class="text-right font-medium">
-                        {{ formatUsd(token.usdValue) }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-                <tfoot hlmTFoot>
-                  <tr hlmTr>
-                    <td hlmTd [attr.colSpan]="2">Total</td>
-                    <td hlmTd class="text-right">
-                      {{ formatUsd(network.totalUsd) }}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            } @else {
-              <div hlmEmpty class="border border-dashed">
-                <div hlmEmptyHeader>
-                  <div hlmEmptyMedia variant="icon">
-                    <ng-icon hlm name="lucideCoins" size="sm" />
-                  </div>
-                  <div hlmEmptyTitle>No assets yet</div>
-                  <div hlmEmptyDescription>
-                    @if (hideZero()) {
-                      Zero balances are hidden. Deposit supported assets to
-                      fund this wallet.
-                    } @else {
-                      This network is ready for deposits, but nothing has
-                      arrived yet.
-                    }
-                  </div>
-                </div>
-              </div>
-            }
           </div>
-        </div>
-      </ng-template>
-    </div>
-  }
+        </ng-template>
+      </div>
+    }
   </hlm-tabs>
 }

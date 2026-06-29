@@ -1,8 +1,15 @@
 import { computed, inject, Injectable, resource, signal } from '@angular/core';
-import { Actor, HttpAgent } from '@icp-sdk/core/agent';
+import { Actor, type Agent, HttpAgent } from '@icp-sdk/core/agent';
+import type { IDL as CandidIDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 
-import type { TokenId } from '@rabbithole/declarations/backend';
+import type {
+  RabbitholeActorService,
+  TokenId,
+  WithdrawDestination,
+  WithdrawError,
+  WithdrawReceipt,
+} from '@rabbithole/declarations/backend';
 
 import { LEDGER_CANISTER_ID } from '../constants';
 import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors/http-agent';
@@ -13,15 +20,21 @@ import {
   MULTI_CHAIN_RPC_CONFIG_TOKEN,
   type MultiChainRpcConfig,
 } from '../tokens';
+import { formatTokenAmount } from '../utils/format-number';
 
 // Token configuration
 export interface TokenBalance {
   balance: bigint;
+  canisterId?: string;
   chain: 'base' | 'ic' | 'solana';
   decimals: number;
   label: string;
+  principalBalance?: bigint;
+  principalUsdValue?: number;
+  showUsdValue: boolean;
   tokenId: TokenId;
   usdValue: number;
+  withdrawFee?: bigint;
 }
 
 export interface TokenConfig {
@@ -44,9 +57,9 @@ export interface WalletAddresses {
 
 // CoinGecko response shape
 interface CoinGeckoResponse {
-  'ethereum'?: { usd: number };
+  ethereum?: { usd: number };
   'internet-computer'?: { usd: number };
-  'solana'?: { usd: number };
+  solana?: { usd: number };
 }
 
 const COINGECKO_URL =
@@ -54,18 +67,80 @@ const COINGECKO_URL =
 
 export const TOKEN_CONFIGS: TokenConfig[] = [
   // IC tokens
-  { tokenId: { ICP: null }, chain: 'ic', label: 'ICP', decimals: 8, rateSymbol: 'ICP', canisterId: LEDGER_CANISTER_ID },
-  { tokenId: { ckUSDC: null }, chain: 'ic', label: 'ckUSDC', decimals: 6, canisterId: 'xevnm-gaaaa-aaaar-qafnq-cai' },
-  { tokenId: { ckUSDT: null }, chain: 'ic', label: 'ckUSDT', decimals: 6, canisterId: 'cngnf-vqaaa-aaaar-qag4q-cai' },
-  { tokenId: { ckETH: null }, chain: 'ic', label: 'ckETH', decimals: 18, rateSymbol: 'ETH', canisterId: 'ss2fx-dyaaa-aaaar-qacoq-cai' },
+  {
+    tokenId: { ICP: null },
+    chain: 'ic',
+    label: 'ICP',
+    decimals: 8,
+    rateSymbol: 'ICP',
+    canisterId: LEDGER_CANISTER_ID,
+  },
+  {
+    tokenId: { ckUSDC: null },
+    chain: 'ic',
+    label: 'ckUSDC',
+    decimals: 6,
+    canisterId: 'xevnm-gaaaa-aaaar-qafnq-cai',
+  },
+  {
+    tokenId: { ckUSDT: null },
+    chain: 'ic',
+    label: 'ckUSDT',
+    decimals: 6,
+    canisterId: 'cngnf-vqaaa-aaaar-qag4q-cai',
+  },
+  {
+    tokenId: { ckETH: null },
+    chain: 'ic',
+    label: 'ckETH',
+    decimals: 18,
+    rateSymbol: 'ETH',
+    canisterId: 'ss2fx-dyaaa-aaaar-qacoq-cai',
+  },
   // Base (EVM) tokens
-  { tokenId: { BaseETH: null }, chain: 'base', label: 'ETH', decimals: 18, rateSymbol: 'ETH' },
-  { tokenId: { BaseUSDC: null }, chain: 'base', label: 'USDC', decimals: 6, contract: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
-  { tokenId: { BaseUSDT: null }, chain: 'base', label: 'USDT', decimals: 6, contract: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2' },
+  {
+    tokenId: { BaseETH: null },
+    chain: 'base',
+    label: 'ETH',
+    decimals: 18,
+    rateSymbol: 'ETH',
+  },
+  {
+    tokenId: { BaseUSDC: null },
+    chain: 'base',
+    label: 'USDC',
+    decimals: 6,
+    contract: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  },
+  {
+    tokenId: { BaseUSDT: null },
+    chain: 'base',
+    label: 'USDT',
+    decimals: 6,
+    contract: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
+  },
   // Solana tokens
-  { tokenId: { SOL: null }, chain: 'solana', label: 'SOL', decimals: 9, rateSymbol: 'SOL' },
-  { tokenId: { SolUSDC: null }, chain: 'solana', label: 'USDC', decimals: 6, mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
-  { tokenId: { SolUSDT: null }, chain: 'solana', label: 'USDT', decimals: 6, mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' },
+  {
+    tokenId: { SOL: null },
+    chain: 'solana',
+    label: 'SOL',
+    decimals: 9,
+    rateSymbol: 'SOL',
+  },
+  {
+    tokenId: { SolUSDC: null },
+    chain: 'solana',
+    label: 'USDC',
+    decimals: 6,
+    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  },
+  {
+    tokenId: { SolUSDT: null },
+    chain: 'solana',
+    label: 'USDT',
+    decimals: 6,
+    mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+  },
 ];
 
 export async function fetchTokenRates(): Promise<Record<string, number>> {
@@ -80,15 +155,81 @@ export async function fetchTokenRates(): Promise<Record<string, number>> {
 }
 
 // Minimal ICRC-1 IDL for balance queries
-const icrc1BalanceOfIdl = ({ IDL }: { IDL: any }) => {
+const icrc1BalanceOfIdl: CandidIDL.InterfaceFactory = ({ IDL }) => {
   const Account = IDL.Record({
     owner: IDL.Principal,
     subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)),
   });
+  const TransferError = IDL.Variant({
+    BadBurn: IDL.Record({ min_burn_amount: IDL.Nat }),
+    BadFee: IDL.Record({ expected_fee: IDL.Nat }),
+    CreatedInFuture: IDL.Record({ ledger_time: IDL.Nat64 }),
+    Duplicate: IDL.Record({ duplicate_of: IDL.Nat }),
+    GenericError: IDL.Record({ error_code: IDL.Nat, message: IDL.Text }),
+    InsufficientFunds: IDL.Record({ balance: IDL.Nat }),
+    TemporarilyUnavailable: IDL.Null,
+    TooOld: IDL.Null,
+  });
   return IDL.Service({
     icrc1_balance_of: IDL.Func([Account], [IDL.Nat], ['query']),
+    icrc1_fee: IDL.Func([], [IDL.Nat], ['query']),
+    icrc1_transfer: IDL.Func(
+      [
+        IDL.Record({
+          amount: IDL.Nat,
+          created_at_time: IDL.Opt(IDL.Nat64),
+          fee: IDL.Opt(IDL.Nat),
+          from_subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)),
+          memo: IDL.Opt(IDL.Vec(IDL.Nat8)),
+          to: Account,
+        }),
+      ],
+      [IDL.Variant({ Err: TransferError, Ok: IDL.Nat })],
+      [],
+    ),
   });
 };
+
+type IcrcAccount = {
+  owner: Principal;
+  subaccount: [] | [number[]];
+};
+
+type IcrcLedgerActor = {
+  icrc1_balance_of(account: IcrcAccount): Promise<bigint>;
+  icrc1_fee(): Promise<bigint>;
+  icrc1_transfer(args: {
+    amount: bigint;
+    created_at_time: [] | [bigint];
+    fee: [] | [bigint];
+    from_subaccount: [] | [number[]];
+    memo: [] | [number[]];
+    to: IcrcAccount;
+  }): Promise<IcrcTransferResult>;
+};
+
+type IcrcTransferResult = { Err: Record<string, unknown> } | { Ok: bigint };
+
+interface SolanaTokenAccount {
+  account?: {
+    data?: {
+      parsed?: {
+        info?: {
+          mint?: string;
+          tokenAmount?: {
+            amount?: string;
+          };
+        };
+      };
+    };
+  };
+}
+
+interface SolanaTokenAccountsResponse {
+  result?: {
+    value?: SolanaTokenAccount[];
+  };
+}
 
 // Base Multicall3 contract address
 const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
@@ -103,6 +244,22 @@ export class BalanceService {
   );
   #actor = injectMainActor();
   #backendFeaturesEnabled = inject(BACKEND_FEATURES_ENABLED_TOKEN);
+
+  #userPrincipalResource = resource({
+    params: () => ({
+      actor: this.#actor(),
+      enabled: this.#backendFeaturesEnabled,
+    }),
+    loader: async ({ params: { actor, enabled } }) => {
+      if (!enabled) return null;
+
+      const agent = Actor.agentOf(actor);
+      const principal = await agent?.getPrincipal();
+      return principal && !principal.isAnonymous() ? principal : null;
+    },
+  });
+
+  userPrincipal = computed(() => this.#userPrincipalResource.value() ?? null);
 
   #walletResource = resource({
     params: () => ({
@@ -131,8 +288,9 @@ export class BalanceService {
     params: () => ({
       wallet: this.walletAddresses(),
       rates: this.rates(),
+      userPrincipal: this.userPrincipal(),
     }),
-    loader: async ({ params: { wallet, rates } }) => {
+    loader: async ({ params: { wallet, rates, userPrincipal } }) => {
       if (!wallet) return [];
 
       const ledgerAgent = await this.#ledgerAgent;
@@ -141,12 +299,15 @@ export class BalanceService {
         rates,
         ledgerAgent,
         ownerPrincipal: this.#backendCanisterId,
+        depositPrincipal: userPrincipal,
         rpcConfig: this.#rpcConfig,
       });
     },
   });
 
-  balances = computed<TokenBalance[]>(() => this.#balancesResource.value() ?? []);
+  balances = computed<TokenBalance[]>(
+    () => this.#balancesResource.value() ?? [],
+  );
   hideZero = signal(true);
   nonZeroBalances = computed(() =>
     this.balances().filter((b) => b.balance > 0n),
@@ -173,6 +334,7 @@ export class BalanceService {
   isLoading = computed(
     () =>
       this.#walletResource.isLoading() ||
+      this.#userPrincipalResource.isLoading() ||
       this.#ratesResource.isLoading() ||
       this.#balancesResource.isLoading(),
   );
@@ -193,35 +355,57 @@ export class BalanceService {
 }
 
 export async function fetchTokenBalancesForWallet(args: {
-  ledgerAgent: HttpAgent;
+  depositPrincipal?: Principal | null;
+  ledgerAgent: Agent;
   ownerPrincipal: Principal;
   rates: Record<string, number>;
   rpcConfig: MultiChainRpcConfig;
   wallet: WalletAddresses;
 }): Promise<TokenBalance[]> {
-  const { ledgerAgent, ownerPrincipal, rates, rpcConfig, wallet } = args;
+  const {
+    depositPrincipal,
+    ledgerAgent,
+    ownerPrincipal,
+    rates,
+    rpcConfig,
+    wallet,
+  } = args;
   const results: TokenBalance[] = [];
 
   // Fetch IC balances (4 parallel queries)
   const icConfigs = TOKEN_CONFIGS.filter((t) => t.chain === 'ic');
   const icBalances = await Promise.allSettled(
     icConfigs.map(async (config) => {
-      const ledger = Actor.createActor(icrc1BalanceOfIdl, {
+      if (!config.canisterId) {
+        throw new Error(`${config.label} is missing an IC ledger canister ID`);
+      }
+      const ledger = Actor.createActor<IcrcLedgerActor>(icrc1BalanceOfIdl, {
         agent: ledgerAgent,
-        canisterId: config.canisterId!,
+        canisterId: config.canisterId,
       });
-      const balance = await ledger['icrc1_balance_of']({
-        owner: ownerPrincipal,
-        subaccount: [Array.from(wallet.icSubaccount)],
-      });
-      return { config, balance: balance as bigint };
+      const [balance, principalBalance, withdrawFee] = await Promise.all([
+        ledger.icrc1_balance_of({
+          owner: ownerPrincipal,
+          subaccount: [Array.from(wallet.icSubaccount)],
+        }),
+        depositPrincipal
+          ? ledger.icrc1_balance_of({
+              owner: depositPrincipal,
+              subaccount: [],
+            })
+          : Promise.resolve(0n),
+        ledger.icrc1_fee().catch(() => 0n),
+      ]);
+      return { config, balance, principalBalance, withdrawFee };
     }),
   );
 
   for (const result of icBalances) {
     if (result.status === 'fulfilled') {
-      const { config, balance } = result.value;
-      results.push(toTokenBalance(config, balance, rates));
+      const { config, balance, principalBalance, withdrawFee } = result.value;
+      results.push(
+        toTokenBalance(config, balance, rates, principalBalance, withdrawFee),
+      );
     } else {
       const config = icConfigs[icBalances.indexOf(result)];
       results.push(toTokenBalance(config, 0n, rates));
@@ -261,6 +445,168 @@ export async function fetchTokenBalancesForWallet(args: {
   return results;
 }
 
+export async function moveIcPrincipalBalanceToWallet(args: {
+  destinationOwner: Principal;
+  destinationSubaccount: Uint8Array;
+  ledgerAgent: Agent;
+  token: TokenBalance;
+}): Promise<bigint> {
+  const { destinationOwner, destinationSubaccount, ledgerAgent, token } = args;
+  if (token.chain !== 'ic' || !token.canisterId) {
+    throw new Error(`${token.label} is not an Internet Computer ledger token`);
+  }
+
+  const principalBalance = token.principalBalance ?? 0n;
+  const ledger = Actor.createActor<IcrcLedgerActor>(icrc1BalanceOfIdl, {
+    agent: ledgerAgent,
+    canisterId: token.canisterId,
+  });
+  const fee = await ledger.icrc1_fee();
+  if (principalBalance <= fee) {
+    throw new Error(`${token.label} balance is below the ledger fee`);
+  }
+
+  const result = await ledger.icrc1_transfer({
+    amount: principalBalance - fee,
+    created_at_time: [BigInt(Date.now()) * 1_000_000n],
+    fee: [fee],
+    from_subaccount: [],
+    memo: [],
+    to: {
+      owner: destinationOwner,
+      subaccount: [Array.from(destinationSubaccount)],
+    },
+  });
+
+  if ('Err' in result) {
+    throw new Error(`Move failed: ${formatIcrcTransferError(result.Err)}`);
+  }
+
+  return result.Ok;
+}
+
+export async function withdrawIcWalletBalanceToPrincipal(args: {
+  backendActor: RabbitholeActorService;
+  destinationOwner: Principal;
+  ledgerAgent: Agent;
+  token: TokenBalance;
+}): Promise<WithdrawReceipt> {
+  const { backendActor, destinationOwner, ledgerAgent, token } = args;
+  if (token.chain !== 'ic' || !token.canisterId) {
+    throw new Error(`${token.label} is not an Internet Computer ledger token`);
+  }
+
+  const ledger = Actor.createActor<IcrcLedgerActor>(icrc1BalanceOfIdl, {
+    agent: ledgerAgent,
+    canisterId: token.canisterId,
+  });
+  const fee = await ledger.icrc1_fee();
+  if (token.balance <= fee) {
+    throw new Error(`${token.label} balance is below the ledger fee`);
+  }
+
+  return withdrawWalletBalance({
+    amount: token.balance - fee,
+    backendActor,
+    destination: {
+      IC: {
+        owner: destinationOwner,
+        subaccount: [],
+      },
+    },
+    token,
+  });
+}
+
+export async function withdrawTreasuryBalance(args: {
+  amount: bigint;
+  backendActor: RabbitholeActorService;
+  destination: WithdrawDestination;
+  token: TokenBalance;
+}): Promise<WithdrawReceipt> {
+  const { amount, backendActor, destination, token } = args;
+  const result = await backendActor.withdrawFromTreasury({
+    amount,
+    tokenId: token.tokenId,
+    to: destination,
+  });
+
+  if ('err' in result) {
+    throw new Error(formatWithdrawError(result.err, token));
+  }
+
+  return result.ok;
+}
+
+export async function withdrawWalletBalance(args: {
+  amount: bigint;
+  backendActor: RabbitholeActorService;
+  destination: WithdrawDestination;
+  token: TokenBalance;
+}): Promise<WithdrawReceipt> {
+  const { amount, backendActor, destination, token } = args;
+  const result = await backendActor.withdraw({
+    amount,
+    tokenId: token.tokenId,
+    to: destination,
+  });
+
+  if ('err' in result) {
+    throw new Error(formatWithdrawError(result.err, token));
+  }
+
+  return result.ok;
+}
+
+function formatIcrcTransferError(error: Record<string, unknown>): string {
+  const variant = Object.keys(error)[0];
+  if (!variant) return 'unknown ledger error';
+
+  const detail = error[variant];
+  if (typeof detail === 'object' && detail !== null && 'message' in detail) {
+    return `${variant}: ${String((detail as { message: unknown }).message)}`;
+  }
+
+  return variant;
+}
+
+function formatWithdrawError(
+  error: WithdrawError,
+  token: TokenBalance,
+): string {
+  if ('InsufficientBalance' in error) {
+    const available = formatTokenAmount(
+      error.InsufficientBalance.available,
+      token.decimals,
+    );
+    const feeHint = token.chain === 'ic' ? ' and the network fee' : '';
+    return `Not enough balance for this amount${feeHint}. Available: ${available} ${token.label}`;
+  }
+
+  if ('BelowMinimum' in error) {
+    const minimum = formatTokenAmount(
+      error.BelowMinimum.minimum,
+      token.decimals,
+    );
+    return `Amount is below the minimum withdrawal: ${minimum} ${token.label}`;
+  }
+
+  if ('TransferFailed' in error) {
+    const message = error.TransferFailed.trim();
+    return message ? `Transfer failed: ${message}` : 'Transfer failed.';
+  }
+
+  if ('EvmNotConfigured' in error) {
+    return 'Base withdrawals are not configured yet.';
+  }
+
+  if ('SolNotConfigured' in error) {
+    return 'Solana withdrawals are not configured yet.';
+  }
+
+  return 'Unable to complete this withdrawal. Try again later.';
+}
+
 function ratesFromCoinGecko(data: CoinGeckoResponse): Record<string, number> {
   return {
     ICP: data['internet-computer']?.usd ?? 0,
@@ -269,17 +615,29 @@ function ratesFromCoinGecko(data: CoinGeckoResponse): Record<string, number> {
   };
 }
 
-function toTokenBalance(config: TokenConfig, balance: bigint, rates: Record<string, number>): TokenBalance {
+function toTokenBalance(
+  config: TokenConfig,
+  balance: bigint,
+  rates: Record<string, number>,
+  principalBalance = 0n,
+  withdrawFee?: bigint,
+): TokenBalance {
   const divisor = 10 ** config.decimals;
   const rate = config.rateSymbol ? (rates[config.rateSymbol] ?? 0) : 1; // stablecoins = 1
   const usdValue = (Number(balance) / divisor) * rate;
+  const principalUsdValue = (Number(principalBalance) / divisor) * rate;
   return {
     tokenId: config.tokenId,
     chain: config.chain,
     label: config.label,
     balance,
+    canisterId: config.canisterId,
     decimals: config.decimals,
+    principalBalance,
+    principalUsdValue,
+    showUsdValue: Boolean(config.rateSymbol),
     usdValue,
+    withdrawFee,
   };
 }
 
@@ -316,14 +674,17 @@ function decodeMulticall3Result(result: string, count: number): bigint[] {
   return balances;
 }
 
-function encodeMulticall3(calls: { callData: string; target: string; }[]): string {
+function encodeMulticall3(
+  calls: { callData: string; target: string }[],
+): string {
   // aggregate3((address target, bool allowFailure, bytes callData)[])
   // Function selector: 0x82ad56cb
   const selector = '0x82ad56cb';
 
   // ABI encode the tuple array
   // This is a simplified encoder for our specific case
-  const offset = '0000000000000000000000000000000000000000000000000000000000000020'; // offset to array
+  const offset =
+    '0000000000000000000000000000000000000000000000000000000000000020'; // offset to array
   const count = calls.length.toString(16).padStart(64, '0');
 
   const callDatas: string[] = [];
@@ -331,12 +692,24 @@ function encodeMulticall3(calls: { callData: string; target: string; }[]): strin
   // Each call struct: (address target, bool allowFailure, bytes callData)
   for (let i = 0; i < calls.length; i++) {
     const target = calls[i].target.slice(2).padStart(64, '0');
-    const allowFailure = '0000000000000000000000000000000000000000000000000000000000000001'; // true
+    const allowFailure =
+      '0000000000000000000000000000000000000000000000000000000000000001'; // true
     const callDataBytes = calls[i].callData.slice(2);
-    const callDataLen = (callDataBytes.length / 2).toString(16).padStart(64, '0');
-    const callDataPadded = callDataBytes.padEnd(Math.ceil(callDataBytes.length / 64) * 64, '0');
+    const callDataLen = (callDataBytes.length / 2)
+      .toString(16)
+      .padStart(64, '0');
+    const callDataPadded = callDataBytes.padEnd(
+      Math.ceil(callDataBytes.length / 64) * 64,
+      '0',
+    );
 
-    callDatas.push(target + allowFailure + '0000000000000000000000000000000000000000000000000000000000000060' + callDataLen + callDataPadded);
+    callDatas.push(
+      target +
+        allowFailure +
+        '0000000000000000000000000000000000000000000000000000000000000060' +
+        callDataLen +
+        callDataPadded,
+    );
   }
 
   // Build final encoded data with proper offsets
@@ -445,15 +818,16 @@ async function fetchSolanaBalances(
         ],
       }),
     });
-    const tokenJson = await tokenResponse.json();
+    const tokenJson =
+      (await tokenResponse.json()) as SolanaTokenAccountsResponse;
     const tokenAccounts = tokenJson.result?.value ?? [];
 
     for (const config of splMints) {
       const account = tokenAccounts.find(
-        (a: any) => a.account.data.parsed.info.mint === config.mint,
+        (account) => account.account?.data?.parsed?.info?.mint === config.mint,
       );
       const balance = BigInt(
-        account?.account.data.parsed.info.tokenAmount.amount ?? '0',
+        account?.account?.data?.parsed?.info?.tokenAmount?.amount ?? '0',
       );
       results.push(toTokenBalance(config, balance, rates));
     }

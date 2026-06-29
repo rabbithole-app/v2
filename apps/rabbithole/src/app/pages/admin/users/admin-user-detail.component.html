@@ -138,7 +138,9 @@
           @if (walletMeta) {
             <rbth-core-wallet-networks-view
               [canGenerateAddresses]="false"
+              [canMovePrincipalFunds]="false"
               [hideZeroBalances]="false"
+              [showPrincipalDepositAccount]="false"
             />
           } @else if (_walletMeta.isLoading()) {
             <div class="flex h-40 items-center justify-center">

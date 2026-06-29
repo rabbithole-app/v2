@@ -4,11 +4,15 @@ import {
   computed,
   inject,
   input,
+  model,
   signal,
 } from '@angular/core';
 import { AccountIdentifier, SubAccount } from '@icp-sdk/canisters/ledger/icp';
+import { Actor } from '@icp-sdk/core/agent';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
+  lucideArrowLeftFromLine,
+  lucideArrowRightToLine,
   lucideCircleAlert,
   lucideCoins,
   lucideWallet,
@@ -26,16 +30,24 @@ import { HlmItemImports } from '@spartan-ng/helm/item';
 import { HlmSpinner } from '@spartan-ng/helm/spinner';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { HlmTabsImports } from '@spartan-ng/helm/tabs';
+import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 
-import { injectMainActor } from '../../../injectors';
 import {
+  injectMainActor,
+  injectWalletWithdrawLauncher,
+} from '../../../injectors';
+import {
+  moveIcPrincipalBalanceToWallet,
   TOKEN_CONFIGS,
   type TokenBalance,
   type TokenConfig,
 } from '../../../services/balance.service';
 import { MAIN_CANISTER_ID_TOKEN } from '../../../tokens';
-import { formatUsd } from '../../../utils/format-number';
+import { formatTokenAmount, formatUsd } from '../../../utils/format-number';
+import { WalletWithdrawPanelComponent } from '../wallet-withdraw-panel/wallet-withdraw-panel.component';
 import { injectWalletBalanceContext } from '../wallet/wallet-balance-context';
+
+export type WalletNetworksView = 'overview' | 'withdraw';
 
 type NetworkDefinition = {
   addressLabel: string;
@@ -46,7 +58,6 @@ type NetworkDefinition = {
   tabLabel: string;
   title: string;
 };
-
 type WalletChain = NetworkDefinition['id'];
 
 const NETWORK_DEFINITIONS: NetworkDefinition[] = [
@@ -54,8 +65,9 @@ const NETWORK_DEFINITIONS: NetworkDefinition[] = [
     id: 'ic',
     tabLabel: 'Internet Computer',
     title: 'Internet Computer',
-    addressLabel: 'Managed account ID',
-    emptyDescription: 'Preparing your managed IC deposit account.',
+    addressLabel: 'Account ID',
+    emptyDescription:
+      'Preparing your managed Internet Computer deposit account.',
     note: 'Use this account only on Internet Computer.',
   },
   {
@@ -88,6 +100,7 @@ const NETWORK_DEFINITIONS: NetworkDefinition[] = [
     HlmIcon,
     HlmSpinner,
     CopyToClipboardComponent,
+    WalletWithdrawPanelComponent,
     ...HlmAlertImports,
     ...HlmButtonImports,
     ...HlmEmptyImports,
@@ -95,9 +108,12 @@ const NETWORK_DEFINITIONS: NetworkDefinition[] = [
     ...HlmItemImports,
     ...HlmTableImports,
     ...HlmTabsImports,
+    ...HlmTooltipImports,
   ],
   providers: [
     provideIcons({
+      lucideArrowLeftFromLine,
+      lucideArrowRightToLine,
       lucideCircleAlert,
       lucideCoins,
       lucideWallet,
@@ -109,7 +125,9 @@ const NETWORK_DEFINITIONS: NetworkDefinition[] = [
 })
 export class WalletNetworksViewComponent {
   readonly activeTab = signal<WalletChain>('ic');
+  readonly activeView = model<WalletNetworksView>('overview');
   readonly canGenerateAddresses = input(true);
+  readonly canMovePrincipalFunds = input(true);
   readonly #walletContext = injectWalletBalanceContext();
   readonly error = this.#walletContext.error;
   readonly generatingChain = signal<WalletChain | null>(null);
@@ -117,7 +135,6 @@ export class WalletNetworksViewComponent {
   readonly hideZero = computed(
     () => this.hideZeroBalances() ?? this.#walletContext.hideZero(),
   );
-
   readonly walletAddresses = this.#walletContext.walletAddresses;
   readonly #backendCanisterId = inject(MAIN_CANISTER_ID_TOKEN);
   readonly icAccountId = computed(() => {
@@ -136,8 +153,8 @@ export class WalletNetworksViewComponent {
       subAccount,
     }).toHex();
   });
-
   readonly isLoading = this.#walletContext.isLoading;
+  readonly movingToken = signal<string | null>(null);
   readonly networks = computed(() =>
     NETWORK_DEFINITIONS.map((network) => {
       const balances = this.getVisibleBalances(network.id);
@@ -146,19 +163,53 @@ export class WalletNetworksViewComponent {
         acceptedAssets: this.getAcceptedAssets(network.id),
         address: this.getAddress(network.id),
         balances,
+        principalTotalUsd: balances.reduce(
+          (sum, token) => sum + (token.principalUsdValue ?? 0),
+          0,
+        ),
         totalUsd: balances.reduce((sum, token) => sum + token.usdValue, 0),
       };
     }),
   );
-
+  readonly showPrincipalDepositAccount = input(true);
+  readonly principalId = computed(() => {
+    if (!this.showPrincipalDepositAccount()) return null;
+    return this.#walletContext.principal?.()?.toText() ?? null;
+  });
   readonly visibleBalances = computed(() => {
     const source = this.#walletContext.balances();
     return this.hideZero()
-      ? source.filter((balance) => balance.balance > 0n)
+      ? source.filter((balance) => this.isVisibleBalance(balance))
       : source;
   });
 
+  readonly withdrawToken = signal<TokenBalance | null>(null);
+  readonly withdrawTokenOptions = computed(() =>
+    this.canMovePrincipalFunds() ? this.#walletContext.balances() : [],
+  );
   readonly #actor = injectMainActor();
+
+  readonly #withdrawLauncher = injectWalletWithdrawLauncher({
+    optional: true,
+  });
+
+  backToOverview(): void {
+    this.activeView.set('overview');
+    this.withdrawToken.set(null);
+  }
+
+  canMovePrincipalBalance(token: TokenBalance): boolean {
+    return (
+      this.canMovePrincipalFunds() &&
+      this.showPrincipalDepositAccount() &&
+      token.chain === 'ic' &&
+      (token.principalBalance ?? 0n) > 0n
+    );
+  }
+
+  canWithdrawBalance(token: TokenBalance): boolean {
+    return this.canMovePrincipalFunds() && token.balance > 0n;
+  }
 
   formatBalance(balance: bigint, decimals: number): string {
     return formatTokenAmount(balance, decimals);
@@ -169,7 +220,12 @@ export class WalletNetworksViewComponent {
   }
 
   async generateAddress(chain: WalletChain): Promise<void> {
-    if (chain === 'ic' || !this.canGenerateAddresses() || this.isGenerating(chain)) return;
+    if (
+      chain === 'ic' ||
+      !this.canGenerateAddresses() ||
+      this.isGenerating(chain)
+    )
+      return;
 
     this.generatingChain.set(chain);
     const toastId = toast.loading(
@@ -192,23 +248,75 @@ export class WalletNetworksViewComponent {
 
       this.#walletContext.reload();
       toast.success(
-        chain === 'base' ? 'Base address generated' : 'Solana address generated',
+        chain === 'base'
+          ? 'Base address generated'
+          : 'Solana address generated',
         { id: toastId },
       );
       this.activeTab.set(chain);
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to generate address';
+        error instanceof Error ? error.message : 'Failed to generate address';
       toast.error(message, { id: toastId });
     } finally {
       this.generatingChain.set(null);
     }
   }
 
+  handleWithdrawCompleted(): void {
+    this.#walletContext.reload();
+  }
+
   isGenerating(chain: WalletChain): boolean {
     return this.generatingChain() === chain;
+  }
+
+  isMoving(token: TokenBalance): boolean {
+    return this.movingToken() === this.tokenKey(token);
+  }
+
+  async movePrincipalBalance(token: TokenBalance): Promise<void> {
+    if (!this.canMovePrincipalBalance(token) || this.isMoving(token)) return;
+
+    const wallet = this.walletAddresses();
+    if (!wallet) {
+      toast.error('Wallet address is not available');
+      return;
+    }
+
+    const actor = this.#actor();
+    const ledgerAgent = Actor.agentOf(actor);
+    if (!ledgerAgent) {
+      toast.error('Signed wallet session is not available');
+      return;
+    }
+
+    const destinationSubaccount =
+      wallet.icSubaccount instanceof Uint8Array
+        ? wallet.icSubaccount
+        : new Uint8Array(wallet.icSubaccount);
+    const tokenKey = this.tokenKey(token);
+    this.movingToken.set(tokenKey);
+    const toastId = toast.loading(`Moving ${token.label} into Rabbithole...`);
+
+    try {
+      await moveIcPrincipalBalanceToWallet({
+        destinationOwner: this.#backendCanisterId,
+        destinationSubaccount,
+        ledgerAgent,
+        token,
+      });
+      this.#walletContext.reload();
+      toast.success(`${token.label} moved into Rabbithole`, { id: toastId });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : `Failed to move ${token.label}`;
+      toast.error(message, { id: toastId });
+    } finally {
+      this.movingToken.set(null);
+    }
   }
 
   networkWarning(chain: WalletChain): string {
@@ -220,8 +328,39 @@ export class WalletNetworksViewComponent {
     return `Send only ${suffix} on ${title} to this address.`;
   }
 
+  openWithdraw(token: TokenBalance): void {
+    if (!this.canWithdrawBalance(token)) return;
+
+    if (this.#withdrawLauncher) {
+      this.activeTab.set(token.chain);
+      this.#withdrawLauncher.open({
+        completed: () => this.handleWithdrawCompleted(),
+        refresh: () => this.#walletContext.reload(),
+        token,
+        tokens: this.withdrawTokenOptions(),
+      });
+      return;
+    }
+
+    this.withdrawToken.set(token);
+    this.activeTab.set(token.chain);
+    this.activeView.set('withdraw');
+  }
+
+  principalBalance(token: TokenBalance): bigint {
+    return token.principalBalance ?? 0n;
+  }
+
+  principalUsdValue(token: TokenBalance): number {
+    return token.principalUsdValue ?? 0;
+  }
+
   selectTab(chain: WalletChain): void {
     this.activeTab.set(chain);
+  }
+
+  showUsdValue(token: TokenBalance, value: number): boolean {
+    return token.showUsdValue && value > 0;
   }
 
   private getAcceptedAssets(chain: WalletChain): string[] {
@@ -245,37 +384,19 @@ export class WalletNetworksViewComponent {
   private getVisibleBalances(chain: WalletChain): TokenBalance[] {
     return this.visibleBalances().filter((balance) => balance.chain === chain);
   }
-}
 
-function formatTokenAmount(balance: bigint, decimals: number): string {
-  const normalizedDecimals = Math.max(decimals, 0);
-  const isNegative = balance < 0n;
-  const absolute = isNegative ? -balance : balance;
-  const divisor = 10n ** BigInt(normalizedDecimals);
-  const whole = absolute / divisor;
-  const fraction = absolute % divisor;
-  const groupedWhole = groupIntegerDigits(whole.toString());
-
-  if (normalizedDecimals === 0) {
-    return isNegative ? `-${groupedWhole}` : groupedWhole;
+  private isVisibleBalance(balance: TokenBalance): boolean {
+    return (
+      balance.balance > 0n ||
+      (this.showPrincipalDepositAccount() &&
+        balance.chain === 'ic' &&
+        (balance.principalBalance ?? 0n) > 0n)
+    );
   }
 
-  const fractionDigits = fraction
-    .toString()
-    .padStart(normalizedDecimals, '0')
-    .slice(0, Math.min(normalizedDecimals, 6))
-    .replace(/0+$/, '');
-
-  const formatted =
-    fractionDigits.length > 0
-      ? `${groupedWhole}.${fractionDigits}`
-      : groupedWhole;
-
-  return isNegative ? `-${formatted}` : formatted;
-}
-
-function groupIntegerDigits(value: string): string {
-  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  private tokenKey(token: TokenBalance): string {
+    return `${token.chain}:${token.label}`;
+  }
 }
 
 function joinTokenLabels(tokens: string[]): string {

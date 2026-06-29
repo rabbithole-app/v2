@@ -175,7 +175,17 @@ export const idlFactory = ({ IDL }) => {
     'EvmNotConfigured' : IDL.Null,
     'SolNotConfigured' : IDL.Null,
   });
-  const WithdrawResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : WithdrawError });
+  const WithdrawTx = IDL.Variant({
+    'IC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
+    'EVM' : IDL.Record({ 'txHash' : IDL.Text }),
+    'SOL' : IDL.Record({ 'signature' : IDL.Text }),
+  });
+  const WithdrawReceipt = IDL.Record({
+    'tx' : WithdrawTx,
+    'tokenId' : TokenId,
+    'amount' : IDL.Nat,
+  });
+  const WithdrawResult = IDL.Variant({ 'ok' : WithdrawReceipt, 'err' : WithdrawError });
   const TreasuryCanister = IDL.Service({
     'chargeAndDistribute' : IDL.Func(
         [ChargeAndDistributeArgs],

@@ -220,8 +220,8 @@
   * {
     @apply border-border outline-ring/50;
   }
+}
 
-  .cdk-overlay-backdrop {
-    background-color: rgb(var(--overlay));
-  }
+.cdk-overlay-backdrop {
+  background-color: rgb(var(--overlay));
 }

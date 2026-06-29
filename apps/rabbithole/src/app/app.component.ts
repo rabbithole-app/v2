@@ -8,12 +8,13 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
   imports: [RouterModule, HlmToaster, HlmSpinner],
   selector: "app-root",
   template: `
+    <router-outlet />
     @if (isNavigating()) {
-      <div class="flex h-dvh w-full items-center justify-center">
+      <div
+        class="bg-background fixed inset-0 z-50 flex items-center justify-center"
+      >
         <hlm-spinner class="text-[2rem]" />
       </div>
-    } @else {
-      <router-outlet />
     }
     @defer (on idle) {
       <hlm-toaster position="bottom-center" />
@@ -21,7 +22,7 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
   `,
 })
 export class AppComponent {
-  #router = inject(Router);
+  readonly #router = inject(Router);
 
-  isNavigating = computed(() => !!this.#router.currentNavigation());
+  readonly isNavigating = computed(() => !!this.#router.currentNavigation());
 }

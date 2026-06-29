@@ -188,6 +188,28 @@ describe('Treasury Canister — SOL (no outcalls)', () => {
     expect(result).toHaveProperty('err');
     expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('TransferFailed');
   });
+
+  test('withdrawFromTreasury: SOL token below minimum returns #BelowMinimum', async () => {
+    manager.treasuryActor.setIdentity(manager.adminIdentity);
+    const result = await manager.treasuryActor.withdrawFromTreasury({
+      tokenId: { SOL: null },
+      amount: 999n,
+      to: { SOL: { address: treasurySolSigningAddress } },
+    });
+    expect(result).toHaveProperty('err');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('BelowMinimum');
+  });
+
+  test('withdrawFromTreasury: SOL token to IC address returns #TransferFailed', async () => {
+    manager.treasuryActor.setIdentity(manager.adminIdentity);
+    const result = await manager.treasuryActor.withdrawFromTreasury({
+      tokenId: { SOL: null },
+      amount: 1_000_000n,
+      to: { IC: { owner: manager.adminIdentity.getPrincipal(), subaccount: [] } },
+    });
+    expect(result).toHaveProperty('err');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('TransferFailed');
+  });
 });
 
 // ==== Section 2: Tests requiring HTTPS outcalls (real Solana RPC via proxy) ====
@@ -244,6 +266,22 @@ describe('Treasury Canister — SOL (with outcalls)', () => {
         tokenId: { SOL: null },
         amount: 1_000_000_000n, // 1 SOL — unfunded user
         to: { SOL: { address: treasurySolSigningAddress } },
+      });
+      return proxy(getResult);
+    });
+
+    expect(result).toHaveProperty('err');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('InsufficientBalance');
+  });
+
+  test('withdrawFromTreasury: SOL token insufficient treasury balance returns #InsufficientBalance', async () => {
+    manager.deferredTreasuryActor.setIdentity(manager.adminIdentity);
+
+    const result = await runWithProxy(manager.pic, async (proxy) => {
+      const getResult = await manager.deferredTreasuryActor.withdrawFromTreasury({
+        tokenId: { SOL: null },
+        amount: FUND_SOL_LAMPORTS + 1_000_000_000n,
+        to: { SOL: { address: treasurySolAddress } },
       });
       return proxy(getResult);
     });

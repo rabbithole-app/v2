@@ -28,7 +28,10 @@ export type {
   PendingCmcOp,
   WithdrawArgs,
   WithdrawDestination,
+  WithdrawError,
+  WithdrawReceipt,
   WithdrawResult,
+  WithdrawTx,
   // Storage deployer types
   CreationStatus,
   PaymentPhase,

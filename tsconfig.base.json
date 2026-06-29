@@ -51,6 +51,9 @@
       "@rabbithole/core/storage-canister-status": [
         "libs/core/storage-canister-status/src/index.ts"
       ],
+      "@rabbithole/core/account-settings": [
+        "libs/core/src/lib/components/account/user-settings-dialog/index.ts"
+      ],
       "@rabbithole/core/wallet": [
         "libs/core/src/lib/components/account/wallet/index.ts"
       ],
@@ -176,6 +179,9 @@
       ],
       "@rabbithole/pages/dashboard": [
         "libs/pages/src/lib/dashboard/dashboard.component.ts"
+      ],
+      "@rabbithole/pages/account-dialog": [
+        "libs/pages/src/lib/account-dialog.routes.ts"
       ],
       "@rabbithole/pages/login": [
         "libs/pages/src/lib/login/login.component.ts"

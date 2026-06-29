@@ -4,3 +4,4 @@ export * from './http-agent';
 export * from './ledger-actor-with-allowances';
 export * from './ledger-canister';
 export * from './main-actor';
+export * from './wallet-withdraw';

@@ -173,8 +173,16 @@ export type WithdrawError = { 'BelowMinimum' : { 'minimum' : bigint } } |
   { 'TransferFailed' : string } |
   { 'EvmNotConfigured' : null } |
   { 'SolNotConfigured' : null };
-export type WithdrawResult = { 'ok' : bigint } |
+export interface WithdrawReceipt {
+  'tx' : WithdrawTx,
+  'tokenId' : TokenId,
+  'amount' : bigint,
+}
+export type WithdrawResult = { 'ok' : WithdrawReceipt } |
   { 'err' : WithdrawError };
+export type WithdrawTx = { 'IC' : { 'blockIndex' : bigint } } |
+  { 'EVM' : { 'txHash' : string } } |
+  { 'SOL' : { 'signature' : string } };
 /**
  * / Standalone Treasury canister. The `installer` (deployer principal) is the
  * / sole admin — access control to privileged methods is enforced at this

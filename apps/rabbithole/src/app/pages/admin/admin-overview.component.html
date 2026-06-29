@@ -3,8 +3,10 @@
     hlmBtn
     variant="outline"
     size="sm"
-    [disabled]="_backendCyclesBalance.isLoading() || _treasuryBalances.isLoading()"
-          (click)="reload()"
+    [disabled]="
+      _backendCyclesBalance.isLoading() || _treasuryBalances.isLoading()
+    "
+    (click)="reload()"
   >
     <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
     Refresh
@@ -83,6 +85,8 @@
 <section class="rounded-md border p-4">
   <rbth-core-wallet-networks-view
     [canGenerateAddresses]="false"
+    [canMovePrincipalFunds]="true"
     [hideZeroBalances]="false"
+    [showPrincipalDepositAccount]="false"
   />
 </section>

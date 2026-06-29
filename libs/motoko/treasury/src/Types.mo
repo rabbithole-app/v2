@@ -181,8 +181,19 @@ module {
     to : WithdrawDestination;
   };
 
-  /// Withdraw result: block index (IC) or tx hash identifier (EVM) as Nat.
-  public type WithdrawResult = Result.Result<Nat, WithdrawError>;
+  public type WithdrawTx = {
+    #IC : { blockIndex : Nat };
+    #EVM : { txHash : Text };
+    #SOL : { signature : Text };
+  };
+
+  public type WithdrawReceipt = {
+    tokenId : TokenId;
+    amount : Nat;
+    tx : WithdrawTx;
+  };
+
+  public type WithdrawResult = Result.Result<WithdrawReceipt, WithdrawError>;
 
   public type WithdrawError = {
     #InsufficientBalance : { available : Nat };

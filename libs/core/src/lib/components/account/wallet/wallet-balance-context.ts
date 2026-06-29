@@ -1,4 +1,5 @@
 import { inject, InjectionToken, Signal } from '@angular/core';
+import { Principal } from '@icp-sdk/core/principal';
 
 import {
   BalanceService,
@@ -11,6 +12,7 @@ export interface WalletBalanceContext {
   readonly error: Signal<unknown | null>;
   readonly hideZero: Signal<boolean>;
   readonly isLoading: Signal<boolean>;
+  readonly principal?: Signal<Principal | null>;
   reload(): void;
   readonly totalUsd: Signal<number>;
   readonly walletAddresses: Signal<WalletAddresses | null>;
@@ -30,6 +32,7 @@ export function injectWalletBalanceContext(): WalletBalanceContext {
     error: balanceService.error,
     hideZero: balanceService.hideZero,
     isLoading: balanceService.isLoading,
+    principal: balanceService.userPrincipal,
     reload: () => balanceService.reload(),
     totalUsd: balanceService.totalUsd,
     walletAddresses: balanceService.walletAddresses,

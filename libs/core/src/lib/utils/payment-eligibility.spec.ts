@@ -8,6 +8,7 @@ const token = (label: string, usdValue: number): TokenBalance => ({
   chain: 'ic',
   decimals: 6,
   label,
+  showUsdValue: false,
   tokenId: { ckUSDC: null },
   usdValue,
 });
