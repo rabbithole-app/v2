@@ -161,6 +161,27 @@ jobs:
           cp storage-frontend.tar release-artifacts/
           cp encrypted-storage-lib.zip release-artifacts/
 
+      - name: Download previous stable signatures
+        env:
+          STORAGE_RELEASES_GITHUB_TOKEN: ${{ secrets.STORAGE_RELEASES_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$STORAGE_RELEASES_GITHUB_TOKEN" ]; then
+            echo "Missing STORAGE_RELEASES_GITHUB_TOKEN secret for private release repository."
+            exit 1
+          fi
+
+          mkdir -p release-stable-signatures
+          export GH_TOKEN="$STORAGE_RELEASES_GITHUB_TOKEN"
+
+          while IFS= read -r tag; do
+            mkdir -p "release-stable-signatures/$tag"
+            gh release download "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern encrypted-storage.most \
+              --dir "release-stable-signatures/$tag" \
+              --clobber || echo "No stable signature found for $tag; skipping."
+          done < <(git tag --list 'storage-v*' --sort=v:refname)
+
       # Create machine-readable release manifest and GitHub release body
       - name: Build storage release manifest
         id: manifest
@@ -170,6 +191,7 @@ jobs:
             --frontend-dir dist/apps/storage/browser \
             --output release-artifacts/storage-release.json \
             --release-body storage-release-body.md \
+            --stable-signature-history-dir release-stable-signatures \
             --auto-version
           )
 
