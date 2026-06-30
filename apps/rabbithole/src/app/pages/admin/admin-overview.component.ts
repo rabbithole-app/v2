@@ -26,6 +26,8 @@ import {
 import {
   fetchTokenBalancesForWallet,
   fetchTokenRates,
+  provideTreasuryWalletWithdraw,
+  provideWalletWithdrawDialogLauncher,
   type TokenBalance,
   WALLET_BALANCE_CONTEXT,
   type WalletBalanceContext,
@@ -61,6 +63,8 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
       provide: WALLET_BALANCE_CONTEXT,
       useExisting: forwardRef(() => AdminOverviewComponent),
     },
+    provideTreasuryWalletWithdraw(),
+    provideWalletWithdrawDialogLauncher(),
   ],
   templateUrl: './admin-overview.component.html',
   host: {
@@ -150,5 +154,4 @@ export class AdminOverviewComponent implements WalletBalanceContext {
   protected _formatCycles(value: bigint): string {
     return `${formatTCycles(value)} TCycles`;
   }
-
 }

@@ -74,6 +74,14 @@ export const appRoutes: Route[] = [
           ),
       },
       {
+        path: 'account',
+        outlet: 'dialog',
+        loadChildren: () =>
+          import('@rabbithole/pages/account-dialog').then(
+            (m) => m.userSettingsDialogRoutes,
+          ),
+      },
+      {
         path: 'profile',
         data: {
           header: {

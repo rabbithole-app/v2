@@ -1361,8 +1361,16 @@ export type WithdrawError = { 'BelowMinimum' : { 'minimum' : bigint } } |
   { 'TransferFailed' : string } |
   { 'EvmNotConfigured' : null } |
   { 'SolNotConfigured' : null };
-export type WithdrawResult = { 'ok' : bigint } |
+export interface WithdrawReceipt {
+  'tx' : WithdrawTx,
+  'tokenId' : TokenId,
+  'amount' : bigint,
+}
+export type WithdrawResult = { 'ok' : WithdrawReceipt } |
   { 'err' : WithdrawError };
+export type WithdrawTx = { 'IC' : { 'blockIndex' : bigint } } |
+  { 'EVM' : { 'txHash' : string } } |
+  { 'SOL' : { 'signature' : string } };
 export interface _SERVICE extends Rabbithole {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

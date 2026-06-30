@@ -1,0 +1,52 @@
+<hlm-dialog-header class="pr-8">
+  <div class="flex min-w-0 items-center gap-2">
+    <h2 id="wallet-withdraw-dialog-title" hlmDialogTitle class="truncate">
+      Withdraw
+    </h2>
+    <button
+      hlmBtn
+      variant="ghost"
+      size="icon-sm"
+      type="button"
+      aria-label="Refresh wallet balances"
+      (click)="refresh()"
+    >
+      <ng-icon hlmIcon name="lucideRefreshCw" size="sm" />
+    </button>
+  </div>
+</hlm-dialog-header>
+
+<div class="pt-1">
+  <rbth-core-wallet-withdraw-content
+    #withdrawContent
+    [token]="context.token"
+    [tokens]="context.tokens"
+    (completed)="handleCompleted()"
+  />
+</div>
+
+<hlm-dialog-footer class="mt-5">
+  <button
+    hlmBtn
+    variant="outline"
+    type="button"
+    [disabled]="withdrawContent.submitting()"
+    (click)="close()"
+  >
+    Cancel
+  </button>
+  <button
+    hlmBtn
+    type="button"
+    [disabled]="!withdrawContent.canSubmit()"
+    (click)="withdrawContent.submit()"
+  >
+    @if (withdrawContent.submitting()) {
+      <hlm-spinner class="size-4" />
+      Withdrawing...
+    } @else {
+      <ng-icon hlmIcon name="lucideArrowUpRight" size="sm" />
+      Withdraw
+    }
+  </button>
+</hlm-dialog-footer>

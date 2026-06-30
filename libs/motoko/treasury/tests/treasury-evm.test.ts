@@ -217,6 +217,28 @@ describe('Treasury Canister — EVM', () => {
     expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('TransferFailed');
   });
 
+  test('withdrawFromTreasury: EVM token below minimum returns #BelowMinimum', async () => {
+    manager.treasuryActor.setIdentity(manager.adminIdentity);
+    const result = await manager.treasuryActor.withdrawFromTreasury({
+      tokenId: { BaseUSDC: null },
+      amount: 999n,
+      to: { EVM: { address: '0x1234567890abcdef1234567890abcdef12345678' } },
+    });
+    expect(result).toHaveProperty('err');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('BelowMinimum');
+  });
+
+  test('withdrawFromTreasury: EVM token to IC address returns #TransferFailed', async () => {
+    manager.treasuryActor.setIdentity(manager.adminIdentity);
+    const result = await manager.treasuryActor.withdrawFromTreasury({
+      tokenId: { BaseUSDC: null },
+      amount: 1_000n,
+      to: { IC: { owner: manager.adminIdentity.getPrincipal(), subaccount: [] } },
+    });
+    expect(result).toHaveProperty('err');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('TransferFailed');
+  });
+
   // ==== Section 2: Tests requiring HTTPS outcalls (real RPC via proxy) ====
 
   test('getBalance: returns funded USDC balance', async () => {
@@ -259,6 +281,22 @@ describe('Treasury Canister — EVM', () => {
       const getResult = await manager.deferredTreasuryActor.withdraw({
         tokenId: { BaseUSDC: null },
         amount: 1_000_000n,
+        to: { EVM: { address: '0x1234567890abcdef1234567890abcdef12345678' } },
+      });
+      return proxy(getResult);
+    });
+
+    expect(result).toHaveProperty('err');
+    expect((result as Extract<WithdrawResult, { err: unknown }>).err).toHaveProperty('InsufficientBalance');
+  });
+
+  test('withdrawFromTreasury: EVM token insufficient treasury balance returns #InsufficientBalance', async () => {
+    manager.deferredTreasuryActor.setIdentity(manager.adminIdentity);
+
+    const result = await runWithProxy(manager.pic, async (proxy) => {
+      const getResult = await manager.deferredTreasuryActor.withdrawFromTreasury({
+        tokenId: { BaseUSDC: null },
+        amount: FUND_USDC + 1_000_000n,
         to: { EVM: { address: '0x1234567890abcdef1234567890abcdef12345678' } },
       });
       return proxy(getResult);

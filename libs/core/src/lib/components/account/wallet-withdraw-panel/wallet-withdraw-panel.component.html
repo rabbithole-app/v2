@@ -1,0 +1,35 @@
+<div class="max-w-2xl space-y-5">
+  <rbth-core-wallet-withdraw-content
+    #withdrawContent
+    [token]="token()"
+    [tokens]="tokens()"
+    (completed)="completed.emit()"
+    (tokenChange)="tokenChange.emit($event)"
+  />
+
+  <div class="flex justify-end gap-2 pt-2">
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [disabled]="withdrawContent.submitting()"
+      (click)="cancelled.emit()"
+    >
+      Cancel
+    </button>
+    <button
+      hlmBtn
+      type="button"
+      [disabled]="!withdrawContent.canSubmit()"
+      (click)="withdrawContent.submit()"
+    >
+      @if (withdrawContent.submitting()) {
+        <hlm-spinner class="size-4" />
+        Withdrawing...
+      } @else {
+        <ng-icon hlm name="lucideArrowUpRight" size="sm" />
+        Withdraw
+      }
+    </button>
+  </div>
+</div>

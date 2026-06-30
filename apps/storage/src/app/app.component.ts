@@ -12,12 +12,14 @@ import { HlmSpinner } from '@spartan-ng/helm/spinner';
 @Component({
   selector: 'app-root',
   template: `
+    <router-outlet />
+    <router-outlet name="dialog" />
     @if (isNavigating()) {
-      <div class="flex h-dvh w-full items-center justify-center">
+      <div
+        class="bg-background fixed inset-0 z-50 flex items-center justify-center"
+      >
         <hlm-spinner class="text-[2rem]" />
       </div>
-    } @else {
-      <router-outlet />
     }
     @defer (on idle) {
       <hlm-toaster position="bottom-center" />

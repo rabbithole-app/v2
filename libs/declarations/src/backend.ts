@@ -65,7 +65,10 @@ export type {
   UserSettings,
   WithdrawArgs,
   WithdrawDestination,
+  WithdrawError,
+  WithdrawReceipt,
   WithdrawResult,
+  WithdrawTx,
   _SERVICE as RabbitholeActorService,
 } from './backend/rabbithole-backend.did';
 export {

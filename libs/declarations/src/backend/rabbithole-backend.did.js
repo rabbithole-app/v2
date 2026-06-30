@@ -1164,6 +1164,16 @@ export const idlFactory = ({ IDL }) => {
     'tokenId' : TokenId,
     'amount' : IDL.Nat,
   });
+  const WithdrawTx = IDL.Variant({
+    'IC' : IDL.Record({ 'blockIndex' : IDL.Nat }),
+    'EVM' : IDL.Record({ 'txHash' : IDL.Text }),
+    'SOL' : IDL.Record({ 'signature' : IDL.Text }),
+  });
+  const WithdrawReceipt = IDL.Record({
+    'tx' : WithdrawTx,
+    'tokenId' : TokenId,
+    'amount' : IDL.Nat,
+  });
   const WithdrawError = IDL.Variant({
     'BelowMinimum' : IDL.Record({ 'minimum' : IDL.Nat }),
     'InsufficientBalance' : IDL.Record({ 'available' : IDL.Nat }),
@@ -1171,7 +1181,10 @@ export const idlFactory = ({ IDL }) => {
     'EvmNotConfigured' : IDL.Null,
     'SolNotConfigured' : IDL.Null,
   });
-  const WithdrawResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : WithdrawError });
+  const WithdrawResult = IDL.Variant({
+    'ok' : WithdrawReceipt,
+    'err' : WithdrawError,
+  });
   const Rabbithole = IDL.Service({
     '_immutableObjectStorageBlobsAreLive' : IDL.Func(
         [IDL.Vec(IDL.Vec(IDL.Nat8))],

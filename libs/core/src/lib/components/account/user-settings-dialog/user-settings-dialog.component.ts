@@ -1,10 +1,17 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
+  DestroyRef,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  ActivatedRoute,
+  NavigationEnd,
+  Router,
+  RouterOutlet,
+} from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowLeft,
@@ -12,52 +19,50 @@ import {
   lucideRefreshCw,
   lucideSettings,
   lucideWallet,
+  lucideX,
 } from '@ng-icons/lucide';
-import {
-  BrnDialogRef,
-  injectBrnDialogContext,
-} from '@spartan-ng/brain/dialog';
+import type { BrnDialogState } from '@spartan-ng/brain/dialog';
+import { filter, startWith } from 'rxjs';
 
 import { HlmButton } from '@spartan-ng/helm/button';
-import {
-  HlmDialogHeader,
-  HlmDialogTitle,
-} from '@spartan-ng/helm/dialog';
+import { HlmDialogImports } from '@spartan-ng/helm/dialog';
 import { HlmIcon } from '@spartan-ng/helm/icon';
 import { HlmSidebarImports } from '@spartan-ng/helm/sidebar';
-import { HlmSwitch } from '@spartan-ng/helm/switch';
 
 import { BalanceService } from '../../../services/balance.service';
-import { SubscriptionService } from '../../../services/subscription.service';
-import { ProUpgradeFlowComponent } from '../pro-upgrade-flow/pro-upgrade-flow.component';
-import { SubscriptionSettingsFormComponent } from '../subscription-settings/subscription-settings-form.component';
 import {
-  WalletNetworksViewComponent,
-  WalletSummaryHeaderComponent,
-} from '../wallet';
-import type {
-  UserSettingsDialogContext,
-  UserSettingsDialogResult,
-  UserSettingsDialogSection,
-  UserSettingsProUpgradeSource,
-} from './user-settings-dialog.types';
+  UserSettingsDialogResultService,
+  UserSettingsDialogService,
+} from './user-settings-dialog.service';
+import type { UserSettingsDialogSection } from './user-settings-dialog.types';
 
-type UserSettingsDialogView = UserSettingsDialogSection | 'subscriptionUpgrade';
+interface UserSettingsRouteState {
+  backCommands: readonly string[] | null;
+  backLabel: string;
+  section: UserSettingsDialogSection;
+  title: string;
+  upgradeFlow: boolean;
+  walletRefresh: boolean;
+}
+
+const DEFAULT_ROUTE_STATE: UserSettingsRouteState = {
+  backCommands: null,
+  backLabel: '',
+  section: 'settings',
+  title: 'Settings',
+  upgradeFlow: false,
+  walletRefresh: false,
+};
 
 @Component({
   selector: 'rbth-core-user-settings-dialog',
   imports: [
     HlmButton,
-    HlmDialogHeader,
-    HlmDialogTitle,
+    ...HlmDialogImports,
     HlmIcon,
-    HlmSwitch,
     ...HlmSidebarImports,
     NgIcon,
-    ProUpgradeFlowComponent,
-    SubscriptionSettingsFormComponent,
-    WalletNetworksViewComponent,
-    WalletSummaryHeaderComponent,
+    RouterOutlet,
   ],
   providers: [
     provideIcons({
@@ -66,68 +71,59 @@ type UserSettingsDialogView = UserSettingsDialogSection | 'subscriptionUpgrade';
       lucideRefreshCw,
       lucideSettings,
       lucideWallet,
+      lucideX,
     }),
   ],
   templateUrl: './user-settings-dialog.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserSettingsDialogComponent {
-  readonly #context = injectBrnDialogContext<UserSettingsDialogContext | undefined>();
-  readonly activeView = signal<UserSettingsDialogView>(
-    this.#context?.upgradeSource
-      ? 'subscriptionUpgrade'
-      : (this.#context?.section ?? 'settings'),
-  );
-  readonly activeSection = computed<UserSettingsDialogSection>(() => {
-    const view = this.activeView();
-    return view === 'subscriptionUpgrade' ? 'subscription' : view;
-  });
+  readonly dialogState = signal<BrnDialogState>('open');
+  readonly routeState = signal<UserSettingsRouteState>(DEFAULT_ROUTE_STATE);
   readonly #balanceService = inject(BalanceService);
-  readonly hideZeroBalances = this.#balanceService.hideZero;
-  readonly title = computed(() => {
-    const view = this.activeView();
-    if (view === 'subscriptionUpgrade') return 'Activate Pro';
-    if (view === 'wallet') return 'Wallet';
-    return view === 'subscription' ? 'Subscription' : 'Settings';
-  });
-  readonly upgradeSource = signal<UserSettingsProUpgradeSource>(
-    this.#context?.upgradeSource ?? 'subscription',
-  );
-  readonly #dialogRef =
-    inject<BrnDialogRef<UserSettingsDialogResult | undefined>>(BrnDialogRef);
-  readonly #subscriptionService = inject(SubscriptionService);
+  readonly #destroyRef = inject(DestroyRef);
+  readonly #route = inject(ActivatedRoute);
+  readonly #router = inject(Router);
+  readonly #settingsDialogResults = inject(UserSettingsDialogResultService);
 
-  backToSubscription(): void {
-    this.activeView.set('subscription');
+  readonly #settingsDialogService = inject(UserSettingsDialogService);
+
+  constructor() {
+    this.#router.events
+      .pipe(
+        filter((event) => event instanceof NavigationEnd),
+        startWith(null),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => this.updateRouteState());
+
+    this.#destroyRef.onDestroy(() => {
+      this.#settingsDialogResults.completeUpgrade(false);
+    });
   }
 
-  defaultUpgradeSource(): UserSettingsProUpgradeSource {
-    return this.#subscriptionService.isExpired()
-      ? 'expired-subscription'
-      : 'subscription';
+  activeSection(): UserSettingsDialogSection {
+    return this.routeState().section;
   }
 
-  handleUpgradeCancelled(): void {
-    if (this.#context?.closeOnUpgrade) {
-      this.#dialogRef.close({ upgraded: false });
-      return;
+  close(): void {
+    void this.#settingsDialogService.close();
+  }
+
+  handleDialogStateChanged(state: BrnDialogState): void {
+    this.dialogState.set(state);
+
+    if (state === 'closed') {
+      this.close();
     }
-
-    this.backToSubscription();
   }
 
-  handleUpgradeCompleted(result: UserSettingsDialogResult): void {
-    if (this.#context?.closeOnUpgrade) {
-      this.#dialogRef.close(result);
-      return;
-    }
+  handleHeaderBack(): void {
+    const commands = this.routeState().backCommands;
+    if (!commands) return;
 
-    this.backToSubscription();
-  }
-
-  openSubscriptionUpgrade(source?: UserSettingsProUpgradeSource): void {
-    this.upgradeSource.set(source ?? this.defaultUpgradeSource());
-    this.activeView.set('subscriptionUpgrade');
+    this.#settingsDialogResults.completeUpgrade(false);
+    void this.#settingsDialogService.navigateTo(commands);
   }
 
   refreshWallet(): void {
@@ -135,10 +131,38 @@ export class UserSettingsDialogComponent {
   }
 
   selectSection(section: UserSettingsDialogSection): void {
-    this.activeView.set(section);
+    void this.#settingsDialogService.open(section);
   }
 
-  toggleHideZeroBalances(checked: boolean): void {
-    this.#balanceService.hideZero.set(checked);
+  private updateRouteState(): void {
+    const child = findDeepestChild(this.#route);
+    const data = child.snapshot.data;
+    const nextState = {
+      backCommands:
+        (data['backCommands'] as readonly string[] | undefined) ?? null,
+      backLabel: (data['backLabel'] as string | undefined) ?? '',
+      section:
+        (data['section'] as UserSettingsDialogSection | undefined) ??
+        'settings',
+      title: (data['title'] as string | undefined) ?? 'Settings',
+      upgradeFlow: data['upgradeFlow'] === true,
+      walletRefresh: data['walletRefresh'] === true,
+    };
+
+    if (this.routeState().upgradeFlow && !nextState.upgradeFlow) {
+      this.#settingsDialogResults.completeUpgrade(false);
+    }
+
+    this.routeState.set(nextState);
   }
+}
+
+function findDeepestChild(route: ActivatedRoute): ActivatedRoute {
+  let current = route;
+
+  while (current.firstChild) {
+    current = current.firstChild;
+  }
+
+  return current;
 }

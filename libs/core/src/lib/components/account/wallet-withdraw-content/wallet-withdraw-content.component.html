@@ -1,0 +1,157 @@
+<form class="space-y-5" (submit)="submit($event)">
+  @if (successFeedback(); as feedback) {
+    <hlm-alert>
+      <ng-icon hlmAlertIcon name="lucideCircleCheck" />
+      <h4 hlmAlertTitle>Withdrawal submitted</h4>
+      @if (feedback.txValue; as txValue) {
+        <div hlmAlertDescription class="min-w-0 space-y-1">
+          <div class="text-sm text-muted-foreground">
+            {{ feedback.txLabel }}
+          </div>
+          <rbth-copy-to-clipboard
+            [content]="txValue"
+            size="sm"
+            class="w-full min-w-0 max-w-full text-muted-foreground [&>[data-slot=copy-content]]:text-sm"
+          >
+            {{ txValue }}
+          </rbth-copy-to-clipboard>
+        </div>
+      }
+    </hlm-alert>
+  } @else if (errorFeedback(); as feedback) {
+    <hlm-alert variant="destructive">
+      <ng-icon hlmAlertIcon name="lucideTriangleAlert" />
+      <h4 hlmAlertTitle>Withdrawal failed</h4>
+      <p hlmAlertDescription>{{ feedback.message }}</p>
+    </hlm-alert>
+  }
+
+  <hlm-field>
+    <hlm-field-content class="gap-2">
+      <span hlmFieldLabel>Network</span>
+      <div
+        hlmToggleGroup
+        type="single"
+        [nullable]="false"
+        [value]="formModel().chain"
+        variant="outline"
+        spacing="2"
+        class="w-full"
+        (valueChange)="selectChain($event)"
+      >
+        @for (network of networkOptions; track network.id) {
+          <button
+            hlmToggleGroupItem
+            type="button"
+            [value]="network.id"
+            [disabled]="submitting()"
+            class="h-auto min-w-0 flex-1 shrink basis-0 justify-start gap-2 px-3 py-2 data-[state=on]:border-ring data-[state=on]:bg-muted"
+            [attr.aria-label]="'Withdraw on ' + network.label"
+          >
+            <ng-icon hlm [name]="network.iconName" size="base" />
+            <span class="min-w-0 text-left">
+              <span class="block truncate text-sm font-medium">
+                {{ network.label }}
+              </span>
+              <span class="block truncate text-xs text-muted-foreground">
+                {{ networkEstimatedValueLabel(network.id) }}
+              </span>
+            </span>
+          </button>
+        }
+      </div>
+    </hlm-field-content>
+  </hlm-field>
+
+  <hlm-field [forceInvalid]="recipientError() !== null">
+    <hlm-field-content class="gap-2">
+      <label hlmFieldLabel for="wallet-withdraw-recipient">Recipient</label>
+      <hlm-input-group>
+        <input
+          hlmInputGroupInput
+          id="wallet-withdraw-recipient"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+          class="min-w-0 font-mono autofill:bg-transparent [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_1000px_var(--background)_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:var(--foreground)] [&:-webkit-autofill]:transition-[background-color_999999s_ease-in-out_0s]"
+          [formField]="withdrawForm.recipient"
+          (input)="clearWithdrawFeedback()"
+        />
+      </hlm-input-group>
+      @if (recipientError(); as error) {
+        <hlm-field-error forceShow>{{ error }}</hlm-field-error>
+      }
+    </hlm-field-content>
+  </hlm-field>
+
+  <hlm-field [forceInvalid]="amountError() !== null">
+    <hlm-field-content class="gap-2">
+      <label hlmFieldLabel for="wallet-withdraw-amount">Amount</label>
+      <hlm-input-group>
+        <input
+          hlmInputGroupInput
+          id="wallet-withdraw-amount"
+          autocomplete="off"
+          class="min-w-0 font-mono autofill:bg-transparent [&:-webkit-autofill]:[-webkit-box-shadow:0_0_0_1000px_var(--background)_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:var(--foreground)] [&:-webkit-autofill]:transition-[background-color_999999s_ease-in-out_0s]"
+          inputmode="decimal"
+          [formField]="withdrawForm.amount"
+          (beforeinput)="handleAmountBeforeInput($event)"
+          (input)="handleAmountInput($event)"
+        />
+        <hlm-input-group-addon align="inline-end" class="shrink-0 gap-1">
+          <button
+            hlmInputGroupButton
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            hlmTooltip="Use maximum balance"
+            aria-label="Use maximum balance"
+            [disabled]="submitting()"
+            (click)="setMaxAmount()"
+          >
+            <ng-icon hlm name="lucideArrowUpToLine" size="sm" />
+          </button>
+          <button
+            hlmInputGroupButton
+            variant="ghost"
+            size="sm"
+            type="button"
+            class="max-w-32 shrink-0 pe-1.5! font-mono"
+            aria-label="Select withdrawal asset"
+            [hlmDropdownMenuTrigger]="assetMenu"
+            align="end"
+            [disabled]="submitting()"
+          >
+            <span class="truncate">{{ selectedAssetLabel() }}</span>
+            <ng-icon hlm name="lucideChevronDown" size="sm" />
+          </button>
+          <ng-template #assetMenu>
+            <hlm-dropdown-menu class="w-64">
+              @for (token of selectedChainTokens(); track tokenKey(token)) {
+                <button
+                  hlmDropdownMenuRadio
+                  [checked]="isSelectedToken(token)"
+                  (triggered)="selectToken(token)"
+                >
+                  <hlm-dropdown-menu-radio-indicator />
+                  <span class="font-mono">{{ token.label }}</span>
+                  <span
+                    class="ml-auto font-mono text-xs text-muted-foreground"
+                    [class.text-foreground]="hasTokenBalance(token)"
+                  >
+                    {{ formatAvailableTokenBalance(token) }}
+                  </span>
+                </button>
+              }
+            </hlm-dropdown-menu>
+          </ng-template>
+        </hlm-input-group-addon>
+      </hlm-input-group>
+      @if (amountError(); as error) {
+        <hlm-field-error forceShow>{{ error }}</hlm-field-error>
+      } @else {
+        <p hlmFieldDescription>{{ amountDescription() }}</p>
+      }
+    </hlm-field-content>
+  </hlm-field>
+</form>
