@@ -6,7 +6,7 @@ import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
-import IC "mo:ic";
+import IC "mo:ic/Types";
 
 module {
   // -- Basic Types --

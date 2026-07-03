@@ -9,7 +9,8 @@ import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Debug "mo:core/Debug";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Vector "mo:vector";
 
 import Types "Types";
@@ -74,7 +75,7 @@ module WasmInstaller {
 
   public func clearRemoteChunkStore(canisterId : Principal) : async Result.Result<(), Text> {
     try {
-      await IC.ic.clear_chunk_store({ canister_id = canisterId });
+      await ic.clear_chunk_store({ canister_id = canisterId });
       #ok;
     } catch (error) {
       #err("Clear chunk store failed: " # Error.message(error));
@@ -214,7 +215,7 @@ module WasmInstaller {
         ignore await cleanupChunkStore(store, canisterId);
       };
 
-      let chunkHash = await IC.ic.upload_chunk({
+      let chunkHash = await ic.upload_chunk({
         canister_id = canisterId;
         chunk;
       });
@@ -272,7 +273,7 @@ module WasmInstaller {
     ignore Map.insert(store.statuses, Principal.compare, canisterId, #Installing);
 
     try {
-      await IC.ic.install_code({
+      await ic.install_code({
         mode;
         canister_id = canisterId;
         wasm_module = wasmModule;
@@ -308,7 +309,7 @@ module WasmInstaller {
     };
 
     try {
-      await IC.ic.install_chunked_code({
+      await ic.install_chunked_code({
         mode;
         target_canister = canisterId;
         wasm_module_hash = wasmHash;

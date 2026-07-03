@@ -11,7 +11,8 @@ import Option "mo:core/Option";
 import Array "mo:core/Array";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Sha256 "mo:sha2/Sha256";
 
 import Types "HttpDownloaderTypes";
@@ -161,7 +162,7 @@ module {
         ignore Map.insert(download.chunkStatuses, Nat.compare, chunkId, #Downloading);
         let (status, nextRequest) = label exit : (ChunkStatus, ?{ #Back : DownloadRequest; #Front : DownloadRequest }) {
           try {
-            let response = await (with cycles = HTTP_OUTCALL_CYCLES) IC.ic.http_request(request);
+            let response = await (with cycles = HTTP_OUTCALL_CYCLES) ic.http_request(request);
 
             if (response.status >= 300 and response.status < 400) {
               let redirectUrl = label headersLoop : ?Text {

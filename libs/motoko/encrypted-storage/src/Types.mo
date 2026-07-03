@@ -7,7 +7,10 @@ import CertifiedAssets "mo:certified-assets/Stable";
 
 import AccessTypes "Access/Types";
 import StorageEventTypes "StorageEvents/Types";
+import ExternalStorageTypes "ExternalStorage/Types";
+import ObjectStorageTypes "ObjectStorage/Types";
 import V1 "Migrations/V1/Types";
+import V2 "Migrations/V2/Types";
 import Migrations "Migrations/lib";
 
 module {
@@ -18,7 +21,7 @@ module {
 
   /* -------------- Re-exports from current stable types --------------------- */
 
-  public type StableStore = V1.StableStore;
+  public type StableStore = V2.StableStore;
   public type MemoryInfo = MemoryRegion.MemoryInfo;
 
   /* -------------- Re-exports from Access ---------------------------------- */
@@ -79,6 +82,47 @@ module {
   public type CreateAccessRequestArguments = AccessTypes.CreateAccessRequestArguments;
   public type CancelAccessRequestArguments = AccessTypes.CancelAccessRequestArguments;
   public type ResolveAccessRequestArguments = AccessTypes.ResolveAccessRequestArguments;
+
+  /* -------------- Re-exports from ExternalStorage ------------------------- */
+
+  public type ExternalStorageTargetId = ExternalStorageTypes.TargetId;
+  public type ExternalStorageCredentialId = ExternalStorageTypes.CredentialId;
+  public type ExternalStorageReadMode = ExternalStorageTypes.ReadMode;
+  public type ExternalStorageWriteMode = ExternalStorageTypes.WriteMode;
+  public type ExternalStorageTargetStatus = ExternalStorageTypes.TargetStatus;
+  public type ExternalStorageCredentialStatus = ExternalStorageTypes.CredentialStatus;
+  public type ExternalStorageS3CompatibleTargetConfig = ExternalStorageTypes.S3CompatibleTargetConfig;
+  public type ExternalStorageTargetKind = ExternalStorageTypes.TargetKind;
+  public type ExternalStorageTarget = ExternalStorageTypes.Target;
+  public type ExternalStorageCredential = ExternalStorageTypes.Credential;
+  public type ExternalStorageTargetView = ExternalStorageTypes.TargetView;
+  public type ConfigureExternalStorageTargetArgs = ExternalStorageTypes.ConfigureTargetArgs;
+  public type DisableExternalStorageTargetArgs = ExternalStorageTypes.DisableTargetArgs;
+  public type ExternalBlobLocatorArgs = ExternalStorageTypes.BlobLocatorArgs;
+  public type ExternalBlobLocator = ExternalStorageTypes.BlobLocator;
+  public type ExternalTargetBlobLocatorArgs = ExternalStorageTypes.TargetBlobLocatorArgs;
+  public type ExternalTargetBlobLocator = ExternalStorageTypes.TargetBlobLocator;
+  public type ExternalStoragePresignedHttpMethod = ExternalStorageTypes.PresignedHttpMethod;
+  public type ExternalStoragePresignedUrl = ExternalStorageTypes.PresignedUrl;
+  public type ExternalStoragePresignBlobUploadArgs = ExternalStorageTypes.PresignBlobUploadArgs;
+  public type ExternalStoragePresignBlobUploadResult = ExternalStorageTypes.PresignBlobUploadResult;
+  public type ExternalBlobReplicaStatus = ExternalStorageTypes.BlobReplicaStatus;
+  public type ExternalBlobReplica = ExternalStorageTypes.BlobReplica;
+  public type ExternalStorageDeleteTaskStatus = ExternalStorageTypes.DeleteTaskStatus;
+  public type ExternalStorageDeleteTask = ExternalStorageTypes.DeleteTask;
+  public type ExternalStorageDeleteTaskView = ExternalStorageTypes.DeleteTaskView;
+  public type ExternalStorageUploadSession = ExternalStorageTypes.UploadSession;
+  public type ExternalStorageCleanupStatus = ExternalStorageTypes.CleanupStatus;
+  public type ExternalStorageHttpTransform = ExternalStorageTypes.HttpTransform;
+  public type ExternalStorageHttpTransformArg = ExternalStorageTypes.HttpTransformArg;
+  public type ExternalStorageStore = ExternalStorageTypes.Store;
+
+  /* -------------- Re-exports from ObjectStorage --------------------------- */
+
+  public type ObjectStorageWritePolicy = ObjectStorageTypes.WritePolicy;
+  public type ObjectStorageStatus = ObjectStorageTypes.Status;
+  public type ObjectStorageUploadRoute = ObjectStorageTypes.UploadRoute;
+  public type ObjectStorageBlobReadRoute = ObjectStorageTypes.BlobReadRoute;
 
   /* -------------- Re-exports from V1 (filesystem/storage types) ----------- */
   public type SubscriptionStatus = V1.SubscriptionStatus;
@@ -323,6 +367,7 @@ module {
     certs : ?CertifiedAssets.StableStore;
     backendId : ?Principal;
     storageBackendType : StorageBackend;
+    objectStorageWritePolicy : ?ObjectStorageWritePolicy;
   };
 
   public type StorageStatus = {
@@ -331,6 +376,9 @@ module {
     storedBytesUsed : Nat;
     backendId : ?Principal;
     storageBackendType : StorageBackend;
+    objectStorage : ?ObjectStorageStatus;
+    fileCount : Nat;
+    directoryCount : Nat;
   };
 
   /* ----------------------------- Caffeine API ------------------------------ */
@@ -353,6 +401,49 @@ module {
     size : Nat;
   };
 
+  public type ResolveUploadRouteArgs = {
+    entry : Entry;
+    size : Nat;
+  };
+
+  public type ResolveBlobReadRouteArgs = {
+    entry : Entry;
+    version : ?Nat;
+  };
+
+  public type ResolveThumbnailReadRouteArgs = {
+    entry : Entry;
+    rootHash : Text;
+  };
+
+  public type PrepareExternalBlobUploadArgs = {
+    entry : Entry;
+    targetId : ?ExternalStorageTargetId;
+    rootHashHex : Text;
+    size : Nat;
+    expiresSeconds : ?Nat;
+  };
+
+  public type PrepareExternalBlobUploadResult = ExternalStoragePresignBlobUploadResult;
+
+  public type CommitExternalBlobUploadArgs = {
+    entry : Entry;
+    targetId : ?ExternalStorageTargetId;
+    sha256 : Blob;
+    rootHashHex : Text;
+    contentType : Text;
+    size : Nat;
+  };
+
+  public type CommitExternalThumbnailUploadArgs = {
+    entry : Entry;
+    targetId : ?ExternalStorageTargetId;
+    sha256 : Blob;
+    rootHashHex : Text;
+    contentType : Text;
+    size : Nat;
+    encryption : ThumbnailEncryptionRef;
+  };
 
   public type Entry = ({ #File; #Directory }, Text);
 

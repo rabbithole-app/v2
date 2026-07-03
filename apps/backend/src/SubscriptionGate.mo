@@ -4,7 +4,8 @@ import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import Time "mo:core/Time";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 
 import T "mo:encrypted-storage/Types";
 import Access "mo:encrypted-storage/Access/lib";
@@ -43,7 +44,7 @@ module SubscriptionGate {
     let moduleHash = switch (self.cachedModuleHash) {
       case (?hash) hash;
       case null {
-        let info = await IC.ic.canister_info({
+        let info = await ic.canister_info({
           canister_id = self.canisterId;
           num_requested_changes = ?0;
         });
@@ -58,7 +59,7 @@ module SubscriptionGate {
     // rejects runtime-status introspection.
     if (self.cachedIdleBurnPerDay == null) {
       try {
-        let status = await IC.ic.canister_status({ canister_id = self.canisterId });
+        let status = await ic.canister_status({ canister_id = self.canisterId });
         self.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
       } catch (_) {};
     };
@@ -72,7 +73,7 @@ module SubscriptionGate {
       case (#invalidWasm) {
         // Clear cached hash, retry once with fresh hash
         self.cachedModuleHash := null;
-        let info = await IC.ic.canister_info({
+        let info = await ic.canister_info({
           canister_id = self.canisterId;
           num_requested_changes = ?0;
         });
@@ -115,24 +116,39 @@ module SubscriptionGate {
   };
 
   let ACTIVE_PRO_REQUIRED : Text = "Active Pro subscription required";
+  let EXTERNAL_STORAGE_PRO_REQUIRED : Text = "Connecting external S3 storage requires an active Pro subscription";
 
-  /// Check if cached subscription allows ordinary sharing operations.
-  /// Storage license limits are personal-storage entitlements, not Pro sharing.
-  public func canShare(self : T.StableStore) : Result.Result<(), Text> {
+  /// Shared Pro-plan check for Pro-only features. Each feature keeps its own
+  /// user-facing message so the gates stay independent policy points.
+  func requireActivePro(self : T.StableStore, proRequiredMessage : Text) : Result.Result<(), Text> {
     switch (self.subscriptionCache) {
       case (?{ status = #active({ plan }) }) {
         switch (plan) {
           case (#Pro) #ok;
-          case _ #err(ACTIVE_PRO_REQUIRED);
+          case _ #err(proRequiredMessage);
         };
       };
-      case (?{ status = #licensed(_) }) #err(ACTIVE_PRO_REQUIRED);
-      case (?{ status = #expired }) #err("Subscription expired — " # ACTIVE_PRO_REQUIRED);
-      case (?{ status = #free }) #err(ACTIVE_PRO_REQUIRED);
+      case (?{ status = #licensed(_) }) #err(proRequiredMessage);
+      case (?{ status = #expired }) #err("Subscription expired — " # proRequiredMessage);
+      case (?{ status = #free }) #err(proRequiredMessage);
       case (?{ status = #invalidWasm }) #err("Invalid WASM — contact support");
       case (?{ status = #unknownCanister }) #err("Unknown canister — contact support");
       case null #err("Subscription status unknown — call refreshSubscription first");
     };
+  };
+
+  /// Check if cached subscription allows ordinary sharing operations.
+  /// Storage license limits are personal-storage entitlements, not Pro sharing.
+  public func canShare(self : T.StableStore) : Result.Result<(), Text> {
+    requireActivePro(self, ACTIVE_PRO_REQUIRED);
+  };
+
+  /// Check if connecting a NEW external S3 target is allowed (Pro feature).
+  /// Rotating credentials of an existing target is intentionally NOT gated:
+  /// a lapsed owner must stay able to keep reads and cleanup of already
+  /// uploaded data working.
+  public func canUseExternalStorage(self : T.StableStore) : Result.Result<(), Text> {
+    requireActivePro(self, EXTERNAL_STORAGE_PRO_REQUIRED);
   };
 
   /// Check if caller can decrypt (getEncryptedVetkey).

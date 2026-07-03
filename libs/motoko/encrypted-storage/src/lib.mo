@@ -14,6 +14,7 @@ import Time "mo:core/Time";
 
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 import Map "mo:map/Map";
+import Set "mo:core/Set";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import Sha256 "mo:sha2/Sha256";
 import Vector "mo:vector";
@@ -38,12 +39,506 @@ import Certification "Certification";
 import StorageAccounting "StorageAccounting";
 import UploadSession "UploadSession";
 import UploadStaging "UploadSession/Staging";
+import ExternalStorage "ExternalStorage/lib";
+import ExternalStorageLayout "ExternalStorage/Layout";
 
 module EncryptedFileStorage {
+  let DEFAULT_EXTERNAL_UPLOAD_URL_EXPIRES_SECONDS : Nat = 900;
+
   public type StableStore = T.StableStore;
   public type VersionedStableStore = T.VersionedStableStore;
   public type ActiveUploadSession = Upload.ActiveSession;
   public type UploadCommitMeasurement = UploadSession.CommitMeasurement;
+
+  public func externalBlobLocator(args : T.ExternalBlobLocatorArgs) : T.StorageResult<T.ExternalBlobLocator> {
+    switch (ExternalStorageLayout.blobLocator(args)) {
+      case (#ok(locator)) #ok(locator);
+      case (#err(message)) #err({ code = #Validation; message });
+    };
+  };
+
+  func ensureOwnerEquivalent(self : T.StableStore, caller : Principal) : Result.Result<(), Text> {
+    if (isOwnerEquivalent(self, caller)) #ok else #err("permission denied: caller is not owner-equivalent");
+  };
+
+  /// Runs `fn` only for an owner-equivalent caller. Collapses the owner-gate
+  /// boilerplate shared by the synchronous external-storage wrappers.
+  /// (Async wrappers keep the gate inline — Motoko has no async polymorphism.)
+  func withOwner<T>(self : T.StableStore, caller : Principal, fn : () -> Result.Result<T, Text>) : Result.Result<T, Text> {
+    switch (ensureOwnerEquivalent(self, caller)) {
+      case (#err(message)) #err(message);
+      case (#ok) fn();
+    };
+  };
+
+  func objectStorageStatus(self : T.StableStore) : T.ObjectStorageStatus {
+    let activeTargetId = switch (ExternalStorage.getActiveTarget(self.externalStorage)) {
+      case (?target) ?target.id;
+      case null null;
+    };
+    let setupRequired = switch (self.storageBackendType, self.objectStorageWritePolicy, activeTargetId) {
+      case (#BlobStorage, #ExternalS3Active(_), null) true;
+      case _ false;
+    };
+    {
+      writePolicy = self.objectStorageWritePolicy;
+      activeTargetId;
+      setupRequired;
+    };
+  };
+
+  func objectStorageStatusOptional(self : T.StableStore) : ?T.ObjectStorageStatus {
+    switch (self.storageBackendType) {
+      case (#BlobStorage) ?objectStorageStatus(self);
+      case (#OnChain) null;
+    };
+  };
+
+  public func configureExternalStorageTarget(self : T.StableStore, caller : Principal, args : T.ConfigureExternalStorageTargetArgs, transform : ?T.ExternalStorageHttpTransform, externalStorageGate : ?(() -> Result.Result<(), Text>)) : async* Result.Result<T.ExternalStorageTargetView, Text> {
+    switch (ensureOwnerEquivalent(self, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    let prepared = switch (ExternalStorage.prepareConfigureTarget(self.externalStorage, args)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(message);
+    };
+
+    // Connecting a new physical target is a Pro feature; credential rotation
+    // of an existing target stays available so a lapsed owner keeps reads and
+    // cleanup of already uploaded data working.
+    if (prepared.existingTarget == null) {
+      switch (externalStorageGate) {
+        case (?gate) switch (gate()) {
+          case (#err(message)) return #err(message);
+          case (#ok) {};
+        };
+        case null {};
+      };
+    };
+
+    let probeResult = await ExternalStorage.probeTargetAccess({
+      config = prepared.config;
+      accessKeyId = prepared.accessKeyId;
+      secretAccessKey = prepared.secretAccessKey;
+      sessionToken = prepared.sessionToken;
+      nonce = Int.toText(Int.abs(Time.now()));
+      transform;
+    });
+    switch (probeResult) {
+      case (#err(message)) return #err("bucket validation failed: " # message);
+      case (#ok) {};
+    };
+
+    switch (ExternalStorage.commitConfigureTarget(self.externalStorage, prepared, ?Time.now(), Time.now())) {
+      case (#ok(target)) {
+        if (self.storageBackendType == #BlobStorage) {
+          self.objectStorageWritePolicy := #ExternalS3Active({ targetId = target.id });
+        };
+        #ok(target);
+      };
+      case (#err(message)) #err(message);
+    };
+  };
+
+  public func revalidateExternalStorageTarget(self : T.StableStore, caller : Principal, targetId : T.ExternalStorageTargetId, transform : ?T.ExternalStorageHttpTransform) : async* Result.Result<T.ExternalStorageTargetView, Text> {
+    switch (ensureOwnerEquivalent(self, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    await ExternalStorage.revalidateTarget(self.externalStorage, targetId, Int.toText(Int.abs(Time.now())), transform);
+  };
+
+  /// Soft external-storage policy: after the active target is removed, keep
+  /// writing to the next usable target, or fall back to managed Caffeine when
+  /// none remain. External S3 is a preference; managed Caffeine is always the
+  /// fallback, so uploads never get stuck without a bucket.
+  func repointActiveExternalTarget(self : T.StableStore) {
+    if (self.storageBackendType != #BlobStorage) return;
+    switch (ExternalStorage.promoteNextActiveTarget(self.externalStorage)) {
+      case (?targetId) self.objectStorageWritePolicy := #ExternalS3Active({ targetId });
+      case null self.objectStorageWritePolicy := #CaffeineManaged;
+    };
+  };
+
+  func targetIsActive(self : T.StableStore, targetId : T.ExternalStorageTargetId) : Bool {
+    switch (ExternalStorage.getActiveTarget(self.externalStorage)) {
+      case (?target) target.id == targetId;
+      case null false;
+    };
+  };
+
+  public func disableExternalStorageTarget(self : T.StableStore, caller : Principal, args : T.DisableExternalStorageTargetArgs) : Result.Result<T.ExternalStorageTargetView, Text> {
+    withOwner(
+      self,
+      caller,
+      func() : Result.Result<T.ExternalStorageTargetView, Text> {
+        let wasActive = targetIsActive(self, args.targetId);
+        switch (ExternalStorage.disableTarget(self.externalStorage, args.targetId, Time.now())) {
+          case (#ok(target)) {
+            if (wasActive) repointActiveExternalTarget(self);
+            #ok(target);
+          };
+          case (#err(message)) #err(message);
+        };
+      },
+    );
+  };
+
+  /// Permanently removes a target that no longer holds any data. The active
+  /// pointer moves to the next usable target, or the vault falls back to
+  /// managed Caffeine storage, making the external S3 setup fully reversible.
+  public func disconnectExternalStorageTarget(self : T.StableStore, caller : Principal, args : T.DisableExternalStorageTargetArgs) : Result.Result<(), Text> {
+    withOwner(
+      self,
+      caller,
+      func() : Result.Result<(), Text> {
+        let wasActive = targetIsActive(self, args.targetId);
+        switch (ExternalStorage.disconnectTarget(self.externalStorage, args.targetId)) {
+          case (#err(message)) return #err(message);
+          case (#ok) {};
+        };
+        if (wasActive) repointActiveExternalTarget(self);
+        #ok;
+      },
+    );
+  };
+
+  public func listExternalStorageTargets(self : T.StableStore, caller : Principal) : Result.Result<[T.ExternalStorageTargetView], Text> {
+    withOwner(self, caller, func() : Result.Result<[T.ExternalStorageTargetView], Text> = #ok(ExternalStorage.listTargets(self.externalStorage)));
+  };
+
+  public func getActiveExternalStorageTarget(self : T.StableStore, caller : Principal) : Result.Result<?T.ExternalStorageTargetView, Text> {
+    withOwner(
+      self,
+      caller,
+      func() : Result.Result<?T.ExternalStorageTargetView, Text> = #ok(
+        switch (ExternalStorage.getActiveTarget(self.externalStorage)) {
+          case (?target) ?ExternalStorage.targetView(self.externalStorage, target);
+          case null null;
+        }
+      ),
+    );
+  };
+
+  public func listExternalBlobReplicas(self : T.StableStore, caller : Principal) : Result.Result<[T.ExternalBlobReplica], Text> {
+    withOwner(self, caller, func() : Result.Result<[T.ExternalBlobReplica], Text> = #ok(ExternalStorage.listBlobReplicas(self.externalStorage)));
+  };
+
+  public func listExternalStorageDeleteTasks(self : T.StableStore, caller : Principal) : Result.Result<[T.ExternalStorageDeleteTaskView], Text> {
+    withOwner(self, caller, func() : Result.Result<[T.ExternalStorageDeleteTaskView], Text> = #ok(ExternalStorage.listDeleteTasks(self.externalStorage)));
+  };
+
+  public func runExternalStorageDeleteTask(self : T.StableStore, caller : Principal, taskId : Nat, transform : ?T.ExternalStorageHttpTransform) : async Result.Result<T.ExternalStorageDeleteTaskView, Text> {
+    switch (ensureOwnerEquivalent(self, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    await ExternalStorage.runDeleteTask(self.externalStorage, ?taskId, transform, Time.now());
+  };
+
+  public func runNextExternalStorageDeleteTask(self : T.StableStore, caller : Principal, transform : ?T.ExternalStorageHttpTransform) : async Result.Result<T.ExternalStorageDeleteTaskView, Text> {
+    switch (ensureOwnerEquivalent(self, caller)) {
+      case (#err(message)) return #err(message);
+      case (#ok) {};
+    };
+    await ExternalStorage.runDeleteTask(self.externalStorage, null, transform, Time.now());
+  };
+
+  public func getExternalStorageCleanupStatus(self : T.StableStore, caller : Principal) : Result.Result<T.ExternalStorageCleanupStatus, Text> {
+    withOwner(self, caller, func() : Result.Result<T.ExternalStorageCleanupStatus, Text> = #ok(ExternalStorage.cleanupStatus(self.externalStorage)));
+  };
+
+  /// Owner-triggered maintenance step: sweeps expired upload sessions into
+  /// delete tasks and GCs terminal records. The app canister timer does the
+  /// same automatically; this exists for tests and diagnostics.
+  public func sweepExternalStorageCleanup(self : T.StableStore, caller : Principal) : Result.Result<T.ExternalStorageCleanupStatus, Text> {
+    withOwner(
+      self,
+      caller,
+      func() : Result.Result<T.ExternalStorageCleanupStatus, Text> {
+        let now = Time.now();
+        ignore ExternalStorage.sweepUploadSessions(self.externalStorage, now);
+        ExternalStorage.gcCleanupRecords(self.externalStorage, now);
+        #ok(ExternalStorage.cleanupStatus(self.externalStorage));
+      },
+    );
+  };
+
+  /// Timer-driven maintenance step (no caller check; internal to the actor):
+  /// sweeps expired upload sessions into delete tasks, GCs terminal records,
+  /// and reports when the next piece of cleanup work becomes due.
+  public func externalCleanupPrepare(self : T.StableStore) : { nextWakeAt : ?Time.Time } {
+    let now = Time.now();
+    ignore ExternalStorage.sweepUploadSessions(self.externalStorage, now);
+    ExternalStorage.gcCleanupRecords(self.externalStorage, now);
+    { nextWakeAt = ExternalStorage.nextWakeTime(self.externalStorage) };
+  };
+
+  /// Timer-driven task execution (no caller check; internal to the actor).
+  public func runNextExternalStorageDeleteTaskInternal(self : T.StableStore, transform : ?T.ExternalStorageHttpTransform) : async Result.Result<T.ExternalStorageDeleteTaskView, Text> {
+    await ExternalStorage.runDeleteTask(self.externalStorage, null, transform, Time.now());
+  };
+
+  public func externalBlobLocatorForTarget(self : T.StableStore, caller : Principal, args : T.ExternalTargetBlobLocatorArgs) : Result.Result<T.ExternalTargetBlobLocator, Text> {
+    withOwner(self, caller, func() : Result.Result<T.ExternalTargetBlobLocator, Text> = ExternalStorage.blobLocatorForTarget(self.externalStorage, args));
+  };
+
+  public func resolveUploadRoute(self : T.StableStore, caller : Principal, args : T.ResolveUploadRouteArgs) : Result.Result<T.ObjectStorageUploadRoute, Text> {
+    let entry = (#File, args.entry.1);
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    switch (self.storageBackendType) {
+      case (#OnChain) #ok(#OnChain);
+      case (#BlobStorage) switch (self.objectStorageWritePolicy) {
+        case (#CaffeineManaged) #ok(#CaffeineBlobStorage);
+        case (#ExternalS3Active({ targetId })) {
+          let ?target = ExternalStorage.getTarget(self.externalStorage, targetId) else return #ok(#ExternalS3SetupRequired);
+          if (target.status != #Active) return #ok(#ExternalS3SetupRequired);
+          #ok(#ExternalS3({
+            targetId = target.id;
+            targetVersion = target.version;
+            layoutVersion = target.layoutVersion;
+            readMode = target.readMode;
+            writeMode = target.writeMode;
+          }));
+        };
+      };
+    };
+  };
+
+  /// Maps a stored BlobStorage rootHash to its read route. The `sha256:`
+  /// prefix marks Caffeine-managed blobs; bare hex means an external replica.
+  func blobRootHashReadRoute(self : T.StableStore, rootHash : Text) : Result.Result<T.ObjectStorageBlobReadRoute, Text> {
+    if (Text.startsWith(rootHash, #text "sha256:")) {
+      return #ok(#CaffeineBlobStorage);
+    };
+    switch (ExternalStorage.blobLocatorForReplica(self.externalStorage, rootHash)) {
+      case (#ok(result)) #ok(#ExternalS3PublicEncrypted(result));
+      case (#err(message)) #err(message);
+    };
+  };
+
+  public func resolveBlobReadRoute(self : T.StableStore, caller : Principal, args : T.ResolveBlobReadRouteArgs) : Result.Result<T.ObjectStorageBlobReadRoute, Text> {
+    let entry = (#File, args.entry.1);
+    switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
+    let #File(file) = node.metadata else return #err("Expected file, got directory");
+    let ?version = File.getVersion(file, args.version) else return #err("file version not found");
+
+    if (version.chunks.size() == 0) return #ok(#OnChain);
+
+    switch (version.chunks[0]) {
+      case (#OnChain _) #ok(#OnChain);
+      case (#BlobStorage { blobId }) {
+        let ?rootHash = Text.decodeUtf8(blobId) else return #err("invalid BlobStorage root hash");
+        blobRootHashReadRoute(self, rootHash);
+      };
+    };
+  };
+
+  public func resolveThumbnailReadRoute(self : T.StableStore, caller : Principal, args : T.ResolveThumbnailReadRouteArgs) : Result.Result<T.ObjectStorageBlobReadRoute, Text> {
+    switch (Permissions.ensureUserCanRead(self.fs, caller, #entry(args.entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+    let #File(file) = node.metadata else return #err("Expected file, got directory");
+    let ?thumbnailRef = file.thumbnailRef else return #err("thumbnail not found");
+
+    switch (thumbnailRef) {
+      case (#OnChain(_)) #ok(#OnChain);
+      case (#BlobStorage({ rootHash })) {
+        if (not Text.equal(rootHash, args.rootHash)) {
+          return #err("thumbnail root hash does not match file metadata");
+        };
+        blobRootHashReadRoute(self, rootHash);
+      };
+    };
+  };
+
+  func collectReferencedBlobRootHashes(self : T.StableStore) : Set.Set<Text> {
+    let referenced = Set.empty<Text>();
+    for (node in Map.vals(self.fs.nodes)) {
+      switch (node.metadata) {
+        case (#File(file)) {
+          for (rootHash in File.blobStorageRootHashes(file).vals()) {
+            Set.add(referenced, Text.compare, rootHash);
+          };
+        };
+        case (#Directory _) {};
+      };
+    };
+    referenced;
+  };
+
+  func queueUnreferencedExternalBlobDeletes(self : T.StableStore, rootHashes : [Text]) {
+    if (rootHashes.size() == 0) return;
+    let referenced = collectReferencedBlobRootHashes(self);
+    let now = Time.now();
+    for (rootHash in rootHashes.vals()) {
+      if (not Set.contains(referenced, Text.compare, rootHash)) {
+        ignore ExternalStorage.queueBlobReplicaDeletesForRoot(self.externalStorage, rootHash, now);
+      };
+    };
+  };
+
+  public func prepareExternalBlobUpload(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.PrepareExternalBlobUploadArgs,
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
+    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
+  ) : async* Result.Result<T.PrepareExternalBlobUploadResult, Text> {
+    let entry = (#File, args.entry.1);
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
+    let #File(file) = node.metadata else return #err("Expected file, got directory");
+    let _ = file;
+
+    switch (await* checkStorageLimit(args.size, onFileStorage, onSubscriptionRefresh)) {
+      case (#err msg) return #err msg;
+      case (#ok) {};
+    };
+
+    ExternalStorage.prepareBlobUpload(
+      self.externalStorage,
+      {
+        targetId = args.targetId;
+        rootHashHex = args.rootHashHex;
+        expiresSeconds = Option.get(args.expiresSeconds, DEFAULT_EXTERNAL_UPLOAD_URL_EXPIRES_SECONDS);
+      },
+      Time.now(),
+    );
+  };
+
+  public func commitExternalBlobUpload(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.CommitExternalBlobUploadArgs,
+    onFileStorage : ?(Nat -> Result.Result<(), Text>),
+    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
+  ) : async* Result.Result<(), Text> {
+    let entry = (#File, args.entry.1);
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(entry))) {
+      case (#ok _) {};
+      case (#err message) return #err message;
+    };
+
+    let ?node = FileSystem.get(self.fs, #entry(entry)) else return #err(ErrorMessages.entryNotFound(entry));
+    let #File(_) = node.metadata else return #err("Expected file, got directory");
+
+    switch (
+      ExternalStorage.recordBlobReplica(
+        self.externalStorage,
+        {
+          targetId = args.targetId;
+          rootHashHex = args.rootHashHex;
+          size = args.size;
+          sha256 = ?args.sha256;
+        },
+        Time.now(),
+      )
+    ) {
+      case (#err(message)) return #err(message);
+      case (#ok(_)) {};
+    };
+
+    switch (
+      await* commitCaffeineUpload(
+        self,
+        caller,
+        {
+          entry = args.entry;
+          sha256 = args.sha256;
+          rootHash = args.rootHashHex;
+          contentType = args.contentType;
+          size = args.size;
+        },
+        onFileStorage,
+        onSubscriptionRefresh,
+      )
+    ) {
+      case (#err(message)) {
+        queueUnreferencedExternalBlobDeletes(self, [args.rootHashHex]);
+        return #err(message);
+      };
+      case (#ok) {};
+    };
+
+    #ok;
+  };
+
+  public func commitExternalThumbnailUpload(
+    self : T.StableStore,
+    caller : Principal,
+    args : T.CommitExternalThumbnailUploadArgs,
+  ) : Result.Result<T.NodeDetails, Text> {
+    switch (Permissions.ensureUserCanWrite(self.fs, caller, #entry(args.entry))) {
+      case (#err message) return #err message;
+      case (#ok _) {};
+    };
+
+    let ?existingNode = FileSystem.get(self.fs, #entry(args.entry)) else return #err(ErrorMessages.entryNotFound(args.entry));
+    let #File(_) = existingNode.metadata else return #err("Directory does not support thumbnails");
+
+    switch (FileSystem.resolveThumbnailStorageBackend(self.fs, self.storageBackendType, existingNode)) {
+      case (#BlobStorage) {};
+      case (#OnChain) return #err("Blob Storage thumbnails are not enabled for this entry.");
+    };
+
+    switch (
+      ExternalStorage.recordBlobReplica(
+        self.externalStorage,
+        {
+          targetId = args.targetId;
+          rootHashHex = args.rootHashHex;
+          size = args.size;
+          sha256 = ?args.sha256;
+        },
+        Time.now(),
+      )
+    ) {
+      case (#err(message)) return #err(message);
+      case (#ok(_)) {};
+    };
+
+    let node = switch (
+      commitThumbnailUpload(
+        self,
+        caller,
+        {
+          entry = args.entry;
+          rootHash = args.rootHashHex;
+          sha256 = args.sha256;
+          contentType = args.contentType;
+          size = args.size;
+          encryption = args.encryption;
+        },
+      )
+    ) {
+      case (#ok(value)) value;
+      case (#err(message)) {
+        queueUnreferencedExternalBlobDeletes(self, [args.rootHashHex]);
+        return #err(message);
+      };
+    };
+
+    #ok(node);
+  };
+
   /// Creates a new versioned stable store. Called once during initial canister deployment.
   /// On subsequent upgrades, the existing stable variable is preserved and migrated
   /// via `upgradeStableStore`.
@@ -62,14 +557,14 @@ module EncryptedFileStorage {
   /// versionedStore := EncryptedStorage.upgradeStableStore(versionedStore);
   /// let storage = EncryptedStorage.fromVersion(versionedStore);
   /// ```
-  public func initStableStore({ accountOwner; region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs; backendId; storageBackendType } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
+  public func initStableStore({ accountOwner; region; rootPermissions; canisterId; vetKdKeyId; domainSeparator; certs; backendId; storageBackendType; objectStorageWritePolicy } : T.EncryptedStorageInitArgs) : T.VersionedStableStore {
     let fs = FileSystem.new({
       region;
       rootPermissions;
     });
     let upload = Upload.new(region);
 
-    #v1({
+    #v2({
       canisterId;
       region;
       fs;
@@ -91,11 +586,17 @@ module EncryptedFileStorage {
 
       // Caffeine Blob Storage
       storageBackendType;
+      var objectStorageWritePolicy = switch (storageBackendType, objectStorageWritePolicy) {
+        case (#BlobStorage, ?policy) policy;
+        case (#BlobStorage, null) #CaffeineManaged;
+        case (#OnChain, _) #CaffeineManaged;
+      };
 
       // Access foundation
       access = Access.new(accountOwner);
       storageEvents = StorageEvents.new();
       storageEventReadState = StorageEvents.newReadState();
+      externalStorage = ExternalStorage.new();
     });
   };
 
@@ -114,6 +615,15 @@ module EncryptedFileStorage {
 
   /// Returns canister status summary (cycle balance filled by caller).
   public func getStatus(self : T.StableStore, cycleBalance : Nat) : T.StorageStatus {
+    var fileCount = 0;
+    var directoryCount = 0;
+    for (node in Map.vals(self.fs.nodes)) {
+      switch (node.metadata) {
+        case (#File _) fileCount += 1;
+        case (#Directory _) directoryCount += 1;
+      };
+    };
+
     {
       cycleBalance;
       subscriptionStatus = switch (self.subscriptionCache) {
@@ -123,6 +633,9 @@ module EncryptedFileStorage {
       storedBytesUsed = self.storedBytesUsed;
       backendId = self.backendId;
       storageBackendType = self.storageBackendType;
+      objectStorage = objectStorageStatusOptional(self);
+      fileCount;
+      directoryCount;
     };
   };
 
@@ -230,10 +743,15 @@ module EncryptedFileStorage {
     principal : Principal,
     options : T.AddRecoveryOwnerOptions,
   ) : Result.Result<T.OwnerEquivalentPrincipal, Text> {
-    Access.addRecoveryOwner(self.access, caller, principal, {
-      controllerRecovery = options.controllerRecovery;
-      rootPermissionBeforeRecovery = null;
-    });
+    Access.addRecoveryOwner(
+      self.access,
+      caller,
+      principal,
+      {
+        controllerRecovery = options.controllerRecovery;
+        rootPermissionBeforeRecovery = null;
+      },
+    );
   };
 
   func restoreRecoveryRootPermission(self : T.StableStore, record : T.OwnerEquivalentPrincipal) {
@@ -501,7 +1019,10 @@ module EncryptedFileStorage {
       case (#exact) null;
       case (#effective) {
         if (isAncestorScope(self, canonicalGrantScope, targetScope)) {
-          ?{ canonicalScope = canonicalGrantScope; inheritedFrom = ?canonicalGrantScope };
+          ?{
+            canonicalScope = canonicalGrantScope;
+            inheritedFrom = ?canonicalGrantScope;
+          };
         } else {
           null;
         };
@@ -574,14 +1095,7 @@ module EncryptedFileStorage {
           case (#err(message)) return #err(message);
           case (#ok) {};
         };
-        #ok(#principal({
-          principal;
-          accessClass = item.accessClass;
-          scope = canonicalScope;
-          findBy;
-          permission = item.permission;
-          source = item.source;
-        }));
+        #ok(#principal({ principal; accessClass = item.accessClass; scope = canonicalScope; findBy; permission = item.permission; source = item.source }));
       };
       case (#email(_) or #emailCommitment(_)) {
         switch (item.accessClass) {
@@ -717,7 +1231,12 @@ module EncryptedFileStorage {
       case (?origin) {
         switch (existingEmailClaimGrant(self, principal, pending, origin)) {
           case (#err(message)) return #err(message);
-          case (#ok(?grant)) return #ok({ pendingGrant = pending; principalGrant = grant; claimOrigin; created = false });
+          case (#ok(?grant)) return #ok({
+            pendingGrant = pending;
+            principalGrant = grant;
+            claimOrigin;
+            created = false;
+          });
           case (#ok(null)) {};
         };
       };
@@ -743,7 +1262,12 @@ module EncryptedFileStorage {
               };
               case null Access.markPendingAccessGrantClaimed(self.access, principal, pending);
             };
-            #ok({ pendingGrant = nextPending; principalGrant = result.grant; claimOrigin; created = true });
+            #ok({
+              pendingGrant = nextPending;
+              principalGrant = result.grant;
+              claimOrigin;
+              created = true;
+            });
           };
         };
       };
@@ -983,10 +1507,13 @@ module EncryptedFileStorage {
     for (grant in Access.listPrincipalAccessGrants(self.access).vals()) {
       switch (grantScopeMatch(self, targetScope, args.mode, grant.scope)) {
         case (?match) {
-          Vector.add(principalGrants, {
-            grant = { grant with scope = match.canonicalScope };
-            inheritedFrom = match.inheritedFrom;
-          });
+          Vector.add(
+            principalGrants,
+            {
+              grant = { grant with scope = match.canonicalScope };
+              inheritedFrom = match.inheritedFrom;
+            },
+          );
         };
         case null {};
       };
@@ -997,10 +1524,13 @@ module EncryptedFileStorage {
       if (pendingGrantIsActive(grant)) {
         switch (grantScopeMatch(self, targetScope, args.mode, grant.scope)) {
           case (?match) {
-            Vector.add(pendingGrants, {
-              grant = { grant with scope = match.canonicalScope };
-              inheritedFrom = match.inheritedFrom;
-            });
+            Vector.add(
+              pendingGrants,
+              {
+                grant = { grant with scope = match.canonicalScope };
+                inheritedFrom = match.inheritedFrom;
+              },
+            );
           };
           case null {};
         };
@@ -1065,11 +1595,14 @@ module EncryptedFileStorage {
           case (#ok(_)) {};
         };
       };
-      Vector.add(validated, {
-        scope = canonicalScope;
-        findBy;
-        permission = grant.permission;
-      });
+      Vector.add(
+        validated,
+        {
+          scope = canonicalScope;
+          findBy;
+          permission = grant.permission;
+        },
+      );
     };
     #ok(Vector.toArray(validated));
   };
@@ -1181,14 +1714,20 @@ module EncryptedFileStorage {
             };
           };
           case (#email(_) or #emailCommitment(_)) {
-            switch (Access.createPendingAccessGrant(self.access, policy.createdBy, {
-              ref = recipient;
-              accessClass = #durable;
-              scope = grant.scope;
-              permission = grant.permission;
-              source = #durablePolicy(policy.id);
-              expiresAt = null;
-            })) {
+            switch (
+              Access.createPendingAccessGrant(
+                self.access,
+                policy.createdBy,
+                {
+                  ref = recipient;
+                  accessClass = #durable;
+                  scope = grant.scope;
+                  permission = grant.permission;
+                  source = #durablePolicy(policy.id);
+                  expiresAt = null;
+                },
+              )
+            ) {
               case (#err(message)) return #err(message);
               case (#ok(result)) {
                 pendingGrantIds := appendNat(pendingGrantIds, result.grant.id);
@@ -1250,7 +1789,10 @@ module EncryptedFileStorage {
             case (#inactivity({ gracePeriodNs = ?_ })) {
               switch (inactivityDueAt(policy, self.access.lastOwnerActivityAt)) {
                 case (?dueAt) if (now >= dueAt) {
-                  let next = { policy with status = #grace; graceStartedAt = ?now };
+                  let next = {
+                    policy with status = #grace;
+                    graceStartedAt = ?now;
+                  };
                   Access.putDurablePolicy(self.access, next);
                   Vector.add(results, { policy = next; principalGrants = []; pendingGrants = [] });
                 };
@@ -1271,7 +1813,10 @@ module EncryptedFileStorage {
           switch (policy.graceStartedAt) {
             case (?startedAt) {
               if (self.access.lastOwnerActivityAt > startedAt) {
-                let next = { policy with status = #armed; graceStartedAt = null };
+                let next = {
+                  policy with status = #armed;
+                  graceStartedAt = null;
+                };
                 Access.putDurablePolicy(self.access, next);
                 Vector.add(results, { policy = next; principalGrants = []; pendingGrants = [] });
               } else {
@@ -1326,7 +1871,10 @@ module EncryptedFileStorage {
       case (#cancelled) return #err("durable policy already cancelled");
       case _ {};
     };
-    let cancelled = { policy with status = #cancelled; cancelledAt = ?Time.now() };
+    let cancelled = {
+      policy with status = #cancelled;
+      cancelledAt = ?Time.now();
+    };
     Access.putDurablePolicy(self.access, cancelled);
     #ok(cancelled);
   };
@@ -1564,11 +2112,16 @@ module EncryptedFileStorage {
         let isNewFile = kind == #File and not inStaging and not hasExistingNode;
         if (isNewFile) {
           let nk : T.NodeKey = (#File, node.parentId, node.name);
-          ignore Map.put(self.staging, Utils.hashNodes, nk, {
-            node;
-            var batchId : ?T.BatchId = null;
-            createdAt = Time.now();
-          });
+          ignore Map.put(
+            self.staging,
+            Utils.hashNodes,
+            nk,
+            {
+              node;
+              var batchId : ?T.BatchId = null;
+              createdAt = Time.now();
+            },
+          );
         };
         #ok(FileSystem.getDetails(self.fs, self.storageBackendType, node));
       };
@@ -1597,15 +2150,21 @@ module EncryptedFileStorage {
     // Decertify old current version
     switch (File.getCurrentVersion(file)) {
       case (?prevVer) {
-        Certification.decertifyBlobInfo(self, {
-          keyId = node.keyId;
-          version = prevVer;
-        });
-        switch (prevVer.sha256) {
-          case (?sha) Certification.removeContentHash(self, {
+        Certification.decertifyBlobInfo(
+          self,
+          {
             keyId = node.keyId;
-            hash = sha;
-          });
+            version = prevVer;
+          },
+        );
+        switch (prevVer.sha256) {
+          case (?sha) Certification.removeContentHash(
+            self,
+            {
+              keyId = node.keyId;
+              hash = sha;
+            },
+          );
           case null {};
         };
       };
@@ -1621,15 +2180,21 @@ module EncryptedFileStorage {
     // Certify new current version
     switch (File.getCurrentVersion(file)) {
       case (?newVer) {
-        Certification.certifyBlobInfo(self, {
-          keyId = node.keyId;
-          version = newVer;
-        });
-        switch (newVer.sha256) {
-          case (?sha) Certification.certifyContentHash(self, {
+        Certification.certifyBlobInfo(
+          self,
+          {
             keyId = node.keyId;
-            hash = sha;
-          });
+            version = newVer;
+          },
+        );
+        switch (newVer.sha256) {
+          case (?sha) Certification.certifyContentHash(
+            self,
+            {
+              keyId = node.keyId;
+              hash = sha;
+            },
+          );
           case null {};
         };
       };
@@ -1665,7 +2230,7 @@ module EncryptedFileStorage {
   };
 
   func refreshSubscriptionStatus(
-    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
+    onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>)
   ) : async* Result.Result<(), Text> {
     switch (onSubscriptionRefresh) {
       case (?refresh) switch (await* refresh()) {
@@ -1786,10 +2351,13 @@ module EncryptedFileStorage {
 
         // Decertify stale blob-info from previous version (if BlobStorage)
         switch (File.getCurrentVersion(file)) {
-          case (?prevVer) Certification.decertifyBlobInfo(self, {
-            keyId;
-            version = prevVer;
-          });
+          case (?prevVer) Certification.decertifyBlobInfo(
+            self,
+            {
+              keyId;
+              version = prevVer;
+            },
+          );
           case null {};
         };
 
@@ -1798,27 +2366,36 @@ module EncryptedFileStorage {
           func(address : Nat, size : Nat) : T.ContentRef = #OnChain(address, size),
         );
 
+        let replacedBlobRootHashes = File.blobStorageRootHashes(file);
         let storedBytesBefore = StorageAccounting.fileStoredBytes(file);
         File.addVersionRefs(self.fs, file, contentRefs, totalLength, hash, contentType);
-        Certification.certifyContentHash(self, {
-          keyId;
-          hash;
-        });
+        Certification.certifyContentHash(
+          self,
+          {
+            keyId;
+            hash;
+          },
+        );
         switch (batchId) {
           case (?batchId) ignore Upload.forgetBatch(self.upload, batchId);
           case null {};
         };
 
-        StorageAccounting.applyStoredBytesDelta(self, {
-          file;
-          beforeBytes = storedBytesBefore;
-        });
+        StorageAccounting.applyStoredBytesDelta(
+          self,
+          {
+            file;
+            beforeBytes = storedBytesBefore;
+          },
+        );
 
         // Remove staging marker — file upload is now complete
         switch (nodeKey) {
           case (?nk) ignore Map.remove(self.staging, Utils.hashNodes, nk);
           case null {};
         };
+
+        queueUnreferencedExternalBlobDeletes(self, replacedBlobRootHashes);
 
         #ok;
       };
@@ -1860,25 +2437,36 @@ module EncryptedFileStorage {
               switch (File.getCurrentVersion(file)) {
                 case (?version) {
                   switch (version.sha256) {
-                    case (?sha) Certification.removeContentHash(self, {
-                      keyId = node.keyId;
-                      hash = sha;
-                    });
+                    case (?sha) Certification.removeContentHash(
+                      self,
+                      {
+                        keyId = node.keyId;
+                        hash = sha;
+                      },
+                    );
                     case null {};
                   };
-                  Certification.decertifyBlobInfo(self, {
-                    keyId = node.keyId;
-                    version;
-                  });
+                  Certification.decertifyBlobInfo(
+                    self,
+                    {
+                      keyId = node.keyId;
+                      version;
+                    },
+                  );
                 };
                 case null {};
               };
+              let removedBlobRootHashes = File.blobStorageRootHashes(file);
               let storedBytesBefore = StorageAccounting.fileStoredBytes(file);
               File.deallocateAll(self.fs, file);
-              StorageAccounting.applyStoredBytesDelta(self, {
-                file;
-                beforeBytes = storedBytesBefore;
-              });
+              StorageAccounting.applyStoredBytesDelta(
+                self,
+                {
+                  file;
+                  beforeBytes = storedBytesBefore;
+                },
+              );
+              queueUnreferencedExternalBlobDeletes(self, removedBlobRootHashes);
             };
             case _ {};
           };
@@ -1945,33 +2533,41 @@ module EncryptedFileStorage {
       case (#ok) {};
     };
 
+    let replacedBlobRootHashes = File.blobStorageRootHashes(file);
+
     // Decertify stale blob-info from previous version (if BlobStorage)
     switch (File.getCurrentVersion(file)) {
-      case (?prevVer) Certification.decertifyBlobInfo(self, {
-        keyId = node.keyId;
-        version = prevVer;
-      });
+      case (?prevVer) Certification.decertifyBlobInfo(
+        self,
+        {
+          keyId = node.keyId;
+          version = prevVer;
+        },
+      );
       case null {};
     };
 
     let storedBytesBefore = StorageAccounting.fileStoredBytes(file);
     File.addVersionBlobStorage(self.fs, file, Text.encodeUtf8(args.rootHash), args.size, args.sha256, args.contentType);
-    Certification.certifyContentHash(self, {
-      keyId = node.keyId;
-      hash = args.sha256;
-    });
+    Certification.certifyContentHash(
+      self,
+      {
+        keyId = node.keyId;
+        hash = args.sha256;
+      },
+    );
 
     // Certify blob-info for new BlobStorage version
     let (_, blobInfoHash) = Utils.blobInfoJson(args.rootHash, args.contentType, args.size);
-    CertifiedAssets.certify(self.certs, Certification.blobInfoEndpoint({
-      keyId = node.keyId;
-      bodyHash = blobInfoHash;
-    }));
+    CertifiedAssets.certify(self.certs, Certification.blobInfoEndpoint({ keyId = node.keyId; bodyHash = blobInfoHash }));
 
-    StorageAccounting.applyStoredBytesDelta(self, {
-      file;
-      beforeBytes = storedBytesBefore;
-    });
+    StorageAccounting.applyStoredBytesDelta(
+      self,
+      {
+        file;
+        beforeBytes = storedBytesBefore;
+      },
+    );
 
     // Remove staging marker
     let nodeKey = UploadStaging.entryToNodeKey(self.fs, { entry });
@@ -1979,6 +2575,8 @@ module EncryptedFileStorage {
       case (?nk) ignore Map.remove(self.staging, Utils.hashNodes, nk);
       case null {};
     };
+
+    queueUnreferencedExternalBlobDeletes(self, replacedBlobRootHashes);
 
     #ok;
   };
@@ -2014,16 +2612,20 @@ module EncryptedFileStorage {
     onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<T.BeginUploadSessionResponse, Text> {
-    await* UploadSession.begin(self, caller, {
-      request = args;
-      hooks = {
-        onFileStorage = onFileStorage;
-        onSubscriptionRefresh = onSubscriptionRefresh;
-        createTarget = func(createArgs : T.CreateArguments) : Result.Result<T.NodeDetails, Text> {
-          create(self, caller, createArgs);
+    await* UploadSession.begin(
+      self,
+      caller,
+      {
+        request = args;
+        hooks = {
+          onFileStorage = onFileStorage;
+          onSubscriptionRefresh = onSubscriptionRefresh;
+          createTarget = func(createArgs : T.CreateArguments) : Result.Result<T.NodeDetails, Text> {
+            create(self, caller, createArgs);
+          };
         };
-      };
-    });
+      },
+    );
   };
 
   public func getUploadSession(self : T.StableStore, caller : Principal, batchId : T.BatchId) : Result.Result<T.UploadSessionStatus, Text> {
@@ -2049,13 +2651,17 @@ module EncryptedFileStorage {
     onFileStorage : ?(Nat -> Result.Result<(), Text>),
     onSubscriptionRefresh : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>),
   ) : async* Result.Result<UploadCommitMeasurement, Text> {
-    await* UploadSession.finish(self, caller, {
-      request = args;
-      gates = {
-        onFileStorage = onFileStorage;
-        onSubscriptionRefresh = onSubscriptionRefresh;
-      };
-    });
+    await* UploadSession.finish(
+      self,
+      caller,
+      {
+        request = args;
+        gates = {
+          onFileStorage = onFileStorage;
+          onSubscriptionRefresh = onSubscriptionRefresh;
+        };
+      },
+    );
   };
 
   public func abortUploadSession(self : T.StableStore, caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> {
@@ -2202,7 +2808,9 @@ module EncryptedFileStorage {
       let details = Array.map(sortedRoots, func(node : T.NodeStore) : T.NodeDetails = FileSystem.getDetails(self.fs, self.storageBackendType, node));
       let entries = Array.map<T.NodeDetails, T.NodeDetails>(
         details,
-        func(node) = { node with callerPermission = getCallerPermission(self.fs, caller, node) },
+        func(node) = {
+          node with callerPermission = getCallerPermission(self.fs, caller, node)
+        },
       );
       return #ok({ entries; directoryPermission });
     };
@@ -2257,7 +2865,9 @@ module EncryptedFileStorage {
       );
       let entries = Array.map<T.NodeDetails, T.NodeDetails>(
         filtered,
-        func(node) = { node with callerPermission = getCallerPermission(self.fs, caller, node) },
+        func(node) = {
+          node with callerPermission = getCallerPermission(self.fs, caller, node)
+        },
       );
       return #ok({ entries; directoryPermission });
     };
@@ -2268,10 +2878,9 @@ module EncryptedFileStorage {
       Array.find<T.NodeStore>(
         rawNodes,
         func(node) {
-          Map.has(node.permissions, phash, caller)
-          or Map.has(node.permissions, phash, Principal.anonymous());
+          Map.has(node.permissions, phash, caller) or Map.has(node.permissions, phash, Principal.anonymous());
         },
-      ),
+      )
     );
 
     let entries = if (not hasChildOverrides) {
@@ -2281,7 +2890,9 @@ module EncryptedFileStorage {
       // Slow path: per-node permission calculation
       Array.map<T.NodeDetails, T.NodeDetails>(
         items,
-        func(node) = { node with callerPermission = getCallerPermission(self.fs, caller, node) },
+        func(node) = {
+          node with callerPermission = getCallerPermission(self.fs, caller, node)
+        },
       );
     };
 

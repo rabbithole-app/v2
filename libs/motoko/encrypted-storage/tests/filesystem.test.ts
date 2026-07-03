@@ -4,7 +4,6 @@ import {
   createIdentity,
   PocketIc,
 } from '@dfinity/pic';
-import { IDL } from '@icp-sdk/core/candid';
 import { Principal } from '@icp-sdk/core/principal';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, inject, test } from 'vitest';
@@ -12,9 +11,11 @@ import { afterEach, beforeEach, describe, expect, inject, test } from 'vitest';
 // Import generated types for your canister
 import {
   type _SERVICE,
+  type ConfigureExternalStorageTargetArgs,
   idlFactory,
-  init,
 } from '../declarations/encrypted-storage/encrypted-storage.did.js';
+import { FakeS3 } from './external-s3-harness';
+import { encodeStorageCanisterInitArgs } from './storage-canister-init';
 
 export const WASM_PATH = resolve(
   import.meta.dirname,
@@ -38,6 +39,28 @@ const DIRECTORY = { Directory: null };
 const FILE = { File: null };
 const CREATE_NEW = { CreateNew: null };
 const GET_OR_CREATE = { GetOrCreate: null };
+const EXTERNAL_ROOT_HASH_HEX =
+  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+const EXTERNAL_BLOB_TREE_KEY = `rabbithole/test-canister/v1/blobs/${EXTERNAL_ROOT_HASH_HEX}/tree.json`;
+const EXTERNAL_BLOB_KEY = `rabbithole/test-canister/v1/blobs/${EXTERNAL_ROOT_HASH_HEX}/blob.bin`;
+
+function externalTargetArgs(
+  overrides: Partial<ConfigureExternalStorageTargetArgs> = {},
+): ConfigureExternalStorageTargetArgs {
+  return {
+    region: 'us-east-1',
+    displayName: ['Local MinIO'],
+    endpoint: 'https://127.0.0.1:9000',
+    accessKeyId: 'minioadmin',
+    secretAccessKey: 'minioadmin',
+    sessionToken: [],
+    prefix: 'rabbithole/test-canister',
+    bucket: 'rabbithole-dev',
+    targetId: [],
+    forcePathStyle: true,
+    ...overrides,
+  };
+}
 
 async function createPic(): Promise<[PocketIc, CanisterFixture<_SERVICE>]> {
   // create a new PocketIC instance
@@ -45,6 +68,7 @@ async function createPic(): Promise<[PocketIc, CanisterFixture<_SERVICE>]> {
 
   // Setup the canister and actor
   const fixture = await pic.setupCanister<_SERVICE>({
+    arg: encodeStorageCanisterInitArgs(),
     idlFactory,
     wasm: WASM_PATH,
     sender: ownerIdentity.getPrincipal(),
@@ -1745,8 +1769,12 @@ describe('FileSystem', () => {
         createMode: CREATE_NEW,
       });
       if ('Directory' in dir.metadata) {
-        expect('Inherit' in dir.metadata.Directory.thumbnailStoragePolicy).toBeTruthy();
-        expect('OnChain' in dir.metadata.Directory.defaultThumbnailStorageBackend).toBeTruthy();
+        expect(
+          'Inherit' in dir.metadata.Directory.thumbnailStoragePolicy,
+        ).toBeTruthy();
+        expect(
+          'OnChain' in dir.metadata.Directory.defaultThumbnailStorageBackend,
+        ).toBeTruthy();
       }
 
       const updated = await actor.updateDirectoryPolicy({
@@ -1755,8 +1783,13 @@ describe('FileSystem', () => {
       });
 
       if ('Directory' in updated.metadata) {
-        expect('BlobStorage' in updated.metadata.Directory.thumbnailStoragePolicy).toBeTruthy();
-        expect('BlobStorage' in updated.metadata.Directory.defaultThumbnailStorageBackend).toBeTruthy();
+        expect(
+          'BlobStorage' in updated.metadata.Directory.thumbnailStoragePolicy,
+        ).toBeTruthy();
+        expect(
+          'BlobStorage' in
+            updated.metadata.Directory.defaultThumbnailStorageBackend,
+        ).toBeTruthy();
       }
     });
 
@@ -1803,7 +1836,9 @@ describe('FileSystem', () => {
           expect(thumbnailRef.BlobStorage.rootHash).toBe('sha256:test');
           expect(thumbnailRef.BlobStorage.contentType).toBe('image/jpeg');
           expect(thumbnailRef.BlobStorage.size).toBe(3n);
-          expect(thumbnailRef.BlobStorage.encryption.scopeKeyId).toEqual(prepared.encryption.scopeKeyId);
+          expect(thumbnailRef.BlobStorage.encryption.scopeKeyId).toEqual(
+            prepared.encryption.scopeKeyId,
+          );
         }
       }
     });
@@ -1875,7 +1910,9 @@ describe('FileSystem', () => {
         contentType: 'image/jpeg',
         size: 3n,
       });
-      expect(originalThumbnailRef && 'BlobStorage' in originalThumbnailRef).toBeTruthy();
+      expect(
+        originalThumbnailRef && 'BlobStorage' in originalThumbnailRef,
+      ).toBeTruthy();
       if (originalThumbnailRef && 'BlobStorage' in originalThumbnailRef) {
         const rewrapped = await actor.rewrapThumbnail({
           entry: [FILE, 'Archive/photo.jpg'],
@@ -1928,7 +1965,9 @@ describe('FileSystem', () => {
       });
 
       const { entries: items } = await actor.list([[DIRECTORY, 'Uploads']]);
-      expect(items.map((item) => item.name)).not.toContain('get-or-create-new.jpg');
+      expect(items.map((item) => item.name)).not.toContain(
+        'get-or-create-new.jpg',
+      );
     });
 
     test('file becomes visible in list() after full upload flow', async () => {
@@ -2147,6 +2186,246 @@ describe('FileSystem', () => {
     });
   });
 
+  describe('external storage targets', () => {
+    // Successful configure runs the PUT/HEAD/DELETE/HEAD capability probe;
+    // answer its outcalls through the fake S3 double.
+    async function configureExternalTarget(
+      overrides: Parameters<typeof externalTargetArgs>[0] = {},
+    ) {
+      const deferred = pic.createDeferredActor<_SERVICE>(idlFactory, canisterId);
+      deferred.setIdentity(ownerIdentity);
+      const s3 = new FakeS3(pic);
+      const finish = await deferred.configureExternalStorageTarget(
+        externalTargetArgs(overrides),
+      );
+      await s3.serve(4);
+      return await finish();
+    }
+
+    test('owner can configure and list an active S3-compatible target', async () => {
+      const target = await configureExternalTarget();
+
+      expect(target).toMatchObject({
+        id: 'external-target-0',
+        version: 1n,
+        displayName: ['Local MinIO'],
+        layoutVersion: 1n,
+        readMode: { PublicEncrypted: null },
+        writeMode: { CanisterPresigned: null },
+        status: { Active: null },
+        hasCredential: true,
+      });
+      expect('S3CompatiblePublicEncrypted' in target.kind).toBeTruthy();
+      if ('S3CompatiblePublicEncrypted' in target.kind) {
+        expect(target.kind.S3CompatiblePublicEncrypted).toMatchObject({
+          endpoint: 'https://127.0.0.1:9000',
+          bucket: 'rabbithole-dev',
+          region: 'us-east-1',
+          prefix: 'rabbithole/test-canister',
+          forcePathStyle: true,
+        });
+      }
+
+      expect(await actor.listExternalStorageTargets()).toHaveLength(1);
+      expect(await actor.getActiveExternalStorageTarget()).toMatchObject([
+        { id: target.id },
+      ]);
+    });
+
+    test('non-owner-equivalent caller cannot manage or inspect targets', async () => {
+      actor.setIdentity(aliceIdentity);
+
+      await expect(
+        actor.configureExternalStorageTarget(externalTargetArgs()),
+      ).rejects.toThrow(/owner-equivalent/);
+      await expect(actor.listExternalStorageTargets()).rejects.toThrow(
+        /owner-equivalent/,
+      );
+    });
+
+    test('credential rotation keeps the physical target immutable', async () => {
+      const first = await configureExternalTarget();
+      const rotated = await configureExternalTarget({
+        targetId: [first.id],
+        accessKeyId: 'rotated-access-key',
+        secretAccessKey: 'rotated-secret-key',
+      });
+
+      expect(rotated.id).toBe(first.id);
+      expect(rotated.version).toBe(2n);
+      expect(rotated.hasCredential).toBeTruthy();
+
+      await expect(
+        actor.configureExternalStorageTarget(
+          externalTargetArgs({
+            targetId: [first.id],
+            prefix: 'rabbithole/other-prefix',
+          }),
+        ),
+      ).rejects.toThrow(/endpoint, bucket, or prefix changes/);
+    });
+
+    test('locator uses the stable tree and blob object keys', async () => {
+      await configureExternalTarget();
+
+      const { locator } = await actor.externalBlobLocatorForTarget({
+        targetId: [],
+        rootHashHex: EXTERNAL_ROOT_HASH_HEX,
+      });
+
+      expect(locator).toEqual({
+        layoutVersion: 1n,
+        treeKey: EXTERNAL_BLOB_TREE_KEY,
+        blobKey: EXTERNAL_BLOB_KEY,
+      });
+      await expect(
+        actor.externalBlobLocatorForTarget({
+          targetId: [],
+          rootHashHex: EXTERNAL_ROOT_HASH_HEX.toUpperCase(),
+        }),
+      ).rejects.toThrow(/lowercase hexadecimal/);
+    });
+
+    test('prepareExternalBlobUpload signs only tree and blob PUT URLs', async () => {
+      await actor.create({
+        entry: [FILE, 'External/photo.bin'],
+        createMode: CREATE_NEW,
+      });
+      await configureExternalTarget();
+
+      const prepared = await actor.prepareExternalBlobUpload({
+        entry: [FILE, 'External/photo.bin'],
+        targetId: [],
+        rootHashHex: EXTERNAL_ROOT_HASH_HEX,
+        size: 123n,
+        expiresSeconds: [900n],
+      });
+
+      expect(prepared.locator.treeKey).toBe(EXTERNAL_BLOB_TREE_KEY);
+      expect(prepared.locator.blobKey).toBe(EXTERNAL_BLOB_KEY);
+      expect(prepared.treeUpload).toMatchObject({
+        method: 'PUT',
+        key: EXTERNAL_BLOB_TREE_KEY,
+        requestHeaders: [],
+      });
+      expect(prepared.blobUpload).toMatchObject({
+        method: 'PUT',
+        key: EXTERNAL_BLOB_KEY,
+        requestHeaders: [],
+      });
+
+      for (const signed of [prepared.treeUpload, prepared.blobUpload]) {
+        const url = new URL(signed.url);
+        expect(url.origin).toBe('https://127.0.0.1:9000');
+        expect(url.searchParams.get('X-Amz-Algorithm')).toBe(
+          'AWS4-HMAC-SHA256',
+        );
+        expect(url.searchParams.get('X-Amz-Expires')).toBe('900');
+        expect(url.searchParams.get('X-Amz-SignedHeaders')).toBe('host');
+        expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]+$/);
+      }
+      expect(new URL(prepared.treeUpload.url).pathname).toBe(
+        `/rabbithole-dev/${EXTERNAL_BLOB_TREE_KEY}`,
+      );
+      expect(new URL(prepared.blobUpload.url).pathname).toBe(
+        `/rabbithole-dev/${EXTERNAL_BLOB_KEY}`,
+      );
+    });
+
+    test('commitExternalBlobUpload stores a BlobStorage file version', async () => {
+      await actor.create({
+        entry: [FILE, 'External/committed.bin'],
+        createMode: CREATE_NEW,
+      });
+      await configureExternalTarget();
+      const sha256 = new Uint8Array(32);
+      sha256.fill(7);
+
+      await actor.commitExternalBlobUpload({
+        entry: [FILE, 'External/committed.bin'],
+        targetId: [],
+        rootHashHex: EXTERNAL_ROOT_HASH_HEX,
+        sha256,
+        contentType: 'application/octet-stream',
+        size: 123n,
+      });
+
+      const versions = await actor.listVersions({
+        entry: [FILE, 'External/committed.bin'],
+      });
+      expect(versions).toHaveLength(1);
+      expect(versions[0]).toMatchObject({
+        index: 0n,
+        storageBackend: { BlobStorage: null },
+        contentType: 'application/octet-stream',
+        size: 123n,
+      });
+      expect(versions[0]?.sha256).toEqual([sha256]);
+    });
+
+    test('deleting the final external blob reference queues S3 cleanup', async () => {
+      await actor.create({
+        entry: [FILE, 'External/one.bin'],
+        createMode: CREATE_NEW,
+      });
+      await actor.create({
+        entry: [FILE, 'External/two.bin'],
+        createMode: CREATE_NEW,
+      });
+      await configureExternalTarget();
+      const sha256 = new Uint8Array(32);
+      sha256.fill(9);
+
+      for (const path of ['External/one.bin', 'External/two.bin']) {
+        await actor.commitExternalBlobUpload({
+          entry: [FILE, path],
+          targetId: [],
+          rootHashHex: EXTERNAL_ROOT_HASH_HEX,
+          sha256,
+          contentType: 'application/octet-stream',
+          size: 123n,
+        });
+      }
+
+      expect(await actor.listExternalBlobReplicas()).toMatchObject([
+        {
+          targetId: 'external-target-0',
+          rootHashHex: EXTERNAL_ROOT_HASH_HEX,
+          status: { Active: null },
+        },
+      ]);
+
+      await actor.delete({
+        entry: [FILE, 'External/one.bin'],
+        recursive: false,
+      });
+
+      expect(await actor.listExternalStorageDeleteTasks()).toHaveLength(0);
+      expect(await actor.listExternalBlobReplicas()).toMatchObject([
+        { status: { Active: null } },
+      ]);
+
+      await actor.delete({
+        entry: [FILE, 'External/two.bin'],
+        recursive: false,
+      });
+
+      expect(await actor.listExternalStorageDeleteTasks()).toMatchObject([
+        {
+          id: 0n,
+          targetId: 'external-target-0',
+          keys: [EXTERNAL_BLOB_TREE_KEY, EXTERNAL_BLOB_KEY],
+          attempts: 0n,
+          status: { Pending: null },
+          lastError: [],
+        },
+      ]);
+      expect(await actor.listExternalBlobReplicas()).toMatchObject([
+        { status: { DeletePending: null } },
+      ]);
+    });
+  });
+
   test('should reinstall the canister', async () => {
     await actor.create({
       entry: [DIRECTORY, 'test/dir/sub'],
@@ -2161,7 +2440,7 @@ describe('FileSystem', () => {
     await pic.reinstallCode({
       canisterId,
       wasm: WASM_PATH,
-      arg: IDL.encode(init({ IDL }), []),
+      arg: encodeStorageCanisterInitArgs(),
       sender: ownerIdentity.getPrincipal(),
     });
     const postReinstallTree = await actor.showTree([]);

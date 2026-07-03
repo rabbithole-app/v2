@@ -4,9 +4,8 @@ import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
 
-import ICManagement "../Types/ICManagement";
 import StorageReleasePlanner "StorageReleasePlanner";
 
 module StorageCanisterOps {
@@ -16,7 +15,7 @@ module StorageCanisterOps {
 
   public func getInstalledWasmHash(canisterId : Principal) : async Result.Result<?Blob, Text> {
     try {
-      let info = await IC.ic.canister_info({
+      let info = await ic.canister_info({
         canister_id = canisterId;
         num_requested_changes = ?0;
       });
@@ -38,9 +37,8 @@ module StorageCanisterOps {
     deployerCanisterId : Principal,
     environmentVariables : ?[{ name : Text; value : Text }],
   ) : async Result.Result<(), Text> {
-    let ic : ICManagement.Self = actor ("aaaaa-aa");
     try {
-      let info = await IC.ic.canister_info({
+      let info = await ic.canister_info({
         canister_id = storageCanisterId;
         num_requested_changes = ?0;
       });

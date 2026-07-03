@@ -93,7 +93,7 @@ export const idlFactory = ({ IDL }) => {
     'batchId' : BatchId,
   });
   const AppendUploadChunkResponse = IDL.Record({ 'chunkId' : IDL.Nat });
-  const StorageResult_6 = IDL.Variant({
+  const StorageResult_13 = IDL.Variant({
     'ok' : AppendUploadChunkResponse,
     'err' : StorageError,
   });
@@ -186,7 +186,7 @@ export const idlFactory = ({ IDL }) => {
     'node' : NodeDetails,
     'batchId' : BatchId,
   });
-  const StorageResult_5 = IDL.Variant({
+  const StorageResult_12 = IDL.Variant({
     'ok' : BeginUploadSessionResponse,
     'err' : StorageError,
   });
@@ -340,6 +340,28 @@ export const idlFactory = ({ IDL }) => {
     'entry' : Entry,
     'rootHash' : IDL.Text,
   });
+  const ExternalStorageTargetId = IDL.Text;
+  const CommitExternalBlobUploadArgs = IDL.Record({
+    'rootHashHex' : IDL.Text,
+    'sha256' : IDL.Vec(IDL.Nat8),
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+    'entry' : Entry,
+    'targetId' : IDL.Opt(ExternalStorageTargetId),
+  });
+  const CommitExternalThumbnailUploadArgs = IDL.Record({
+    'rootHashHex' : IDL.Text,
+    'sha256' : IDL.Vec(IDL.Nat8),
+    'contentType' : IDL.Text,
+    'size' : IDL.Nat,
+    'encryption' : ThumbnailEncryptionRef,
+    'entry' : Entry,
+    'targetId' : IDL.Opt(ExternalStorageTargetId),
+  });
+  const StorageResult = IDL.Variant({
+    'ok' : NodeDetails,
+    'err' : StorageError,
+  });
   const CommitThumbnailUploadArguments = IDL.Record({
     'sha256' : IDL.Vec(IDL.Nat8),
     'contentType' : IDL.Text,
@@ -402,13 +424,57 @@ export const idlFactory = ({ IDL }) => {
     'max_bytes' : IDL.Opt(IDL.Opt(IDL.Nat64)),
     'max_chunks' : IDL.Opt(IDL.Opt(IDL.Nat64)),
   });
+  const TargetId = IDL.Text;
+  const ConfigureExternalStorageTargetArgs = IDL.Record({
+    'region' : IDL.Text,
+    'displayName' : IDL.Opt(IDL.Text),
+    'endpoint' : IDL.Text,
+    'accessKeyId' : IDL.Text,
+    'secretAccessKey' : IDL.Text,
+    'sessionToken' : IDL.Opt(IDL.Text),
+    'prefix' : IDL.Text,
+    'bucket' : IDL.Text,
+    'targetId' : IDL.Opt(TargetId),
+    'forcePathStyle' : IDL.Bool,
+  });
+  const TargetStatus = IDL.Variant({
+    'Active' : IDL.Null,
+    'Disabled' : IDL.Null,
+    'CredentialFailed' : IDL.Null,
+  });
+  const S3CompatibleTargetConfig = IDL.Record({
+    'region' : IDL.Text,
+    'endpoint' : IDL.Text,
+    'prefix' : IDL.Text,
+    'bucket' : IDL.Text,
+    'forcePathStyle' : IDL.Bool,
+  });
+  const TargetKind = IDL.Variant({
+    'S3CompatiblePublicEncrypted' : S3CompatibleTargetConfig,
+  });
+  const WriteMode = IDL.Variant({ 'CanisterPresigned' : IDL.Null });
+  const ReadMode = IDL.Variant({ 'PublicEncrypted' : IDL.Null });
+  const ExternalStorageTargetView = IDL.Record({
+    'id' : TargetId,
+    'status' : TargetStatus,
+    'displayName' : IDL.Opt(IDL.Text),
+    'hasCredential' : IDL.Bool,
+    'layoutVersion' : IDL.Nat,
+    'kind' : TargetKind,
+    'createdAt' : Time,
+    'writeMode' : WriteMode,
+    'lastValidatedAt' : IDL.Opt(Time),
+    'readMode' : ReadMode,
+    'version' : IDL.Nat,
+    'updatedAt' : Time,
+  });
+  const StorageResult_2 = IDL.Variant({
+    'ok' : ExternalStorageTargetView,
+    'err' : StorageError,
+  });
   const CreateArguments = IDL.Record({
     'createMode' : CreateMode,
     'entry' : Entry,
-  });
-  const StorageResult = IDL.Variant({
-    'ok' : NodeDetails,
-    'err' : StorageError,
   });
   const CreateAccessBatchItem = IDL.Record({
     'ref' : AccessRef,
@@ -462,6 +528,19 @@ export const idlFactory = ({ IDL }) => {
     'entry' : Entry,
   });
   const DeleteBatchArguments = IDL.Record({ 'batch_id' : BatchId });
+  const DisableExternalStorageTargetArgs = IDL.Record({
+    'targetId' : TargetId,
+  });
+  const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const HttpRequestResult = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(HttpHeader),
+  });
+  const ExternalStorageHttpTransformArg = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : HttpRequestResult,
+  });
   const FinishUploadSessionArguments = IDL.Record({
     'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'contentType' : IDL.Text,
@@ -480,6 +559,10 @@ export const idlFactory = ({ IDL }) => {
     'content_type' : IDL.Text,
     'content_encoding' : IDL.Text,
     'total_length' : IDL.Nat,
+  });
+  const StorageResult_11 = IDL.Variant({
+    'ok' : IDL.Opt(ExternalStorageTargetView),
+    'err' : StorageError,
   });
   const UploadMemoryProjection = IDL.Record({
     'projectedAllocatedBytes' : IDL.Nat,
@@ -546,12 +629,76 @@ export const idlFactory = ({ IDL }) => {
     'activity' : ActiveUploadProjection,
     'funding' : CanisterCyclesFundingState,
   });
-  const StorageResult_3 = IDL.Variant({
+  const StorageResult_6 = IDL.Variant({
     'ok' : CanisterCyclesCardMetrics,
     'err' : StorageError,
   });
   const TransportKey = IDL.Vec(IDL.Nat8);
   const VetKey = IDL.Vec(IDL.Nat8);
+  const BlobReplicaStatus = IDL.Variant({
+    'Missing' : IDL.Null,
+    'Active' : IDL.Null,
+    'DeletePending' : IDL.Null,
+    'Deleted' : IDL.Null,
+  });
+  const RootHashHex = IDL.Text;
+  const BlobLocator = IDL.Record({
+    'layoutVersion' : IDL.Nat,
+    'blobKey' : IDL.Text,
+    'treeKey' : IDL.Text,
+  });
+  const ExternalBlobReplica = IDL.Record({
+    'id' : IDL.Text,
+    'status' : BlobReplicaStatus,
+    'pendingDeleteTaskId' : IDL.Opt(IDL.Nat),
+    'rootHashHex' : RootHashHex,
+    'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'locator' : BlobLocator,
+    'createdAt' : Time,
+    'size' : IDL.Nat,
+    'updatedAt' : Time,
+    'targetId' : TargetId,
+  });
+  const ExternalStorageCleanupStatus = IDL.Record({
+    'doneTasks' : IDL.Nat,
+    'pendingUploadSessions' : IDL.Nat,
+    'nextAttemptAt' : IDL.Opt(Time),
+    'activeReplicas' : IDL.Nat,
+    'deletePendingReplicas' : IDL.Nat,
+    'missingReplicas' : IDL.Nat,
+    'runningTasks' : IDL.Nat,
+    'credentialBlockedTargetIds' : IDL.Vec(TargetId),
+    'pendingTasks' : IDL.Nat,
+    'cancelledTasks' : IDL.Nat,
+    'deletedReplicas' : IDL.Nat,
+  });
+  const DeleteTaskStatus = IDL.Variant({
+    'Done' : IDL.Null,
+    'Running' : IDL.Null,
+    'Cancelled' : IDL.Null,
+    'Pending' : IDL.Null,
+  });
+  const ExternalStorageDeleteTaskView = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : DeleteTaskStatus,
+    'rootHashHex' : RootHashHex,
+    'nextAttemptAt' : Time,
+    'keys' : IDL.Vec(IDL.Text),
+    'createdAt' : Time,
+    'attempts' : IDL.Nat,
+    'updatedAt' : Time,
+    'replicaId' : IDL.Opt(IDL.Text),
+    'lastError' : IDL.Opt(IDL.Text),
+    'targetId' : TargetId,
+  });
+  const StorageResult_10 = IDL.Variant({
+    'ok' : IDL.Record({
+      'replicas' : IDL.Vec(ExternalBlobReplica),
+      'summary' : ExternalStorageCleanupStatus,
+      'deleteTasks' : IDL.Vec(ExternalStorageDeleteTaskView),
+    }),
+    'err' : StorageError,
+  });
   const OwnerActivityOrigin = IDL.Variant({
     'storage' : IDL.Null,
     'rabbithole' : IDL.Null,
@@ -576,6 +723,15 @@ export const idlFactory = ({ IDL }) => {
     'recoveryOwner' : IDL.Opt(OwnerEquivalentPrincipal),
     'recoveryController' : IDL.Opt(IDL.Principal),
   });
+  const WritePolicy = IDL.Variant({
+    'CaffeineManaged' : IDL.Null,
+    'ExternalS3Active' : IDL.Record({ 'targetId' : TargetId }),
+  });
+  const ObjectStorageStatus = IDL.Record({
+    'setupRequired' : IDL.Bool,
+    'writePolicy' : WritePolicy,
+    'activeTargetId' : IDL.Opt(TargetId),
+  });
   const Plan = IDL.Variant({
     'Pro' : IDL.Null,
     'Free' : IDL.Null,
@@ -594,6 +750,9 @@ export const idlFactory = ({ IDL }) => {
   });
   const StorageStatus = IDL.Record({
     'cycleBalance' : IDL.Nat,
+    'objectStorage' : IDL.Opt(ObjectStorageStatus),
+    'directoryCount' : IDL.Nat,
+    'fileCount' : IDL.Nat,
     'subscriptionStatus' : IDL.Opt(SubscriptionStatus),
     'storedBytesUsed' : IDL.Nat,
     'backendId' : IDL.Opt(IDL.Principal),
@@ -608,7 +767,7 @@ export const idlFactory = ({ IDL }) => {
     'storageBackendType' : StorageBackend,
     'memoryInfo' : MemoryInfo,
   });
-  const StorageResult_2 = IDL.Variant({
+  const StorageResult_5 = IDL.Variant({
     'ok' : StorageCardMetrics,
     'err' : StorageError,
   });
@@ -634,7 +793,7 @@ export const idlFactory = ({ IDL }) => {
     'chunkIds' : IDL.Vec(ChunkId),
     'batchId' : BatchId,
   });
-  const StorageResult_4 = IDL.Variant({
+  const StorageResult_9 = IDL.Variant({
     'ok' : UploadSessionStatus,
     'err' : StorageError,
   });
@@ -740,6 +899,10 @@ export const idlFactory = ({ IDL }) => {
     'mode' : AccessGrantListMode,
     'scope' : AccessScope,
   });
+  const StorageResult_8 = IDL.Variant({
+    'ok' : IDL.Vec(ExternalStorageTargetView),
+    'err' : StorageError,
+  });
   const StorageAccessEvent = IDL.Variant({
     'accessRequestResolved' : IDL.Record({
       'status' : AccessRequestStatus,
@@ -834,6 +997,45 @@ export const idlFactory = ({ IDL }) => {
     'size' : IDL.Nat,
     'entry' : Entry,
   });
+  const PrepareExternalBlobUploadArgs = IDL.Record({
+    'rootHashHex' : IDL.Text,
+    'size' : IDL.Nat,
+    'entry' : Entry,
+    'targetId' : IDL.Opt(ExternalStorageTargetId),
+    'expiresSeconds' : IDL.Opt(IDL.Nat),
+  });
+  const PresignedUrl = IDL.Record({
+    'key' : IDL.Text,
+    'url' : IDL.Text,
+    'method' : IDL.Text,
+    'expiresAt' : Time,
+    'signedHeaders' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+    'requestHeaders' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
+  });
+  const TargetView = IDL.Record({
+    'id' : TargetId,
+    'status' : TargetStatus,
+    'displayName' : IDL.Opt(IDL.Text),
+    'hasCredential' : IDL.Bool,
+    'layoutVersion' : IDL.Nat,
+    'kind' : TargetKind,
+    'createdAt' : Time,
+    'writeMode' : WriteMode,
+    'lastValidatedAt' : IDL.Opt(Time),
+    'readMode' : ReadMode,
+    'version' : IDL.Nat,
+    'updatedAt' : Time,
+  });
+  const PrepareExternalBlobUploadResult = IDL.Record({
+    'blobUpload' : PresignedUrl,
+    'locator' : BlobLocator,
+    'target' : TargetView,
+    'treeUpload' : PresignedUrl,
+  });
+  const StorageResult_7 = IDL.Variant({
+    'ok' : PrepareExternalBlobUploadResult,
+    'err' : StorageError,
+  });
   const PrepareThumbnailUploadArguments = IDL.Record({
     'contentType' : IDL.Text,
     'size' : IDL.Nat,
@@ -876,6 +1078,46 @@ export const idlFactory = ({ IDL }) => {
   const ResolveAccessRequestArguments = IDL.Record({
     'decision' : AccessRequestDecision,
     'requestId' : IDL.Nat,
+  });
+  const ResolveBlobReadRouteArgs = IDL.Record({
+    'entry' : Entry,
+    'version' : IDL.Opt(IDL.Nat),
+  });
+  const ObjectStorageBlobReadRoute = IDL.Variant({
+    'CaffeineBlobStorage' : IDL.Null,
+    'ExternalS3PublicEncrypted' : IDL.Record({
+      'locator' : BlobLocator,
+      'target' : TargetView,
+    }),
+    'OnChain' : IDL.Null,
+  });
+  const StorageResult_4 = IDL.Variant({
+    'ok' : ObjectStorageBlobReadRoute,
+    'err' : StorageError,
+  });
+  const ResolveThumbnailReadRouteArgs = IDL.Record({
+    'entry' : Entry,
+    'rootHash' : IDL.Text,
+  });
+  const ResolveUploadRouteArgs = IDL.Record({
+    'size' : IDL.Nat,
+    'entry' : Entry,
+  });
+  const ObjectStorageUploadRoute = IDL.Variant({
+    'ExternalS3SetupRequired' : IDL.Null,
+    'CaffeineBlobStorage' : IDL.Null,
+    'ExternalS3' : IDL.Record({
+      'layoutVersion' : IDL.Nat,
+      'writeMode' : WriteMode,
+      'readMode' : ReadMode,
+      'targetVersion' : IDL.Nat,
+      'targetId' : TargetId,
+    }),
+    'OnChain' : IDL.Null,
+  });
+  const StorageResult_3 = IDL.Variant({
+    'ok' : ObjectStorageUploadRoute,
+    'err' : StorageError,
   });
   const RestoreVersionArguments = IDL.Record({
     'entry' : Entry,
@@ -975,12 +1217,12 @@ export const idlFactory = ({ IDL }) => {
     'api_version' : IDL.Func([], [IDL.Nat16], ['query']),
     'appendUploadChunk' : IDL.Func(
         [AppendUploadChunkArguments],
-        [StorageResult_6],
+        [StorageResult_13],
         [],
       ),
     'beginUploadSession' : IDL.Func(
         [BeginUploadSessionArguments],
-        [StorageResult_5],
+        [StorageResult_12],
         [],
       ),
     'cancelAccessRequest' : IDL.Func(
@@ -1022,6 +1264,16 @@ export const idlFactory = ({ IDL }) => {
         [StorageResult_1],
         [],
       ),
+    'commitExternalBlobUpload' : IDL.Func(
+        [CommitExternalBlobUploadArgs],
+        [StorageResult_1],
+        [],
+      ),
+    'commitExternalThumbnailUpload' : IDL.Func(
+        [CommitExternalThumbnailUploadArgs],
+        [StorageResult],
+        [],
+      ),
     'commitThumbnailUpload' : IDL.Func(
         [CommitThumbnailUploadArguments],
         [NodeDetails],
@@ -1035,6 +1287,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'configure' : IDL.Func([ConfigureArguments], [], []),
+    'configureExternalStorageTarget' : IDL.Func(
+        [ConfigureExternalStorageTargetArgs],
+        [StorageResult_2],
+        [],
+      ),
     'create' : IDL.Func([CreateArguments], [StorageResult], []),
     'createAccessBatch' : IDL.Func(
         [CreateAccessBatchArguments],
@@ -1071,7 +1328,30 @@ export const idlFactory = ({ IDL }) => {
     'delete' : IDL.Func([DeleteArguments], [], []),
     'delete_asset' : IDL.Func([DeleteAssetArguments], [], []),
     'delete_batch' : IDL.Func([DeleteBatchArguments], [], []),
+    'disableExternalStorageTarget' : IDL.Func(
+        [DisableExternalStorageTargetArgs],
+        [StorageResult_2],
+        [],
+      ),
+    'disconnectExternalStorageTarget' : IDL.Func(
+        [DisableExternalStorageTargetArgs],
+        [StorageResult_1],
+        [],
+      ),
     'ensureBlobStorageCashierReady' : IDL.Func([], [], []),
+    'externalStorageHttpTransform' : IDL.Func(
+        [ExternalStorageHttpTransformArg],
+        [
+          IDL.Record({
+            'status' : IDL.Nat,
+            'body' : IDL.Vec(IDL.Nat8),
+            'headers' : IDL.Vec(
+              IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text })
+            ),
+          }),
+        ],
+        ['query'],
+      ),
     'finishUploadSession' : IDL.Func(
         [FinishUploadSessionArguments],
         [StorageResult_1],
@@ -1079,15 +1359,25 @@ export const idlFactory = ({ IDL }) => {
       ),
     'fsTree' : IDL.Func([], [IDL.Vec(TreeNode)], ['query']),
     'get' : IDL.Func([GetArgs], [EncodedAsset], ['query']),
-    'getCanisterCyclesCardMetrics' : IDL.Func([], [StorageResult_3], ['query']),
+    'getActiveExternalStorageTarget' : IDL.Func(
+        [],
+        [StorageResult_11],
+        ['query'],
+      ),
+    'getCanisterCyclesCardMetrics' : IDL.Func([], [StorageResult_6], ['query']),
     'getCycleBalance' : IDL.Func([], [IDL.Nat], ['query']),
     'getEncryptedVetkey' : IDL.Func([KeyId, TransportKey], [VetKey], []),
+    'getExternalStorageCleanupStatus' : IDL.Func(
+        [],
+        [StorageResult_10],
+        ['query'],
+      ),
     'getMyAccessRequest' : IDL.Func([], [IDL.Opt(AccessRequest)], ['query']),
     'getOwnerActivityState' : IDL.Func([], [OwnerActivityState], ['query']),
     'getRecoveryStatus' : IDL.Func([], [RecoveryStatus], ['query']),
     'getStatus' : IDL.Func([], [StorageStatus], ['query']),
     'getStorageBackendType' : IDL.Func([], [StorageBackend], ['query']),
-    'getStorageCardMetrics' : IDL.Func([], [StorageResult_2], ['query']),
+    'getStorageCardMetrics' : IDL.Func([], [StorageResult_5], ['query']),
     'getStorageChunk' : IDL.Func(
         [GetChunkArguments],
         [ChunkContent],
@@ -1097,7 +1387,7 @@ export const idlFactory = ({ IDL }) => {
     'getStorageReleaseState' : IDL.Func([], [StorageReleaseState], ['query']),
     'getUploadSession' : IDL.Func(
         [IDL.Record({ 'batchId' : BatchId })],
-        [StorageResult_4],
+        [StorageResult_9],
         ['query'],
       ),
     'getVetkeyVerificationKey' : IDL.Func([], [VetKeyVerificationKey], []),
@@ -1137,6 +1427,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(DurableAccessPolicy)],
         ['query'],
       ),
+    'listExternalStorageTargets' : IDL.Func([], [StorageResult_8], ['query']),
     'listLatestStorageEvents' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(StoredStorageEvent)],
@@ -1177,6 +1468,11 @@ export const idlFactory = ({ IDL }) => {
         [StorageResult_1],
         [],
       ),
+    'prepareExternalBlobUpload' : IDL.Func(
+        [PrepareExternalBlobUploadArgs],
+        [StorageResult_7],
+        [],
+      ),
     'prepareThumbnailUpload' : IDL.Func(
         [PrepareThumbnailUploadArguments],
         [PrepareThumbnailUploadResult],
@@ -1193,8 +1489,8 @@ export const idlFactory = ({ IDL }) => {
         [OwnerActivityRecord],
         [],
       ),
-    'refreshCanisterCyclesCardMetrics' : IDL.Func([], [StorageResult_3], []),
-    'refreshStorageCardMetrics' : IDL.Func([], [StorageResult_2], []),
+    'refreshCanisterCyclesCardMetrics' : IDL.Func([], [StorageResult_6], []),
+    'refreshStorageCardMetrics' : IDL.Func([], [StorageResult_5], []),
     'refreshSubscription' : IDL.Func([], [], []),
     'registerRecoveryController' : IDL.Func(
         [IDL.Principal],
@@ -1218,7 +1514,27 @@ export const idlFactory = ({ IDL }) => {
         [AccessRequest],
         [],
       ),
+    'resolveBlobReadRoute' : IDL.Func(
+        [ResolveBlobReadRouteArgs],
+        [StorageResult_4],
+        ['query'],
+      ),
+    'resolveThumbnailReadRoute' : IDL.Func(
+        [ResolveThumbnailReadRouteArgs],
+        [StorageResult_4],
+        ['query'],
+      ),
+    'resolveUploadRoute' : IDL.Func(
+        [ResolveUploadRouteArgs],
+        [StorageResult_3],
+        ['query'],
+      ),
     'restoreStorageVersion' : IDL.Func([RestoreVersionArguments], [], []),
+    'revalidateExternalStorageTarget' : IDL.Func(
+        [ExternalStorageTargetId],
+        [StorageResult_2],
+        [],
+      ),
     'revokeAccessBatch' : IDL.Func(
         [RevokeAccessBatchArguments],
         [RevokeAccessBatchResult],

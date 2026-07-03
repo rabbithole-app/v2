@@ -1,4 +1,5 @@
 node_modules
 .mops
 .icp/cache
+.icp/data
 .env

@@ -70,6 +70,15 @@ export interface BeginUploadSessionResponse {
   'node' : NodeDetails,
   'batchId' : BatchId,
 }
+export interface BlobLocator {
+  'layoutVersion' : bigint,
+  'blobKey' : string,
+  'treeKey' : string,
+}
+export type BlobReplicaStatus = { 'Missing' : null } |
+  { 'Active' : null } |
+  { 'DeletePending' : null } |
+  { 'Deleted' : null };
 export interface CancelAccessRequestArguments { 'requestId' : bigint }
 export interface CancelDurableAccessPolicyArguments { 'policyId' : bigint }
 export interface CancelPendingAccessGrantArguments { 'grantId' : bigint }
@@ -80,6 +89,23 @@ export interface ClaimPendingAccessByBackendAttestationArguments {
   'emailCommitments' : Array<EmailCommitment>,
 }
 export interface ClaimPendingAccessGrantArguments { 'grantId' : bigint }
+export interface CommitExternalBlobUploadArgs {
+  'rootHashHex' : string,
+  'sha256' : Uint8Array,
+  'contentType' : string,
+  'size' : bigint,
+  'entry' : Entry,
+  'targetId' : [] | [ExternalStorageTargetId],
+}
+export interface CommitExternalThumbnailUploadArgs {
+  'rootHashHex' : string,
+  'sha256' : Uint8Array,
+  'contentType' : string,
+  'size' : bigint,
+  'encryption' : ThumbnailEncryptionRef,
+  'entry' : Entry,
+  'targetId' : [] | [ExternalStorageTargetId],
+}
 export interface CommitThumbnailUploadArguments {
   'sha256' : Uint8Array,
   'contentType' : string,
@@ -87,6 +113,18 @@ export interface CommitThumbnailUploadArguments {
   'encryption' : ThumbnailEncryptionRef,
   'entry' : Entry,
   'rootHash' : string,
+}
+export interface ConfigureExternalStorageTargetArgs {
+  'region' : string,
+  'displayName' : [] | [string],
+  'endpoint' : string,
+  'accessKeyId' : string,
+  'secretAccessKey' : string,
+  'sessionToken' : [] | [string],
+  'prefix' : string,
+  'bucket' : string,
+  'targetId' : [] | [TargetId],
+  'forcePathStyle' : boolean,
 }
 export interface CreateAccessBatchArguments {
   'items' : Array<CreateAccessBatchItem>,
@@ -132,6 +170,10 @@ export interface CreatePendingAccessGrantArguments {
   'accessClass' : AccessClass,
 }
 export interface DeleteArguments { 'recursive' : boolean, 'entry' : Entry }
+export type DeleteTaskStatus = { 'Done' : null } |
+  { 'Running' : null } |
+  { 'Cancelled' : null } |
+  { 'Pending' : null };
 export type DirectoryColor = { 'blue' : null } |
   { 'gray' : null } |
   { 'orange' : null } |
@@ -144,6 +186,7 @@ export interface DirectoryMetadata {
   'defaultThumbnailStorageBackend' : StorageBackend,
   'thumbnailStoragePolicy' : ThumbnailStoragePolicy,
 }
+export interface DisableExternalStorageTargetArgs { 'targetId' : TargetId }
 export interface DurableAccessPolicy {
   'id' : bigint,
   'maturedAt' : [] | [Time],
@@ -232,9 +275,21 @@ export interface EncryptedStorageCanister {
   >,
   'clear' : ActorMethod<[], undefined>,
   'clearRecoveryController' : ActorMethod<[], Principal>,
+  'commitExternalBlobUpload' : ActorMethod<
+    [CommitExternalBlobUploadArgs],
+    undefined
+  >,
+  'commitExternalThumbnailUpload' : ActorMethod<
+    [CommitExternalThumbnailUploadArgs],
+    NodeDetails
+  >,
   'commitThumbnailUpload' : ActorMethod<
     [CommitThumbnailUploadArguments],
     NodeDetails
+  >,
+  'configureExternalStorageTarget' : ActorMethod<
+    [ConfigureExternalStorageTargetArgs],
+    ExternalStorageTargetView
   >,
   'create' : ActorMethod<[CreateArguments], NodeDetails>,
   'createAccessBatch' : ActorMethod<
@@ -254,13 +309,41 @@ export interface EncryptedStorageCanister {
     PendingAccessGrant
   >,
   'delete' : ActorMethod<[DeleteArguments], undefined>,
+  'disableExternalStorageTarget' : ActorMethod<
+    [DisableExternalStorageTargetArgs],
+    ExternalStorageTargetView
+  >,
+  'disconnectExternalStorageTarget' : ActorMethod<
+    [DisableExternalStorageTargetArgs],
+    undefined
+  >,
+  'externalBlobLocatorForTarget' : ActorMethod<
+    [ExternalTargetBlobLocatorArgs],
+    ExternalTargetBlobLocator
+  >,
+  'externalStorageHttpTransform' : ActorMethod<
+    [ExternalStorageHttpTransformArg],
+    {
+      'status' : bigint,
+      'body' : Uint8Array,
+      'headers' : Array<{ 'value' : string, 'name' : string }>,
+    }
+  >,
   'finishUploadSession' : ActorMethod<
     [FinishUploadSessionArguments],
     undefined
   >,
   'fsTree' : ActorMethod<[], Array<TreeNode>>,
+  'getActiveExternalStorageTarget' : ActorMethod<
+    [],
+    [] | [ExternalStorageTargetView]
+  >,
   'getChunk' : ActorMethod<[GetChunkArguments], ChunkContent>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
+  'getExternalStorageCleanupStatus' : ActorMethod<
+    [],
+    ExternalStorageCleanupStatus
+  >,
   'getMyAccessRequest' : ActorMethod<[], [] | [AccessRequest]>,
   'getOwnerActivityState' : ActorMethod<[], OwnerActivityState>,
   'getRecoveryStatus' : ActorMethod<[], RecoveryStatus>,
@@ -274,6 +357,15 @@ export interface EncryptedStorageCanister {
   >,
   'listAccessRequests' : ActorMethod<[], Array<AccessRequest>>,
   'listDurableAccessPolicies' : ActorMethod<[], Array<DurableAccessPolicy>>,
+  'listExternalBlobReplicas' : ActorMethod<[], Array<ExternalBlobReplica>>,
+  'listExternalStorageDeleteTasks' : ActorMethod<
+    [],
+    Array<ExternalStorageDeleteTaskView>
+  >,
+  'listExternalStorageTargets' : ActorMethod<
+    [],
+    Array<ExternalStorageTargetView>
+  >,
   'listLatestStorageEvents' : ActorMethod<[bigint], Array<StoredStorageEvent>>,
   'listOwnerEquivalentPrincipals' : ActorMethod<
     [],
@@ -291,6 +383,10 @@ export interface EncryptedStorageCanister {
   'markAllVisibleStorageEventsRead' : ActorMethod<[], undefined>,
   'markStorageEventsRead' : ActorMethod<[bigint], undefined>,
   'move' : ActorMethod<[MoveArguments], undefined>,
+  'prepareExternalBlobUpload' : ActorMethod<
+    [PrepareExternalBlobUploadArgs],
+    PrepareExternalBlobUploadResult
+  >,
   'prepareThumbnailUpload' : ActorMethod<
     [PrepareThumbnailUploadArguments],
     PrepareThumbnailUploadResult
@@ -318,7 +414,23 @@ export interface EncryptedStorageCanister {
     [ResolveAccessRequestArguments],
     AccessRequest
   >,
+  'resolveBlobReadRoute' : ActorMethod<
+    [ResolveBlobReadRouteArgs],
+    ObjectStorageBlobReadRoute
+  >,
+  'resolveThumbnailReadRoute' : ActorMethod<
+    [ResolveThumbnailReadRouteArgs],
+    ObjectStorageBlobReadRoute
+  >,
+  'resolveUploadRoute' : ActorMethod<
+    [ResolveUploadRouteArgs],
+    ObjectStorageUploadRoute
+  >,
   'restoreVersion' : ActorMethod<[RestoreVersionArguments], undefined>,
+  'revalidateExternalStorageTarget' : ActorMethod<
+    [ExternalStorageTargetId],
+    ExternalStorageTargetView
+  >,
   'revokeAccessBatch' : ActorMethod<
     [RevokeAccessBatchArguments],
     RevokeAccessBatchResult
@@ -327,8 +439,17 @@ export interface EncryptedStorageCanister {
     [{ 'thumbnailRef' : ThumbnailRef, 'entry' : Entry }],
     NodeDetails
   >,
+  'runExternalStorageDeleteTask' : ActorMethod<
+    [bigint],
+    ExternalStorageDeleteTaskView
+  >,
+  'runNextExternalStorageDeleteTask' : ActorMethod<
+    [],
+    ExternalStorageDeleteTaskView
+  >,
   'setThumbnail' : ActorMethod<[SetThumbnailArguments], NodeDetails>,
   'showTree' : ActorMethod<[[] | [Entry]], string>,
+  'sweepExternalStorageCleanup' : ActorMethod<[], ExternalStorageCleanupStatus>,
   'takeRecoveryOwnership' : ActorMethod<[], OwnerEquivalentPrincipal>,
   'update' : ActorMethod<[UpdateArguments], undefined>,
   'updateDirectoryPolicy' : ActorMethod<
@@ -337,6 +458,71 @@ export interface EncryptedStorageCanister {
   >,
 }
 export type Entry = [{ 'File' : null } | { 'Directory' : null }, string];
+export interface ExternalBlobReplica {
+  'id' : string,
+  'status' : BlobReplicaStatus,
+  'pendingDeleteTaskId' : [] | [bigint],
+  'rootHashHex' : RootHashHex,
+  'sha256' : [] | [Uint8Array],
+  'locator' : BlobLocator,
+  'createdAt' : Time,
+  'size' : bigint,
+  'updatedAt' : Time,
+  'targetId' : TargetId,
+}
+export interface ExternalStorageCleanupStatus {
+  'doneTasks' : bigint,
+  'pendingUploadSessions' : bigint,
+  'nextAttemptAt' : [] | [Time],
+  'activeReplicas' : bigint,
+  'deletePendingReplicas' : bigint,
+  'missingReplicas' : bigint,
+  'runningTasks' : bigint,
+  'credentialBlockedTargetIds' : Array<TargetId>,
+  'pendingTasks' : bigint,
+  'cancelledTasks' : bigint,
+  'deletedReplicas' : bigint,
+}
+export interface ExternalStorageDeleteTaskView {
+  'id' : bigint,
+  'status' : DeleteTaskStatus,
+  'rootHashHex' : RootHashHex,
+  'nextAttemptAt' : Time,
+  'keys' : Array<string>,
+  'createdAt' : Time,
+  'attempts' : bigint,
+  'updatedAt' : Time,
+  'replicaId' : [] | [string],
+  'lastError' : [] | [string],
+  'targetId' : TargetId,
+}
+export interface ExternalStorageHttpTransformArg {
+  'context' : Uint8Array,
+  'response' : HttpRequestResult,
+}
+export type ExternalStorageTargetId = string;
+export interface ExternalStorageTargetView {
+  'id' : TargetId,
+  'status' : TargetStatus,
+  'displayName' : [] | [string],
+  'hasCredential' : boolean,
+  'layoutVersion' : bigint,
+  'kind' : TargetKind,
+  'createdAt' : Time,
+  'writeMode' : WriteMode,
+  'lastValidatedAt' : [] | [Time],
+  'readMode' : ReadMode,
+  'version' : bigint,
+  'updatedAt' : Time,
+}
+export interface ExternalTargetBlobLocator {
+  'locator' : BlobLocator,
+  'target' : TargetView,
+}
+export interface ExternalTargetBlobLocatorArgs {
+  'rootHashHex' : RootHashHex,
+  'targetId' : [] | [TargetId],
+}
 export interface FileMetadata {
   'storageBackend' : StorageBackend,
   'sha256' : [] | [Uint8Array],
@@ -369,6 +555,12 @@ export interface HasPermissionArguments {
   'permission' : Permission,
   'user' : Principal,
   'entry' : [] | [Entry],
+}
+export interface HttpHeader { 'value' : string, 'name' : string }
+export interface HttpRequestResult {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<HttpHeader>,
 }
 export type KeyId = [Owner, KeyName];
 export type KeyId__2 = [Principal, Uint8Array];
@@ -403,6 +595,26 @@ export interface NodeDetails {
   'parentId' : [] | [bigint],
   'keyId' : KeyId,
 }
+export type ObjectStorageBlobReadRoute = { 'CaffeineBlobStorage' : null } |
+  {
+    'ExternalS3PublicEncrypted' : {
+      'locator' : BlobLocator,
+      'target' : TargetView,
+    }
+  } |
+  { 'OnChain' : null };
+export type ObjectStorageUploadRoute = { 'ExternalS3SetupRequired' : null } |
+  { 'CaffeineBlobStorage' : null } |
+  {
+    'ExternalS3' : {
+      'layoutVersion' : bigint,
+      'writeMode' : WriteMode,
+      'readMode' : ReadMode,
+      'targetVersion' : bigint,
+      'targetId' : TargetId,
+    }
+  } |
+  { 'OnChain' : null };
 export type Owner = Principal;
 export type OwnerActivityOrigin = { 'storage' : null } |
   { 'rabbithole' : null } |
@@ -448,6 +660,19 @@ export interface PendingAccessGrant {
 export type Permission = { 'Read' : null } |
   { 'ReadWrite' : null } |
   { 'ReadWriteManage' : null };
+export interface PrepareExternalBlobUploadArgs {
+  'rootHashHex' : string,
+  'size' : bigint,
+  'entry' : Entry,
+  'targetId' : [] | [ExternalStorageTargetId],
+  'expiresSeconds' : [] | [bigint],
+}
+export interface PrepareExternalBlobUploadResult {
+  'blobUpload' : PresignedUrl,
+  'locator' : BlobLocator,
+  'target' : TargetView,
+  'treeUpload' : PresignedUrl,
+}
 export interface PrepareThumbnailUploadArguments {
   'contentType' : string,
   'size' : bigint,
@@ -458,6 +683,14 @@ export interface PrepareThumbnailUploadResult {
   'contentType' : string,
   'size' : bigint,
   'encryption' : ThumbnailEncryptionRequirement,
+}
+export interface PresignedUrl {
+  'key' : string,
+  'url' : string,
+  'method' : string,
+  'expiresAt' : Time,
+  'signedHeaders' : Array<[string, string]>,
+  'requestHeaders' : Array<[string, string]>,
 }
 export interface PrincipalAccessGrant {
   'id' : bigint,
@@ -470,6 +703,7 @@ export interface PrincipalAccessGrant {
   'accessClass' : AccessClass,
   'revokedAt' : [] | [Time],
 }
+export type ReadMode = { 'PublicEncrypted' : null };
 export interface RecordOwnerActivityArguments { 'origin' : OwnerActivityOrigin }
 export interface RecoveryStatus {
   'recoveryOwner' : [] | [OwnerEquivalentPrincipal],
@@ -485,6 +719,15 @@ export interface ResolveAccessRequestArguments {
   'decision' : AccessRequestDecision,
   'requestId' : bigint,
 }
+export interface ResolveBlobReadRouteArgs {
+  'entry' : Entry,
+  'version' : [] | [bigint],
+}
+export interface ResolveThumbnailReadRouteArgs {
+  'entry' : Entry,
+  'rootHash' : string,
+}
+export interface ResolveUploadRouteArgs { 'size' : bigint, 'entry' : Entry }
 export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export interface RevokeAccessBatchArguments {
   'items' : Array<RevokeAccessBatchItem>,
@@ -495,6 +738,14 @@ export interface RevokeAccessBatchItem {
 }
 export interface RevokeAccessBatchResult {
   'revoked' : Array<RevokeAccessBatchItem>,
+}
+export type RootHashHex = string;
+export interface S3CompatibleTargetConfig {
+  'region' : string,
+  'endpoint' : string,
+  'prefix' : string,
+  'bucket' : string,
+  'forcePathStyle' : boolean,
 }
 export interface SetThumbnailArguments {
   'thumbnailRef' : [] | [ThumbnailRef],
@@ -584,6 +835,27 @@ export interface StoredStorageEvent {
   'timestamp' : Time,
   'correlationId' : [] | [string],
 }
+export type TargetId = string;
+export type TargetKind = {
+    'S3CompatiblePublicEncrypted' : S3CompatibleTargetConfig
+  };
+export type TargetStatus = { 'Active' : null } |
+  { 'Disabled' : null } |
+  { 'CredentialFailed' : null };
+export interface TargetView {
+  'id' : TargetId,
+  'status' : TargetStatus,
+  'displayName' : [] | [string],
+  'hasCredential' : boolean,
+  'layoutVersion' : bigint,
+  'kind' : TargetKind,
+  'createdAt' : Time,
+  'writeMode' : WriteMode,
+  'lastValidatedAt' : [] | [Time],
+  'readMode' : ReadMode,
+  'version' : bigint,
+  'updatedAt' : Time,
+}
 export interface ThumbnailEncryptionRef {
   'algorithm' : string,
   'wrappedKey' : Uint8Array,
@@ -641,6 +913,7 @@ export interface UpdateDirectoryPolicyArguments {
 }
 export type VetKey = Uint8Array;
 export type VetKeyVerificationKey = Uint8Array;
+export type WriteMode = { 'CanisterPresigned' : null };
 export interface _SERVICE extends EncryptedStorageCanister {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

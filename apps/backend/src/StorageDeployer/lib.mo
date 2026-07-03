@@ -14,7 +14,8 @@ import Nat "mo:core/Nat";
 import Runtime "mo:core/Runtime";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import Sha256 "mo:sha2/Sha256";
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 
 // ZenDB is used transitively through the `Creations` / `Licenses` class handles.
 import Creations "Creations";
@@ -58,6 +59,7 @@ module StorageDeployerOrchestrator {
   public type DeleteStorageError = Types.DeleteStorageError;
   public type AddStorageError = Types.AddStorageError;
   public type DownloadDetails = HttpDownloader.DownloadDetails;
+  public type ReleaseListTransformArg = StorageReleaseRuntime.ReleaseListTransformArg;
   public type ReleaseListTransform = StorageReleaseRuntime.ReleaseListTransform;
 
   public type StartCallbacks = {
@@ -778,7 +780,7 @@ module StorageDeployerOrchestrator {
     };
 
     // Verify WASM hash via canister_info
-    let info = await IC.ic.canister_info({
+    let info = await ic.canister_info({
       canister_id = canisterId;
       num_requested_changes = ?0;
     });

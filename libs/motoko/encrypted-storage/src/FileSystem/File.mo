@@ -3,9 +3,11 @@ import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Option "mo:core/Option";
+import Text "mo:core/Text";
 import Map "mo:core/Map";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
+import Vector "mo:vector";
 
 import T "../Types";
 
@@ -24,6 +26,29 @@ module File {
   /// Returns the current (active) version, or null if no versions exist.
   public func getCurrentVersion(self : T.FileMetadataStore) : ?T.FileVersion {
     Map.get(self.versions, Nat.compare, self.currentVersion);
+  };
+
+  public func blobStorageRootHashes(self : T.FileMetadataStore) : [Text] {
+    let hashes = Vector.new<Text>();
+    switch (self.thumbnailRef) {
+      case (?#BlobStorage({ rootHash })) Vector.add(hashes, rootHash);
+      case (?#OnChain(_)) {};
+      case null {};
+    };
+    for (version in Map.values(self.versions)) {
+      for (ref in version.chunks.vals()) {
+        switch (ref) {
+          case (#BlobStorage { blobId }) {
+            switch (Text.decodeUtf8(blobId)) {
+              case (?rootHash) Vector.add(hashes, rootHash);
+              case null {};
+            };
+          };
+          case (#OnChain _) {};
+        };
+      };
+    };
+    Vector.toArray(hashes);
   };
 
   /// Returns the storage backend type based on the first chunk's ContentRef.
@@ -211,7 +236,7 @@ module File {
   };
 
   /// Gets a version by key, or current version if key is null.
-  func getVersion(self : T.FileMetadataStore, version : ?Nat) : ?T.FileVersion {
+  public func getVersion(self : T.FileMetadataStore, version : ?Nat) : ?T.FileVersion {
     Map.get(self.versions, Nat.compare, Option.get(version, self.currentVersion));
   };
 };

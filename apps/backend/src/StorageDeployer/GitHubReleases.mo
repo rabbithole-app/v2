@@ -13,7 +13,8 @@ import List "mo:core/List";
 import Int "mo:core/Int";
 import Debug "mo:core/Debug";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Hex "mo:hex";
 import Vector "mo:vector";
 import MemoryRegion "mo:memory-region/MemoryRegion";
@@ -57,6 +58,14 @@ module {
   public type ReleaseFullStatus = Types.ReleaseFullStatus;
   public type ReleasesFullStatus = Types.ReleasesFullStatus;
   public type StorageReleaseManifest = Types.StorageReleaseManifest;
+  public type TransformArg = {
+    context : Blob;
+    response : IC.HttpRequestResult;
+  };
+  public type Transform = {
+    function : shared query TransformArg -> async IC.HttpRequestResult;
+    context : Blob;
+  };
   public type ExtractionInfoProvider = Types.ExtractionInfoProvider;
   public type InvalidatedAsset = Types.InvalidatedAsset;
   public type ListReleasesResult = Types.ListReleasesResult;
@@ -176,7 +185,7 @@ module {
   ///
   /// Returns releases and a list of invalidated assets (assets whose hash changed).
   /// The caller should handle invalidation (e.g., clear extracted frontend files).
-  public func listReleases(store : Store, transform : ?IC.Transform) : async Result.Result<ListReleasesResult, Text> {
+  public func listReleases(store : Store, transform : ?Transform) : async Result.Result<ListReleasesResult, Text> {
     let url = store.github.apiUrl # "/repos/" # store.github.owner # "/" # store.github.repo # "/releases";
     let headers = getHeaders(store.github.token) |> Set.values(_) |> Iter.toArray(_);
 
@@ -192,7 +201,7 @@ module {
     };
 
     try {
-      let response = await (with cycles = HTTP_OUTCALL_CYCLES) IC.ic.http_request(request);
+      let response = await (with cycles = HTTP_OUTCALL_CYCLES) ic.http_request(request);
 
       // Check status code
       if (response.status < 200 or response.status >= 300) {

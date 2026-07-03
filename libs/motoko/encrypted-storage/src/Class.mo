@@ -9,6 +9,7 @@ module {
   public type Gates = {
     canStoreFileBytes : Nat -> Result.Result<(), Text>;
     canShare : () -> Result.Result<(), Text>;
+    canUseExternalStorage : () -> Result.Result<(), Text>;
     refreshSubscription : () -> async* Result.Result<T.SubscriptionStatus, Text>;
     onAccessChanged : ?(T.StoredStorageEvent -> ());
   };
@@ -20,6 +21,10 @@ module {
     };
     let shareGate : ?(() -> Result.Result<(), Text>) = switch (gates) {
       case (?g) ?g.canShare;
+      case null null;
+    };
+    let externalStorageGate : ?(() -> Result.Result<(), Text>) = switch (gates) {
+      case (?g) ?g.canUseExternalStorage;
       case null null;
     };
     let subscriptionRefreshGate : ?(() -> async* Result.Result<T.SubscriptionStatus, Text>) = switch (gates) {
@@ -41,25 +46,19 @@ module {
 
     // --- Status & HTTP ---
 
-    public func getStatus(cycleBalance : Nat) : T.StorageStatus =
-      Lib.getStatus(store, cycleBalance);
+    public func getStatus(cycleBalance : Nat) : T.StorageStatus = Lib.getStatus(store, cycleBalance);
 
-    public func memoryInfo() : T.MemoryInfo =
-      Lib.memoryInfo(store);
+    public func memoryInfo() : T.MemoryInfo = Lib.memoryInfo(store);
 
-    public func httpRequest(req : T.HttpRequest) : Result.Result<T.HttpResponse, Text> =
-      Lib.httpRequest(store, req);
+    public func httpRequest(req : T.HttpRequest) : Result.Result<T.HttpResponse, Text> = Lib.httpRequest(store, req);
 
-    public func httpRequestStreamingCallback(token : T.StreamingToken) : Result.Result<T.StreamingCallbackResponse, Text> =
-      Lib.httpRequestStreamingCallback(store, token);
+    public func httpRequestStreamingCallback(token : T.StreamingToken) : Result.Result<T.StreamingCallbackResponse, Text> = Lib.httpRequestStreamingCallback(store, token);
 
-    public func setStreamingCallback(callback : T.StreamingCallback) =
-      Lib.setStreamingCallback(store, callback);
+    public func setStreamingCallback(callback : T.StreamingCallback) = Lib.setStreamingCallback(store, callback);
 
     // --- Access ---
 
-    public func isOwnerEquivalent(principal : Principal) : Bool =
-      Lib.isOwnerEquivalent(store, principal);
+    public func isOwnerEquivalent(principal : Principal) : Bool = Lib.isOwnerEquivalent(store, principal);
 
     public func recordOwnerActivity(caller : Principal, args : T.RecordOwnerActivityArguments) : Result.Result<T.OwnerActivityRecord, Text> {
       switch (Lib.recordOwnerActivity(store, caller, args)) {
@@ -71,14 +70,11 @@ module {
       };
     };
 
-    public func getOwnerActivityState(caller : Principal) : Result.Result<T.OwnerActivityState, Text> =
-      Lib.getOwnerActivityState(store, caller);
+    public func getOwnerActivityState(caller : Principal) : Result.Result<T.OwnerActivityState, Text> = Lib.getOwnerActivityState(store, caller);
 
-    public func listOwnerEquivalentPrincipals(caller : Principal) : Result.Result<[T.OwnerEquivalentPrincipal], Text> =
-      Lib.listOwnerEquivalentPrincipals(store, caller);
+    public func listOwnerEquivalentPrincipals(caller : Principal) : Result.Result<[T.OwnerEquivalentPrincipal], Text> = Lib.listOwnerEquivalentPrincipals(store, caller);
 
-    public func getRecoveryStatus(caller : Principal) : Result.Result<T.RecoveryStatus, Text> =
-      Lib.getRecoveryStatus(store, caller);
+    public func getRecoveryStatus(caller : Principal) : Result.Result<T.RecoveryStatus, Text> = Lib.getRecoveryStatus(store, caller);
 
     public func registerRecoveryController(caller : Principal, principal : Principal) : Result.Result<T.RegisterRecoveryControllerResult, Text> {
       switch (Lib.registerRecoveryController(store, caller, principal)) {
@@ -192,14 +188,7 @@ module {
     func emitPendingGrantClaimed(claimed : T.ClaimedPendingAccessGrant) {
       if (claimed.created) {
         let grant = claimed.principalGrant;
-        emitAccessEvent(#pendingGrantClaimed({
-          grantId = claimed.pendingGrant.id;
-          principal = grant.principal;
-          accessClass = grant.accessClass;
-          source = grant.source;
-          claimOrigin = claimed.claimOrigin;
-          emailClaimState = ?claimed.pendingGrant.emailClaimState;
-        }));
+        emitAccessEvent(#pendingGrantClaimed({ grantId = claimed.pendingGrant.id; principal = grant.principal; accessClass = grant.accessClass; source = grant.source; claimOrigin = claimed.claimOrigin; emailClaimState = ?claimed.pendingGrant.emailClaimState }));
       };
     };
 
@@ -250,11 +239,9 @@ module {
       };
     };
 
-    public func listPendingAccessGrants(caller : Principal) : Result.Result<[T.PendingAccessGrant], Text> =
-      Lib.listPendingAccessGrants(store, caller);
+    public func listPendingAccessGrants(caller : Principal) : Result.Result<[T.PendingAccessGrant], Text> = Lib.listPendingAccessGrants(store, caller);
 
-    public func listAccessGrants(caller : Principal, args : T.ListAccessGrantsArguments) : Result.Result<T.AccessGrantList, Text> =
-      Lib.listAccessGrants(store, caller, args);
+    public func listAccessGrants(caller : Principal, args : T.ListAccessGrantsArguments) : Result.Result<T.AccessGrantList, Text> = Lib.listAccessGrants(store, caller, args);
 
     public func createDurableAccessGrant(caller : Principal, args : T.CreateDurableAccessGrantArguments) : Result.Result<T.PrincipalAccessGrant, Text> {
       switch (Lib.createDurableAccessGrant(store, caller, args, shareGate)) {
@@ -323,11 +310,9 @@ module {
       };
     };
 
-    public func listDurableAccessPolicies(caller : Principal) : Result.Result<[T.DurableAccessPolicy], Text> =
-      Lib.listDurableAccessPolicies(store, caller);
+    public func listDurableAccessPolicies(caller : Principal) : Result.Result<[T.DurableAccessPolicy], Text> = Lib.listDurableAccessPolicies(store, caller);
 
-    public func hasActiveDurableGrantForKey(caller : Principal, keyId : T.KeyId) : Bool =
-      Lib.hasActiveDurableGrantForKey(store, caller, keyId);
+    public func hasActiveDurableGrantForKey(caller : Principal, keyId : T.KeyId) : Bool = Lib.hasActiveDurableGrantForKey(store, caller, keyId);
 
     public func createAccessRequest(caller : Principal, args : T.CreateAccessRequestArguments) : Result.Result<T.AccessRequest, Text> {
       switch (Lib.createAccessRequest(store, caller, args)) {
@@ -351,8 +336,7 @@ module {
       };
     };
 
-    public func getMyAccessRequest(caller : Principal) : Result.Result<?T.AccessRequest, Text> =
-      Lib.getMyAccessRequest(store, caller);
+    public func getMyAccessRequest(caller : Principal) : Result.Result<?T.AccessRequest, Text> = Lib.getMyAccessRequest(store, caller);
 
     public func resolveAccessRequest(caller : Principal, args : T.ResolveAccessRequestArguments) : Result.Result<T.AccessRequest, Text> {
       switch (Lib.resolveAccessRequest(store, caller, args, shareGate)) {
@@ -368,50 +352,37 @@ module {
       };
     };
 
-    public func listAccessRequests(caller : Principal) : Result.Result<[T.AccessRequest], Text> =
-      Lib.listAccessRequests(store, caller);
+    public func listAccessRequests(caller : Principal) : Result.Result<[T.AccessRequest], Text> = Lib.listAccessRequests(store, caller);
 
-    public func listStorageEvents(caller : Principal, afterId : ?Nat, limit : Nat) : Result.Result<[T.StoredStorageEvent], Text> =
-      Lib.listStorageEvents(store, caller, afterId, limit);
+    public func listStorageEvents(caller : Principal, afterId : ?Nat, limit : Nat) : Result.Result<[T.StoredStorageEvent], Text> = Lib.listStorageEvents(store, caller, afterId, limit);
 
-    public func listLatestStorageEvents(caller : Principal, limit : Nat) : Result.Result<[T.StoredStorageEvent], Text> =
-      Lib.listLatestStorageEvents(store, caller, limit);
+    public func listLatestStorageEvents(caller : Principal, limit : Nat) : Result.Result<[T.StoredStorageEvent], Text> = Lib.listLatestStorageEvents(store, caller, limit);
 
-    public func getStorageEventsUnreadCount(caller : Principal) : Result.Result<Nat, Text> =
-      Lib.getStorageEventsUnreadCount(store, caller);
+    public func getStorageEventsUnreadCount(caller : Principal) : Result.Result<Nat, Text> = Lib.getStorageEventsUnreadCount(store, caller);
 
-    public func markStorageEventsRead(caller : Principal, upToEventId : Nat) : Result.Result<(), Text> =
-      Lib.markStorageEventsRead(store, caller, upToEventId);
+    public func markStorageEventsRead(caller : Principal, upToEventId : Nat) : Result.Result<(), Text> = Lib.markStorageEventsRead(store, caller, upToEventId);
 
-    public func markAllVisibleStorageEventsRead(caller : Principal) : Result.Result<(), Text> =
-      Lib.markAllVisibleStorageEventsRead(store, caller);
+    public func markAllVisibleStorageEventsRead(caller : Principal) : Result.Result<(), Text> = Lib.markAllVisibleStorageEventsRead(store, caller);
 
     // --- CRUD ---
 
-    public func get(caller : Principal, args : T.GetArguments) : Result.Result<T.NodeDetails, Text> =
-      Lib.get(store, caller, args);
+    public func get(caller : Principal, args : T.GetArguments) : Result.Result<T.NodeDetails, Text> = Lib.get(store, caller, args);
 
-    public func getChunk(caller : Principal, args : T.GetChunkArguments) : Result.Result<T.ChunkContent, Text> =
-      Lib.getChunk(store, caller, args);
+    public func getChunk(caller : Principal, args : T.GetChunkArguments) : Result.Result<T.ChunkContent, Text> = Lib.getChunk(store, caller, args);
 
-    public func create(caller : Principal, args : T.CreateArguments) : Result.Result<T.NodeDetails, Text> =
-      Lib.create(store, caller, args);
+    public func create(caller : Principal, args : T.CreateArguments) : Result.Result<T.NodeDetails, Text> = Lib.create(store, caller, args);
 
     public func update(caller : Principal, args : T.UpdateArguments) : async* Result.Result<(), Text> {
       await* Lib.update(store, caller, args, uploadGate, subscriptionRefreshGate);
     };
 
-    public func delete(caller : Principal, args : T.DeleteArguments) : Result.Result<(), Text> =
-      Lib.delete(store, caller, args);
+    public func delete(caller : Principal, args : T.DeleteArguments) : Result.Result<(), Text> = Lib.delete(store, caller, args);
 
-    public func move(caller : Principal, args : T.MoveArguments) : Result.Result<(), Text> =
-      Lib.move(store, caller, args);
+    public func move(caller : Principal, args : T.MoveArguments) : Result.Result<(), Text> = Lib.move(store, caller, args);
 
-    public func rename(caller : Principal, args : T.RenameArguments) : Result.Result<(), Text> =
-      Lib.rename(store, caller, args);
+    public func rename(caller : Principal, args : T.RenameArguments) : Result.Result<(), Text> = Lib.rename(store, caller, args);
 
-    public func clear(caller : Principal) : Result.Result<(), Text> =
-      Lib.clear(store, caller);
+    public func clear(caller : Principal) : Result.Result<(), Text> = Lib.clear(store, caller);
 
     // --- Upload sessions ---
 
@@ -419,62 +390,47 @@ module {
       await* Lib.beginUploadSession(store, caller, args, uploadGate, subscriptionRefreshGate);
     };
 
-    public func getUploadSession(caller : Principal, batchId : T.BatchId) : Result.Result<T.UploadSessionStatus, Text> =
-      Lib.getUploadSession(store, caller, batchId);
+    public func getUploadSession(caller : Principal, batchId : T.BatchId) : Result.Result<T.UploadSessionStatus, Text> = Lib.getUploadSession(store, caller, batchId);
 
     public func finishUploadSession(caller : Principal, args : T.FinishUploadSessionArguments) : async* Result.Result<Lib.UploadCommitMeasurement, Text> {
       await* Lib.finishUploadSession(store, caller, args, uploadGate, subscriptionRefreshGate);
     };
 
-    public func abortUploadSession(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> =
-      Lib.abortUploadSession(store, caller, batchId);
+    public func abortUploadSession(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> = Lib.abortUploadSession(store, caller, batchId);
 
-    public func rollbackBatch(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> =
-      Lib.rollbackBatch(store, caller, batchId);
+    public func rollbackBatch(caller : Principal, batchId : T.BatchId) : Result.Result<(), Text> = Lib.rollbackBatch(store, caller, batchId);
 
-    public func appendUploadChunk(caller : Principal, args : T.Chunk) : Result.Result<T.AppendUploadChunkResponse, Text> =
-      Lib.appendUploadChunk(store, caller, args, uploadGate);
+    public func appendUploadChunk(caller : Principal, args : T.Chunk) : Result.Result<T.AppendUploadChunkResponse, Text> = Lib.appendUploadChunk(store, caller, args, uploadGate);
 
-    public func activeUploadReservationBytes() : Nat =
-      Lib.activeUploadReservationBytes(store);
+    public func activeUploadReservationBytes() : Nat = Lib.activeUploadReservationBytes(store);
 
-    public func activeUploadStagingBytes() : Nat =
-      Lib.activeUploadStagingBytes(store);
+    public func activeUploadStagingBytes() : Nat = Lib.activeUploadStagingBytes(store);
 
-    public func activeUploadStagingChunkCount() : Nat =
-      Lib.activeUploadStagingChunkCount(store);
+    public func activeUploadStagingChunkCount() : Nat = Lib.activeUploadStagingChunkCount(store);
 
-    public func activeUploadSessions() : [Lib.ActiveUploadSession] =
-      Lib.activeUploadSessions(store);
+    public func activeUploadSessions() : [Lib.ActiveUploadSession] = Lib.activeUploadSessions(store);
 
-    public func activeUploadSessionCount() : Nat =
-      Lib.activeUploadSessionCount(store);
+    public func activeUploadSessionCount() : Nat = Lib.activeUploadSessionCount(store);
 
     // --- Permissions ---
 
-    public func hasPermission(caller : T.Caller, args : T.HasPermissionArguments) : Bool =
-      Lib.hasPermission(store, caller, args);
+    public func hasPermission(caller : T.Caller, args : T.HasPermissionArguments) : Bool = Lib.hasPermission(store, caller, args);
 
     // --- Listing ---
 
-    public func list(caller : Principal, entry : ?T.Entry) : Result.Result<T.ListResponse, Text> =
-      Lib.list(store, caller, entry);
+    public func list(caller : Principal, entry : ?T.Entry) : Result.Result<T.ListResponse, Text> = Lib.list(store, caller, entry);
 
     // --- Versioning ---
 
-    public func listVersions(caller : Principal, args : T.ListVersionsArguments) : Result.Result<[T.FileVersionDetails], Text> =
-      Lib.listVersions(store, caller, args);
+    public func listVersions(caller : Principal, args : T.ListVersionsArguments) : Result.Result<[T.FileVersionDetails], Text> = Lib.listVersions(store, caller, args);
 
-    public func restoreVersion(caller : Principal, args : T.RestoreVersionArguments) : Result.Result<(), Text> =
-      Lib.restoreVersion(store, caller, args);
+    public func restoreVersion(caller : Principal, args : T.RestoreVersionArguments) : Result.Result<(), Text> = Lib.restoreVersion(store, caller, args);
 
     // --- Tree ---
 
-    public func showTree(caller : T.Caller, entry : ?T.Entry) : Result.Result<Text, Text> =
-      Lib.showTree(store, caller, entry);
+    public func showTree(caller : T.Caller, entry : ?T.Entry) : Result.Result<Text, Text> = Lib.showTree(store, caller, entry);
 
-    public func fsTree(caller : Principal) : Result.Result<[T.TreeNode], Text> =
-      Lib.fsTree(store, caller);
+    public func fsTree(caller : Principal) : Result.Result<[T.TreeNode], Text> = Lib.fsTree(store, caller);
 
     // --- VetKey ---
 
@@ -482,8 +438,7 @@ module {
       await Lib.getVetkeyVerificationKey(store);
     };
 
-    public func validateVetkeyAccess(caller : T.Caller, keyId : T.KeyId) : Result.Result<Blob, Text> =
-      Lib.validateVetkeyAccess(store, caller, keyId);
+    public func validateVetkeyAccess(caller : T.Caller, keyId : T.KeyId) : Result.Result<Blob, Text> = Lib.validateVetkeyAccess(store, caller, keyId);
 
     public func getEncryptedVetkey(caller : T.Caller, keyId : T.KeyId, transportKey : T.TransportKey) : async Result.Result<T.VetKey, Text> {
       await Lib.getEncryptedVetkey(store, caller, keyId, transportKey);
@@ -491,17 +446,13 @@ module {
 
     // --- Thumbnails ---
 
-    public func setThumbnail(caller : T.Caller, args : T.SetThumbnailArguments) : Result.Result<T.NodeDetails, Text> =
-      Lib.setThumbnail(store, caller, args);
+    public func setThumbnail(caller : T.Caller, args : T.SetThumbnailArguments) : Result.Result<T.NodeDetails, Text> = Lib.setThumbnail(store, caller, args);
 
-    public func prepareThumbnailUpload(caller : T.Caller, args : T.PrepareThumbnailUploadArguments) : Result.Result<T.PrepareThumbnailUploadResult, Text> =
-      Lib.prepareThumbnailUpload(store, caller, args);
+    public func prepareThumbnailUpload(caller : T.Caller, args : T.PrepareThumbnailUploadArguments) : Result.Result<T.PrepareThumbnailUploadResult, Text> = Lib.prepareThumbnailUpload(store, caller, args);
 
-    public func commitThumbnailUpload(caller : T.Caller, args : T.CommitThumbnailUploadArguments) : Result.Result<T.NodeDetails, Text> =
-      Lib.commitThumbnailUpload(store, caller, args);
+    public func commitThumbnailUpload(caller : T.Caller, args : T.CommitThumbnailUploadArguments) : Result.Result<T.NodeDetails, Text> = Lib.commitThumbnailUpload(store, caller, args);
 
-    public func updateDirectoryPolicy(caller : T.Caller, args : T.UpdateDirectoryPolicyArguments) : Result.Result<T.NodeDetails, Text> =
-      Lib.updateDirectoryPolicy(store, caller, args);
+    public func updateDirectoryPolicy(caller : T.Caller, args : T.UpdateDirectoryPolicyArguments) : Result.Result<T.NodeDetails, Text> = Lib.updateDirectoryPolicy(store, caller, args);
 
     // --- Caffeine Blob Storage ---
 
@@ -513,7 +464,64 @@ module {
       await* Lib.commitCaffeineUpload(store, caller, args, uploadGate, subscriptionRefreshGate);
     };
 
-    public func getStorageBackendType() : T.StorageBackend =
-      store.storageBackendType;
+    public func getStorageBackendType() : T.StorageBackend = store.storageBackendType;
+
+    // --- External Storage Targets ---
+
+    public func configureExternalStorageTarget(caller : Principal, args : T.ConfigureExternalStorageTargetArgs, transform : ?T.ExternalStorageHttpTransform) : async* Result.Result<T.ExternalStorageTargetView, Text> {
+      await* Lib.configureExternalStorageTarget(store, caller, args, transform, externalStorageGate);
+    };
+
+    public func revalidateExternalStorageTarget(caller : Principal, targetId : T.ExternalStorageTargetId, transform : ?T.ExternalStorageHttpTransform) : async* Result.Result<T.ExternalStorageTargetView, Text> {
+      await* Lib.revalidateExternalStorageTarget(store, caller, targetId, transform);
+    };
+
+    public func disableExternalStorageTarget(caller : Principal, args : T.DisableExternalStorageTargetArgs) : Result.Result<T.ExternalStorageTargetView, Text> = Lib.disableExternalStorageTarget(store, caller, args);
+
+    public func disconnectExternalStorageTarget(caller : Principal, args : T.DisableExternalStorageTargetArgs) : Result.Result<(), Text> = Lib.disconnectExternalStorageTarget(store, caller, args);
+
+    public func listExternalStorageTargets(caller : Principal) : Result.Result<[T.ExternalStorageTargetView], Text> = Lib.listExternalStorageTargets(store, caller);
+
+    public func getActiveExternalStorageTarget(caller : Principal) : Result.Result<?T.ExternalStorageTargetView, Text> = Lib.getActiveExternalStorageTarget(store, caller);
+
+    public func listExternalBlobReplicas(caller : Principal) : Result.Result<[T.ExternalBlobReplica], Text> = Lib.listExternalBlobReplicas(store, caller);
+
+    public func listExternalStorageDeleteTasks(caller : Principal) : Result.Result<[T.ExternalStorageDeleteTaskView], Text> = Lib.listExternalStorageDeleteTasks(store, caller);
+
+    public func runExternalStorageDeleteTask(caller : Principal, taskId : Nat, transform : ?T.ExternalStorageHttpTransform) : async Result.Result<T.ExternalStorageDeleteTaskView, Text> {
+      await Lib.runExternalStorageDeleteTask(store, caller, taskId, transform);
+    };
+
+    public func runNextExternalStorageDeleteTask(caller : Principal, transform : ?T.ExternalStorageHttpTransform) : async Result.Result<T.ExternalStorageDeleteTaskView, Text> {
+      await Lib.runNextExternalStorageDeleteTask(store, caller, transform);
+    };
+
+    public func getExternalStorageCleanupStatus(caller : Principal) : Result.Result<T.ExternalStorageCleanupStatus, Text> = Lib.getExternalStorageCleanupStatus(store, caller);
+
+    public func sweepExternalStorageCleanup(caller : Principal) : Result.Result<T.ExternalStorageCleanupStatus, Text> = Lib.sweepExternalStorageCleanup(store, caller);
+
+    public func externalCleanupPrepare() : { nextWakeAt : ?Int } = Lib.externalCleanupPrepare(store);
+
+    public func runNextExternalStorageDeleteTaskInternal(transform : ?T.ExternalStorageHttpTransform) : async Result.Result<T.ExternalStorageDeleteTaskView, Text> {
+      await Lib.runNextExternalStorageDeleteTaskInternal(store, transform);
+    };
+
+    public func externalBlobLocatorForTarget(caller : Principal, args : T.ExternalTargetBlobLocatorArgs) : Result.Result<T.ExternalTargetBlobLocator, Text> = Lib.externalBlobLocatorForTarget(store, caller, args);
+
+    public func resolveUploadRoute(caller : Principal, args : T.ResolveUploadRouteArgs) : Result.Result<T.ObjectStorageUploadRoute, Text> = Lib.resolveUploadRoute(store, caller, args);
+
+    public func resolveBlobReadRoute(caller : Principal, args : T.ResolveBlobReadRouteArgs) : Result.Result<T.ObjectStorageBlobReadRoute, Text> = Lib.resolveBlobReadRoute(store, caller, args);
+
+    public func resolveThumbnailReadRoute(caller : Principal, args : T.ResolveThumbnailReadRouteArgs) : Result.Result<T.ObjectStorageBlobReadRoute, Text> = Lib.resolveThumbnailReadRoute(store, caller, args);
+
+    public func prepareExternalBlobUpload(caller : Principal, args : T.PrepareExternalBlobUploadArgs) : async* Result.Result<T.PrepareExternalBlobUploadResult, Text> {
+      await* Lib.prepareExternalBlobUpload(store, caller, args, uploadGate, subscriptionRefreshGate);
+    };
+
+    public func commitExternalBlobUpload(caller : Principal, args : T.CommitExternalBlobUploadArgs) : async* Result.Result<(), Text> {
+      await* Lib.commitExternalBlobUpload(store, caller, args, uploadGate, subscriptionRefreshGate);
+    };
+
+    public func commitExternalThumbnailUpload(caller : Principal, args : T.CommitExternalThumbnailUploadArgs) : Result.Result<T.NodeDetails, Text> = Lib.commitExternalThumbnailUpload(store, caller, args);
   };
 };

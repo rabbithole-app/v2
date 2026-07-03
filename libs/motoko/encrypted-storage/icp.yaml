@@ -1,3 +1,6 @@
+networks:
+  - networks/local.yaml
+
 environments:
   - name: local
     network: local

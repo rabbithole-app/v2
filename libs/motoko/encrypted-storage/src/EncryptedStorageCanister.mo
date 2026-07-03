@@ -2,7 +2,7 @@ import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Principal "mo:core/Principal";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 
@@ -10,13 +10,21 @@ import EncryptedStorage "";
 import EncryptedStorageClass "Class";
 import T "Types";
 
-shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = this {
+shared ({ caller = owner }) persistent actor class EncryptedStorageCanister(initArgs : ?{
+  storageBackendType : ?T.StorageBackend;
+}) = this {
   transient let keyId : ManagementCanister.VetKdKeyid = {
     curve = #bls12_381_g2;
     name = "dfx_test_key";
   };
   transient let canisterId = Principal.fromActor(this);
-
+  transient let configuredStorageBackendType = switch (initArgs) {
+    case (?args) switch (args.storageBackendType) {
+      case (?storageBackendType) storageBackendType;
+      case null #OnChain;
+    };
+    case null #OnChain;
+  };
   var versionedStore = EncryptedStorage.initStableStore({
     accountOwner = owner;
     canisterId;
@@ -35,14 +43,15 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
     // Otherwise, use null.
     certs = null;
     backendId = null; // standalone mode — no backend
-    storageBackendType = #OnChain;
+    storageBackendType = configuredStorageBackendType;
+    objectStorageWritePolicy = null;
   });
   versionedStore := EncryptedStorage.upgradeStableStore(versionedStore, { accountOwner = owner; backendId = null });
   transient let storage = EncryptedStorage.fromVersion(versionedStore);
   transient let storageApi = EncryptedStorageClass.Storage(storage, null);
 
   func isCurrentController(principal : Principal) : async Bool {
-    let status = await IC.ic.canister_status({ canister_id = canisterId });
+    let status = await ic.canister_status({ canister_id = canisterId });
     Array.any(status.settings.controllers, func(controller : Principal) : Bool = Principal.equal(controller, principal));
   };
 
@@ -483,10 +492,16 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
   };
 
   public shared ({ caller }) func rewrapThumbnail(args : { entry : T.Entry; thumbnailRef : T.ThumbnailRef }) : async T.NodeDetails {
-    switch (EncryptedStorage.setThumbnail(storage, caller, {
-      entry = args.entry;
-      thumbnailRef = ?args.thumbnailRef;
-    })) {
+    switch (
+      EncryptedStorage.setThumbnail(
+        storage,
+        caller,
+        {
+          entry = args.entry;
+          thumbnailRef = ?args.thumbnailRef;
+        },
+      )
+    ) {
       case (#ok node) node;
       case (#err message) throw Error.reject(message);
     };
@@ -494,6 +509,148 @@ shared ({ caller = owner }) persistent actor class EncryptedStorageCanister() = 
 
   public shared ({ caller }) func updateDirectoryPolicy(args : T.UpdateDirectoryPolicyArguments) : async T.NodeDetails {
     switch (EncryptedStorage.updateDirectoryPolicy(storage, caller, args)) {
+      case (#ok node) node;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query func externalStorageHttpTransform(arg : T.ExternalStorageHttpTransformArg) : async { status : Nat; body : Blob; headers : [{ name : Text; value : Text }] } {
+    { status = arg.response.status; body = ""; headers = [] };
+  };
+
+  transient let externalStorageTransform : ?T.ExternalStorageHttpTransform = ?{
+    function = externalStorageHttpTransform;
+    context = "";
+  };
+
+  public shared ({ caller }) func configureExternalStorageTarget(args : T.ConfigureExternalStorageTargetArgs) : async T.ExternalStorageTargetView {
+    switch (await* storageApi.configureExternalStorageTarget(caller, args, externalStorageTransform)) {
+      case (#ok target) target;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func revalidateExternalStorageTarget(targetId : T.ExternalStorageTargetId) : async T.ExternalStorageTargetView {
+    switch (await* storageApi.revalidateExternalStorageTarget(caller, targetId, externalStorageTransform)) {
+      case (#ok target) target;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getExternalStorageCleanupStatus() : async T.ExternalStorageCleanupStatus {
+    switch (storageApi.getExternalStorageCleanupStatus(caller)) {
+      case (#ok status) status;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func sweepExternalStorageCleanup() : async T.ExternalStorageCleanupStatus {
+    switch (storageApi.sweepExternalStorageCleanup(caller)) {
+      case (#ok status) status;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func disableExternalStorageTarget(args : T.DisableExternalStorageTargetArgs) : async T.ExternalStorageTargetView {
+    switch (storageApi.disableExternalStorageTarget(caller, args)) {
+      case (#ok target) target;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func disconnectExternalStorageTarget(args : T.DisableExternalStorageTargetArgs) : async () {
+    switch (storageApi.disconnectExternalStorageTarget(caller, args)) {
+      case (#ok) {};
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listExternalStorageTargets() : async [T.ExternalStorageTargetView] {
+    switch (storageApi.listExternalStorageTargets(caller)) {
+      case (#ok targets) targets;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func getActiveExternalStorageTarget() : async ?T.ExternalStorageTargetView {
+    switch (storageApi.getActiveExternalStorageTarget(caller)) {
+      case (#ok target) target;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listExternalBlobReplicas() : async [T.ExternalBlobReplica] {
+    switch (storageApi.listExternalBlobReplicas(caller)) {
+      case (#ok replicas) replicas;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func listExternalStorageDeleteTasks() : async [T.ExternalStorageDeleteTaskView] {
+    switch (storageApi.listExternalStorageDeleteTasks(caller)) {
+      case (#ok tasks) tasks;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func runExternalStorageDeleteTask(taskId : Nat) : async T.ExternalStorageDeleteTaskView {
+    switch (await storageApi.runExternalStorageDeleteTask(caller, taskId, externalStorageTransform)) {
+      case (#ok task) task;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func runNextExternalStorageDeleteTask() : async T.ExternalStorageDeleteTaskView {
+    switch (await storageApi.runNextExternalStorageDeleteTask(caller, externalStorageTransform)) {
+      case (#ok task) task;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func externalBlobLocatorForTarget(args : T.ExternalTargetBlobLocatorArgs) : async T.ExternalTargetBlobLocator {
+    switch (storageApi.externalBlobLocatorForTarget(caller, args)) {
+      case (#ok locator) locator;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func resolveUploadRoute(args : T.ResolveUploadRouteArgs) : async T.ObjectStorageUploadRoute {
+    switch (storageApi.resolveUploadRoute(caller, args)) {
+      case (#ok route) route;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func resolveBlobReadRoute(args : T.ResolveBlobReadRouteArgs) : async T.ObjectStorageBlobReadRoute {
+    switch (storageApi.resolveBlobReadRoute(caller, args)) {
+      case (#ok route) route;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public query ({ caller }) func resolveThumbnailReadRoute(args : T.ResolveThumbnailReadRouteArgs) : async T.ObjectStorageBlobReadRoute {
+    switch (storageApi.resolveThumbnailReadRoute(caller, args)) {
+      case (#ok route) route;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func prepareExternalBlobUpload(args : T.PrepareExternalBlobUploadArgs) : async T.PrepareExternalBlobUploadResult {
+    switch (await* storageApi.prepareExternalBlobUpload(caller, args)) {
+      case (#ok result) result;
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func commitExternalBlobUpload(args : T.CommitExternalBlobUploadArgs) : async () {
+    switch (await* storageApi.commitExternalBlobUpload(caller, args)) {
+      case (#ok) {};
+      case (#err message) throw Error.reject(message);
+    };
+  };
+
+  public shared ({ caller }) func commitExternalThumbnailUpload(args : T.CommitExternalThumbnailUploadArgs) : async T.NodeDetails {
+    switch (storageApi.commitExternalThumbnailUpload(caller, args)) {
       case (#ok node) node;
       case (#err message) throw Error.reject(message);
     };

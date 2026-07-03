@@ -19,7 +19,7 @@ import LiminalApp "mo:liminal/App";
 import CORSMiddleware "mo:liminal/Middleware/CORS";
 import ZenDB "mo:zendb";
 import StorageTypes "mo:encrypted-storage/Types";
-import IC "mo:ic";
+import IC "mo:ic/Types";
 
 import TreasuryTypes "mo:treasury/Types";
 import TreasuryConst "mo:treasury/Const";
@@ -858,7 +858,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
-  public query func transformGitHubReleaseResponse(args : IC.TransformArg) : async IC.HttpRequestResult {
+  public query func transformGitHubReleaseResponse(args : StorageDeployerOrchestrator.ReleaseListTransformArg) : async IC.HttpRequestResult {
     { args.response with headers = [] };
   };
 
@@ -933,6 +933,14 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   /// `RecordingLicense`, `Queueing`) before handing off to the
   /// unified deploy queue.
   public shared ({ caller }) func purchaseLicenseAndCreateStorage(
+    storageBackendType : Payments.StorageBackendType,
+    vetKeyLevel : Payments.StorageVetKeyLevel,
+  ) : async Result.Result<Nat, PurchaseError> {
+    await purchaseLicenseAndCreateStorageInternal(caller, storageBackendType, vetKeyLevel);
+  };
+
+  func purchaseLicenseAndCreateStorageInternal(
+    caller : Principal,
     storageBackendType : Payments.StorageBackendType,
     vetKeyLevel : Payments.StorageVetKeyLevel,
   ) : async Result.Result<Nat, PurchaseError> {

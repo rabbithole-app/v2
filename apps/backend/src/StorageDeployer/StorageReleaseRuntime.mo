@@ -9,8 +9,6 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 
-import IC "mo:ic";
-
 import FrontendInstaller "FrontendInstaller";
 import GitHubReleases "GitHubReleases";
 import HttpDownloader "HttpDownloader";
@@ -19,7 +17,8 @@ import Types "Types";
 module StorageReleaseRuntime {
   public type ExtractionStatus = GitHubReleases.ExtractionStatus;
   public type ReleasesFullStatus = GitHubReleases.ReleasesFullStatus;
-  public type ReleaseListTransform = ?IC.Transform;
+  public type ReleaseListTransformArg = GitHubReleases.TransformArg;
+  public type ReleaseListTransform = ?GitHubReleases.Transform;
 
   type Store = {
     region : MemoryRegion.MemoryRegion;

@@ -530,6 +530,30 @@ describe("Feature Gating", () => {
       expect(status.subscriptionStatus[0]).toEqual({ free: null });
     });
 
+    test("connecting an external S3 target is rejected without Pro", async () => {
+      // Cache is #free after refresh; the gate fires before the bucket probe,
+      // so no HTTPS outcall is attempted.
+      storageActor.setIdentity(manager.ownerIdentity);
+      await storageActor.refreshSubscription();
+      const result = await storageActor.configureExternalStorageTarget({
+        region: "us-east-1",
+        displayName: [],
+        endpoint: "https://s3.example.com",
+        accessKeyId: "test-key",
+        secretAccessKey: "test-secret",
+        sessionToken: [],
+        prefix: "rabbithole/pro-gate",
+        bucket: "pro-gate-bucket",
+        targetId: [],
+        forcePathStyle: true,
+      });
+
+      expect("err" in result).toBe(true);
+      if ("err" in result) {
+        expect(result.err.message).toMatch(/Pro subscription/);
+      }
+    });
+
     test("refreshSubscription returns #active after Pro activation", async () => {
       await ensureOwnerProSubscription();
 

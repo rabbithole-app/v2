@@ -3,6 +3,7 @@ import Blob "mo:core/Blob";
 import Cycles "mo:core/Cycles";
 import Debug "mo:core/Debug";
 import Error "mo:core/Error";
+import Int "mo:core/Int";
 import Nat "mo:core/Nat";
 import Order "mo:core/Order";
 import Principal "mo:core/Principal";
@@ -13,7 +14,7 @@ import Result "mo:core/Result";
 import Timer "mo:core/Timer";
 import Time "mo:core/Time";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
 import MemoryRegion "mo:memory-region/MemoryRegion";
 import ManagementCanister "mo:ic-vetkeys/ManagementCanister";
 import Liminal "mo:liminal";
@@ -41,10 +42,12 @@ import StorageAccessClient "StorageAccessBridge/StorageClient";
 import StorageEnvironment "StorageEnvironment";
 import Utils "Utils/lib";
 
-shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(initArgs : {
+shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
+  initArgs : {
     owner : Principal;
     storageBackendType : ?T.StorageBackend;
-  }) = this {
+  }
+) = this {
   let owner = initArgs.owner;
 
   // Dynamic storage deployments receive these through canister settings
@@ -78,9 +81,13 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   let STORAGE_VETKD_DERIVE_KEY_MARGIN_CYCLES : Nat = 2_000_000_000;
   let STORAGE_ONCHAIN_UPLOAD_FUNDING_COOLDOWN : Time.Time = 60_000_000_000; // 60 seconds
   let STORAGE_FUNDING_IN_PROGRESS_ERROR : Text = "Storage funding is already in progress";
+  let EXTERNAL_STORAGE_DELETE_TASK_BATCH_SIZE : Nat = 4;
 
   var pendingStorageAccessEnvelopes : [StorageAccessClient.Envelope] = [];
   transient var uploadFundingInFlight : Bool = false;
+  transient var externalStorageDeleteCleanupRunning : Bool = false;
+  transient var externalStorageDeleteCleanupTimerId : ?Timer.TimerId = null;
+  transient var externalStorageDeleteCleanupTimerDelaySeconds : ?Nat = null;
   transient var uploadFundingRequestedBytes : Nat = 0;
   transient var uploadFundingRequestedTargetBalance : Nat = 0;
   transient var lastUploadFundingRequestAt : ?Time.Time = null;
@@ -232,11 +239,18 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       case (?t) t;
       case null #BlobStorage;
     };
+    // Write policy is not an install-time choice: BlobStorage vaults default to
+    // Caffeine-managed and switch to external S3 only after a target is
+    // configured post-deployment.
+    objectStorageWritePolicy = null;
   });
-  versionedStorage := EncryptedStorage.upgradeStableStore(versionedStorage, {
-    accountOwner = owner;
-    backendId;
-  });
+  versionedStorage := EncryptedStorage.upgradeStableStore(
+    versionedStorage,
+    {
+      accountOwner = owner;
+      backendId;
+    },
+  );
   transient let storage = EncryptedStorage.fromVersion(versionedStorage);
 
   func enqueueStorageAccessChanged(event : T.StoredStorageEvent) : () {
@@ -257,14 +271,18 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   // Create class wrapper with subscription gates
-  transient let es = EncryptedStorageClass.Storage(storage, ?{
-    canStoreFileBytes = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canStoreFileBytes(storage, bytes);
-    canShare = func() : Result.Result<(), Text> = SubscriptionGate.canShare(storage);
-    refreshSubscription = func() : async* Result.Result<T.SubscriptionStatus, Text> {
-      await* SubscriptionGate.ensureSubscription(storage, false);
-    };
-    onAccessChanged = ?enqueueStorageAccessChanged;
-  });
+  transient let es = EncryptedStorageClass.Storage(
+    storage,
+    ?{
+      canStoreFileBytes = func(bytes : Nat) : Result.Result<(), Text> = SubscriptionGate.canStoreFileBytes(storage, bytes);
+      canShare = func() : Result.Result<(), Text> = SubscriptionGate.canShare(storage);
+      canUseExternalStorage = func() : Result.Result<(), Text> = SubscriptionGate.canUseExternalStorage(storage);
+      refreshSubscription = func() : async* Result.Result<T.SubscriptionStatus, Text> {
+        await* SubscriptionGate.ensureSubscription(storage, false);
+      };
+      onAccessChanged = ?enqueueStorageAccessChanged;
+    },
+  );
 
   func classifyStorageError(message : Text) : T.StorageErrorCode {
     if (Text.startsWith(message, #text "permission denied:")) return #PermissionDenied;
@@ -279,7 +297,10 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     if (
       Text.contains(message, #text "Invalid") or
       Text.contains(message, #text "Expected") or
-      Text.contains(message, #text "out of bounds")
+      Text.contains(message, #text "out of bounds") or
+      Text.contains(message, #text " is required") or
+      Text.contains(message, #text " must ") or
+      Text.contains(message, #text " requires ")
     ) return #Validation;
     #Internal;
   };
@@ -305,7 +326,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   func refreshRuntimeStatus() : async Bool {
     try {
-      let status = await IC.ic.canister_status({ canister_id = canisterId });
+      let status = await ic.canister_status({ canister_id = canisterId });
       storage.cachedIdleBurnPerDay := ?status.idle_cycles_burned_per_day;
       cachedFreezingThresholdSeconds := ?status.settings.freezing_threshold;
       cachedRuntimeMemoryBytes := ?status.memory_size;
@@ -316,6 +337,83 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     };
   };
 
+  public query func externalStorageHttpTransform(arg : T.ExternalStorageHttpTransformArg) : async { status : Nat; body : Blob; headers : [{ name : Text; value : Text }] } {
+    { status = arg.response.status; body = ""; headers = [] };
+  };
+
+  transient let externalStorageTransform : ?T.ExternalStorageHttpTransform = ?{
+    function = externalStorageHttpTransform;
+    context = "";
+  };
+
+  // Cleanup is fully self-driving: sessions are swept and terminal records
+  // GC'd on every tick, the timer re-arms itself to the next due moment
+  // (task backoff or session expiry), and it survives upgrades via the
+  // scheduling call at init. The owner never has to drive the queue.
+  func externalStorageDeleteCleanupDelaySeconds() : ?Nat {
+    let { nextWakeAt } = es.externalCleanupPrepare();
+    switch (nextWakeAt) {
+      case (?at) {
+        let now = Time.now();
+        if (at <= now) {
+          ?0;
+        } else {
+          ?Int.abs((at - now + 999_999_999) / 1_000_000_000);
+        };
+      };
+      case null null;
+    };
+  };
+
+  func scheduleExternalStorageDeleteCleanup<system>() : () {
+    let ?delaySeconds = externalStorageDeleteCleanupDelaySeconds() else return;
+    switch (externalStorageDeleteCleanupTimerId) {
+      case (?timerId) {
+        switch (externalStorageDeleteCleanupTimerDelaySeconds) {
+          case (?scheduledDelay) {
+            if (delaySeconds >= scheduledDelay) return;
+          };
+          case null {};
+        };
+        Timer.cancelTimer(timerId);
+        externalStorageDeleteCleanupTimerId := null;
+        externalStorageDeleteCleanupTimerDelaySeconds := null;
+      };
+      case null {};
+    };
+    if (externalStorageDeleteCleanupRunning) return;
+
+    externalStorageDeleteCleanupTimerId := ?Timer.setTimer<system>(
+      #seconds delaySeconds,
+      func() : async () {
+        await runExternalStorageDeleteCleanup<system>();
+      },
+    );
+    externalStorageDeleteCleanupTimerDelaySeconds := ?delaySeconds;
+  };
+
+  func runExternalStorageDeleteCleanup<system>() : async () {
+    externalStorageDeleteCleanupTimerId := null;
+    externalStorageDeleteCleanupTimerDelaySeconds := null;
+    if (externalStorageDeleteCleanupRunning) {
+      return;
+    };
+
+    externalStorageDeleteCleanupRunning := true;
+    var processed : Nat = 0;
+    label cleanup while (processed < EXTERNAL_STORAGE_DELETE_TASK_BATCH_SIZE) {
+      switch (await es.runNextExternalStorageDeleteTaskInternal(externalStorageTransform)) {
+        // A failed attempt reschedules itself with backoff; keep draining the
+        // batch so one slow task never starves the rest of the queue.
+        case (#ok(_)) processed += 1;
+        case (#err(_)) break cleanup;
+      };
+    };
+    externalStorageDeleteCleanupRunning := false;
+
+    scheduleExternalStorageDeleteCleanup<system>();
+  };
+
   // Populate runtime cycle settings at startup so funding checks work immediately.
   ignore Timer.setTimer<system>(
     #seconds 0,
@@ -323,12 +421,12 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       ignore await refreshRuntimeStatus();
     },
   );
+  scheduleExternalStorageDeleteCleanup<system>();
 
   func isCurrentController(principal : Principal) : async Bool {
-    let status = await IC.ic.canister_status({ canister_id = canisterId });
+    let status = await ic.canister_status({ canister_id = canisterId });
     Array.any(status.settings.controllers, func(controller : Principal) : Bool = Principal.equal(controller, principal));
   };
-
 
   // Fire-and-forget low-cycles notification to backend
   func reportLowCyclesIfNeeded<system>() : () {
@@ -405,10 +503,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   func uploadWriteCost(bytes : Nat, chunkCount : Nat) : Nat {
     let perMessageCost = IC_INGRESS_MESSAGE_RECEPTION_CYCLES + IC_UPDATE_MESSAGE_EXECUTION_CYCLES;
-    let perByteCost =
-      IC_INGRESS_BYTE_RECEPTION_CYCLES +
-      STORAGE_ONCHAIN_STABLE_WRITE_EXECUTION_CYCLES_PER_BYTE +
-      STORAGE_ONCHAIN_HASH_INSTRUCTION_CYCLES_PER_BYTE;
+    let perByteCost = IC_INGRESS_BYTE_RECEPTION_CYCLES + STORAGE_ONCHAIN_STABLE_WRITE_EXECUTION_CYCLES_PER_BYTE + STORAGE_ONCHAIN_HASH_INSTRUCTION_CYCLES_PER_BYTE;
     (chunkCount * perMessageCost) + (bytes * perByteCost);
   };
 
@@ -421,9 +516,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   func commitOperationCost(chunkCount : Nat) : Nat {
-    IC_INGRESS_MESSAGE_RECEPTION_CYCLES +
-    IC_UPDATE_MESSAGE_EXECUTION_CYCLES +
-    commitMetadataCycles(chunkCount);
+    IC_INGRESS_MESSAGE_RECEPTION_CYCLES + IC_UPDATE_MESSAGE_EXECUTION_CYCLES + commitMetadataCycles(chunkCount);
   };
 
   func vetKeyDeriveKeyBaseCycles() : Nat {
@@ -478,12 +571,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     let activeCommitMetadataCycles = commitMetadataCycles(activeUploadedChunkCount);
     let activeCommitCost = commitOperationCost(activeUploadedChunkCount);
     let activeVetKeyDerivationCost = vetKeyDerivationCost(activeSessions.size());
-    let minimumSafeBalance =
-      postWriteFreezingReserve +
-      remainingUploadCost +
-      activeVetKeyDerivationCost +
-      activeCommitCost +
-      STORAGE_ONCHAIN_UPLOAD_OPERATION_MARGIN_CYCLES;
+    let minimumSafeBalance = postWriteFreezingReserve + remainingUploadCost + activeVetKeyDerivationCost + activeCommitCost + STORAGE_ONCHAIN_UPLOAD_OPERATION_MARGIN_CYCLES;
     {
       memory = {
         projectedAllocatedBytes;
@@ -772,26 +860,25 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     onVerified = storeVerifiedIdentityAttributes;
   });
 
-  transient let installerAssetPermissions : ?HttpAssets.SetPermissions =
-    if (installer == owner) {
-      null;
-    } else {
-      ?{
-        prepare = [];
-        commit = [installer];
-        manage_permissions = [];
-      };
+  transient let installerAssetPermissions : ?HttpAssets.SetPermissions = if (installer == owner) {
+    null;
+  } else {
+    ?{
+      prepare = [];
+      commit = [installer];
+      manage_permissions = [];
     };
+  };
   transient var assetStore = HttpAssets.Assets(assetStableData, installerAssetPermissions);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
 
   func isReleaseStateWriter(caller : Principal) : Bool {
-    Principal.equal(caller, owner)
-    or Principal.equal(caller, installer)
-    or (switch (backendId) {
-      case (?id) Principal.equal(caller, id);
-      case null false;
-    });
+    Principal.equal(caller, owner) or Principal.equal(caller, installer) or (
+      switch (backendId) {
+        case (?id) Principal.equal(caller, id);
+        case null false;
+      }
+    );
   };
 
   func isFrontendUserAsset(key : Text) : Bool {
@@ -985,6 +1072,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       case (#ok _) {
         reportLowCyclesIfNeeded<system>();
         requestOnChainUploadFundingIfNeeded<system>(0);
+        scheduleExternalStorageDeleteCleanup<system>();
         #ok;
       };
       case (#err message) #err(storageError(message));
@@ -1000,7 +1088,10 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func delete(args : T.DeleteArguments) : async () {
     switch (es.delete(caller, args)) {
-      case (#ok _) { reportLowCyclesIfNeeded<system>() };
+      case (#ok _) {
+        reportLowCyclesIfNeeded<system>();
+        scheduleExternalStorageDeleteCleanup<system>();
+      };
       case (#err(message)) throw Error.reject(message);
     };
   };
@@ -1057,6 +1148,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
         lastUploadCommitMeasurement := ?measurement;
         reportLowCyclesIfNeeded<system>();
         requestOnChainUploadFundingIfNeeded<system>(0);
+        scheduleExternalStorageDeleteCleanup<system>();
         #ok;
       };
       case (#err message) #err(storageError(message));
@@ -1536,7 +1628,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     switch (es.validateVetkeyAccess(caller, keyId)) {
       case (#err(message)) throw Error.reject(message);
       case (#ok(input)) {
-        let response = await (with cycles = vetKeyDeriveKeyAttachedCycles()) IC.ic.vetkd_derive_key({
+        let response = await (with cycles = vetKeyDeriveKeyAttachedCycles()) ic.vetkd_derive_key({
           context = storage.domainSeparatorBytes;
           input;
           key_id = storage.vetKdKeyId;
@@ -1591,7 +1683,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     switch (es.listOwnerEquivalentPrincipals(owner)) {
       case (#ok(records)) {
         await blobStorageCashier.syncExactFullAccessDelegates(
-          Array.map<T.OwnerEquivalentPrincipal, Principal>(records, func(record) = record.principal),
+          Array.map<T.OwnerEquivalentPrincipal, Principal>(records, func(record) = record.principal)
         );
       };
       case (#err(message)) Runtime.trap("failed to list owner-equivalent principals: " # message);
@@ -1673,10 +1765,15 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   public shared ({ caller }) func preflightCaffeineUploadBatch(args : [T.PreflightCaffeineUploadArgs]) : async T.StorageResult<()> {
     var reservations : [BlobStorageCashier.UploadReservationRequest] = [];
     for (item in args.vals()) {
-      switch (es.create(caller, {
-        entry = item.entry;
-        createMode = #GetOrCreate;
-      })) {
+      switch (
+        es.create(
+          caller,
+          {
+            entry = item.entry;
+            createMode = #GetOrCreate;
+          },
+        )
+      ) {
         case (#ok _) {};
         case (#err message) {
           return #err(storageError(message));
@@ -1684,10 +1781,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       };
       switch (await* es.preflightCaffeineUpload(caller, item)) {
         case (#ok _) {
-          reservations := Array.concat(reservations, [{
-            key = caffeineUploadReservationKey(caller, item.entry);
-            declaredUploadBytes = item.size;
-          }]);
+          reservations := Array.concat(reservations, [{ key = caffeineUploadReservationKey(caller, item.entry); declaredUploadBytes = item.size }]);
         };
         case (#err message) {
           return #err(storageError(message));
@@ -1711,6 +1805,7 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     switch (result) {
       case (#ok _) {
         reportLowCyclesIfNeeded<system>();
+        scheduleExternalStorageDeleteCleanup<system>();
         #ok;
       };
       case (#err message) {
@@ -1721,6 +1816,131 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public query func getStorageBackendType() : async T.StorageBackend {
     es.getStorageBackendType();
+  };
+
+  public shared ({ caller }) func configureExternalStorageTarget(args : T.ConfigureExternalStorageTargetArgs) : async T.StorageResult<T.ExternalStorageTargetView> {
+    switch (await* es.configureExternalStorageTarget(caller, args, externalStorageTransform)) {
+      case (#ok(target)) {
+        // A validated (re)configure may unblock a credential-paused queue.
+        scheduleExternalStorageDeleteCleanup<system>();
+        #ok(target);
+      };
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func revalidateExternalStorageTarget(targetId : T.ExternalStorageTargetId) : async T.StorageResult<T.ExternalStorageTargetView> {
+    switch (await* es.revalidateExternalStorageTarget(caller, targetId, externalStorageTransform)) {
+      case (#ok(target)) {
+        scheduleExternalStorageDeleteCleanup<system>();
+        #ok(target);
+      };
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func disableExternalStorageTarget(args : T.DisableExternalStorageTargetArgs) : async T.StorageResult<T.ExternalStorageTargetView> {
+    switch (es.disableExternalStorageTarget(caller, args)) {
+      case (#ok(target)) #ok(target);
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func disconnectExternalStorageTarget(args : T.DisableExternalStorageTargetArgs) : async T.StorageResult<()> {
+    switch (es.disconnectExternalStorageTarget(caller, args)) {
+      case (#ok) #ok;
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public query ({ caller }) func listExternalStorageTargets() : async T.StorageResult<[T.ExternalStorageTargetView]> {
+    switch (es.listExternalStorageTargets(caller)) {
+      case (#ok(targets)) #ok(targets);
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public query ({ caller }) func getActiveExternalStorageTarget() : async T.StorageResult<?T.ExternalStorageTargetView> {
+    switch (es.getActiveExternalStorageTarget(caller)) {
+      case (#ok(target)) #ok(target);
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public query ({ caller }) func getExternalStorageCleanupStatus() : async T.StorageResult<{
+    replicas : [T.ExternalBlobReplica];
+    deleteTasks : [T.ExternalStorageDeleteTaskView];
+    summary : T.ExternalStorageCleanupStatus;
+  }> {
+    let replicas = switch (es.listExternalBlobReplicas(caller)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(storageError(message));
+    };
+    let deleteTasks = switch (es.listExternalStorageDeleteTasks(caller)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(storageError(message));
+    };
+    let summary = switch (es.getExternalStorageCleanupStatus(caller)) {
+      case (#ok(value)) value;
+      case (#err(message)) return #err(storageError(message));
+    };
+    #ok({ replicas; deleteTasks; summary });
+  };
+
+  public query ({ caller }) func resolveUploadRoute(args : T.ResolveUploadRouteArgs) : async T.StorageResult<T.ObjectStorageUploadRoute> {
+    switch (es.resolveUploadRoute(caller, args)) {
+      case (#ok(route)) #ok(route);
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public query ({ caller }) func resolveBlobReadRoute(args : T.ResolveBlobReadRouteArgs) : async T.StorageResult<T.ObjectStorageBlobReadRoute> {
+    switch (es.resolveBlobReadRoute(caller, args)) {
+      case (#ok(route)) #ok(route);
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public query ({ caller }) func resolveThumbnailReadRoute(args : T.ResolveThumbnailReadRouteArgs) : async T.StorageResult<T.ObjectStorageBlobReadRoute> {
+    switch (es.resolveThumbnailReadRoute(caller, args)) {
+      case (#ok(route)) #ok(route);
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func prepareExternalBlobUpload(args : T.PrepareExternalBlobUploadArgs) : async T.StorageResult<T.PrepareExternalBlobUploadResult> {
+    switch (await* es.prepareExternalBlobUpload(caller, args)) {
+      case (#ok(result)) #ok(result);
+      case (#err(message)) #err(storageError(message));
+    };
+  };
+
+  public shared ({ caller }) func commitExternalBlobUpload(args : T.CommitExternalBlobUploadArgs) : async T.StorageResult<()> {
+    switch (await* es.commitExternalBlobUpload(caller, args)) {
+      case (#ok) {
+        reportLowCyclesIfNeeded<system>();
+        scheduleExternalStorageDeleteCleanup<system>();
+        #ok;
+      };
+      case (#err(message)) {
+        scheduleExternalStorageDeleteCleanup<system>();
+        #err(storageError(message));
+      };
+    };
+  };
+
+  public shared ({ caller }) func commitExternalThumbnailUpload(args : T.CommitExternalThumbnailUploadArgs) : async T.StorageResult<T.NodeDetails> {
+    switch (es.commitExternalThumbnailUpload(caller, args)) {
+      case (#ok(node)) {
+        reportLowCyclesIfNeeded<system>();
+        scheduleExternalStorageDeleteCleanup<system>();
+        #ok(node);
+      };
+      case (#err(message)) {
+        scheduleExternalStorageDeleteCleanup<system>();
+        #err(storageError(message));
+      };
+    };
   };
 
   public shared ({ caller }) func setStorageReleaseState(args : StorageReleaseStateInput) : async () {
@@ -1781,10 +2001,15 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func rewrapThumbnail(args : { entry : T.Entry; thumbnailRef : T.ThumbnailRef }) : async T.NodeDetails {
     assert not Principal.isAnonymous(caller);
-    switch (es.setThumbnail(caller, {
-      entry = args.entry;
-      thumbnailRef = ?args.thumbnailRef;
-    })) {
+    switch (
+      es.setThumbnail(
+        caller,
+        {
+          entry = args.entry;
+          thumbnailRef = ?args.thumbnailRef;
+        },
+      )
+    ) {
       case (#ok node) node;
       case (#err message) throw Error.reject(message);
     };
@@ -1792,11 +2017,16 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
 
   public shared ({ caller }) func saveThumbnail(args : { entry : T.Entry; thumbnail : { content : Blob; contentType : Text; encryption : T.ThumbnailEncryptionRef } }) : async T.NodeDetails {
     assert not Principal.isAnonymous(caller);
-    switch (es.prepareThumbnailUpload(caller, {
-      entry = args.entry;
-      contentType = args.thumbnail.contentType;
-      size = args.thumbnail.content.size();
-    })) {
+    switch (
+      es.prepareThumbnailUpload(
+        caller,
+        {
+          entry = args.entry;
+          contentType = args.thumbnail.contentType;
+          size = args.thumbnail.content.size();
+        },
+      )
+    ) {
       case (#ok prepared) switch (prepared.storageBackend) {
         case (#OnChain) {};
         case (#BlobStorage) throw Error.reject("Use Blob Storage thumbnail upload for this entry");

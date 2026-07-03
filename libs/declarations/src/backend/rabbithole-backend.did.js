@@ -1146,7 +1146,7 @@ export const idlFactory = ({ IDL }) => {
     'body' : IDL.Vec(IDL.Nat8),
     'headers' : IDL.Vec(HttpHeader),
   });
-  const TransformArg = IDL.Record({
+  const ReleaseListTransformArg = IDL.Record({
     'context' : IDL.Vec(IDL.Nat8),
     'response' : HttpRequestResult,
   });
@@ -1456,7 +1456,7 @@ export const idlFactory = ({ IDL }) => {
     'stopStorageDeployer' : IDL.Func([], [], []),
     'topUpFromBalance' : IDL.Func([IDL.Principal, IDL.Nat], [Result], []),
     'transformGitHubReleaseResponse' : IDL.Func(
-        [TransformArg],
+        [ReleaseListTransformArg],
         [HttpRequestResult],
         ['query'],
       ),

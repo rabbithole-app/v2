@@ -629,6 +629,9 @@ describe("StorageDeployer", () => {
   // ═══════════════════════════════════════════════════════════════
 
   test("should check if storage deployer is running", async () => {
+    // PocketIC >= 14 needs explicit ticks for the backend's zero-delay
+    // startup timer that launches the deployer orchestrator.
+    await manager.pic.tick(3);
     const isRunning = await backendFixture.actor.isStorageDeployerRunning();
     console.log("Storage deployer running:", isRunning);
     expect(isRunning).toBe(true);

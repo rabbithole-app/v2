@@ -9,7 +9,8 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Prim "mo:prim";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Storage "mo:caffeineai-object-storage/Storage";
 
 import Cashier "../Types/Cashier";
@@ -123,7 +124,7 @@ module {
 
   func canisterReservedCycles() : async Nat {
     try {
-      let status = await IC.ic.canister_status({ canister_id = Prim.getSelfPrincipal<system>() });
+      let status = await ic.canister_status({ canister_id = Prim.getSelfPrincipal<system>() });
       let freezingReserve = divCeil(
         status.idle_cycles_burned_per_day * status.settings.freezing_threshold,
         SECONDS_PER_DAY,

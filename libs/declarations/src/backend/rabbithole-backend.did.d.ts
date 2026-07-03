@@ -713,11 +713,6 @@ export interface Rabbithole {
   >,
   'getSettings' : ActorMethod<[], UserSettings>,
   'getSolAddress' : ActorMethod<[], [] | [string]>,
-  /**
-   * / Admin-only recovery for non-terminal creations that lost their transient
-   * / queue/timer state. Upgrades are reverted to Completed; initial creations
-   * / become Failed and can then use the regular recoverFailedStorage flow.
-   */
   'getStorageFundingStatus' : ActorMethod<[], StorageFundingStatus>,
   'getStorageReleaseAdminStatus' : ActorMethod<[], ReleasesFullStatus>,
   'getStorageUpgradePlan' : ActorMethod<
@@ -874,7 +869,7 @@ export interface Rabbithole {
   'stopStorageDeployer' : ActorMethod<[], undefined>,
   'topUpFromBalance' : ActorMethod<[Principal, bigint], Result>,
   'transformGitHubReleaseResponse' : ActorMethod<
-    [TransformArg],
+    [ReleaseListTransformArg],
     HttpRequestResult
   >,
   'triggerAutoRenewals' : ActorMethod<[], undefined>,
@@ -951,6 +946,10 @@ export interface ReleaseFullStatus {
   'manifest' : [] | [StorageReleaseManifest],
   'draft' : boolean,
   'prerelease' : boolean,
+}
+export interface ReleaseListTransformArg {
+  'context' : Uint8Array,
+  'response' : HttpRequestResult,
 }
 export interface ReleaseNoteSection {
   'title' : string,
@@ -1281,10 +1280,6 @@ export interface TransferRecord {
   'txHash' : [] | [string],
   'amount' : bigint,
   'evmAddress' : [] | [string],
-}
-export interface TransformArg {
-  'context' : Uint8Array,
-  'response' : HttpRequestResult,
 }
 export interface TreasuryInitArgsV1 { 'chains' : [] | [Array<ChainConfig>] }
 export interface UpdateInfo {

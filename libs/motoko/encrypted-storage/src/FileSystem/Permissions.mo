@@ -9,7 +9,8 @@ import Blob "mo:core/Blob";
 import List "mo:core/List";
 import Array "mo:core/Array";
 
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Map "mo:map/Map";
 import Vector "mo:vector";
 
@@ -19,8 +20,6 @@ import Path "../Path";
 import Utils "../Utils";
 
 module Permissions {
-  let { ic } = IC;
-
   let { hashNodes; permissionCompare } = Utils;
 
   let { phash } = Map;

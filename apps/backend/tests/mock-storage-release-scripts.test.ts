@@ -189,7 +189,10 @@ describe("mock storage release scripts", () => {
       "storage-v0.1.0",
     ]);
     expect(manifest.version).toBe("0.2.0-dev");
-    expect(manifest.upgrade.compatibleFrom).toEqual(["0.1.0"]);
+    // compatibleFrom is inferred from .most signatures found under
+    // mock/assets: 0.1.1-dev shares the fixture signature, while the
+    // baseline 0.1.0 has no local signature and is skipped.
+    expect(manifest.upgrade.compatibleFrom).toEqual(["0.1.1-dev"]);
   });
 
   test("does not inherit compatibleFrom while rewriting the baseline", async () => {

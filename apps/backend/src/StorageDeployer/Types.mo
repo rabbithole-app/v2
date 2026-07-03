@@ -1,7 +1,7 @@
 import Time "mo:core/Time";
 import Principal "mo:core/Principal";
 
-import IC "mo:ic";
+import IC "mo:ic/Types";
 
 import TreasuryTypes "mo:treasury/Types";
 import ZenDB "mo:zendb";
