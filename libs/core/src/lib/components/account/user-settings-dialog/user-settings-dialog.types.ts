@@ -7,6 +7,7 @@ export type UserSettingsDialogSection = 'settings' | 'subscription' | 'wallet';
 export type UserSettingsProUpgradeSource =
   | 'encrypt'
   | 'expired-subscription'
+  | 'external-storage'
   | 'file-size-limit'
   | 'managed-funding'
   | 'pricing'

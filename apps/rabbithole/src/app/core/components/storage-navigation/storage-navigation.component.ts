@@ -12,6 +12,7 @@ import { ActivatedRoute } from "@angular/router";
 import { provideIcons } from "@ng-icons/core";
 import {
   lucideClipboardList,
+  lucideCloud,
   lucideDatabase,
   lucideFolder,
   lucideHardDrive,
@@ -22,9 +23,11 @@ import { NavigationComponent, NavItem } from "@rabbithole/core";
 import {
   type AccessRequestsCapability,
   AccessRequestsCapabilityService,
+  injectEncryptedStorage,
   provideEncryptedStorage,
   provideEncryptedStorageCanisterId,
 } from "@rabbithole/core/storage-runtime";
+import type { StorageBackend } from "@rabbithole/declarations/encrypted-storage";
 import {
   HlmSidebarGroup,
   HlmSidebarGroupContent,
@@ -49,6 +52,7 @@ const EMPTY_ACCESS_REQUESTS_CAPABILITY: AccessRequestsCapability = {
   ],
   providers: [
     provideIcons({
+      lucideCloud,
       lucideDatabase,
       lucideHardDrive,
       lucideFolder,
@@ -71,6 +75,12 @@ export class StorageNavigationComponent {
       this.#loadAccessRequestsCapability(canisterId),
     defaultValue: EMPTY_ACCESS_REQUESTS_CAPABILITY,
   });
+   
+  readonly #storageBackend = resource({
+    params: () => this.canisterId(),
+    loader: ({ params: canisterId }) => this.#loadStorageBackend(canisterId),
+    defaultValue: null,
+  });
   data: Signal<NavItem[]> = computed(() => {
     const canisterId = this.canisterId();
     if (!canisterId) return [];
@@ -87,6 +97,17 @@ export class StorageNavigationComponent {
         url: `/dashboard/${canisterId}/drive`,
         icon: "lucideFolder",
       },
+      // External S3 management only applies to Blob Storage vaults;
+      // on-chain vaults cannot switch their data plane.
+      ...(isBlobStorageBackend(this.#storageBackend.value())
+        ? [
+            {
+              title: "Data storage",
+              url: `/dashboard/${canisterId}/storage-settings`,
+              icon: "lucideCloud",
+            },
+          ]
+        : []),
       ...(accessRequestsCapability.canManage
         ? [
             {
@@ -131,4 +152,34 @@ export class StorageNavigationComponent {
       return EMPTY_ACCESS_REQUESTS_CAPABILITY;
     }
   }
+
+  async #loadStorageBackend(
+    canisterId: string | null,
+  ): Promise<StorageBackend | null> {
+    if (!canisterId) {
+      return null;
+    }
+
+    try {
+      return await runInInjectionContext(
+        Injector.create({
+          providers: [
+            provideEncryptedStorageCanisterId(canisterId),
+            provideEncryptedStorage(),
+          ],
+          parent: this.#injector,
+        }),
+        async () => {
+          const encryptedStorage = injectEncryptedStorage()();
+          return await encryptedStorage.getStorageBackend();
+        },
+      );
+    } catch {
+      return null;
+    }
+  }
+}
+
+function isBlobStorageBackend(backend: StorageBackend | null): boolean {
+  return backend !== null && "BlobStorage" in backend;
 }

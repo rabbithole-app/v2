@@ -7,4 +7,5 @@ export * from './lib/file-list';
 export * from './lib/payment';
 export * from './lib/releases';
 export * from './lib/shared-with-me';
+export * from './lib/storage-overview';
 export * from './lib/storages';

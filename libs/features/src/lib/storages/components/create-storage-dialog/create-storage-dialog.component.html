@@ -35,20 +35,24 @@
               <hlm-radio-group [value]="storageBackend()" (valueChange)="$event && selectStorageBackend($event)">
                 <div
                   class="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/50 data-[checked=true]:border-primary data-[checked=true]:bg-muted/50"
-                  [attr.data-checked]="storageBackend() === 'BlobStorage'"
+                  [attr.data-checked]="storageBackend() === 'ManagedBlobStorage'"
                   role="button" tabindex="0"
-                  (click)="selectStorageBackend('BlobStorage')"
-                  (keydown.enter)="selectStorageBackend('BlobStorage')"
-                  (keydown.space)="selectStorageBackend('BlobStorage'); $event.preventDefault()"
+                  (click)="selectStorageBackend('ManagedBlobStorage')"
+                  (keydown.enter)="selectStorageBackend('ManagedBlobStorage')"
+                  (keydown.space)="selectStorageBackend('ManagedBlobStorage'); $event.preventDefault()"
                 >
-                  <hlm-radio value="BlobStorage" class="mt-0.5"><hlm-radio-indicator /></hlm-radio>
+                  <hlm-radio value="ManagedBlobStorage" class="mt-0.5"><hlm-radio-indicator /></hlm-radio>
                   <div class="flex-1">
                     <div class="flex items-center gap-2">
                       <ng-icon hlmIcon name="lucideCloud" size="sm" />
-                      <span class="font-medium">Blob Storage</span>
+                      <span class="font-medium">Managed Blob Storage</span>
                       <span class="text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">Recommended</span>
                     </div>
-                    <div class="text-muted-foreground text-sm mt-1">Off-chain encrypted storage. ~$0.05/GB/month.</div>
+                    <div class="text-muted-foreground text-sm mt-1">
+                      Off-chain encrypted storage. ~$0.05/GB/month. Your own
+                      S3-compatible bucket can be connected after the vault is
+                      created.
+                    </div>
                   </div>
                 </div>
 

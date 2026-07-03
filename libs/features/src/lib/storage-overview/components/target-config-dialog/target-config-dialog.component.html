@@ -1,0 +1,206 @@
+<hlm-dialog [state]="_state()" (stateChanged)="_stateChanged($event)">
+  <hlm-dialog-content *hlmDialogPortal class="sm:max-w-2xl">
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>
+        {{ _mode() === 'rotate' ? 'Edit S3 credentials' : 'Connect S3 target' }}
+      </h3>
+      <p hlmDialogDescription>
+        @if (_mode() === 'rotate' && _selectedTarget(); as target) {
+          Update credentials for {{ _targetLabel(target) }}. The physical
+          target stays unchanged.
+        } @else {
+          Add an S3-compatible bucket as the next encrypted blob target.
+        }
+        Access is verified against the bucket before anything is saved.
+      </p>
+    </hlm-dialog-header>
+
+    <form [formGroup]="_form" (ngSubmit)="_submit()">
+      <div class="no-scrollbar -mx-4 max-h-[65vh] overflow-y-auto px-4">
+        <div hlmFieldGroup class="gap-4">
+          <hlm-toggle-group
+            type="single"
+            variant="outline"
+            [value]="_mode()"
+            [nullable]="false"
+            (valueChange)="_modeValueChanged($event)"
+          >
+            <button
+              hlmToggleGroupItem
+              value="rotate"
+              [disabled]="_targets().length === 0"
+            >
+              Edit credentials
+            </button>
+            <button hlmToggleGroupItem value="new">New target</button>
+          </hlm-toggle-group>
+
+          @if (_mode() === 'rotate' && _selectedTarget(); as target) {
+            <div hlmAlert>
+              <ng-icon hlmAlertIcon name="lucideKeyRound" />
+              <h4 hlmAlertTitle>Editing {{ _targetLabel(target) }}</h4>
+              <p hlmAlertDescription>
+                Endpoint, bucket and prefix stay unchanged. Saving this target
+                also makes it active for future uploads.
+              </p>
+            </div>
+          }
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div hlmField>
+              <label hlmFieldLabel for="s3-display-name">Display name</label>
+              <input
+                hlmInput
+                id="s3-display-name"
+                formControlName="displayName"
+                autocomplete="off"
+                placeholder="My S3 storage"
+              />
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="s3-region">Region</label>
+              <input
+                hlmInput
+                id="s3-region"
+                formControlName="region"
+                autocomplete="off"
+              />
+              @if (_controlInvalid('region')) {
+                <hlm-field-error>Region is required.</hlm-field-error>
+              }
+            </div>
+
+            <div hlmField class="sm:col-span-2">
+              <label hlmFieldLabel for="s3-endpoint">Endpoint</label>
+              <input
+                hlmInput
+                id="s3-endpoint"
+                formControlName="endpoint"
+                autocomplete="off"
+                placeholder="https://s3.example.com"
+              />
+              <p hlmFieldDescription>
+                HTTPS origin only, without path, query or fragment.
+              </p>
+              @if (_controlInvalid('endpoint')) {
+                <hlm-field-error>Enter an HTTPS endpoint.</hlm-field-error>
+              }
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="s3-bucket">Bucket</label>
+              <input
+                hlmInput
+                id="s3-bucket"
+                formControlName="bucket"
+                autocomplete="off"
+                placeholder="rabbithole"
+              />
+              @if (_controlInvalid('bucket')) {
+                <hlm-field-error>
+                  Bucket is required and cannot contain /.
+                </hlm-field-error>
+              }
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="s3-prefix">Prefix</label>
+              <input
+                hlmInput
+                id="s3-prefix"
+                formControlName="prefix"
+                autocomplete="off"
+                placeholder="rabbithole/storage-canister"
+              />
+              <p hlmFieldDescription>
+                Object keys are stored under this prefix.
+              </p>
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="s3-access-key">Access key ID</label>
+              <input
+                hlmInput
+                id="s3-access-key"
+                formControlName="accessKeyId"
+                autocomplete="off"
+              />
+              @if (_controlInvalid('accessKeyId')) {
+                <hlm-field-error>Access key ID is required.</hlm-field-error>
+              }
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="s3-secret-key">Secret access key</label>
+              <input
+                hlmInput
+                id="s3-secret-key"
+                type="password"
+                formControlName="secretAccessKey"
+                autocomplete="new-password"
+              />
+              @if (_controlInvalid('secretAccessKey')) {
+                <hlm-field-error>
+                  Secret access key is required.
+                </hlm-field-error>
+              }
+            </div>
+
+            <div hlmField class="sm:col-span-2">
+              <label hlmFieldLabel for="s3-session-token">Session token</label>
+              <input
+                hlmInput
+                id="s3-session-token"
+                type="password"
+                formControlName="sessionToken"
+                autocomplete="new-password"
+              />
+              <p hlmFieldDescription>
+                Optional. Leave empty for long-lived access keys.
+              </p>
+            </div>
+
+            <div hlmField orientation="horizontal" class="sm:col-span-2">
+              <div>
+                <label hlmFieldLabel for="s3-path-style">
+                  Force path-style URLs
+                </label>
+                <p hlmFieldDescription>
+                  Usually needed for MinIO and many S3-compatible providers.
+                </p>
+              </div>
+              <hlm-switch
+                inputId="s3-path-style"
+                formControlName="forcePathStyle"
+                aria-label="Force path-style URLs"
+              />
+            </div>
+          </div>
+
+          @if (_submitError(); as submitError) {
+            <div hlmAlert variant="destructive">
+              <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+              <h4 hlmAlertTitle>S3 target was not saved</h4>
+              <p hlmAlertDescription>{{ submitError }}</p>
+            </div>
+          }
+        </div>
+      </div>
+
+      <hlm-dialog-footer class="mt-4">
+        <button hlmBtn type="button" variant="outline" hlmDialogClose>
+          Cancel
+        </button>
+        <button hlmBtn type="submit" [disabled]="_saving()">
+          @if (_saving()) {
+            <hlm-spinner class="size-4" />
+            Validating bucket access…
+          } @else {
+            {{ _mode() === 'rotate' ? 'Test & update' : 'Test & connect' }}
+          }
+        </button>
+      </hlm-dialog-footer>
+    </form>
+  </hlm-dialog-content>
+</hlm-dialog>

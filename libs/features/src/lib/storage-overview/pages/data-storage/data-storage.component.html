@@ -1,0 +1,177 @@
+<ng-template rbthCorePageHeaderActions>
+  <div hlmButtonGroup>
+    <button
+      hlmBtn
+      variant="outline"
+      size="icon"
+      [disabled]="_targetsResource.isLoading()"
+      [hlmTooltip]="'Refresh'"
+      (click)="_refresh()"
+    >
+      @if (_targetsResource.isLoading()) {
+        <hlm-spinner class="size-4" />
+      } @else {
+        <ng-icon hlmIcon size="sm" name="lucideRefreshCw" />
+      }
+      <span class="sr-only">Refresh</span>
+    </button>
+    <button hlmBtn variant="outline" type="button" (click)="_openConnectDialog()">
+      <ng-icon hlmIcon size="sm" name="lucidePlug" />
+      Connect target
+    </button>
+  </div>
+</ng-template>
+
+<div class="flex flex-col gap-8">
+  @if (_targetsResource.error(); as loadError) {
+    <div hlmAlert>
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>Storage target settings are unavailable</h4>
+      <p hlmAlertDescription>
+        {{ _loadErrorMessage(loadError) }}
+      </p>
+    </div>
+  }
+
+  @if (_setupRequired()) {
+    <div hlmAlert variant="destructive">
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>External S3 bucket is not connected</h4>
+      <p hlmAlertDescription>
+        This vault stores encrypted data in your own S3-compatible bucket.
+        Uploads are paused until one is connected.
+      </p>
+      <div class="mt-2">
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          variant="outline"
+          (click)="_openConnectDialog()"
+        >
+          <ng-icon hlmIcon size="sm" name="lucidePlug" />
+          Connect bucket
+        </button>
+      </div>
+    </div>
+  }
+
+  @for (target of _credentialBlockedTargets(); track target.id) {
+    <div hlmAlert variant="destructive">
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>
+        Bucket access failed for {{ _targetLabel(target) }}
+      </h4>
+      <p hlmAlertDescription>
+        The stored access key was rejected by the S3 provider. Uploads and
+        automatic cleanup for this target are paused until working credentials
+        are saved.
+      </p>
+      <div class="mt-2 flex gap-2">
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          variant="outline"
+          (click)="_openEditDialog(target)"
+        >
+          <ng-icon hlmIcon size="sm" name="lucideKeyRound" />
+          Update credentials
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          variant="ghost"
+          [disabled]="_revalidatingTargetId() === target.id"
+          (click)="_revalidate(target)"
+        >
+          @if (_revalidatingTargetId() === target.id) {
+            <hlm-spinner class="size-4" />
+          }
+          Re-check access
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (_missingReplicas().length > 0) {
+    <div hlmAlert variant="destructive">
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>Some content is missing from the bucket</h4>
+      <p hlmAlertDescription>
+        A cleanup ran while the same content was being re-uploaded.
+        Re-uploading the affected files restores them:
+        @for (replica of _missingReplicas(); track replica.id) {
+          <span class="font-mono text-xs">{{ replica.rootHashHex }}</span>
+        }
+      </p>
+    </div>
+  }
+
+  <section class="space-y-4">
+    <div>
+      <h2 class="text-lg font-semibold">Current target</h2>
+      <p class="text-sm text-muted-foreground">
+        Physical location used by external encrypted blobs.
+      </p>
+    </div>
+
+    @if (_targetsResource.isLoading() && !_targetsResource.hasValue()) {
+      <div class="grid md:grid-cols-2">
+        <hlm-card size="sm">
+          <div hlmCardHeader>
+            <hlm-skeleton class="h-4 w-40" />
+            <hlm-skeleton class="h-3.5 w-56" />
+          </div>
+          <div hlmCardContent class="grid gap-2">
+            <hlm-skeleton class="h-3.5 w-full" />
+            <hlm-skeleton class="h-3.5 w-full" />
+            <hlm-skeleton class="h-3.5 w-3/4" />
+          </div>
+          <div hlmCardFooter class="justify-end">
+            <hlm-skeleton class="h-8 w-32" />
+          </div>
+        </hlm-card>
+      </div>
+    } @else if (_activeTarget(); as target) {
+      <div class="grid md:grid-cols-2">
+        <rbth-feat-current-target-frame
+          [target]="target"
+          (edit)="_openEditDialog($event)"
+        />
+      </div>
+    } @else {
+      <div hlmItem variant="outline" class="min-w-0">
+        <div hlmItemMedia variant="icon">
+          <ng-icon hlmIcon name="lucideCloud" />
+        </div>
+        <div hlmItemContent class="min-w-0">
+          <span hlmItemTitle>No external target configured</span>
+          <span hlmItemDescription>
+            Connect an S3-compatible bucket to store new uploads in your own
+            storage. Access is tested before anything is saved; credentials are
+            sent to the canister and are not returned to the browser.
+          </span>
+        </div>
+        <div hlmItemActions>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            size="sm"
+            (click)="_openConnectDialog()"
+          >
+            Connect
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+
+  <rbth-feat-cleanup-section />
+
+  <rbth-feat-target-history-table (edit)="_openEditDialog($event)" />
+</div>
+
+<rbth-feat-target-config-dialog />

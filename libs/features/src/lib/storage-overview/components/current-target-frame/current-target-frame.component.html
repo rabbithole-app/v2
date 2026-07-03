@@ -1,0 +1,40 @@
+<hlm-card size="sm">
+  <div hlmCardHeader>
+    <h3 hlmCardTitle class="flex flex-wrap items-center gap-2">
+      <ng-icon hlmIcon size="sm" name="lucideCloud" class="text-muted-foreground" />
+      {{ _label() }}
+      <span hlmBadge [variant]="_statusVariant()">{{ _statusLabel() }}</span>
+      @if (!target().hasCredential) {
+        <span hlmBadge variant="destructive">No credentials</span>
+      }
+    </h3>
+    <p hlmCardDescription>
+      @if (_validatedAt(); as validatedAt) {
+        Access verified {{ validatedAt | date: 'short' }}
+      } @else {
+        Access not verified yet
+      }
+      · Updated {{ _updatedAt() | date: 'short' }}
+    </p>
+  </div>
+
+  <div hlmCardContent>
+    <dl class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]">
+      <dt class="text-muted-foreground">Endpoint</dt>
+      <dd class="truncate font-mono">{{ _config().endpoint }}</dd>
+      <dt class="text-muted-foreground">Bucket</dt>
+      <dd class="truncate font-mono">{{ _config().bucket }}</dd>
+      <dt class="text-muted-foreground">Prefix</dt>
+      <dd class="truncate font-mono">{{ _config().prefix || '/' }}</dd>
+      <dt class="text-muted-foreground">Region</dt>
+      <dd class="font-mono">{{ _config().region }}</dd>
+    </dl>
+  </div>
+
+  <div hlmCardFooter class="justify-end">
+    <button hlmBtn type="button" variant="outline" size="sm" (click)="edit.emit(target())">
+      <ng-icon hlmIcon size="sm" name="lucideKeyRound" />
+      Edit credentials
+    </button>
+  </div>
+</hlm-card>

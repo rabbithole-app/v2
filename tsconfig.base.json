@@ -162,6 +162,9 @@
       "@rabbithole/features/shared-with-me": [
         "libs/features/src/lib/shared-with-me/index.ts"
       ],
+      "@rabbithole/features/storage-overview": [
+        "libs/features/src/lib/storage-overview/index.ts"
+      ],
       "@rabbithole/features/payment": [
         "libs/features/src/lib/payment/index.ts"
       ],

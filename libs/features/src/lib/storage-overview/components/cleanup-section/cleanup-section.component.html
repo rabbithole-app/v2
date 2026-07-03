@@ -1,0 +1,170 @@
+<div class="flex items-center justify-between">
+  <div>
+    <h2 class="text-lg font-semibold">S3 cleanup</h2>
+    <p class="text-sm text-muted-foreground">
+      Deleted files are removed from the bucket automatically; every removal is
+      verified against the provider. Finished entries are pruned after 24
+      hours.
+    </p>
+  </div>
+</div>
+
+@if (_cleanupResource.error(); as cleanupError) {
+  <div hlmAlert>
+    <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+    <h4 hlmAlertTitle>Cleanup status is unavailable</h4>
+    <p hlmAlertDescription>
+      {{ _loadErrorMessage(cleanupError) }}
+    </p>
+  </div>
+} @else if (_cleanupResource.isLoading() && !_cleanupResource.hasValue()) {
+  <hlm-empty>
+    <hlm-empty-header>
+      <hlm-empty-media variant="icon">
+        <hlm-spinner />
+      </hlm-empty-media>
+      <div hlmEmptyTitle>Loading cleanup status</div>
+    </hlm-empty-header>
+  </hlm-empty>
+} @else {
+  @let counts = _counts();
+  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <rbth-metric-card>
+      <div rbthMetricCardHeader>
+        <p rbthMetricCardTitle>Active replicas</p>
+        <ng-icon hlmIcon size="sm" name="lucideDatabase" class="text-muted-foreground" />
+      </div>
+      <div rbthMetricCardContent>
+        <span class="text-lg leading-none font-medium text-foreground tabular-nums">
+          {{ counts.activeReplicas }}
+        </span>
+      </div>
+    </rbth-metric-card>
+    <rbth-metric-card>
+      <div rbthMetricCardHeader>
+        <p rbthMetricCardTitle>Pending deletes</p>
+        <ng-icon hlmIcon size="sm" name="lucideTimer" class="text-muted-foreground" />
+      </div>
+      <div rbthMetricCardContent>
+        <span class="text-lg leading-none font-medium text-foreground tabular-nums">
+          {{ counts.pendingDeletes }}
+        </span>
+      </div>
+    </rbth-metric-card>
+    <rbth-metric-card>
+      <div rbthMetricCardHeader>
+        <p rbthMetricCardTitle>Completed deletes</p>
+        <ng-icon hlmIcon size="sm" name="lucideCircleCheck" class="text-muted-foreground" />
+      </div>
+      <div rbthMetricCardContent>
+        <span class="text-lg leading-none font-medium text-foreground tabular-nums">
+          {{ counts.doneDeletes }}
+        </span>
+      </div>
+    </rbth-metric-card>
+    <rbth-metric-card>
+      <div rbthMetricCardHeader>
+        <p rbthMetricCardTitle>Missing content</p>
+        <ng-icon
+          hlmIcon
+          size="sm"
+          name="lucideTriangleAlert"
+          [class]="counts.missingReplicas > 0 ? 'text-destructive' : 'text-muted-foreground'"
+        />
+      </div>
+      <div rbthMetricCardContent>
+        <span class="text-lg leading-none font-medium text-foreground tabular-nums">
+          {{ counts.missingReplicas }}
+        </span>
+      </div>
+    </rbth-metric-card>
+  </div>
+
+  <div class="border-border w-full overflow-auto rounded-md border">
+    <table hlmTable class="w-full">
+      <thead hlmTHead>
+        <tr hlmTr>
+          <th hlmTh>Root hash</th>
+          <th hlmTh>Status</th>
+          <th hlmTh>Attempts</th>
+          <th hlmTh>Updated</th>
+        </tr>
+      </thead>
+      <tbody hlmTBody class="w-full">
+        @for (row of _table.getRowModel().rows; track row.id) {
+          @let task = row.original;
+          <tr hlmTr>
+            <td hlmTd class="max-w-72 truncate font-mono text-xs">
+              {{ task.rootHashHex }}
+            </td>
+            <td hlmTd>
+              @if (task.lastError[0]; as lastError) {
+                <span
+                  hlmBadge
+                  [variant]="_statusVariant(task)"
+                  [hlmTooltip]="lastError"
+                >
+                  {{ _statusLabel(task) }}
+                </span>
+              } @else {
+                <span hlmBadge [variant]="_statusVariant(task)">
+                  {{ _statusLabel(task) }}
+                </span>
+              }
+            </td>
+            <td hlmTd>{{ task.attempts }}</td>
+            <td hlmTd>{{ _formatTime(task.updatedAt) | date: 'short' }}</td>
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td hlmTd colspan="4" class="h-24 text-center">
+              No cleanup tasks yet.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="flex items-center justify-end gap-3">
+    @if (_table.getRowCount() > 0) {
+      <hlm-select
+        rbthCoreTransparentSelectBackdrop
+        [ngModel]="_table.getState().pagination.pageSize"
+        (ngModelChange)="_table.setPageSize($event); _table.resetPageIndex()"
+      >
+        <hlm-select-trigger class="inline-flex w-20">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          @for (size of _availablePageSizes; track size) {
+            <hlm-select-item [value]="size">
+              {{ size === 10000 ? 'All' : size }}
+            </hlm-select-item>
+          }
+        </hlm-select-content>
+      </hlm-select>
+
+      <div class="flex space-x-1">
+        <button
+          size="sm"
+          variant="outline"
+          hlmBtn
+          [disabled]="!_table.getCanPreviousPage()"
+          (click)="_table.previousPage()"
+        >
+          Previous
+        </button>
+        <button
+          size="sm"
+          variant="outline"
+          hlmBtn
+          [disabled]="!_table.getCanNextPage()"
+          (click)="_table.nextPage()"
+        >
+          Next
+        </button>
+      </div>
+    }
+  </div>
+}

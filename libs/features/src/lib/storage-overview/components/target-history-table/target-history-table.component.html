@@ -1,0 +1,103 @@
+<div class="flex items-center justify-between">
+  <div>
+    <h2 class="text-lg font-semibold">Target history</h2>
+    <p class="text-sm text-muted-foreground">
+      Every file version stays bound to the physical target it was uploaded to.
+      Older targets remain here so previously uploaded files can still be read
+      and cleaned up after you switch to a new bucket.
+    </p>
+  </div>
+</div>
+
+<div class="border-border w-full overflow-auto rounded-md border">
+  <table hlmTable class="w-full">
+    <thead hlmTHead>
+      <tr hlmTr>
+        <th hlmTh>Target</th>
+        <th hlmTh>Status</th>
+        <th hlmTh>Bucket</th>
+        <th hlmTh>Prefix</th>
+        <th hlmTh>Updated</th>
+        <th hlmTh class="w-24 text-right">
+          <span class="sr-only">Actions</span>
+        </th>
+      </tr>
+    </thead>
+    <tbody hlmTBody class="w-full">
+      @for (target of _targets(); track target.id) {
+        @let config = _s3Config(target);
+        <tr hlmTr>
+          <td hlmTd>
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="truncate font-medium">{{
+                _targetLabel(target)
+              }}</span>
+              @if (_activeTargetId() === target.id) {
+                <span hlmBadge variant="secondary">Current</span>
+              }
+            </div>
+          </td>
+          <td hlmTd>
+            <span hlmBadge [variant]="_statusVariant(target)">
+              {{ _statusLabel(target) }}
+            </span>
+          </td>
+          <td hlmTd>
+            <rbth-copy-to-clipboard
+              [content]="config.bucket"
+              class="font-mono text-xs"
+            >
+              {{ config.bucket }}
+            </rbth-copy-to-clipboard>
+          </td>
+          <td hlmTd class="max-w-72">
+            <rbth-copy-to-clipboard
+              [content]="config.prefix || '/'"
+              class="max-w-full font-mono text-xs"
+            >
+              {{ config.prefix || '/' }}
+            </rbth-copy-to-clipboard>
+          </td>
+          <td hlmTd>{{ _formatTime(target.updatedAt) | date: 'short' }}</td>
+          <td hlmTd class="text-right">
+            <button
+              class="size-8"
+              hlmBtn
+              variant="ghost"
+              size="icon"
+              [hlmTooltip]="'Edit credentials'"
+              (click)="edit.emit(target)"
+            >
+              <span class="sr-only">Edit credentials</span>
+              <ng-icon hlmIcon size="sm" name="lucideKeyRound" />
+            </button>
+            @if (_canDisconnect(target)) {
+              <button
+                class="size-8 text-destructive hover:text-destructive"
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                [disabled]="_disconnectingTargetId() === target.id"
+                [hlmTooltip]="'Disconnect target'"
+                (click)="_openDisconnectDialog(target)"
+              >
+                <span class="sr-only">Disconnect target</span>
+                @if (_disconnectingTargetId() === target.id) {
+                  <hlm-spinner class="size-4 text-foreground" />
+                } @else {
+                  <ng-icon hlmIcon size="sm" name="lucideUnplug" />
+                }
+              </button>
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr hlmTr>
+          <td hlmTd colspan="6" class="h-24 text-center">
+            No external S3 targets yet.
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,114 @@
+<ng-template rbthCorePageHeaderActions>
+  <div hlmButtonGroup>
+    <button
+      hlmBtn
+      variant="outline"
+      size="icon"
+      [disabled]="_statusResource.isLoading()"
+      [hlmTooltip]="'Refresh'"
+      (click)="_refresh()"
+    >
+      @if (_statusResource.isLoading()) {
+        <hlm-spinner class="size-4" />
+      } @else {
+        <ng-icon hlmIcon size="sm" name="lucideRefreshCw" />
+      }
+      <span class="sr-only">Refresh</span>
+    </button>
+  </div>
+</ng-template>
+
+<div class="flex flex-col gap-6">
+  @if (_setupRequired()) {
+    <div hlmAlert variant="destructive">
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>External S3 bucket is not connected</h4>
+      <p hlmAlertDescription>
+        This vault stores encrypted data in your own S3-compatible bucket.
+        Uploads are paused until one is connected.
+      </p>
+      <div class="mt-2">
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          variant="outline"
+          routerLink="storage-settings"
+        >
+          Set up S3 storage
+        </button>
+      </div>
+    </div>
+  }
+
+  @for (target of _credentialBlockedTargets(); track target.id) {
+    <div hlmAlert variant="destructive">
+      <ng-icon hlmAlertIcon name="lucideCircleAlert" />
+      <h4 hlmAlertTitle>
+        Bucket access failed for {{ _targetLabel(target) }}
+      </h4>
+      <p hlmAlertDescription>
+        The stored access key was rejected by the S3 provider. Uploads and
+        automatic cleanup are paused until working credentials are saved.
+      </p>
+      <div class="mt-2">
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          variant="outline"
+          routerLink="storage-settings"
+        >
+          Open data storage settings
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <hlm-card size="sm">
+      <div hlmCardHeader>
+        <h3 hlmCardTitle class="flex items-center gap-2">
+          <ng-icon
+            hlmIcon
+            size="sm"
+            name="lucideHardDrive"
+            class="text-muted-foreground"
+          />
+          Storage
+        </h3>
+      </div>
+
+      <div hlmCardContent>
+        <dl
+          class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]"
+        >
+          <dt class="text-muted-foreground">Used space</dt>
+          <dd>{{ _usedSpaceLabel() ?? '—' }}</dd>
+          <dt class="text-muted-foreground">Files</dt>
+          <dd>{{ _fileCount() ?? '—' }}</dd>
+          <dt class="text-muted-foreground">Folders</dt>
+          <dd>{{ _directoryCount() ?? '—' }}</dd>
+          <dt class="text-muted-foreground">Canister</dt>
+          <dd class="min-w-0">
+            <rbth-copy-to-clipboard
+              [content]="_canisterId"
+              class="max-w-full font-mono"
+            >
+              {{ _canisterId }}
+            </rbth-copy-to-clipboard>
+          </dd>
+          <dt class="text-muted-foreground">Release</dt>
+          <dd class="truncate font-mono">{{ _releaseTag() ?? '—' }}</dd>
+        </dl>
+      </div>
+
+      <div hlmCardFooter class="justify-end">
+        <button hlmBtn type="button" variant="outline" size="sm" routerLink="drive">
+          <ng-icon hlmIcon size="sm" name="lucideFolder" />
+          My Files
+        </button>
+      </div>
+    </hlm-card>
+  </div>
+</div>

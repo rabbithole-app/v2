@@ -38,6 +38,7 @@ import { HlmSwitch } from '@spartan-ng/helm/switch';
 const PRO_UPGRADE_SOURCES = [
   'encrypt',
   'expired-subscription',
+  'external-storage',
   'file-size-limit',
   'managed-funding',
   'pricing',

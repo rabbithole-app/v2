@@ -41,7 +41,6 @@ import {
   StoragesService,
 } from '@rabbithole/core';
 import { ENV_NAME } from '@rabbithole/core/app-runtime';
-import { type StorageBackendType } from '@rabbithole/core/storage-runtime';
 import { WalletBalancePanelComponent } from '@rabbithole/core/wallet';
 import type {
   StorageBackendType as CandidStorageBackendType,
@@ -65,6 +64,7 @@ import { hlm } from '@spartan-ng/helm/utils';
 import { buildCreationSteps } from '../../utils';
 
 export type VetKeyLevel = 'high-replication' | 'standard';
+type StorageChoice = 'ManagedBlobStorage' | 'OnChain';
 
 type WizardStep = 'configure' | 'creating' | 'error' | 'payment';
 
@@ -226,7 +226,7 @@ export class CreateStorageDialogComponent {
   readonly standardVetKeyOptionClass = hlm(vetKeyOptionVariants({ disabled: false }));
 
   readonly starterListPriceLabel = formatUsd(STARTER_VAULT_LIST_PRICE_USD);
-  readonly #storageBackend = signal<StorageBackendType>('BlobStorage');
+  readonly #storageBackend = signal<StorageChoice>('ManagedBlobStorage');
   readonly storageBackend = this.#storageBackend.asReadonly();
   readonly vetKeyLevel = this.#vetKeyLevel.asReadonly();
 
@@ -280,7 +280,7 @@ export class CreateStorageDialogComponent {
     this.#completionToastShown.set(false);
     this.#errorMessage.set(null);
     this.#createdCanisterId.set(null);
-    this.#storageBackend.set('BlobStorage');
+    this.#storageBackend.set('ManagedBlobStorage');
     this.#vetKeyLevel.set('standard');
   }
 
@@ -300,7 +300,8 @@ export class CreateStorageDialogComponent {
     this.#step.set('creating');
 
     try {
-      const backendType: CandidStorageBackendType = this.storageBackend() === 'OnChain'
+      const storageChoice = this.storageBackend();
+      const backendType: CandidStorageBackendType = storageChoice === 'OnChain'
         ? { OnChain: null }
         : { BlobStorage: null };
       const vetKeyLevel: CandidStorageVetKeyLevel = this.effectiveVetKeyLevel() === 'high-replication'
@@ -339,7 +340,7 @@ export class CreateStorageDialogComponent {
     this.tryAgain();
   }
 
-  selectStorageBackend(backend: StorageBackendType): void {
+  selectStorageBackend(backend: StorageChoice): void {
     this.#storageBackend.set(backend);
   }
 
