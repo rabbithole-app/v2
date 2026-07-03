@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "version": "0.3.0",
+  "tagName": "storage-v0.3.0",
+  "commit": "9f9b483481ec04cb9e8e721f2a88431df88fd63b",
+  "frontendAssetTreeHash": "d09dd0da1ab852cc5e7d8bce562118d3286962797f9080c59eb17bfbc7cfd290",
+  "artifacts": {
+    "wasm": {
+      "name": "encrypted-storage.wasm.gz",
+      "size": 887446,
+      "sha256": "14e540cbf2e92057471462671d837a7ea4766668364a22593cda6f40bf674373"
+    },
+    "frontend": {
+      "name": "storage-frontend.tar",
+      "size": 7321600,
+      "sha256": "f209969f92f434660314712573f924c89fcc3c32bd99224acac46693430a35c4"
+    },
+    "did": {
+      "name": "encrypted-storage.did",
+      "size": 31804,
+      "sha256": "713781af8567fa2c5e947156127d56e4dbdb7fc9be5d482d90044fae8018fb9e"
+    },
+    "stableSignature": {
+      "name": "encrypted-storage.most",
+      "size": 48991,
+      "sha256": "151695b43531bce97de4345647d3af88aec79e30a0eeee79a3256988fe08a914"
+    },
+    "jsLibrary": {
+      "name": "encrypted-storage-lib.zip",
+      "size": 342540,
+      "sha256": "f5a1952689df04bf35581b0330f19b7147ea5af6a9700054b91e64fd0affb2c3"
+    }
+  },
+  "upgrade": {
+    "argStrategy": "reuseInstallArgV1",
+    "compatibleFrom": [
+      "0.1.0",
+      "0.2.0"
+    ]
+  },
+  "releaseNotes": {
+    "source": "manual",
+    "summary": "This release makes wallet funding and account navigation clearer in the storage app.",
+    "sections": [
+      {
+        "title": "Wallet",
+        "items": [
+          "You can now deposit supported Internet Computer tokens to your Principal ID.",
+          "The wallet now shows which Internet Computer funds are on your Principal ID and which funds are already available in your Rabbithole balance.",
+          "You can now withdraw supported wallet balances to Internet Computer, Base, and Solana wallets."
+        ]
+      },
+      {
+        "title": "Navigation",
+        "items": [
+          "Account settings, subscription, and wallet screens now support direct links.",
+          "Refreshing or opening storage app links directly works more reliably."
+        ]
+      }
+    ]
+  }
+}

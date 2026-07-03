@@ -58,7 +58,11 @@ canisters:
         compress: true
 YAML
 
-mops install --lock check
+if ! mops install --lock check; then
+  echo "mops lock check failed; rebuilding generated .mops cache before applying local patches" >&2
+  rm -rf "$BACKEND_DIR/.mops"
+  mops install --lock check
+fi
 ../../mops-patches/apply.sh .
 icp build -e build encrypted-storage
 

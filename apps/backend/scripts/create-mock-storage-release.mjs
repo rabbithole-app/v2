@@ -114,12 +114,13 @@ function createFrontendArchive(frontendDir, releaseDirPath) {
   });
 }
 
-function buildManifest(args, releaseDirPath, frontendDir, version, baselineReleases) {
-  const baseline = latestRelease(baselineReleases);
-  const compatibleFrom = args['compatible-from']
-    ?? (args.mode === 'baseline'
-      ? ''
-      : (baseline ? versionFromTag(baseline.tag_name) : ''));
+function buildManifest(args, releaseDirPath, frontendDir, version) {
+  // Default to signature-based inference over mock/assets (see
+  // --stable-signature-history-dir below) so the release is installable from
+  // every locally known release whose .most is stable-compatible — not just
+  // the committed baseline. Local-only releases like a regenerated
+  // storage-v0.2.0 live in releases.local.json, not in the baseline index.
+  const compatibleFrom = args['compatible-from'] ?? '';
   const command = [
     join(BACKEND_DIR, 'scripts/build-storage-release-manifest.mjs'),
     '--version',
@@ -194,7 +195,7 @@ function main() {
   ensureDir(releaseDirPath);
   copyReleaseInputs(args, releaseDirPath);
   createFrontendArchive(frontendDir, releaseDirPath);
-  buildManifest(args, releaseDirPath, frontendDir, version, baselineReleases);
+  buildManifest(args, releaseDirPath, frontendDir, version);
   assertRequiredAssets(releaseDirPath);
 
   const releaseBodyPath = join(releaseDirPath, 'storage-release.md');

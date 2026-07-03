@@ -746,6 +746,7 @@ type EncryptedStorageCanister =
    delete: (args: DeleteArguments) -> ();
    delete_asset: (args: DeleteAssetArguments) -> ();
    delete_batch: (args: DeleteBatchArguments) -> ();
+   ensureBlobStorageCashierReady: () -> ();
    finishUploadSession: (args: FinishUploadSessionArguments) ->
     (StorageResult_1);
    fsTree: () -> (vec TreeNode) query;
@@ -795,6 +796,8 @@ type EncryptedStorageCanister =
    move: (args: MoveArguments) -> ();
    preflightCaffeineUpload: (args: PreflightCaffeineUploadArgs) ->
     (StorageResult_1);
+   preflightCaffeineUploadBatch: (args: vec PreflightCaffeineUploadArgs) ->
+    (StorageResult_1);
    prepareThumbnailUpload: (args: PrepareThumbnailUploadArguments) ->
     (PrepareThumbnailUploadResult);
    processDurableAccessPolicies: () -> (vec DurablePolicyProcessResult);
@@ -837,6 +840,7 @@ type EncryptedStorageCanister =
    set_asset_properties: (args: SetAssetPropertiesArguments) -> ();
    showTree: (entry: opt Entry) -> (text) query;
    store: (args: StoreArgs) -> ();
+   syncBlobStorageCashierOwnerEquivalentAccess: () -> ();
    takeRecoveryOwnership: () -> (OwnerEquivalentPrincipal);
    take_ownership: () -> ();
    unset_asset_content: (args: UnsetAssetContentArguments) -> ();
