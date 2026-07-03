@@ -14,7 +14,8 @@ import Transaction "mo:evm-txs/Transaction";
 import Transfer "mo:evm-txs/Transfer";
 
 import BaseX "mo:base-x-encoder";
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Runtime "mo:core/Runtime";
 
 module EvmRpc {
@@ -29,7 +30,7 @@ module EvmRpc {
       keyName : Text,
       derivationPath : [Blob],
     ) : async* Blob {
-      let res = await IC.ic.ecdsa_public_key({
+      let res = await ic.ecdsa_public_key({
         canister_id = null;
         derivation_path = derivationPath;
         key_id = { curve = #secp256k1; name = keyName };
@@ -42,7 +43,7 @@ module EvmRpc {
       derivationPath : [Blob],
       messageHash : Blob,
     ) : async* Blob {
-      let res = await (with cycles = ECDSA_SIGN_CYCLES) IC.ic.sign_with_ecdsa({
+      let res = await (with cycles = ECDSA_SIGN_CYCLES) ic.sign_with_ecdsa({
         message_hash = messageHash;
         derivation_path = derivationPath;
         key_id = { curve = #secp256k1; name = keyName };

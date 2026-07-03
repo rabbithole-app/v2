@@ -11,13 +11,13 @@ import BaseX "mo:base-x-encoder";
 import Map "mo:map/Map";
 import Set "mo:map/Set";
 import Error "mo:core/Error";
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Sha256 "mo:sha2/Sha256";
 
 module AuthJWT {
   let ACCESS_TOKEN_EXPIRY_NANOS = 900_000_000_000; // 15 minutes
   let REFRESH_TOKEN_EXPIRY_NANOS = 7_200_000_000_000; // 2 hours
-  let ic = actor ("aaaaa-aa") : IC.Service;
   let { thash; hashText } = Map;
 
   // These options are used internally to validate the validity of tokens.

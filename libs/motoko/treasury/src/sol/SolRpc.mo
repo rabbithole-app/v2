@@ -6,7 +6,8 @@ import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 
 import BaseX "mo:base-x-encoder";
-import IC "mo:ic";
+import { ic } "mo:ic";
+import IC "mo:ic/Types";
 import Json "mo:json";
 
 import SolTx "SolTx";
@@ -25,7 +26,7 @@ module SolRpc {
       keyName : Text,
       derivationPath : [Blob],
     ) : async* Blob {
-      let res = await IC.ic.schnorr_public_key({
+      let res = await ic.schnorr_public_key({
         canister_id = null;
         derivation_path = derivationPath;
         key_id = { algorithm = #ed25519; name = keyName };
@@ -38,7 +39,7 @@ module SolRpc {
       derivationPath : [Blob],
       message : Blob,
     ) : async* Blob {
-      let res = await (with cycles = SCHNORR_SIGN_CYCLES) IC.ic.sign_with_schnorr({
+      let res = await (with cycles = SCHNORR_SIGN_CYCLES) ic.sign_with_schnorr({
         message;
         derivation_path = derivationPath;
         key_id = { algorithm = #ed25519; name = keyName };
