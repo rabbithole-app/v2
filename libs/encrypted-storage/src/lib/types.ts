@@ -100,8 +100,6 @@ export type EncryptedStorageStoreConfig = Omit<StoreConfig, 'contentEncoding'>;
 
 export type Entry = [ExtractVariantKeys<EntryKind>, string];
 
-export type StorageAccessScope = Entry | null;
-
 export type EntryKind = EntryRaw[0];
 
 export type Permission = ExtractVariantKeys<PermissionRaw>;
@@ -155,6 +153,8 @@ export type StorageAccessGrantListMode =
 export type StorageAccessRequest = AccessRequestRaw;
 
 export type StorageAccessRequestStatus = AccessRequestStatusRaw;
+
+export type StorageAccessScope = Entry | null;
 
 export type StorageAccessTarget =
   | { email: string }

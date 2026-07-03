@@ -9,3 +9,8 @@ export function uint8ArrayToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   copy.set(bytes);
   return copy.buffer;
 }
+
+/** Normalizes an ArrayBuffer or Uint8Array to a standalone Uint8Array copy. */
+export function toUint8Array(bytes: ArrayBuffer | Uint8Array): Uint8Array {
+  return new Uint8Array(bytes);
+}

@@ -7,3 +7,8 @@ export const AES_GCM_OVERHEAD = 28;
 /** Max plaintext that fits in one blob storage chunk after AES-GCM encryption */
 export const CAFFEINE_PLAINTEXT_CHUNK_SIZE =
   CAFFEINE_CHUNK_SIZE - AES_GCM_OVERHEAD;
+
+/** Number of plaintext chunks a source of `sourceSize` bytes splits into. */
+export function blobPlaintextChunkCount(sourceSize: number): number {
+  return Math.max(1, Math.ceil(sourceSize / CAFFEINE_PLAINTEXT_CHUNK_SIZE));
+}

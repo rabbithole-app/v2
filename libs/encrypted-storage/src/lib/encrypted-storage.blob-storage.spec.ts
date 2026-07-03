@@ -64,6 +64,15 @@ import { MockBlobGateway } from './blob-storage/mock-gateway';
 import { EncryptedStorage } from './encrypted-storage';
 import { type Progress, UploadState } from './types';
 
+async function bodyBytes(body: BodyInit | null | undefined): Promise<Uint8Array> {
+  if (!body) return new Uint8Array();
+  if (body instanceof Uint8Array) return new Uint8Array(body);
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  if (typeof body === 'string') return new TextEncoder().encode(body);
+  if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
+  throw new Error('Unsupported test body type');
+}
+
 describe('EncryptedStorage BlobStorage integration', () => {
   const keyId: [Principal, Uint8Array] = [
     Principal.fromText('aaaaa-aa'),
@@ -74,6 +83,8 @@ describe('EncryptedStorage BlobStorage integration', () => {
   let gateway: MockBlobGateway;
   let actorMock: {
     commitCaffeineUpload: ReturnType<typeof vi.fn>;
+    commitExternalBlobUpload: ReturnType<typeof vi.fn>;
+    commitExternalThumbnailUpload: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     getEncryptedVetkey: ReturnType<typeof vi.fn>;
     getStorageBackendType: ReturnType<typeof vi.fn>;
@@ -81,6 +92,11 @@ describe('EncryptedStorage BlobStorage integration', () => {
     http_request: ReturnType<typeof vi.fn>;
     preflightCaffeineUpload: ReturnType<typeof vi.fn>;
     preflightCaffeineUploadBatch: ReturnType<typeof vi.fn>;
+    prepareExternalBlobUpload: ReturnType<typeof vi.fn>;
+    prepareThumbnailUpload: ReturnType<typeof vi.fn>;
+    resolveBlobReadRoute: ReturnType<typeof vi.fn>;
+    resolveThumbnailReadRoute: ReturnType<typeof vi.fn>;
+    resolveUploadRoute: ReturnType<typeof vi.fn>;
   };
   let agentMock: {
     call: ReturnType<typeof vi.fn>;
@@ -105,8 +121,74 @@ describe('EncryptedStorage BlobStorage integration', () => {
       preflightCaffeineUpload: vi.fn(async () => undefined),
       preflightCaffeineUploadBatch: vi.fn(async () => undefined),
       commitCaffeineUpload: vi.fn(async () => undefined),
+      prepareExternalBlobUpload: vi.fn(async () => ({
+        ok: {
+          blobUpload: {
+            key: 'rabbithole/test/v1/blobs/root/blob.bin',
+            method: 'PUT',
+            requestHeaders: [],
+            signedHeaders: [],
+            url: 'https://external-storage.test/rabbithole-dev/rabbithole/test/v1/blobs/root/blob.bin',
+            expiresAt: 0n,
+          },
+          locator: {
+            layoutVersion: 1n,
+            blobKey: 'rabbithole/test/v1/blobs/root/blob.bin',
+            treeKey: 'rabbithole/test/v1/blobs/root/tree.json',
+          },
+          target: {
+            id: 'external-target-0',
+            version: 1n,
+            displayName: ['Local MinIO'],
+            kind: {
+              S3CompatiblePublicEncrypted: {
+                endpoint: 'https://external-storage.test',
+                bucket: 'rabbithole-dev',
+                region: 'us-east-1',
+                prefix: 'rabbithole/test',
+                forcePathStyle: true,
+              },
+            },
+            layoutVersion: 1n,
+            readMode: { PublicEncrypted: null },
+            writeMode: { CanisterPresigned: null },
+            status: { Active: null },
+            hasCredential: true,
+            createdAt: 0n,
+            updatedAt: 0n,
+            lastValidatedAt: [],
+          },
+          treeUpload: {
+            key: 'rabbithole/test/v1/blobs/root/tree.json',
+            method: 'PUT',
+            requestHeaders: [],
+            signedHeaders: [],
+            url: 'https://external-storage.test/rabbithole-dev/rabbithole/test/v1/blobs/root/tree.json',
+            expiresAt: 0n,
+          },
+        },
+      })),
+      commitExternalBlobUpload: vi.fn(async () => ({ ok: undefined })),
+      commitExternalThumbnailUpload: vi.fn(async () => ({ ok: { id: 1n } })),
+      prepareThumbnailUpload: vi.fn(async (args: { contentType: string; size: bigint }) => ({
+        storageBackend: { BlobStorage: null },
+        contentType: args.contentType,
+        size: args.size,
+        encryption: { scopeKeyId: keyId },
+      })),
+      resolveBlobReadRoute: vi.fn(async () => ({ ok: { CaffeineBlobStorage: null } })),
+      resolveThumbnailReadRoute: vi.fn(async () => ({ ok: { CaffeineBlobStorage: null } })),
+      resolveUploadRoute: vi.fn(async () => ({ ok: { CaffeineBlobStorage: null } })),
       http_request: vi.fn(async () => {
-        const commit = actorMock.commitCaffeineUpload.mock.calls.at(-1)?.[0];
+        const caffeineCommit = actorMock.commitCaffeineUpload.mock.calls.at(-1)?.[0];
+        const externalCommit = actorMock.commitExternalBlobUpload.mock.calls.at(-1)?.[0];
+        const commit = externalCommit
+          ? {
+              rootHash: externalCommit.rootHashHex,
+              contentType: externalCommit.contentType,
+              size: externalCommit.size,
+            }
+          : caffeineCommit;
         if (!commit) {
           throw new Error('Blob info requested before commit');
         }
@@ -208,6 +290,243 @@ describe('EncryptedStorage BlobStorage integration', () => {
     expect(actorMock.preflightCaffeineUpload).toHaveBeenCalledOnce();
     expect(agentMock.call).not.toHaveBeenCalled();
     expect(actorMock.commitCaffeineUpload).not.toHaveBeenCalled();
+  });
+
+  it('uploads external S3 blobs through canister-presigned URLs without Cashier preflight', async () => {
+    const fetchMock = vi.fn(async () => new Response('', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    actorMock.resolveUploadRoute.mockResolvedValue({
+      ok: {
+        ExternalS3: {
+          targetId: 'external-target-0',
+          targetVersion: 1n,
+          layoutVersion: 1n,
+          readMode: { PublicEncrypted: null },
+          writeMode: { CanisterPresigned: null },
+        },
+      },
+    });
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+
+    await storage.store([
+      new TextEncoder().encode('external s3 upload'),
+      {
+        fileName: 'external.txt',
+        contentType: 'text/plain',
+      },
+    ]);
+
+    expect(actorMock.preflightCaffeineUpload).not.toHaveBeenCalled();
+    expect(actorMock.preflightCaffeineUploadBatch).not.toHaveBeenCalled();
+    expect(actorMock.prepareExternalBlobUpload).toHaveBeenCalledOnce();
+    expect(actorMock.commitExternalBlobUpload).toHaveBeenCalledOnce();
+    expect(actorMock.commitCaffeineUpload).not.toHaveBeenCalled();
+    expect(agentMock.call).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const prepareArgs = actorMock.prepareExternalBlobUpload.mock.calls[0][0];
+    const commitArgs = actorMock.commitExternalBlobUpload.mock.calls[0][0];
+    expect(prepareArgs.targetId).toEqual(['external-target-0']);
+    expect(commitArgs.targetId).toEqual(['external-target-0']);
+    expect(commitArgs.rootHashHex).toMatch(/^[0-9a-f]{64}$/);
+    expect(Number(commitArgs.size)).toBeGreaterThan(0);
+  });
+
+  it('downloads external S3 blobs through public encrypted object URLs', async () => {
+    const objects = new Map<string, Uint8Array>();
+    const fetchMock = vi.fn(async (input: Request | URL | string, init?: RequestInit) => {
+      const url = input.toString();
+      if (init?.method === 'PUT') {
+        objects.set(url, await bodyBytes(init.body));
+        return new Response('', { status: 200 });
+      }
+      const body = objects.get(url);
+      if (!body) {
+        return new Response('not found', {
+          status: 404,
+          statusText: 'Not Found',
+        });
+      }
+      return new Response(body, {
+        status: 200,
+        headers: { 'Content-Length': body.byteLength.toString() },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const externalRoute = {
+      targetId: 'external-target-0',
+      targetVersion: 1n,
+      layoutVersion: 1n,
+      readMode: { PublicEncrypted: null },
+      writeMode: { CanisterPresigned: null },
+    };
+    actorMock.resolveUploadRoute.mockResolvedValue({ ok: { ExternalS3: externalRoute } });
+    actorMock.resolveBlobReadRoute.mockResolvedValue({
+      ok: {
+        ExternalS3PublicEncrypted: {
+          locator: {
+            layoutVersion: 1n,
+            blobKey: 'rabbithole/test/v1/blobs/root/blob.bin',
+            treeKey: 'rabbithole/test/v1/blobs/root/tree.json',
+          },
+          target: {
+            id: 'external-target-0',
+            version: 1n,
+            displayName: ['Local MinIO'],
+            kind: {
+              S3CompatiblePublicEncrypted: {
+                endpoint: 'https://external-storage.test',
+                bucket: 'rabbithole-dev',
+                region: 'us-east-1',
+                prefix: 'rabbithole/test',
+                forcePathStyle: true,
+              },
+            },
+            layoutVersion: 1n,
+            readMode: { PublicEncrypted: null },
+            writeMode: { CanisterPresigned: null },
+            status: { Active: null },
+            hasCredential: true,
+            createdAt: 0n,
+            updatedAt: 0n,
+            lastValidatedAt: [],
+          },
+        },
+      },
+    });
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+    const bytes = new TextEncoder().encode('external s3 download');
+
+    await storage.store([bytes, {
+      fileName: 'external-download.txt',
+      contentType: 'text/plain',
+    }]);
+
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of storage.downloadStream(['File', 'external-download.txt'], {
+      storageBackend: 'BlobStorage',
+      keyId,
+      totalChunks: 1,
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))).toEqual(
+      Buffer.from(bytes),
+    );
+    expect(actorMock.resolveBlobReadRoute).toHaveBeenCalledOnce();
+    expect(actorMock.commitCaffeineUpload).not.toHaveBeenCalled();
+  });
+
+  it('uploads and reads external S3 thumbnails through canister-resolved routes', async () => {
+    const objects = new Map<string, Uint8Array>();
+    const fetchMock = vi.fn(async (input: Request | URL | string, init?: RequestInit) => {
+      const url = input.toString();
+      if (init?.method === 'PUT') {
+        objects.set(url, await bodyBytes(init.body));
+        return new Response('', { status: 200 });
+      }
+      const body = objects.get(url);
+      if (!body) {
+        return new Response('not found', {
+          status: 404,
+          statusText: 'Not Found',
+        });
+      }
+      return new Response(body, {
+        status: 200,
+        headers: { 'Content-Length': body.byteLength.toString() },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:external-thumbnail');
+    const externalRoute = {
+      targetId: 'external-target-0',
+      targetVersion: 1n,
+      layoutVersion: 1n,
+      readMode: { PublicEncrypted: null },
+      writeMode: { CanisterPresigned: null },
+    };
+    const externalTarget = {
+      id: 'external-target-0',
+      version: 1n,
+      displayName: ['Local MinIO'],
+      kind: {
+        S3CompatiblePublicEncrypted: {
+          endpoint: 'https://external-storage.test',
+          bucket: 'rabbithole-dev',
+          region: 'us-east-1',
+          prefix: 'rabbithole/test',
+          forcePathStyle: true,
+        },
+      },
+      layoutVersion: 1n,
+      readMode: { PublicEncrypted: null },
+      writeMode: { CanisterPresigned: null },
+      status: { Active: null },
+      hasCredential: true,
+      createdAt: 0n,
+      updatedAt: 0n,
+      lastValidatedAt: [],
+    };
+    actorMock.resolveUploadRoute.mockResolvedValue({ ok: { ExternalS3: externalRoute } });
+    const storage = new EncryptedStorage({
+      canisterId,
+      agent: agentMock as never,
+      origin: 'https://example.test',
+      blobStorageGatewayUrl: gateway.url,
+    });
+
+    await storage.saveThumbnail(
+      ['File', 'photo.jpg'],
+      new Blob([new TextEncoder().encode('tiny thumbnail')], { type: 'image/jpeg' }),
+    );
+
+    const commitArgs = actorMock.commitExternalThumbnailUpload.mock.calls[0][0];
+    actorMock.resolveThumbnailReadRoute.mockResolvedValue({
+      ok: {
+        ExternalS3PublicEncrypted: {
+          locator: {
+            layoutVersion: 1n,
+            blobKey: 'rabbithole/test/v1/blobs/root/blob.bin',
+            treeKey: 'rabbithole/test/v1/blobs/root/tree.json',
+          },
+          target: externalTarget,
+        },
+      },
+    });
+
+    const thumbnailRef: ThumbnailRef = {
+      BlobStorage: {
+        rootHash: commitArgs.rootHashHex,
+        blobId: new TextEncoder().encode(commitArgs.rootHashHex),
+        sha256: [commitArgs.sha256],
+        contentType: commitArgs.contentType,
+        size: commitArgs.size,
+        encryption: commitArgs.encryption,
+      },
+    };
+
+    await expect(
+      storage.getThumbnailUrl(thumbnailRef, { entry: ['File', 'photo.jpg'] }),
+    ).resolves.toBe('blob:external-thumbnail');
+
+    expect(actorMock.preflightCaffeineUpload).not.toHaveBeenCalled();
+    expect(actorMock.commitExternalThumbnailUpload).toHaveBeenCalledOnce();
+    expect(actorMock.resolveThumbnailReadRoute).toHaveBeenCalledWith({
+      entry: [{ File: null }, 'photo.jpg'],
+      rootHash: commitArgs.rootHashHex,
+    });
   });
 
   it('retries transient BlobStorage Cashier self-call failures during preflight', async () => {

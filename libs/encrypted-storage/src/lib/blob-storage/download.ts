@@ -1,5 +1,6 @@
+import { toUint8Array } from '../utils/bytes';
 import { CAFFEINE_CHUNK_SIZE } from './constants';
-import { BlobStorageGatewayClient } from './gateway-client';
+import type { BlobHashTreeJSON } from './merkle-tree';
 import {
   verifiedBlobTreeChunkHashes,
   verifyBlobIntegrity,
@@ -12,8 +13,13 @@ export interface BlobStorageBlobInfo {
   size: number;
 }
 
+export interface BlobStorageDownloadClient {
+  getBlobTree(blobHash: string, signal?: AbortSignal): Promise<BlobHashTreeJSON>;
+  getDownloadUrl(blobHash: string): string;
+}
+
 export interface BlobStorageDownloadOptions {
-  client: BlobStorageGatewayClient;
+  client: BlobStorageDownloadClient;
   decryptChunk: (chunkBytes: Uint8Array) => Promise<ArrayBuffer | Uint8Array>;
   info: BlobStorageBlobInfo;
   onProgress?: (chunkIndex: number, totalChunks: number) => void;
@@ -293,12 +299,6 @@ async function* streamVerifiedBlobResponse(
   ) {
     throw new Error('Blob integrity verification failed: incomplete blob download');
   }
-}
-
-function toUint8Array(bytes: ArrayBuffer | Uint8Array): Uint8Array {
-  return bytes instanceof Uint8Array
-    ? new Uint8Array(bytes)
-    : new Uint8Array(bytes);
 }
 
 async function verifyAndDecryptBlobChunk(

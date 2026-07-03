@@ -1,9 +1,11 @@
 import { sha256 } from '@noble/hashes/sha2';
 
 import type { Readable } from '../readable/readable';
+import { toUint8Array } from '../utils/bytes';
 import { createBlobUploadSpool } from './blob-upload-spool';
 import {
   AES_GCM_OVERHEAD,
+  blobPlaintextChunkCount,
   CAFFEINE_PLAINTEXT_CHUNK_SIZE,
 } from './constants';
 import { BlobStorageGatewayClient } from './gateway-client';
@@ -26,14 +28,14 @@ export interface BlobStorageUploadResult {
 }
 
 export function blobStorageDeclaredUploadBytes(sourceSize: number): bigint {
-  const chunkCount = blobStoragePlaintextChunkCount(sourceSize);
+  const chunkCount = blobPlaintextChunkCount(sourceSize);
   return BigInt(sourceSize) + BigInt(chunkCount) * BigInt(AES_GCM_OVERHEAD);
 }
 
 export async function uploadBlobStorageFile(
   options: BlobStorageUploadOptions,
 ): Promise<BlobStorageUploadResult> {
-  const chunkCount = blobStoragePlaintextChunkCount(options.sourceSize);
+  const chunkCount = blobPlaintextChunkCount(options.sourceSize);
   const spool = createBlobUploadSpool(chunkCount);
 
   try {
@@ -84,14 +86,4 @@ export async function uploadBlobStorageFile(
   } finally {
     await spool.clear();
   }
-}
-
-function blobStoragePlaintextChunkCount(sourceSize: number): number {
-  return Math.max(1, Math.ceil(sourceSize / CAFFEINE_PLAINTEXT_CHUNK_SIZE));
-}
-
-function toUint8Array(bytes: ArrayBuffer | Uint8Array): Uint8Array {
-  return bytes instanceof Uint8Array
-    ? new Uint8Array(bytes)
-    : new Uint8Array(bytes);
 }

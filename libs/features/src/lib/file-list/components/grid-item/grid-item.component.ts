@@ -21,7 +21,7 @@ import { distinctUntilChanged, Observable, of, switchMap } from 'rxjs';
 import { DownloadService } from '@rabbithole/core';
 import { injectEncryptedStorage } from '@rabbithole/core/storage-runtime';
 import type { ThumbnailRef as StorageThumbnailRef } from '@rabbithole/declarations/encrypted-storage';
-import type { EncryptedStorage } from '@rabbithole/encrypted-storage';
+import type { EncryptedStorage, Entry } from '@rabbithole/encrypted-storage';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
@@ -72,6 +72,7 @@ export type GridItemVariants = VariantProps<typeof gridItemVariants>;
 
 type EncryptedThumbnailRequest = {
   cacheKey: string;
+  entry: Entry;
   storage: EncryptedStorage;
   thumbnailRef: StorageThumbnailRef;
 };
@@ -239,7 +240,11 @@ export class GridItemComponent implements FocusableOption, Highlightable {
       }
 
       return {
-        cacheKey: thumbnailCacheKey(thumbnailRef),
+        cacheKey: `${item.type}:${item.parentPath ?? ''}/${item.name}:${thumbnailCacheKey(thumbnailRef)}`,
+        entry: [
+          'File',
+          item.parentPath ? `${item.parentPath}/${item.name}` : item.name,
+        ],
         storage: this.#encryptedStorage(),
         thumbnailRef: toStorageThumbnailRef(thumbnailRef),
       };
@@ -306,6 +311,7 @@ export class GridItemComponent implements FocusableOption, Highlightable {
   }
 
   #loadEncryptedThumbnailUrl({
+    entry,
     storage,
     thumbnailRef,
   }: EncryptedThumbnailRequest): Observable<string | null> {
@@ -316,7 +322,7 @@ export class GridItemComponent implements FocusableOption, Highlightable {
       subscriber.next(null);
 
       storage
-        .getThumbnailUrl(thumbnailRef)
+        .getThumbnailUrl(thumbnailRef, { entry })
         .then((url) => {
           if (disposed) {
             URL.revokeObjectURL(url);

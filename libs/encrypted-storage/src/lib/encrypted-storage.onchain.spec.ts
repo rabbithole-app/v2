@@ -60,6 +60,7 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
     finishUploadSession: ReturnType<typeof vi.fn>;
     getEncryptedVetkey: ReturnType<typeof vi.fn>;
     getVetkeyVerificationKey: ReturnType<typeof vi.fn>;
+    resolveUploadRoute: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -73,6 +74,7 @@ describe('EncryptedStorage OnChain upload funding retry', () => {
       })),
       getEncryptedVetkey: vi.fn(async () => new Uint8Array([1])),
       getVetkeyVerificationKey: vi.fn(async () => new Uint8Array([2])),
+      resolveUploadRoute: vi.fn(async () => ({ ok: { OnChain: null } })),
       beginUploadSession: vi.fn(async () => ({
         ok: {
           batchId: 1n,

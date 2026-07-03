@@ -24,8 +24,11 @@ import {
   ThumbnailRef,
 } from '@rabbithole/declarations/encrypted-storage';
 
+import { toWirePrefixed } from './blob-storage/blob-hash';
 import { AES_GCM_OVERHEAD } from './blob-storage/constants';
 import { downloadBlobStorageStream } from './blob-storage/download';
+import { ExternalS3PublicEncryptedClient } from './blob-storage/external-s3-download-client';
+import { uploadExternalS3BlobFile } from './blob-storage/external-s3-upload';
 import { BlobStorageGatewayClient } from './blob-storage/gateway-client';
 import {
   blobStorageDeclaredUploadBytes,
@@ -46,8 +49,8 @@ import {
   ResolveStorageAccessRequest,
   RevokeStorageAccessGrant,
   RevokeStorageAccessGrants,
-  StorageAccessScope,
   StorageAccessGrantListMode,
+  StorageAccessScope,
   type StorageClaimedPrincipal,
   StoragePendingAccessGrant,
   StoragePermission,
@@ -68,6 +71,15 @@ import {
   unwrapStorageResult,
 } from './utils/storage-result';
 import { verifyIcCertificate } from './utils/verify-ic-certificate';
+
+/** The vault requires an external S3 bucket that has not been connected yet.
+ * UI layers catch this to route the owner to the storage overview page. */
+export class ExternalS3SetupRequiredError extends Error {
+  constructor() {
+    super('Connect an S3-compatible bucket on the storage overview page before uploading');
+    this.name = 'ExternalS3SetupRequiredError';
+  }
+}
 
 const ONCHAIN_FUNDING_RETRY_DELAY_MS = 2_000;
 const ONCHAIN_FUNDING_MAX_RETRIES = 90;
@@ -209,23 +221,42 @@ export class EncryptedStorage {
     );
     const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
 
-    // ── BlobStorage download flow ──
-    if (options?.storageBackend === 'BlobStorage' && this.#blobStorageClient) {
-      if (!options.keyId) {
-        throw new Error('keyId is required for BlobStorage downloads');
-      }
-
+    if (options?.storageBackend === 'BlobStorage') {
+      const route = unwrapStorageResult(await this.#actor.resolveBlobReadRoute({
+        entry: toEntryRaw(entry),
+        version: options.version === undefined ? [] : [BigInt(options.version)],
+      }));
       const info = await this.#fetchCertifiedBlobInfo(options.keyId);
 
-      yield* downloadBlobStorageStream({
-        client: this.#blobStorageClient,
-        decryptChunk: (chunkBytes) =>
-          derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator),
-        info,
-        onProgress: options.onProgress,
-        signal: options.signal,
-      });
-      return;
+      if ('CaffeineBlobStorage' in route) {
+        if (!this.#blobStorageClient) {
+          throw new Error('Blob Storage is not configured for this environment');
+        }
+        yield* downloadBlobStorageStream({
+          client: this.#blobStorageClient,
+          decryptChunk: (chunkBytes) =>
+            derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator),
+          info,
+          onProgress: options.onProgress,
+          signal: options.signal,
+        });
+        return;
+      }
+
+      if ('ExternalS3PublicEncrypted' in route) {
+        yield* downloadBlobStorageStream({
+          client: new ExternalS3PublicEncryptedClient(route.ExternalS3PublicEncrypted),
+          decryptChunk: (chunkBytes) =>
+            derivedKeyMaterial.decryptMessage(chunkBytes, domainSeparator),
+          info: {
+            ...info,
+            blobHash: toWirePrefixed(info.blobHash),
+          },
+          onProgress: options.onProgress,
+          signal: options.signal,
+        });
+        return;
+      }
     }
 
     // ── Inline (on-chain) download flow ──
@@ -342,8 +373,8 @@ export class EncryptedStorage {
     return this.#storageBackend;
   }
 
-  async getThumbnailUrl(thumbnailRef: ThumbnailRef): Promise<string> {
-    return await this.#thumbnailClient.getUrl(thumbnailRef);
+  async getThumbnailUrl(thumbnailRef: ThumbnailRef, options?: { entry?: Entry }): Promise<string> {
+    return await this.#thumbnailClient.getUrl(thumbnailRef, options);
   }
 
   async hasPermission({
@@ -418,13 +449,22 @@ export class EncryptedStorage {
   ): Promise<void> {
     if (files.length === 0) return;
 
-    const backend = await this.getStorageBackend();
-    if (!('BlobStorage' in backend) || !this.#blobStorageClient) return;
+    const caffeineFiles: Array<{ entry: Entry; sourceSize: number }> = [];
+    for (const file of files) {
+      const route = unwrapStorageResult(await this.#actor.resolveUploadRoute({
+        entry: toEntryRaw(file.entry),
+        size: BigInt(blobStorageDeclaredUploadBytes(file.sourceSize)),
+      }));
+      if ('CaffeineBlobStorage' in route) {
+        caffeineFiles.push(file);
+      }
+    }
+    if (caffeineFiles.length === 0 || !this.#blobStorageClient) return;
 
     await this.#withBlobStorageCashierRetry(
       async () =>
         unwrapStorageResult(await this.#actor.preflightCaffeineUploadBatch(
-          files.map(({ entry, sourceSize }) => ({
+          caffeineFiles.map(({ entry, sourceSize }) => ({
             entry: toEntryRaw(entry),
             size: BigInt(blobStorageDeclaredUploadBytes(sourceSize)),
           })),
@@ -537,7 +577,10 @@ export class EncryptedStorage {
       await readable.open();
       readableOpened = true;
 
-      const backend = await this.getStorageBackend();
+      const uploadRoute = unwrapStorageResult(await this.#actor.resolveUploadRoute({
+        entry,
+        size: BigInt(sourceSize),
+      }));
       const domainSeparator = new TextEncoder().encode(this.#domainSeparator);
 
       let derivedKeyMaterial: Awaited<ReturnType<typeof this.getDerivedKeyMaterial>>;
@@ -563,9 +606,83 @@ export class EncryptedStorage {
           }));
         };
 
-      // ── BlobStorage upload flow ──
+      if ('ExternalS3SetupRequired' in uploadRoute) {
+        throw new ExternalS3SetupRequiredError();
+      }
+
+      // ── External S3 upload flow ──
+      // The canister signs scoped S3 URLs; chunks are encrypted in the browser.
+      if ('ExternalS3' in uploadRoute) {
+        const details = await this.#limit(
+          async () =>
+            unwrapStorageResult(await this.#actor.create({
+              entry,
+              createMode: { GetOrCreate: null },
+            })),
+          config.signal,
+        );
+
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.REQUESTING_VETKD },
+        }));
+
+        derivedKeyMaterial =
+          await this.#getDerivedKeyMaterialOrFetchIfNeeded(
+            details.keyId[0],
+            Uint8Array.from(details.keyId[1]),
+          );
+
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.PREPARING },
+        }));
+
+        const upload = await uploadExternalS3BlobFile({
+          contentType: config.contentType,
+          encryptChunk: (plain) => derivedKeyMaterial.encryptMessage(plain, domainSeparator),
+          onProgress: (completedChunks, totalChunks) => {
+            const current = Math.round((completedChunks / totalChunks) * sourceSize);
+            this.#progress.setState((state) => ({
+              ...state,
+              [key]: { status: UploadState.IN_PROGRESS, current, total: sourceSize },
+            }));
+          },
+          prepareUpload: async ({ rootHashHex, size }) =>
+            unwrapStorageResult(await this.#actor.prepareExternalBlobUpload({
+              entry,
+              targetId: [uploadRoute.ExternalS3.targetId],
+              rootHashHex,
+              size: BigInt(size),
+              expiresSeconds: [],
+            })),
+          readable,
+          signal: config.signal,
+          sourceSize,
+        });
+
+        this.#progress.setState((state) => ({
+          ...state,
+          [key]: { status: UploadState.FINALIZING },
+        }));
+        unwrapStorageResult(await this.#actor.commitExternalBlobUpload({
+          entry,
+          targetId: [uploadRoute.ExternalS3.targetId],
+          rootHashHex: upload.rootHashHex,
+          sha256: upload.sha256,
+          contentType: config.contentType,
+          size: BigInt(upload.size),
+        }));
+
+        return;
+      }
+
+      // ── Caffeine BlobStorage upload flow ──
       // Chunks go directly to the blob storage gateway, not through the canister.
-      if ('BlobStorage' in backend && this.#blobStorageClient) {
+      if ('CaffeineBlobStorage' in uploadRoute) {
+        if (!this.#blobStorageClient) {
+          throw new Error('Blob Storage is not configured for this environment');
+        }
         const details = await this.#limit(
           async () =>
             unwrapStorageResult(await this.#actor.create({

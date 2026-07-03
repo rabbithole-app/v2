@@ -13,15 +13,20 @@ import {
   ThumbnailRef,
 } from '@rabbithole/declarations/encrypted-storage';
 
+import { isCaffeineManagedHash, toWirePrefixed } from '../blob-storage/blob-hash';
 import { CAFFEINE_CHUNK_SIZE } from '../blob-storage/constants';
+import { ExternalS3PublicEncryptedClient } from '../blob-storage/external-s3-download-client';
+import { uploadExternalS3BlobFile } from '../blob-storage/external-s3-upload';
 import { BlobStorageGatewayClient } from '../blob-storage/gateway-client';
 import {
   BlobHashTree,
   verifyBlobIntegrity,
   YHash,
 } from '../blob-storage/merkle-tree';
+import { ReadableBytes } from '../readable/readableBytes';
 import { Entry, toEntryRaw } from '../types';
 import { uint8ArrayToArrayBuffer } from '../utils/bytes';
+import { unwrapStorageResult } from '../utils/storage-result';
 
 const THUMBNAIL_KEY_BYTES = 32;
 const THUMBNAIL_AES_GCM_IV_BYTES = 12;
@@ -42,6 +47,10 @@ type ThumbnailClientConfig = {
   ) => Promise<DerivedKeyMaterial>;
   origin: string;
   runBlobStoragePreflight?: <T>(operation: () => Promise<T>) => Promise<T>;
+};
+
+type ThumbnailReadOptions = {
+  entry?: Entry;
 };
 
 export class ThumbnailClient {
@@ -65,8 +74,8 @@ export class ThumbnailClient {
     this.#runBlobStoragePreflight = runBlobStoragePreflight;
   }
 
-  async getUrl(thumbnailRef: ThumbnailRef): Promise<string> {
-    const url = this.#sourceUrl(thumbnailRef);
+  async getUrl(thumbnailRef: ThumbnailRef, options: ThumbnailReadOptions = {}): Promise<string> {
+    const url = await this.#sourceUrl(thumbnailRef, options);
     const encryption = this.#encryption(thumbnailRef);
 
     const response = await fetch(url);
@@ -81,7 +90,7 @@ export class ThumbnailClient {
     if ('BlobStorage' in thumbnailRef) {
       const isValid = await verifyBlobIntegrity(
         encryptedBytes,
-        thumbnailRef.BlobStorage.rootHash,
+        toWirePrefixed(thumbnailRef.BlobStorage.rootHash),
         thumbnailRef.BlobStorage.contentType,
         CAFFEINE_CHUNK_SIZE,
       );
@@ -163,6 +172,46 @@ export class ThumbnailClient {
           encryption: thumbnail.encryption,
         },
       });
+    }
+
+    const uploadRoute = unwrapStorageResult(await this.#actor.resolveUploadRoute({
+      entry: toEntryRaw(entry),
+      size: BigInt(thumbnail.content.byteLength),
+    }));
+
+    if ('ExternalS3SetupRequired' in uploadRoute) {
+      throw new Error('External S3 storage target is not configured');
+    }
+
+    if ('ExternalS3' in uploadRoute) {
+      const upload = await uploadExternalS3BlobFile({
+        contentType: prepared.contentType,
+        encryptChunk: async (plain) => plain,
+        prepareUpload: async ({ rootHashHex, size }) =>
+          unwrapStorageResult(await this.#actor.prepareExternalBlobUpload({
+            entry: toEntryRaw(entry),
+            targetId: [uploadRoute.ExternalS3.targetId],
+            rootHashHex,
+            size: BigInt(size),
+            expiresSeconds: [],
+          })),
+        readable: new ReadableBytes('thumbnail.bin', thumbnail.content),
+        sourceSize: thumbnail.content.byteLength,
+      });
+
+      return unwrapStorageResult(await this.#actor.commitExternalThumbnailUpload({
+        entry: toEntryRaw(entry),
+        targetId: [uploadRoute.ExternalS3.targetId],
+        rootHashHex: upload.rootHashHex,
+        sha256: upload.sha256,
+        contentType: prepared.contentType,
+        size: BigInt(upload.size),
+        encryption: thumbnail.encryption,
+      }));
+    }
+
+    if ('OnChain' in uploadRoute) {
+      throw new Error('Blob Storage thumbnails are not enabled for this entry.');
     }
 
     if (!this.#blobStorageClient) {
@@ -287,9 +336,26 @@ export class ThumbnailClient {
     return thumbnailRef.BlobStorage.size;
   }
 
-  #sourceUrl(thumbnailRef: ThumbnailRef): string {
+  async #sourceUrl(thumbnailRef: ThumbnailRef, options: ThumbnailReadOptions): Promise<string> {
     if ('OnChain' in thumbnailRef) {
       return `${this.#origin}${thumbnailRef.OnChain.key}`;
+    }
+
+    if (!isCaffeineManagedHash(thumbnailRef.BlobStorage.rootHash)) {
+      if (!options.entry) {
+        throw new Error('Thumbnail entry is required for external S3 thumbnails');
+      }
+      const route = unwrapStorageResult(await this.#actor.resolveThumbnailReadRoute({
+        entry: toEntryRaw(options.entry),
+        rootHash: thumbnailRef.BlobStorage.rootHash,
+      }));
+      if ('ExternalS3PublicEncrypted' in route) {
+        return new ExternalS3PublicEncryptedClient(route.ExternalS3PublicEncrypted)
+          .getDownloadUrl(thumbnailRef.BlobStorage.rootHash);
+      }
+      if ('OnChain' in route) {
+        throw new Error('Blob Storage thumbnail read route resolved to OnChain');
+      }
     }
 
     if (!this.#blobStorageClient) {
