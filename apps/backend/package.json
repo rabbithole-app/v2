@@ -4,14 +4,13 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
-    "mops:install": "mops install && ../../mops-patches/apply.sh .",
-    "postinstall": "node scripts/override-pocketic.mjs"
+    "mops:install": "mops install && ../../mops-patches/apply.sh ."
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
-    "@dfinity/pic": "^0.21.0",
+    "@dfinity/pic": "^0.22.0",
     "@dfinity/utils": "^4.1.0",
     "@faker-js/faker": "^10.1.0",
     "@icp-sdk/canisters": "^3.3.0",
