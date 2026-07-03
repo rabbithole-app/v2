@@ -1,7 +1,8 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, resource } from '@angular/core';
 import { provideIcons } from '@ng-icons/core';
 import {
   lucideClipboardList,
+  lucideCloud,
   lucideFolder,
   lucideHardDrive,
 } from '@ng-icons/lucide';
@@ -9,8 +10,10 @@ import {
 import { NavigationComponent, NavItem } from '@rabbithole/core/app-runtime';
 import {
   AccessRequestsCapabilityService,
+  injectEncryptedStorage,
   provideEncryptedStorage,
 } from '@rabbithole/core/storage-runtime';
+import type { StorageBackend } from '@rabbithole/declarations/encrypted-storage';
 import {
   HlmSidebarGroup,
   HlmSidebarGroupContent,
@@ -32,6 +35,7 @@ import {
     provideIcons({
       lucideHardDrive,
       lucideFolder,
+      lucideCloud,
       lucideClipboardList,
     }),
     provideEncryptedStorage(),
@@ -41,6 +45,12 @@ import {
 })
 export class StorageNavigationComponent {
   readonly #accessRequestsCapability = inject(AccessRequestsCapabilityService);
+  readonly #encryptedStorage = injectEncryptedStorage();
+  readonly #storageBackend = resource({
+    loader: async (): Promise<StorageBackend | null> =>
+      this.#encryptedStorage().getStorageBackend(),
+    defaultValue: null,
+  });
   readonly data = computed<NavItem[]>(() => [
     {
       title: 'Storage',
@@ -52,6 +62,15 @@ export class StorageNavigationComponent {
       url: `/drive`,
       icon: 'lucideFolder',
     },
+    ...(isBlobStorageBackend(this.#storageBackend.value())
+      ? [
+          {
+            title: 'Data storage',
+            url: `/storage-settings`,
+            icon: 'lucideCloud',
+          },
+        ]
+      : []),
     ...(this.#accessRequestsCapability.canManage()
       ? [
           {
@@ -63,4 +82,8 @@ export class StorageNavigationComponent {
         ]
       : []),
   ]);
+}
+
+function isBlobStorageBackend(backend: StorageBackend | null): boolean {
+  return backend !== null && 'BlobStorage' in backend;
 }

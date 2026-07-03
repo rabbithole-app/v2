@@ -239,9 +239,6 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
       case (?t) t;
       case null #BlobStorage;
     };
-    // Write policy is not an install-time choice: BlobStorage vaults default to
-    // Caffeine-managed and switch to external S3 only after a target is
-    // configured post-deployment.
     objectStorageWritePolicy = null;
   });
   versionedStorage := EncryptedStorage.upgradeStableStore(

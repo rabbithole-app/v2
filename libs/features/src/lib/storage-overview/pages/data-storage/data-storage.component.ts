@@ -21,10 +21,7 @@ import {
   PageHeaderActionsDirective,
   ProFeatureGateService,
 } from '@rabbithole/core';
-import {
-  provideEncryptedStorageActor,
-  provideEncryptedStorageCanisterIdFromRouteParam,
-} from '@rabbithole/core/storage-runtime';
+import { provideEncryptedStorageActor } from '@rabbithole/core/storage-runtime';
 import type { ExternalStorageTargetView } from '@rabbithole/declarations/encrypted-storage';
 import { HlmAlertImports } from '@spartan-ng/helm/alert';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -66,7 +63,6 @@ import { targetLabel } from '../../utils';
     TargetHistoryTableComponent,
   ],
   providers: [
-    provideEncryptedStorageCanisterIdFromRouteParam(),
     provideEncryptedStorageActor(),
     ExternalStorageTargetsService,
     provideIcons({

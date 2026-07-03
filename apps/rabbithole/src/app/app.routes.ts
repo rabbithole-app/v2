@@ -255,19 +255,19 @@ export const appRoutes: Route[] = [
                 children: [
                   {
                     path: '',
-                    pathMatch: 'full',
-                    loadChildren: () =>
-                      import('@rabbithole/features/storage-overview').then(
-                        (m) => m.storageOverviewRoutes,
-                      ),
-                  },
-                  {
-                    path: '',
                     loadComponent: () =>
                       import('./pages/storage/storage.component').then(
                         (m) => m.StorageComponent,
                       ),
                     children: [
+                      {
+                        path: '',
+                        pathMatch: 'full',
+                        loadChildren: () =>
+                          import('@rabbithole/features/storage-overview').then(
+                            (m) => m.storageOverviewRoutes,
+                          ),
+                      },
                       {
                         path: 'drive',
                         loadChildren: () =>

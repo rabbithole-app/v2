@@ -19,14 +19,24 @@ export const appRoutes: Route[] = [
     children: [
       {
         path: '',
-        redirectTo: 'drive',
         pathMatch: 'full',
+        loadChildren: () =>
+          import('@rabbithole/features/storage-overview').then(
+            (m) => m.storageOverviewRoutes,
+          ),
       },
       {
         path: 'drive',
         loadChildren: () =>
           import('@rabbithole/features/file-list').then(
             (m) => m.fileListRoutes,
+          ),
+      },
+      {
+        path: 'storage-settings',
+        loadChildren: () =>
+          import('@rabbithole/features/storage-overview').then(
+            (m) => m.dataStorageRoutes,
           ),
       },
       {

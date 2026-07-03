@@ -17,7 +17,6 @@ import { PageHeaderActionsDirective } from '@rabbithole/core';
 import {
   ENCRYPTED_STORAGE_CANISTER_ID,
   provideEncryptedStorageActor,
-  provideEncryptedStorageCanisterIdFromRouteParam,
 } from '@rabbithole/core/storage-runtime';
 import type { ExternalStorageTargetView } from '@rabbithole/declarations/encrypted-storage';
 import { CopyToClipboardComponent } from '@rabbithole/ui/copy-to-clipboard';
@@ -51,7 +50,6 @@ import { formatSize, targetLabel } from '../../utils';
     PageHeaderActionsDirective,
   ],
   providers: [
-    provideEncryptedStorageCanisterIdFromRouteParam(),
     provideEncryptedStorageActor(),
     ExternalStorageTargetsService,
     provideIcons({
