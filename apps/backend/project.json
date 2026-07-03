@@ -68,9 +68,7 @@
         "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
         "parallel": false
       },
-      "dependsOn": [
-        { "target": "build", "projects": ["rabbithole"] }
-      ]
+      "dependsOn": [{ "target": "build", "projects": ["rabbithole"] }]
     },
     "serve": {
       "executor": "nx:run-commands",
@@ -83,7 +81,7 @@
           "node scripts/generate-declarations.mjs",
           "icp deploy -e local --cycles 20t",
           "bash scripts/sync-env.sh local",
-          "docker compose logs -f network caddy mock-server"
+          "docker compose logs -f network caddy mock-server minio minio-init"
         ],
         "env": { "COMPOSE_PROJECT_NAME": "rabbithole" },
         "parallel": false
@@ -126,11 +124,10 @@
     "generate-dev-storage-release": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": [
-          "npx nx build storage --skip-nx-cache",
-          "cd apps/backend && icp build -e build encrypted-storage",
-          "node apps/backend/scripts/create-mock-storage-release.mjs --mode dev"
-        ],
+      "commands": [
+        "npx nx build storage --skip-nx-cache",
+        "node apps/backend/scripts/create-mock-storage-release.mjs --mode dev"
+      ],
         "parallel": false
       }
     },

@@ -3,7 +3,9 @@
 
 # icp-cli ephemeral state
 .icp/cache/
+# Dynamic local/build canister-id mappings (ic.ids.json + staging.ids.json stay tracked).
 .icp/data/mappings/local.ids.json
+.icp/data/mappings/build.ids.json
 .icp-state/
 .icp-status/
 

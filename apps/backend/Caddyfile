@@ -1,10 +1,24 @@
 localhost, *.localhost, *.raw.localhost {
-    tls internal {
-        on_demand
-    }
+	tls internal {
+		on_demand
+	}
 
-    @openid host openid.localhost
-    reverse_proxy @openid openid-provider:11105
+	@openid host openid.localhost
+	handle @openid {
+		reverse_proxy openid-provider:11105
+	}
 
-    reverse_proxy network:4943
+	@minio host minio.localhost
+	handle @minio {
+		reverse_proxy minio:9000
+	}
+
+	@minioConsole host minio-console.localhost
+	handle @minioConsole {
+		reverse_proxy minio:9001
+	}
+
+	handle {
+		reverse_proxy network:4943
+	}
 }

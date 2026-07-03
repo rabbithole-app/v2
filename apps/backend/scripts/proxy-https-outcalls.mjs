@@ -121,14 +121,18 @@ async function proxyOutcall(outcall) {
   }
 
   try {
-    const target = rewriteLocalUrl(url);
+    const { target, hostHeader } = rewriteLocalUrl(url);
+    if (hostHeader && !headers.has('host')) {
+      headers.set('host', hostHeader);
+    }
     console.log(
       target === url
         ? `[https-outcall-proxy] ${method} ${url}`
         : `[https-outcall-proxy] ${method} ${url} -> ${target}`,
     );
+    const requestBody = outcall.body ? Buffer.from(outcall.body, 'base64') : undefined;
     const response = await fetch(target, {
-      body: outcall.body ? Buffer.from(outcall.body, 'base64') : undefined,
+      body: requestBody,
       headers,
       method,
       signal: AbortSignal.timeout(10_000),
@@ -137,7 +141,20 @@ async function proxyOutcall(outcall) {
     response.headers.forEach((value, name) => {
       responseHeaders.push({ name, value });
     });
-    const body = Buffer.from(await response.arrayBuffer()).toString('base64');
+    const responseBuffer = Buffer.from(await response.arrayBuffer());
+    if (url.includes('?delete=')) {
+      const requestPreview = requestBody
+        ?.toString('utf8')
+        .match(/<Key>.*?<\/Key>/g)
+        ?.join(' ');
+      const preview = responseBuffer.toString('utf8').replace(/\s+/g, ' ').trim().slice(0, 500);
+      console.log(
+        `[https-outcall-proxy] ${method} ${url}${requestPreview ? ` ${requestPreview}` : ''} -> ${response.status}${
+          preview ? ` ${preview}` : ''
+        }`,
+      );
+    }
+    const body = responseBuffer.toString('base64');
 
     await mockOutcall(outcall, {
       CanisterHttpReply: {
@@ -209,11 +226,13 @@ function retryable(message) {
 function rewriteLocalUrl(value) {
   const url = new URL(value);
   if (url.hostname === 'openid.localhost' || (url.hostname === 'localhost' && url.port === '11105')) {
+    const hostHeader = url.host;
     url.protocol = 'http:';
     url.hostname = 'openid-provider';
     url.port = '11105';
+    return { target: url.toString(), hostHeader };
   }
-  return url.toString();
+  return { target: url.toString(), hostHeader: null };
 }
 
 function sleep(ms) {

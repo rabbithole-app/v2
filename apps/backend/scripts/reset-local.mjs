@@ -20,7 +20,19 @@ process.env.COMPOSE_PROJECT_NAME ??= 'rabbithole';
 
 run('docker', ['compose', 'down']);
 await removeLocalState();
-run('docker', ['compose', 'up', '-d', '--wait']);
+run('docker', [
+  'compose',
+  'up',
+  '-d',
+  '--wait',
+  'network',
+  'openid-provider',
+  'mock-server',
+  'minio',
+  'caddy',
+  'https-outcall-proxy',
+]);
+run('docker', ['compose', 'up', 'minio-init']);
 run('node', ['scripts/bootstrap.mjs']);
 run('node', ['scripts/generate-declarations.mjs']);
 runDeployWithCycleRetries();

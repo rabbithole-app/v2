@@ -4,6 +4,22 @@ services:
   network:
     image: ghcr.io/dfinity/icp-cli-network-launcher:12.0.0-2026-04-16-04-20
     restart: unless-stopped
+    # Trust Caddy's local CA IN ADDITION to the system roots, so PocketIC's
+    # HTTPS-outcall executor reaches both https://minio.localhost (Caddy TLS)
+    # and real endpoints like XRC's exchange APIs. SSL_CERT_FILE REPLACES the
+    # root store, so a combined bundle is required — pointing it at root.crt
+    # alone breaks every real-internet outcall with UnknownIssuer.
+    entrypoint:
+      - /usr/bin/sh
+      - -c
+      - |
+        while [ ! -f /caddy-data/caddy/pki/authorities/local/root.crt ]; do
+          sleep 1
+        done
+        cat /etc/ssl/certs/ca-certificates.crt /caddy-data/caddy/pki/authorities/local/root.crt > /tmp/ca-bundle.crt
+        export SSL_CERT_FILE=/tmp/ca-bundle.crt
+        exec /app/icp-cli-network-launcher --status-dir=/app/status --config-port 4942 --gateway-port 4943 --bind 0.0.0.0 --pocketic-config-bind 0.0.0.0 "$$@"
+      - --
     command:
       - --nns
       - --subnet=application
@@ -13,6 +29,7 @@ services:
     volumes:
       - ./.icp-state:/app/state
       - ./.icp-status:/app/status
+      - caddy_data:/caddy-data:ro
     ports:
       - "8000:4943"
       - "127.0.0.1:4942:4942"
@@ -40,6 +57,13 @@ services:
         condition: service_healthy
       openid-provider:
         condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      default:
+        aliases:
+          - minio.localhost
+          - minio-console.localhost
 
   openid-provider:
     image: node:22-alpine
@@ -53,7 +77,11 @@ services:
     expose:
       - 11105
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:11105/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:11105/health || exit 1",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -63,14 +91,26 @@ services:
     image: node:22-alpine
     restart: unless-stopped
     working_dir: /workspace
-    command: ["node", "apps/backend/scripts/proxy-https-outcalls.mjs"]
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while [ ! -f /caddy-data/caddy/pki/authorities/local/root.crt ]; do
+          sleep 1
+        done
+        node apps/backend/scripts/proxy-https-outcalls.mjs
+    environment:
+      NODE_EXTRA_CA_CERTS: /caddy-data/caddy/pki/authorities/local/root.crt
     volumes:
       - ../..:/workspace:ro
+      - caddy_data:/caddy-data:ro
     depends_on:
       network:
         condition: service_healthy
       openid-provider:
         condition: service_healthy
+      caddy:
+        condition: service_started
 
   mock-server:
     image: nginx:alpine
@@ -82,12 +122,48 @@ services:
     expose:
       - 8080
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 2s
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: rabbithole
+      MINIO_ROOT_PASSWORD: rabbithole-secret
+      MINIO_SERVER_URL: https://minio.localhost
+      MINIO_BROWSER_REDIRECT_URL: https://minio-console.localhost
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+    volumes:
+      - minio_data:/data
+    expose:
+      - 9000
+      - 9001
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 rabbithole rabbithole-secret; do
+          sleep 1
+        done
+        mc mb -p local/rabbithole-dev || true
+        mc anonymous set download local/rabbithole-dev || true
+
 volumes:
   caddy_data:
   caddy_config:
+  minio_data:
