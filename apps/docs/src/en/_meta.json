@@ -11,6 +11,11 @@
   },
   {
     "type": "file",
+    "name": "ambassador-program",
+    "label": "Ambassador Program"
+  },
+  {
+    "type": "file",
     "name": "agent-resources",
     "label": "Agent resources"
   },
