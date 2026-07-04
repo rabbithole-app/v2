@@ -11,6 +11,12 @@ Blob Storage is the recommended mode for most encrypted files. The bytes live
 outside your canister, while the canister keeps the file record, access rules,
 and the data your browser uses to detect replacement.
 
+By default the bytes are held by [**Caffeine Blob Storage**](https://caffeine.ai/) —
+an external service that keeps them on S3-compatible storage and handles paying
+for the space and keeping the stored data in order. With Pro you can connect
+[your own S3 bucket](/how-it-works/storage/own-s3-storage) instead and pay your
+provider directly; the flow is the same either way.
+
 The storage layer sees only ciphertext. Blob Storage handles byte storage and
 delivery, while browser-side encryption protects file confidentiality before
 upload.
@@ -37,9 +43,10 @@ The Blob Storage path looks like this:
 
 - your browser prepares and uploads the file;
 - your personal canister keeps the trusted record and access state;
-- **Blob Gateway** accepts uploads and returns files during download;
-- **Cashier** and **Cleanup service** handle billing and cleanup or retention
-  events.
+- **Caffeine Blob Storage** holds the encrypted bytes. Inside it, a **gateway**
+  accepts uploads and returns files during download, a **cashier** pays for the
+  storage, and a **cleanup** part keeps the stored data in sync with your
+  canister.
 
 ## How upload works
 
@@ -85,11 +92,11 @@ Only after that does decryption happen, if encryption was enabled for that file.
 
 File bytes in Blob Storage have their own lifecycle. The canister remains the
 trusted system of record, but byte availability depends on Blob Storage funding
-and retention rules.
+and retention rules. Caffeine Blob Storage handles this for you:
 
-- **Blob Gateway** accepts uploads and returns files during download.
-- **Cashier** keeps storage funded.
-- **Cleanup service** synchronizes deletion and retention events with your
+- its **gateway** accepts uploads and returns files during download;
+- its **cashier** keeps the storage funded;
+- its **cleanup** part synchronizes deletion and retention events with your
   canister.
 
 ## Why this model is cheaper

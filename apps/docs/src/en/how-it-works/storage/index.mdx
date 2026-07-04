@@ -42,6 +42,11 @@ sees only encrypted bytes.
 - Best for larger files and lower cost.
 - The file is stored in external object storage.
 - Your personal canister keeps access rules and file verification data.
+- By default [Caffeine Blob Storage](https://caffeine.ai/) holds the bytes and
+  handles paying for the space. With Pro you can connect
+  [your own S3 bucket](/how-it-works/storage/own-s3-storage) instead and pay your
+  provider directly. It is the same mode either way — only who holds the bytes
+  and who bills you changes.
 
 ### On-chain Storage <Badge type="info">Advanced mode</Badge>
 
@@ -56,14 +61,19 @@ matters more.
 
 ## Comparison
 
-| | Blob Storage | On-chain Storage |
-|---|---|---|
-| **Best for** | Everyday storage | Special scenarios and maximum control |
-| **Estimated cost** | About **$0.05/GB/month** | About **$1.04/GB/month** |
-| **Where the file lives** | External object storage | Your personal canister |
-| **What your canister keeps** | File record, access rules, verification data | File record, access rules, file bytes |
-| **Upload concern** | Blob Storage availability and record commit | Cycle balance and canister safe floor |
-| **Trust model** | IC + local verification + storage service | IC + cryptography |
+The first two columns are the same **Blob Storage** mode; they differ only in who
+holds the encrypted bytes and who bills you. Connecting your own S3 bucket is a
+Pro feature.
+
+| | Blob Storage · Caffeine | Blob Storage · your S3 | On-chain Storage |
+|---|---|---|---|
+| **Best for** | Everyday storage | Everyday storage, on infrastructure you control | Special scenarios and maximum control |
+| **Estimated cost** | About **$0.05/GB/month** | Your provider's price | About **$1.04/GB/month** |
+| **Who holds the bytes** | Caffeine Blob Storage | Your own S3 bucket | Your personal canister |
+| **Who pays for storage** | Your canister pays Caffeine | You pay your provider directly | Your canister (cycles) |
+| **What your canister keeps** | File record, access rules, verification data | File record, access rules, verification data | File record, access rules, file bytes |
+| **Needs Pro** | No | Yes | No |
+| **Trust model** | IC + local verification + Caffeine | IC + local verification + your provider | IC + cryptography |
 
 :::note About pricing
 
@@ -117,6 +127,10 @@ manage service operations, but it does not become the data owner.
       {
         text: 'How Blob Storage works',
         link: '/how-it-works/storage/blob-storage',
+      },
+      {
+        text: 'Connect your own S3 storage',
+        link: '/how-it-works/storage/own-s3-storage',
       },
       {
         text: 'How On-chain Storage works',

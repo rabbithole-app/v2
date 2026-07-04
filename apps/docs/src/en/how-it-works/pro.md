@@ -29,6 +29,7 @@ These features are available across your vaults while Rabbithole Pro is active.
 |---|---|
 | **Sharing** | You can share vaults, folders, and files, manage permissions, handle access requests, and [invite by email](/how-it-works/sharing/email-invites) people who have not used Rabbithole yet. |
 | **[Storage updates](/how-it-works/sovereignty/updates)** | After you approve the update, Rabbithole can install a new storage code version or storage web interface. |
+| **[Own S3 storage](/how-it-works/storage/own-s3-storage)** | On a Blob Storage vault, you can connect your own S3-compatible bucket to hold the encrypted bytes and pay your provider directly, instead of the default blob-storage service. |
 | **Uploads beyond starter limits** | Rabbithole Pro lets encrypted uploads continue beyond Starter Vault limits while the subscription is active and the operation can be funded by managed credit or your balance. |
 | **[Automatic cycle top-ups](/how-it-works/payment#how-automatic-cycle-top-ups-work)** | If a storage canister needs cycles before an operation or when its balance drops, Rabbithole can top it up automatically. |
 | **2 TC managed operations credit** | Each Pro period includes up to 2 TC for automatic top-ups. The limit is shared across your vaults: Rabbithole spends it on the canisters that need cycles. |

@@ -6,6 +6,11 @@
   },
   {
     "type": "file",
+    "name": "own-s3-storage",
+    "label": "Own S3 storage"
+  },
+  {
+    "type": "file",
     "name": "on-chain-storage",
     "label": "On-chain Storage"
   },
