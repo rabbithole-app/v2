@@ -107,6 +107,7 @@ describe('provideRegistration', () => {
     _internet_identity_sign_in_start: vi.fn(),
     ensureUser: vi.fn(),
     getUser: vi.fn(),
+    getMyDiscountState: vi.fn(),
     claimVerifiedEmailAccess: vi.fn(),
   };
   const actorSignal = signal(mockActor);
@@ -140,6 +141,8 @@ describe('provideRegistration', () => {
     mockActor._internet_identity_sign_in_start.mockReset();
     mockActor.ensureUser.mockReset();
     mockActor.getUser.mockReset();
+    mockActor.getMyDiscountState.mockReset();
+    mockActor.getMyDiscountState.mockResolvedValue([]);
     mockActor.claimVerifiedEmailAccess.mockReset();
     mockAttributeActor._internet_identity_sign_in_finish.mockReset();
     mockAuthService.requestAttributes.mockReset();

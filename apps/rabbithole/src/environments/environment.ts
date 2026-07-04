@@ -31,6 +31,7 @@ export const environment = {
     INTERNET_IDENTITY_BACKEND_CANISTER_ID || MAINNET_IDENTITY_SIGNER_CANISTER_ID,
   appUrl: 'http://localhost:4200',
   appName: 'Rabbithole',
+  docsUrl: 'http://localhost:4202',
   openIdProviders: [
     {
       id: 'dev',

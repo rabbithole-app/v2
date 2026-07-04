@@ -18,6 +18,7 @@ export const environment = {
   identitySignerCanisterId: 'rdmx6-jaaaa-aaaaa-aaadq-cai',
   appUrl: `https://${FRONTEND_CANISTER_ID}.icp.net`,
   appName: 'Rabbithole',
+  docsUrl: 'https://docs.rabbithole.app',
   openIdProviders: ['google', 'apple', 'microsoft'] as const,
   evmRpcUrl: EVM_RPC_URL,
   solanaRpcUrl: SOL_RPC_URL,

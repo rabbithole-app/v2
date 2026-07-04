@@ -1,0 +1,90 @@
+<div class="border-border w-full overflow-auto rounded-md border">
+  <table hlmTable class="w-full">
+    <thead hlmTHead>
+      <tr hlmTr>
+        <th hlmTh>Code</th>
+        <th hlmTh>Discount</th>
+        <th hlmTh>Redemptions</th>
+        <th hlmTh>Expiry</th>
+        <th hlmTh>Status</th>
+        <th hlmTh>Created</th>
+        <th hlmTh class="text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody hlmTBody class="w-full">
+      @for (coupon of coupons(); track coupon.code) {
+        <tr hlmTr>
+          <td hlmTd>
+            <div class="min-w-0">
+              <rbth-copy-to-clipboard [content]="coupon.code">
+                <span class="font-mono">{{ coupon.code }}</span>
+              </rbth-copy-to-clipboard>
+              @if (coupon.note[0]; as note) {
+                <p class="truncate text-xs text-muted-foreground">{{ note }}</p>
+              }
+            </div>
+          </td>
+          <td hlmTd>{{ _formatDiscount(coupon.discountBps) }}</td>
+          <td hlmTd class="tabular-nums">{{ _redemptions(coupon) }}</td>
+          <td hlmTd>
+            @if (_expiry(coupon); as expiry) {
+              {{ expiry | date: 'mediumDate' }}
+            } @else {
+              <span class="text-muted-foreground">Never</span>
+            }
+          </td>
+          <td hlmTd>
+            <span hlmBadge [variant]="_statusVariant(coupon)" class="capitalize">
+              {{ _status(coupon) }}
+            </span>
+          </td>
+          <td hlmTd>{{ _createdAt(coupon) | date: 'mediumDate' }}</td>
+          <td hlmTd class="text-right">
+            @if (_status(coupon) === 'active') {
+              <button
+                class="size-8"
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                [hlmTooltip]="'Copy invite link'"
+                (click)="_copyInviteLink(coupon)"
+              >
+                <span class="sr-only">Copy invite link</span>
+                <ng-icon hlmIcon size="sm" name="lucideLink" />
+              </button>
+              <button
+                class="size-8 text-destructive hover:text-destructive"
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                [hlmTooltip]="'Revoke coupon'"
+                (click)="revoke.emit(coupon.code)"
+              >
+                <span class="sr-only">Revoke</span>
+                <ng-icon hlmIcon size="sm" name="lucideBan" />
+              </button>
+            } @else {
+              <button
+                class="size-8 text-destructive hover:text-destructive"
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                [hlmTooltip]="'Delete coupon'"
+                (click)="remove.emit(coupon.code)"
+              >
+                <span class="sr-only">Delete</span>
+                <ng-icon hlmIcon size="sm" name="lucideTrash2" />
+              </button>
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr hlmTr>
+          <td hlmTd class="h-24 text-center" [attr.colspan]="7">
+            No coupons yet.
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

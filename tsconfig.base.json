@@ -150,6 +150,9 @@
       "@rabbithole/features/allowances": [
         "libs/features/src/lib/allowances/index.ts"
       ],
+      "@rabbithole/features/ambassador": [
+        "libs/features/src/lib/ambassador/index.ts"
+      ],
       "@rabbithole/features/file-list": [
         "libs/features/src/lib/file-list/index.ts"
       ],

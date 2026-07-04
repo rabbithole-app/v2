@@ -1,0 +1,63 @@
+<div class="border-border w-full overflow-auto rounded-md border">
+  <table hlmTable class="w-full">
+    <thead hlmTHead>
+      @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+        <tr hlmTr>
+          @for (header of headerGroup.headers; track header.id) {
+            <th hlmTh>
+              @if (!header.isPlaceholder) {
+                <ng-container
+                  *flexRender="
+                    header.column.columnDef.header;
+                    props: header.getContext();
+                    let headerText
+                  "
+                >
+                  <div [innerHTML]="headerText"></div>
+                </ng-container>
+              }
+            </th>
+          }
+        </tr>
+      }
+    </thead>
+    <tbody hlmTBody class="w-full">
+      @for (row of table.getRowModel().rows; track row.original.item.id.toText()) {
+        @let item = row.original.item;
+        <tr hlmTr>
+          <td hlmTd>
+            <rbth-user-identity
+              class="min-w-0"
+              [avatarSrc]="_avatarSrc(item)"
+              [copyPrincipal]="true"
+              [principalId]="_principalText(item)"
+              [title]="_displayName(item)"
+            />
+          </td>
+          <td hlmTd>
+            @if (_referredAt(item); as referred) {
+              {{ referred | date: 'mediumDate' }}
+            } @else {
+              <span class="text-muted-foreground">—</span>
+            }
+          </td>
+          <td hlmTd>
+            @if (_earnedUsd(item); as earned) {
+              <span class="font-medium tabular-nums">{{ earned }}</span>
+            } @else if (_hasPaid(item)) {
+              <span hlmBadge variant="secondary">Paid</span>
+            } @else {
+              <span class="text-muted-foreground">—</span>
+            }
+          </td>
+        </tr>
+      } @empty {
+        <tr hlmTr>
+          <td hlmTd class="h-24 text-center" [attr.colspan]="3">
+            No invited users yet.
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

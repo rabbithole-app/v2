@@ -18,9 +18,12 @@ import { BrnSheetContent } from '@spartan-ng/brain/sheet';
 
 import { AUTH_SERVICE } from '@rabbithole/auth';
 import {
+  applyDiscountUsd,
+  DiscountService,
   formatUsd,
   ICPAY_CONFIG_TOKEN,
   PRO_MONTHLY_PRICE_USD,
+  PromoCodeInputComponent,
   SubscriptionService,
 } from '@rabbithole/core';
 import { WalletBalancePaymentPanelComponent } from '@rabbithole/core/wallet';
@@ -51,6 +54,7 @@ type DrawerStep = 'confirming' | 'error' | 'icpay-pending' | 'select' | 'success
     HlmIcon,
     HlmSpinner,
     NgIcon,
+    PromoCodeInputComponent,
     RbthDrawerComponent,
     RbthDrawerContentComponent,
     RbthDrawerHeaderComponent,
@@ -68,19 +72,38 @@ type DrawerStep = 'confirming' | 'error' | 'icpay-pending' | 'select' | 'success
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PaymentDrawerComponent {
+  readonly #discountService = inject(DiscountService);
+
+  // First Pro-month discount applies to the pay-from-balance path (the backend
+  // applies it on purchaseSubscription). The ICPay crypto path is charged the
+  // full monthly price.
+  readonly discountState = computed(() => this.#discountService.discountState());
+  readonly proDiscountActive = computed(() => {
+    const discount = this.discountState();
+    return !!discount && !discount.proFirstMonthUsed;
+  });
+
+  readonly effectiveProPriceUsd = computed(() => {
+    const discount = this.discountState();
+    return this.proDiscountActive() && discount
+      ? applyDiscountUsd(PRO_MONTHLY_PRICE_USD, discount.discountBps)
+      : PRO_MONTHLY_PRICE_USD;
+  });
+
+  readonly discountedProPriceLabel = computed(() =>
+    formatUsd(this.effectiveProPriceUsd()),
+  );
+
   readonly errorMessage = signal<string | null>(null);
-
   readonly icpayPayBtn = viewChild<ElementRef<HTMLElement>>('icpayPayBtn');
-  readonly proPriceLabel = formatUsd(PRO_MONTHLY_PRICE_USD);
-
   readonly purpose = input<'resubscribe' | 'subscribe'>('subscribe');
   readonly payFromBalanceLabel = computed(() =>
     this.purpose() === 'resubscribe'
-      ? `Resubscribe to Pro - ${this.proPriceLabel}/mo from balance`
-      : `Pay ${this.proPriceLabel}/mo from balance`,
+      ? `Resubscribe to Pro - ${this.discountedProPriceLabel()}/mo from balance`
+      : `Pay ${this.discountedProPriceLabel()}/mo from balance`,
   );
-
-  readonly PRO_MONTHLY_PRICE_USD = PRO_MONTHLY_PRICE_USD;
+  readonly proPriceLabel = formatUsd(PRO_MONTHLY_PRICE_USD);
+  readonly showPromoInput = computed(() => this.discountState() === null);
 
   readonly step = signal<DrawerStep>('select');
   readonly title = computed(() =>

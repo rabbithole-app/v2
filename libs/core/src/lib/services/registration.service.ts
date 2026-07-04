@@ -17,6 +17,7 @@ import {
 } from '@icp-sdk/core/agent';
 import { AttributesIdentity } from '@icp-sdk/core/identity';
 import { Principal } from '@icp-sdk/core/principal';
+import { toast } from '@spartan-ng/brain/sonner';
 import { derivedFrom } from 'ngxtension/derived-from';
 import {
   catchError,
@@ -52,6 +53,11 @@ import {
 import { HTTP_AGENT_OPTIONS_TOKEN } from '../injectors/http-agent';
 import { injectMainActor, MAIN_ACTOR_TOKEN } from '../injectors/main-actor';
 import { MAIN_CANISTER_ID_TOKEN } from '../tokens/main-canister';
+import {
+  applyReferralCodeErrorMessage,
+  formatDiscountPercent,
+  isBenignReferralError,
+} from '../utils/referral';
 
 export const REFERRAL_KEY = 'referralCode';
 const DEFAULT_II_SIGNER_CANISTER_ID = 'rdmx6-jaaaa-aaaaa-aaadq-cai';
@@ -225,7 +231,15 @@ async function ensureRegistered({
 
     if (referralCode) {
       const result = await actor.applyReferralCode(referralCode);
-      if (!('ok' in result) && !('alreadyApplied' in result)) {
+      if ('ok' in result) {
+        const state = fromNullable(await actor.getMyDiscountState());
+        toast.success(
+          state
+            ? `Referral code applied — ${formatDiscountPercent(state.discountBps)} off your first payments.`
+            : 'Referral link applied — you are now connected to your inviter.',
+        );
+      } else if (!isBenignReferralError(result)) {
+        toast.error(applyReferralCodeErrorMessage(result));
         console.warn('Referral code was not applied:', result);
       }
       sessionStorage.removeItem(REFERRAL_KEY);

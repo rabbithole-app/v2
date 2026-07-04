@@ -1,0 +1,103 @@
+<hlm-dialog-header>
+  <h3 hlmDialogTitle>Create coupon</h3>
+  <p hlmDialogDescription>
+    Coupon links give the invitee {{ discountLabel }} off their first License
+    and first Pro month. You earn 15% of every payment they make.
+  </p>
+</hlm-dialog-header>
+
+<div class="mt-4 space-y-6">
+  <div hlmField>
+    <div hlmFieldLabel>Usage</div>
+    <hlm-field-content class="gap-2">
+      <hlm-toggle-group
+        type="single"
+        [nullable]="false"
+        [value]="usage()"
+        variant="outline"
+        class="w-full"
+        (valueChange)="selectUsage($event)"
+      >
+        <button hlmToggleGroupItem value="multi" class="flex-1">Unlimited</button>
+        <button hlmToggleGroupItem value="single" class="flex-1">Single-use</button>
+        <button hlmToggleGroupItem value="custom" class="flex-1">Custom</button>
+      </hlm-toggle-group>
+      @if (usage() === 'custom') {
+        <input
+          hlmInput
+          type="number"
+          min="1"
+          class="w-32"
+          placeholder="Redemptions"
+          [value]="customCount()"
+          (input)="onCustomCountInput($any($event.target).value)"
+        />
+      }
+      <hlm-field-description>
+        @switch (usage()) {
+          @case ('multi') {
+            Unlimited redemptions until it expires or is revoked.
+          }
+          @case ('single') {
+            Can be redeemed once, by one invitee.
+          }
+          @case ('custom') {
+            Limited to the given number of redemptions.
+          }
+        }
+      </hlm-field-description>
+    </hlm-field-content>
+  </div>
+
+  <div hlmField orientation="responsive">
+    <label hlmFieldLabel for="couponExpiry">Expires at</label>
+    <hlm-field-content>
+      <div class="flex items-center gap-2">
+        <hlm-date-picker
+          [date]="expiresAt()"
+          (dateChange)="onDateChange($event)"
+          [min]="minDate"
+          [autoCloseOnSelect]="true"
+          captionLayout="dropdown"
+        >
+          Select expiration date
+        </hlm-date-picker>
+        @if (expiresAt()) {
+          <button
+            hlmInputGroupButton
+            size="icon-xs"
+            (click)="clearDate()"
+            type="button"
+          >
+            <ng-icon hlm size="xs" name="lucideX" />
+          </button>
+        }
+      </div>
+      <hlm-field-description>
+        Optional. Leave empty for no expiration.
+      </hlm-field-description>
+    </hlm-field-content>
+  </div>
+
+  <div hlmField>
+    <label hlmFieldLabel for="couponNote">Note</label>
+    <hlm-field-content>
+      <input
+        hlmInput
+        id="couponNote"
+        placeholder="e.g. for twitter"
+        [attr.maxlength]="maxNoteLength"
+        [value]="note()"
+        (input)="onNoteInput($any($event.target).value)"
+      />
+      <hlm-field-description>
+        Optional. Visible only to you — helps to tell coupons apart.
+      </hlm-field-description>
+    </hlm-field-content>
+  </div>
+</div>
+
+<hlm-dialog-footer class="mt-4">
+  <button hlmBtn variant="outline" brnDialogClose>Cancel</button>
+  <button hlmBtn [disabled]="!canCreate()" (click)="create()">Create coupon</button>
+</hlm-dialog-footer>

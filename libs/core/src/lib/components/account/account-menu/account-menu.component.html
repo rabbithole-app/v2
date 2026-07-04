@@ -110,6 +110,12 @@
             {{ walletBalance }}
           </hlm-dropdown-menu-shortcut>
         </button>
+        @if (backendLinksEnabled) {
+          <button hlmDropdownMenuItem (triggered)="navigateToAmbassador()">
+            <ng-icon hlm name="lucideMegaphone" />
+            <span>Ambassador</span>
+          </button>
+        }
       </hlm-dropdown-menu-group>
     }
     <hlm-dropdown-menu-separator />

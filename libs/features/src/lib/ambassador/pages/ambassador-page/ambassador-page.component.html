@@ -1,0 +1,162 @@
+@let totalEarned = service.totalEarned();
+@let earnedLast30d = service.earnedLast30d();
+
+<!-- Metrics -->
+<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  <rbth-metric-card>
+    <div rbthMetricCardHeader>
+      <span rbthMetricCardTitle>Invited users</span>
+      <ng-icon hlmIcon size="sm" name="lucideUserRoundPlus" class="text-muted-foreground" />
+    </div>
+    <div rbthMetricCardContent>
+      <span class="text-2xl font-semibold tabular-nums">
+        {{ service.invitedCount() }}
+      </span>
+    </div>
+  </rbth-metric-card>
+
+  <rbth-metric-card>
+    <div rbthMetricCardHeader>
+      <span rbthMetricCardTitle>Paid referrals</span>
+      <ng-icon hlmIcon size="sm" name="lucideUserRoundCheck" class="text-muted-foreground" />
+    </div>
+    <div rbthMetricCardContent>
+      <span class="text-2xl font-semibold tabular-nums">
+        {{ service.paidReferralsCount() }}
+      </span>
+    </div>
+  </rbth-metric-card>
+
+  <rbth-metric-card>
+    <div rbthMetricCardHeader>
+      <span rbthMetricCardTitle>Total earned</span>
+      <ng-icon hlmIcon size="sm" name="lucideHandCoins" class="text-muted-foreground" />
+    </div>
+    <div rbthMetricCardContent>
+      @if (totalEarned.length) {
+        <span class="text-2xl font-semibold tabular-nums">
+          ≈ {{ _usd(service.totalEarnedUsd()) }}
+        </span>
+        <p class="mt-0.5 truncate text-xs text-muted-foreground tabular-nums">
+          {{ _tokenBreakdown(totalEarned) }}
+        </p>
+      } @else {
+        <span class="text-2xl font-semibold text-muted-foreground">—</span>
+      }
+    </div>
+  </rbth-metric-card>
+
+  <rbth-metric-card>
+    <div rbthMetricCardHeader>
+      <span rbthMetricCardTitle>Earned last 30 days</span>
+      <ng-icon hlmIcon size="sm" name="lucideTrendingUp" class="text-muted-foreground" />
+    </div>
+    <div rbthMetricCardContent>
+      @if (earnedLast30d.length) {
+        <span class="text-2xl font-semibold tabular-nums">
+          ≈ {{ _usd(service.earnedLast30dUsd()) }}
+        </span>
+        <p class="mt-0.5 truncate text-xs text-muted-foreground tabular-nums">
+          {{ _tokenBreakdown(earnedLast30d) }}
+        </p>
+      } @else {
+        <span class="text-2xl font-semibold text-muted-foreground">—</span>
+      }
+    </div>
+  </rbth-metric-card>
+</div>
+
+<!-- Share -->
+<div hlmAlert>
+  <ng-icon hlmAlertIcon name="lucideMegaphone" />
+  <h4 hlmAlertTitle>Your referral link</h4>
+  <div hlmAlertDescription>
+    <p>
+      This permanent link never expires. You earn 15% of every payment made by
+      users who join through it. To give an invitee 10% off their first
+      payments, share a coupon link from the table below instead.
+    </p>
+    @if (service.shareLink(); as link) {
+      <rbth-copy-to-clipboard
+        class="mt-3 rounded-md border bg-muted/40 px-3 py-1.5 text-sm text-foreground"
+        [content]="link"
+      >
+        {{ link }}
+      </rbth-copy-to-clipboard>
+    } @else {
+      <p class="mt-3">
+        Create a profile to get your permanent referral link. Coupon links from
+        the table below work without a profile.
+      </p>
+    }
+  </div>
+</div>
+
+<!-- Coupons -->
+<section class="space-y-3">
+  <div class="flex items-center justify-between">
+    <h2 class="text-lg font-semibold">Coupons</h2>
+    <button hlmBtn (click)="openCreateCoupon()">
+      <ng-icon hlm size="sm" name="lucidePlus" />
+      Create coupon
+    </button>
+  </div>
+  <rbth-feat-coupons-table
+    [coupons]="service.coupons()"
+    (remove)="deleteCoupon($event)"
+    (revoke)="revokeCoupon($event)"
+  />
+</section>
+
+<!-- Invited users -->
+<section class="space-y-3">
+  <h2 class="text-lg font-semibold">Invited users</h2>
+  <rbth-feat-invited-users-table
+    [earnedUsdByPayer]="service.earnedUsdByPayer()"
+    [invitedUsers]="service.invitedUsers()"
+    [paidPayerIds]="service.paidPayerIds()"
+  />
+  @if (service.hasPreviousPage() || service.hasNextPage()) {
+    <footer class="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+      <button
+        hlmBtn
+        variant="outline"
+        size="sm"
+        [disabled]="!service.hasPreviousPage() || service.invitedLoading()"
+        (click)="service.previousPage()"
+      >
+        <ng-icon hlmIcon name="lucideChevronLeft" size="sm" />
+        Previous
+      </button>
+      <span class="min-w-20 text-center tabular-nums">
+        Page {{ service.pageIndex() + 1 }}@if (service.pageCount(); as pageCount) { / {{ pageCount }}}
+      </span>
+      <button
+        hlmBtn
+        variant="outline"
+        size="sm"
+        [disabled]="!service.hasNextPage() || service.invitedLoading()"
+        (click)="service.nextPage()"
+      >
+        Next
+        <ng-icon hlmIcon name="lucideChevronRight" size="sm" />
+      </button>
+    </footer>
+  }
+</section>
+
+<!-- Earnings withdrawal -->
+<section class="rounded-lg border p-4">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <h2 class="text-sm font-semibold">Withdraw your earnings</h2>
+      <p class="mt-1 text-sm text-muted-foreground">
+        Ambassador payouts accrue to your wallet balance.
+      </p>
+    </div>
+    <button hlmBtn variant="outline" (click)="openWallet()">
+      <ng-icon hlm size="sm" name="lucideWallet" />
+      Open Wallet
+    </button>
+  </div>
+</section>

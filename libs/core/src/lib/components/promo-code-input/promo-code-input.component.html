@@ -1,0 +1,44 @@
+@if (!_expanded()) {
+  <button
+    hlmBtn
+    variant="link"
+    size="sm"
+    class="h-auto px-0 text-muted-foreground"
+    type="button"
+    (click)="_toggle()"
+  >
+    <ng-icon hlmIcon name="lucideTag" size="xs" />
+    Have a promo code?
+  </button>
+} @else {
+  <div class="space-y-1.5">
+    <div hlmButtonGroup class="w-56">
+      <input
+        hlmInput
+        class="min-w-0 flex-1 font-mono"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        placeholder="Enter code"
+        [value]="_code()"
+        (input)="_onInput($any($event.target).value)"
+        (keydown.enter)="_apply()"
+      />
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="!_canApply()"
+        (click)="_apply()"
+      >
+        @if (_submitting()) {
+          <hlm-spinner size="xs" />
+        }
+        Apply
+      </button>
+    </div>
+    @if (_error(); as error) {
+      <p class="text-xs text-destructive">{{ error }}</p>
+    }
+  </div>
+}

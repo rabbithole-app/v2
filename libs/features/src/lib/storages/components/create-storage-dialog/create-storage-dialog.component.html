@@ -24,7 +24,7 @@
   </hlm-dialog-header>
 }
 
-    <div class="mt-4 max-h-[min(72vh,720px)] space-y-6 overflow-y-auto">
+    <div class="-mx-1 mt-4 max-h-[min(72vh,720px)] space-y-6 overflow-y-auto px-1 pb-1">
       @switch (currentStep) {
         <!-- ═══ STEP 1: CONFIGURE ═══ -->
         @case ('configure') {
@@ -145,9 +145,23 @@
 
         <!-- ═══ STEP 2: PAYMENT ═══ -->
         @case ('payment') {
-          <rbth-core-wallet-balance-panel
-            [requiredUsd]="requiredUsd"
-          />
+          <div class="space-y-4">
+            <div class="flex flex-wrap items-baseline gap-2">
+              <span class="text-2xl font-semibold">{{ discountedLicenseLabel() }}</span>
+              @if (licenseDiscountActive()) {
+                <span class="text-sm text-muted-foreground line-through">
+                  {{ licensePriceLabel }}
+                </span>
+                <span class="self-center rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                  Discount applied
+                </span>
+              }
+            </div>
+            <rbth-core-wallet-balance-panel [requiredUsd]="requiredUsd()" />
+            @if (showPromoInput()) {
+              <rbth-core-promo-code-input />
+            }
+          </div>
         }
 
         <!-- ═══ STEP 3: CREATING ═══ -->
@@ -223,7 +237,7 @@
             (click)="purchaseFromBalance()"
           >
             <ng-icon hlmIcon name="lucideCreditCard" size="sm" />
-            {{ payFromBalanceLabel }}
+            {{ payFromBalanceLabel() }}
           </button>
         </div>
       </hlm-dialog-footer>

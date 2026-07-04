@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
+import { AmbassadorSectionComponent } from './components/ambassador-section/ambassador-section.component';
 import { ComparisonSectionComponent } from './components/comparison-section/comparison-section.component';
 import { CtaSectionComponent } from './components/cta-section/cta-section.component';
 import { FeaturesSectionComponent } from './components/features-section/features-section.component';
@@ -17,6 +18,7 @@ import { LandingPricingSectionComponent } from './components/pricing-section/pri
     PreviewSectionComponent,
     ComparisonSectionComponent,
     LandingPricingSectionComponent,
+    AmbassadorSectionComponent,
     CtaSectionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,6 +29,7 @@ import { LandingPricingSectionComponent } from './components/pricing-section/pri
     <app-landing-preview />
     <app-landing-comparison />
     <app-landing-pricing-section />
+    <app-landing-ambassador />
     <app-landing-cta />
   `,
   host: {

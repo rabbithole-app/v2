@@ -1,6 +1,7 @@
 export * from './avatar.service';
 export * from './core.service';
 export * from './cycles-minting-canister.service';
+export * from './discount.service';
 export * from './download.service';
 export * from './file-system-access.service';
 export * from './icp-ledger.service';

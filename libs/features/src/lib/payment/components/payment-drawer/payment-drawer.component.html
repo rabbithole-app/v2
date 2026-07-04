@@ -29,11 +29,28 @@
           </rbth-frame>
 
           <!-- Method 2: From balance -->
+          @if (proDiscountActive()) {
+            <p class="flex flex-wrap items-baseline gap-2 text-sm">
+              <span class="font-semibold">
+                First month {{ discountedProPriceLabel() }}
+              </span>
+              <span class="text-muted-foreground line-through">
+                {{ proPriceLabel }}
+              </span>
+              <span class="self-center rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                Discount applied
+              </span>
+            </p>
+          }
           <rbth-core-wallet-balance-payment-panel
-            [requiredUsd]="PRO_MONTHLY_PRICE_USD"
+            [requiredUsd]="effectiveProPriceUsd()"
             [payButtonLabel]="payFromBalanceLabel()"
             (payRequested)="purchaseFromBalance()"
           />
+
+          @if (showPromoInput()) {
+            <rbth-core-promo-code-input />
+          }
 
           <!-- Trust footer -->
           <p class="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">

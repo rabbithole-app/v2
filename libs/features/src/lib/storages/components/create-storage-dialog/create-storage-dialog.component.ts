@@ -32,9 +32,12 @@ import { cva } from 'class-variance-authority';
 import { EmptyError, filter, firstValueFrom, map, of, switchMap, take, tap, timeout, timer } from 'rxjs';
 
 import {
+  applyDiscountUsd,
+  DiscountService,
   formatUsd,
   injectMainActor,
   parseCanisterRejectError,
+  PromoCodeInputComponent,
   STARTER_VAULT_LIST_PRICE_USD,
   STARTER_VAULT_PROMO_PRICE_USD,
   type StorageCreationStatus,
@@ -110,6 +113,7 @@ const vetKeyOptionVariants = cva(
     HlmRadioGroup,
     ...HlmRadioGroupImports,
       ProcessStepListComponent,
+    PromoCodeInputComponent,
     WalletBalancePanelComponent,
   ],
   providers: [
@@ -144,12 +148,8 @@ export class CreateStorageDialogComponent {
   readonly #createdCanisterId = signal<string | null>(null);
   readonly createdCanisterId = this.#createdCanisterId.asReadonly();
   readonly #storagesService = inject(StoragesService);
-
-  // ═══════════════════════════════════════════════════════════════
-  // WIZARD STATE
-  // ═══════════════════════════════════════════════════════════════
-
   readonly creationStatus = computed(() => this.#storagesService.creationStatus());
+
   /**
    * Maps the live `creationStatus` + known canister id into a 5-step list
    * consumed by `rbth-process-steps`. See buildCreationSteps for the exact
@@ -166,7 +166,6 @@ export class CreateStorageDialogComponent {
       canisterIdText ?? undefined,
     );
   });
-
   readonly creationProgressLabel = computed(() => {
     const steps = this.creationSteps();
     const total = steps.length;
@@ -184,11 +183,30 @@ export class CreateStorageDialogComponent {
 
     return `Step ${completed + 1} of ${total}${active?.description ? ' — ' + active.description : ''}`;
   });
-  readonly licensePriceLabel = formatUsd(STARTER_VAULT_PROMO_PRICE_USD);
+  readonly #discountService = inject(DiscountService);
+  // First-License discount, when the user has a coupon-granted discount unused.
+  readonly discountState = computed(() => this.#discountService.discountState());
+  readonly licenseDiscountActive = computed(() => {
+    const discount = this.discountState();
+    return !!discount && !discount.licenseUsed;
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // WIZARD STATE
+  // ═══════════════════════════════════════════════════════════════
+
+  readonly effectiveLicensePriceUsd = computed(() => {
+    const discount = this.discountState();
+    return this.licenseDiscountActive() && discount
+      ? applyDiscountUsd(STARTER_VAULT_PROMO_PRICE_USD, discount.discountBps)
+      : STARTER_VAULT_PROMO_PRICE_USD;
+  });
+  readonly discountedLicenseLabel = computed(() =>
+    formatUsd(this.effectiveLicensePriceUsd()),
+  );
+
   readonly #step = signal<WizardStep>('configure');
-
   readonly step = this.#step.asReadonly();
-
   readonly dialogTitle = computed(() => {
     switch (this.step()) {
       case 'configure': return 'Create Vault';
@@ -197,32 +215,38 @@ export class CreateStorageDialogComponent {
           ? 'Create Vault'
           : 'Deploying your vault canister';
       case 'error': return 'Something Went Wrong';
-      case 'payment': return `Pay from balance — ${this.licensePriceLabel}`;
+      case 'payment': return `Pay from balance — ${this.discountedLicenseLabel()}`;
     }
   });
 
   readonly highReplicationVetKeyAvailable = ENV_NAME !== 'DEV';
+
   readonly #vetKeyLevel = signal<VetKeyLevel>('standard');
+
   readonly effectiveVetKeyLevel = computed<VetKeyLevel>(() =>
     this.highReplicationVetKeyAvailable ? this.#vetKeyLevel() : 'standard',
   );
-
   readonly #errorMessage = signal<string | null>(null);
-
   readonly errorMessage = this.#errorMessage.asReadonly();
+
   readonly highReplicationVetKeyOptionClass = computed(() =>
     hlm(vetKeyOptionVariants({ disabled: !this.highReplicationVetKeyAvailable })),
   );
+
+  readonly isCompleted = computed(() =>
+    this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
+  );
+  readonly licensePriceLabel = formatUsd(STARTER_VAULT_PROMO_PRICE_USD);
 
   // ═══════════════════════════════════════════════════════════════
   // CONFIGURATION
   // ═══════════════════════════════════════════════════════════════
 
-  readonly isCompleted = computed(() =>
-    this.step() === 'creating' && this.creationStatus()?.type === 'Completed',
+  readonly payFromBalanceLabel = computed(
+    () => `Pay ${this.discountedLicenseLabel()} from balance`,
   );
-  readonly payFromBalanceLabel = `Pay ${formatUsd(STARTER_VAULT_PROMO_PRICE_USD)} from balance`;
-  readonly requiredUsd = STARTER_VAULT_PROMO_PRICE_USD;
+  readonly requiredUsd = computed(() => this.effectiveLicensePriceUsd());
+  readonly showPromoInput = computed(() => this.discountState() === null);
   readonly standardVetKeyOptionClass = hlm(vetKeyOptionVariants({ disabled: false }));
 
   readonly starterListPriceLabel = formatUsd(STARTER_VAULT_LIST_PRICE_USD);

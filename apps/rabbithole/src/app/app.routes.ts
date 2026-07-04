@@ -103,6 +103,19 @@ export const appRoutes: Route[] = [
           import('@rabbithole/pages/wallet').then((m) => m.WalletPageComponent),
       },
       {
+        path: 'ambassador',
+        data: {
+          header: {
+            title: 'Ambassador',
+            subtitle: 'Invite users, create coupons, and track your earnings.',
+          },
+        },
+        loadComponent: () =>
+          import('@rabbithole/features/ambassador').then(
+            (m) => m.AmbassadorPageComponent,
+          ),
+      },
+      {
         path: 'demo',
         loadComponent: () =>
           import('./pages/demo/demo.component').then((m) => m.DemoComponent),

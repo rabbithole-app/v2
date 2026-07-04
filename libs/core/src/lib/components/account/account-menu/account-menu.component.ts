@@ -10,6 +10,7 @@ import {
   lucideChevronsUpDown,
   lucideCreditCard,
   lucideLogOut,
+  lucideMegaphone,
   lucideSettings,
   lucideSparkles,
   lucideStar,
@@ -51,6 +52,7 @@ import type { UserSettingsDialogSection } from '../user-settings-dialog/user-set
       lucideChevronsUpDown,
       lucideCreditCard,
       lucideLogOut,
+      lucideMegaphone,
       lucideSettings,
       lucideSparkles,
       lucideStar,
@@ -120,6 +122,10 @@ export class AccountMenuComponent {
 
   handleSubscriptionAction(): void {
     this.openSettingsDialog('subscription');
+  }
+
+  navigateToAmbassador(): void {
+    this.#router.navigate(['ambassador'], { relativeTo: this.#route });
   }
 
   navigateToProfile(): void {

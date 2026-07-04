@@ -5,6 +5,8 @@ import { lucideGithub } from '@ng-icons/lucide';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSeparator } from '@spartan-ng/helm/separator';
 
+import { environment } from '../../../../../environments/environment';
+
 @Component({
   selector: 'app-landing-cta',
   imports: [NgIcon, HlmSeparator, ...HlmButtonImports],
@@ -21,9 +23,9 @@ import { HlmSeparator } from '@spartan-ng/helm/separator';
         <span class="text-xs text-muted-foreground">&copy; {{ year }} Rabbithole</span>
       </div>
       <div class="flex items-center gap-1">
-        <a hlmBtn variant="ghost" size="sm" href="https://docs.rabbithole.app" target="_blank" rel="noopener">Docs</a>
-        <a hlmBtn variant="ghost" size="sm" href="https://docs.rabbithole.app/en/legal/privacy" target="_blank" rel="noopener">Privacy</a>
-        <a hlmBtn variant="ghost" size="sm" href="https://docs.rabbithole.app/en/legal/terms" target="_blank" rel="noopener">Terms</a>
+        <a hlmBtn variant="ghost" size="sm" [href]="docsUrl" target="_blank" rel="noopener">Docs</a>
+        <a hlmBtn variant="ghost" size="sm" [href]="docsUrl + '/en/legal/privacy'" target="_blank" rel="noopener">Privacy</a>
+        <a hlmBtn variant="ghost" size="sm" [href]="docsUrl + '/en/legal/terms'" target="_blank" rel="noopener">Terms</a>
         <a hlmBtn variant="ghost" size="icon-sm" href="https://github.com/rabbithole-app/v2" target="_blank" rel="noopener">
           <ng-icon name="lucideGithub" size="16" />
         </a>
@@ -33,5 +35,6 @@ import { HlmSeparator } from '@spartan-ng/helm/separator';
   `,
 })
 export class CtaSectionComponent {
+  protected readonly docsUrl = environment.docsUrl;
   readonly year = new Date().getFullYear();
 }
