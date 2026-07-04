@@ -65,18 +65,30 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+## Orchestration workflow
+
+You (Fable) are the orchestrator. Plan, decompose, synthesize.
+
+- Reasoning-heavy phases (architecture, complex debugging, algorithm design) → delegate to **deep-reasoner** (Opus).
+- Mechanical work (boilerplate, tests, formatting, simple edits) → delegate to **fast-worker** (Sonnet).
+- **Codex** (`/codex:rescue --background`) is a cracked engineer on par with deep-reasoner, from a different perspective. Treat it as a peer, not a reviewer.
+- **High-stakes decisions:** task Opus (deep-reasoner) and Codex on the same problem in parallel, then synthesize the best of both — without showing either one the other's answer. Keep your own context lean.
+
 ## Project Overview
 
-This is an Nx monorepo for a decentralized application built on the Internet Computer Protocol (ICP). The project combines Angular 20 frontend with Motoko smart contracts (canisters) for blockchain backend functionality. The main application is "Rabbithole" - a file storage and management system with encryption capabilities.
+This is an Nx monorepo for a decentralized application built on the Internet Computer Protocol (ICP). The project combines an Angular 21 frontend with Motoko smart contracts (canisters) for blockchain backend functionality. The main application is "Rabbithole" - a file storage and management system with encryption capabilities. Storage can live on-chain (encrypted-storage canisters) or off-chain via external blob storage (S3-compatible, MinIO locally).
 
 ## Architecture
 
 ### Monorepo Structure
 
-- **apps/rabbithole**: Main Angular 20 application (frontend)
-- **apps/backend**: ICP/dfx backend with Motoko canisters (includes treasury as library)
-- **apps/storage**: Storage-specific Angular application
-- **apps/tauri-app**: Desktop application using Tauri
+- **apps/rabbithole**: Main Angular 21 application (frontend)
+- **apps/backend**: ICP backend with Motoko canisters, managed by **icp-cli** (`icp.yaml`). Includes treasury as a mixin library.
+- **apps/storage**: Storage-canister frontend Angular application (assets served from user storage canisters)
+- **apps/mobile**: Mobile application
+- **apps/tauri-app**: Desktop application using Tauri (Rust)
+- **apps/docs**: Documentation site
+- **apps/blob-storage-poc**, **apps/tauri-poc**: Proof-of-concept apps (not part of the main build)
 - **apps/\*-e2e**: E2E test projects using Playwright
 - **libs/**: Shared libraries organized by domain
 - **libs/motoko/**: Motoko canister libraries (shared Docker infrastructure)
@@ -84,56 +96,69 @@ This is an Nx monorepo for a decentralized application built on the Internet Com
 
 ### Key Libraries
 
-- **libs/core**: Core services for IC management, file system access, WASM handling, and upload functionality
-- **libs/auth**: Authentication services and guards for ICP identity management
-- **libs/encrypted-storage**: Encrypted storage implementation and services
-- **libs/declarations**: TypeScript declarations generated from Motoko canisters
-- **libs/ui**: UI component library based on Spartan-ng (shadcn-like components for Angular)
-- **libs/app-ui**: Application-specific UI components
+- **libs/core**: Core services for IC management, file system access, WASM handling, and upload functionality. Exposes many subpath entry points (`@rabbithole/core/app-runtime`, `/storage-runtime`, `/wallet`, `/profile`, etc.)
+- **libs/auth**: Authentication services and guards for ICP identity management (plus `@rabbithole/auth/tauri`)
+- **libs/encrypted-storage**: Encrypted storage implementation and services (client-side encryption, blob-storage download, thumbnails)
+- **libs/features**: Feature modules (`file-list`, `payment`, `storages`, `canisters`, `releases`, `shared-with-me`, `storage-overview`, `allowances`)
+- **libs/pages**: Routed page components (`dashboard`, `login`, `profile`, `wallet`, `account-dialog`)
+- **libs/declarations**: TypeScript declarations generated from Motoko canisters (`@rabbithole/declarations/{backend,encrypted-storage,icp-ledger,icrc-ledger}`)
+- **libs/app-ui**: Application-specific UI components, exposed as `@rabbithole/ui` (+ many subpaths: `/sidebar`, `/tree`, `/metric-card`, ...)
+- **libs/ui**: Spartan-ng component library (shadcn-like for Angular), exposed as `@spartan-ng/helm/*`
+- **libs/testing**: Test helpers and signers (`@rabbithole/testing`, `/evm`, `/sol`)
 - **libs/utils**: Utility functions
-- **libs/shared**: Shared types and utilities
+- **libs/shared-assets**, **libs/storage-version-info**: Shared assets and storage version metadata
 
 ### Motoko Libraries (libs/motoko/)
 
-- **libs/motoko/encrypted-storage**: Encrypted storage canister library (used by backend)
-- **libs/motoko/treasury**: Treasury library (payments, fund distribution — used by backend as mixin)
-- **libs/motoko/icpay-webhooks**: ICPay webhook handler library
-- **libs/motoko/auth-jwt**: JWT authentication library
+- **libs/motoko/encrypted-storage** (nx project `encrypted-storage-mo`): Encrypted storage canister library (used by backend)
+- **libs/motoko/treasury** (nx project `treasury-mo`): Treasury library (payments, fund distribution — used by backend as mixin)
+- **libs/motoko/icpay-webhooks** (nx project `icpay-webhooks-mo`): ICPay webhook handler library
+- **libs/motoko/auth-jwt** (nx project `auth-jwt-mo`): JWT authentication library
 
 All Motoko libraries share a single Docker container (`libs/motoko/docker-compose.yml`) built from `infra/motoko-dev/Dockerfile`. Build/test commands run via `docker compose exec`.
 
 ### Backend (Internet Computer)
 
-The backend runs on ICP using Motoko smart contracts (canisters):
+The backend runs on ICP using Motoko smart contracts (canisters). It is built and deployed with **icp-cli** (`icp build` / `icp deploy`), configured in `apps/backend/icp.yaml` (environments: `local`, `staging`, `ic`, `build`). Canisters:
 
-- **rabbithole-backend**: Main backend canister (src/main.mo)
-- **encrypted-storage**: Storage canister with encryption (src/EncryptedStorageCanister.mo)
-- **internet-identity**: ICP authentication canister (external)
-- **icp-ledger**: ICP token ledger (external)
+- **rabbithole-backend**: Main backend canister (src/main.mo). Composed from many mixin modules under `src/` (BlobStorage, Payments, Treasury, Subscriptions, Users, SharedAccess, StorageDeployer, Notifications, IdentityVerification, KnownWasmHashes, Settings, AvatarStorage, etc.)
+- **encrypted-storage**: Per-user storage canister with encryption (src/EncryptedStorageCanister.mo). Deployed into user storage canisters by rabbithole-backend, not standalone.
+- **rabbithole-frontend**: Asset canister (`@dfinity/asset-canister`) serving the frontend
+- **internet-identity / internet_identity_backend**: ICP authentication canister (external)
+- **icp-ledger / icrc-ledger**: ICP / ICRC token ledgers (external)
 
-Backend development uses Docker Compose with:
+Backend local development uses Docker Compose. Services in `apps/backend/docker-compose.yml`:
+
+- **network**: `icp-cli-network-launcher` — the local IC replica (replaces the old standalone dfx replica)
+- **caddy**: reverse proxy for HTTPS
+- **mock-server**: mock GitHub releases / storage assets
+- **openid-provider**: local OpenID provider for auth-broker flows
+- **https-outcall-proxy**: proxies canister HTTPS outcalls locally
+- **minio** + **minio-init**: S3-compatible object storage for external blob storage
+
+Serve/deploy runs `docker compose up`, then `scripts/bootstrap.mjs`, `scripts/generate-declarations.mjs`, `icp deploy -e local`, and `scripts/sync-env.sh local`.
+
+Motoko tooling:
 
 - Shared Dockerfile at `infra/motoko-dev/Dockerfile` (all Motoko projects)
 - Shared entrypoint base at `infra/motoko-dev/entrypoint-base.sh`
-- Caddy reverse proxy for HTTPS (backend only)
-- DFX (DFINITY Canister SDK) for building and deploying canisters
 - Mops package manager for Motoko dependencies
 
-Docker containers:
-- **apps/backend**: caddy + mock-server + backend replica (3 services)
-- **libs/motoko**: single shared replica for all Motoko libraries (including treasury)
+Motoko-library containers:
+- **libs/motoko**: single shared replica (`replica` service) for all Motoko libraries (encrypted-storage, treasury, icpay-webhooks, auth-jwt)
 
 ## Development Commands
 
 ### Starting Development
 
 ```bash
-# Start main application (automatically starts backend and storage)
+# Start main app + storage frontend together (nx run-many serve rabbithole storage)
 npm start
-# or
+
+# Start just the main application
 npx nx serve rabbithole
 
-# Start backend only (Docker Compose with DFX)
+# Start backend only (Docker Compose + icp-cli)
 npx nx serve backend
 
 # Start storage application
@@ -157,10 +182,10 @@ npm run build:frontend-rsdoctor
 # Build Tauri desktop app
 npm run tauri:build
 
-# Build backend (deploys canisters via Docker)
+# Build backend canisters (icp build)
 npx nx build backend
 
-# Deploy backend canisters
+# Deploy backend canisters locally (docker compose up + bootstrap + generate-declarations + icp deploy + sync-env)
 npx nx deploy backend
 ```
 
@@ -195,46 +220,33 @@ npx nx lint <project-name>
 
 ```bash
 # Generate TypeScript declarations from Motoko canisters
+# (uses icp-bindgen; writes to libs/declarations/src/<canister>/)
 npx nx run backend:generate-declarations
+
+# Reset the local environment (canisters, mappings, state)
+npx nx run backend:reset-local
 
 # Install CA certificate for local HTTPS
 npx nx run backend:install-ca
 
-# Run Docker Compose commands
+# Run Docker Compose commands (service names: network, caddy, mock-server, minio, ...)
 npx nx compose backend -- <docker-compose-args>
-```
-
-### Nx Commands
-
-```bash
-# Show project graph
-npx nx graph
-
-# Show available targets for a project
-npx nx show project <project-name>
-
-# Run multiple targets across projects
-npx nx run-many -t <target> -p <projects>
-
-# Generate new library
-npx nx g @nx/angular:lib <lib-name>
-
-# Generate new component
-npx nx g @nx/angular:component <component-name> --project=<project>
 ```
 
 ## Project-Specific Details
 
 ### Path Aliases
 
-The project uses path aliases defined in tsconfig.base.json:
+The project uses path aliases defined in tsconfig.base.json (many have `/subpath` entry points — check tsconfig.base.json for the full list):
 
-- `@rabbithole/core` → Core services
-- `@rabbithole/auth` → Authentication
-- `@rabbithole/ui` → UI components
-- `@rabbithole/encrypted-storage` → Encrypted storage
-- `@rabbithole/declarations` → Generated canister declarations
-- `@spartan-ng/helm/*` → UI component library
+- `@rabbithole/core` → Core services (`libs/core`) — plus subpaths like `/app-runtime`, `/storage-runtime`, `/wallet`, `/profile`
+- `@rabbithole/auth` → Authentication (`libs/auth`) — plus `@rabbithole/auth/tauri`
+- `@rabbithole/ui` → App UI components (`libs/app-ui`) — plus many subpaths (`/sidebar`, `/tree`, `/metric-card`, ...)
+- `@rabbithole/features` / `@rabbithole/pages` → Feature modules (`libs/features`) and routed pages (`libs/pages`)
+- `@rabbithole/encrypted-storage` → Encrypted storage (`libs/encrypted-storage`)
+- `@rabbithole/declarations` → Generated canister declarations — subpaths `/backend`, `/encrypted-storage`, `/icp-ledger`, `/icrc-ledger`
+- `@rabbithole/testing` → Test helpers (`libs/testing`) — plus `/evm`, `/sol`
+- `@spartan-ng/helm/*` → Spartan-ng UI component library (`libs/ui/*`)
 
 ### WebAssembly Configuration
 
@@ -246,28 +258,28 @@ The project uses WebAssembly modules (configured in rspack.config.ts):
 
 ### Environment Variables
 
-Backend environment variables from `apps/backend/.env` are automatically injected into the frontend build:
+Backend/canister environment is synced into the frontend by `apps/backend/scripts/sync-env.sh <env>` (run automatically by serve/deploy). `PUBLIC_*` and canister-id values (declared per-environment in `icp.yaml`) are exposed to the app:
 
-- Variables matching `/^(CANISTER_ID|DFX)_/` are included
-- Access via `import.meta.env` in code
+- Injected at build time via Rspack `DefinePlugin` as `import.meta.env`
+- Access via `import.meta.env` in code (e.g. `import.meta.env.PUBLIC_ENV_NAME`)
 
 ### Docker Development
 
 Backend runs in Docker with:
 
-- Platform: linux/arm64
-- DFX canister SDK pre-installed
-- Automatic initialization via scripts/install.sh
-- Health check via `dfx ping`
+- Platform: linux/arm64 (required for IC system canisters on Apple Silicon)
+- Local IC replica via the `icp-cli-network-launcher` image (`network` service), driven by `icp-cli`
+- Automatic initialization via `scripts/bootstrap.mjs`
 - Caddy reverse proxy on port 443 for HTTPS
+- MinIO (`minio` / `minio-init`) providing S3-compatible external blob storage
 
 ### Canister Declarations
 
 After modifying Motoko canisters:
 
-1. Run `npx nx run backend:generate-declarations` to generate TypeScript types
-2. Declarations are copied to `libs/declarations/src/`
-3. Import from `@rabbithole/declarations`
+1. Run `npx nx run backend:generate-declarations` to generate TypeScript types (via `icp-bindgen`; also emits init-args `.bin` files)
+2. Declarations are written to `libs/declarations/src/<canister>/`
+3. Import from `@rabbithole/declarations` (or the `/backend`, `/encrypted-storage` subpaths)
 
 ## Agent Skills
 
@@ -298,15 +310,6 @@ npx skills remove -s <name> -a universal -a claude-code -y                 # rem
 - **caffeinelabs/skills** — Caffeine extensions: `extension-authorization`, `extension-camera`, `extension-core-infrastructure`, `extension-email`, `extension-email-calendar-events`, `extension-email-marketing`, `extension-email-raw`, `extension-email-verification`, `extension-http-outcalls`, `extension-invite-links`, `extension-object-storage`, `extension-qr-code`, `extension-stripe`, `extension-user-approval`. React frontend hooks in these skills must be adapted to Angular patterns.
 - **No source in lock file** (manually managed, `npx skills update` does not refresh them): `angular-developer`, `angular-cdk-integration`,  `angular-spartan-styling`, `rxjs-expert`, `rxjs-patterns-for-angular`, `frontend-design`, `scrollytelling`, `skill-creator`, `skill-lookup`, `excalidraw`.
 
-### Groups by purpose
-
-- **Angular (frontend)** — `angular-developer`, `angular-spartan-styling`, `angular-cdk-integration`
-- **RxJS** — `rxjs-patterns-for-angular`, `rxjs-expert`
-- **ICP backend** — all skills from dfinity/icskills (see above)
-- **Caffeine extensions** — all skills from caffeinelabs/skills (see above)
-- **Design / diagrams** — `frontend-design`, `scrollytelling`, `excalidraw`
-- **Skill-meta** — `skill-creator`, `skill-lookup`
-
 ## Testing Infrastructure
 
 - **Unit Tests**: Vitest for most projects (configured per-project)
@@ -316,20 +319,15 @@ npx skills remove -s <name> -a universal -a claude-code -y                 # rem
 
 ## Code Generation
 
-Nx generators are configured with defaults:
-
-- All new Angular code uses standalone components
-- Components default to OnPush change detection
-- Vitest for unit tests
-- Playwright for E2E tests
-- ESLint for linting
+Nx generator defaults (see `nx.json`): standalone Angular components, OnPush change detection, Vitest for unit tests, Playwright for E2E, ESLint.
 
 ## Dependencies
 
 Key external dependencies:
 
-- **@dfinity/\***: ICP SDK packages for identity, agents, and canister interaction
-- **@angular/\***: Angular 20 framework
+- **@icp-sdk/\***: Current ICP SDK — `@icp-sdk/core` (agent/actor/principal), `@icp-sdk/auth`, `@icp-sdk/canisters`, `@icp-sdk/bindgen` (replaces the legacy `@dfinity/agent`/`@dfinity/auth-client`)
+- **@dfinity/\***: Remaining DFINITY packages — `@dfinity/utils`, `@dfinity/vetkeys` (VetKD encryption), `@dfinity/pic` (canister tests)
+- **@angular/\***: Angular 21 framework
 - **@spartan-ng/brain**: UI component foundation
 - **@tanstack/angular-\***: TanStack libraries (table, store)
 - **@tauri-apps/\***: Tauri desktop app APIs
@@ -343,7 +341,7 @@ Key external dependencies:
 - **Styling**: Tailwind CSS 4
 - **Bundle Analysis**: Rsdoctor (use `RSDOCTOR=1` env var)
 - **Compression**: Gzip and Brotli for production builds
-- **Target**: ES2015, ESNext modules
+- **Target**: ES2022, ESNext modules
 
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
