@@ -15,6 +15,21 @@ export default defineConfig({
   markdown: {
     defaultWrapCode: true,
   },
+  builderConfig: {
+    html: {
+      tags: [
+        {
+          tag: 'script',
+          head: true,
+          attrs: {
+            src: 'https://analytics.ahrefs.com/analytics.js',
+            'data-key': 'V0y03dQXOQwud+ZjfwxukA',
+            async: true,
+          },
+        },
+      ],
+    },
+  },
   locales: [
     {
       lang: 'en',
