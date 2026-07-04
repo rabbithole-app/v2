@@ -70,6 +70,10 @@ export type AmbassadorPayoutStatus = { 'pending' : null } |
 export type ApplyReferralCodeResult = { 'ok' : null } |
   { 'storageError' : string } |
   { 'userNotFound' : null } |
+  { 'couponExhausted' : null } |
+  { 'discountAlreadyApplied' : null } |
+  { 'couponRevoked' : null } |
+  { 'couponExpired' : null } |
   { 'selfReferral' : null } |
   { 'referralCodeNotFound' : null } |
   { 'alreadyApplied' : null };
@@ -122,6 +126,29 @@ export type CmcOpSource = { 'storageCreation' : { 'creationId' : bigint } } |
   { 'userTopUp' : { 'canisterId' : Principal } } |
   { 'autoTopUp' : { 'canisterId' : Principal } };
 export type CorrelationId = string;
+export interface Coupon {
+  'redeemedCount' : bigint,
+  'expiresAt' : [] | [Time],
+  'revoked' : boolean,
+  'ownerText' : string,
+  'owner' : Principal,
+  'code' : string,
+  'note' : [] | [string],
+  'createdAt' : Time,
+  'discountBps' : bigint,
+  'maxRedemptions' : [] | [bigint],
+}
+export interface CreateCouponArgs {
+  'expiresAt' : [] | [Time],
+  'note' : [] | [string],
+  'maxRedemptions' : [] | [bigint],
+}
+export type CreateCouponError = { 'storageError' : string } |
+  { 'userNotFound' : null } |
+  { 'invalidMaxRedemptions' : null } |
+  { 'tooManyActiveCoupons' : { 'limit' : bigint } } |
+  { 'invalidNote' : null } |
+  { 'invalidExpiry' : null };
 export interface CreateProfileArgs {
   'username' : string,
   'displayName' : [] | [string],
@@ -165,9 +192,20 @@ export type CreationStatus = { 'Failed' : string } |
   { 'Completed' : { 'canisterId' : Principal } } |
   { 'InstallingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
   { 'Pending' : null };
+export type DeleteCouponError = { 'storageError' : string } |
+  { 'couponNotFound' : null } |
+  { 'couponActive' : null } |
+  { 'notOwner' : null };
 export type DeleteStorageError = { 'NotFailed' : null } |
   { 'NotFound' : null } |
   { 'NotOwner' : null };
+export interface DiscountState {
+  'appliedAt' : Time,
+  'couponCode' : string,
+  'proFirstMonthUsed' : boolean,
+  'discountBps' : bigint,
+  'licenseUsed' : boolean,
+}
 export interface DistributionLogOptions { 'offset' : bigint, 'limit' : bigint }
 export interface DistributionRecord {
   'id' : bigint,
@@ -310,6 +348,15 @@ export type InitArgs = { 'v1' : InitArgsV1 };
 export interface InitArgsV1 {
   'icpaySecretKey' : [] | [Uint8Array],
   'treasury' : [] | [TreasuryInitArgsV1],
+}
+export interface InvitedUserItem {
+  'id' : Principal,
+  'referralAppliedAt' : [] | [Time],
+  'profile' : [] | [PublicProfileSummary],
+}
+export interface InvitedUsersPage {
+  'total' : [] | [bigint],
+  'data' : Array<InvitedUserItem>,
 }
 export interface KnownWasmHash {
   'hash' : Uint8Array,
@@ -670,7 +717,9 @@ export interface Rabbithole {
   'claimVerifiedEmailAccess' : ActorMethod<[], IdentityAttributesSyncResult>,
   'clearAvatar' : ActorMethod<[], undefined>,
   'commitAvatarUpload' : ActorMethod<[string], AvatarRef>,
+  'createCoupon' : ActorMethod<[CreateCouponArgs], Result__1_2>,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array>,
+  'deleteCoupon' : ActorMethod<[string], Result__1_1>,
   'deleteProfile' : ActorMethod<[], undefined>,
   'deleteStorage' : ActorMethod<[bigint], Result_7>,
   'dismissPendingCmcOp' : ActorMethod<
@@ -697,6 +746,13 @@ export interface Rabbithole {
     Array<DistributionRecord>
   >,
   'getEvmAddress' : ActorMethod<[], [] | [string]>,
+  'getMyCoupons' : ActorMethod<[], Array<Coupon>>,
+  'getMyDiscountState' : ActorMethod<[], [] | [DiscountState]>,
+  'getMyDistributions' : ActorMethod<[], Array<DistributionRecord>>,
+  'getMyInvitedUsers' : ActorMethod<
+    [{ 'offset' : bigint, 'limit' : bigint }],
+    InvitedUsersPage
+  >,
   'getMyWalletAddresses' : ActorMethod<
     [],
     {
@@ -711,6 +767,7 @@ export interface Rabbithole {
     [Array<Principal>],
     Array<PublicProfileLookup>
   >,
+  'getReferralDiscountBps' : ActorMethod<[], bigint>,
   'getSettings' : ActorMethod<[], UserSettings>,
   'getSolAddress' : ActorMethod<[], [] | [string]>,
   'getStorageFundingStatus' : ActorMethod<[], StorageFundingStatus>,
@@ -856,10 +913,12 @@ export interface Rabbithole {
    */
   'retryAmbassadorPayout' : ActorMethod<[bigint], Result_2>,
   'retryPendingCmcOp' : ActorMethod<[bigint], CmcOpRetryResult>,
+  'revokeCoupon' : ActorMethod<[string], Result__1>,
   'searchUserDirectory' : ActorMethod<
     [string, bigint],
     Array<UserDirectoryItem>
   >,
+  'setReferralDiscountBps' : ActorMethod<[bigint], undefined>,
   'setUserRole' : ActorMethod<[Principal, Role], undefined>,
   'startStorageDeployer' : ActorMethod<[], undefined>,
   'startStorageUpgrade' : ActorMethod<
@@ -994,6 +1053,15 @@ export type Result_8 = { 'ok' : bigint } |
   { 'err' : AddStorageError };
 export type Result_9 = { 'ok' : null } |
   { 'err' : Error };
+export type Result__1 = { 'ok' : null } |
+  { 'err' : RevokeCouponError };
+export type Result__1_1 = { 'ok' : null } |
+  { 'err' : DeleteCouponError };
+export type Result__1_2 = { 'ok' : Coupon } |
+  { 'err' : CreateCouponError };
+export type RevokeCouponError = { 'storageError' : string } |
+  { 'couponNotFound' : null } |
+  { 'notOwner' : null };
 export type Role = { 'admin' : null } |
   { 'moderator' : null } |
   { 'user' : null };

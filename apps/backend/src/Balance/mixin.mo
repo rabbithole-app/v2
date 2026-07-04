@@ -22,6 +22,7 @@ import BackendEvents "../BackendEvents/lib";
 import Balance "lib";
 import CMCTypes "../Types/CMCTypes";
 import CmcRecovery "../CmcRecovery/lib";
+import Coupons "../Coupons/lib";
 import Settings "../Settings/lib";
 import Subscriptions "../Subscriptions/lib";
 import Notifications "../Notifications/lib";
@@ -52,6 +53,12 @@ mixin (
   deps : {
     getUserSettings : (Principal) -> Settings.UserSettings;
     getAmbassadorChain : (Principal) -> Users.AmbassadorChain;
+    /// Referral-discount hooks (Coupons mixin). `takeDiscount` claims the
+    /// pending discount and sets an in-flight guard; the charge outcome
+    /// must settle it via commit (burn) or release (retry stays discounted).
+    takeDiscount : (Principal, Coupons.DiscountKind) -> ?Nat;
+    commitDiscount : (Principal, Coupons.DiscountKind) -> ();
+    releaseDiscount : (Principal, Coupons.DiscountKind) -> ();
     events : BackendEvents.EventSink;
     verifyCanisterOwner : (Principal, Principal) -> Bool;
     /// Transfer ICP from the treasury subaccount to CMC for a target
@@ -222,6 +229,7 @@ mixin (
     paymentId : Text,
     onPhase : (Balance.ChargePhase) -> (),
     deferAmbassadorPayout : Bool,
+    discountKind : ?Coupons.DiscountKind,
   ) : async* Balance.ChargeResult {
     // Opportunistic self-topup before heavy outcalls (XRC + per-token balance
     // checks + ambassador distribution). Fire-and-forget.
@@ -229,48 +237,77 @@ mixin (
 
     let settings = deps.getUserSettings(userId);
 
-    onPhase(#fetchingRates);
-    let rates = await* fetchRates(settings.spendingPriority);
-
-    onPhase(#checkingBalances);
-    label priorities for (tokenId in settings.spendingPriority.vals()) {
-      let ?tokenAmount = usdCentsToToken(usdAmountCents, tokenId, rates) else {
-        continue priorities;
+    // Referral discount applies to the USD amount before token conversion,
+    // so the ambassador split downstream is computed from the paid amount.
+    let claimedDiscountBps : ?Nat = switch (discountKind) {
+      case (?kind) deps.takeDiscount(userId, kind);
+      case null null;
+    };
+    let effectiveCents = switch (claimedDiscountBps) {
+      case (?bps) {
+        assert bps <= Coupons.MAX_DISCOUNT_BPS;
+        let discounted = usdAmountCents * (10_000 - bps : Nat) / 10_000;
+        assert discounted > 0;
+        discounted;
       };
-
-      let userBalance = try { await* treasury.getBalance(userId, tokenId) } catch (_) {
-        0;
-      };
-
-      if (userBalance >= tokenAmount) {
-        onPhase(#charging({ tokenId; amount = tokenAmount }));
-        let chain = deps.getAmbassadorChain(userId);
-        // Skip ambassador split at charge when caller asked to defer AND we
-        // picked an IC token (EVM/SOL keep charge-time distribution).
-        let deferred = deferAmbassadorPayout and Balance.isIcToken(tokenId);
-        let (l1, l2) = if (deferred) (null, null) else (chain.l1, chain.l2);
-        let result = await* treasury.chargeAndDistribute({
-          paymentId;
-          userId;
-          tokenId;
-          totalAmount = tokenAmount;
-          ambassadorL1 = l1;
-          ambassadorL2 = l2;
-          metadata = ?purpose;
-        });
-        switch (result) {
-          case (#ok(_)) {
-            return #ok({ tokenId; amount = tokenAmount });
-          };
-          case (#err(#PartiallyCompleted(_))) {
-            return #ok({ tokenId; amount = tokenAmount });
-          };
-          case (#err(_)) {};
-        };
-      };
+      case null usdAmountCents;
+    };
+    func settleDiscount(success : Bool) {
+      let ?_ = claimedDiscountBps else return;
+      let ?kind = discountKind else return;
+      if (success) deps.commitDiscount(userId, kind) else deps.releaseDiscount(userId, kind);
     };
 
-    #insufficientFunds({ required = usdAmountCents });
+    try {
+      onPhase(#fetchingRates);
+      let rates = await* fetchRates(settings.spendingPriority);
+
+      onPhase(#checkingBalances);
+      label priorities for (tokenId in settings.spendingPriority.vals()) {
+        let ?tokenAmount = usdCentsToToken(effectiveCents, tokenId, rates) else {
+          continue priorities;
+        };
+
+        let userBalance = try { await* treasury.getBalance(userId, tokenId) } catch (_) {
+          0;
+        };
+
+        if (userBalance >= tokenAmount) {
+          onPhase(#charging({ tokenId; amount = tokenAmount }));
+          let chain = deps.getAmbassadorChain(userId);
+          // Skip ambassador split at charge when caller asked to defer AND we
+          // picked an IC token (EVM/SOL keep charge-time distribution).
+          let deferred = deferAmbassadorPayout and Balance.isIcToken(tokenId);
+          let (l1, l2) = if (deferred) (null, null) else (chain.l1, chain.l2);
+          let result = await* treasury.chargeAndDistribute({
+            paymentId;
+            userId;
+            tokenId;
+            totalAmount = tokenAmount;
+            ambassadorL1 = l1;
+            ambassadorL2 = l2;
+            metadata = ?purpose;
+          });
+          switch (result) {
+            case (#ok(_)) {
+              settleDiscount(true);
+              return #ok({ tokenId; amount = tokenAmount });
+            };
+            case (#err(#PartiallyCompleted(_))) {
+              settleDiscount(true);
+              return #ok({ tokenId; amount = tokenAmount });
+            };
+            case (#err(_)) {};
+          };
+        };
+      };
+
+      settleDiscount(false);
+      #insufficientFunds({ required = effectiveCents });
+    } catch (e) {
+      settleDiscount(false);
+      throw e;
+    };
   };
 
   // ---- Simple charge for top-up (no ambassador split) ----
@@ -579,7 +616,7 @@ mixin (
     // License is refundable while the storage canister isn't created yet —
     // defer ambassador payout until finalizeCompletion flips status to
     // #Completed (see StorageDeployer orchestrator).
-    let result = await* chargeForService(userId, LICENSE_PRICE_CENTS, "license", paymentId, onPhase, true);
+    let result = await* chargeForService(userId, LICENSE_PRICE_CENTS, "license", paymentId, onPhase, true, ?#license);
     switch (result) {
       case (#ok(charged)) #ok({ tokenId = charged.tokenId; amount = charged.amount; paymentId });
       case (#insufficientFunds(details)) #insufficientFunds(details);
@@ -602,7 +639,9 @@ mixin (
     // Charge from balance (with ambassador distribution — subscription is
     // non-refundable so ambassadors receive their share at charge time).
     let paymentId = generatePaymentId("purchase", userId);
-    let chargeResult = await* chargeForService(userId, amountCents, debug_show plan, paymentId, func(_) {}, false);
+    // First-month referral discount only applies to a fresh Pro purchase —
+    // the Coupons mixin burns the flag after one successful charge.
+    let chargeResult = await* chargeForService(userId, amountCents, debug_show plan, paymentId, func(_) {}, false, ?#proFirstMonth);
 
     switch (chargeResult) {
       case (#ok(charged)) {
@@ -648,7 +687,7 @@ mixin (
     try {
       let paymentId = generatePaymentId("auto", userId);
       // Auto-renew is non-refundable — distribute ambassadors at charge time.
-      let result = await* chargeForService(userId, amountCents, "auto_renew", paymentId, func(_) {}, false);
+      let result = await* chargeForService(userId, amountCents, "auto_renew", paymentId, func(_) {}, false, null);
 
       switch (result) {
         case (#ok(charged)) {

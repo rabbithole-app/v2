@@ -64,12 +64,6 @@ mixin (
     };
   };
 
-  public shared ({ caller }) func applyReferralCode(referralCode : Text) : async Users.ApplyReferralCodeResult {
-    assert not Principal.isAnonymous(caller);
-    let ?inviter = users.resolveReferralCode(referralCode) else return #referralCodeNotFound;
-    users.applyReferralCode(caller, inviter);
-  };
-
   func upsertFromVerifiedAttributes(principal : Principal, attrs : Users.VerifiedIdentityAttributes) : Result.Result<(), Text> {
     users.upsertFromVerifiedAttributes(principal, attrs);
   };
@@ -86,6 +80,12 @@ mixin (
   public query ({ caller }) func getAmbassadorChainQuery() : async Users.AmbassadorChain {
     assert not Principal.isAnonymous(caller);
     users.getAmbassadorChain(caller);
+  };
+
+  /// Self-serve referral list for the ambassador dashboard.
+  public query ({ caller }) func getMyInvitedUsers(pagination : { limit : Nat; offset : Nat }) : async Users.InvitedUsersPage {
+    assert not Principal.isAnonymous(caller);
+    users.listInvitedBy(caller, pagination);
   };
 
   /// Anyone can check if a principal is an admin (used by frontends to show/hide UI).

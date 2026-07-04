@@ -367,6 +367,49 @@ describe("Users", () => {
     expect(chain.l1).toHaveLength(0);
     expect(chain.l2).toHaveLength(0);
   });
+
+  test("getMyInvitedUsers lists own referrals with pagination, empty for others", async () => {
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.ensureUser([]);
+    await actor.createProfile({ displayName: [], username: "inviter-list" });
+    const code = expectSingle(
+      (await actor.getProfile())[0]!.referralCode,
+      "referral code",
+    );
+
+    const referrals = Array.from({ length: 3 }, (_, i) =>
+      createIdentity(`invited-${i}`),
+    );
+    for (const identity of referrals) {
+      actor.setIdentity(identity);
+      await actor.ensureUser([]);
+      expect(await actor.applyReferralCode(code)).toEqual({ ok: null });
+    }
+
+    actor.setIdentity(manager.ownerIdentity);
+    const page = await actor.getMyInvitedUsers({ limit: 2n, offset: 0n });
+    expect(page.data).toHaveLength(2);
+    expect(page.total).toEqual([3n]);
+    for (const item of page.data) {
+      expect(item.referralAppliedAt).toHaveLength(1);
+    }
+
+    const rest = await actor.getMyInvitedUsers({ limit: 2n, offset: 2n });
+    expect(rest.data).toHaveLength(1);
+
+    const allIds = [...page.data, ...rest.data].map((item) => item.id.toText());
+    expect(new Set(allIds).size).toBe(3);
+    expect(new Set(referrals.map((r) => r.getPrincipal().toText()))).toEqual(
+      new Set(allIds),
+    );
+
+    // A user who invited nobody sees an empty page.
+    actor.setIdentity(userAlice);
+    await actor.ensureUser([]);
+    const empty = await actor.getMyInvitedUsers({ limit: 10n, offset: 0n });
+    expect(empty.data).toHaveLength(0);
+    expect(empty.total).toEqual([0n]);
+  });
 });
 
 describe("User profiles", () => {

@@ -157,4 +157,11 @@ mixin(
     admin.assertAdmin(caller);
     Treasury.getDistributionLog(treasury, opts);
   };
+
+  /// Self-serve distribution history: rows where the caller is the payer or
+  /// an ambassador (L1/L2). Powers the ambassador dashboard earnings view.
+  public query ({ caller }) func getMyDistributions() : async [TreasuryTypes.DistributionRecord] {
+    assert not Principal.isAnonymous(caller);
+    Treasury.getUserDistributions(treasury, caller);
+  };
 };

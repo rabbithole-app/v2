@@ -36,6 +36,7 @@ import StorageReleaseConfig "StorageDeployer/StorageReleaseConfig";
 
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
 import AvatarStorageMixin "AvatarStorage/mixin";
+import CouponsMixin "Coupons/mixin";
 import UsersMixin "Users/mixin";
 import IdentityVerificationMixin "IdentityVerification/mixin";
 import IdentityAttributes "mo:identity-attributes";
@@ -207,6 +208,15 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   };
 
   include SettingsMixin();
+  include CouponsMixin(
+    { db },
+    { assertAdmin },
+    {
+      resolvePersonalReferralCode = users.resolveReferralCode;
+      applyInviter = users.applyReferralCode;
+      getUser = users.get;
+    },
+  );
   include TreasuryMixin(
     {
       canisterId;
@@ -757,6 +767,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
               "creation failed before canister existed",
             );
             ignore StorageDeployerOrchestrator.removeRefundedCreation(creations, creationId);
+            // The refunded purchase never delivered — give the referral
+            // discount back so the retry is charged the discounted price.
+            restoreDiscount(owner, #license);
             emitBackendAdminNotification(#creationRefunded({ creationId; owner; tokenId = debug_show license.receipt.tokenId; amount = license.receipt.amount }));
             #ok();
           };
@@ -837,6 +850,9 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     {
       getUserSettings;
       getAmbassadorChain;
+      takeDiscount;
+      commitDiscount;
+      releaseDiscount;
       events = backendEvents;
       verifyCanisterOwner;
       transferIcpToCmc;

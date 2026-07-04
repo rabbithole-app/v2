@@ -175,6 +175,10 @@ export const idlFactory = ({ IDL }) => {
     'ok' : IDL.Null,
     'storageError' : IDL.Text,
     'userNotFound' : IDL.Null,
+    'couponExhausted' : IDL.Null,
+    'discountAlreadyApplied' : IDL.Null,
+    'couponRevoked' : IDL.Null,
+    'couponExpired' : IDL.Null,
     'selfReferral' : IDL.Null,
     'referralCodeNotFound' : IDL.Null,
     'alreadyApplied' : IDL.Null,
@@ -201,9 +205,45 @@ export const idlFactory = ({ IDL }) => {
     'ok' : IDL.Null,
     'err' : IdentityAttributesSyncError,
   });
+  const CreateCouponArgs = IDL.Record({
+    'expiresAt' : IDL.Opt(Time),
+    'note' : IDL.Opt(IDL.Text),
+    'maxRedemptions' : IDL.Opt(IDL.Nat),
+  });
+  const Coupon = IDL.Record({
+    'redeemedCount' : IDL.Nat,
+    'expiresAt' : IDL.Opt(Time),
+    'revoked' : IDL.Bool,
+    'ownerText' : IDL.Text,
+    'owner' : IDL.Principal,
+    'code' : IDL.Text,
+    'note' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
+    'discountBps' : IDL.Nat,
+    'maxRedemptions' : IDL.Opt(IDL.Nat),
+  });
+  const CreateCouponError = IDL.Variant({
+    'storageError' : IDL.Text,
+    'userNotFound' : IDL.Null,
+    'invalidMaxRedemptions' : IDL.Null,
+    'tooManyActiveCoupons' : IDL.Record({ 'limit' : IDL.Nat }),
+    'invalidNote' : IDL.Null,
+    'invalidExpiry' : IDL.Null,
+  });
+  const Result__1_2 = IDL.Variant({ 'ok' : Coupon, 'err' : CreateCouponError });
   const CreateProfileArgs = IDL.Record({
     'username' : IDL.Text,
     'displayName' : IDL.Opt(IDL.Text),
+  });
+  const DeleteCouponError = IDL.Variant({
+    'storageError' : IDL.Text,
+    'couponNotFound' : IDL.Null,
+    'couponActive' : IDL.Null,
+    'notOwner' : IDL.Null,
+  });
+  const Result__1_1 = IDL.Variant({
+    'ok' : IDL.Null,
+    'err' : DeleteCouponError,
   });
   const DeleteStorageError = IDL.Variant({
     'NotFailed' : IDL.Null,
@@ -367,6 +407,22 @@ export const idlFactory = ({ IDL }) => {
     'timestamp' : IDL.Int,
     'payer' : IDL.Principal,
     'treasuryAmount' : IDL.Nat,
+  });
+  const DiscountState = IDL.Record({
+    'appliedAt' : Time,
+    'couponCode' : IDL.Text,
+    'proFirstMonthUsed' : IDL.Bool,
+    'discountBps' : IDL.Nat,
+    'licenseUsed' : IDL.Bool,
+  });
+  const InvitedUserItem = IDL.Record({
+    'id' : IDL.Principal,
+    'referralAppliedAt' : IDL.Opt(Time),
+    'profile' : IDL.Opt(PublicProfileSummary),
+  });
+  const InvitedUsersPage = IDL.Record({
+    'total' : IDL.Opt(IDL.Nat),
+    'data' : IDL.Vec(InvitedUserItem),
   });
   const PendingRefund = IDL.Record({
     'tokenId' : TokenId,
@@ -1122,6 +1178,12 @@ export const idlFactory = ({ IDL }) => {
     'notFound' : IDL.Null,
     'stillAmbiguous' : IDL.Record({ 'attempts' : IDL.Nat }),
   });
+  const RevokeCouponError = IDL.Variant({
+    'storageError' : IDL.Text,
+    'couponNotFound' : IDL.Null,
+    'notOwner' : IDL.Null,
+  });
+  const Result__1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : RevokeCouponError });
   const UserDirectoryMatch = IDL.Variant({
     'principalExact' : IDL.Null,
     'emailExact' : IDL.Null,
@@ -1259,7 +1321,9 @@ export const idlFactory = ({ IDL }) => {
       ),
     'clearAvatar' : IDL.Func([], [], []),
     'commitAvatarUpload' : IDL.Func([IDL.Text], [AvatarRef], []),
+    'createCoupon' : IDL.Func([CreateCouponArgs], [Result__1_2], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Vec(IDL.Nat8)], []),
+    'deleteCoupon' : IDL.Func([IDL.Text], [Result__1_1], []),
     'deleteProfile' : IDL.Func([], [], []),
     'deleteStorage' : IDL.Func([IDL.Nat], [Result_7], []),
     'dismissPendingCmcOp' : IDL.Func(
@@ -1288,6 +1352,18 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getEvmAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
+    'getMyCoupons' : IDL.Func([], [IDL.Vec(Coupon)], ['query']),
+    'getMyDiscountState' : IDL.Func([], [IDL.Opt(DiscountState)], ['query']),
+    'getMyDistributions' : IDL.Func(
+        [],
+        [IDL.Vec(DistributionRecord)],
+        ['query'],
+      ),
+    'getMyInvitedUsers' : IDL.Func(
+        [IDL.Record({ 'offset' : IDL.Nat, 'limit' : IDL.Nat })],
+        [InvitedUsersPage],
+        ['query'],
+      ),
     'getMyWalletAddresses' : IDL.Func(
         [],
         [
@@ -1306,6 +1382,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(PublicProfileLookup)],
         ['query'],
       ),
+    'getReferralDiscountBps' : IDL.Func([], [IDL.Nat], ['query']),
     'getSettings' : IDL.Func([], [UserSettings], ['query']),
     'getSolAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'getStorageFundingStatus' : IDL.Func([], [StorageFundingStatus], ['query']),
@@ -1441,11 +1518,13 @@ export const idlFactory = ({ IDL }) => {
       ),
     'retryAmbassadorPayout' : IDL.Func([IDL.Nat], [Result_2], []),
     'retryPendingCmcOp' : IDL.Func([IDL.Nat], [CmcOpRetryResult], []),
+    'revokeCoupon' : IDL.Func([IDL.Text], [Result__1], []),
     'searchUserDirectory' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [IDL.Vec(UserDirectoryItem)],
         ['query'],
       ),
+    'setReferralDiscountBps' : IDL.Func([IDL.Nat], [], []),
     'setUserRole' : IDL.Func([IDL.Principal, Role], [], []),
     'startStorageDeployer' : IDL.Func([], [], []),
     'startStorageUpgrade' : IDL.Func(

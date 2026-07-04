@@ -4,18 +4,17 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Nat8 "mo:core/Nat8";
 import Principal "mo:core/Principal";
-import Random "mo:core/Random";
 import Result "mo:core/Result";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 
-import ByteUtils "mo:byte-utils";
 import Hex "mo:hex";
 import Sha256 "mo:sha2/Sha256";
 import ZenDB "mo:zendb";
 
 import Types "../Types/lib";
+import Utils "../Utils/lib";
 
 module {
   public type Role = {
@@ -145,6 +144,17 @@ module {
     total : ?Nat;
   };
 
+  public type InvitedUserItem = {
+    id : Principal;
+    referralAppliedAt : ?Time.Time;
+    profile : ?PublicProfileSummary;
+  };
+
+  public type InvitedUsersPage = {
+    data : [InvitedUserItem];
+    total : ?Nat;
+  };
+
   public type UserDirectoryMatch = {
     #profile;
     #emailExact;
@@ -269,19 +279,7 @@ module {
   };
 
   func generateReferralCode(principal : Principal) : Text {
-    let alphabet = Text.toArray("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
-    let hash = Sha256.fromBlob(#sha256, Principal.toBlob(principal));
-    let seed = ByteUtils.BigEndian.toNat64(hash.vals());
-
-    let random = Random.seed(seed);
-    var code = "";
-    var i = 0;
-    while (i < 8) {
-      let idx = random.natRange(0, alphabet.size());
-      code #= Text.fromChar(alphabet[idx]);
-      i += 1;
-    };
-    code;
+    Utils.referralCode([Principal.toBlob(principal)]);
   };
 
   func toProfile(id : Principal, profile : UserProfile) : Profile {
@@ -585,6 +583,41 @@ module {
       let q = ZenDB.QueryBuilder().Where("profile.username", #eq(#Text(username))).Limit(1);
       let #ok({ count }) = usersCollection.count(q) else return false;
       count > 0;
+    };
+
+    /// Self-serve list of users invited by `ambassador`, newest referral
+    /// first. Delegates to the admin `list` query, but exposes only
+    /// public-directory fields — identity attributes stay admin-only.
+    public func listInvitedBy(ambassador : Principal, pagination : { limit : Nat; offset : Nat }) : InvitedUsersPage {
+      let page = list({
+        filter = {
+          id = null;
+          inviter = ?[ambassador];
+          role = null;
+          verifiedEmail = null;
+          identityProvider = null;
+          search = null;
+          createdAt = null;
+          updatedAt = null;
+          lastLoginAt = null;
+          identitySyncedAt = null;
+          referralAppliedAt = null;
+        };
+        sort = [("referralAppliedAt", #Descending)];
+        pagination;
+        count = true;
+      });
+      {
+        data = Array.map<AdminUserListItem, InvitedUserItem>(
+          page.data,
+          func(item) = {
+            id = item.id;
+            referralAppliedAt = item.referralAppliedAt;
+            profile = item.profile;
+          },
+        );
+        total = page.total;
+      };
     };
 
     public func resolveReferralCode(code : Text) : ?Principal {

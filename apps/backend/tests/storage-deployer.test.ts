@@ -2285,6 +2285,121 @@ describe("StorageDeployer", () => {
     expect(dataAfterRetry[0].ambassadorPayoutStatusTag).toBe("completed");
   }, 300_000);
 
+  test("refund of a discounted license restores the discount for a retry", async () => {
+    const ambassador = createIdentity("refund-discount-amb");
+    backendFixture.actor.setIdentity(ambassador);
+    await backendFixture.actor.ensureUser([]);
+    const couponResult = await backendFixture.actor.createCoupon({
+      maxRedemptions: [],
+      expiresAt: [],
+      note: [],
+    });
+    if (!("ok" in couponResult)) throw new Error("createCoupon failed");
+
+    const buyer = createIdentity("refund-discount-buyer");
+    backendFixture.actor.setIdentity(buyer);
+    await backendFixture.actor.ensureUser([]);
+    expect(
+      await backendFixture.actor.applyReferralCode(couponResult.ok.code),
+    ).toEqual({ ok: null });
+
+    // Charge succeeds at the discounted price, deploy fails (no ICP left).
+    const creationId = await createFailedStorageWithLicense(
+      manager,
+      backendFixture,
+      buyer,
+    );
+    backendFixture.actor.setIdentity(buyer);
+    expect(
+      (await backendFixture.actor.getMyDiscountState())[0]?.licenseUsed,
+    ).toBe(true);
+
+    const refundResult = await backendFixture.actor.recoverFailedStorage(
+      creationId,
+      { refund: null },
+    );
+    expect(refundResult).toHaveProperty("ok");
+
+    // The discount is back — the retry purchase stays discounted.
+    expect(
+      (await backendFixture.actor.getMyDiscountState())[0]?.licenseUsed,
+    ).toBe(false);
+  });
+
+  test("deferred payout with coupon: license charged at 90%, payout from paid amount", async () => {
+    // Full-price reference receipt (no referral; deploy fails, charge stands).
+    const refBuyer = createIdentity("coupon-license-ref");
+    await createFailedStorageWithLicense(manager, backendFixture, refBuyer);
+    backendFixture.actor.setIdentity(refBuyer);
+    const refReceipt = (await backendFixture.actor.listLicenses([])).data[0]!
+      .receipt.amount;
+
+    // Ambassador issues a coupon; buyer activates it before purchase.
+    const ambassador = createIdentity("coupon-license-amb");
+    backendFixture.actor.setIdentity(ambassador);
+    await backendFixture.actor.ensureUser([]);
+    const couponResult = await backendFixture.actor.createCoupon({
+      maxRedemptions: [],
+      expiresAt: [],
+      note: [],
+    });
+    if (!("ok" in couponResult)) throw new Error("createCoupon failed");
+    const couponCode = couponResult.ok.code;
+
+    const buyer = createIdentity("coupon-license-buyer");
+    backendFixture.actor.setIdentity(buyer);
+    await backendFixture.actor.ensureUser([]);
+    expect(await backendFixture.actor.applyReferralCode(couponCode)).toEqual({
+      ok: null,
+    });
+    await fundUserForStorage(manager, backendFixture, buyer);
+
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      { standard: null },
+    );
+    expect(result).toHaveProperty("ok");
+    if (!("ok" in result)) throw new Error();
+    const creationId = result.ok;
+
+    const finalStatus = await pollStorageStatus(manager, backendFixture, 120);
+    expect(finalStatus).toHaveProperty("Completed");
+
+    // Receipt is the discounted amount: ~90% of the full-price reference.
+    const receipt = (await backendFixture.actor.listLicenses([])).data[0]!
+      .receipt.amount;
+    expect(Number(receipt) / Number(refReceipt)).toBeCloseTo(0.9, 3);
+
+    // License discount burned; Pro first-month discount still available.
+    const discount = (await backendFixture.actor.getMyDiscountState())[0];
+    expect(discount?.licenseUsed).toBe(true);
+    expect(discount?.proFirstMonthUsed).toBe(false);
+
+    // Deferred payout math: charge row is 100% treasury; the ambassador row
+    // carries 15% of the PAID (discounted) amount.
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+    const { data } = await backendFixture.actor.listCreations([
+      listCreationsByIdOpts(creationId),
+    ]);
+    expect(data[0].ambassadorPayoutStatusTag).toBe("completed");
+    const paymentId = data[0].licensePaymentId[0]!;
+
+    const distRows = await backendFixture.actor.getDistributionLog({
+      offset: 0n,
+      limit: 1000n,
+    });
+    const chargeRow = distRows.find((r) => r.paymentId === paymentId)!;
+    const payoutRow = distRows.find(
+      (r) => r.paymentId === `ambassador:${paymentId}`,
+    )!;
+    expect(chargeRow.totalAmount).toBe(receipt);
+    expect(chargeRow.l1Amount).toBe(0n);
+    expect(payoutRow.l1Amount).toBe((receipt * 1500n) / 10_000n);
+    expect(payoutRow.ambassadorL1[0]?.toText()).toBe(
+      ambassador.getPrincipal().toText(),
+    );
+  }, 300_000);
+
   test("addStorage rejects canister without WASM installed (#InvalidWasm)", async () => {
     // Fresh empty canister — no WASM installed → fails at module_hash check.
     const emptyCanisterId = await manager.pic.createCanister({
