@@ -6,9 +6,41 @@ import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 
 import MemoryRegion "mo:memory-region/MemoryRegion";
-import IC "mo:ic/Types";
 
 module {
+  // -- Frozen HTTP types --
+  //
+  // The downloader queue lives inside the stable orchestrator store, and
+  // stable containers are invariant under upgrade. These shapes mirror
+  // ic@3.2.0 exactly — the layout persisted on mainnet. Do NOT replace them
+  // with mo:ic imports: the 3.2.0 → 4.2.0 bump widened `method` and made the
+  // 2026-07-04 mainnet upgrade memory-incompatible. Values of these types are
+  // subtypes of the current mo:ic call-site types, so outcalls take them
+  // directly.
+
+  public type HttpHeader = { name : Text; value : Text };
+
+  public type HttpRequestResult = {
+    status : Nat;
+    body : Blob;
+    headers : [HttpHeader];
+  };
+
+  public type HttpTransform = {
+    function : shared query { context : Blob; response : HttpRequestResult } -> async HttpRequestResult;
+    context : Blob;
+  };
+
+  public type HttpRequestArgs = {
+    url : Text;
+    method : { #get; #head; #post };
+    max_response_bytes : ?Nat64;
+    body : ?Blob;
+    transform : ?HttpTransform;
+    headers : [HttpHeader];
+    is_replicated : ?Bool;
+  };
+
   // -- Basic Types --
 
   /// Pointer to a memory region: (address, size)
@@ -37,7 +69,7 @@ module {
   /// Internal request state for a download chunk
   public type DownloadRequest = {
     key : DownloadKey;
-    request : IC.HttpRequestArgs;
+    request : HttpRequestArgs;
     chunkId : Nat;
     attempts : Nat;
   };
@@ -75,7 +107,7 @@ module {
     downloads : Set.Set<DownloadState>;
     requests : Queue.Queue<DownloadRequest>;
     region : MemoryRegion.MemoryRegion;
-    httpHeaders : Set.Set<IC.HttpHeader>;
+    httpHeaders : Set.Set<HttpHeader>;
     var nextChunkId : Nat;
   };
 };

@@ -33,11 +33,11 @@ module {
   let MAX_CHUNK_SIZE : Nat = 1_950_000; // 1.95MB per HTTP outcall (50KB buffer for headers)
   let MAX_HTTP_REQUEST_ATTEMPTS : Nat = 3;
 
-  func compareHeaders(a : IC.HttpHeader, b : IC.HttpHeader) : Order.Order = Text.compare(a.name, b.name);
+  func compareHeaders(a : Types.HttpHeader, b : Types.HttpHeader) : Order.Order = Text.compare(a.name, b.name);
 
   func compareDownloads(a : DownloadState, b : DownloadState) : Order.Order = Text.compare(a.key, b.key);
 
-  func replaceHeader(headers : Set.Set<IC.HttpHeader>, header : IC.HttpHeader) {
+  func replaceHeader(headers : Set.Set<Types.HttpHeader>, header : Types.HttpHeader) {
     Set.remove(headers, compareHeaders, header);
     Set.add(headers, compareHeaders, header);
   };
@@ -52,7 +52,7 @@ module {
   // -- Public Functions --
 
   /// Create a new HTTP downloader store
-  public func new({ httpHeaders; region } : { httpHeaders : [IC.HttpHeader]; region : ?MemoryRegion.MemoryRegion }) : Store {
+  public func new({ httpHeaders; region } : { httpHeaders : [Types.HttpHeader]; region : ?MemoryRegion.MemoryRegion }) : Store {
     {
       downloads = Set.empty();
       requests = Queue.empty();
@@ -73,7 +73,7 @@ module {
       let rangeEnd = Nat.min(offset + MAX_CHUNK_SIZE - 1, args.size - 1);
       let rangeHeader = "bytes=" # Nat.toText(offset) # "-" # Nat.toText(rangeEnd);
       replaceHeader(headers, { name = "Range"; value = rangeHeader });
-      let request : IC.HttpRequestArgs = {
+      let request : Types.HttpRequestArgs = {
         url = args.url;
         max_response_bytes = null;
         headers = Set.values(headers) |> Iter.toArray(_);

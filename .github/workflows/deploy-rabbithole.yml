@@ -78,6 +78,37 @@ jobs:
       - name: Generate declarations and init args
         run: npx nx run backend:generate-declarations --skip-nx-cache --outputStyle=static
 
+      # Guards against `RTS error: Memory-incompatible program upgrade`: the
+      # deployed canister carries its stable-types signature in the
+      # `motoko:stable-types` wasm section (private — readable because the
+      # deploy identity is a controller). Compare it against the freshly
+      # built wasm BEFORE install instead of trapping in post_upgrade.
+      - name: Check stable-memory compatibility with deployed backend
+        if: ${{ inputs.target == 'backend' || inputs.target == 'both' }}
+        working-directory: apps/backend
+        run: |
+          icp build
+
+          if ! icp canister metadata rabbithole-backend motoko:stable-types -e ic > deployed.most; then
+            echo "No stable-types metadata on the deployed canister — skipping compatibility check."
+            exit 0
+          fi
+
+          artifact=.icp/cache/artifacts/rabbithole-backend
+          if gunzip -t "$artifact" 2>/dev/null; then
+            gunzip -c "$artifact" > new.wasm
+          else
+            cp "$artifact" new.wasm
+          fi
+          ic-wasm new.wasm metadata motoko:stable-types > new.most
+
+          moc_bin="$(mops toolchain bin moc)"
+          if ! "$moc_bin" --stable-compatible deployed.most new.most; then
+            echo "::error::rabbithole-backend WASM is memory-incompatible with the deployed canister — the upgrade would trap in post_upgrade. Freeze or migrate the offending stable type before deploying."
+            exit 1
+          fi
+          echo "Stable memory layout is compatible with the deployed canister."
+
       - name: Deploy backend
         if: ${{ inputs.target == 'backend' || inputs.target == 'both' }}
         working-directory: apps/backend
