@@ -4,37 +4,38 @@ import BackendEvents "../BackendEvents/lib";
 import Notifications "lib";
 import NotificationRouter "Router";
 
-mixin (deps : { listAdmins : () -> [Principal] }) {
-  let notifStore = Notifications.new();
-
+// `notifStore` is declared in main.mo and passed in via deps: migration
+// expressions can only target stable fields declared directly on the actor,
+// not fields introduced by a mixin.
+mixin (deps : { listAdmins : () -> [Principal]; notifStore : Notifications.Store }) {
   func consumeBackendEvent(backendEvent : BackendEvents.BackendEvent) {
     for (delivery in NotificationRouter.route(backendEvent, deps).vals()) {
-      Notifications.enqueue(notifStore, delivery);
+      Notifications.enqueue(deps.notifStore, delivery);
     };
   };
 
   public query ({ caller }) func listNotifications(args : Notifications.ListNotificationsArgs) : async Notifications.NotificationsPage {
     assert not Principal.isAnonymous(caller);
-    Notifications.listNotifications(notifStore, caller, args);
+    Notifications.listNotifications(deps.notifStore, caller, args);
   };
 
   public query ({ caller }) func getUnreadNotificationCount() : async Nat {
     assert not Principal.isAnonymous(caller);
-    Notifications.getUnreadNotificationCount(notifStore, caller);
+    Notifications.getUnreadNotificationCount(deps.notifStore, caller);
   };
 
   public shared ({ caller }) func markNotificationsRead(ids : [Nat]) : async () {
     assert not Principal.isAnonymous(caller);
-    Notifications.markAsRead(notifStore, caller, ids);
+    Notifications.markAsRead(deps.notifStore, caller, ids);
   };
 
   public shared ({ caller }) func markNotificationsReadUpTo(upToId : Nat) : async () {
     assert not Principal.isAnonymous(caller);
-    Notifications.markReadUpTo(notifStore, caller, upToId);
+    Notifications.markReadUpTo(deps.notifStore, caller, upToId);
   };
 
   public shared ({ caller }) func markAllNotificationsRead() : async () {
     assert not Principal.isAnonymous(caller);
-    Notifications.markAllAsRead(notifStore, caller);
+    Notifications.markAllAsRead(deps.notifStore, caller);
   };
 };

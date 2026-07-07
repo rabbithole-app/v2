@@ -55,11 +55,16 @@ import CmcRecoveryMixin "CmcRecovery/mixin";
 import CmcRecovery "CmcRecovery/lib";
 import CreationsClass "StorageDeployer/Creations";
 import LicensesClass "StorageDeployer/Licenses";
+import Migration "Migration";
 import Notifications "Notifications/lib";
 
 import Types "Types";
 import Utils "Utils/lib";
 
+// One-shot notifStore rebuild for the cycles-reserve release — see
+// Migration.mo. Remove together with that file after the first successful
+// mainnet upgrade.
+(with migration = Migration.run)
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
   transient let backendInitArgs = switch (initArgs) {
@@ -161,8 +166,12 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     onVerified = storeVerifiedIdentityAttributes;
   });
   include KnownWasmHashesMixin({ assertAdmin });
+  // Declared here (not in the mixin) so the migration expression can target
+  // it — migrations only see stable fields declared directly on the actor.
+  let notifStore = Notifications.new();
   include NotificationsMixin({
     listAdmins = func() : [Principal] = users.listByRole(#admin);
+    notifStore;
   });
   transient let backendEvents : BackendEvents.EventSink = {
     emit = consumeBackendEvent;
