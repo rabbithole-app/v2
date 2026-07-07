@@ -234,7 +234,7 @@ module {
   func severityForPayload(payload : Types.NotificationPayload) : Types.NotificationSeverity {
     switch (payload) {
       case (#subscriptionActivated(_) or #subscriptionRenewed(_) or #paymentReceived(_) or #depositReceived(_) or #topUpCompleted(_) or #autoTopUpCompleted(_) or #storageAccessRequestResolved(_) or #storageInviteClaimed(_) or #storageAccessGranted(_) or #storageRecoveryOwnerAdded(_)) #success;
-      case (#subscriptionExpired or #lowCycles(_) or #balanceLow(_) or #storageAccessRequestCreated(_) or #storageInviteCreated(_) or #storageInviteCancelled(_) or #storageAccessRevoked(_) or #storageRecoveryOwnerRemoved(_) or #backendLowCycles(_) or #treasuryIcpLow(_)) #warning;
+      case (#subscriptionExpired or #lowCycles(_) or #balanceLow(_) or #storageAccessRequestCreated(_) or #storageInviteCreated(_) or #storageInviteCancelled(_) or #storageAccessRevoked(_) or #storageRecoveryOwnerRemoved(_) or #backendLowCycles(_) or #cyclesReserveLow(_) or #treasuryIcpLow(_)) #warning;
       case (#autoRenewFailed(_) or #topUpFailed(_) or #autoTopUpFailed(_) or #backendSelfTopUpFailed(_) or #ambassadorPayoutFailed(_) or #cmcNotifyStuck(_)) #critical;
       case (#updateAvailable(_) or #storageAccessRequestCancelled(_) or #creationRefunded(_)) #info;
     };

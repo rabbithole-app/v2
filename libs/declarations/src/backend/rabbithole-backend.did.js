@@ -373,6 +373,20 @@ export const idlFactory = ({ IDL }) => {
     'installedReleaseTag' : IDL.Opt(IDL.Text),
     'canisterId' : IDL.Opt(IDL.Principal),
   });
+  const CyclesReserveStats = IDL.Record({
+    'autoTopUps' : IDL.Nat,
+    'balance' : IDL.Nat,
+    'manualTopUpCycles' : IDL.Nat,
+    'autoTopUpCycles' : IDL.Nat,
+    'deploys' : IDL.Nat,
+    'cmcFallbacks' : IDL.Nat,
+    'includedTopUps' : IDL.Nat,
+    'opsFloor' : IDL.Nat,
+    'deployCycles' : IDL.Nat,
+    'includedTopUpCycles' : IDL.Nat,
+    'manualTopUps' : IDL.Nat,
+    'refillWatermark' : IDL.Nat,
+  });
   const DistributionLogOptions = IDL.Record({
     'offset' : IDL.Nat,
     'limit' : IDL.Nat,
@@ -891,6 +905,10 @@ export const idlFactory = ({ IDL }) => {
       'canisterId' : IDL.Principal,
     }),
     'balanceLow' : IDL.Record({ 'requiredAmount' : IDL.Nat }),
+    'cyclesReserveLow' : IDL.Record({
+      'current' : IDL.Nat,
+      'watermark' : IDL.Nat,
+    }),
     'paymentReceived' : IDL.Record({
       'tokenId' : IDL.Text,
       'amount' : IDL.Nat,
@@ -1346,6 +1364,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(StorageCreationRecord)],
         ['query'],
       ),
+    'getCyclesReserveStats' : IDL.Func([], [CyclesReserveStats], ['query']),
     'getDistributionLog' : IDL.Func(
         [DistributionLogOptions],
         [IDL.Vec(DistributionRecord)],
@@ -1523,6 +1542,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text, IDL.Nat],
         [IDL.Vec(UserDirectoryItem)],
         ['query'],
+      ),
+    'setCyclesReserveConfig' : IDL.Func(
+        [IDL.Record({ 'opsFloor' : IDL.Nat, 'refillWatermark' : IDL.Nat })],
+        [],
+        [],
       ),
     'setReferralDiscountBps' : IDL.Func([IDL.Nat], [], []),
     'setUserRole' : IDL.Func([IDL.Principal, Role], [], []),

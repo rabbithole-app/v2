@@ -20,6 +20,7 @@ import TreasuryTypes "mo:treasury/Types";
 
 import BackendEvents "../BackendEvents/lib";
 import Balance "lib";
+import CyclesReserve "CyclesReserve";
 import CMCTypes "../Types/CMCTypes";
 import CmcRecovery "../CmcRecovery/lib";
 import Coupons "../Coupons/lib";
@@ -764,10 +765,110 @@ mixin (
     processAutoRenewals<system>();
   };
 
+  // ---- Cycles reserve (serve user-facing ops from backend's own balance) ----
+  //
+  // The backend holds a cycles reserve (manually refilled off-CMC at a better
+  // rate than the CMC mint price). Top-ups and deployments draw from it via a
+  // single `deposit_cycles` / `create_canister` call instead of the
+  // ICP-transfer + CMC-notify round-trip; the user's ICP stays in treasury.
+  // Every reserve branch is "if available, else the old CMC path" — nothing
+  // requires the reserve to be funded.
+
+  /// Runtime-tunable watermarks. Raising `opsFloor` above the balance forces
+  /// all operations onto the CMC path (effectively disables the reserve).
+  var cyclesReserveOpsFloor : Nat = CyclesReserve.DEFAULT_OPS_FLOOR;
+  var cyclesReserveRefillWatermark : Nat = CyclesReserve.DEFAULT_REFILL_WATERMARK;
+
+  var cyclesReserveStats = {
+    var manualTopUps : Nat = 0;
+    var manualTopUpCycles : Nat = 0;
+    var autoTopUps : Nat = 0;
+    var autoTopUpCycles : Nat = 0;
+    var includedTopUps : Nat = 0;
+    var includedTopUpCycles : Nat = 0;
+    var deploys : Nat = 0;
+    var deployCycles : Nat = 0;
+    var cmcFallbacks : Nat = 0;
+  };
+
+  /// Edge-triggered flag for `#cyclesReserveLow` — same hysteresis pattern
+  /// as `backendLowCyclesNotified` (see self-topup section).
+  transient var reserveRefillNotified : Bool = false;
+
+  func checkReserveRefillWatermark() {
+    let current = Cycles.balance();
+    if (current < cyclesReserveRefillWatermark and not reserveRefillNotified) {
+      emitBalanceAdminNotification(#cyclesReserveLow({ current; watermark = cyclesReserveRefillWatermark }));
+      reserveRefillNotified := true;
+    } else if (current >= cyclesReserveRefillWatermark and reserveRefillNotified) {
+      reserveRefillNotified := false;
+    };
+  };
+
+  func serveTopUpFromReserve(canisterId : Principal, amount : Nat) : async* CyclesReserve.DepositResult {
+    await* CyclesReserve.deposit(canisterId, amount, cyclesReserveOpsFloor);
+  };
+
+  func recordReserveCmcFallback() {
+    cyclesReserveStats.cmcFallbacks += 1;
+  };
+
+  /// Deployment metrics recorder — wired into the StorageDeployer
+  /// orchestrator callbacks from main.mo.
+  func recordReserveDeploy(cycles : Nat) {
+    cyclesReserveStats.deploys += 1;
+    cyclesReserveStats.deployCycles += cycles;
+    checkReserveRefillWatermark();
+  };
+
+  func getCyclesReserveOpsFloor() : Nat {
+    cyclesReserveOpsFloor;
+  };
+
+  public type CyclesReserveStats = {
+    balance : Nat;
+    opsFloor : Nat;
+    refillWatermark : Nat;
+    manualTopUps : Nat;
+    manualTopUpCycles : Nat;
+    autoTopUps : Nat;
+    autoTopUpCycles : Nat;
+    includedTopUps : Nat;
+    includedTopUpCycles : Nat;
+    deploys : Nat;
+    deployCycles : Nat;
+    cmcFallbacks : Nat;
+  };
+
+  public query ({ caller }) func getCyclesReserveStats() : async CyclesReserveStats {
+    admin.assertAdmin(caller);
+    {
+      balance = Cycles.balance();
+      opsFloor = cyclesReserveOpsFloor;
+      refillWatermark = cyclesReserveRefillWatermark;
+      manualTopUps = cyclesReserveStats.manualTopUps;
+      manualTopUpCycles = cyclesReserveStats.manualTopUpCycles;
+      autoTopUps = cyclesReserveStats.autoTopUps;
+      autoTopUpCycles = cyclesReserveStats.autoTopUpCycles;
+      includedTopUps = cyclesReserveStats.includedTopUps;
+      includedTopUpCycles = cyclesReserveStats.includedTopUpCycles;
+      deploys = cyclesReserveStats.deploys;
+      deployCycles = cyclesReserveStats.deployCycles;
+      cmcFallbacks = cyclesReserveStats.cmcFallbacks;
+    };
+  };
+
+  public shared ({ caller }) func setCyclesReserveConfig(config : { opsFloor : Nat; refillWatermark : Nat }) : async () {
+    admin.assertAdmin(caller);
+    cyclesReserveOpsFloor := config.opsFloor;
+    cyclesReserveRefillWatermark := config.refillWatermark;
+  };
+
   // ---- Top-up from balance ----
 
   /// Top up a storage canister's cycles from user's balance.
-  /// Flow: charge user (simple, no split) → ICP to CMC → cycles.
+  /// Flow: charge user (simple, no split) → cycles reserve deposit, or
+  /// ICP to CMC → cycles when the reserve can't cover it.
   /// Supports partial fill if user can't afford full amount.
   /// Refunds on CMC failure.
   public shared ({ caller }) func topUpFromBalance(
@@ -793,7 +894,25 @@ mixin (
       case (#err(msg)) return #err(msg);
     };
 
-    // 3. Transfer ICP to CMC — unified pool, treasury subaccount.
+    // 3. Serve from the backend cycles reserve when it covers the amount —
+    //    one deposit_cycles call, no CMC round-trip; treasury keeps the ICP.
+    switch (await* serveTopUpFromReserve(canisterId, charged.actualCycles)) {
+      case (#ok) {
+        cyclesReserveStats.manualTopUps += 1;
+        cyclesReserveStats.manualTopUpCycles += charged.actualCycles;
+        checkReserveRefillWatermark();
+        emitBalanceNotification(caller, #topUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
+        return #ok({ cyclesAdded = charged.actualCycles });
+      };
+      case (#failed(msg)) {
+        await* safeRefund(caller, charged.tokenId, charged.amount, "reserve cycles deposit failure");
+        emitBalanceNotification(caller, #topUpFailed({ canisterId; reason = "Cycles deposit failed: " # msg }));
+        return #err("Cycles deposit failed: " # msg);
+      };
+      case (#insufficientReserve) recordReserveCmcFallback();
+    };
+
+    // 4. Fallback: transfer ICP to CMC — unified pool, treasury subaccount.
     //    Guard against depleting treasury below reserve (refunds/payouts).
     let icpE8sNeeded = Balance.cyclesToIcpE8s(charged.actualCycles, xdrPermyriadPerIcp);
     let cmcDebit = icpE8sNeeded + Balance.LEDGER_FEE;
@@ -818,7 +937,7 @@ mixin (
       };
     };
 
-    // 4. Notify CMC to deposit cycles
+    // 5. Notify CMC to deposit cycles
     let topUpResult = await deps.notifyTopUp(Nat64.fromNat(blockIndex), canisterId);
     switch (topUpResult) {
       case (#ok(_cycles)) {
@@ -1165,6 +1284,32 @@ mixin (
     emitStorageOperationalStateChanged(storageOwner, canisterId, [#funding], ?#info);
 
     try {
+      // Reserve path first — no rate fetch needed, budget settles
+      // immediately (no blockIndex reservation).
+      switch (await* serveTopUpFromReserve(canisterId, cyclesToBuy)) {
+        case (#ok) {
+          budget.usedCycles += cyclesToBuy;
+          cyclesReserveStats.includedTopUps += 1;
+          cyclesReserveStats.includedTopUpCycles += cyclesToBuy;
+          checkReserveRefillWatermark();
+          emitBalanceNotification(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = cyclesToBuy }));
+          emitStorageFundingChanged(storageOwner, canisterId, #completed({ cyclesAdded = cyclesToBuy }), null, null);
+          emitStorageOperationalStateChanged(storageOwner, canisterId, [#cycles, #funding], ?#info);
+          finishStorageFundingAttempt(canisterId, null);
+          clearStorageFundingLocks(storageOwner, canisterId);
+          return #ok({ cyclesAdded = cyclesToBuy });
+        };
+        case (#failed(msg)) {
+          let reason = "Cycles deposit failed: " # msg;
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason }));
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
+          clearStorageFundingLocks(storageOwner, canisterId);
+          return #err(reason);
+        };
+        case (#insufficientReserve) recordReserveCmcFallback();
+      };
+
       let xdrPermyriadPerIcp = await rates.getIcpXdrRate();
       let icpE8sNeeded = Balance.cyclesToIcpE8s(cyclesToBuy, xdrPermyriadPerIcp);
       let cmcDebit = icpE8sNeeded + Balance.LEDGER_FEE;
@@ -1296,6 +1441,33 @@ mixin (
         };
       };
       pendingCharge := ?{ tokenId = charged.tokenId; amount = charged.amount };
+
+      // Reserve path — one deposit_cycles call, treasury keeps the ICP.
+      switch (await* serveTopUpFromReserve(canisterId, charged.actualCycles)) {
+        case (#ok) {
+          pendingCharge := null;
+          cyclesReserveStats.autoTopUps += 1;
+          cyclesReserveStats.autoTopUpCycles += charged.actualCycles;
+          checkReserveRefillWatermark();
+          emitBalanceNotification(storageOwner, #autoTopUpCompleted({ canisterId; cyclesAmount = charged.actualCycles }));
+          emitStorageFundingChanged(storageOwner, canisterId, #completed({ cyclesAdded = charged.actualCycles }), null, null);
+          emitStorageOperationalStateChanged(storageOwner, canisterId, [#cycles, #funding], ?#info);
+          finishStorageFundingAttempt(canisterId, null);
+          Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+          return #ok({ cyclesAdded = charged.actualCycles });
+        };
+        case (#failed(msg)) {
+          pendingCharge := null; // refund handled here
+          await* safeRefund(storageOwner, charged.tokenId, charged.amount, "autoTopUp reserve deposit failure");
+          let reason = "Cycles deposit failed: " # msg;
+          emitBalanceNotification(storageOwner, #autoTopUpFailed({ canisterId; reason }));
+          emitStorageFundingChanged(storageOwner, canisterId, #failed({ reason }), null, null);
+          finishStorageFundingAttempt(canisterId, ?reason);
+          Set.remove(autoTopUpInFlight, Principal.compare, canisterId);
+          return #err(reason);
+        };
+        case (#insufficientReserve) recordReserveCmcFallback();
+      };
 
       let icpE8sNeeded = Balance.cyclesToIcpE8s(charged.actualCycles, xdrPermyriadPerIcp);
       let cmcDebit = icpE8sNeeded + Balance.LEDGER_FEE;
@@ -1472,6 +1644,7 @@ mixin (
   /// 0-second timer (fire-and-forget). Callers invoke this from heavy update
   /// paths — it returns immediately and never affects the caller's flow.
   func maybeTopUpSelf<system>() {
+    checkReserveRefillWatermark();
     let current = Cycles.balance();
 
     // Edge detection for admin notifications. Fires once on downward crossing

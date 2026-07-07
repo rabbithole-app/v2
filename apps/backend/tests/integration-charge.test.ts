@@ -1391,6 +1391,15 @@ describe("Integration: topUpFromBalance full flow", () => {
   });
 
   test("topUpFromBalance: refund on ICP transfer failure", async () => {
+    // Force the CMC path — the cycles reserve would happily serve 1000T
+    // cycles from the backend's huge PocketIC balance, and the transfer
+    // failure + refund under test only exists on the CMC branch.
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.setCyclesReserveConfig({
+      opsFloor: 10_000_000_000_000_000_000n,
+      refillWatermark: 25_000_000_000_000n,
+    });
+
     // Fund user with moderate ckUSDC
     await manager.mintToUserSubaccount(
       CKUSDC_CANISTER_ID,
@@ -1438,6 +1447,13 @@ describe("Integration: topUpFromBalance full flow", () => {
     });
     const failNotif = findNotification(notifs.data, "topUpFailed");
     expect(failNotif).toBeDefined();
+
+    // Restore the reserve defaults for the tests that follow.
+    actor.setIdentity(manager.ownerIdentity);
+    await actor.setCyclesReserveConfig({
+      opsFloor: 10_000_000_000_000n,
+      refillWatermark: 25_000_000_000_000n,
+    });
   });
 
   test("topUpFromBalance: partial fill when balance < targetCycles", async () => {
@@ -2310,7 +2326,9 @@ describe("Integration: topUpFromBalance full flow", () => {
       await manager.icpLedgerActor.icrc1_balance_of(treasuryAccount);
     const backendDefaultIcpAfter =
       await manager.icpLedgerActor.icrc1_balance_of(backendDefaultAccount);
-    expect(treasuryIcpAfter).toBeLessThan(treasuryIcpBefore);
+    // Included funding is served from the backend cycles reserve — no ICP
+    // leaves the treasury (the CMC path is only a fallback now).
+    expect(treasuryIcpAfter).toBe(treasuryIcpBefore);
     expect(backendDefaultIcpAfter).toBe(backendDefaultIcpBefore);
 
     const fundingAfter = await actor.getStorageFundingStatus();

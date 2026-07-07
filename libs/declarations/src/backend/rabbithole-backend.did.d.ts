@@ -192,6 +192,20 @@ export type CreationStatus = { 'Failed' : string } |
   { 'Completed' : { 'canisterId' : Principal } } |
   { 'InstallingWasm' : { 'progress' : Progress, 'canisterId' : Principal } } |
   { 'Pending' : null };
+export interface CyclesReserveStats {
+  'autoTopUps' : bigint,
+  'balance' : bigint,
+  'manualTopUpCycles' : bigint,
+  'autoTopUpCycles' : bigint,
+  'deploys' : bigint,
+  'cmcFallbacks' : bigint,
+  'includedTopUps' : bigint,
+  'opsFloor' : bigint,
+  'deployCycles' : bigint,
+  'includedTopUpCycles' : bigint,
+  'manualTopUps' : bigint,
+  'refillWatermark' : bigint,
+}
 export type DeleteCouponError = { 'storageError' : string } |
   { 'couponNotFound' : null } |
   { 'couponActive' : null } |
@@ -521,6 +535,7 @@ export type NotificationPayload = {
     }
   } |
   { 'balanceLow' : { 'requiredAmount' : bigint } } |
+  { 'cyclesReserveLow' : { 'current' : bigint, 'watermark' : bigint } } |
   {
     'paymentReceived' : {
       'tokenId' : string,
@@ -741,6 +756,7 @@ export interface Rabbithole {
    * / only read their own records.
    */
   'getCreationDetail' : ActorMethod<[bigint], [] | [StorageCreationRecord]>,
+  'getCyclesReserveStats' : ActorMethod<[], CyclesReserveStats>,
   'getDistributionLog' : ActorMethod<
     [DistributionLogOptions],
     Array<DistributionRecord>
@@ -917,6 +933,10 @@ export interface Rabbithole {
   'searchUserDirectory' : ActorMethod<
     [string, bigint],
     Array<UserDirectoryItem>
+  >,
+  'setCyclesReserveConfig' : ActorMethod<
+    [{ 'opsFloor' : bigint, 'refillWatermark' : bigint }],
+    undefined
   >,
   'setReferralDiscountBps' : ActorMethod<[bigint], undefined>,
   'setUserRole' : ActorMethod<[Principal, Role], undefined>,

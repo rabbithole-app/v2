@@ -98,11 +98,11 @@ module {
     #RemoteCallFailed : {
       stage : {
         #FetchIcpXdrRate;
-        #ReadUserIcpBalance;
         #ReadTreasuryIcpBalance;
         #ReadDefaultIcpBalance;
         #TransferIcpToCmc;
         #NotifyCmcCreateCanister;
+        #CmcCreateCanisterFromReserve;
       };
       message : Text;
       blockIndex : ?Nat;

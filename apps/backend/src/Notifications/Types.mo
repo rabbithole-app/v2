@@ -70,6 +70,7 @@ module {
     #storageRecoveryOwnerAdded : { canisterId : Principal };
     #storageRecoveryOwnerRemoved : { canisterId : Principal };
     #backendLowCycles : { current : Nat; threshold : Nat };
+    #cyclesReserveLow : { current : Nat; watermark : Nat };
     #creationRefunded : {
       creationId : Nat;
       owner : Principal;

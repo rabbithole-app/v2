@@ -29,31 +29,54 @@ type BackendPrincipal = Parameters<
  * charge succeeds (license recorded) then canister creation fails because
  * there is no ICP left for CMC. Returns the creation id.
  */
+// Cycles-reserve config used to force the CMC funding path: with PocketIC's
+// huge default backend balance the reserve would otherwise fund the creation
+// and the drained-treasury fixture below could never reach #Failed.
+const RESERVE_DEFAULTS = {
+  opsFloor: 10_000_000_000_000n, // 10 TC
+  refillWatermark: 25_000_000_000_000n, // 25 TC
+};
+const RESERVE_DISABLED = {
+  opsFloor: 10_000_000_000_000_000_000n, // above any test balance
+  refillWatermark: 25_000_000_000_000n,
+};
+
 async function createFailedStorageWithLicense(
   manager: BackendManager,
   backendFixture: CanisterFixture<RabbitholeActorService>,
   identity: ReturnType<typeof createIdentity>,
 ): Promise<bigint> {
   await drainTreasuryIcpBelowCmcFunding(manager, backendFixture);
-  await fundUserForLicenseOnly(manager, backendFixture, identity);
-  backendFixture.actor.setIdentity(identity);
+  backendFixture.actor.setIdentity(manager.ownerIdentity);
+  await backendFixture.actor.setCyclesReserveConfig(RESERVE_DISABLED);
+  try {
+    await fundUserForLicenseOnly(manager, backendFixture, identity);
+    backendFixture.actor.setIdentity(identity);
 
-  const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
-    { OnChain: null },
-    { standard: null },
-  );
-  // Charge succeeds → startStorageCreation schedules deploy → deploy hits
-  // insufficient ICP → record is marked #Failed. Outer `purchaseLicense...`
-  // returns #ok because charge did succeed; failure is async on the queue.
-  expect(result).toHaveProperty("ok");
+    const result = await backendFixture.actor.purchaseLicenseAndCreateStorage(
+      { OnChain: null },
+      { standard: null },
+    );
+    // Charge succeeds → startStorageCreation schedules deploy → deploy hits
+    // insufficient ICP → record is marked #Failed. Outer `purchaseLicense...`
+    // returns #ok because charge did succeed; failure is async on the queue.
+    if ("err" in result) {
+      throw new Error(
+        `purchaseLicenseAndCreateStorage failed: ${JSON.stringify(result.err, (_k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
+      );
+    }
 
-  const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
-  expect(finalStatus).toHaveProperty("Failed");
+    const finalStatus = await pollStorageStatus(manager, backendFixture, 60);
+    expect(finalStatus).toHaveProperty("Failed");
 
-  const storages = await backendFixture.actor.listStorages();
-  const failed = storages.find((s) => "Failed" in s.status);
-  if (!failed) throw new Error("failed record not found");
-  return failed.id;
+    const storages = await backendFixture.actor.listStorages();
+    const failed = storages.find((s) => "Failed" in s.status);
+    if (!failed) throw new Error("failed record not found");
+    return failed.id;
+  } finally {
+    backendFixture.actor.setIdentity(manager.ownerIdentity);
+    await backendFixture.actor.setCyclesReserveConfig(RESERVE_DEFAULTS);
+  }
 }
 
 import { BackendManager } from "./setup/backend-manager";
@@ -1659,20 +1682,8 @@ describe("StorageDeployer", () => {
       identity,
     );
 
-    // Top up the subaccount so the second attempt can actually pay for the canister
-    manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
-    await manager.icpLedgerActor.icrc1_transfer({
-      to: {
-        owner: backendFixture.canisterId,
-        subaccount: [principalToSubAccount(identity.getPrincipal())],
-      },
-      amount: 2n * E8S_PER_ICP,
-      fee: [],
-      memo: [],
-      from_subaccount: [],
-      created_at_time: [],
-    });
-
+    // The retry is funded by the backend cycles reserve (the fixture restored
+    // the default reserve config) — no user-side funding needed.
     backendFixture.actor.setIdentity(identity);
     const resumeResult = await backendFixture.actor.recoverFailedStorage(
       creationId,
@@ -1997,23 +2008,9 @@ describe("StorageDeployer", () => {
       identity,
     );
 
-    // Seed the user subaccount with enough ICP so that if resume wins it can
-    // actually proceed with canister creation (otherwise the `resume-wins`
-    // branch would just fail later and we couldn't tell the two outcomes
-    // apart).
-    manager.icpLedgerActor.setIdentity(manager.ownerIdentity);
-    await manager.icpLedgerActor.icrc1_transfer({
-      to: {
-        owner: backendFixture.canisterId,
-        subaccount: [principalToSubAccount(identity.getPrincipal())],
-      },
-      amount: 2n * E8S_PER_ICP,
-      fee: [],
-      memo: [],
-      from_subaccount: [],
-      created_at_time: [],
-    });
-
+    // If resume wins, the retry is funded by the backend cycles reserve (the
+    // fixture restored the default reserve config), so both outcomes stay
+    // distinguishable without any user-side funding.
     backendFixture.actor.setIdentity(identity);
     const [refundRes, resumeRes] = await Promise.all([
       backendFixture.actor.recoverFailedStorage(creationId, { refund: null }),

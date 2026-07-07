@@ -382,6 +382,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     onCmcNotifyFailed = null;
     onCreationChanged = ?emitCreationChanged;
     onAssetDownloaded = null;
+    cyclesReserve = null; // assigned after BalanceMixin include (below)
   };
 
   transient var includedFundingSettlementHook : (Nat, CmcRecovery.IncludedFundingSettlement) -> () = func(_, _) {};
@@ -881,6 +882,16 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   orchestratorCallbacks := {
     orchestratorCallbacks with
     onAssetDownloaded = ?handleAssetDownloaded;
+    cyclesReserve = ?{
+      getOpsFloor = getCyclesReserveOpsFloor;
+      onDeployFunded = func(fundedFromReserve : Bool, totalCycles : Nat) {
+        if (fundedFromReserve) {
+          recordReserveDeploy(totalCycles);
+        } else {
+          recordReserveCmcFallback();
+        };
+      };
+    };
   };
 
   transient let startCallbacks : StorageDeployerOrchestrator.StartCallbacks = {

@@ -172,6 +172,13 @@ module StorageDeployerOrchestrator {
     onCmcNotifyFailed : ?OnCmcNotifyFailed;
     onCreationChanged : ?OnCreationChanged;
     onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ());
+    /// Backend cycles reserve hooks (Balance mixin). `null` disables the
+    /// reserve path — deployments then always go through the CMC.
+    cyclesReserve : ?{
+      getOpsFloor : () -> Nat;
+      /// `(fundedFromReserve, totalCycles)` after a successful creation.
+      onDeployFunded : (Bool, Nat) -> ();
+    };
   };
 
   public type RuntimeState = {
@@ -1003,11 +1010,11 @@ module StorageDeployerOrchestrator {
   func remoteCallStageLabel(stage : StorageDeployer.RemoteCallStage) : Text {
     switch (stage) {
       case (#FetchIcpXdrRate) "CMC exchange-rate lookup";
-      case (#ReadUserIcpBalance) "ICP ledger user-subaccount balance";
       case (#ReadTreasuryIcpBalance) "ICP ledger treasury-subaccount balance";
       case (#ReadDefaultIcpBalance) "ICP ledger default-account balance";
       case (#TransferIcpToCmc) "ICP ledger transfer to CMC";
       case (#NotifyCmcCreateCanister) "CMC notify_create_canister";
+      case (#CmcCreateCanisterFromReserve) "CMC create_canister from cycles reserve";
     };
   };
 
@@ -1133,8 +1140,16 @@ module StorageDeployerOrchestrator {
         };
 
         let envVars = buildEnvironmentVariables(store, record.envPairs, null);
-        switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId, envVars)) {
-          case (#ok(canisterId)) {
+        let reserveOpsFloor : ?Nat = switch (callbacks.cyclesReserve) {
+          case (?hooks) ?hooks.getOpsFloor();
+          case null null;
+        };
+        switch (await StorageDeployer.transferAndCreateCanister(deployerCanisterId, task.owner, initialCycles, subnetId, envVars, reserveOpsFloor)) {
+          case (#ok({ canisterId; fundedFromReserve })) {
+            switch (callbacks.cyclesReserve) {
+              case (?hooks) hooks.onDeployFunded(fundedFromReserve, initialCycles + StorageDeployer.CANISTER_CREATION_COST);
+              case null {};
+            };
             await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare, onCreationChanged);
             queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install }, onCreationChanged);
           };

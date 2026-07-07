@@ -223,6 +223,10 @@ export class NotificationBellComponent {
       return `Backend cycles ${this.#formatCycles(
         event.backendLowCycles.current,
       )} / threshold ${this.#formatCycles(event.backendLowCycles.threshold)}`;
+    if ('cyclesReserveLow' in event)
+      return `Reserve ${this.#formatCycles(
+        event.cyclesReserveLow.current,
+      )} / watermark ${this.#formatCycles(event.cyclesReserveLow.watermark)} — consider refilling`;
     if ('creationRefunded' in event)
       return `Refunded ${event.creationRefunded.amount} ${event.creationRefunded.tokenId}`;
     if ('backendSelfTopUpFailed' in event)
@@ -274,6 +278,7 @@ export class NotificationBellComponent {
     if ('updateAvailable' in event) return 'lucideDownload';
     if ('balanceLow' in event) return 'lucideWallet';
     if ('backendLowCycles' in event) return 'lucideBatteryLow';
+    if ('cyclesReserveLow' in event) return 'lucideBatteryLow';
     if ('creationRefunded' in event) return 'lucideCircleDollarSign';
     if ('backendSelfTopUpFailed' in event) return 'lucideXCircle';
     if ('ambassadorPayoutFailed' in event) return 'lucideXCircle';
@@ -309,6 +314,7 @@ export class NotificationBellComponent {
       'lowCycles' in event ||
       'balanceLow' in event ||
       'backendLowCycles' in event ||
+      'cyclesReserveLow' in event ||
       'treasuryIcpLow' in event ||
       'storageAccessRequestCreated' in event ||
       'storageInviteCreated' in event
@@ -344,6 +350,7 @@ export class NotificationBellComponent {
     if ('updateAvailable' in event) return 'Update available';
     if ('balanceLow' in event) return 'Balance running low';
     if ('backendLowCycles' in event) return 'Backend cycles low';
+    if ('cyclesReserveLow' in event) return 'Cycles reserve refill suggested';
     if ('creationRefunded' in event) return 'Storage creation refunded';
     if ('backendSelfTopUpFailed' in event) return 'Backend top-up failed';
     if ('ambassadorPayoutFailed' in event) return 'Ambassador payout failed';

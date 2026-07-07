@@ -10,6 +10,7 @@ import Error "mo:core/Error";
 import ByteUtils "mo:byte-utils";
 
 import CMCTypes "../Types/CMCTypes";
+import CyclesReserve "../Balance/CyclesReserve";
 import LedgerTypes "../Types/LedgerTypes";
 import Account "Utils/Account";
 import Types "Types";
@@ -24,15 +25,15 @@ module {
   let E8S_PER_ICP = 100_000_000;
   let MEMO_CREATE_CANISTER : LedgerTypes.Memo = 0x41455243;
   let FEE : Nat = 10_000;
-  let CANISTER_CREATION_COST : Nat = 500_000_000_000;
+  public let CANISTER_CREATION_COST : Nat = 500_000_000_000;
 
   public type RemoteCallStage = {
     #FetchIcpXdrRate;
-    #ReadUserIcpBalance;
     #ReadTreasuryIcpBalance;
     #ReadDefaultIcpBalance;
     #TransferIcpToCmc;
     #NotifyCmcCreateCanister;
+    #CmcCreateCanisterFromReserve;
   };
 
   public type CreateCanisterError = {
@@ -55,25 +56,73 @@ module {
     #RemoteCallFailed({ stage; message; blockIndex });
   };
 
-  /// Transfer ICP to CMC and create a new canister. Funding sources, in order:
-  ///   1. User's derived ICP subaccount (legacy direct-deposit flow)
-  ///   2. Backend treasury subaccount (current paid license flow)
-  ///   3. Backend default ICP account (legacy/admin-funded fallback)
-  /// Picks the first source with enough balance. If no source has enough,
-  /// #InsufficientBalance reports the largest available balance so admin sees
-  /// actionable info.
+  /// Create a new canister for `caller`. Funding sources, in order:
+  ///   1. Backend cycles reserve — direct CMC `create_canister` with cycles
+  ///      attached (no ICP transfer, no notify). Skipped when the reserve
+  ///      can't cover `initialCycles + creation fee` above `reserveOpsFloor`,
+  ///      or when `reserveOpsFloor` is null (reserve path disabled).
+  ///   2. Backend treasury subaccount ICP → CMC (current paid license flow)
+  ///   3. Backend default ICP account → CMC (legacy/admin-funded fallback)
+  /// If no source has enough, #InsufficientBalance reports the largest
+  /// available balance so admin sees actionable info.
   public func transferAndCreateCanister(
     deployerCanisterId : Principal,
     caller : Principal,
     initialCycles : Nat,
     subnetId : ?Principal,
     environmentVariables : ?[{ name : Text; value : Text }],
-  ) : async Result.Result<Principal, CreateCanisterError> {
+    reserveOpsFloor : ?Nat,
+  ) : async Result.Result<{ canisterId : Principal; fundedFromReserve : Bool }, CreateCanisterError> {
     let ledger = actor (LEDGER_CANISTER_ID) : LedgerTypes.Self;
     let cmc = actor (CYCLE_MINTING_CANISTER_ID) : CMCTypes.Self;
 
-    // --- Step 1: Calculate required ICP ---
     let totalCycles = initialCycles + CANISTER_CREATION_COST;
+    let subnetSelection : ?CMCTypes.SubnetSelection = switch (subnetId) {
+      case (?subnet) ?#Subnet({ subnet });
+      case null null;
+    };
+    let canisterSettings : CMCTypes.CanisterSettings = {
+      controllers = ?[deployerCanisterId, caller];
+      freezing_threshold = null;
+      wasm_memory_threshold = null;
+      environment_variables = environmentVariables;
+      reserved_cycles_limit = null;
+      log_visibility = null;
+      log_memory_limit = null;
+      wasm_memory_limit = null;
+      memory_allocation = null;
+      compute_allocation = null;
+    };
+
+    // --- Source 1: cycles reserve. The availability check and the cycle
+    // attach run in the same message, so concurrent deployments can't race
+    // the floor. On #Err the attached cycles are refunded by the CMC.
+    switch (reserveOpsFloor) {
+      case (?floor) {
+        if (CyclesReserve.available(floor) >= totalCycles) {
+          let result = try {
+            await (with cycles = totalCycles) cmc.create_canister({
+              subnet_selection = subnetSelection;
+              settings = ?canisterSettings;
+              subnet_type = null;
+            });
+          } catch (error) {
+            return #err(remoteCallFailed(#CmcCreateCanisterFromReserve, Error.message(error), null));
+          };
+          switch (result) {
+            case (#Ok(canisterId)) return #ok({ canisterId; fundedFromReserve = true });
+            case (#Err(#Refunded({ create_error; refund_amount = _ }))) {
+              return #err(remoteCallFailed(#CmcCreateCanisterFromReserve, "CMC refused creation: " # create_error, null));
+            };
+          };
+        };
+      };
+      case null {};
+    };
+
+    // --- CMC fallback: ICP transfer + notify_create_canister ---
+
+    // Step 1: Calculate required ICP
     let rateResponse = try {
       await cmc.get_icp_xdr_conversion_rate();
     } catch (error) {
@@ -85,52 +134,39 @@ module {
     let requiredIcpE8s = numerator / denominator;
     let totalRequired = requiredIcpE8s + FEE;
 
-    // --- Step 2: Pick funding source — user subaccount first, then backend treasury ---
-    let userSubaccount = Account.principalToSubaccount(caller);
-    let userBalance = try {
+    // Step 2: Pick funding source — backend treasury, then default account
+    let treasurySubaccount = TreasuryConst.treasurySubaccount();
+    let treasuryBalance = try {
       await ledger.icrc1_balance_of({
         owner = deployerCanisterId;
-        subaccount = ?userSubaccount;
+        subaccount = ?treasurySubaccount;
       });
     } catch (error) {
-      return #err(remoteCallFailed(#ReadUserIcpBalance, Error.message(error), null));
+      return #err(remoteCallFailed(#ReadTreasuryIcpBalance, Error.message(error), null));
     };
-    let treasurySubaccount = TreasuryConst.treasurySubaccount();
-    let fromSubaccount : ?Blob = if (userBalance >= totalRequired) {
-      ?userSubaccount;
+    let fromSubaccount : ?Blob = if (treasuryBalance >= totalRequired) {
+      ?treasurySubaccount;
     } else {
-      let treasuryBalance = try {
+      let defaultBalance = try {
         await ledger.icrc1_balance_of({
           owner = deployerCanisterId;
-          subaccount = ?treasurySubaccount;
+          subaccount = null;
         });
       } catch (error) {
-        return #err(remoteCallFailed(#ReadTreasuryIcpBalance, Error.message(error), null));
+        return #err(remoteCallFailed(#ReadDefaultIcpBalance, Error.message(error), null));
       };
-      if (treasuryBalance >= totalRequired) {
-        ?treasurySubaccount;
+      if (defaultBalance >= totalRequired) {
+        null;
       } else {
-        let defaultBalance = try {
-          await ledger.icrc1_balance_of({
-            owner = deployerCanisterId;
-            subaccount = null;
-          });
-        } catch (error) {
-          return #err(remoteCallFailed(#ReadDefaultIcpBalance, Error.message(error), null));
-        };
-        if (defaultBalance >= totalRequired) {
-          null;
-        } else {
-          let available = Nat.max(defaultBalance, Nat.max(treasuryBalance, userBalance));
-          return #err(#InsufficientBalance({
-            required = totalRequired;
-            available;
-          }));
-        };
+        let available = Nat.max(defaultBalance, treasuryBalance);
+        return #err(#InsufficientBalance({
+          required = totalRequired;
+          available;
+        }));
       };
     };
 
-    // --- Step 3: Transfer ICP from chosen source to CMC ---
+    // Step 3: Transfer ICP from chosen source to CMC
     let memoBlob = ByteUtils.LE.fromNat64(MEMO_CREATE_CANISTER) |> Blob.fromArray(_);
     let cmcSubaccount = Account.principalToSubaccount(deployerCanisterId);
     let transferResult = try {
@@ -153,27 +189,12 @@ module {
       case (#Err(err)) return #err(#TransferFailed(err));
     };
 
-    // --- Step 4: Notify CMC to create canister ---
-    let subnetSelection : ?CMCTypes.SubnetSelection = switch (subnetId) {
-      case (?subnet) ?#Subnet({ subnet });
-      case null null;
-    };
+    // Step 4: Notify CMC to create canister
     let notifyArg : CMCTypes.NotifyCreateCanisterArg = {
       controller = deployerCanisterId;
       block_index = Nat64.fromNat(blockIndex);
       subnet_selection = subnetSelection;
-      settings = ?{
-        controllers = ?[deployerCanisterId, caller];
-        freezing_threshold = null;
-        wasm_memory_threshold = null;
-        environment_variables = environmentVariables;
-        reserved_cycles_limit = null;
-        log_visibility = null;
-        log_memory_limit = null;
-        wasm_memory_limit = null;
-        memory_allocation = null;
-        compute_allocation = null;
-      };
+      settings = ?canisterSettings;
       subnet_type = null;
     };
     let result = try {
@@ -182,7 +203,7 @@ module {
       return #err(remoteCallFailed(#NotifyCmcCreateCanister, Error.message(error), ?blockIndex));
     };
     switch (result) {
-      case (#Ok(canisterId)) #ok(canisterId);
+      case (#Ok(canisterId)) #ok({ canisterId; fundedFromReserve = false });
       case (#Err(err)) #err(#NotifyFailed({ err; blockIndex }));
     };
   };
