@@ -55,16 +55,11 @@ import CmcRecoveryMixin "CmcRecovery/mixin";
 import CmcRecovery "CmcRecovery/lib";
 import CreationsClass "StorageDeployer/Creations";
 import LicensesClass "StorageDeployer/Licenses";
-import Migration "Migration";
 import Notifications "Notifications/lib";
 
 import Types "Types";
 import Utils "Utils/lib";
 
-// One-shot notifStore rebuild for the cycles-reserve release — see
-// Migration.mo. Remove together with that file after the first successful
-// mainnet upgrade.
-(with migration = Migration.run)
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
   transient let backendInitArgs = switch (initArgs) {
