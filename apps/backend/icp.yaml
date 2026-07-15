@@ -61,7 +61,7 @@ environments:
           PUBLIC_ENV_NAME: 'PROD'
           PUBLIC_HTTP_AGENT_HOST: 'https://icp-api.io'
           PUBLIC_EVM_RPC_URL: 'https://mainnet.base.org'
-          PUBLIC_SOL_RPC_URL: 'https://api.mainnet-beta.solana.com'
+          PUBLIC_SOL_RPC_URL: 'https://solana-mainnet.g.alchemy.com/v2/n4RBbe9Kb2vYjzE2mj6PO'
           PUBLIC_BLOB_STORAGE_GATEWAY_URL: 'https://blob.caffeine.ai'
           PUBLIC_BLOB_STORAGE_CASHIER_CANISTER_ID: '72ch2-fiaaa-aaaar-qbsvq-cai'
           PUBLIC_ICPAY_API_URL: 'https://api.icpay.org'

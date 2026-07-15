@@ -11,7 +11,7 @@ export const environment = {
   envName: 'PROD',
   httpAgentHost: 'https://icp-api.io',
   evmRpcUrl: 'https://mainnet.base.org',
-  solanaRpcUrl: 'https://api.mainnet-beta.solana.com',
+  solanaRpcUrl: 'https://solana-mainnet.g.alchemy.com/v2/n4RBbe9Kb2vYjzE2mj6PO',
   production: true,
   scheme: 'rabbithole',
   backendCanisterId: '',

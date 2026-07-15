@@ -3,7 +3,7 @@
     "match": "**/*",
     "security_policy": "hardened",
     "headers": {
-      "Content-Security-Policy": "default-src 'self';script-src 'self' 'wasm-unsafe-eval' https://www.youtube.com;connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.io https://*.icp.net https://icp-api.io https://blob.caffeine.ai https://api.coingecko.com https://api.icpay.org https://mainnet.base.org https://api.mainnet-beta.solana.com;img-src 'self' data: blob: https://blob.caffeine.ai https://i.ytimg.com;media-src 'self' blob: https://blob.caffeine.ai;frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;style-src * 'unsafe-inline';style-src-elem * 'unsafe-inline';font-src *;object-src 'none';base-uri 'self';frame-ancestors 'none';form-action 'self';upgrade-insecure-requests;"
+      "Content-Security-Policy": "default-src 'self';script-src 'self' 'wasm-unsafe-eval' https://www.youtube.com;connect-src 'self' http://localhost:* https://icp0.io https://*.icp0.io https://*.icp.net https://icp-api.io https://blob.caffeine.ai https://api.coingecko.com https://api.icpay.org https://mainnet.base.org https://solana-mainnet.g.alchemy.com;img-src 'self' data: blob: https://blob.caffeine.ai https://i.ytimg.com;media-src 'self' blob: https://blob.caffeine.ai;frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com;style-src * 'unsafe-inline';style-src-elem * 'unsafe-inline';font-src *;object-src 'none';base-uri 'self';frame-ancestors 'none';form-action 'self';upgrade-insecure-requests;"
     }
   },
   {
