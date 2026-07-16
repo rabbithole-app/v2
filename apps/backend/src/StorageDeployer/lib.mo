@@ -1,4 +1,5 @@
 import Array "mo:core/Array";
+import Map "mo:core/Map";
 import Order "mo:core/Order";
 import Set "mo:core/Set";
 import Blob "mo:core/Blob";
@@ -22,6 +23,8 @@ import Creations "Creations";
 import GitHubReleases "GitHubReleases";
 import HttpDownloader "HttpDownloader";
 import Licenses "Licenses";
+import ReleaseTags "ReleaseTags";
+import SemVer "SemVer";
 import StorageDeployer "StorageDeployer";
 import StorageEnvironment "../StorageEnvironment";
 import StorageCanisterOps "StorageCanisterOps";
@@ -34,7 +37,6 @@ import Types "Types";
 import LedgerTypes "../Types/LedgerTypes";
 import CMCTypes "../Types/CMCTypes";
 import Utils "../Utils/lib";
-import HttpAssetsTypes "mo:http-assets/BaseAssets/Types";
 
 module StorageDeployerOrchestrator {
   // -- Re-exported Types --
@@ -181,8 +183,37 @@ module StorageDeployerOrchestrator {
     };
   };
 
+  /// Live frontend-pull session for one storage canister. Created when the
+  /// #FrontendStartPull task executes; progress is updated passively as the
+  /// storage canister pulls chunks; removed on completion/failure/watchdog.
+  public type PullSession = {
+    creationId : Nat;
+    canisterId : Principal;
+    versionKey : Text;
+    releaseTag : Text;
+    isUpgrade : Bool;
+    totalFiles : Nat;
+    totalBytes : Nat;
+    totalChunks : Nat;
+    /// Set by beginFrontendInstall once the storage canister has diffed
+    var plannedBytes : ?Nat;
+    var skippedFiles : Nat;
+    var skippedBytes : Nat;
+    var servedFiles : Nat;
+    var servedBytes : Nat;
+    var servedChunks : Nat;
+    /// Progress persistence throttle: last 5%-step written to ZenDB
+    var lastPersistedStep : Nat;
+    var stage : Text;
+    startedAt : Time.Time;
+    var lastActivityAt : Time.Time;
+  };
+
   public type RuntimeState = {
     var unifiedQueueProcessing : Bool;
+    pullSessions : Map.Map<Principal, PullSession>;
+    frontendIndexes : FrontendInstaller.IndexCache;
+    var pullWatchdogTimerId : ?Timer.TimerId;
   };
 
   func appendCreationEvent(
@@ -203,7 +234,12 @@ module StorageDeployerOrchestrator {
   };
 
   public func newRuntimeState() : RuntimeState {
-    { var unifiedQueueProcessing = false };
+    {
+      var unifiedQueueProcessing = false;
+      pullSessions = Map.empty();
+      frontendIndexes = FrontendInstaller.newIndexCache();
+      var pullWatchdogTimerId = null;
+    };
   };
 
   // -- Initialization --
@@ -369,7 +405,7 @@ module StorageDeployerOrchestrator {
 
   /// Reset transient state that should not survive canister upgrades.
   /// Called at the beginning of start() to ensure clean state.
-  func resetTransientState(store : Store, creations : Creations.Creations) {
+  func resetTransientState(store : Store, creations : Creations.Creations, runtime : RuntimeState) {
     // Reset timer IDs (old timer IDs are invalid after upgrade)
     store.githubTimerId := null;
     store.downloaderTimerId := null;
@@ -387,8 +423,13 @@ module StorageDeployerOrchestrator {
 
     // Reset subsystem transient state
     WasmInstaller.resetTransient(store.wasmInstaller);
-    FrontendInstaller.resetTransient(store.frontendInstaller);
     HttpDownloader.resetTransient(store.githubReleases.downloaderStore);
+
+    // Drop pull sessions and the watchdog — interrupted installs are failed
+    // below; a storage canister still pulling gets #NoActiveInstall and aborts.
+    Map.clear(runtime.pullSessions);
+    cancelTimer(runtime.pullWatchdogTimerId);
+    runtime.pullWatchdogTimerId := null;
 
     // Mark interrupted creations as failed (or revert upgrades to Completed).
     // `creations.all()` is a ZenDB query — safe to iterate and re-enter via
@@ -433,7 +474,7 @@ module StorageDeployerOrchestrator {
     if (self.running) return;
 
     // Reset transient state (meaningless after canister upgrade)
-    resetTransientState(self, creations);
+    resetTransientState(self, creations, callbacks.orchestrator.runtime);
 
     // Env-derived values are stable fields in Store; refresh them after
     // transient reset so downloader headers are rebuilt from current env.
@@ -441,27 +482,29 @@ module StorageDeployerOrchestrator {
 
     self.running := true;
 
+    let indexCache = callbacks.orchestrator.runtime.frontendIndexes;
+
     // 1. Start release check
-    await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, callbacks.releaseListTransform, callbacks.onAssetDownloaded);
+    await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, indexCache, callbacks.releaseListTransform, callbacks.onAssetDownloaded);
     self.githubTimerId := ?Timer.recurringTimer<system>(
       #days 1,
       func() : async () {
         // Reset retry count for daily check to allow fresh retry attempts
         self.fetchRetryCount := 0;
         refreshRuntimeConfig<system>(self);
-        await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, callbacks.releaseListTransform, callbacks.onAssetDownloaded);
+        await StorageReleaseRuntime.checkAndDownloadReleases<system>(self, indexCache, callbacks.releaseListTransform, callbacks.onAssetDownloaded);
       },
     );
 
     // 2. Downloader timer (activates when queue has items)
-    StorageReleaseRuntime.ensureDownloaderTimer<system>(self, callbacks.onAssetDownloaded);
+    StorageReleaseRuntime.ensureDownloaderTimer<system>(self, indexCache, callbacks.onAssetDownloaded);
 
     // 3. Unified timer (activates when queue has items)
     ensureUnifiedTimer<system>(self, creations, callbacks.orchestrator);
   };
 
   /// Stop all orchestrator timers and subsystems
-  public func stop(self : Store) : () {
+  public func stop(self : Store, runtime : RuntimeState) : () {
     self.running := false;
 
     // Cancel ALL timers centrally
@@ -477,6 +520,10 @@ module StorageDeployerOrchestrator {
     cancelTimer(self.retryTimerId);
     self.retryTimerId := null;
 
+    cancelTimer(runtime.pullWatchdogTimerId);
+    runtime.pullWatchdogTimerId := null;
+    Map.clear(runtime.pullSessions);
+
     // Reset retry state
     self.fetchRetryCount := 0;
   };
@@ -487,9 +534,9 @@ module StorageDeployerOrchestrator {
   };
 
   /// Queue downloads for a concrete release tag already present in `store.releases`.
-  public func prepareStorageRelease<system>(self : Store, releaseTag : Text, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : Result.Result<(), Text> {
+  public func prepareStorageRelease<system>(self : Store, runtime : RuntimeState, releaseTag : Text, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : Result.Result<(), Text> {
     refreshRuntimeConfig<system>(self);
-    StorageReleaseRuntime.prepareStorageRelease<system>(self, releaseTag, onAssetDownloaded);
+    StorageReleaseRuntime.prepareStorageRelease<system>(self, runtime.frontendIndexes, releaseTag, onAssetDownloaded);
   };
 
   // Ensure unified timer is running if there are pending tasks.
@@ -732,7 +779,7 @@ module StorageDeployerOrchestrator {
     purgeQueuedTasksForCreation(self, creationId);
     switch (record.canisterId) {
       case (?canisterId) {
-        FrontendInstaller.resetCanisterState(self.frontendInstaller, canisterId);
+        dropPullSession(creations, callbacks.runtime, canisterId, null);
         WasmInstaller.resetCanisterState(self.wasmInstaller, canisterId);
       };
       case null {};
@@ -868,89 +915,52 @@ module StorageDeployerOrchestrator {
                   syncWasmProgressStatus(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
                 };
                 case (#err(e)) {
-                  await handleTaskFailure(store, creations, task.creationId, "WASM chunk upload failed: " # e, callbacks.onCreationChanged);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM chunk upload failed: " # e, callbacks);
                 };
               };
             };
             case (#WasmInstallCode(args)) {
               switch (await WasmInstaller.executeInstallCode(store.wasmInstaller, args)) {
                 case (#ok) {
-                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
+                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId, callbacks);
                 };
                 case (#err(e)) {
-                  await handleTaskFailure(store, creations, task.creationId, "WASM install failed: " # e, callbacks.onCreationChanged);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM install failed: " # e, callbacks);
                 };
               };
             };
             case (#WasmInstallChunked(args)) {
               switch (await WasmInstaller.executeInstallChunked(store.wasmInstaller, args)) {
                 case (#ok) {
-                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
+                  queuePostWasmTasks<system>(store, creations, task.creationId, args.canisterId, callbacks);
                 };
                 case (#err(e)) {
-                  await handleTaskFailure(store, creations, task.creationId, "WASM chunked install failed: " # e, callbacks.onCreationChanged);
+                  await handleTaskFailure(store, creations, task.creationId, "WASM chunked install failed: " # e, callbacks);
                 };
               };
             };
-            case (#FrontendCreateBatch(args)) {
-              switch (await FrontendInstaller.executeCreateBatch(store.frontendInstaller, args.canisterId)) {
-                case (#ok(_)) {
-                  syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                };
-                case (#err(e)) {
-                  syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                  await handleTaskFailure(store, creations, task.creationId, "Frontend create batch failed: " # e, callbacks.onCreationChanged);
-                };
-              };
-            };
-            case (#FrontendUploadChunks(args)) {
-              switch (await FrontendInstaller.executeUploadChunks(store.frontendInstaller, args.canisterId, args.files)) {
-                case (#ok) {
-                  syncFrontendProgressStatus(store, creations, task.creationId, args.canisterId, callbacks.onCreationChanged);
-                  syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                };
-                case (#err(e)) {
-                  syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                  await handleTaskFailure(store, creations, task.creationId, "Frontend upload chunks failed: " # e, callbacks.onCreationChanged);
-                };
-              };
-            };
-            case (#FrontendCommitBatch(args)) {
-              switch (await FrontendInstaller.executeCommitBatch(store.frontendInstaller, args.canisterId)) {
-                case (#ok) {
-                  syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                  // Frontend complete - revoke installer permission, then update controllers
-                  queueRevokeInstallerPermission(store, creations, task.creationId, args.canisterId);
-                };
-                case (#err(e)) {
-                  syncFrontendInstallDiagnostics(store, creations, task.creationId, args.canisterId);
-                  await handleTaskFailure(store, creations, task.creationId, "Frontend commit failed: " # e, callbacks.onCreationChanged);
-                };
-              };
-            };
-            case (#RevokeInstallerPermission(args)) {
-              switch (store.canisterId) {
-                case null {
-                  await handleTaskFailure(store, creations, task.creationId, "Deployer canister ID not set", callbacks.onCreationChanged);
-                };
-                case (?deployerCanisterId) {
-                  appendCreationEvent(creations, task.creationId, #RevokingInstallerPermission({ canisterId = args.canisterId }), callbacks.onCreationChanged);
-
-                  // Use http-assets interface to revoke permission
-                  let assetsCanister = actor (Principal.toText(args.canisterId)) : HttpAssetsTypes.AssetsInterface;
-
-                  try {
-                    await assetsCanister.revoke_permission({
-                      of_principal = deployerCanisterId;
-                      permission = #Commit;
-                    });
-                  } catch (_) {
-                    // Log but don't fail - permission might already be revoked
-                    // Or installer might not have had permission (owner == installer case)
+            case (#FrontendStartPull(args)) {
+              switch (Map.get(callbacks.runtime.pullSessions, Principal.compare, args.canisterId)) {
+                case (?session) {
+                  let installArgs : StorageCanisterOps.InstallFrontendArgs = {
+                    versionKey = session.versionKey;
+                    expectedTreeHash = Result.toOption(GitHubReleases.storageFrontendAssetTreeHash(store.githubReleases, session.releaseTag));
+                    totalFiles = session.totalFiles;
+                    totalBytes = session.totalBytes;
+                    isUpgrade = session.isUpgrade;
                   };
-
-                  // After revoke - queue controller update
-                  queueUpdateControllers(store, creations, task.creationId, args.canisterId);
+                  switch (await StorageCanisterOps.installFrontend(args.canisterId, installArgs)) {
+                    case (#ok) {
+                      session.lastActivityAt := Time.now();
+                      ensurePullWatchdog<system>(store, creations, callbacks);
+                    };
+                    case (#err(e)) {
+                      await handleTaskFailure(store, creations, task.creationId, "Frontend pull start failed: " # e, callbacks);
+                    };
+                  };
+                };
+                case null {
+                  await handleTaskFailure(store, creations, task.creationId, "Frontend pull session not found", callbacks);
                 };
               };
             };
@@ -961,7 +971,7 @@ module StorageDeployerOrchestrator {
             task.attempts += 1;
             Queue.pushBack(store.unifiedQueue, task);
           } else {
-            await handleTaskFailure(store, creations, task.creationId, "Task failed after 3 attempts: " # errMsg, callbacks.onCreationChanged);
+            await handleTaskFailure(store, creations, task.creationId, "Task failed after 3 attempts: " # errMsg, callbacks);
           };
         };
 
@@ -984,6 +994,196 @@ module StorageDeployerOrchestrator {
         cancelTimer(store.unifiedTimerId);
         store.unifiedTimerId := null;
         callbacks.runtime.unifiedQueueProcessing := false;
+      };
+    };
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // FRONTEND PULL PROTOCOL (called by storage canisters via main.mo)
+  // ═══════════════════════════════════════════════════════════════
+
+  public type FrontendPullError = Types.FrontendPullError;
+  public type FrontendPullPlan = Types.FrontendPullPlan;
+  public type FrontendPullResult = Types.FrontendPullResult;
+  public type FrontendManifest = FrontendInstaller.Manifest;
+  public type FrontendFileChunk = FrontendInstaller.FileChunk;
+
+  func findPullSession(creations : Creations.Creations, runtime : RuntimeState, caller : Principal, versionKey : Text) : Result.Result<PullSession, Types.FrontendPullError> {
+    switch (Map.get(runtime.pullSessions, Principal.compare, caller)) {
+      case (?session) {
+        if (session.versionKey != versionKey) return #err(#UnknownVersion);
+        #ok(session);
+      };
+      case null {
+        switch (creations.findByCanister(caller)) {
+          case (?_) #err(#NoActiveInstall);
+          case null #err(#UnknownCanister);
+        };
+      };
+    };
+  };
+
+  public func serveFrontendManifest(
+    self : Store,
+    creations : Creations.Creations,
+    runtime : RuntimeState,
+    caller : Principal,
+    args : { versionKey : Text; offset : Nat; limit : Nat },
+  ) : Result.Result<FrontendManifest, Types.FrontendPullError> {
+    switch (findPullSession(creations, runtime, caller, args.versionKey)) {
+      case (#err(e)) #err(e);
+      case (#ok(session)) {
+        session.lastActivityAt := Time.now();
+        if (session.stage == "queued") session.stage := "manifest";
+        switch (FrontendInstaller.manifest(self.frontendInstaller, runtime.frontendIndexes, args.versionKey, args.offset, args.limit)) {
+          case (#ok(manifest)) #ok(manifest);
+          case (#err(_)) #err(#NotReady);
+        };
+      };
+    };
+  };
+
+  public func serveFrontendFileChunk(
+    self : Store,
+    creations : Creations.Creations,
+    runtime : RuntimeState,
+    caller : Principal,
+    args : { versionKey : Text; key : Text; chunkIndex : Nat },
+    onCreationChanged : ?OnCreationChanged,
+  ) : Result.Result<FrontendFileChunk, Types.FrontendPullError> {
+    switch (findPullSession(creations, runtime, caller, args.versionKey)) {
+      case (#err(e)) #err(e);
+      case (#ok(session)) {
+        switch (FrontendInstaller.readChunk(self.frontendInstaller, runtime.frontendIndexes, args.versionKey, args.key, args.chunkIndex)) {
+          case (#ok(chunk)) {
+            session.lastActivityAt := Time.now();
+            session.stage := "pulling";
+            session.servedBytes += chunk.content.size();
+            session.servedChunks += 1;
+            if (args.chunkIndex + 1 == chunk.chunkCount) session.servedFiles += 1;
+            // Counters live in the session; persist to ZenDB only on 5%-step
+            // progress changes — not twice per chunk.
+            let step = if (session.totalBytes == 0) 20 else (session.skippedBytes + session.servedBytes) * 20 / session.totalBytes;
+            if (step != session.lastPersistedStep) {
+              session.lastPersistedStep := step;
+              syncFrontendProgressStatus(creations, session, onCreationChanged);
+              syncFrontendInstallDiagnostics(creations, session);
+            };
+            #ok(chunk);
+          };
+          case (#err(#UnknownFile)) #err(#UnknownFile);
+          case (#err(#InvalidChunk)) #err(#InvalidChunk);
+          case (#err(#NotReady(_))) #err(#NotReady);
+        };
+      };
+    };
+  };
+
+  /// The storage canister reports its diff plan before pulling: how many
+  /// files/bytes it will fetch and how many are unchanged. Fixes the
+  /// progress denominator for upgrades.
+  public func onFrontendInstallBegun(
+    creations : Creations.Creations,
+    runtime : RuntimeState,
+    caller : Principal,
+    args : { versionKey : Text; plan : Types.FrontendPullPlan },
+  ) : Result.Result<(), Types.FrontendPullError> {
+    switch (findPullSession(creations, runtime, caller, args.versionKey)) {
+      case (#err(e)) #err(e);
+      case (#ok(session)) {
+        session.lastActivityAt := Time.now();
+        session.stage := "pulling";
+        session.plannedBytes := ?args.plan.bytesToPull;
+        session.skippedFiles := args.plan.skippedFiles;
+        session.skippedBytes := args.plan.skippedBytes;
+        syncFrontendInstallDiagnostics(creations, session);
+        #ok;
+      };
+    };
+  };
+
+  /// The storage canister reports the final install outcome. Drives the
+  /// orchestrator forward (controllers → completion) or fails the record.
+  public func onFrontendInstallComplete<system>(
+    self : Store,
+    creations : Creations.Creations,
+    caller : Principal,
+    args : { versionKey : Text; result : Types.FrontendPullResult },
+    callbacks : OrchestratorCallbacks,
+  ) : async () {
+    let runtime = callbacks.runtime;
+
+    switch (Map.get(runtime.pullSessions, Principal.compare, caller)) {
+      case (?session) {
+        if (session.versionKey != args.versionKey) return;
+        switch (args.result) {
+          case (#ok(stats)) {
+            let now = Time.now();
+            let diagnostics : Types.FrontendInstallDiagnostics = {
+              totalFiles = session.totalFiles;
+              totalBytes = session.totalBytes;
+              processedFiles = stats.pulledFiles + stats.skippedFiles;
+              processedBytes = stats.pulledBytes + stats.skippedBytes;
+              uploadedFiles = stats.pulledFiles;
+              uploadedBytes = stats.pulledBytes;
+              skippedFiles = stats.skippedFiles;
+              skippedBytes = stats.skippedBytes;
+              staleDeletedFiles = stats.staleDeletedFiles;
+              changedDeletedFiles = stats.changedDeletedFiles;
+              batchesTotal = session.totalChunks;
+              // Skipped files consume no pull chunks, but all planned work is
+              // done — report the total so processed == total on completion.
+              batchesProcessed = session.totalChunks;
+              stage = "completed";
+              startedAt = session.startedAt;
+              updatedAt = now;
+              completedAt = ?now;
+              error = switch (stats.treeHashMatched) {
+                case (?false) ?"frontend asset tree hash mismatch after install";
+                case _ null;
+              };
+            };
+            ignore creations.mutate(session.creationId, func(r) = { r with frontendInstallDiagnostics = ?diagnostics });
+            Map.remove(runtime.pullSessions, Principal.compare, caller);
+            queueUpdateControllers(self, creations, session.creationId, caller);
+            ensureUnifiedTimer<system>(self, creations, callbacks);
+          };
+          case (#err(message)) {
+            await handleTaskFailure(self, creations, session.creationId, "Frontend pull failed: " # message, callbacks);
+          };
+        };
+      };
+      case null {
+        // Session already dropped (watchdog or backend upgrade). If the
+        // record is still mid-frontend for this canister, resolve it from
+        // the registry so a slow-but-successful install is not lost.
+        switch (creations.findByCanister(caller)) {
+          case (?record) {
+            // Only accept a completion for the version the record is
+            // actually waiting on — a delayed report from a superseded
+            // pull must not advance it.
+            let versionMatches = switch (StorageReleaseRuntime.getFrontendVersionKey(self, record.releaseTag)) {
+              case (#ok(key)) key == args.versionKey;
+              case (#err(_)) false;
+            };
+            if (not versionMatches) return;
+            switch (record.status) {
+              case (#UploadingFrontend _ or #UpgradingFrontend _) {
+                switch (args.result) {
+                  case (#ok(_)) {
+                    queueUpdateControllers(self, creations, record.id, caller);
+                    ensureUnifiedTimer<system>(self, creations, callbacks);
+                  };
+                  case (#err(message)) {
+                    await handleTaskFailure(self, creations, record.id, "Frontend pull failed: " # message, callbacks);
+                  };
+                };
+              };
+              case _ {};
+            };
+          };
+          case null {};
+        };
       };
     };
   };
@@ -1048,29 +1248,44 @@ module StorageDeployerOrchestrator {
     };
   };
 
-  func syncFrontendProgressStatus(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, onCreationChanged : ?OnCreationChanged) {
-    let ?record = creations.get(creationId) else return;
+  func syncFrontendProgressStatus(creations : Creations.Creations, session : PullSession, onCreationChanged : ?OnCreationChanged) {
+    let progressInfo = {
+      processed = session.skippedBytes + session.servedBytes;
+      total = session.totalBytes;
+    };
+    let newStatus = if (session.isUpgrade) {
+      #UpgradingFrontend({ canisterId = session.canisterId; progress = progressInfo });
+    } else {
+      #UploadingFrontend({ canisterId = session.canisterId; progress = progressInfo });
+    };
+    appendCreationEvent(creations, session.creationId, newStatus, onCreationChanged);
+  };
 
-    switch (FrontendInstaller.getInstallationStatus(store.frontendInstaller, canisterId)) {
-      case (?#Uploading(progress)) {
-        let progressInfo = {
-          processed = progress.processed;
-          total = progress.total;
-        };
-        let newStatus = if (record.isUpgrade) {
-          #UpgradingFrontend({ canisterId; progress = progressInfo });
-        } else {
-          #UploadingFrontend({ canisterId; progress = progressInfo });
-        };
-        appendCreationEvent(creations, creationId, newStatus, onCreationChanged);
-      };
-      case _ {};
+  func sessionDiagnostics(session : PullSession, completedAt : ?Time.Time, error : ?Text) : Types.FrontendInstallDiagnostics {
+    {
+      totalFiles = session.totalFiles;
+      totalBytes = session.totalBytes;
+      processedFiles = session.skippedFiles + session.servedFiles;
+      processedBytes = session.skippedBytes + session.servedBytes;
+      uploadedFiles = session.servedFiles;
+      uploadedBytes = session.servedBytes;
+      skippedFiles = session.skippedFiles;
+      skippedBytes = session.skippedBytes;
+      staleDeletedFiles = 0;
+      changedDeletedFiles = 0;
+      batchesTotal = session.totalChunks;
+      batchesProcessed = session.servedChunks;
+      stage = session.stage;
+      startedAt = session.startedAt;
+      updatedAt = session.lastActivityAt;
+      completedAt;
+      error;
     };
   };
 
-  func syncFrontendInstallDiagnostics(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
-    let diagnostics = FrontendInstaller.getDiagnostics(store.frontendInstaller, canisterId);
-    ignore creations.mutate(creationId, func(r) = { r with frontendInstallDiagnostics = diagnostics });
+  func syncFrontendInstallDiagnostics(creations : Creations.Creations, session : PullSession) {
+    let diagnostics = ?sessionDiagnostics(session, null, null);
+    ignore creations.mutate(session.creationId, func(r) = { r with frontendInstallDiagnostics = diagnostics });
   };
 
   /// Shared tail for both creation branches (`#CreateCanister` minted a new
@@ -1189,7 +1404,7 @@ module StorageDeployerOrchestrator {
         // already fired it.
         await* onCanisterAssigned(creations, creationId, task.owner, canisterId, record.licensePaymentId, bindLicense, payAmbassadorShare, onCreationChanged);
         if (await canisterHasExpectedWasm(store, canisterId, record.releaseTag)) {
-          queuePostWasmTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
+          queuePostWasmTasks<system>(store, creations, creationId, canisterId, callbacks);
         } else {
           queueWasmTasks(store, creations, { creationId; canisterId; releaseTag = record.releaseTag; initArg = record.initArg; mode = #install }, onCreationChanged);
         };
@@ -1202,7 +1417,7 @@ module StorageDeployerOrchestrator {
           };
           case _ {
             if (await canisterHasExpectedWasm(store, canisterId, releaseTag)) {
-              queuePostWasmTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
+              queuePostWasmTasks<system>(store, creations, creationId, canisterId, callbacks);
             } else {
               queueWasmTasks(store, creations, { creationId; canisterId; releaseTag; initArg; mode }, onCreationChanged);
             };
@@ -1211,7 +1426,7 @@ module StorageDeployerOrchestrator {
       };
 
       case (#InstallFrontend({ canisterId; releaseTag = _ })) {
-        queueFrontendTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
+        queueFrontendPull<system>(store, creations, creationId, canisterId, callbacks);
       };
 
       case (#UpdateControllers({ canisterId })) {
@@ -1371,59 +1586,150 @@ module StorageDeployerOrchestrator {
   };
 
   /// Decide what to do after WASM install — frontend or finalize directly
-  func queuePostWasmTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, onCreationChanged : ?OnCreationChanged) {
+  func queuePostWasmTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, callbacks : OrchestratorCallbacks) {
     let ?record = creations.get(creationId) else return;
 
     if (record.isUpgrade and not record.upgradeIncludesFrontend) {
-      // WASM-only upgrade — skip frontend, proceed to revoke + controllers
-      queueRevokeInstallerPermission(store, creations, creationId, canisterId);
+      // WASM-only upgrade — skip frontend, proceed to controllers
+      queueUpdateControllers(store, creations, creationId, canisterId);
     } else {
-      // Full installation or upgrade with frontend — queue frontend
-      queueFrontendTasks<system>(store, creations, creationId, canisterId, onCreationChanged);
+      // Full installation or upgrade with frontend — start the pull
+      queueFrontendPull<system>(store, creations, creationId, canisterId, callbacks);
     };
   };
 
-  /// Queue frontend installation tasks
-  func queueFrontendTasks<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, onCreationChanged : ?OnCreationChanged) {
-    let ?record = creations.get(creationId) else return;
+  // First storage release whose WASM ships FrontendPullInstaller
+  // (latest published pre-pull release is 0.5.0).
+  let DEFAULT_PULL_MIN_VERSION = "0.6.0";
 
-    FrontendInstaller.resetCanisterState(store.frontendInstaller, canisterId);
+  func pullMinVersion<system>() : Text {
+    Utils.envText<system>(StorageEnvironment.STORAGE_PULL_MIN_VERSION, DEFAULT_PULL_MIN_VERSION);
+  };
+
+  /// Whether a release's storage WASM can pull its own frontend
+  func releaseSupportsPull<system>(releaseTag : Text) : Bool {
+    switch (SemVer.compareText(ReleaseTags.version(releaseTag), pullMinVersion<system>())) {
+      case (#less) false;
+      case _ true;
+    };
+  };
+
+  /// Create a pull session and queue the #FrontendStartPull task.
+  /// Replaces the push-model batch/chunk/commit task pipeline: the storage
+  /// canister drives the actual transfer by pulling from this backend.
+  func queueFrontendPull<system>(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal, callbacks : OrchestratorCallbacks) {
+    let ?record = creations.get(creationId) else return;
+    let onCreationChanged = callbacks.onCreationChanged;
 
     let value = { canisterId; progress = { processed = 0; total = 0 } };
     let newStatus = if (record.isUpgrade) #UpgradingFrontend(value) else #UploadingFrontend(value);
     appendCreationEvent(creations, creationId, newStatus, onCreationChanged);
 
+    if (not releaseSupportsPull<system>(record.releaseTag)) {
+      failCreationSync(store, creations, callbacks.runtime, creationId, "Release " # record.releaseTag # " predates pull-based frontend install (min version " # pullMinVersion<system>() # ")", onCreationChanged);
+      return;
+    };
+
     let versionKey = switch (StorageReleaseRuntime.getFrontendVersionKey(store, record.releaseTag)) {
       case (#ok(key)) key;
       case (#err(e)) {
-        appendCreationEvent(creations, creationId, #Failed("Failed to get frontend: " # e), onCreationChanged);
+        failCreationSync(store, creations, callbacks.runtime, creationId, "Failed to get frontend: " # e, onCreationChanged);
         return;
       };
     };
 
-    switch (FrontendInstaller.generateTasks(store.frontendInstaller, versionKey, canisterId, record.owner, store.nextTaskId, record.isUpgrade)) {
-      case (#ok(frontendTasks)) {
-        syncFrontendInstallDiagnostics(store, creations, creationId, canisterId);
-
-        // Add to unified queue with creationId
-        for (t in frontendTasks.vals()) {
-          let taskWithCreationId : UnifiedTask = {
-            id = t.id;
-            creationId;
-            owner = t.owner;
-            taskType = t.taskType;
-            var attempts = t.attempts;
-          };
-          Queue.pushBack(store.unifiedQueue, taskWithCreationId);
-          store.nextTaskId += 1;
-        };
-
-        syncFrontendProgressStatus(store, creations, creationId, canisterId, onCreationChanged);
-      };
+    let index = switch (FrontendInstaller.ensureIndex(store.frontendInstaller, callbacks.runtime.frontendIndexes, versionKey)) {
+      case (#ok(index)) index;
       case (#err(e)) {
-        appendCreationEvent(creations, creationId, #Failed("Failed to generate frontend tasks: " # e), onCreationChanged);
+        failCreationSync(store, creations, callbacks.runtime, creationId, "Frontend index not ready: " # e, onCreationChanged);
+        return;
       };
     };
+
+    // An empty index means a broken release archive; installing it would
+    // make the storage canister wipe its frontend as "stale".
+    if (index.entries.size() == 0) {
+      failCreationSync(store, creations, callbacks.runtime, creationId, "Frontend index is empty for " # versionKey, onCreationChanged);
+      return;
+    };
+
+    var totalChunks = 0;
+    for (entry in index.entries.vals()) {
+      totalChunks += FrontendInstaller.chunkCount(entry.size);
+    };
+
+    let now = Time.now();
+    let session : PullSession = {
+      creationId;
+      canisterId;
+      versionKey;
+      releaseTag = record.releaseTag;
+      isUpgrade = record.isUpgrade;
+      totalFiles = index.entries.size();
+      totalBytes = index.totalBytes;
+      totalChunks;
+      var plannedBytes = null;
+      var skippedFiles = 0;
+      var skippedBytes = 0;
+      var servedFiles = 0;
+      var servedBytes = 0;
+      var servedChunks = 0;
+      var lastPersistedStep = 0;
+      var stage = "queued";
+      startedAt = now;
+      var lastActivityAt = now;
+    };
+    ignore Map.insert(callbacks.runtime.pullSessions, Principal.compare, canisterId, session);
+    syncFrontendInstallDiagnostics(creations, session);
+
+    let task : UnifiedTask = {
+      id = store.nextTaskId;
+      creationId;
+      owner = record.owner;
+      taskType = #FrontendStartPull({ canisterId });
+      var attempts = 0;
+    };
+    store.nextTaskId += 1;
+    Queue.pushBack(store.unifiedQueue, task);
+  };
+
+  /// 10 minutes
+  let PULL_STALL_TIMEOUT_NS : Int = 600_000_000_000;
+
+  /// Fail installs whose storage canister stopped pulling (crashed, frozen,
+  /// or unreachable). Active while any pull session exists.
+  func ensurePullWatchdog<system>(store : Store, creations : Creations.Creations, callbacks : OrchestratorCallbacks) {
+    let runtime = callbacks.runtime;
+    if (Option.isSome(runtime.pullWatchdogTimerId)) return;
+
+    runtime.pullWatchdogTimerId := ?Timer.recurringTimer<system>(
+      #seconds 60,
+      func() : async () {
+        let stale = Queue.empty<PullSession>();
+        for ((_, session) in Map.entries(runtime.pullSessions)) {
+          if (Time.now() - session.lastActivityAt > PULL_STALL_TIMEOUT_NS) {
+            Queue.pushBack(stale, session);
+          };
+        };
+        for (session in Queue.values(stale)) {
+          // Re-check per session: a completion or new activity can land
+          // during a previous iteration's await.
+          let stillStalled = switch (Map.get(runtime.pullSessions, Principal.compare, session.canisterId)) {
+            case (?current) {
+              current.creationId == session.creationId and current.versionKey == session.versionKey and Time.now() - current.lastActivityAt > PULL_STALL_TIMEOUT_NS;
+            };
+            case null false;
+          };
+          if (stillStalled) {
+            await handleTaskFailure(store, creations, session.creationId, "Frontend pull stalled: no activity from storage canister", callbacks);
+          };
+        };
+        if (Map.isEmpty(runtime.pullSessions)) {
+          cancelTimer(runtime.pullWatchdogTimerId);
+          runtime.pullWatchdogTimerId := null;
+        };
+      },
+    );
   };
 
   /// Queue controller update task
@@ -1444,39 +1750,39 @@ module StorageDeployerOrchestrator {
     Queue.pushBack(store.unifiedQueue, task);
   };
 
-  /// Queue task to revoke installer's Commit permission
-  func queueRevokeInstallerPermission(store : Store, creations : Creations.Creations, creationId : Nat, canisterId : Principal) {
-    let ?record = creations.get(creationId) else return;
-
-    let task : UnifiedTask = {
-      id = store.nextTaskId;
-      creationId;
-      owner = record.owner;
-      taskType = #RevokeInstallerPermission({ canisterId });
-      var attempts = 0;
+  /// Remove the pull session for a canister, optionally stamping the record's
+  /// diagnostics with a terminal stage first.
+  func dropPullSession(creations : Creations.Creations, runtime : RuntimeState, canisterId : Principal, error : ?Text) {
+    switch (Map.get(runtime.pullSessions, Principal.compare, canisterId)) {
+      case (?session) {
+        switch (error) {
+          case (?message) {
+            session.stage := "failed";
+            session.lastActivityAt := Time.now();
+            let diagnostics = ?sessionDiagnostics(session, ?Time.now(), ?message);
+            ignore creations.mutate(session.creationId, func(r) = { r with frontendInstallDiagnostics = diagnostics });
+          };
+          case null {};
+        };
+        Map.remove(runtime.pullSessions, Principal.compare, canisterId);
+      };
+      case null {};
     };
-    store.nextTaskId += 1;
-    Queue.pushBack(store.unifiedQueue, task);
   };
 
-  /// Handle task failure
-  /// For upgrades: revert to Completed (canister is still alive and functional)
-  /// For initial creation: mark as Failed
-  func handleTaskFailure(store : Store, creations : Creations.Creations, creationId : Nat, errorMsg : Text, onCreationChanged : ?OnCreationChanged) : async () {
+  /// Terminal failure transition, synchronous (no awaits): purge queued
+  /// tasks, drop the pull session, then mark the record — Failed for initial
+  /// creations, reverted to Completed (canister is alive) for upgrades.
+  func failCreationSync(store : Store, creations : Creations.Creations, runtime : RuntimeState, creationId : Nat, errorMsg : Text, onCreationChanged : ?OnCreationChanged) {
     let ?record = creations.get(creationId) else return;
 
     purgeQueuedTasksForCreation(store, creationId);
     switch (record.canisterId) {
-      case (?canisterId) {
-        FrontendInstaller.resetCanisterState(store.frontendInstaller, canisterId);
-        WasmInstaller.resetCanisterState(store.wasmInstaller, canisterId);
-        ignore await WasmInstaller.clearRemoteChunkStore(canisterId);
-      };
+      case (?canisterId) dropPullSession(creations, runtime, canisterId, ?errorMsg);
       case null {};
     };
 
     if (record.isUpgrade) {
-      // Upgrade failed — canister still exists and works, revert to Completed.
       // Clear upgrade flags + stash the error BEFORE firing the event so the
       // #Completed snapshot persists the explanation.
       let ?canisterId = record.canisterId else {
@@ -1497,10 +1803,30 @@ module StorageDeployerOrchestrator {
     };
   };
 
+  /// Handle task failure
+  /// For upgrades: revert to Completed (canister is still alive and functional)
+  /// For initial creation: mark as Failed
+  func handleTaskFailure(store : Store, creations : Creations.Creations, creationId : Nat, errorMsg : Text, callbacks : OrchestratorCallbacks) : async () {
+    let ?record = creations.get(creationId) else return;
+
+    // Terminal transition first and synchronously: a completeFrontendInstall
+    // interleaving at the await below must observe the terminal status (and
+    // the removed session) and no-op instead of racing this failure.
+    failCreationSync(store, creations, callbacks.runtime, creationId, errorMsg, callbacks.onCreationChanged);
+
+    switch (record.canisterId) {
+      case (?canisterId) {
+        WasmInstaller.resetCanisterState(store.wasmInstaller, canisterId);
+        ignore await WasmInstaller.clearRemoteChunkStore(canisterId);
+      };
+      case null {};
+    };
+  };
+
   /// Admin recovery for records stuck in a non-terminal state.
   /// Upgrades are reverted to Completed because the canister remains usable;
   /// initial creations are marked Failed so the owner/admin can resume/refund.
-  public func recoverStuckCreation(self : Store, creations : Creations.Creations, creationId : Nat, reason : Text) : async Result.Result<(), Text> {
+  public func recoverStuckCreation(self : Store, creations : Creations.Creations, runtime : RuntimeState, creationId : Nat, reason : Text) : async Result.Result<(), Text> {
     let ?record = creations.get(creationId) else return #err("creation not found");
 
     switch (record.status) {
@@ -1512,7 +1838,7 @@ module StorageDeployerOrchestrator {
     purgeQueuedTasksForCreation(self, creationId);
     switch (record.canisterId) {
       case (?canisterId) {
-        FrontendInstaller.resetCanisterState(self.frontendInstaller, canisterId);
+        dropPullSession(creations, runtime, canisterId, ?reason);
         WasmInstaller.resetCanisterState(self.wasmInstaller, canisterId);
         ignore await WasmInstaller.clearRemoteChunkStore(canisterId);
       };
@@ -1591,7 +1917,7 @@ module StorageDeployerOrchestrator {
     };
 
     purgeQueuedTasksForCreation(self, creationId);
-    FrontendInstaller.resetCanisterState(self.frontendInstaller, canisterId);
+    dropPullSession(creations, callbacks.runtime, canisterId, null);
     WasmInstaller.resetCanisterState(self.wasmInstaller, canisterId);
     ignore await WasmInstaller.clearRemoteChunkStore(canisterId);
 
@@ -1683,6 +2009,12 @@ module StorageDeployerOrchestrator {
           case (?h) ?h;
           case null r.frontendHash;
         };
+        // A frontend install that completed with a warning (e.g. asset tree
+        // hash mismatch) surfaces it instead of silently clearing the field.
+        let completionWarning : ?Text = if (skipFrontend) null else switch (r.frontendInstallDiagnostics) {
+          case (?d) if (d.stage == "completed") d.error else null;
+          case null null;
+        };
         {
           r with
           wasmHash;
@@ -1690,7 +2022,7 @@ module StorageDeployerOrchestrator {
           installedReleaseTag = ?releaseTag;
           isUpgrade = false;
           upgradeIncludesFrontend = false;
-          lastUpgradeError = null;
+          lastUpgradeError = completionWarning;
           completedAt = ?Time.now();
         };
       },
@@ -1699,8 +2031,8 @@ module StorageDeployerOrchestrator {
   };
 
   /// Internal cached badge helper used by listStorages().
-  public func checkStorageUpdate(self : Store, creations : Creations.Creations, canisterId : Principal) : ?UpdateInfo {
-    let status = getStorageReleaseAdminStatus(self);
+  public func checkStorageUpdate(self : Store, creations : Creations.Creations, runtime : RuntimeState, canisterId : Principal) : ?UpdateInfo {
+    let status = getStorageReleaseAdminStatus(self, runtime);
     switch (creations.findByCanister(canisterId)) {
       case (?record) StorageReleasePlanner.getUpdateInfo(self.githubReleases, status.releases, record);
       case null null;
@@ -1722,9 +2054,17 @@ module StorageDeployerOrchestrator {
     };
   };
 
+  /// Snapshot of the pull-min-version for query contexts (env access needs
+  /// system capability, so the actor resolves it once at init).
+  public func resolvePullMinVersion<system>() : Text {
+    pullMinVersion<system>();
+  };
+
   public func getStorageUpgradePlan(
     self : Store,
     creations : Creations.Creations,
+    runtime : RuntimeState,
+    pullMinVersionSnapshot : Text,
     canisterId : Principal,
     remoteState : StorageReleaseState,
   ) : Result.Result<StorageReleaseOptionsResult, UpgradeStorageError> {
@@ -1741,7 +2081,7 @@ module StorageDeployerOrchestrator {
     let liveRecord = StorageReleasePlanner.recordWithReleaseState(record, remoteState);
 
     #ok({
-      options = StorageReleasePlanner.getReleaseOptionsForRecord(self.githubReleases, getStorageReleaseAdminStatus(self).releases, liveRecord);
+      options = StorageReleasePlanner.getReleaseOptionsForRecord(self.githubReleases, getStorageReleaseAdminStatus(self, runtime).releases, liveRecord, pullMinVersionSnapshot);
       stateInSync = StorageReleasePlanner.recordMatchesReleaseState(record, remoteState);
     });
   };
@@ -1853,13 +2193,27 @@ module StorageDeployerOrchestrator {
     };
 
     // 4. Set upgrade flags
-    let needsWasm = updateInfo.wasmUpdateAvailable;
     let needsFrontend = updateInfo.frontendUpdateAvailable;
+
+    // Frontend installs are pull-based: the target release's WASM fetches its
+    // own frontend. A frontend that only ships with pre-pull releases cannot
+    // be installed anymore.
+    if (needsFrontend and not releaseSupportsPull<system>(targetReleaseTag)) {
+      return #err(#ReleaseNotCompatible);
+    };
+
+    // A pre-pull WASM cannot pull; force the WASM upgrade so the new WASM
+    // lands first and then pulls the frontend itself.
+    let installedBelowPullMin = switch (syncedRecord.installedReleaseTag) {
+      case (?tag) not releaseSupportsPull<system>(tag);
+      case null true;
+    };
+    let needsWasm = updateInfo.wasmUpdateAvailable or (needsFrontend and installedBelowPullMin);
 
     switch (StorageReleaseRuntime.ensureDeploymentReady(self, targetReleaseTag)) {
       case (#ok) {};
       case (#err(_)) {
-        ignore StorageReleaseRuntime.prepareReleaseDownloads<system>(self, targetReleaseTag, callbacks.onAssetDownloaded);
+        ignore StorageReleaseRuntime.prepareReleaseDownloads<system>(self, callbacks.runtime.frontendIndexes, targetReleaseTag, callbacks.onAssetDownloaded);
         return #err(#ReleaseNotReady);
       };
     };
@@ -1881,8 +2235,8 @@ module StorageDeployerOrchestrator {
       // If frontend also needed, it will be queued after WASM completes
       // (queuePostWasmTasks handles this after #WasmInstallCode/#WasmInstallChunked)
     } else if (needsFrontend) {
-      // Frontend only
-      queueFrontendTasks<system>(self, creations, creationId, canisterId, callbacks.onCreationChanged);
+      // Frontend only — the installed WASM is pull-capable
+      queueFrontendPull<system>(self, creations, creationId, canisterId, callbacks);
     };
 
     // Start queue processing
@@ -1908,7 +2262,7 @@ module StorageDeployerOrchestrator {
   // QUERIES
   // ═══════════════════════════════════════════════════════════════
 
-  func mapToStorageInfo(store : Store, record : StorageCreationRecord) : StorageInfo {
+  func mapToStorageInfo(store : Store, runtime : RuntimeState, record : StorageCreationRecord) : StorageInfo {
     {
       id = record.id;
       canisterId = record.canisterId;
@@ -1916,17 +2270,17 @@ module StorageDeployerOrchestrator {
       releaseTag = record.releaseTag;
       createdAt = record.createdAt;
       completedAt = record.completedAt;
-      updateAvailable = StorageReleasePlanner.getUpdateInfo(store.githubReleases, getStorageReleaseAdminStatus(store).releases, record);
+      updateAvailable = StorageReleasePlanner.getUpdateInfo(store.githubReleases, getStorageReleaseAdminStatus(store, runtime).releases, record);
       lastUpgradeError = record.lastUpgradeError;
       frontendInstallDiagnostics = record.frontendInstallDiagnostics;
     };
   };
 
   /// List all storages for a user with their current status
-  public func listStorages(self : Store, creations : Creations.Creations, caller : Principal) : [StorageInfo] {
+  public func listStorages(self : Store, creations : Creations.Creations, runtime : RuntimeState, caller : Principal) : [StorageInfo] {
     Array.map<StorageCreationRecord, StorageInfo>(
       creations.listByOwner(caller),
-      func(r) = mapToStorageInfo(self, r),
+      func(r) = mapToStorageInfo(self, runtime, r),
     );
   };
 
@@ -2094,8 +2448,8 @@ module StorageDeployerOrchestrator {
   public type ReleasesFullStatus = StorageReleaseRuntime.ReleasesFullStatus;
 
   /// Get extraction status for a specific version key
-  public func getExtractionStatus(self : Store, versionKey : Text) : ExtractionStatus {
-    StorageReleaseRuntime.getExtractionStatus(self, versionKey);
+  public func getExtractionStatus(self : Store, runtime : RuntimeState, versionKey : Text) : ExtractionStatus {
+    StorageReleaseRuntime.getExtractionStatus(self, runtime.frontendIndexes, versionKey);
   };
 
   /// Check if frontend extraction is complete for the default version
@@ -2104,25 +2458,26 @@ module StorageDeployerOrchestrator {
   };
 
   /// Create an extraction info provider for status queries
-  public func createExtractionInfoProvider(self : Store) : GitHubReleases.ExtractionInfoProvider {
-    StorageReleaseRuntime.createExtractionInfoProvider(self);
+  public func createExtractionInfoProvider(self : Store, runtime : RuntimeState) : GitHubReleases.ExtractionInfoProvider {
+    StorageReleaseRuntime.createExtractionInfoProvider(self, runtime.frontendIndexes);
   };
 
   /// Get comprehensive status of all releases including extraction progress
-  public func getStorageReleaseAdminStatus(self : Store) : GitHubReleases.ReleasesFullStatus {
-    StorageReleaseRuntime.getStorageReleaseAdminStatus(self);
+  public func getStorageReleaseAdminStatus(self : Store, runtime : RuntimeState) : GitHubReleases.ReleasesFullStatus {
+    StorageReleaseRuntime.getStorageReleaseAdminStatus(self, runtime.frontendIndexes);
   };
 
   /// Manually trigger a refresh of releases (for debugging/recovery)
-  public func refreshStorageReleaseIndex<system>(self : Store, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
+  public func refreshStorageReleaseIndex<system>(self : Store, runtime : RuntimeState, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
     refreshRuntimeConfig<system>(self);
-    await StorageReleaseRuntime.refreshStorageReleaseIndex<system>(self, transform, onAssetDownloaded);
+    await StorageReleaseRuntime.refreshStorageReleaseIndex<system>(self, runtime.frontendIndexes, transform, onAssetDownloaded);
   };
 
   /// Get hashes of all downloaded storage WASM releases.
   public func getDownloadedWasmHashes(self : Store) : [(Blob, Text)] {
     StorageReleaseRuntime.getDownloadedWasmHashes(self);
   };
+
 
   /// Find the owner of a canister by its ID (reverse lookup via creation records)
   public func findOwnerByCanister(creations : Creations.Creations, canisterId : Principal) : ?Principal {

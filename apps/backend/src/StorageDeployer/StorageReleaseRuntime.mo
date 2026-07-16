@@ -12,7 +12,6 @@ import Timer "mo:core/Timer";
 import FrontendInstaller "FrontendInstaller";
 import GitHubReleases "GitHubReleases";
 import HttpDownloader "HttpDownloader";
-import Types "Types";
 
 module StorageReleaseRuntime {
   public type ExtractionStatus = GitHubReleases.ExtractionStatus;
@@ -47,12 +46,12 @@ module StorageReleaseRuntime {
   /// Queue downloads for a concrete release tag that is already present in
   /// `store.githubReleases`. Does not require the orchestrator to be running,
   /// so callers can use it while reporting `#ReleaseNotReady`.
-  public func prepareReleaseDownloads<system>(store : Store, releaseTag : Text, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : Result.Result<(), Text> {
+  public func prepareReleaseDownloads<system>(store : Store, cache : FrontendInstaller.IndexCache, releaseTag : Text, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : Result.Result<(), Text> {
     switch (GitHubReleases.prepareReleaseDownloads(store.githubReleases, releaseTag)) {
       case (#ok(invalidated)) {
-        handleInvalidatedAssets<system>(store, invalidated);
-        ensureDownloaderTimer<system>(store, onAssetDownloaded);
-        tryStartFrontendExtraction<system>(store);
+        handleInvalidatedAssets<system>(store, cache, invalidated);
+        ensureDownloaderTimer<system>(store, cache, onAssetDownloaded);
+        tryStartFrontendExtraction<system>(store, cache);
         #ok;
       };
       case (#err(message)) #err(message);
@@ -60,24 +59,24 @@ module StorageReleaseRuntime {
   };
 
   /// Queue downloads for a concrete release tag through the public/manual API.
-  public func prepareStorageRelease<system>(store : Store, releaseTag : Text, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : Result.Result<(), Text> {
+  public func prepareStorageRelease<system>(store : Store, cache : FrontendInstaller.IndexCache, releaseTag : Text, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : Result.Result<(), Text> {
     if (not store.running) return #err("Storage deployer is not running");
-    prepareReleaseDownloads<system>(store, releaseTag, onAssetDownloaded);
+    prepareReleaseDownloads<system>(store, cache, releaseTag, onAssetDownloaded);
   };
 
-  public func ensureDownloaderTimer<system>(store : Store, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) {
+  public func ensureDownloaderTimer<system>(store : Store, cache : FrontendInstaller.IndexCache, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) {
     if (Queue.isEmpty(store.githubReleases.downloaderStore.requests)) {
       cancelTimer(store.downloaderTimerId);
       store.downloaderTimerId := null;
 
-      tryStartFrontendExtraction<system>(store);
+      tryStartFrontendExtraction<system>(store, cache);
 
       if (not Queue.isEmpty(store.githubReleases.downloaderStore.requests) and Option.isNull(store.downloaderTimerId)) {
         store.downloaderTimerId := ?Timer.recurringTimer<system>(
           #milliseconds 100,
           func() : async () {
             await HttpDownloader.runRequests(store.githubReleases.downloaderStore, onAssetDownloaded);
-            ensureDownloaderTimer<system>(store, onAssetDownloaded);
+            ensureDownloaderTimer<system>(store, cache, onAssetDownloaded);
           },
         );
       };
@@ -86,13 +85,13 @@ module StorageReleaseRuntime {
         #milliseconds 100,
         func() : async () {
           await HttpDownloader.runRequests(store.githubReleases.downloaderStore, onAssetDownloaded);
-          ensureDownloaderTimer<system>(store, onAssetDownloaded);
+          ensureDownloaderTimer<system>(store, cache, onAssetDownloaded);
         },
       );
     };
   };
 
-  public func checkAndDownloadReleases<system>(store : Store, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
+  public func checkAndDownloadReleases<system>(store : Store, cache : FrontendInstaller.IndexCache, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
     cancelTimer(store.retryTimerId);
     store.retryTimerId := null;
 
@@ -102,9 +101,9 @@ module StorageReleaseRuntime {
         store.lastFetchError := null;
         store.lastFetchTime := ?Time.now();
 
-        handleInvalidatedAssets<system>(store, invalidated);
-        ensureDownloaderTimer<system>(store, onAssetDownloaded);
-        tryStartFrontendExtraction<system>(store);
+        handleInvalidatedAssets<system>(store, cache, invalidated);
+        ensureDownloaderTimer<system>(store, cache, onAssetDownloaded);
+        tryStartFrontendExtraction<system>(store, cache);
       };
       case (#err(errorMsg)) {
         store.lastFetchError := ?errorMsg;
@@ -119,7 +118,7 @@ module StorageReleaseRuntime {
             #seconds delaySeconds,
             func() : async () {
               if (store.running) {
-                await checkAndDownloadReleases<system>(store, transform, onAssetDownloaded);
+                await checkAndDownloadReleases<system>(store, cache, transform, onAssetDownloaded);
               };
             },
           );
@@ -128,14 +127,15 @@ module StorageReleaseRuntime {
     };
   };
 
-  public func getExtractionStatus(store : Store, versionKey : Text) : ExtractionStatus {
+  public func getExtractionStatus(store : Store, cache : FrontendInstaller.IndexCache, versionKey : Text) : ExtractionStatus {
     switch (FrontendInstaller.getExtractionStatus(store.frontendInstaller, versionKey)) {
       case (#Idle) #Idle;
       case (#Decoding(progress)) #Decoding({
         processed = progress.processed;
         total = progress.total;
       });
-      case (#Complete) #Complete(fileMetadata(store, versionKey));
+      case (#Complete) #Complete(FrontendInstaller.fileMetadata(store.frontendInstaller, cache, versionKey));
+      case (#Failed(error)) #Failed(error);
     };
   };
 
@@ -151,19 +151,19 @@ module StorageReleaseRuntime {
     };
   };
 
-  public func createExtractionInfoProvider(store : Store) : GitHubReleases.ExtractionInfoProvider {
+  public func createExtractionInfoProvider(store : Store, cache : FrontendInstaller.IndexCache) : GitHubReleases.ExtractionInfoProvider {
     {
       getExtractionStatus = func(versionKey : Text) : GitHubReleases.ExtractionStatus {
-        getExtractionStatus(store, versionKey);
+        getExtractionStatus(store, cache, versionKey);
       };
     };
   };
 
-  public func getStorageReleaseAdminStatus(store : Store) : GitHubReleases.ReleasesFullStatus {
-    GitHubReleases.getFullStatus(store.githubReleases, createExtractionInfoProvider(store));
+  public func getStorageReleaseAdminStatus(store : Store, cache : FrontendInstaller.IndexCache) : GitHubReleases.ReleasesFullStatus {
+    GitHubReleases.getFullStatus(store.githubReleases, createExtractionInfoProvider(store, cache));
   };
 
-  public func refreshStorageReleaseIndex<system>(store : Store, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
+  public func refreshStorageReleaseIndex<system>(store : Store, cache : FrontendInstaller.IndexCache, transform : ReleaseListTransform, onAssetDownloaded : ?((HttpDownloader.DownloadDetails) -> ())) : async () {
     if (not store.running) return;
 
     store.fetchRetryCount := 0;
@@ -172,7 +172,7 @@ module StorageReleaseRuntime {
     cancelTimer(store.retryTimerId);
     store.retryTimerId := null;
 
-    await checkAndDownloadReleases<system>(store, transform, onAssetDownloaded);
+    await checkAndDownloadReleases<system>(store, cache, transform, onAssetDownloaded);
   };
 
   public func getDownloadedWasmHashes(store : Store) : [(Blob, Text)] {
@@ -222,16 +222,16 @@ module StorageReleaseRuntime {
     };
   };
 
-  func tryStartFrontendExtraction<system>(store : Store) {
-    for ((_, details) in GitHubReleases.downloadedStorageFrontends(store.githubReleases).vals()) {
+  func tryStartFrontendExtraction<system>(store : Store, cache : FrontendInstaller.IndexCache) {
+    for ((_, details) in GitHubReleases.downloadedStorageFrontendPointers(store.githubReleases).vals()) {
       switch (FrontendInstaller.getExtractionStatus(store.frontendInstaller, details.key)) {
         case (#Idle) {
           FrontendInstaller.add<system>(
             store.frontendInstaller,
+            cache,
             {
               versionKey = details.key;
-              hash = details.sha256;
-              contentPointer = (MemoryRegion.addBlob(store.region, details.content), details.size);
+              contentPointer = details.pointer;
               isGzipped = Text.endsWith(details.name, #text ".gz");
             },
           );
@@ -241,27 +241,15 @@ module StorageReleaseRuntime {
     };
   };
 
-  func handleInvalidatedAssets<system>(store : Store, invalidated : [GitHubReleases.InvalidatedAsset]) {
+  func handleInvalidatedAssets<system>(store : Store, cache : FrontendInstaller.IndexCache, invalidated : [GitHubReleases.InvalidatedAsset]) {
     for ({ key; kind } in invalidated.vals()) {
       switch (kind) {
         case (#StorageFrontend) {
-          FrontendInstaller.invalidateVersion<system>(store.frontendInstaller, key);
+          FrontendInstaller.invalidateVersion<system>(store.frontendInstaller, cache, key);
         };
         case (#StorageWASM) {};
         case (#StorageReleaseManifest) {};
       };
     };
-  };
-
-  func fileMetadata(store : Store, versionKey : Text) : [GitHubReleases.FileMetadata] {
-    Array.map<Types.File, GitHubReleases.FileMetadata>(
-      FrontendInstaller.getFiles(store.frontendInstaller, versionKey),
-      func(f) = {
-        key = f.key;
-        contentType = f.contentType;
-        size = f.size;
-        sha256 = f.sha256;
-      },
-    );
   };
 };

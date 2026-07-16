@@ -87,10 +87,14 @@ canisters:
       environment_variables:
         GITHUB_API_URL: 'http://mock-server:8080'
         GITHUB_REPOSITORY: 'user/repo'
-        # Local development starts new storage canisters from the committed
-        # mock baseline. Local dev releases remain available as upgrade targets.
-        STORAGE_INSTALL_RELEASE_TAG: 'storage-v0.3.0'
+        # Local installs need a pull-capable WASM: the committed baseline
+        # (storage-v0.5.0) predates the pull installer, so local development
+        # installs from a dev release built from the workspace
+        # (create-mock-storage-release.mjs, dev mode).
+        STORAGE_INSTALL_RELEASE_TAG: 'storage-v0.5.1-dev'
         STORAGE_UPDATE_RELEASE_SELECTOR: 'latest-prerelease'
+        # Mock dev tags predate the real pull-min default (0.6.0)
+        STORAGE_PULL_MIN_VERSION: '0.0.0'
         STORAGE_LICENSE_INCLUDED_BYTES: '1073741824' #1gb
         STORAGE_LICENSE_MAX_FILE_BYTES: '104857600' #100mb
         STORAGE_FRONTEND_ORIGINS: 'http://localhost:4201'

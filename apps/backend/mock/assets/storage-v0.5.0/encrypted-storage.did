@@ -11,6 +11,12 @@ type _ImmutableObjectStorageCreateCertificateResult =
    blob_hash: text;
    method: text;
  };
+type WritePolicy = 
+ variant {
+   CaffeineManaged;
+   ExternalS3Active: record {targetId: TargetId;};
+ };
+type WriteMode = variant {CanisterPresigned;};
 type VetKeyVerificationKey = blob;
 type VetKey = blob;
 type UploadSessionStatus = 
@@ -106,6 +112,30 @@ type ThumbnailEncryptionRef =
    scopeKeyId: KeyId;
    wrappedKey: blob;
  };
+type TargetView = 
+ record {
+   createdAt: Time;
+   displayName: opt text;
+   hasCredential: bool;
+   id: TargetId;
+   kind: TargetKind;
+   lastValidatedAt: opt Time;
+   layoutVersion: nat;
+   readMode: ReadMode;
+   status: TargetStatus;
+   updatedAt: Time;
+   version: nat;
+   writeMode: WriteMode;
+ };
+type TargetStatus = 
+ variant {
+   Active;
+   CredentialFailed;
+   Disabled;
+ };
+type TargetKind = variant {
+                    S3CompatiblePublicEncrypted: S3CompatibleTargetConfig;};
+type TargetId = text;
 type SubscriptionStatus = 
  variant {
    active: record {plan: Plan;};
@@ -148,34 +178,77 @@ type StorageStatus =
  record {
    backendId: opt principal;
    cycleBalance: nat;
+   directoryCount: nat;
+   fileCount: nat;
+   objectStorage: opt ObjectStorageStatus;
    storageBackendType: StorageBackend;
    storedBytesUsed: nat;
    subscriptionStatus: opt SubscriptionStatus;
  };
-type StorageResult_6 = 
- variant {
-   err: StorageError;
-   ok: AppendUploadChunkResponse;
- };
-type StorageResult_5 = 
- variant {
-   err: StorageError;
-   ok: BeginUploadSessionResponse;
- };
-type StorageResult_4 = 
+type StorageResult_9 = 
  variant {
    err: StorageError;
    ok: UploadSessionStatus;
  };
-type StorageResult_3 = 
+type StorageResult_8 = 
+ variant {
+   err: StorageError;
+   ok: vec ExternalStorageTargetView;
+ };
+type StorageResult_7 = 
+ variant {
+   err: StorageError;
+   ok: PrepareExternalBlobUploadResult;
+ };
+type StorageResult_6 = 
  variant {
    err: StorageError;
    ok: CanisterCyclesCardMetrics;
  };
-type StorageResult_2 = 
+type StorageResult_5 = 
  variant {
    err: StorageError;
    ok: StorageCardMetrics;
+ };
+type StorageResult_4 = 
+ variant {
+   err: StorageError;
+   ok: ObjectStorageBlobReadRoute;
+ };
+type StorageResult_3 = 
+ variant {
+   err: StorageError;
+   ok: ObjectStorageUploadRoute;
+ };
+type StorageResult_2 = 
+ variant {
+   err: StorageError;
+   ok: ExternalStorageTargetView;
+ };
+type StorageResult_13 = 
+ variant {
+   err: StorageError;
+   ok: AppendUploadChunkResponse;
+ };
+type StorageResult_12 = 
+ variant {
+   err: StorageError;
+   ok: BeginUploadSessionResponse;
+ };
+type StorageResult_11 = 
+ variant {
+   err: StorageError;
+   ok: opt ExternalStorageTargetView;
+ };
+type StorageResult_10 = 
+ variant {
+   err: StorageError;
+   ok:
+    record {
+      deleteTasks: vec ExternalStorageDeleteTaskView;
+      replicas: vec ExternalBlobReplica;
+      summary: ExternalStorageCleanupStatus;
+    };
  };
 type StorageResult_1 = 
  variant {
@@ -324,12 +397,21 @@ type SetAssetContentArguments =
    key: Key;
    sha256: opt blob;
  };
+type S3CompatibleTargetConfig = 
+ record {
+   bucket: text;
+   endpoint: text;
+   forcePathStyle: bool;
+   prefix: text;
+   region: text;
+ };
 type RuntimeMemoryMetrics = 
  record {
    memoryInfo: MemoryInfo;
    runtimeMemoryBytes: opt nat;
    runtimeStableMemoryBytes: opt nat;
  };
+type RootHashHex = text;
 type RevokePermission = 
  record {
    of_principal: principal;
@@ -357,6 +439,21 @@ type RestoreVersionArguments =
    entry: Entry;
    version: nat;
  };
+type ResolveUploadRouteArgs = 
+ record {
+   entry: Entry;
+   size: nat;
+ };
+type ResolveThumbnailReadRouteArgs = 
+ record {
+   entry: Entry;
+   rootHash: text;
+ };
+type ResolveBlobReadRouteArgs = 
+ record {
+   entry: Entry;
+   version: opt nat;
+ };
 type ResolveAccessRequestArguments = 
  record {
    decision: AccessRequestDecision;
@@ -379,6 +476,7 @@ type RecoveryStatus =
    recoveryOwner: opt OwnerEquivalentPrincipal;
  };
 type RecordOwnerActivityArguments = record {origin: OwnerActivityOrigin;};
+type ReadMode = variant {PublicEncrypted;};
 type RawUpdateHttpResponse = 
  record {
    body: blob;
@@ -421,6 +519,21 @@ type PrincipalAccessGrant =
    scope: AccessScope;
    source: AccessSource;
  };
+type PresignedUrl = 
+ record {
+   expiresAt: Time;
+   key: text;
+   method: text;
+   requestHeaders: vec record {
+                         text;
+                         text;
+                       };
+   signedHeaders: vec record {
+                        text;
+                        text;
+                      };
+   url: text;
+ };
 type PrepareThumbnailUploadResult = 
  record {
    contentType: text;
@@ -433,6 +546,21 @@ type PrepareThumbnailUploadArguments =
    contentType: text;
    entry: Entry;
    size: nat;
+ };
+type PrepareExternalBlobUploadResult = 
+ record {
+   blobUpload: PresignedUrl;
+   locator: BlobLocator;
+   target: TargetView;
+   treeUpload: PresignedUrl;
+ };
+type PrepareExternalBlobUploadArgs = 
+ record {
+   entry: Entry;
+   expiresSeconds: opt nat;
+   rootHashHex: text;
+   size: nat;
+   targetId: opt ExternalStorageTargetId;
  };
 type PreflightCaffeineUploadArgs = 
  record {
@@ -511,6 +639,36 @@ type OwnerActivityOrigin =
    storage;
  };
 type Owner = principal;
+type ObjectStorageUploadRoute = 
+ variant {
+   CaffeineBlobStorage;
+   ExternalS3:
+    record {
+      layoutVersion: nat;
+      readMode: ReadMode;
+      targetId: TargetId;
+      targetVersion: nat;
+      writeMode: WriteMode;
+    };
+   ExternalS3SetupRequired;
+   OnChain;
+ };
+type ObjectStorageStatus = 
+ record {
+   activeTargetId: opt TargetId;
+   setupRequired: bool;
+   writePolicy: WritePolicy;
+ };
+type ObjectStorageBlobReadRoute = 
+ variant {
+   CaffeineBlobStorage;
+   ExternalS3PublicEncrypted:
+    record {
+      locator: BlobLocator;
+      target: TargetView;
+    };
+   OnChain;
+ };
 type NodeDetails = 
  record {
    callerPermission: opt Permission__1;
@@ -592,6 +750,17 @@ type IdentityAttributesSyncError =
    malformedPayload;
    verifiedEmailRequired;
  };
+type HttpRequestResult = 
+ record {
+   body: blob;
+   headers: vec HttpHeader;
+   status: nat;
+ };
+type HttpHeader = 
+ record {
+   name: text;
+   value: text;
+ };
 type Header = 
  record {
    text;
@@ -652,6 +821,68 @@ type FileMetadata =
    thumbnailRef: opt ThumbnailRef;
    versionCount: nat;
  };
+type ExternalStorageTargetView = 
+ record {
+   createdAt: Time;
+   displayName: opt text;
+   hasCredential: bool;
+   id: TargetId;
+   kind: TargetKind;
+   lastValidatedAt: opt Time;
+   layoutVersion: nat;
+   readMode: ReadMode;
+   status: TargetStatus;
+   updatedAt: Time;
+   version: nat;
+   writeMode: WriteMode;
+ };
+type ExternalStorageTargetId = text;
+type ExternalStorageHttpTransformArg = 
+ record {
+   context: blob;
+   response: HttpRequestResult;
+ };
+type ExternalStorageDeleteTaskView = 
+ record {
+   attempts: nat;
+   createdAt: Time;
+   id: nat;
+   keys: vec text;
+   lastError: opt text;
+   nextAttemptAt: Time;
+   replicaId: opt text;
+   rootHashHex: RootHashHex;
+   status: DeleteTaskStatus;
+   targetId: TargetId;
+   updatedAt: Time;
+ };
+type ExternalStorageCleanupStatus = 
+ record {
+   activeReplicas: nat;
+   cancelledTasks: nat;
+   credentialBlockedTargetIds: vec TargetId;
+   deletePendingReplicas: nat;
+   deletedReplicas: nat;
+   doneTasks: nat;
+   missingReplicas: nat;
+   nextAttemptAt: opt Time;
+   pendingTasks: nat;
+   pendingUploadSessions: nat;
+   runningTasks: nat;
+ };
+type ExternalBlobReplica = 
+ record {
+   createdAt: Time;
+   id: text;
+   locator: BlobLocator;
+   pendingDeleteTaskId: opt nat;
+   rootHashHex: RootHashHex;
+   sha256: opt blob;
+   size: nat;
+   status: BlobReplicaStatus;
+   targetId: TargetId;
+   updatedAt: Time;
+ };
 type Error = 
  variant {
    AmbiguousAttribute: record {
@@ -703,9 +934,10 @@ type EncryptedStorageCanister =
    addRecoveryOwner: ("principal": principal, options:
     AddRecoveryOwnerOptions) -> (OwnerEquivalentPrincipal);
    api_version: () -> (nat16) query;
-   appendUploadChunk: (args: AppendUploadChunkArguments) -> (StorageResult_6);
+   appendUploadChunk: (args: AppendUploadChunkArguments) ->
+    (StorageResult_13);
    beginUploadSession: (args: BeginUploadSessionArguments) ->
-    (StorageResult_5);
+    (StorageResult_12);
    cancelAccessRequest: (args: CancelAccessRequestArguments) ->
     (AccessRequest);
    cancelDurableAccessPolicy: (args: CancelDurableAccessPolicyArguments) ->
@@ -724,12 +956,18 @@ type EncryptedStorageCanister =
    clearStorage: () -> ();
    commitCaffeineUpload: (args: CommitCaffeineUploadArgs) ->
     (StorageResult_1);
+   commitExternalBlobUpload: (args: CommitExternalBlobUploadArgs) ->
+    (StorageResult_1);
+   commitExternalThumbnailUpload: (args:
+    CommitExternalThumbnailUploadArgs) -> (StorageResult);
    commitThumbnailUpload: (args: CommitThumbnailUploadArguments) ->
     (NodeDetails);
    commit_batch: (args: CommitBatchArguments) -> ();
    commit_proposed_batch: (args: CommitProposedBatchArguments) -> ();
    compute_evidence: (args: ComputeEvidenceArguments) -> (opt blob);
    configure: (args: ConfigureArguments) -> ();
+   configureExternalStorageTarget: (args:
+    ConfigureExternalStorageTargetArgs) -> (StorageResult_2);
    create: (args: CreateArguments) -> (StorageResult);
    createAccessBatch: (args: CreateAccessBatchArguments) ->
     (CreateAccessBatchResult);
@@ -746,25 +984,40 @@ type EncryptedStorageCanister =
    delete: (args: DeleteArguments) -> ();
    delete_asset: (args: DeleteAssetArguments) -> ();
    delete_batch: (args: DeleteBatchArguments) -> ();
+   disableExternalStorageTarget: (args: DisableExternalStorageTargetArgs) ->
+    (StorageResult_2);
+   disconnectExternalStorageTarget: (args:
+    DisableExternalStorageTargetArgs) -> (StorageResult_1);
    ensureBlobStorageCashierReady: () -> ();
+   externalStorageHttpTransform: (arg: ExternalStorageHttpTransformArg) ->
+    (record {
+       body: blob;
+       headers: vec record {
+                      name: text;
+                      value: text;
+                    };
+       status: nat;
+     }) query;
    finishUploadSession: (args: FinishUploadSessionArguments) ->
     (StorageResult_1);
    fsTree: () -> (vec TreeNode) query;
    get: (args: GetArgs) -> (EncodedAsset) query;
-   getCanisterCyclesCardMetrics: () -> (StorageResult_3) query;
+   getActiveExternalStorageTarget: () -> (StorageResult_11) query;
+   getCanisterCyclesCardMetrics: () -> (StorageResult_6) query;
    getCycleBalance: () -> (nat) query;
    getEncryptedVetkey: (keyId: KeyId, transportKey: TransportKey) -> (VetKey);
+   getExternalStorageCleanupStatus: () -> (StorageResult_10) query;
    getMyAccessRequest: () -> (opt AccessRequest) query;
    getOwnerActivityState: () -> (OwnerActivityState) query;
    getRecoveryStatus: () -> (RecoveryStatus) query;
    getStatus: () -> (StorageStatus) query;
    getStorageBackendType: () -> (StorageBackend) query;
-   getStorageCardMetrics: () -> (StorageResult_2) query;
+   getStorageCardMetrics: () -> (StorageResult_5) query;
    getStorageChunk: (args: GetChunkArguments) -> (ChunkContent) query;
    getStorageEventsUnreadCount: () -> (nat) query;
    getStorageReleaseState: () -> (StorageReleaseState) query;
    getUploadSession: (args: record {batchId: BatchId;}) ->
-    (StorageResult_4) query;
+    (StorageResult_9) query;
    getVetkeyVerificationKey: () -> (VetKeyVerificationKey);
    get_chunk: (args: GetChunkArgs) -> (ChunkContent) query;
    get_configuration: () -> (ConfigurationResponse);
@@ -782,6 +1035,7 @@ type EncryptedStorageCanister =
     (AccessGrantList) query;
    listAccessRequests: () -> (vec AccessRequest) query;
    listDurableAccessPolicies: () -> (vec DurableAccessPolicy) query;
+   listExternalStorageTargets: () -> (StorageResult_8) query;
    listLatestStorageEvents: (limit: nat) -> (vec StoredStorageEvent) query;
    listOwnerEquivalentPrincipals: () -> (vec OwnerEquivalentPrincipal) query;
    listPendingAccessGrants: () -> (vec PendingAccessGrant) query;
@@ -798,14 +1052,16 @@ type EncryptedStorageCanister =
     (StorageResult_1);
    preflightCaffeineUploadBatch: (args: vec PreflightCaffeineUploadArgs) ->
     (StorageResult_1);
+   prepareExternalBlobUpload: (args: PrepareExternalBlobUploadArgs) ->
+    (StorageResult_7);
    prepareThumbnailUpload: (args: PrepareThumbnailUploadArguments) ->
     (PrepareThumbnailUploadResult);
    processDurableAccessPolicies: () -> (vec DurablePolicyProcessResult);
    propose_commit_batch: (args: CommitBatchArguments) -> ();
    recordOwnerActivity: (args: RecordOwnerActivityArguments) ->
     (OwnerActivityRecord);
-   refreshCanisterCyclesCardMetrics: () -> (StorageResult_3);
-   refreshStorageCardMetrics: () -> (StorageResult_2);
+   refreshCanisterCyclesCardMetrics: () -> (StorageResult_6);
+   refreshStorageCardMetrics: () -> (StorageResult_5);
    refreshSubscription: () -> ();
    registerRecoveryController: ("principal": principal) ->
     (RegisterRecoveryControllerResult);
@@ -816,7 +1072,15 @@ type EncryptedStorageCanister =
    requestAccess: (args: CreateAccessRequestArguments) -> (AccessRequest);
    resolveAccessRequest: (args: ResolveAccessRequestArguments) ->
     (AccessRequest);
+   resolveBlobReadRoute: (args: ResolveBlobReadRouteArgs) ->
+    (StorageResult_4) query;
+   resolveThumbnailReadRoute: (args: ResolveThumbnailReadRouteArgs) ->
+    (StorageResult_4) query;
+   resolveUploadRoute: (args: ResolveUploadRouteArgs) ->
+    (StorageResult_3) query;
    restoreStorageVersion: (args: RestoreVersionArguments) -> ();
+   revalidateExternalStorageTarget: (targetId: ExternalStorageTargetId) ->
+    (StorageResult_2);
    revokeAccessBatch: (args: RevokeAccessBatchArguments) ->
     (RevokeAccessBatchResult);
    revoke_permission: (args: RevokePermission) -> ();
@@ -925,6 +1189,7 @@ type DurableAccessPolicy =
    status: DurablePolicyStatus;
    trigger: DurablePolicyTrigger;
  };
+type DisableExternalStorageTargetArgs = record {targetId: TargetId;};
 type DirectoryMetadata = 
  record {
    color: opt DirectoryColor;
@@ -940,6 +1205,13 @@ type DirectoryColor =
    pink;
    purple;
    yellow;
+ };
+type DeleteTaskStatus = 
+ variant {
+   Cancelled;
+   Done;
+   Pending;
+   Running;
  };
 type DeleteBatchArguments = record {batch_id: BatchId;};
 type DeleteAssetArguments = record {key: Key;};
@@ -1032,6 +1304,19 @@ type CreateAccessBatchItem =
    source: AccessSource;
  };
 type CreateAccessBatchArguments = record {items: vec CreateAccessBatchItem;};
+type ConfigureExternalStorageTargetArgs = 
+ record {
+   accessKeyId: text;
+   bucket: text;
+   displayName: opt text;
+   endpoint: text;
+   forcePathStyle: bool;
+   prefix: text;
+   region: text;
+   secretAccessKey: text;
+   sessionToken: opt text;
+   targetId: opt TargetId;
+ };
 type ConfigureArguments = 
  record {
    max_batches: opt opt nat64;
@@ -1062,6 +1347,25 @@ type CommitProposedBatchArguments =
  record {
    batch_id: BatchId;
    evidence: blob;
+ };
+type CommitExternalThumbnailUploadArgs = 
+ record {
+   contentType: text;
+   encryption: ThumbnailEncryptionRef;
+   entry: Entry;
+   rootHashHex: text;
+   sha256: blob;
+   size: nat;
+   targetId: opt ExternalStorageTargetId;
+ };
+type CommitExternalBlobUploadArgs = 
+ record {
+   contentType: text;
+   entry: Entry;
+   rootHashHex: text;
+   sha256: blob;
+   size: nat;
+   targetId: opt ExternalStorageTargetId;
  };
 type CommitCaffeineUploadArgs = 
  record {
@@ -1118,6 +1422,19 @@ type CallbackStreamingStrategy =
  record {
    callback: StreamingCallback;
    token: StreamingToken;
+ };
+type BlobReplicaStatus = 
+ variant {
+   Active;
+   DeletePending;
+   Deleted;
+   Missing;
+ };
+type BlobLocator = 
+ record {
+   blobKey: text;
+   layoutVersion: nat;
+   treeKey: text;
  };
 type BeginUploadSessionResponse = 
  record {

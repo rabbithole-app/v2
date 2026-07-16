@@ -130,6 +130,7 @@ module {
     #Idle;
     #Decoding : { processed : Nat; total : Nat };
     #Complete : [FileMetadata];
+    #Failed : Text;
   };
 
   // -- Full Status Types --

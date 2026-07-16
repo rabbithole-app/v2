@@ -372,7 +372,7 @@ export interface EncryptedStorageCanister {
     _ImmutableObjectStorageRefillResult
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
-  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_1>,
+  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_2>,
   '_internet_identity_sign_in_start' : ActorMethod<[], Uint8Array>,
   'abortUploadSession' : ActorMethod<
     [{ 'batchId' : BatchId }],
@@ -502,6 +502,7 @@ export interface EncryptedStorageCanister {
   'getCycleBalance' : ActorMethod<[], bigint>,
   'getEncryptedVetkey' : ActorMethod<[KeyId, TransportKey], VetKey>,
   'getExternalStorageCleanupStatus' : ActorMethod<[], StorageResult_10>,
+  'getFrontendInstallStatus' : ActorMethod<[], [] | [Status]>,
   'getMyAccessRequest' : ActorMethod<[], [] | [AccessRequest]>,
   'getOwnerActivityState' : ActorMethod<[], OwnerActivityState>,
   'getRecoveryStatus' : ActorMethod<[], RecoveryStatus>,
@@ -526,6 +527,7 @@ export interface EncryptedStorageCanister {
     [RawUpdateHttpRequest],
     RawUpdateHttpResponse
   >,
+  'installFrontend' : ActorMethod<[InstallFrontendArgs], Result_1>,
   'invalidateSubscriptionCache' : ActorMethod<[], undefined>,
   'list' : ActorMethod<[{}], Array<AssetDetails>>,
   'listAccessGrants' : ActorMethod<
@@ -789,6 +791,13 @@ export type IdentityAttributesSyncError = { 'expired' : null } |
   { 'attributesNotFound' : null };
 export type IdentityAttributesSyncResult = { 'ok' : null } |
   { 'err' : IdentityAttributesSyncError };
+export interface InstallFrontendArgs {
+  'totalFiles' : bigint,
+  'versionKey' : string,
+  'expectedTreeHash' : [] | [Uint8Array],
+  'isUpgrade' : boolean,
+  'totalBytes' : bigint,
+}
 export type Key = string;
 export type KeyId = [Owner, KeyName];
 export type KeyId__2 = [Principal, Uint8Array];
@@ -1015,6 +1024,8 @@ export interface RestoreVersionArguments { 'entry' : Entry, 'version' : bigint }
 export type Result = { 'ok' : string } |
   { 'err' : string };
 export type Result_1 = { 'ok' : null } |
+  { 'err' : string };
+export type Result_2 = { 'ok' : null } |
   { 'err' : Error };
 export interface RevokeAccessBatchArguments {
   'items' : Array<RevokeAccessBatchItem>,
@@ -1057,6 +1068,16 @@ export interface SetAssetPropertiesArguments {
   'max_age' : [] | [[] | [bigint]],
 }
 export interface SharingInfo { 'sharedWith' : bigint }
+export interface Status {
+  'totalFiles' : bigint,
+  'pulledBytes' : bigint,
+  'versionKey' : string,
+  'attempts' : bigint,
+  'pulledFiles' : bigint,
+  'stage' : string,
+  'lastError' : [] | [string],
+  'totalBytes' : bigint,
+}
 export type StorageAccessEvent = {
     'accessRequestResolved' : {
       'status' : AccessRequestStatus,

@@ -416,4 +416,151 @@ describe("Tar Extractor", () => {
     expect(fullStatus.hasDownloadedRelease).toBe(true);
     expect(fullStatus.hasDeploymentReadyRelease).toBe(true);
   });
+
+  test(
+    "should index GNU long names, nested dirs and skip directory entries",
+    { timeout: 360000 },
+    async () => {
+      const encoder = new TextEncoder();
+
+      const padToBlock = (data: Uint8Array): Uint8Array => {
+        const padded = new Uint8Array(Math.ceil(data.length / 512) * 512);
+        padded.set(data);
+        return padded;
+      };
+
+      const tarHeader = (
+        name: string,
+        size: number,
+        typeflag: string,
+      ): Uint8Array => {
+        const block = new Uint8Array(512);
+        const write = (value: string, offset: number, length: number) => {
+          block.set(encoder.encode(value).subarray(0, length), offset);
+        };
+        write(name, 0, 100);
+        write("0000644\0", 100, 8);
+        write("0000000\0", 108, 8);
+        write("0000000\0", 116, 8);
+        write(`${size.toString(8).padStart(11, "0")}\0`, 124, 12);
+        write("00000000000\0", 136, 12);
+        write("        ", 148, 8); // checksum placeholder = spaces
+        write(typeflag, 156, 1);
+        write("ustar  \0", 257, 8); // GNU magic
+        let sum = 0;
+        for (const byte of block) sum += byte;
+        write(`${sum.toString(8).padStart(6, "0")}\0 `, 148, 8);
+        return block;
+      };
+
+      const tarFileEntry = (name: string, content: Uint8Array): Uint8Array[] => {
+        const blocks: Uint8Array[] = [];
+        if (name.length > 100) {
+          const nameBytes = encoder.encode(`${name}\0`);
+          blocks.push(tarHeader("././@LongLink", nameBytes.length, "L"));
+          blocks.push(padToBlock(nameBytes));
+        }
+        blocks.push(tarHeader(name.slice(0, 100), content.length, "0"));
+        if (content.length > 0) blocks.push(padToBlock(content));
+        return blocks;
+      };
+
+      const longDir = "./assets/deeply/nested/directory/structure/for/gnu/long/name/handling";
+      const longName = `${longDir}/component-stylesheet-with-a-very-descriptive-name.css`;
+      expect(longName.length).toBeGreaterThan(100);
+      const longContent = encoder.encode("body { color: rebeccapurple; }");
+      const shortContent = encoder.encode("<html>long-name fixture</html>");
+
+      // bsdtar-style pax entry: 'x' header with a path= record overriding
+      // the truncated ustar name of the following file entry
+      const paxFileEntry = (name: string, content: Uint8Array): Uint8Array[] => {
+        const bareRecord = ` path=${name}\n`;
+        // record length prefix counts itself; two passes converge for our sizes
+        let lenDigits = String(bareRecord.length).length;
+        let total = lenDigits + bareRecord.length;
+        lenDigits = String(total).length;
+        total = lenDigits + bareRecord.length;
+        const record = encoder.encode(`${total}${bareRecord}`);
+        expect(record.length).toBe(total);
+        return [
+          tarHeader("./PaxHeaders/ignored", record.length, "x"),
+          padToBlock(record),
+          tarHeader(name.slice(0, 100), content.length, "0"),
+          padToBlock(content),
+        ];
+      };
+
+      const paxName = `${longDir}/pax-named-bundle-with-an-equally-descriptive-long-file-name.js`;
+      expect(paxName.length).toBeGreaterThan(100);
+      const paxContent = encoder.encode("console.log('pax fixture');");
+
+      const blocks: Uint8Array[] = [
+        tarHeader("./", 0, "5"),
+        ...tarFileEntry("./index.html", shortContent),
+        tarHeader(`${longDir.slice(0, 99)}/`, 0, "5"),
+        ...tarFileEntry(longName, longContent),
+        ...paxFileEntry(paxName, paxContent),
+        new Uint8Array(512),
+        new Uint8Array(512),
+      ];
+      const totalLength = blocks.reduce((acc, b) => acc + b.length, 0);
+      const longNameTar = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const block of blocks) {
+        longNameTar.set(block, offset);
+        offset += block.length;
+      }
+
+      const expectedLongKey = longName.slice(1); // "./x" → "/x"
+      const expectedPaxKey = paxName.slice(1);
+
+      // Swapping the frontend asset changes its hash → the backend
+      // invalidates the old version and re-downloads + re-indexes.
+      // Advance a day to fire the scheduled release refresh.
+      await manager.pic.advanceTime(86_400_000);
+      await manager.pic.tick(5);
+      await runHttpDownloaderQueueProcessor(
+        manager.pic,
+        async () => {
+          const fullStatus =
+            await backendFixture.actor.getStorageReleaseAdminStatus();
+          const extraction = getExtractionStatusFromFullStatus(fullStatus);
+          return (
+            extraction.status === "Complete" &&
+            (extraction.files ?? []).some((f) => f.key === expectedLongKey)
+          );
+        },
+        { frontend: longNameTar },
+      );
+
+      const fullStatus =
+        await backendFixture.actor.getStorageReleaseAdminStatus();
+      const extraction = getExtractionStatusFromFullStatus(fullStatus);
+      expect(extraction.status).toBe("Complete");
+      const files = extraction.files ?? [];
+
+      // Directory entries are skipped, all three files indexed
+      expect(files.map((f) => f.key).sort()).toEqual(
+        ["/index.html", expectedLongKey, expectedPaxKey].sort(),
+      );
+
+      const longFile = files.find((f) => f.key === expectedLongKey);
+      expect(longFile).toBeDefined();
+      if (!longFile) return;
+      expect(longFile.size).toBe(BigInt(longContent.length));
+      expect(uint8ArrayToHexString(new Uint8Array(longFile.sha256))).toBe(
+        uint8ArrayToHexString(sha256(longContent)),
+      );
+      expect(longFile.contentType).toBe("text/css");
+
+      const paxFile = files.find((f) => f.key === expectedPaxKey);
+      expect(paxFile).toBeDefined();
+      if (!paxFile) return;
+      expect(paxFile.size).toBe(BigInt(paxContent.length));
+      expect(uint8ArrayToHexString(new Uint8Array(paxFile.sha256))).toBe(
+        uint8ArrayToHexString(sha256(paxContent)),
+      );
+      expect(paxFile.contentType).toBe("text/javascript");
+    },
+  );
 });

@@ -11,6 +11,10 @@ module {
 
   public let STORAGE_FRONTEND_ORIGINS = "STORAGE_FRONTEND_ORIGINS";
 
+  /// Earliest storage release whose WASM can pull its own frontend from the
+  /// backend. Releases below this cannot receive frontend-only installs.
+  public let STORAGE_PULL_MIN_VERSION = "STORAGE_PULL_MIN_VERSION";
+
   public let SYSTEM_ENV_NAMES : [Text] = [
     RABBITHOLE_BACKEND_CANISTER_ID,
     RABBITHOLE_FRONTEND_CANISTER_ID,

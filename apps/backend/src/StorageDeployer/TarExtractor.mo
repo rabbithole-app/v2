@@ -1,48 +1,22 @@
 import MemoryRegion "mo:memory-region/MemoryRegion";
-import Set "mo:core/Set";
-import Text "mo:core/Text";
-import Order "mo:core/Order";
-import Sha256 "mo:sha2/Sha256";
+import Result "mo:core/Result";
 
-import Tar "mo:tar";
 import IncGzipDecoder "IncGzipDecoder";
+import TarIndexer "TarIndexer";
 import Types "Types";
 
 module TarExtractor {
-  let extensionToContentType = [
-    ("html", "text/html"),
-    ("css", "text/css"),
-    ("br", "application/brotli"),
-    ("js", "text/javascript"),
-    ("json", "application/json"),
-    ("png", "image/png"),
-    ("jpg", "image/jpeg"),
-    ("jpeg", "image/jpeg"),
-    ("gif", "image/gif"),
-    ("svg", "image/svg+xml"),
-    ("ico", "image/x-icon"),
-    ("woff", "font/woff"),
-    ("woff2", "font/woff2"),
-    ("ttf", "font/ttf"),
-    ("eot", "application/vnd.ms-fontobject"),
-    ("txt", "text/plain"),
-    ("xml", "application/xml"),
-    ("pdf", "application/pdf"),
-    ("zip", "application/zip"),
-    ("wasm", "application/wasm"),
-    ("gz", "application/gzip"),
-  ];
-
-  func compareFiles(a : Types.File, b : Types.File) : Order.Order = Text.compare(a.key, b.key);
-
   public type Status = {
     #Idle;
     #Decoding : Types.Progress;
     #Complete;
+    #Failed : Text;
   };
 
   public type Store = {
-    files : Set.Set<Types.File>;
+    /// Source archive location. Owned by the HttpDownloader store — never
+    /// deallocated here; invalidation flows through GitHubReleases which
+    /// removes the download and this store in the same message.
     pointer : Types.SizedPointer;
     region : MemoryRegion.MemoryRegion;
     gzipDecoder : IncGzipDecoder.Store;
@@ -56,14 +30,19 @@ module TarExtractor {
       region;
       pointer;
       isGzipped;
-      files = Set.empty();
       gzipDecoder = IncGzipDecoder.new(region);
       var status = #Idle;
       var decompressedPointer = null;
     };
   };
 
-  public func extract<system>(store : Store) : () {
+  /// Pointer to the raw tar data (decompressed if the source is gzipped).
+  /// Null while gzip decoding is still in progress.
+  public func contentPointer(store : Store) : ?Types.SizedPointer {
+    if (store.isGzipped) store.decompressedPointer else ?store.pointer;
+  };
+
+  public func extract<system>(store : Store, onIndexed : (Result.Result<TarIndexer.Index, Text>) -> ()) : () {
     store.status := #Decoding({ processed = 0; total = store.pointer.1 });
 
     if (store.isGzipped) {
@@ -82,52 +61,55 @@ module TarExtractor {
             func(pointer) {
               // Gzip decompression complete, save pointer for later deallocation
               store.decompressedPointer := ?pointer;
-              // Now extract tar entries
-              extractTarEntries(store, pointer);
+              onIndexed(index(store, pointer));
             }
           );
         },
       );
     } else {
-      // Plain tar - extract directly without gzip decompression
-      extractTarEntries(store, store.pointer);
+      // Plain tar - index directly without gzip decompression
+      onIndexed(index(store, store.pointer));
     };
   };
 
-  // Check if a tar entry is a macOS Apple Double resource fork file (._*)
-  func isAppleDoubleFile(name : Text) : Bool {
-    Text.contains(name, #text "/._") or Text.startsWith(name, #text "._");
+  /// Rebuild the index from the retained tar data (e.g. after an upgrade
+  /// dropped the transient index cache).
+  public func rebuildIndex(store : Store) : Result.Result<TarIndexer.Index, Text> {
+    switch (store.status) {
+      case (#Complete) {
+        switch (contentPointer(store)) {
+          case (?pointer) index(store, pointer);
+          case null #err("tar data is not available");
+        };
+      };
+      case (#Decoding(_)) #err("tar extraction is in progress");
+      case (#Idle) #err("tar extraction has not started");
+      case (#Failed(e)) #err(e);
+    };
   };
 
-  // Extract tar entries from blob at given pointer
-  func extractTarEntries(store : Store, pointer : Types.SizedPointer) : () {
-    let blob = MemoryRegion.loadBlob(store.region, pointer.0, pointer.1);
-    for (entry in Tar.entries(blob)) {
-      if (entry.typ == #file and not isAppleDoubleFile(entry.name)) {
-        let file = {
-          key = Text.trimStart(entry.name, #char('.'));
-          content = entry.content;
-          contentType = inferContentType(entry.name);
-          size = entry.size;
-          sha256 = Sha256.fromBlob(#sha256, entry.content);
-        };
-        Set.add(store.files, compareFiles, file);
+  func index(store : Store, pointer : Types.SizedPointer) : Result.Result<TarIndexer.Index, Text> {
+    switch (TarIndexer.buildIndex(store.region, pointer)) {
+      case (#ok(result)) {
+        store.status := #Complete;
+        #ok(result);
+      };
+      case (#err(e)) {
+        store.status := #Failed(e);
+        #err(e);
       };
     };
-    store.status := #Complete;
   };
 
   public func cancel<system>(store : Store) : () {
     IncGzipDecoder.cancel<system>(store.gzipDecoder);
   };
 
-  /// Clear all extracted files and deallocate memory
-  /// Call this before removing the store to free memory region resources
+  /// Deallocate owned memory (decompressed tar data). The source pointer is
+  /// owned by the downloader and left untouched.
   public func clear<system>(store : Store) : () {
-    // Cancel any ongoing decoding
     IncGzipDecoder.cancel<system>(store.gzipDecoder);
 
-    // Deallocate the decompressed tar data from memory region
     switch (store.decompressedPointer) {
       case (?(address, size)) {
         MemoryRegion.deallocate(store.region, address, size);
@@ -136,26 +118,10 @@ module TarExtractor {
       case null {};
     };
 
-    // Clear the files set - Blob content will be garbage collected
-    Set.clear(store.files);
-
-    // Reset status
     store.status := #Idle;
   };
 
   public func getStatus(store : Store) : Status {
     store.status;
-  };
-
-  public func getFiles(store : Store) : [Types.File] {
-    Set.toArray(store.files);
-  };
-
-  // Infer MIME type from file extension
-  func inferContentType(path : Text) : Text {
-    for ((extension, contentType) in extensionToContentType.vals()) {
-      if (Text.endsWith(path, #text("." # extension))) return contentType;
-    };
-    "application/octet-stream";
   };
 };

@@ -6,11 +6,28 @@ import Result "mo:core/Result";
 
 import { ic } "mo:ic";
 
+import FrontendPullTypes "FrontendPullTypes";
 import StorageReleasePlanner "StorageReleasePlanner";
 
 module StorageCanisterOps {
   type StorageReleaseStateCanister = actor {
     setStorageReleaseState : shared StorageReleasePlanner.StorageReleaseStateInput -> async ();
+  };
+
+  public type InstallFrontendArgs = FrontendPullTypes.InstallFrontendArgs;
+
+  type FrontendPullCanister = actor {
+    installFrontend : shared InstallFrontendArgs -> async Result.Result<(), Text>;
+  };
+
+  /// Ask a storage canister to start pulling its frontend from this backend
+  public func installFrontend(canisterId : Principal, args : InstallFrontendArgs) : async Result.Result<(), Text> {
+    let storageCanister = actor (Principal.toText(canisterId)) : FrontendPullCanister;
+    try {
+      await storageCanister.installFrontend(args);
+    } catch (error) {
+      #err("installFrontend call failed: " # Error.message(error));
+    };
   };
 
   public func getInstalledWasmHash(canisterId : Principal) : async Result.Result<?Blob, Text> {

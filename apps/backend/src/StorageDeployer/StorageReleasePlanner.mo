@@ -189,6 +189,7 @@ module StorageReleasePlanner {
     store : GitHubReleases.Store,
     releases : [GitHubReleases.ReleaseFullStatus],
     record : Types.StorageCreationRecord,
+    pullMinVersion : Text,
   ) : [Types.StorageReleaseOption] {
     let options = Vector.new<Types.StorageReleaseOption>();
 
@@ -198,7 +199,7 @@ module StorageReleasePlanner {
           case (#ok(value)) value;
           case (#err(_)) null;
         };
-        Vector.add(options, releaseOptionFromStatus(record, release, updateInfo));
+        Vector.add(options, releaseOptionFromStatus(record, release, updateInfo, pullMinVersion));
       };
     };
 
@@ -277,6 +278,7 @@ module StorageReleasePlanner {
     record : Types.StorageCreationRecord,
     release : GitHubReleases.ReleaseFullStatus,
     updateInfo : ?Types.UpdateInfo,
+    pullMinVersion : Text,
   ) : Types.StorageReleaseOption {
     let compatibleFrom = switch (release.manifest) {
       case (?manifest) manifest.upgrade.compatibleFrom;
@@ -300,6 +302,10 @@ module StorageReleasePlanner {
       };
       case null [];
     };
+    let needsFrontend = switch (updateInfo) {
+      case (?info) info.frontendUpdateAvailable;
+      case null false;
+    };
     let disabledReason = switch (release.manifestError) {
       case (?_) ?"Release manifest is invalid";
       case null {
@@ -312,6 +318,10 @@ module StorageReleasePlanner {
               } else {
                 ?"No upgrade path declared";
               };
+            } else if (needsFrontend and SemVer.compareText(ReleaseTags.version(release.tagName), pullMinVersion) == #less) {
+              // Frontend installs are pull-based; a pre-pull release WASM
+              // cannot fetch its frontend from the backend anymore.
+              ?("Release predates pull-based frontend install (min " # pullMinVersion # ")");
             } else {
               switch (updateInfo) {
                 case (?_) null;

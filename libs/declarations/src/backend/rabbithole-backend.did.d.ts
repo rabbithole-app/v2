@@ -291,7 +291,8 @@ export interface EvmChainConfig {
   'chainId' : bigint,
   'networkId' : string,
 }
-export type ExtractionStatus = { 'Idle' : null } |
+export type ExtractionStatus = { 'Failed' : string } |
+  { 'Idle' : null } |
   { 'Complete' : Array<FileMetadata> } |
   { 'Decoding' : { 'total' : bigint, 'processed' : bigint } };
 export interface FileMetadata {
@@ -299,6 +300,12 @@ export interface FileMetadata {
   'sha256' : Uint8Array,
   'contentType' : string,
   'size' : bigint,
+}
+export interface FrontendFileChunk {
+  'content' : Uint8Array,
+  'sha256' : Uint8Array,
+  'totalSize' : bigint,
+  'chunkCount' : bigint,
 }
 export interface FrontendInstallDiagnostics {
   'totalFiles' : bigint,
@@ -319,6 +326,27 @@ export interface FrontendInstallDiagnostics {
   'processedFiles' : bigint,
   'batchesTotal' : bigint,
 }
+export interface FrontendManifest {
+  'totalFiles' : bigint,
+  'entries' : Array<FileMetadata>,
+  'totalBytes' : bigint,
+}
+export type FrontendPullError = { 'UnknownFile' : null } |
+  { 'NotReady' : null } |
+  { 'NoActiveInstall' : null } |
+  { 'InvalidChunk' : null } |
+  { 'UnknownVersion' : null } |
+  { 'UnknownCanister' : null };
+export interface FrontendPullPlan {
+  'filesToPull' : bigint,
+  'skippedBytes' : bigint,
+  'skippedFiles' : bigint,
+  'staleToDelete' : bigint,
+  'bytesToPull' : bigint,
+  'changedToDelete' : bigint,
+}
+export type FrontendPullResult = { 'ok' : PullStats } |
+  { 'err' : string };
 export interface GetCreationsResponse {
   'total' : [] | [bigint],
   'data' : Array<CreationListItem>,
@@ -652,6 +680,15 @@ export interface PublicProfileSummary {
   'displayName' : [] | [string],
   'avatarRef' : [] | [AvatarRef],
 }
+export interface PullStats {
+  'pulledBytes' : bigint,
+  'treeHashMatched' : [] | [boolean],
+  'changedDeletedFiles' : bigint,
+  'skippedBytes' : bigint,
+  'pulledFiles' : bigint,
+  'skippedFiles' : bigint,
+  'staleDeletedFiles' : bigint,
+}
 export type PurchaseError = { 'ActivationFailed' : string } |
   { 'InvalidPlan' : string } |
   { 'ChargeFailed' : string } |
@@ -676,7 +713,7 @@ export interface Rabbithole {
     ImmutableObjectStorageRefillResult
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
-  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_9>,
+  '_internet_identity_sign_in_finish' : ActorMethod<[], Result_12>,
   '_internet_identity_sign_in_start' : ActorMethod<[], Uint8Array>,
   'activateSubscription' : ActorMethod<
     [Principal, Plan, [] | [bigint]],
@@ -711,7 +748,7 @@ export interface Rabbithole {
    * / Storage license entitlement is attached only through the paid creation
    * / flow. Imported canisters do not receive included encrypted storage quota.
    */
-  'addStorage' : ActorMethod<[Principal, Uint8Array], Result_8>,
+  'addStorage' : ActorMethod<[Principal, Uint8Array], Result_11>,
   'adminGetUserWalletMeta' : ActorMethod<
     [Principal],
     {
@@ -728,15 +765,23 @@ export interface Rabbithole {
   'adminRegisterWasmHash' : ActorMethod<[Uint8Array, string], undefined>,
   'adminSyncBlobStorageCashierAdminAccess' : ActorMethod<[], undefined>,
   'applyReferralCode' : ActorMethod<[string], ApplyReferralCodeResult>,
+  'beginFrontendInstall' : ActorMethod<
+    [{ 'versionKey' : string, 'plan' : FrontendPullPlan }],
+    Result_10
+  >,
   'checkSubscription' : ActorMethod<[Uint8Array], SubscriptionCheckResult>,
   'claimVerifiedEmailAccess' : ActorMethod<[], IdentityAttributesSyncResult>,
   'clearAvatar' : ActorMethod<[], undefined>,
   'commitAvatarUpload' : ActorMethod<[string], AvatarRef>,
+  'completeFrontendInstall' : ActorMethod<
+    [{ 'result' : FrontendPullResult, 'versionKey' : string }],
+    undefined
+  >,
   'createCoupon' : ActorMethod<[CreateCouponArgs], Result__1_2>,
   'createProfile' : ActorMethod<[CreateProfileArgs], Uint8Array>,
   'deleteCoupon' : ActorMethod<[string], Result__1_1>,
   'deleteProfile' : ActorMethod<[], undefined>,
-  'deleteStorage' : ActorMethod<[bigint], Result_7>,
+  'deleteStorage' : ActorMethod<[bigint], Result_9>,
   'dismissPendingCmcOp' : ActorMethod<
     [bigint],
     { 'ok' : null } |
@@ -744,7 +789,7 @@ export interface Rabbithole {
   >,
   'ensureStorageCyclesForUpload' : ActorMethod<
     [EnsureStorageCyclesForUploadRequest],
-    Result_6
+    Result_8
   >,
   'ensureUser' : ActorMethod<[[] | [string]], undefined>,
   'flushPaymentQueue' : ActorMethod<[], undefined>,
@@ -790,7 +835,7 @@ export interface Rabbithole {
   'getStorageReleaseAdminStatus' : ActorMethod<[], ReleasesFullStatus>,
   'getStorageUpgradePlan' : ActorMethod<
     [Principal, StorageReleaseState],
-    Result_5
+    Result_7
   >,
   'getSubscription' : ActorMethod<[], [] | [Subscription]>,
   'getTreasuryBalances' : ActorMethod<[], Array<BalanceEntry>>,
@@ -861,6 +906,14 @@ export interface Rabbithole {
   >,
   'prepareStorageRelease' : ActorMethod<[string], Result_2>,
   'processPendingRefunds' : ActorMethod<[], bigint>,
+  'pullFrontendFileChunk' : ActorMethod<
+    [{ 'key' : string, 'chunkIndex' : bigint, 'versionKey' : string }],
+    Result_6
+  >,
+  'pullFrontendManifest' : ActorMethod<
+    [{ 'versionKey' : string, 'offset' : bigint, 'limit' : bigint }],
+    Result_5
+  >,
   /**
    * / Purchase a license and kick off storage creation. Returns the creation
    * / id immediately — charge + deploy run asynchronously on the orchestrator
@@ -1055,24 +1108,30 @@ export type Result = { 'ok' : { 'cyclesAdded' : bigint } } |
   { 'err' : string };
 export type Result_1 = { 'ok' : null } |
   { 'err' : UpgradeStorageError };
+export type Result_10 = { 'ok' : null } |
+  { 'err' : FrontendPullError };
+export type Result_11 = { 'ok' : bigint } |
+  { 'err' : AddStorageError };
+export type Result_12 = { 'ok' : null } |
+  { 'err' : Error };
 export type Result_2 = { 'ok' : null } |
   { 'err' : string };
 export type Result_3 = { 'ok' : null } |
   { 'err' : PurchaseError };
 export type Result_4 = { 'ok' : bigint } |
   { 'err' : PurchaseError };
-export type Result_5 = { 'ok' : StorageReleaseOptionsResult } |
+export type Result_5 = { 'ok' : FrontendManifest } |
+  { 'err' : FrontendPullError };
+export type Result_6 = { 'ok' : FrontendFileChunk } |
+  { 'err' : FrontendPullError };
+export type Result_7 = { 'ok' : StorageReleaseOptionsResult } |
   { 'err' : UpgradeStorageError };
-export type Result_6 = {
+export type Result_8 = {
     'ok' : { 'cyclesAdded' : [] | [bigint], 'requiredBalance' : bigint }
   } |
   { 'err' : string };
-export type Result_7 = { 'ok' : null } |
-  { 'err' : DeleteStorageError };
-export type Result_8 = { 'ok' : bigint } |
-  { 'err' : AddStorageError };
 export type Result_9 = { 'ok' : null } |
-  { 'err' : Error };
+  { 'err' : DeleteStorageError };
 export type Result__1 = { 'ok' : null } |
   { 'err' : RevokeCouponError };
 export type Result__1_1 = { 'ok' : null } |

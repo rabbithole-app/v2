@@ -308,14 +308,16 @@ module {
     };
   };
 
-  /// Get the latest storage frontend download details
-  public func latestStorageFrontend(store : Store) : Result.Result<HttpDownloader.DownloadDetails, Text> {
-    latestReleaseAsset(store, #StorageFrontend);
+  /// Get the latest storage frontend download details (region pointer,
+  /// content is not materialized on the heap)
+  public func latestStorageFrontend(store : Store) : Result.Result<HttpDownloader.DownloadPointerDetails, Text> {
+    latestReleaseAssetPointer(store, #StorageFrontend);
   };
 
-  /// Get storage frontend download details for a concrete release tag.
-  public func storageFrontend(store : Store, releaseTag : Text) : Result.Result<HttpDownloader.DownloadDetails, Text> {
-    releaseAsset(store, releaseTag, #StorageFrontend);
+  /// Get storage frontend download details for a concrete release tag
+  /// (region pointer, content is not materialized on the heap).
+  public func storageFrontend(store : Store, releaseTag : Text) : Result.Result<HttpDownloader.DownloadPointerDetails, Text> {
+    releaseAssetPointer(store, releaseTag, #StorageFrontend);
   };
 
   /// Get storage release manifest download details for a concrete release tag.
@@ -385,14 +387,15 @@ module {
     Option.map(optRelease, func(r : Types.Release) : Text = r.tagName);
   };
 
-  /// Get all downloaded storage frontend archive details.
-  public func downloadedStorageFrontends(store : Store) : [(Text, HttpDownloader.DownloadDetails)] {
-    let frontends = Vector.new<(Text, HttpDownloader.DownloadDetails)>();
+  /// Get all downloaded storage frontend archives as region pointers
+  /// (contents stay in the region, nothing is materialized on the heap).
+  public func downloadedStorageFrontendPointers(store : Store) : [(Text, HttpDownloader.DownloadPointerDetails)] {
+    let frontends = Vector.new<(Text, HttpDownloader.DownloadPointerDetails)>();
     let ?assetName = configuredAssetName(store, #StorageFrontend) else return [];
 
     for (release in sortedReleasesDesc(store.releases).vals()) {
       let key = release.tagName # "/" # assetName;
-      switch (HttpDownloader.get(store.downloaderStore, key)) {
+      switch (HttpDownloader.getPointer(store.downloaderStore, key)) {
         case (#ok(details)) Vector.add(frontends, (release.tagName, details));
         case (#err(_)) {};
       };
@@ -908,6 +911,16 @@ module {
     HttpDownloader.get(store.downloaderStore, releaseTag # "/" # assetName);
   };
 
+  func releaseAssetPointer(store : Store, releaseTag : Text, kind : GithubAssetKind) : Result.Result<HttpDownloader.DownloadPointerDetails, Text> {
+    let ?assetName = configuredAssetName(store, kind) else return #err("No configured asset of requested kind");
+    let ?release = findReleaseByTag(store.releases, releaseTag) else return #err("No release found for tag " # releaseTag);
+    let ?_asset = Iter.fromArray(release.assets) |> Iter.find(_, func(a : Types.Asset) : Bool = a.name == assetName) else {
+      return #err("Asset " # assetName # " not found in release " # releaseTag);
+    };
+
+    HttpDownloader.getPointer(store.downloaderStore, releaseTag # "/" # assetName);
+  };
+
   func latestReleaseAsset(store : Store, kind : GithubAssetKind) : Result.Result<HttpDownloader.DownloadDetails, Text> {
     // Find the first selector that has the requested asset kind
     let ?(selector, assets) = Iter.fromArray(store.assets) |> Iter.find<(ReleaseSelector, [GithubAsset])>(
@@ -939,6 +952,37 @@ module {
 
     let key = release.tagName # "/" # assetName;
     HttpDownloader.get(store.downloaderStore, key);
+  };
+
+  func latestReleaseAssetPointer(store : Store, kind : GithubAssetKind) : Result.Result<HttpDownloader.DownloadPointerDetails, Text> {
+    let ?(selector, assets) = Iter.fromArray(store.assets) |> Iter.find<(ReleaseSelector, [GithubAsset])>(
+      _,
+      func(_ : ReleaseSelector, assets : [GithubAsset]) : Bool {
+        for (asset in assets.vals()) {
+          switch (kind, asset) {
+            case (#StorageWASM, #StorageWASM(_)) return true;
+            case (#StorageFrontend, #StorageFrontend(_)) return true;
+            case _ {};
+          };
+        };
+        false;
+      },
+    ) else return #err("No configured asset of requested kind");
+
+    let ?release = findReleaseBySelector(store.releases, selector) else return #err("No release found for selector");
+
+    let assetName = label find : Text {
+      for (asset in assets.vals()) {
+        switch (kind, asset) {
+          case (#StorageWASM, #StorageWASM(name)) break find name;
+          case (#StorageFrontend, #StorageFrontend(name)) break find name;
+          case _ {};
+        };
+      };
+      return #err("Asset not found in configured assets");
+    };
+
+    HttpDownloader.getPointer(store.downloaderStore, release.tagName # "/" # assetName);
   };
 
   func downloadAsset(store : Store, tagName : Text, assetName : Text) : Result.Result<(), Text> {

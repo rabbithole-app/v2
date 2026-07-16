@@ -266,6 +266,23 @@ type Batch__903028767 =
     var expires_at : Time__293467431;
     var total_bytes : Nat
   };
+type BlobLocator__750083860 =
+  {blobKey : Text; layoutVersion : Nat; treeKey : Text};
+type BlobReplicaStatus__639830589 =
+  {#Active; #DeletePending; #Deleted; #Missing};
+type BlobReplica__760488772 =
+  {
+    createdAt : Time__688418391;
+    id : Text;
+    locator : BlobLocator__750083860;
+    pendingDeleteTaskId : ?Nat;
+    rootHashHex : RootHashHex__1055248867;
+    sha256 : ?Blob;
+    size : Nat;
+    status : BlobReplicaStatus__639830589;
+    targetId : TargetId__398243992;
+    updatedAt : Time__688418391
+  };
 type Branch__187687365<K, V> =
   (nats : [var Nat], parent : [var ?Branch__187687365<K, V>],
    keys : [var ?K], children : [var ?Node__1049340821<K, V>],
@@ -395,6 +412,20 @@ type CreateAssetArguments__837138725 =
     key : Key__292598047;
     max_age : ?Nat64
   };
+type CredentialId__935946305 = Text;
+type CredentialStatus__349990776 = {#Active; #Removed; #ValidationFailed};
+type Credential__159775691 =
+  {
+    accessKeyId : Text;
+    createdAt : Time__688418391;
+    id : CredentialId__935946305;
+    lastValidatedAt : ?Time__688418391;
+    secretAccessKey : Text;
+    sessionToken : ?Text;
+    status : CredentialStatus__349990776;
+    targetId : TargetId__398243992;
+    updatedAt : Time__688418391
+  };
 type CurrentMemoryRegion__211818865 = MemoryRegionV1__671198960;
 type CurrentMemoryRegion__66923225 = MemoryRegionV1__288728257;
 type CycleAlertLevel__259846905 = {#critical; #warning};
@@ -406,6 +437,22 @@ type DeleteAssetArguments__703748404 = {key : Key__115393779};
 type DeleteAssetArguments__915215972 = {key : Key__653048086};
 type DeleteAssetArguments__92446183 = {key : Key__421561766};
 type DeleteAssetArguments__983226034 = {key : Key__446470443};
+type DeleteTaskStatus__397189718 = {#Cancelled; #Done; #Pending; #Running};
+type DeleteTask__973693105 =
+  {
+    var attempts : Nat;
+    createdAt : Time__688418391;
+    id : Nat;
+    keys : [Text];
+    var lastError : ?Text;
+    var leaseExpiresAt : Time__688418391;
+    var nextAttemptAt : Time__688418391;
+    replicaId : ?Text;
+    rootHashHex : RootHashHex__1055248867;
+    var status : DeleteTaskStatus__397189718;
+    targetId : TargetId__398243992;
+    var updatedAt : Time__688418391
+  };
 type DirectoryColor__106128965 =
   {#blue; #gray; #green; #orange; #pink; #purple; #yellow};
 type DirectoryMetadataStore__724588407 =
@@ -823,7 +870,17 @@ type PrincipalAccessGrant__92824139 =
     scope : AccessScope__233280712;
     source : AccessSource__780949223
   };
+type ReadMode__936784913 = {#PublicEncrypted};
 type ReadState__404715511 = {readCursors : Map__714078229<Principal, Nat>};
+type RootHashHex__1055248867 = Text;
+type S3CompatibleTargetConfig__44424002 =
+  {
+    bucket : Text;
+    endpoint : Text;
+    forcePathStyle : Bool;
+    prefix : Text;
+    region : Text
+  };
 type SetAssetContentArguments__13022323 =
   {
     chunk_ids : [ChunkId__838700966];
@@ -1025,6 +1082,31 @@ type StableStore__827709075 =
     prepare_principals : Set__777644735<Principal>;
     var streaming_callback : ?StreamingCallback__864714357
   };
+type StableStore__902560987 =
+  {
+    access : Store__1025425604;
+    var backendId : ?Principal;
+    var cachedIdleBurnPerDay : ?Nat;
+    var cachedModuleHash : ?Blob;
+    canisterId : Principal;
+    certs : StableStore__1038099049;
+    domainSeparatorBytes : Blob;
+    externalStorage : Store__1017361416;
+    fs : FileSystemStore__491281670;
+    var lastCycleAlertAt : Time__688418391;
+    var lastCycleAlertLevel : ?CycleAlertLevel__259846905;
+    var objectStorageWritePolicy : WritePolicy__130545946;
+    region : MemoryRegion__184287347;
+    staging : Map__714078229<NodeKey__522615548, StagingEntry__107179809>;
+    storageBackendType : StorageBackend__9715443;
+    storageEventReadState : ReadState__404715511;
+    storageEvents : Store__422936405;
+    var storedBytesUsed : Nat;
+    var streamingCallback : ?StreamingCallback__673406315;
+    var subscriptionCache : ?SubscriptionCache__512281343;
+    upload : UploadStore__742135918;
+    vetKdKeyId : VetKdKeyid__485245058
+  };
 type StagingEntry__107179809 =
   {
     var batchId : ?BatchId__658900428;
@@ -1190,6 +1272,19 @@ type StorageReleaseState__390246427 =
     schemaVersion : Nat;
     wasmHash : ?Blob
   };
+type Store__1017361416 =
+  {
+    var activeTargetId : ?TargetId__398243992;
+    credentials :
+      Map__222667396<CredentialId__935946305, Credential__159775691>;
+    deleteTasks : Map__222667396<Nat, DeleteTask__973693105>;
+    var nextCredentialSequence : Nat;
+    var nextDeleteTaskId : Nat;
+    var nextTargetSequence : Nat;
+    replicas : Map__222667396<Text, BlobReplica__760488772>;
+    targets : Map__222667396<TargetId__398243992, Target__264793321>;
+    uploadSessions : Map__222667396<Text, UploadSession__1006570469>
+  };
 type Store__1019868334 = {var clockId : Nat; var lastTime : Nat};
 type Store__1025425604 =
   {
@@ -1326,6 +1421,25 @@ type T__371227266 =
         tree_hash : Hash__118213947
       }
   };
+type TargetId__398243992 = Text;
+type TargetKind__4037353 =
+  {#S3CompatiblePublicEncrypted : S3CompatibleTargetConfig__44424002};
+type TargetStatus__211442377 = {#Active; #CredentialFailed; #Disabled};
+type Target__264793321 =
+  {
+    createdAt : Time__688418391;
+    credentialId : ?CredentialId__935946305;
+    displayName : ?Text;
+    id : TargetId__398243992;
+    kind : TargetKind__4037353;
+    lastValidatedAt : ?Time__688418391;
+    layoutVersion : Nat;
+    readMode : ReadMode__936784913;
+    status : TargetStatus__211442377;
+    updatedAt : Time__688418391;
+    version : Nat;
+    writeMode : WriteMode__1236724
+  };
 type ThumbnailEncryptionRef__980292006 =
   {
     algorithm : Text;
@@ -1376,6 +1490,14 @@ type UnsetAssetContentArguments__62762230 =
   {content_encoding : Text; key : Key__292598047};
 type UnsetAssetContentArguments__700136022 =
   {content_encoding : Text; key : Key__653048086};
+type UploadSession__1006570469 =
+  {
+    createdAt : Time__688418391;
+    expiresAt : Time__688418391;
+    keys : [Text];
+    rootHashHex : RootHashHex__1055248867;
+    targetId : TargetId__398243992
+  };
 type UploadStore__742135918 =
   {
     batches : Map__714078229<BatchId__658900428, Batch__766621866>;
@@ -1420,7 +1542,11 @@ type Vector__966065046<A> = Vector__342968512<A>;
 type Vector__985631301<X> =
   {var data_blocks : [var [var ?X]]; var i_block : Nat; var i_element : Nat};
 type VetKdKeyid__485245058 = {curve : {#bls12_381_g2}; name : Text};
+type WriteMode__1236724 = {#CanisterPresigned};
+type WritePolicy__130545946 =
+  {#CaffeineManaged; #ExternalS3Active : {targetId : TargetId__398243992}};
 actor {
+  stable EXTERNAL_STORAGE_DELETE_TASK_BATCH_SIZE : Nat;
   stable GIB_BYTES : Nat;
   stable IC_INGRESS_BYTE_RECEPTION_CYCLES : Nat;
   stable IC_INGRESS_MESSAGE_RECEPTION_CYCLES : Nat;
@@ -1460,5 +1586,6 @@ actor {
   stable owner : Principal;
   stable var pendingStorageAccessEnvelopes : [Envelope__428630401];
   stable var storageReleaseState : ?StorageReleaseState__390246427;
-  stable var versionedStorage : {#v1 : StableStore__1017802319}
+  stable var versionedStorage :
+    {#v1 : StableStore__1017802319; #v2 : StableStore__902560987}
 };

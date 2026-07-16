@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "d4ae3a59f1b8ddbe5ccd3fa056f026465a24e19a31843e761c04eb57c1fcaa2e",
+  "mopsTomlDepsHash": "01e866dbb19fb84b15a50576c32126723664d7b6b36e3388826f3a64c530fd40",
   "deps": {
     "caffeineai-object-storage": "1.0.0",
     "core": "2.5.0",
@@ -114,8 +114,7 @@
     "canister-rbac@0.1": "0.1.0",
     "core@2.0.0": "2.0.0",
     "compression": "0.3.0",
-    "identity-attributes": "0.4.0",
-    "tar": "https://github.com/christoph-dfinity/motoko-tar#9dcd0bd79fe26a81cdfa75b5c8104c68a4cd67d9"
+    "identity-attributes": "0.4.0"
   },
   "hashes": {
     "caffeineai-object-storage@1.0.0": {

@@ -18,7 +18,6 @@ hmac = "1.1.0"
 core = "2.5.0"
 identity-attributes = "0.4.0"
 datetime = "1.1.0"
-tar = "https://github.com/christoph-dfinity/motoko-tar#9dcd0bd79fe26a81cdfa75b5c8104c68a4cd67d9"
 vector = "0.4.6"
 byte-utils = "0.2.0"
 

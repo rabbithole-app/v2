@@ -14,6 +14,9 @@ export const BACKEND_ENVIRONMENT_VARIABLES = [
   { name: "frontend_origins", value: "http://localhost:4200" },
   { name: "GITHUB_API_URL", value: "http://mock-server:8080" },
   { name: "GITHUB_REPOSITORY", value: "user/repo" },
+  // Mock release tags (storage-v0.1.x) predate the real pull-min default;
+  // the test WASM is the current workspace build, which is pull-capable.
+  { name: "STORAGE_PULL_MIN_VERSION", value: "0.0.0" },
 ];
 
 export function buildStorageEnvironmentVariables(

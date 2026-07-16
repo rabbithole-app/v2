@@ -32,6 +32,7 @@ import CMCTypes "Types/CMCTypes";
 import LedgerTypes "Types/LedgerTypes";
 import XRCTypes "Types/XRCTypes";
 import Account "StorageDeployer/Utils/Account";
+import PullMigration "StorageDeployer/PullMigration";
 import StorageReleaseConfig "StorageDeployer/StorageReleaseConfig";
 
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
@@ -60,6 +61,7 @@ import Notifications "Notifications/lib";
 import Types "Types";
 import Utils "Utils/lib";
 
+(with migration = PullMigration.run)
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
   transient let backendInitArgs = switch (initArgs) {
@@ -97,6 +99,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // Callback the orchestrator fires from its queue when a fresh canister is
   // minted for a creation that has an attached license.
   transient let storageOrchestratorRuntime = StorageDeployerOrchestrator.newRuntimeState();
+  transient let storagePullMinVersion = StorageDeployerOrchestrator.resolvePullMinVersion<system>();
 
   transient let bindLicenseCallback : StorageDeployerOrchestrator.BindLicense = func(owner, paymentId, cid) = licenses.bind(owner, paymentId, cid);
 
@@ -921,7 +924,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
   // --- System lifecycle ---
 
   system func preupgrade() {
-    storageOrchestrator.stop();
+    StorageDeployerOrchestrator.stop(storageOrchestrator, storageOrchestratorRuntime);
   };
 
   ignore Timer.setTimer<system>(
@@ -1129,6 +1132,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     await StorageDeployerOrchestrator.recoverStuckCreation(
       storageOrchestrator,
       creations,
+      storageOrchestratorRuntime,
       creationId,
       "Interrupted by admin recovery",
     );
@@ -1169,7 +1173,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public query ({ caller }) func listStorages() : async [StorageDeployerOrchestrator.StorageInfo] {
     assert not Principal.isAnonymous(caller);
-    storageOrchestrator.listStorages(creations, caller);
+    storageOrchestrator.listStorages(creations, storageOrchestratorRuntime, caller);
   };
 
   public query ({ caller }) func listSharedWithMeStorages() : async [SharedAccess.SharedStorageAccess] {
@@ -1189,7 +1193,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
             case (?value) ?value.status;
             case null null;
           };
-          updateAvailable = StorageDeployerOrchestrator.checkStorageUpdate(storageOrchestrator, creations, access.storageCanisterId);
+          updateAvailable = StorageDeployerOrchestrator.checkStorageUpdate(storageOrchestrator, creations, storageOrchestratorRuntime, access.storageCanisterId);
         };
       },
     );
@@ -1280,14 +1284,14 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public shared ({ caller }) func prepareStorageRelease(releaseTag : Text) : async Result.Result<(), Text> {
     assertAdmin(caller);
-    StorageDeployerOrchestrator.prepareStorageRelease<system>(storageOrchestrator, releaseTag, ?handleAssetDownloaded);
+    StorageDeployerOrchestrator.prepareStorageRelease<system>(storageOrchestrator, storageOrchestratorRuntime, releaseTag, ?handleAssetDownloaded);
   };
 
   public query func getStorageUpgradePlan(
     canisterId : Principal,
     remoteState : StorageDeployerOrchestrator.StorageReleaseState,
   ) : async Result.Result<StorageDeployerOrchestrator.StorageReleaseOptionsResult, StorageDeployerOrchestrator.UpgradeStorageError> {
-    StorageDeployerOrchestrator.getStorageUpgradePlan(storageOrchestrator, creations, canisterId, remoteState);
+    StorageDeployerOrchestrator.getStorageUpgradePlan(storageOrchestrator, creations, storageOrchestratorRuntime, storagePullMinVersion, canisterId, remoteState);
   };
 
   public shared ({ caller }) func startStorageDeployer() : async () {
@@ -1297,7 +1301,7 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
 
   public shared ({ caller }) func stopStorageDeployer() : async () {
     assertAdmin(caller);
-    storageOrchestrator.stop();
+    StorageDeployerOrchestrator.stop(storageOrchestrator, storageOrchestratorRuntime);
   };
 
   public query func isStorageDeployerRunning() : async Bool {
@@ -1375,13 +1379,39 @@ shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Typ
     };
   };
 
+  // --- Frontend Pull Protocol (called by storage canisters) ---
+
+  public shared ({ caller }) func pullFrontendManifest(
+    args : { versionKey : Text; offset : Nat; limit : Nat }
+  ) : async Result.Result<StorageDeployerOrchestrator.FrontendManifest, StorageDeployerOrchestrator.FrontendPullError> {
+    StorageDeployerOrchestrator.serveFrontendManifest(storageOrchestrator, creations, storageOrchestratorRuntime, caller, args);
+  };
+
+  public shared ({ caller }) func pullFrontendFileChunk(
+    args : { versionKey : Text; key : Text; chunkIndex : Nat }
+  ) : async Result.Result<StorageDeployerOrchestrator.FrontendFileChunk, StorageDeployerOrchestrator.FrontendPullError> {
+    StorageDeployerOrchestrator.serveFrontendFileChunk(storageOrchestrator, creations, storageOrchestratorRuntime, caller, args, orchestratorCallbacks.onCreationChanged);
+  };
+
+  public shared ({ caller }) func beginFrontendInstall(
+    args : { versionKey : Text; plan : StorageDeployerOrchestrator.FrontendPullPlan }
+  ) : async Result.Result<(), StorageDeployerOrchestrator.FrontendPullError> {
+    StorageDeployerOrchestrator.onFrontendInstallBegun(creations, storageOrchestratorRuntime, caller, args);
+  };
+
+  public shared ({ caller }) func completeFrontendInstall(
+    args : { versionKey : Text; result : StorageDeployerOrchestrator.FrontendPullResult }
+  ) : async () {
+    await StorageDeployerOrchestrator.onFrontendInstallComplete<system>(storageOrchestrator, creations, caller, args, orchestratorCallbacks);
+  };
+
   public query func getStorageReleaseAdminStatus() : async StorageDeployerOrchestrator.ReleasesFullStatus {
-    storageOrchestrator.getStorageReleaseAdminStatus();
+    storageOrchestrator.getStorageReleaseAdminStatus(storageOrchestratorRuntime);
   };
 
   public shared ({ caller }) func refreshStorageReleaseIndex() : async () {
     assertAdmin(caller);
-    await StorageDeployerOrchestrator.refreshStorageReleaseIndex<system>(storageOrchestrator, startCallbacks.releaseListTransform, ?handleAssetDownloaded);
+    await StorageDeployerOrchestrator.refreshStorageReleaseIndex<system>(storageOrchestrator, storageOrchestratorRuntime, startCallbacks.releaseListTransform, ?handleAssetDownloaded);
   };
 
   // --- HTTP interface: ICPay webhook only ---

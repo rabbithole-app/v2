@@ -26,6 +26,7 @@ module {
   public type DownloadRequest = Types.DownloadRequest;
   public type DownloadState = Types.DownloadState;
   public type DownloadDetails = Types.DownloadDetails;
+  public type DownloadPointerDetails = Types.DownloadPointerDetails;
   public type ChunkStatus = Types.ChunkStatus;
   public type Store = Types.Store;
 
@@ -150,6 +151,32 @@ module {
       sha256 = hash;
       size = content.size();
       content;
+    });
+  };
+
+  /// Get completed download details with a region pointer instead of content.
+  /// The pointer stays owned by this store and is deallocated on `remove`.
+  public func getPointer(store : Store, key : DownloadKey) : Result.Result<DownloadPointerDetails, Text> {
+    let ?download = find(store, key) else return #err("Download with key " # key # " not found");
+
+    let hash = switch (download.sha256, download.hash) {
+      case (?providedHash, ?hash) {
+        if (hash != providedHash) {
+          return #err("Provided hash does not match computed hash: " # debug_show ({ providedHash; hash }));
+        };
+        hash;
+      };
+      case (_, null) return #err("Download with key " # key # " is not completed");
+      case (_, ?hash) hash;
+    };
+
+    #ok({
+      key;
+      name = download.name;
+      contentType = download.contentType;
+      sha256 = hash;
+      size = download.pointer.1;
+      pointer = download.pointer;
     });
   };
 

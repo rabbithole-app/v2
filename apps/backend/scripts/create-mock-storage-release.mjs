@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -105,6 +105,9 @@ function copyReleaseInputs(args, releaseDirPath) {
 function createFrontendArchive(frontendDir, releaseDirPath) {
   if (!existsSync(frontendDir)) {
     throw new Error(`Storage frontend build not found: ${frontendDir}`);
+  }
+  if (!readdirSync(frontendDir).some((name) => name === 'index.html')) {
+    throw new Error(`Storage frontend build looks empty (no index.html): ${frontendDir}. Run \`npx nx build storage\` first.`);
   }
 
   execFileSync('tar', ['-cf', join(releaseDirPath, 'storage-frontend.tar'), '-C', frontendDir, '.'], {

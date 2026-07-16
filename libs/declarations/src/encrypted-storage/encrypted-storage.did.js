@@ -46,7 +46,7 @@ export const idlFactory = ({ IDL }) => {
       'expected' : IDL.Vec(IDL.Text),
     }),
   });
-  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
+  const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
   const BatchId = IDL.Nat;
   const StorageErrorCode = IDL.Variant({
     'Internal' : IDL.Null,
@@ -699,6 +699,16 @@ export const idlFactory = ({ IDL }) => {
     }),
     'err' : StorageError,
   });
+  const Status = IDL.Record({
+    'totalFiles' : IDL.Nat,
+    'pulledBytes' : IDL.Nat,
+    'versionKey' : IDL.Text,
+    'attempts' : IDL.Nat,
+    'pulledFiles' : IDL.Nat,
+    'stage' : IDL.Text,
+    'lastError' : IDL.Opt(IDL.Text),
+    'totalBytes' : IDL.Nat,
+  });
   const OwnerActivityOrigin = IDL.Variant({
     'storage' : IDL.Null,
     'rabbithole' : IDL.Null,
@@ -866,6 +876,14 @@ export const idlFactory = ({ IDL }) => {
     'streaming_strategy' : IDL.Opt(StreamingStrategy),
     'status_code' : IDL.Nat16,
   });
+  const InstallFrontendArgs = IDL.Record({
+    'totalFiles' : IDL.Nat,
+    'versionKey' : IDL.Text,
+    'expectedTreeHash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'isUpgrade' : IDL.Bool,
+    'totalBytes' : IDL.Nat,
+  });
+  const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const AssetEncodingDetails = IDL.Record({
     'modified' : Time,
     'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -1197,7 +1215,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_1], []),
+    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_2], []),
     '_internet_identity_sign_in_start' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'abortUploadSession' : IDL.Func(
         [IDL.Record({ 'batchId' : BatchId })],
@@ -1372,6 +1390,7 @@ export const idlFactory = ({ IDL }) => {
         [StorageResult_10],
         ['query'],
       ),
+    'getFrontendInstallStatus' : IDL.Func([], [IDL.Opt(Status)], ['query']),
     'getMyAccessRequest' : IDL.Func([], [IDL.Opt(AccessRequest)], ['query']),
     'getOwnerActivityState' : IDL.Func([], [OwnerActivityState], ['query']),
     'getRecoveryStatus' : IDL.Func([], [RecoveryStatus], ['query']),
@@ -1414,6 +1433,7 @@ export const idlFactory = ({ IDL }) => {
         [RawUpdateHttpResponse],
         [],
       ),
+    'installFrontend' : IDL.Func([InstallFrontendArgs], [Result_1], []),
     'invalidateSubscriptionCache' : IDL.Func([], [], []),
     'list' : IDL.Func([IDL.Record({})], [IDL.Vec(AssetDetails)], ['query']),
     'listAccessGrants' : IDL.Func(

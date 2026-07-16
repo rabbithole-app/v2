@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "version": "0.5.0",
+  "tagName": "storage-v0.5.0",
+  "commit": "221abdf40c6daba19f7f564de20a40bda2820d64",
+  "frontendAssetTreeHash": "41715d134fe4824cf28754d9a2ebc5775b86021df2d990c5e9a950f3476554ba",
+  "artifacts": {
+    "wasm": {
+      "name": "encrypted-storage.wasm.gz",
+      "size": 975010,
+      "sha256": "c7abdba0b79133797771a7498bec5247bbf4f978ab15c3815abb34be31f2487d"
+    },
+    "frontend": {
+      "name": "storage-frontend.tar",
+      "size": 7516160,
+      "sha256": "a9d3587df073e28e1aa7b94d839be324b8c4db54a1074ebc5120a8efe6fe77bc"
+    },
+    "did": {
+      "name": "encrypted-storage.did",
+      "size": 39105,
+      "sha256": "bad922656c93a788d84fa254a7efbea69e05ec2a5c49adc84db4c2ebe4c6f0cc"
+    },
+    "stableSignature": {
+      "name": "encrypted-storage.most",
+      "size": 53292,
+      "sha256": "ea4ab983c57bf8ebbc12a2ade90b190d48ae68d2b48cf6ac2594823694ceafa6"
+    },
+    "jsLibrary": {
+      "name": "encrypted-storage-lib.zip",
+      "size": 380147,
+      "sha256": "b84ea00d1db55a99974745f8f185904190f551987efad29c24a02db6c16e9d81"
+    }
+  },
+  "upgrade": {
+    "argStrategy": "reuseInstallArgV1",
+    "compatibleFrom": [
+      "0.1.0",
+      "0.2.0",
+      "0.3.0",
+      "0.4.0"
+    ]
+  },
+  "releaseNotes": {
+    "source": "generated",
+    "summary": "Storage release with 1 feature, 2 fixes.",
+    "sections": [
+      {
+        "title": "Features",
+        "items": [
+          "Serve storage deployments and top-ups from backend cycles reserve."
+        ]
+      },
+      {
+        "title": "Fixes",
+        "items": [
+          "Switch Solana mainnet RPC to Alchemy.",
+          "Freeze downloader stable HTTP types to restore mainnet upgrade compatibility."
+        ]
+      }
+    ]
+  }
+}

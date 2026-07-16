@@ -32,6 +32,7 @@ import EncryptedStorageMiddleware "mo:encrypted-storage/Middleware";
 import Const "mo:encrypted-storage/Const";
 import T "mo:encrypted-storage/Types";
 import BlobStorageCashier "BlobStorage/CashierAccount";
+import FrontendPullInstallerMixin "FrontendPullInstallerMixin";
 import SubscriptionGate "SubscriptionGate";
 import HttpAssetsMixin "HttpAssetsMixin";
 import IdentityVerification "IdentityVerification/lib";
@@ -857,16 +858,9 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
     onVerified = storeVerifiedIdentityAttributes;
   });
 
-  transient let installerAssetPermissions : ?HttpAssets.SetPermissions = if (installer == owner) {
-    null;
-  } else {
-    ?{
-      prepare = [];
-      commit = [installer];
-      manage_permissions = [];
-    };
-  };
-  transient var assetStore = HttpAssets.Assets(assetStableData, installerAssetPermissions);
+  // Frontend installs are pull-based (FrontendPullInstaller writes assets
+  // locally as owner), so the installer no longer needs a Commit grant.
+  transient var assetStore = HttpAssets.Assets(assetStableData, null);
   transient var assetCanister = AssetCanister.AssetCanister(assetStore);
 
   func isReleaseStateWriter(caller : Principal) : Bool {
@@ -992,6 +986,16 @@ shared ({ caller = installer }) persistent actor class EncryptedStorageCanister(
   };
 
   initInfoJson<system>();
+
+  include FrontendPullInstallerMixin({
+    owner;
+    isReleaseStateWriter;
+    backendId = func() : ?Principal = storage.backendId;
+    assetStore = func() : HttpAssets.Assets = assetStore;
+    isUserAsset = isFrontendUserAsset;
+    computeTreeHash = frontendAssetTreeHash;
+  });
+  resumeFrontendPull<system>();
 
   // Create the HTTP App with middleware
   transient let app = Liminal.App({

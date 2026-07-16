@@ -88,6 +88,13 @@ module {
     content : Blob;
   };
 
+  /// Completed download details with a pointer into the shared region
+  /// instead of materialized content
+  public type DownloadPointerDetails = CommonAssetArgs and {
+    sha256 : Blob;
+    pointer : SizedPointer;
+  };
+
   // -- Chunk Status --
 
   /// Status of an individual download chunk

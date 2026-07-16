@@ -89,14 +89,14 @@ export const idlFactory = ({ IDL }) => {
       'expected' : IDL.Vec(IDL.Text),
     }),
   });
-  const Result_9 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
+  const Result_12 = IDL.Variant({ 'ok' : IDL.Null, 'err' : Error });
   const Plan = IDL.Variant({ 'Pro' : IDL.Null, 'Free' : IDL.Null });
   const AddStorageError = IDL.Variant({
     'NotController' : IDL.Null,
     'CanisterAlreadyUsed' : IDL.Record({ 'canisterId' : IDL.Principal }),
     'InvalidWasm' : IDL.Text,
   });
-  const Result_8 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
+  const Result_11 = IDL.Variant({ 'ok' : IDL.Nat, 'err' : AddStorageError });
   const UserSettings = IDL.Record({
     'spendingPriority' : IDL.Vec(TokenId),
     'topUpAmountCycles' : IDL.Nat,
@@ -183,6 +183,23 @@ export const idlFactory = ({ IDL }) => {
     'referralCodeNotFound' : IDL.Null,
     'alreadyApplied' : IDL.Null,
   });
+  const FrontendPullPlan = IDL.Record({
+    'filesToPull' : IDL.Nat,
+    'skippedBytes' : IDL.Nat,
+    'skippedFiles' : IDL.Nat,
+    'staleToDelete' : IDL.Nat,
+    'bytesToPull' : IDL.Nat,
+    'changedToDelete' : IDL.Nat,
+  });
+  const FrontendPullError = IDL.Variant({
+    'UnknownFile' : IDL.Null,
+    'NotReady' : IDL.Null,
+    'NoActiveInstall' : IDL.Null,
+    'InvalidChunk' : IDL.Null,
+    'UnknownVersion' : IDL.Null,
+    'UnknownCanister' : IDL.Null,
+  });
+  const Result_10 = IDL.Variant({ 'ok' : IDL.Null, 'err' : FrontendPullError });
   const LicenseStorageLimits = IDL.Record({
     'includedBytes' : IDL.Nat,
     'maxFileBytes' : IDL.Nat,
@@ -204,6 +221,19 @@ export const idlFactory = ({ IDL }) => {
   const IdentityAttributesSyncResult = IDL.Variant({
     'ok' : IDL.Null,
     'err' : IdentityAttributesSyncError,
+  });
+  const PullStats = IDL.Record({
+    'pulledBytes' : IDL.Nat,
+    'treeHashMatched' : IDL.Opt(IDL.Bool),
+    'changedDeletedFiles' : IDL.Nat,
+    'skippedBytes' : IDL.Nat,
+    'pulledFiles' : IDL.Nat,
+    'skippedFiles' : IDL.Nat,
+    'staleDeletedFiles' : IDL.Nat,
+  });
+  const FrontendPullResult = IDL.Variant({
+    'ok' : PullStats,
+    'err' : IDL.Text,
   });
   const CreateCouponArgs = IDL.Record({
     'expiresAt' : IDL.Opt(Time),
@@ -250,7 +280,7 @@ export const idlFactory = ({ IDL }) => {
     'NotFound' : IDL.Null,
     'NotOwner' : IDL.Null,
   });
-  const Result_7 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
+  const Result_9 = IDL.Variant({ 'ok' : IDL.Null, 'err' : DeleteStorageError });
   const EnsureStorageCyclesForUploadRequest = IDL.Record({
     'activeUploadedBytes' : IDL.Nat,
     'currentBalance' : IDL.Nat,
@@ -259,7 +289,7 @@ export const idlFactory = ({ IDL }) => {
     'remainingUploadBytes' : IDL.Nat,
     'requiredBalance' : IDL.Nat,
   });
-  const Result_6 = IDL.Variant({
+  const Result_8 = IDL.Variant({
     'ok' : IDL.Record({
       'cyclesAdded' : IDL.Opt(IDL.Nat),
       'requiredBalance' : IDL.Nat,
@@ -486,6 +516,7 @@ export const idlFactory = ({ IDL }) => {
     'size' : IDL.Nat,
   });
   const ExtractionStatus = IDL.Variant({
+    'Failed' : IDL.Text,
     'Idle' : IDL.Null,
     'Complete' : IDL.Vec(FileMetadata),
     'Decoding' : IDL.Record({ 'total' : IDL.Nat, 'processed' : IDL.Nat }),
@@ -594,7 +625,7 @@ export const idlFactory = ({ IDL }) => {
     'ReleaseNotCompatible' : IDL.Null,
     'NotCompleted' : IDL.Null,
   });
-  const Result_5 = IDL.Variant({
+  const Result_7 = IDL.Variant({
     'ok' : StorageReleaseOptionsResult,
     'err' : UpgradeStorageError,
   });
@@ -1149,6 +1180,25 @@ export const idlFactory = ({ IDL }) => {
     'rootHash' : IDL.Text,
   });
   const Result_2 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const FrontendFileChunk = IDL.Record({
+    'content' : IDL.Vec(IDL.Nat8),
+    'sha256' : IDL.Vec(IDL.Nat8),
+    'totalSize' : IDL.Nat,
+    'chunkCount' : IDL.Nat,
+  });
+  const Result_6 = IDL.Variant({
+    'ok' : FrontendFileChunk,
+    'err' : FrontendPullError,
+  });
+  const FrontendManifest = IDL.Record({
+    'totalFiles' : IDL.Nat,
+    'entries' : IDL.Vec(FileMetadata),
+    'totalBytes' : IDL.Nat,
+  });
+  const Result_5 = IDL.Variant({
+    'ok' : FrontendManifest,
+    'err' : FrontendPullError,
+  });
   const StorageBackendType = IDL.Variant({
     'OnChain' : IDL.Null,
     'BlobStorage' : IDL.Null,
@@ -1292,14 +1342,18 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
-    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_9], []),
+    '_internet_identity_sign_in_finish' : IDL.Func([], [Result_12], []),
     '_internet_identity_sign_in_start' : IDL.Func([], [IDL.Vec(IDL.Nat8)], []),
     'activateSubscription' : IDL.Func(
         [IDL.Principal, Plan, IDL.Opt(IDL.Int)],
         [],
         [],
       ),
-    'addStorage' : IDL.Func([IDL.Principal, IDL.Vec(IDL.Nat8)], [Result_8], []),
+    'addStorage' : IDL.Func(
+        [IDL.Principal, IDL.Vec(IDL.Nat8)],
+        [Result_11],
+        [],
+      ),
     'adminGetUserWalletMeta' : IDL.Func(
         [IDL.Principal],
         [
@@ -1327,6 +1381,11 @@ export const idlFactory = ({ IDL }) => {
     'adminRegisterWasmHash' : IDL.Func([IDL.Vec(IDL.Nat8), IDL.Text], [], []),
     'adminSyncBlobStorageCashierAdminAccess' : IDL.Func([], [], []),
     'applyReferralCode' : IDL.Func([IDL.Text], [ApplyReferralCodeResult], []),
+    'beginFrontendInstall' : IDL.Func(
+        [IDL.Record({ 'versionKey' : IDL.Text, 'plan' : FrontendPullPlan })],
+        [Result_10],
+        [],
+      ),
     'checkSubscription' : IDL.Func(
         [IDL.Vec(IDL.Nat8)],
         [SubscriptionCheckResult],
@@ -1339,11 +1398,21 @@ export const idlFactory = ({ IDL }) => {
       ),
     'clearAvatar' : IDL.Func([], [], []),
     'commitAvatarUpload' : IDL.Func([IDL.Text], [AvatarRef], []),
+    'completeFrontendInstall' : IDL.Func(
+        [
+          IDL.Record({
+            'result' : FrontendPullResult,
+            'versionKey' : IDL.Text,
+          }),
+        ],
+        [],
+        [],
+      ),
     'createCoupon' : IDL.Func([CreateCouponArgs], [Result__1_2], []),
     'createProfile' : IDL.Func([CreateProfileArgs], [IDL.Vec(IDL.Nat8)], []),
     'deleteCoupon' : IDL.Func([IDL.Text], [Result__1_1], []),
     'deleteProfile' : IDL.Func([], [], []),
-    'deleteStorage' : IDL.Func([IDL.Nat], [Result_7], []),
+    'deleteStorage' : IDL.Func([IDL.Nat], [Result_9], []),
     'dismissPendingCmcOp' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'ok' : IDL.Null, 'notFound' : IDL.Null })],
@@ -1351,7 +1420,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'ensureStorageCyclesForUpload' : IDL.Func(
         [EnsureStorageCyclesForUploadRequest],
-        [Result_6],
+        [Result_8],
         [],
       ),
     'ensureUser' : IDL.Func([IDL.Opt(IDL.Text)], [], []),
@@ -1412,7 +1481,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getStorageUpgradePlan' : IDL.Func(
         [IDL.Principal, StorageReleaseState],
-        [Result_5],
+        [Result_7],
         ['query'],
       ),
     'getSubscription' : IDL.Func([], [IDL.Opt(Subscription)], ['query']),
@@ -1506,6 +1575,28 @@ export const idlFactory = ({ IDL }) => {
       ),
     'prepareStorageRelease' : IDL.Func([IDL.Text], [Result_2], []),
     'processPendingRefunds' : IDL.Func([], [IDL.Nat], []),
+    'pullFrontendFileChunk' : IDL.Func(
+        [
+          IDL.Record({
+            'key' : IDL.Text,
+            'chunkIndex' : IDL.Nat,
+            'versionKey' : IDL.Text,
+          }),
+        ],
+        [Result_6],
+        [],
+      ),
+    'pullFrontendManifest' : IDL.Func(
+        [
+          IDL.Record({
+            'versionKey' : IDL.Text,
+            'offset' : IDL.Nat,
+            'limit' : IDL.Nat,
+          }),
+        ],
+        [Result_5],
+        [],
+      ),
     'purchaseLicenseAndCreateStorage' : IDL.Func(
         [StorageBackendType, StorageVetKeyLevel],
         [Result_4],
