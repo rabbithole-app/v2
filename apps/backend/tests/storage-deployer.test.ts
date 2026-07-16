@@ -1625,12 +1625,7 @@ describe("StorageDeployer", () => {
   // BACKEND CANISTER UPGRADE TESTS
   // ═══════════════════════════════════════════════════════════════
 
-  // TEMPORARILY SKIPPED: the one-shot PullMigration is attached to the actor
-  // (push→pull rework); its domain describes the pre-pull state, so a
-  // same-wasm self-upgrade fails the compatibility gate by design.
-  // Re-enable when PullMigration.mo and the (with migration = ...) clause are
-  // dropped after the first successful mainnet upgrade.
-  test.skip(
+  test(
     "should preserve storages after backend canister upgrade",
     { timeout: 120000 },
     async () => {

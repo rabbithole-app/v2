@@ -32,7 +32,6 @@ import CMCTypes "Types/CMCTypes";
 import LedgerTypes "Types/LedgerTypes";
 import XRCTypes "Types/XRCTypes";
 import Account "StorageDeployer/Utils/Account";
-import PullMigration "StorageDeployer/PullMigration";
 import StorageReleaseConfig "StorageDeployer/StorageReleaseConfig";
 
 import KnownWasmHashesMixin "KnownWasmHashes/mixin";
@@ -61,7 +60,6 @@ import Notifications "Notifications/lib";
 import Types "Types";
 import Utils "Utils/lib";
 
-(with migration = PullMigration.run)
 shared ({ caller = installer }) persistent actor class Rabbithole(initArgs : Types.InitArgs) = self {
   let canisterId = Principal.fromActor(self);
   transient let backendInitArgs = switch (initArgs) {
