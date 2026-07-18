@@ -1,6 +1,7 @@
 import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Nat8 "mo:core/Nat8";
+import Option "mo:core/Option";
 import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
@@ -338,7 +339,44 @@ module EvmRpc {
   };
 
   /// Get the current nonce for an address on the EVM chain.
+  let DEFAULT_ETH_PROVIDERS : [EthMainnetService] = [#Alchemy, #PublicNode, #Ankr];
+  let DEFAULT_SEPOLIA_PROVIDERS : [EthSepoliaService] = [#Alchemy, #PublicNode, #Ankr];
+  let DEFAULT_L2_PROVIDERS : [L2MainnetService] = [#Alchemy, #PublicNode, #Ankr];
+
+  /// Fee estimates, pending nonces and sendRawTransaction responses legitimately
+  /// differ between providers (per-block base fee, mempool view, "already known"
+  /// dedup), so multi-provider equality consensus regularly fails for them.
+  /// Query providers one at a time instead, falling back to the next on failure.
+  /// A single source is safe for these calls: a bad fee or nonce can only make
+  /// the transaction fail or stall, and re-broadcasting the same signed bytes is
+  /// idempotent — funds cannot be redirected.
+  func singleProviderCandidates(rpcServices : RpcServices) : [RpcServices] {
+    switch (rpcServices) {
+      case (#Custom({ chainId; services })) Array.map<RpcApi, RpcServices>(services, func(s) = #Custom({ chainId; services = [s] }));
+      case (#EthMainnet(providers)) Array.map<EthMainnetService, RpcServices>(Option.get(providers, DEFAULT_ETH_PROVIDERS), func(p) = #EthMainnet(?[p]));
+      case (#EthSepolia(providers)) Array.map<EthSepoliaService, RpcServices>(Option.get(providers, DEFAULT_SEPOLIA_PROVIDERS), func(p) = #EthSepolia(?[p]));
+      case (#BaseMainnet(providers)) Array.map<L2MainnetService, RpcServices>(Option.get(providers, DEFAULT_L2_PROVIDERS), func(p) = #BaseMainnet(?[p]));
+      case (#ArbitrumOne(providers)) Array.map<L2MainnetService, RpcServices>(Option.get(providers, DEFAULT_L2_PROVIDERS), func(p) = #ArbitrumOne(?[p]));
+      case (#OptimismMainnet(providers)) Array.map<L2MainnetService, RpcServices>(Option.get(providers, DEFAULT_L2_PROVIDERS), func(p) = #OptimismMainnet(?[p]));
+    };
+  };
+
   public func getNonce(
+    evmRpcCanisterId : Text,
+    rpcServices : RpcServices,
+    address : Text,
+  ) : async* Result.Result<Nat, Text> {
+    var lastError = "getNonce: no RPC services";
+    for (services in singleProviderCandidates(rpcServices).vals()) {
+      switch (await* getNonceFromSource(evmRpcCanisterId, services, address)) {
+        case (#ok(count)) return #ok(count);
+        case (#err(e)) lastError := e;
+      };
+    };
+    #err(lastError);
+  };
+
+  func getNonceFromSource(
     evmRpcCanisterId : Text,
     rpcServices : RpcServices,
     address : Text,
@@ -358,6 +396,20 @@ module EvmRpc {
 
   /// Estimate EIP-1559 fee caps from eth_feeHistory.
   public func getFeeEstimate(
+    evmRpcCanisterId : Text,
+    rpcServices : RpcServices,
+  ) : async* Result.Result<EvmFeeEstimate, Text> {
+    var lastError = "getFeeEstimate: no RPC services";
+    for (services in singleProviderCandidates(rpcServices).vals()) {
+      switch (await* getFeeEstimateFromSource(evmRpcCanisterId, services)) {
+        case (#ok(estimate)) return #ok(estimate);
+        case (#err(e)) lastError := e;
+      };
+    };
+    #err(lastError);
+  };
+
+  func getFeeEstimateFromSource(
     evmRpcCanisterId : Text,
     rpcServices : RpcServices,
   ) : async* Result.Result<EvmFeeEstimate, Text> {
@@ -595,6 +647,21 @@ module EvmRpc {
 
   /// Send a signed raw transaction via EVM RPC canister.
   func sendRawTx(
+    evmRpcCanisterId : Text,
+    rpcServices : RpcServices,
+    rawTx : [Nat8],
+  ) : async* Result.Result<Text, Text> {
+    var lastError = "sendRawTransaction: no RPC services";
+    for (services in singleProviderCandidates(rpcServices).vals()) {
+      switch (await* sendRawTxFromSource(evmRpcCanisterId, services, rawTx)) {
+        case (#ok(txHash)) return #ok(txHash);
+        case (#err(e)) lastError := e;
+      };
+    };
+    #err(lastError);
+  };
+
+  func sendRawTxFromSource(
     evmRpcCanisterId : Text,
     rpcServices : RpcServices,
     rawTx : [Nat8],

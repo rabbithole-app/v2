@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import { runWithProxy } from '@rabbithole/testing';
 
-import type { DistributePaymentResult, DistributionRecord, TransferRecord, WithdrawResult } from '../declarations/treasury/treasury.did.d.ts';
+import type { DistributePaymentResult, DistributionRecord, TransferRecord, VerifyDistributionResult, WithdrawResult } from '../declarations/treasury/treasury.did.d.ts';
 import { TreasuryManager } from './setup/treasury-manager.ts';
 
 const l1Identity = createIdentity('sol-ambassador-l1');
@@ -360,5 +360,33 @@ describe('Treasury Canister — SOL (with outcalls)', () => {
       expect(t.error).toEqual([]);
     }
     expect(record.status).toEqual({ completed: null });
+  });
+
+  test('verifyDistribution: SOL — retained marker notApplicable, real transfer verifiable on-chain', async () => {
+    manager.deferredTreasuryActor.setIdentity(manager.adminIdentity);
+
+    // Verifies the 'sol-dist-l1l2' distribution from the previous test:
+    // transfer[0] = treasury share (retained marker), transfer[1] = real L1 send.
+    const result = await runWithProxy(manager.pic, async (proxy) => {
+      const getResult = await manager.deferredTreasuryActor.verifyDistribution('sol-dist-l1l2');
+      return proxy(getResult);
+    });
+
+    expect(result).toHaveProperty('ok');
+    const verifications = (result as Extract<VerifyDistributionResult, { ok: unknown }>).ok;
+    expect(verifications).toHaveLength(2);
+
+    expect(verifications[0].txHash).toBe('retained-at-treasury-address');
+    expect(verifications[0].status).toEqual({ notApplicable: null });
+
+    // Devnet timing: right after send the tx may still be propagating.
+    expect(verifications[1].txHash).not.toBe('');
+    expect(['confirmed', 'pending']).toContain(Object.keys(verifications[1].status)[0]);
+  });
+
+  test('verifyDistribution: unknown paymentId returns #NotFound', async () => {
+    manager.treasuryActor.setIdentity(manager.adminIdentity);
+    const result = await manager.treasuryActor.verifyDistribution('sol-no-such-payment');
+    expect(result).toEqual({ err: { NotFound: null } });
   });
 });

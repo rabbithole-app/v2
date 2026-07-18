@@ -1281,6 +1281,27 @@ export const idlFactory = ({ IDL }) => {
     'response' : HttpRequestResult,
   });
   const UpdateProfileArgs = IDL.Record({ 'displayName' : IDL.Opt(IDL.Text) });
+  const TransferOnChainStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'error' : IDL.Text,
+    'reverted' : IDL.Null,
+    'confirmed' : IDL.Null,
+    'notApplicable' : IDL.Null,
+  });
+  const TransferVerification = IDL.Record({
+    'status' : TransferOnChainStatus,
+    'txHash' : IDL.Text,
+  });
+  const VerifyDistributionError = IDL.Variant({
+    'NotFound' : IDL.Null,
+    'Unauthorized' : IDL.Null,
+    'EvmNotConfigured' : IDL.Null,
+    'SolNotConfigured' : IDL.Null,
+  });
+  const VerifyDistributionResult = IDL.Variant({
+    'ok' : IDL.Vec(TransferVerification),
+    'err' : VerifyDistributionError,
+  });
   const WithdrawDestination = IDL.Variant({
     'IC' : IDL.Record({
       'owner' : IDL.Principal,
@@ -1660,6 +1681,7 @@ export const idlFactory = ({ IDL }) => {
     'updateProfile' : IDL.Func([UpdateProfileArgs], [], []),
     'updateSettings' : IDL.Func([UserSettings], [], []),
     'usernameExists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+    'verifyDistribution' : IDL.Func([IDL.Text], [VerifyDistributionResult], []),
     'withdraw' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
     'withdrawFromTreasury' : IDL.Func([WithdrawArgs], [WithdrawResult], []),
   });

@@ -158,6 +158,14 @@ mixin(
     Treasury.getDistributionLog(treasury, opts);
   };
 
+  /// On-chain check of a distribution's transfers: EVM receipts / SOL
+  /// signature statuses. The send-time ack is not proof of inclusion —
+  /// this is the authoritative post-hoc verification.
+  public shared ({ caller }) func verifyDistribution(paymentId : Text) : async TreasuryTypes.VerifyDistributionResult {
+    admin.assertAdmin(caller);
+    await* Treasury.verifyDistribution(treasury, paymentId);
+  };
+
   /// Self-serve distribution history: rows where the caller is the payer or
   /// an ambassador (L1/L2). Powers the ambassador dashboard earnings view.
   public query ({ caller }) func getMyDistributions() : async [TreasuryTypes.DistributionRecord] {

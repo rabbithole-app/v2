@@ -20,9 +20,11 @@ import { BrnPopoverImports } from '@spartan-ng/brain/popover';
 
 import {
   formatBytes,
+  formatTokenAmountInput,
   injectMainActor,
   timeInNanosToDate,
 } from '@rabbithole/core';
+import { TOKEN_CONFIGS } from '@rabbithole/core/wallet';
 import {
   CreationListItem,
   CreationStatus,
@@ -517,9 +519,13 @@ export class AdminCreationStatusPopoverComponent {
   }
 
   private _formatTokenAmount(amount: bigint, tokenId: TokenId): string {
-    if ('ICP' in tokenId) return this._formatIcpE8s(amount);
+    const label = this._tokenLabel(tokenId);
+    const decimals = TOKEN_CONFIGS.find(
+      (config) => label in config.tokenId,
+    )?.decimals;
+    if (decimals === undefined) return `${amount.toString()} ${label}`;
 
-    return `${amount.toString()} raw ${this._tokenLabel(tokenId)} units`;
+    return `${formatTokenAmountInput(amount, decimals)} ${label}`;
   }
 
   private _hasProgress(status: CreationStatus): boolean {

@@ -143,6 +143,22 @@ module {
     numerator / denominator;
   };
 
+  /// The treasury leg of a distribution is the user's own charge; ambassador
+  /// legs are optional extras. Returns the error text when the treasury-share
+  /// transfer failed — in that case the payment did not actually happen.
+  public func treasuryLegError(record : TreasuryTypes.DistributionRecord) : ?Text {
+    for (t in record.transfers.vals()) {
+      switch (t.error) {
+        case (?err) {
+          let isAmbassadorLeg = record.ambassadorL1 == ?t.recipient or record.ambassadorL2 == ?t.recipient;
+          if (not isAmbassadorLeg) return ?err;
+        };
+        case null {};
+      };
+    };
+    null;
+  };
+
   /// Get the ICRC-1 ledger fee for an IC token.
   public func getIcTokenFee(tokenId : TreasuryTypes.TokenId) : Nat {
     switch (tokenId) {

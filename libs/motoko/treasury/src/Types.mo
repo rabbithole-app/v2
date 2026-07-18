@@ -229,12 +229,13 @@ module {
     #error : Text;       // RPC error during verification
   };
 
-  /// Result of verifying a distribution's EVM transfers on-chain.
+  /// Result of verifying a distribution's EVM/SOL transfers on-chain.
   public type VerifyDistributionResult = Result.Result<[TransferVerification], VerifyDistributionError>;
 
   public type VerifyDistributionError = {
     #NotFound;
     #EvmNotConfigured;
+    #SolNotConfigured;
     #Unauthorized;
   };
 };

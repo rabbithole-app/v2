@@ -1,3 +1,4 @@
+import Array "mo:core/Array";
 import Blob "mo:core/Blob";
 import Error "mo:core/Error";
 import Nat "mo:core/Nat";
@@ -328,8 +329,45 @@ module SolRpc {
     };
   };
 
+  /// The blockhash changes every slot (~400ms) and the response carries the
+  /// provider's own context.slot, so multi-provider equality consensus over
+  /// the raw JSON practically never succeeds. Query providers one at a time
+  /// instead, falling back to the next on failure. A single source is safe
+  /// here: a bogus blockhash can only make the transaction fail, it cannot
+  /// redirect funds (we build and sign the instructions ourselves).
+  func blockhashSourceCandidates(rpcSources : RpcSources) : [RpcSources] {
+    switch (rpcSources) {
+      case (#Custom(sources)) Array.map<RpcSource, RpcSources>(sources, func(s) = #Custom([s]));
+      case (#Default(#Mainnet)) [
+        #Custom([#Supported(#AlchemyMainnet)]),
+        #Custom([#Supported(#HeliusMainnet)]),
+        #Custom([#Supported(#DrpcMainnet)]),
+      ];
+      case (#Default(#Devnet)) [
+        #Custom([#Supported(#AlchemyDevnet)]),
+        #Custom([#Supported(#HeliusDevnet)]),
+        #Custom([#Supported(#DrpcDevnet)]),
+      ];
+      case (#Default(#Testnet)) [#Default(#Testnet)];
+    };
+  };
+
   /// Get the latest blockhash via jsonRequest (getLatestBlockhash is not in the canister interface).
   public func getLatestBlockhash(
+    solRpcCanisterId : Text,
+    rpcSources : RpcSources,
+  ) : async* Result.Result<[Nat8], Text> {
+    var lastError = "getLatestBlockhash: no RPC sources";
+    for (sources in blockhashSourceCandidates(rpcSources).vals()) {
+      switch (await* getLatestBlockhashFromSource(solRpcCanisterId, sources)) {
+        case (#ok(blockhash)) return #ok(blockhash);
+        case (#err(e)) lastError := e;
+      };
+    };
+    #err(lastError);
+  };
+
+  func getLatestBlockhashFromSource(
     solRpcCanisterId : Text,
     rpcSources : RpcSources,
   ) : async* Result.Result<[Nat8], Text> {

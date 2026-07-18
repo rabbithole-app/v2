@@ -2736,6 +2736,18 @@ describe("Integration: chargeForService with SOL (Solana testnet)", () => {
     // Fund user's SOL address on Devnet
     await fundWithSol(userSolAddress, 12_000_000n); // 0.012 SOL; enough for the inflated-rate Pro charge plus fees.
 
+    // The treasury share lands on the backend's treasury-derived SOL address.
+    // A fresh devnet account must end up above the rent-exempt minimum
+    // (~890_880 lamports), so pre-fund it — the inflated-rate charge itself
+    // is only ~10k lamports and would fail simulation (InsufficientFundsForRent).
+    const deferredOwner = manager.createDeferredBackendActor();
+    deferredOwner.setIdentity(manager.ownerIdentity);
+    const getTreasuryAddresses = await deferredOwner.getTreasuryWalletAddresses();
+    for (let i = 0; i < 10; i++) await manager.pic.tick(2);
+    const treasuryAddresses = await getTreasuryAddresses();
+    if (treasuryAddresses.solAddress.length === 0) throw new Error("No treasury SOL address");
+    await fundWithSol(treasuryAddresses.solAddress[0], 2_000_000n);
+
     // Activate Pro subscription with 1h expiry
     actor.setIdentity(manager.ownerIdentity);
     const picTimeMs = await manager.pic.getTime();

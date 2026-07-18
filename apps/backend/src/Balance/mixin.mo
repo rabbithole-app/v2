@@ -294,9 +294,22 @@ mixin (
               settleDiscount(true);
               return #ok({ tokenId; amount = tokenAmount });
             };
-            case (#err(#PartiallyCompleted(_))) {
-              settleDiscount(true);
-              return #ok({ tokenId; amount = tokenAmount });
+            case (#err(#PartiallyCompleted(record))) {
+              // Partial completion is only acceptable when the user's own
+              // charge (treasury leg) went through and just an ambassador
+              // leg failed. A failed treasury leg means no payment happened
+              // — the paymentId is already marked processed, so retrying
+              // with another token is impossible; surface the error.
+              switch (Balance.treasuryLegError(record)) {
+                case (?err) {
+                  settleDiscount(false);
+                  return #err("Charge failed: " # err);
+                };
+                case null {
+                  settleDiscount(true);
+                  return #ok({ tokenId; amount = tokenAmount });
+                };
+              };
             };
             case (#err(_)) {};
           };

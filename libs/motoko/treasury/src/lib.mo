@@ -610,6 +610,11 @@ module Treasury {
 
   // ---- Distribution ----
 
+  /// Pseudo tx-id recorded for the treasury share of `distributePayment`
+  /// (funds already sit at the treasury address, nothing is sent on-chain).
+  /// Verification must skip it — it is not a real txHash/signature.
+  let RETAINED_AT_TREASURY_MARKER = "retained-at-treasury-address";
+
   /// Distribute a payment to treasury + ambassadors.
   /// Supports both IC (ICRC-1) and EVM (Base) tokens.
   /// Distribute an already-received payment across treasury + ambassadors.
@@ -770,7 +775,7 @@ module Treasury {
     // Treasury share: recorded as retained (no outbound transfer — funds
     // already sit at treasuryEvmAddr where they arrived).
     if (treasuryAmount > 0) {
-      Vector.add(transfers, makeEvmTransferRecord(treasury.canisterId, treasuryEvmAddr, treasuryAmount, args.tokenId, #ok("retained-at-treasury-address")));
+      Vector.add(transfers, makeEvmTransferRecord(treasury.canisterId, treasuryEvmAddr, treasuryAmount, args.tokenId, #ok(RETAINED_AT_TREASURY_MARKER)));
     };
 
     // Transfer L1 share
@@ -910,7 +915,7 @@ module Treasury {
 
     // Treasury share: retained at treasurySolAddr (funds already arrived there).
     if (treasuryAmount > 0) {
-      Vector.add(transfers, makeSolTransferRecord(treasury.canisterId, treasurySolAddr, treasuryAmount, args.tokenId, #ok("retained-at-treasury-address")));
+      Vector.add(transfers, makeSolTransferRecord(treasury.canisterId, treasurySolAddr, treasuryAmount, args.tokenId, #ok(RETAINED_AT_TREASURY_MARKER)));
     };
 
     // Transfer L1 share
@@ -1457,6 +1462,13 @@ module Treasury {
     });
     Vector.add(transfers, makeIcTransferRecord(treasury.canisterId, ?treasurySubaccount, treasuryNet, args.tokenId, treasuryResult));
 
+    // The treasury leg IS the user's charge — if it failed, don't send
+    // ambassador shares from the user's wallet on top of a failed payment.
+    switch (treasuryResult) {
+      case (#Err(_)) return finalizeDistribution(treasury, distArgs, treasuryAmount, l1Amount, l2Amount, transfers);
+      case (#Ok(_)) {};
+    };
+
     // Transfer L1 share from user subaccount → L1 subaccount
     switch (args.ambassadorL1) {
       case (?l1) {
@@ -1575,6 +1587,13 @@ module Treasury {
     );
     Vector.add(transfers, makeEvmTransferRecord(treasury.canisterId, treasuryEvmAddr, treasuryAmount, args.tokenId, result));
     nonce += 1;
+
+    // The treasury leg IS the user's charge — if it failed, don't send
+    // ambassador shares from the user's wallet on top of a failed payment.
+    switch (result) {
+      case (#err(_)) return finalizeDistribution(treasury, distArgs, treasuryAmount, l1Amount, l2Amount, transfers);
+      case (#ok(_)) {};
+    };
 
     // L1 share
     if (l1Amount > 0) {
@@ -1697,6 +1716,13 @@ module Treasury {
     // Treasury share → fixed treasury SOL address
     let result = await sendSolOrSplTransfer(treasurySolAddr, treasuryAmount);
     Vector.add(transfers, makeSolTransferRecord(treasury.canisterId, treasurySolAddr, treasuryAmount, args.tokenId, result));
+
+    // The treasury leg IS the user's charge — if it failed, don't send
+    // ambassador shares from the user's wallet on top of a failed payment.
+    switch (result) {
+      case (#err(_)) return finalizeDistribution(treasury, distArgs, treasuryAmount, l1Amount, l2Amount, transfers);
+      case (#ok(_)) {};
+    };
 
     // L1 share
     if (l1Amount > 0) {
@@ -2200,8 +2226,9 @@ module Treasury {
   };
 
   /// Verify on-chain status of EVM transfers in a distribution.
-  /// Checks `eth_getTransactionReceipt` for each transfer that has a txHash.
-  /// Access control delegated to parent canister.
+  /// Checks the on-chain status of each transfer in a distribution:
+  /// `eth_getTransactionReceipt` for EVM txHashes, `getSignatureStatuses`
+  /// for SOL signatures. Access control delegated to parent canister.
   public func verifyDistribution(
     treasury : Treasury,
     paymentId : Text,
@@ -2224,6 +2251,10 @@ module Treasury {
       case null return #err(#NotFound);
     };
 
+    if (isSolToken(dist.tokenId)) {
+      return await* verifySolDistribution(treasury, dist);
+    };
+
     let evmConfig = switch (getEvmChainConfig(treasury.store.chains, dist.tokenId)) {
       case (?cfg) cfg;
       case null return #err(#EvmNotConfigured);
@@ -2232,9 +2263,13 @@ module Treasury {
     let rpcServices = buildRpcServices(evmConfig);
     var verifications = Vector.new<Types.TransferVerification>();
 
-    for (transfer in dist.transfers.vals()) {
+    label transfers for (transfer in dist.transfers.vals()) {
       switch (transfer.txHash) {
         case (?hash) {
+          if (Text.equal(hash, RETAINED_AT_TREASURY_MARKER)) {
+            Vector.add(verifications, { txHash = hash; status = #notApplicable });
+            continue transfers;
+          };
           let status = switch (await* EvmRpc.getTransactionReceipt(evmConfig.evmRpcCanisterId, rpcServices, hash)) {
             case (#ok(?receipt)) {
               switch (receipt.status) {
@@ -2255,6 +2290,101 @@ module Treasury {
     };
 
     #ok(Vector.toArray(verifications));
+  };
+
+  /// SOL leg of `verifyDistribution`: one batched `getSignatureStatuses`
+  /// call (multi-provider consensus — signature status is deterministic
+  /// once finalized) mapped back onto the distribution's transfers.
+  /// `txHash` in the result carries the SOL signature.
+  func verifySolDistribution(
+    treasury : Treasury,
+    dist : Types.DistributionRecord,
+  ) : async* Types.VerifyDistributionResult {
+    let solConfig = switch (getSolanaChainConfig(treasury.store.chains, dist.tokenId)) {
+      case (?cfg) cfg;
+      case null return #err(#SolNotConfigured);
+    };
+    let rpcSources = buildSolRpcSources(solConfig);
+
+    // The retained-treasury marker is not a real signature — exclude it here
+    // and report it as #notApplicable below.
+    func realSignature(transfer : Types.TransferRecord) : ?Text {
+      switch (transfer.solSignature) {
+        case (?sig) if (Text.equal(sig, RETAINED_AT_TREASURY_MARKER)) null else ?sig;
+        case null null;
+      };
+    };
+
+    var signatures = Vector.new<Text>();
+    for (transfer in dist.transfers.vals()) {
+      switch (realSignature(transfer)) {
+        case (?sig) Vector.add(signatures, sig);
+        case null {};
+      };
+    };
+
+    var verifications = Vector.new<Types.TransferVerification>();
+    let sigArray = Vector.toArray(signatures);
+
+    let statuses : [?SolRpc.TransactionStatus] = if (sigArray.size() == 0) { [] } else {
+      switch (await* SolRpc.getSignatureStatuses(solConfig.solRpcCanisterId, rpcSources, sigArray)) {
+        case (#ok(s)) s;
+        case (#err(e)) {
+          for (transfer in dist.transfers.vals()) {
+            switch (realSignature(transfer)) {
+              case (?sig) Vector.add(verifications, { txHash = sig; status = #error(e) });
+              case null Vector.add(verifications, { txHash = markerOrEmpty(transfer); status = #notApplicable });
+            };
+          };
+          return #ok(Vector.toArray(verifications));
+        };
+      };
+    };
+
+    var sigIndex = 0;
+    for (transfer in dist.transfers.vals()) {
+      switch (realSignature(transfer)) {
+        case (?sig) {
+          let status : Types.TransferOnChainStatus = if (sigIndex >= statuses.size()) {
+            #error("getSignatureStatuses: missing status entry");
+          } else {
+            switch (statuses[sigIndex]) {
+              // null = signature unknown to the cluster: still propagating,
+              // or dropped (e.g. expired blockhash) — not confirmable yet.
+              case null #pending;
+              case (?s) {
+                switch (s.err) {
+                  case (?_) #reverted;
+                  case null {
+                    switch (s.confirmationStatus) {
+                      case (?#confirmed) #confirmed;
+                      case (?#finalized) #confirmed;
+                      case _ #pending;
+                    };
+                  };
+                };
+              };
+            };
+          };
+          Vector.add(verifications, { txHash = sig; status });
+          sigIndex += 1;
+        };
+        case null {
+          Vector.add(verifications, { txHash = markerOrEmpty(transfer); status = #notApplicable });
+        };
+      };
+    };
+
+    #ok(Vector.toArray(verifications));
+  };
+
+  /// txHash to report for a non-verifiable transfer: the retained-treasury
+  /// marker if that's what the record carries, otherwise empty.
+  func markerOrEmpty(transfer : Types.TransferRecord) : Text {
+    switch (transfer.solSignature) {
+      case (?sig) sig;
+      case null "";
+    };
   };
 
   /// Get the treasury ICP balance (single token). Used for hot-path

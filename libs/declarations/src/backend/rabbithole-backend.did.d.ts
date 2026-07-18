@@ -1010,6 +1010,7 @@ export interface Rabbithole {
   'updateProfile' : ActorMethod<[UpdateProfileArgs], undefined>,
   'updateSettings' : ActorMethod<[UserSettings], undefined>,
   'usernameExists' : ActorMethod<[string], boolean>,
+  'verifyDistribution' : ActorMethod<[string], VerifyDistributionResult>,
   'withdraw' : ActorMethod<[WithdrawArgs], WithdrawResult>,
   'withdrawFromTreasury' : ActorMethod<[WithdrawArgs], WithdrawResult>,
 }
@@ -1416,6 +1417,11 @@ export type TokenId = { 'ICP' : null } |
   { 'BaseUSDC' : null } |
   { 'BaseUSDT' : null } |
   { 'BaseETH' : null };
+export type TransferOnChainStatus = { 'pending' : null } |
+  { 'error' : string } |
+  { 'reverted' : null } |
+  { 'confirmed' : null } |
+  { 'notApplicable' : null };
 export interface TransferRecord {
   'tokenId' : TokenId,
   'solSignature' : [] | [string],
@@ -1427,6 +1433,10 @@ export interface TransferRecord {
   'txHash' : [] | [string],
   'amount' : bigint,
   'evmAddress' : [] | [string],
+}
+export interface TransferVerification {
+  'status' : TransferOnChainStatus,
+  'txHash' : string,
 }
 export interface TreasuryInitArgsV1 { 'chains' : [] | [Array<ChainConfig>] }
 export interface UpdateInfo {
@@ -1488,6 +1498,12 @@ export interface UserSettings {
   'autoRenew' : boolean,
   'autoTopUp' : boolean,
 }
+export type VerifyDistributionError = { 'NotFound' : null } |
+  { 'Unauthorized' : null } |
+  { 'EvmNotConfigured' : null } |
+  { 'SolNotConfigured' : null };
+export type VerifyDistributionResult = { 'ok' : Array<TransferVerification> } |
+  { 'err' : VerifyDistributionError };
 export interface WithdrawArgs {
   'to' : WithdrawDestination,
   'tokenId' : TokenId,
