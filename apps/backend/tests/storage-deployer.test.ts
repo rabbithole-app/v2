@@ -17,6 +17,7 @@ import {
   type RabbitholeActorService,
   type StorageInfo,
   type StorageReleaseState,
+  initEncryptedStorage,
   UpdateInfo,
 } from "@rabbithole/declarations";
 
@@ -85,6 +86,8 @@ import {
   ICP_LEDGER_CANISTER_ID,
   ICP_TRANSACTION_FEE,
   ONE_TRILLION_CYCLES,
+  buildStorageEnvironmentVariables,
+  STORAGE_WASM_PATH,
 } from "./setup/constants";
 import {
   frontendV2Content,
@@ -102,6 +105,16 @@ const CheckSubscriptionResultIDL = IDL.Variant({
   invalidWasm: IDL.Null,
   unknownCanister: IDL.Null,
 });
+
+function encodeStorageInitArg(
+  owner: import("@icp-sdk/core/principal").Principal,
+) {
+  const [initArgsIdl] = initEncryptedStorage({ IDL });
+  return IDL.encode(
+    [initArgsIdl],
+    [{ owner, storageBackendType: [{ OnChain: null }] }],
+  );
+}
 
 type CheckSubscriptionResult =
   | { active: { plan: { Free: null } | { Pro: null } } }
@@ -593,6 +606,40 @@ describe("StorageDeployer", () => {
       backendFixture.actor.setIdentity(manager.ownerIdentity);
     }
   });
+
+  test("lists 16 externally registered storages in creation order", async () => {
+    await waitForReleasesReady(manager, backendFixture);
+    const identity = createIdentity("list16StorageUser");
+    const initArg = encodeStorageInitArg(identity.getPrincipal());
+    const canisterIds: string[] = [];
+    backendFixture.actor.setIdentity(identity);
+    try {
+      for (let i = 0; i < 16; i++) {
+        const storage =
+          await manager.pic.setupCanister<EncryptedStorageActorService>({
+            wasm: STORAGE_WASM_PATH,
+            sender: identity.getPrincipal(),
+            idlFactory:
+              encryptedStorageIdlFactory as unknown as IDL.InterfaceFactory,
+            environmentVariables: buildStorageEnvironmentVariables(
+              backendFixture.canisterId,
+            ),
+            arg: initArg,
+          });
+        canisterIds.push(storage.canisterId.toText());
+        expect(
+          await backendFixture.actor.addStorage(storage.canisterId, initArg),
+        ).toHaveProperty("ok");
+      }
+
+      const storages = await backendFixture.actor.listStorages();
+      expect(storages).toHaveLength(16);
+      expect(storages.map((storage) => storage.canisterId[0]?.toText())).toEqual(canisterIds);
+      expect(storages.every((storage) => "Completed" in storage.status)).toBe(true);
+    } finally {
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    }
+  }, 180_000);
 
   // ═══════════════════════════════════════════════════════════════
   // LEDGER & CMC TESTS
