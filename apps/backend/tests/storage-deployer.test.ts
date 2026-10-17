@@ -584,6 +584,16 @@ describe("StorageDeployer", () => {
     await manager.afterAll();
   });
 
+  test("returns an empty storage list for a new authenticated caller", async () => {
+    const newIdentity = createIdentity("emptyStorageListUser");
+    backendFixture.actor.setIdentity(newIdentity);
+    try {
+      expect(await backendFixture.actor.listStorages()).toEqual([]);
+    } finally {
+      backendFixture.actor.setIdentity(manager.ownerIdentity);
+    }
+  });
+
   // ═══════════════════════════════════════════════════════════════
   // LEDGER & CMC TESTS
   // ═══════════════════════════════════════════════════════════════

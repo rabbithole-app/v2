@@ -2262,7 +2262,11 @@ module StorageDeployerOrchestrator {
   // QUERIES
   // ═══════════════════════════════════════════════════════════════
 
-  func mapToStorageInfo(store : Store, runtime : RuntimeState, record : StorageCreationRecord) : StorageInfo {
+  func mapToStorageInfo(
+    store : Store,
+    releases : [GitHubReleases.ReleaseFullStatus],
+    record : StorageCreationRecord,
+  ) : StorageInfo {
     {
       id = record.id;
       canisterId = record.canisterId;
@@ -2270,7 +2274,7 @@ module StorageDeployerOrchestrator {
       releaseTag = record.releaseTag;
       createdAt = record.createdAt;
       completedAt = record.completedAt;
-      updateAvailable = StorageReleasePlanner.getUpdateInfo(store.githubReleases, getStorageReleaseAdminStatus(store, runtime).releases, record);
+      updateAvailable = StorageReleasePlanner.getUpdateInfo(store.githubReleases, releases, record);
       lastUpgradeError = record.lastUpgradeError;
       frontendInstallDiagnostics = record.frontendInstallDiagnostics;
     };
@@ -2278,9 +2282,13 @@ module StorageDeployerOrchestrator {
 
   /// List all storages for a user with their current status
   public func listStorages(self : Store, creations : Creations.Creations, runtime : RuntimeState, caller : Principal) : [StorageInfo] {
+    let records = creations.listByOwner(caller);
+    if (records.size() == 0) return [];
+
+    let releases = getStorageReleaseAdminStatus(self, runtime).releases;
     Array.map<StorageCreationRecord, StorageInfo>(
-      creations.listByOwner(caller),
-      func(r) = mapToStorageInfo(self, runtime, r),
+      records,
+      func(r) = mapToStorageInfo(self, releases, r),
     );
   };
 
