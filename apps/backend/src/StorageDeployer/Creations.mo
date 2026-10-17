@@ -435,6 +435,10 @@ module {
       ZenDB.QueryBuilder().Where("creationId", #eq(#Nat(creationId))).Limit(1);
     };
 
+    func creationIdsQuery(creationIds : [ZenDB.Types.Candid]) : ZenDB.QueryBuilder {
+      ZenDB.QueryBuilder().Where("creationId", #anyOf(creationIds));
+    };
+
     func deleteById(creationId : Nat) {
       ignore cores.delete(ZenDB.QueryBuilder().Where("id", #eq(#Nat(creationId))));
       ignore contexts.delete(ZenDB.QueryBuilder().Where("creationId", #eq(#Nat(creationId))));
@@ -483,6 +487,32 @@ module {
     func getFromCore(core : StorageCreationCore) : ?StorageCreationRecord {
       let ?context = findContext(core.id) else return null;
       ?assemble(core, context, findTimeline(core.id), findDiagnostics(core.id));
+    };
+
+    func findDetail<T>(
+      documents : [(ZenDB.Types.DocumentId, T, [ZenDB.Types.TextMatch])],
+      creationId : Nat,
+      idOf : T -> Nat,
+    ) : ?T {
+      switch (Array.find(documents, func((_, document, _)) = idOf(document) == creationId)) {
+        case (?(_, document, _)) ?document;
+        case null null;
+      };
+    };
+
+    func recordsFromCores(
+      documents : [(ZenDB.Types.DocumentId, StorageCreationCore, [ZenDB.Types.TextMatch])],
+    ) : [StorageCreationRecord] {
+      Array.map<?StorageCreationRecord, StorageCreationRecord>(
+        Array.filter<?StorageCreationRecord>(
+          Array.map(documents, func(_, core, _) = getFromCore(core)),
+          Option.isSome,
+        ),
+        func(record) = switch (record) {
+          case (?value) value;
+          case null Runtime.unreachable();
+        },
+      );
     };
 
     func upsertTimeline(timeline : StorageCreationTimeline) {
@@ -565,19 +595,44 @@ module {
         .Where("owner", #eq(#Principal(owner)))
         .SortBy("createdAt", #Ascending);
       let #ok({ documents }) = cores.search(q) else return [];
-      Array.map<?StorageCreationRecord, StorageCreationRecord>(
-        Array.filter<?StorageCreationRecord>(
-          Array.map<(ZenDB.Types.DocumentId, StorageCreationCore, [ZenDB.Types.TextMatch]), ?StorageCreationRecord>(
-            documents,
-            func(_, core, _) = getFromCore(core),
-          ),
-          func(record) = Option.isSome(record),
-        ),
-        func(record) = switch (record) {
-          case (?value) value;
-          case null Runtime.unreachable();
-        },
-      );
+      if (documents.size() == 0) return [];
+
+      let creationIds = Array.map(documents, func(_, core, _) = #Nat(core.id));
+      switch (
+        contexts.search(creationIdsQuery(creationIds)),
+        timelines.search(creationIdsQuery(creationIds)),
+        diagnostics.search(creationIdsQuery(creationIds)),
+      ) {
+        case (
+          #ok({ documents = contextDocuments }),
+          #ok({ documents = timelineDocuments }),
+          #ok({ documents = diagnosticDocuments }),
+        ) {
+          Array.map<?StorageCreationRecord, StorageCreationRecord>(
+            Array.filter<?StorageCreationRecord>(
+              Array.map(documents, func(_, core, _) {
+                switch (findDetail(contextDocuments, core.id, func(context : StorageCreationContext) : Nat { context.creationId })) {
+                  case null null;
+                  case (?context) {
+                    let timeline = switch (findDetail(timelineDocuments, core.id, func(value : StorageCreationTimeline) : Nat { value.creationId })) {
+                      case (?value) value;
+                      case null ({ creationId = core.id; events = [] });
+                    };
+                    let diagnostic = findDetail(diagnosticDocuments, core.id, func(value : StorageCreationDiagnostics) : Nat { value.creationId });
+                    ?assemble(core, context, timeline, diagnostic);
+                  };
+                };
+              }),
+              Option.isSome,
+            ),
+            func(record) = switch (record) {
+              case (?value) value;
+              case null Runtime.unreachable();
+            },
+          );
+        };
+        case _ recordsFromCores(documents);
+      };
     };
 
     /// Find a creation by its bound canisterId. Used by `findOwnerByCanister`

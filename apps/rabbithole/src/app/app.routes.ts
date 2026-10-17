@@ -9,7 +9,6 @@ import {
   adminGuard,
   dashboardGuard,
   loginGuard,
-  profileResolver,
 } from '@rabbithole/core/app-runtime';
 
 import { storageViewGuard } from './core/guards';
@@ -54,9 +53,6 @@ export const appRoutes: Route[] = [
         (m) => m.DashboardComponent,
       ),
     canActivate: [dashboardGuard],
-    resolve: {
-      profile: profileResolver,
-    },
     children: [
       {
         path: '',

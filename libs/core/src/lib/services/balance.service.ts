@@ -370,79 +370,64 @@ export async function fetchTokenBalancesForWallet(args: {
     rpcConfig,
     wallet,
   } = args;
-  const results: TokenBalance[] = [];
+  const icBalances = (async () => {
+    const icConfigs = TOKEN_CONFIGS.filter((t) => t.chain === 'ic');
+    const settled = await Promise.allSettled(
+      icConfigs.map(async (config) => {
+        if (!config.canisterId) {
+          throw new Error(`${config.label} is missing an IC ledger canister ID`);
+        }
+        const ledger = Actor.createActor<IcrcLedgerActor>(icrc1BalanceOfIdl, {
+          agent: ledgerAgent,
+          canisterId: config.canisterId,
+        });
+        const [balance, principalBalance, withdrawFee] = await Promise.all([
+          ledger.icrc1_balance_of({
+            owner: ownerPrincipal,
+            subaccount: [Array.from(wallet.icSubaccount)],
+          }),
+          depositPrincipal
+            ? ledger.icrc1_balance_of({ owner: depositPrincipal, subaccount: [] })
+            : Promise.resolve(0n),
+          ledger.icrc1_fee().catch(() => 0n),
+        ]);
+        return { config, balance, principalBalance, withdrawFee };
+      }),
+    );
 
-  // Fetch IC balances (4 parallel queries)
-  const icConfigs = TOKEN_CONFIGS.filter((t) => t.chain === 'ic');
-  const icBalances = await Promise.allSettled(
-    icConfigs.map(async (config) => {
-      if (!config.canisterId) {
-        throw new Error(`${config.label} is missing an IC ledger canister ID`);
-      }
-      const ledger = Actor.createActor<IcrcLedgerActor>(icrc1BalanceOfIdl, {
-        agent: ledgerAgent,
-        canisterId: config.canisterId,
-      });
-      const [balance, principalBalance, withdrawFee] = await Promise.all([
-        ledger.icrc1_balance_of({
-          owner: ownerPrincipal,
-          subaccount: [Array.from(wallet.icSubaccount)],
-        }),
-        depositPrincipal
-          ? ledger.icrc1_balance_of({
-              owner: depositPrincipal,
-              subaccount: [],
-            })
-          : Promise.resolve(0n),
-        ledger.icrc1_fee().catch(() => 0n),
-      ]);
-      return { config, balance, principalBalance, withdrawFee };
-    }),
-  );
-
-  for (const result of icBalances) {
-    if (result.status === 'fulfilled') {
-      const { config, balance, principalBalance, withdrawFee } = result.value;
-      results.push(
-        toTokenBalance(config, balance, rates, principalBalance, withdrawFee),
+    return settled.map((result, index) =>
+      result.status === 'fulfilled'
+        ? toTokenBalance(
+            result.value.config,
+            result.value.balance,
+            rates,
+            result.value.principalBalance,
+            result.value.withdrawFee,
+          )
+        : toTokenBalance(icConfigs[index], 0n, rates),
+    );
+  })();
+  const baseBalances = wallet.evmAddress?.[0]
+    ? fetchBaseBalances(wallet.evmAddress[0], rates, rpcConfig.evmRpcUrl)
+    : Promise.resolve(
+        TOKEN_CONFIGS.filter((t) => t.chain === 'base').map((config) =>
+          toTokenBalance(config, 0n, rates),
+        ),
       );
-    } else {
-      const config = icConfigs[icBalances.indexOf(result)];
-      results.push(toTokenBalance(config, 0n, rates));
-    }
-  }
+  const solBalances = wallet.solAddress?.[0]
+    ? fetchSolanaBalances(wallet.solAddress[0], rates, rpcConfig.solanaRpcUrl)
+    : Promise.resolve(
+        TOKEN_CONFIGS.filter((t) => t.chain === 'solana').map((config) =>
+          toTokenBalance(config, 0n, rates),
+        ),
+      );
 
-  // Fetch Base (EVM) balances via Multicall3
-  if (wallet.evmAddress?.[0]) {
-    const evmAddress = wallet.evmAddress[0];
-    const baseBalances = await fetchBaseBalances(
-      evmAddress,
-      rates,
-      rpcConfig.evmRpcUrl,
-    );
-    results.push(...baseBalances);
-  } else {
-    for (const config of TOKEN_CONFIGS.filter((t) => t.chain === 'base')) {
-      results.push(toTokenBalance(config, 0n, rates));
-    }
-  }
-
-  // Fetch Solana balances
-  if (wallet.solAddress?.[0]) {
-    const solAddress = wallet.solAddress[0];
-    const solBalances = await fetchSolanaBalances(
-      solAddress,
-      rates,
-      rpcConfig.solanaRpcUrl,
-    );
-    results.push(...solBalances);
-  } else {
-    for (const config of TOKEN_CONFIGS.filter((t) => t.chain === 'solana')) {
-      results.push(toTokenBalance(config, 0n, rates));
-    }
-  }
-
-  return results;
+  const [ic, base, solana] = await Promise.all([
+    icBalances,
+    baseBalances,
+    solBalances,
+  ]);
+  return [...ic, ...base, ...solana];
 }
 
 export async function moveIcPrincipalBalanceToWallet(args: {
